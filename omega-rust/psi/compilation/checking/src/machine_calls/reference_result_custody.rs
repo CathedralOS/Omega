@@ -662,16 +662,21 @@ fn construction_sources_with_calls(
     }
 }
 
-/// Selecting an existing value preserves the backing and immediate holder of
-/// every selected descriptor. The projection removes only its owner prefix;
-/// the holder path stays relative to the storage actually supplying the loan.
-fn projected_construction_sources(
+struct AggregateProjection {
+    root: typed_trees::expression::ExpressionHandle,
+    root_type: TypeReferenceHandle,
+    path: Vec<checked_trees::CheckedUnitStructuralPathSegment>,
+    selected_type: TypeReferenceHandle,
+}
+
+/// Resolve aggregate selection once for origin transport and borrowed calls.
+/// Each field identity and fixed index is checked against its declared carrier;
+/// a stored reference remains an explicit crossing after this selection.
+fn aggregate_projection(
     program: &TypedTrees,
     state: &typed_trees::state::State,
     expression: typed_trees::expression::ExpressionHandle,
-    reference: TypeReferenceHandle,
-    active_origins: &mut Vec<SymbolHandle>,
-) -> Option<Vec<ConstructionSource>> {
+) -> Option<AggregateProjection> {
     use checked_trees::CheckedUnitStructuralPathSegment as Segment;
     let mut projections = Vec::new();
     let mut root = expression;
@@ -739,6 +744,22 @@ fn projected_construction_sources(
                 selected = field.type_reference;
             }
             ExpressionNode::Indexed(indexed) => {
+                let (machine, _) =
+                    crate::machine_calls::calls::machine_state_by_symbol(program, state.symbol)?;
+                let index_type =
+                    crate::declarations::operators::landed_integer_literal_type_reference(
+                        program,
+                        indexed.index,
+                    );
+                if !typed_trees::operator::has_builtin_spelled_expression_meaning(
+                    program,
+                    machine.symbol,
+                    projection,
+                    language_core::OperatorSpelling::Index,
+                    &[Some(selected), index_type],
+                ) {
+                    return None;
+                }
                 let ExpressionNode::Integer(index) =
                     program.expression_table.expression(indexed.index)
                 else {
@@ -761,15 +782,42 @@ fn projected_construction_sources(
             _ => return None,
         }
     }
-    if program.normalized_type_identity(selected) != program.normalized_type_identity(reference) {
+    Some(AggregateProjection {
+        root,
+        root_type,
+        path,
+        selected_type: selected,
+    })
+}
+
+/// Selecting an existing value preserves the backing and immediate holder of
+/// every selected descriptor. The projection removes only its owner prefix;
+/// the holder path stays relative to the storage actually supplying the loan.
+fn projected_construction_sources(
+    program: &TypedTrees,
+    state: &typed_trees::state::State,
+    expression: typed_trees::expression::ExpressionHandle,
+    reference: TypeReferenceHandle,
+    active_origins: &mut Vec<SymbolHandle>,
+) -> Option<Vec<ConstructionSource>> {
+    let projection = aggregate_projection(program, state, expression)?;
+    if program.normalized_type_identity(projection.selected_type)
+        != program.normalized_type_identity(reference)
+    {
         return None;
     }
-    let sources = construction_sources_with_calls(program, state, root, root_type, active_origins)?;
+    let sources = construction_sources_with_calls(
+        program,
+        state,
+        projection.root,
+        projection.root_type,
+        active_origins,
+    )?;
     Some(
         sources
             .into_iter()
             .filter_map(|mut source| {
-                let suffix = source.value.path.strip_prefix(path.as_slice())?;
+                let suffix = source.value.path.strip_prefix(projection.path.as_slice())?;
                 source.value.path = suffix.to_vec();
                 Some(source)
             })
@@ -1487,6 +1535,9 @@ pub fn local_record_loans(
                 }
                 checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
                     symbol,
+                }
+                | checked_trees::CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal {
+                    symbol,
                 } => {
                     let (ordinal, referent) = program.state_local_declaration(state, symbol)?;
                     if ordinal >= statement_index as usize {
@@ -1980,17 +2031,14 @@ pub fn record_argument(
         != program
             .normalized_type_identity(local.type_reference)
             .as_str()
-        || result.multiplicity != program.type_multiplicity(local.type_reference)
+        // Source reference uses are reusable, but each materialized descriptor
+        // owns affine lifetime custody, including descriptors in fixed arrays.
+        || result.multiplicity != result_multiplicity(program, local.type_reference)
     {
         return None;
     }
-    let mut members = Vec::new();
-    let mut root = expression;
-    while let ExpressionNode::Member(member) = program.expression_table.expression(root) {
-        members.push(member);
-        root = member.receiver;
-    }
-    let ExpressionNode::Name(name) = program.expression_table.expression(root) else {
+    let projection = aggregate_projection(program, state, expression)?;
+    let ExpressionNode::Name(name) = program.expression_table.expression(projection.root) else {
         return None;
     };
     if name.symbol != local.symbol
@@ -1999,9 +2047,9 @@ pub fn record_argument(
     {
         return None;
     }
-    let (mut path, reference) =
-        declared_field_path(program, local.type_reference, members.into_iter().rev())?;
-    if program.normalized_type_identity(reference) != program.normalized_type_identity(destination)
+    let mut path = projection.path;
+    if program.normalized_type_identity(projection.selected_type)
+        != program.normalized_type_identity(destination)
     {
         return None;
     }

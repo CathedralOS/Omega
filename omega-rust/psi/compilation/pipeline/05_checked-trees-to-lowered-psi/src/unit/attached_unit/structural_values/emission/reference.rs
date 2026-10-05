@@ -27,11 +27,31 @@ impl Emission<'_, '_, '_> {
         let (machine, state) = crate::declarations::state_declaration(self.checked, self.state)?;
         let mut locals = self.evaluation.structural_locals.clone();
         locals.extend(primitive_home);
-        let argument = ScalarBindings::new(self.values.iter().map(|value| value.scalar_type))
+        let bindings = ScalarBindings::new(self.values.iter().map(|value| value.scalar_type))
             .with_structural_parameters(&self.evaluation.structural_parameters)
             .with_structural_locals(&locals)
-            .borrowed_structural_argument(source, machine, self.checked.state_parameters(state))?;
+            .with_primitive_storage(&self.evaluation.primitive_storage);
         let referent_type = lookup_type_id(self.type_ids, &source.type_identity)?;
+        let referent = self
+            .structural_types
+            .iter()
+            .find(|declaration| declaration.id == referent_type)
+            .ok_or(LoweringError::Unsupported(
+                "reference referent type is missing",
+            ))?;
+        // Scalar referents use the same primitive-home join as borrowed call
+        // arguments. A descriptor captures that original home, whether its
+        // source is primitive storage or a projection of a structural owner.
+        let argument = match referent.shape {
+            StructuralTypeShape::PrimitiveScalar(scalar_type) => {
+                bindings.primitive_borrow(source, scalar_type, self.structural_types)?
+            }
+            _ => bindings.borrowed_structural_argument(
+                source,
+                machine,
+                self.checked.state_parameters(state),
+            )?,
+        };
         // A borrowed join names the referent itself, even when that referent
         // happens to contain another reference. Test the relationship before
         // classifying the destination's outer shape.
