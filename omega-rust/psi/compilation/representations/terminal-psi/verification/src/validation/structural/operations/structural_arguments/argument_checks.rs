@@ -229,15 +229,22 @@ pub(in crate::validation) fn validate_structural_argument(
                                 )
                                 && is_runtime_indexed_borrow_path(&argument.path)))
                             // A state arrival retains its declared authority;
-                            // it is not a separate kind of call operand. The
-                            // common access check below rejects widening, and
-                            // availability and argument-pair replay retain loan
-                            // lifetime and exclusivity. Opaque boundaries still
-                            // cannot receive owned or write-only authority.
+                            // it is not a separate kind of call operand, and a
+                            // boundary call reads that authority exactly as an
+                            // ordinary call does. Only owned arguments transfer
+                            // custody at a boundary
+                            // (`wiki/spec/terminal-psi/boundary_calls.md`), and
+                            // the machine-parameter arrival above already
+                            // supplies one without an access condition of its
+                            // own, so this arrival resolves through the same
+                            // canonical arrival contract. The common access
+                            // check below rejects widening, exact-access
+                            // agreement with the formal rejects authority the
+                            // boundary never declared, and availability and
+                            // argument-pair replay retain loan lifetime and
+                            // exclusivity.
                             && (ordinary_call
-                                || (matches!(call_kind, Some(OperationKind::BoundaryCall { .. }))
-                                    && matches!(argument.access,
-                                        StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow)))
+                                || matches!(call_kind, Some(OperationKind::BoundaryCall { .. })))
                             && (source_policy == StructuralArgumentSourcePolicy::ParametersOrBoundaryActuals
                                 || (ordinary_call && source_policy == StructuralArgumentSourcePolicy::ParametersOrAffineLocalsAndCallResults)) =>
                     {

@@ -930,10 +930,6 @@ pub enum ModuleError {
         operation: OperationId,
         argument_index: u32,
     },
-    UnknownClaimAtOperation {
-        operation: OperationId,
-        claim: ClaimId,
-    },
     ClaimActionPlaceMismatch {
         operation: OperationId,
         claim: ClaimId,

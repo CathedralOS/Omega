@@ -1,6 +1,5 @@
 //! Boundary requirements and completion receipts.
 
-use crate::validation::structural::operations::claim_transfers::claim_input;
 use crate::validation::structural::operations::structural_arguments::{
     linear_call_result, literal_qualifications, structural_occurrence_carries_qualification,
 };
@@ -62,82 +61,35 @@ pub(crate) fn validate_boundary_requirements(
     Ok(())
 }
 
+/// The declaration-phase half of a boundary call's receipts: each row names an
+/// argument that exists, no claim is receipted twice, and the roster is in
+/// canonical order.
+///
+/// Which claims the roster must cover, and where each one currently lives, is
+/// not a declaration-phase question. `ownership.md` makes the receipt set the
+/// verifier-derived one for every claim *live* at each exact argument
+/// occurrence, and a claim's home moves with every owned successor transfer, so
+/// a state arrival holds obligations no static roster records. The ownership
+/// frontier replays both at the call (`validation/frontier/operations.rs`),
+/// exactly as it already does for an ordinary owned call's claim transfers,
+/// whose declaration phase says the same thing about its own owned arguments.
 pub(crate) fn validate_boundary_completion_receipts(
-    caller: &TerminalMachine,
     arguments: &[StructuralArgument],
     receipts: &[CompletionReceipt],
     operation: OperationId,
 ) -> Result<(), ModuleError> {
-    let expected = arguments
-        .iter()
-        .enumerate()
-        .flat_map(|(index, argument)| {
-            caller
-                .entry_claims
-                .iter()
-                .filter_map(move |claim| {
-                    (claim.input == argument.place
-                        && (argument.path.is_empty() || claim.path == argument.path))
-                        .then_some((index as u32, claim.claim))
-                })
-                .chain(caller.content_entry_claims.iter().filter_map(move |claim| {
-                    (claim.input.root == argument.place).then_some((index as u32, claim.claim))
-                }))
-                .chain(
-                    linear_call_result(caller, argument.place)
-                        .into_iter()
-                        .flat_map(move |(_, result)| {
-                            result.claims.iter().filter_map(move |binding| {
-                                (argument.path.is_empty()
-                                    || binding.path.as_slice() == argument.path.as_slice())
-                                .then_some((index as u32, binding.claim))
-                            })
-                        }),
-                )
-        })
-        .collect::<BTreeSet<_>>();
-    let mut actual = BTreeSet::new();
+    let mut rows = BTreeSet::new();
     let mut claims = BTreeSet::new();
     for receipt in receipts {
-        if !actual.insert((receipt.argument_index, receipt.claim)) || !claims.insert(receipt.claim)
-        {
+        if !rows.insert((receipt.argument_index, receipt.claim)) || !claims.insert(receipt.claim) {
             return Err(ModuleError::DuplicateBoundaryCompletionReceipt(operation));
         }
-        let Some(argument) = arguments.get(receipt.argument_index as usize) else {
+        if arguments.get(receipt.argument_index as usize).is_none() {
             return Err(ModuleError::ClaimActionArgumentOutOfRange {
                 operation,
                 argument_index: receipt.argument_index,
             });
-        };
-        // A receipted claim's home is its live holder: a moved result's
-        // own claim bindings before the caller's entry roster.
-        let result_home = linear_call_result(caller, argument.place).and_then(|(_, result)| {
-            result
-                .claims
-                .iter()
-                .find(|binding| binding.claim == receipt.claim)
-                .map(|binding| (result.place, binding.path.as_slice()))
-        });
-        let Some((claim_input, claim_path)) =
-            result_home.or_else(|| claim_input(caller, receipt.claim))
-        else {
-            return Err(ModuleError::UnknownClaimAtOperation {
-                operation,
-                claim: receipt.claim,
-            });
-        };
-        if claim_input != argument.place
-            || (!argument.path.is_empty() && claim_path != argument.path.as_slice())
-        {
-            return Err(ModuleError::ClaimActionPlaceMismatch {
-                operation,
-                claim: receipt.claim,
-                argument_index: receipt.argument_index,
-            });
         }
-    }
-    if actual != expected {
-        return Err(ModuleError::BoundaryCompletionReceiptMismatch(operation));
     }
     if receipts.windows(2).any(|pair| pair[0] >= pair[1]) {
         return Err(ModuleError::NonCanonicalBoundaryCompletionReceipts(

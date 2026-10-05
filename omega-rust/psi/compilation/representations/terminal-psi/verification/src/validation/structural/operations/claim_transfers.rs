@@ -8,10 +8,9 @@ mod argument_claims;
 mod transfer_roster;
 
 use crate::validation::{
-    ClaimId, ClaimTransfer, ModuleError, OperationId, PlaceId, ServiceId, StructuralAccess,
-    StructuralArgument, StructuralMultiplicity, StructuralParameterDeclaration,
-    StructuralPathSegment, TerminalMachine, TerminalModule, is_nonempty_field_path,
-    is_runtime_indexed_borrow_path, resolve_structural_path,
+    ClaimTransfer, ModuleError, OperationId, ServiceId, StructuralAccess, StructuralArgument,
+    StructuralMultiplicity, StructuralParameterDeclaration, TerminalMachine, TerminalModule,
+    is_nonempty_field_path, is_runtime_indexed_borrow_path, resolve_structural_path,
 };
 
 pub(crate) fn validate_service_reach(
@@ -175,22 +174,4 @@ pub(crate) fn validate_unit_call_claim_transfers(
         callee_claims,
     )?;
     Ok(())
-}
-
-pub(crate) fn claim_input(
-    machine: &TerminalMachine,
-    claim: ClaimId,
-) -> Option<(PlaceId, &[StructuralPathSegment])> {
-    machine
-        .entry_claims
-        .iter()
-        .find_map(|candidate| {
-            (candidate.claim == claim).then_some((candidate.input, candidate.path.as_slice()))
-        })
-        .or_else(|| {
-            machine.content_entry_claims.iter().find_map(|candidate| {
-                (candidate.claim == claim)
-                    .then_some((candidate.input.root, &[] as &[StructuralPathSegment]))
-            })
-        })
 }

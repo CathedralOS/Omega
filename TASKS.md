@@ -2594,6 +2594,59 @@ check corpus and the native corpus unchanged on the slices it names.
   by `operation_contracts/records.rs:131-133`, which admits a `Linear` result
   with one whole-root claim.
 
+- **LINEAR-BOUNDARY-SINK-NEEDS-A-PROVIDER.** (new-scope)
+  `pass/ownership/linear_transfer_and_consume` now clears Terminal
+  verification whole and rejects at native realization instead: "native
+  artifact terminal-authority closure review failed: reachable requirement
+  `named-callable(path(Receipt::ack),...)` resolves to 0 selected provider
+  rows". The fixture's terminal disposition is a hook-less `boundary
+  requirement` -- `Receipt` declares no `Receipt::drop`, so the consuming
+  contract is the authorized sink -- and its own `build.omg` binds a
+  `ProgramEntry` for four targets, so the corpus harness realizes it and
+  demands a provider the fixture never declares.
+  A checked `satisfies` adapter cannot supply one: the adapter's own body
+  would receive the linear `Receipt` by value and owe the same obligation
+  with no terminal disposition left, so it would reject. The admitted shape
+  is external satisfier leaves, as in
+  `pass/providers/external_boundary_requirement_via_exit`, which authors a
+  per-target `ForeignBinding` for each satisfying leaf. That is a foreign-ABI
+  capability over a by-value aggregate, not an ownership one, and it is the
+  decision this item needs: either the fixture authors external leaves for
+  `Receipt::ack` on every target it binds, or it drops its `build.omg`
+  entry bindings and stays on the targetless check route like its green
+  siblings `linear_assignment_establishes` and `conditional_linear_sum`.
+  Acceptance: that fixture reaches `checked`, with a full-corpus before/after
+  showing 0 regressions, and
+  `fail/ownership/linear_transparent_record_member_scope_loss` keeps
+  rejecting with ``linear value `pair.right` reaches scope exit without being
+  consumed or transferred``.
+  `pass/ownership/linear_transparent_record_frontier` reaches the same wall
+  once **TRANSPARENT-RECORD-RESULT-CARRIES-MEMBER-CLAIMS** clears, since it
+  uses the same `Receipt::ack` sink.
+
+  What landed at __LAND__, so it is not re-derived. The state arrival a whole
+  owned re-binding creates is now an admitted boundary actual: the arrival arm
+  of
+  `terminal-psi/verification/src/validation/structural/operations/structural_arguments/argument_checks.rs`
+  had admitted a boundary call only for `SharedBorrow` or `MutableBorrow`,
+  while the machine-parameter arrival opening the same lookup carries no
+  access condition and `boundary_calls.md:29-31,135` routes owned boundary
+  custody through the ordinary structural-call continuation. Boundary
+  completion receipts moved with it: the declaration phase derived the
+  expected set from `entry_claims`/`content_entry_claims`/
+  `linear_call_result`, which record no home for a claim an owned successor
+  transfer rebound onto an arrival, so that derivation, its static home
+  lookup, `claim_input` and `UnknownClaimAtOperation` are gone and
+  `frontier/operations.rs` replays the roster against the live claim set
+  per `ownership.md:27-29`.
+
+  Measured and left as it is: that same arrival arm still admits a
+  **projected** owned path only for `ordinary_call`, so
+  `Receipt::ack(extracted_left)` over a projected alias will need the same
+  conjunct removed. It is the identical kind of hand-written boundary
+  restriction, but no program runs because of it until the record-result
+  refusal above clears, so it keeps its current form.
+
 - **UNIT-PLAN-OMISSION-MKALL-WALK-PARAMETER-CUSTODY.** (new-scope)
   **The unit-plan omission is closed and the fixture is now blocked on the
   FilesystemHost provider cluster.** `forwards_qualified_parameter`

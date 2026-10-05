@@ -219,6 +219,71 @@ pub(super) fn apply_operation(
             }
         }
     }
+    // A boundary declares no entry claims, so its receipt roster is not a
+    // callee roster to pair with: normal completion settles every claim live
+    // at each exact owned argument occurrence, with one receipt naming it
+    // there (`wiki/spec/terminal-psi/ownership.md`). Custody crosses a
+    // boundary through the ordinary structural-call continuation
+    // (`wiki/spec/terminal-psi/boundary_calls.md`), and only the frontier
+    // knows a claim's current home once an owned successor transfer has
+    // rebound it, so the declaration phase checks neither set.
+    if let OperationKind::BoundaryCall {
+        structural_arguments,
+        completion_receipts,
+        ..
+    } = &operation.kind
+    {
+        for (argument_index, argument) in structural_arguments.iter().enumerate() {
+            if argument.access != StructuralAccess::Owned {
+                continue;
+            }
+            let live = frontier
+                .claims
+                .iter()
+                .filter(|(_, claim)| {
+                    claim.input == Some(argument.place) && claim.path.starts_with(&argument.path)
+                })
+                .map(|(identity, _)| *identity)
+                .collect::<Vec<_>>();
+            for identity in live {
+                if completion_receipts
+                    .iter()
+                    .filter(|receipt| {
+                        receipt.claim == identity
+                            && receipt.argument_index as usize == argument_index
+                    })
+                    .count()
+                    != 1
+                {
+                    return Err(ModuleError::BoundaryCompletionReceiptMismatch(operation.id));
+                }
+            }
+        }
+        for receipt in completion_receipts {
+            let argument = structural_arguments
+                .get(receipt.argument_index as usize)
+                .ok_or(ModuleError::ClaimActionArgumentOutOfRange {
+                    operation: operation.id,
+                    argument_index: receipt.argument_index,
+                })?;
+            let claim = frontier.claims.get(&receipt.claim).ok_or(
+                ModuleError::ClaimNotLiveAtOperation {
+                    operation: operation.id,
+                    claim: receipt.claim,
+                },
+            )?;
+            if argument.access != StructuralAccess::Owned
+                || claim.input != Some(argument.place)
+                || !claim.path.starts_with(&argument.path)
+            {
+                return Err(ModuleError::ClaimActionPlaceMismatch {
+                    operation: operation.id,
+                    claim: receipt.claim,
+                    argument_index: receipt.argument_index,
+                });
+            }
+        }
+    }
     let claims = transferred_claims(operation);
     for claim in claims {
         if frontier.claims.remove(&claim).is_none() {

@@ -65,12 +65,7 @@ pub(in crate::validation) fn validate_boundary_call(
         &boundary.published_service_ceiling,
     )?;
     validate_boundary_requirements(machine, boundary, structural_arguments, operation.id)?;
-    validate_boundary_completion_receipts(
-        machine,
-        structural_arguments,
-        completion_receipts,
-        operation.id,
-    )?;
+    validate_boundary_completion_receipts(structural_arguments, completion_receipts, operation.id)?;
     Ok(())
 }
 

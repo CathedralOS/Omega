@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": "2", "load1_end": 39.35, "load1_start": 38.92, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "3", "load1_end": 18.29, "load1_start": 18.29, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -2427,8 +2427,8 @@ pass/ownership/linear_assignment_establishes checked 289ms @2d8ed253669f
 pass/ownership/linear_boundary_entry_handoff checked 352ms @2d8ed253669f
 pass/ownership/linear_branch_reconciliation checked 279ms @2d8ed253669f
 pass/ownership/linear_self_receiver_disposition checked 302ms @2d8ed253669f
-pass/ownership/linear_transfer_and_consume rejected 2366ms check-target:macos_arm64 @b5d8c6882a8
-	terminal-artifact production failed: Lowering(InvalidTerminalModule(UnknownStructuralArgument { operation: OperationId(3), argument_index: 0, place: PlaceId(4) }))
+pass/ownership/linear_transfer_and_consume rejected 2509ms check-target:macos_arm64 @f5830721b7d1
+	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(Receipt::ack),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(Receipt\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
 pass/ownership/linear_transparent_record_frontier rejected 1843ms check-target:macos_arm64 @b69e30357ca8+wt
 	terminal-artifact production failed: Lowering(InvalidTerminalModule(RecordResultMismatch(OperationId(5))))
 pass/ownership/move_keyword_field_assignment checked 1226ms check-target:macos_arm64 @2d8ed253669f
