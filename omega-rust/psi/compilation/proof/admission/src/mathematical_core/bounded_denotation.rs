@@ -4185,13 +4185,7 @@ mod tests {
     fn content_context(root: PlaceId) -> PropositionContext {
         PropositionContext::from_value_types_and_places(
             [],
-            [(
-                root,
-                StructuralPlaceKind::Parameter {
-                    position: 0,
-                    is_self: false,
-                },
-            )],
+            [(root, StructuralPlaceKind::Parameter { position: 0 })],
         )
         .expect("content context")
     }
@@ -4410,13 +4404,7 @@ mod tests {
         let equation = Proposition::Equal(x, z);
         let context = PropositionContext::from_value_types_and_places(
             [(x_id, unsigned64_type()), (z_id, unsigned64_type())],
-            [(
-                root,
-                StructuralPlaceKind::Parameter {
-                    position: 0,
-                    is_self: false,
-                },
-            )],
+            [(root, StructuralPlaceKind::Parameter { position: 0 })],
         )
         .expect("context");
         let proof = ProofNode {

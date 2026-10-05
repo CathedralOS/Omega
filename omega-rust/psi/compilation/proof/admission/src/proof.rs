@@ -1665,13 +1665,7 @@ mod tests {
         };
         let context = PropositionContext::from_value_types_and_places(
             [],
-            [(
-                root,
-                StructuralPlaceKind::Parameter {
-                    position: 0,
-                    is_self: false,
-                },
-            )],
+            [(root, StructuralPlaceKind::Parameter { position: 0 })],
         )
         .expect("context");
 

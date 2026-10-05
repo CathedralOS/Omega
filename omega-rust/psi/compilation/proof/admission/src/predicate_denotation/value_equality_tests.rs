@@ -319,10 +319,7 @@ fn mixed_math_guard_substitutes_only_cited_endpoints_and_representable_literals(
         ],
         [(
             PlaceId::new(1).unwrap(),
-            StructuralPlaceKind::Parameter {
-                position: 0,
-                is_self: true,
-            },
+            StructuralPlaceKind::Parameter { position: 0 },
         )],
     )
     .unwrap();

@@ -213,7 +213,6 @@ mod float_fields {
                     PlaceId::new(identity).unwrap(),
                     StructuralPlaceKind::Parameter {
                         position: identity as u32 - 1,
-                        is_self: false,
                     },
                 )
             }),

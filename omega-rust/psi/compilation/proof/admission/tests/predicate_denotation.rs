@@ -392,13 +392,7 @@ fn ieee_and_mathematical_integer_atoms_are_preserved_without_new_laws() {
     let integer_type = IntegerType::new(IntegerSign::Signed, 64).unwrap();
     let context = PropositionContext::from_value_types_and_places(
         [(ValueId::new(1).unwrap(), ScalarType::Integer(integer_type))],
-        [(
-            root,
-            StructuralPlaceKind::Parameter {
-                position: 0,
-                is_self: false,
-            },
-        )],
+        [(root, StructuralPlaceKind::Parameter { position: 0 })],
     )
     .unwrap();
     let field = IeeeFloatStructuralField::new(

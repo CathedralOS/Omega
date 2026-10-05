@@ -679,7 +679,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/compilation/proof/admission/src/mathematical_core/bounded_denotation.rs",
-        sha256: Some("88219ebb3f604a355b0571dcbb8c373ad020e3f9051691682ccdcfc29945cd80"),
+        sha256: Some("b816a7dca6a3e829a812cb1967ea47724664f1e335a22c537d7309776f63ee96"),
         inventory_machinery: false,
     },
     ImplementationSite {
@@ -799,7 +799,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/compilation/proof/admission/src/proof.rs",
-        sha256: Some("9a28427b1c71675dc3c4d38d3090d81a597e5dbf4a068520a2736b63fd9cb218"),
+        sha256: Some("0d498bba4c05ab7373ea89db92ca8425cbf2a32a546589d79682f6931862072f"),
         inventory_machinery: false,
     },
     ImplementationSite {
