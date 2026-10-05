@@ -107,16 +107,15 @@ pub(in crate::lowering) fn byte_view_referent_size(
     }
 }
 
-/// A shared loan of a bounded byte owner: carried as the owner's address,
+/// A readable loan of a bounded byte owner: carried as the owner's address,
 /// read through the owner layout (length word at 0, bytes from 8).
 pub(in crate::lowering) fn is_owner_loan(
     parameter: &terminal_psi::StructuralParameterDeclaration,
     structural_types: &StructuralTypeLookup<'_>,
 ) -> bool {
-    abstract_operations::control_flow::owner_loans::is_shared_bounded_owner_loan(
-        parameter,
-        |identity| structural_types.get(&identity).copied(),
-    )
+    abstract_operations::control_flow::owner_loans::is_bounded_owner_loan(parameter, |identity| {
+        structural_types.get(&identity).copied()
+    })
 }
 
 pub(in crate::lowering) fn is_owned_byte_parameter(

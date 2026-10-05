@@ -53,6 +53,7 @@ mod crashes;
 pub(crate) use cleanup_admission::validate_selected_cleanup_guarantees;
 
 // Operator resolution, indexed access bounds, and machine termination.
+mod indexed_writes;
 mod operators;
 mod ranges;
 pub(crate) mod termination;
@@ -168,6 +169,7 @@ pub(crate) fn check_checked_facts_recording_with_mutation_summaries(
         Ok(proven) => facts.proven_scalar_indexes = proven,
         Err(mut range_diagnostics) => diagnostics.append(&mut range_diagnostics),
     }
+    indexed_writes::record(program, facts);
 
     if let Err(mut termination_diagnostics) =
         termination::check_machine_termination_with_call_frames(program, call_frames.as_ref())

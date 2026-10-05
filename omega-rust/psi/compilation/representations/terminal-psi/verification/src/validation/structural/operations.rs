@@ -23,6 +23,8 @@ mod structural_arguments;
 mod structural_paths;
 mod unit_operation;
 
+pub(in crate::validation) use structural_arguments::owned_bounded_owner_presentation;
+
 pub(crate) use claim_transfers::{
     is_record_loan, validate_service_reach, validate_unit_call_claim_transfers,
 };

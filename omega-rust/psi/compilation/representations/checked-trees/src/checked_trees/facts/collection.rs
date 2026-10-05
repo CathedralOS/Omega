@@ -17,6 +17,10 @@ pub struct CheckFacts {
     /// Lowering marks the read it emits for one of them, so that read's bound
     /// obligation consumes the decision instead of searching for a proof.
     pub proven_scalar_indexes: Vec<typed_trees::expression::ExpressionHandle>,
+    /// Indexed byte assignments whose live bound and declared byte predicates
+    /// were established at the store itself, ordered by target handle position.
+    /// A later restoration of an invariant does not establish this decision.
+    pub proven_byte_writes: Vec<typed_trees::expression::ExpressionHandle>,
     /// Final source execution dependencies, including selected cleanup edges.
     /// The memo scope accelerates queries; it is not their semantic owner.
     pub operational: flow_effects::OperationalPlan,
@@ -103,6 +107,14 @@ pub struct CheckFacts {
 }
 
 impl CheckFacts {
+    pub fn byte_write_is_proven(&self, target: typed_trees::expression::ExpressionHandle) -> bool {
+        self.proven_byte_writes
+            .binary_search_by_key(&crate::operators::handle_position(target), |proven| {
+                crate::operators::handle_position(*proven)
+            })
+            .is_ok()
+    }
+
     /// Whether every bounds check of this `[]` occurrence proved its scalar
     /// index in range.
     pub fn scalar_index_is_proven(

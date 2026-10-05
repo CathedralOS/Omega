@@ -408,35 +408,7 @@ pub(super) fn apply_operation(
     // not retained as disposal obligations. Claim-bearing results must
     // still enter this transaction even when their carrier is copyable.
     if let OperationResult::Structural(result) = &operation.result
-        && (result.multiplicity != StructuralMultiplicity::Unrestricted
-            || super::super::byte_sequence::subslice::borrowed_result_in_module(
-                module,
-                machine,
-                result.place,
-            )
-            .is_none())
-        && super::super::byte_sequence::concatenation::owned_result(machine, result.place).is_none()
-        && terminal_semantics::byte_owned_call_result(module, machine, result.place).is_none()
-        && (result.multiplicity != StructuralMultiplicity::Unrestricted
-            || super::super::element_view::subslice::borrowed_result_in_module(
-                module,
-                machine,
-                result.place,
-            )
-            .is_none())
-        && (result.multiplicity != StructuralMultiplicity::Unrestricted
-            || super::super::record::shared_view_member_source(module, machine, result.place)
-                .is_none())
-        && super::super::primitive_storage::local_result(machine, result.place).is_none()
-        && !super::super::scalar::array::plain_return_source(module, machine, result.place)
-        && !(result.multiplicity == StructuralMultiplicity::Unrestricted
-            && ((super::super::scalar::case::plain_return_source(module, machine, result.place)
-                || super::super::structural::case::plain_return_source(
-                    module,
-                    machine,
-                    result.place,
-                ))
-                || super::super::record::plain_return_source(module, machine, result.place)))
+        && super::result_requires_owned_frontier(result)
     {
         if frontier
             .owned_places

@@ -70,6 +70,7 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
         let statement_fact = build.control.statements.append(FlowStatementFact {
             statement_index,
             entry_semantic_contexts: *active_contexts,
+            exit_semantic_contexts: HandleSpan::empty(),
             entry_constraints: *active_constraints,
             pre_store_constraints: HandleSpan::empty(),
         });
@@ -322,6 +323,11 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
             active_contexts,
             active_constraints,
         );
+        build
+            .control
+            .statements
+            .get_mut(statement_fact)
+            .exit_semantic_contexts = *active_contexts;
 
         // Restore the pre-transition context for the fallthrough path (see the
         // snapshot above). A guarded transition either takes its branch and exits

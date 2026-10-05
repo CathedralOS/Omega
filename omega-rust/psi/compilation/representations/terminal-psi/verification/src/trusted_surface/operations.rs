@@ -637,7 +637,7 @@ static OP_BYTE_SEQUENCE_LENGTH: TrustedSurfaceEntry = entry(
 );
 static OP_BYTE_SEQUENCE_WRITE: TrustedSurfaceEntry = entry(
     "operation:byte-sequence-write",
-    "a byte-sequence write through an exact unqualified mutable view or an established claim-free unrestricted bounded-owned result, with a current same-source length; a UTF-8 owner not declared ASCII-only must have all-ASCII backing on every path from its establishment",
+    "a byte-sequence write through an exact claim-free unrestricted mutable byte parameter (view or bounded owner) or an established bounded-owned result, with a current same-source length and primitive declared predicates; a UTF-8 carrier not declared ASCII-only must have all-ASCII backing on every path from its establishment",
     "the independent index < length goal includes the exact owner's declared byte-class legs: value <= 127 for ASCII-only or UTF-8, and 1 <= value for no-NUL; the write preserves live length and declared predicates, discards incidental initializer predicates, and invalidates propositions observing the destination extent",
     &[
         "fact:structural-effect-observation",

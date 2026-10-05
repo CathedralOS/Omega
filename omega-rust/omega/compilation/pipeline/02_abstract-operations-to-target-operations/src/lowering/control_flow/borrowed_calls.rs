@@ -90,19 +90,14 @@ pub(super) fn argument(
             )?
         };
         // A whole owned bounded byte local lends its home's address to a
-        // shared bounded-owner formal. Unit validation replayed the formal's
-        // byte predicates from the local's own operands; the qualifications
+        // borrowed bounded-owner formal. Unit validation replayed the formal's
+        // byte predicates from the local's current storage; the qualifications
         // add no carrier, so the home layout is the loan's whole ABI.
         let owner_loan = argument.path.is_empty()
-            && abstract_operations::control_flow::owner_loans::is_shared_bounded_owner_loan(
+            && abstract_operations::control_flow::owner_loans::is_bounded_owner_loan(
                 declaration,
                 |identity| types.get(&identity).copied(),
-            )
-            && function.operations.iter().any(|operation| {
-                matches!(operation,
-                    AbstractOperation::EstablishByteSequenceConcatenation { psi_operation, result, .. }
-                        if *psi_operation == producer && result.place == argument.place)
-            });
+            );
         if argument.access != declaration.access
             || !matches!(
                 argument.access,

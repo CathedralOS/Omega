@@ -25,6 +25,14 @@ mod shared_loans;
 mod terminators;
 mod traversal;
 
+/// Disposal follows the checked result's multiplicity and claims, not the
+/// operation that produced it. Unrestricted claim-free storage still needs
+/// dominance and loan checking, but it creates no owned disposal obligation.
+/// Establishment and successor loans must agree on this classification.
+fn result_requires_owned_frontier(result: &terminal_psi::StructuralOperationResult) -> bool {
+    result.multiplicity != StructuralMultiplicity::Unrestricted || !result.claims.is_empty()
+}
+
 pub(crate) use descriptor_loans::{
     argument_may_write_unbounded_storage, borrowed_observation_aliases, observation_projection,
 };

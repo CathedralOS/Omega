@@ -309,18 +309,9 @@ fn validate_structural_field_range_authority(
                     destination, value, ..
                 } = &node.operation
                 {
-                    let predicates = if function.structural_places.iter().any(|place| {
-                        place.id == *destination
-                            && matches!(
-                                place.kind,
-                                semantic_vocabulary::StructuralPlaceKind::OperationResult { .. }
-                            )
-                    }) {
-                        function_structure::owned_byte_predicates(unit, function, *destination)
-                            .ok_or(invalid.clone())?
-                    } else {
-                        terminal_psi::ByteSequencePredicateSet::EMPTY
-                    };
+                    let predicates =
+                        function_structure::byte_write_predicates(unit, function, *destination)
+                            .ok_or(invalid.clone())?;
                     goal = terminal_semantics::indexed_byte_store_goal(goal, *value, predicates)
                         .map_err(|_| invalid.clone())?;
                 }

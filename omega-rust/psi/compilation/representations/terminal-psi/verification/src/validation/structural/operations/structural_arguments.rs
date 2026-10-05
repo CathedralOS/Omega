@@ -7,6 +7,8 @@
 mod argument_checks;
 mod argument_pairs;
 
+pub(in crate::validation) use argument_checks::owned_bounded_owner_presentation;
+
 use crate::validation::{
     BTreeSet, ModuleError, OperationId, OperationKind, PlaceId, StructuralAccess,
     StructuralArgument, StructuralDomainId, StructuralFieldType, StructuralMultiplicity,

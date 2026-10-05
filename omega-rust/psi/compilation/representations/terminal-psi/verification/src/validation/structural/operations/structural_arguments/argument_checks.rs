@@ -714,9 +714,10 @@ pub(in crate::validation) fn validate_structural_argument(
 }
 
 /// A whole established byte local supplies its exact owned carrier, or lends
-/// that carrier/a shared byte view. The source keeps its identity and live extent;
-/// current predicates, not stale initializer octets, supply formal membership.
-fn owned_bounded_owner_presentation(
+/// that carrier/a shared byte view. An exclusive loan must restore every declared
+/// owner predicate; shared loans may rely on stronger current content facts.
+/// The source keeps its identity and live extent in either case.
+pub(in crate::validation) fn owned_bounded_owner_presentation(
     module: &TerminalModule,
     caller: &TerminalMachine,
     argument: &StructuralArgument,
@@ -725,7 +726,10 @@ fn owned_bounded_owner_presentation(
     if !argument.path.is_empty()
         || !matches!(
             argument.access,
-            StructuralAccess::SharedBorrow | StructuralAccess::Owned
+            StructuralAccess::SharedBorrow
+                | StructuralAccess::MutableBorrow
+                | StructuralAccess::WriteOnlyBorrow
+                | StructuralAccess::Owned
         )
         || expected.access != argument.access
         || expected.multiplicity != StructuralMultiplicity::Unrestricted
@@ -765,6 +769,14 @@ fn owned_bounded_owner_presentation(
     let Some(required) = terminal_semantics::byte_parameter_predicates(module, expected) else {
         return false;
     };
+    if matches!(
+        argument.access,
+        StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+    ) && !terminal_semantics::byte_owned_result_predicates(module, caller, argument.place)
+        .is_some_and(|declared| required.implies(declared))
+    {
+        return false;
+    }
     admitted_carrier
         && terminal_semantics::byte_sequence_source_predicates(module, caller, argument.place)
             .is_some_and(|established| established.implies(required))

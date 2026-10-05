@@ -115,6 +115,30 @@ const ELEMENT_VIEW: Wording = Wording {
 };
 
 impl<'a> IndexedWriteLeaf<'a> {
+    /// Join the final source decision at emission, after execution plans have
+    /// been constructed. The decision covers the byte predicate as well as
+    /// the bound; scalar-index admission alone is insufficient for a write.
+    pub(crate) fn formation_is_proven(
+        self,
+        checked: &CheckedTrees,
+        state: SymbolHandle,
+    ) -> Result<bool, LoweringError> {
+        if matches!(self, Self::ElementView(_)) {
+            return Ok(false);
+        }
+        let (_, authored) = crate::declarations::state_declaration(checked, state)?;
+        let Some(checked_trees::statement::StatementNode::Assignment(assignment)) = checked
+            .statement_table
+            .statements(authored.statement_nodes)
+            .get(self.statement_index() as usize)
+        else {
+            return unsupported(self.wording().lost_index);
+        };
+        Ok(checked
+            .facts
+            .byte_write_is_proven(indexed_target(checked, state, assignment, self)?))
+    }
+
     pub(crate) fn statement_index(self) -> u32 {
         match self {
             Self::ByteView(write) => write.statement_index,
@@ -403,7 +427,6 @@ impl<'a> IndexedWriteTarget<'a> {
                     ))?;
                 if parameter.access != StructuralAccess::MutableBorrow
                     || parameter.multiplicity != StructuralMultiplicity::Unrestricted
-                    || !parameter.qualifications.is_empty()
                     || !parameter.projected_qualifications.is_empty()
                     || !structural_types.iter().any(|declaration| {
                         declaration.id == parameter.structural_type
@@ -412,6 +435,7 @@ impl<'a> IndexedWriteTarget<'a> {
                                 StructuralTypeShape::ByteSequence(
                                     terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
                                         | terminal_psi::ByteSequenceCarrier::BoundedView { .. }
+                                        | terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
                                 )
                             )
                     })
@@ -573,6 +597,7 @@ impl Destination {
 /// a byte leaf resolves its root.
 pub(crate) fn emit(
     target: IndexedWriteTarget<'_>,
+    formation_decided: bool,
     parameters: &[(u32, StructuralParameterDeclaration)],
     structural_types: &[StructuralTypeDeclaration],
     index: &LoweredDirectExpression,
@@ -601,6 +626,9 @@ pub(crate) fn emit(
     let value = emit_direct_expression(value, values, next_value, operations);
     let length = destination.length(next_value, operations)?;
     let obligation = obligation_id(allocate_dense(next_obligation)?);
+    if formation_decided {
+        operations.source_checked_obligations.push(obligation);
+    }
     let place = destination.place;
     Ok(match destination.shape {
         DestinationShape::ByteView => OperationKind::ByteSequenceWrite {

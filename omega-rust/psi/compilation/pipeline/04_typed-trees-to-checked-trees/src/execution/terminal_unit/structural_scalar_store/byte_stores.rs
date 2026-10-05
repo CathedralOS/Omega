@@ -17,8 +17,10 @@ use crate::execution::terminal_unit::types::{
 
 /// `view[index] = byte` through a whole mutable borrowed view or owned local.
 /// Replacing a byte observes the current length, so a borrowed root needs an
-/// ordinary unrestricted, unqualified mutable borrow rather than write-only
-/// authority. An owned root retains its exact mutable local establishment.
+/// ordinary unrestricted mutable borrow rather than write-only authority.
+/// Byte predicates stay attached to the owner and become store obligations;
+/// borrowing its backing does not turn it into an unqualified byte view.
+/// An owned root retains its exact mutable local establishment.
 pub(super) fn view_write(
     program: &TypedTrees,
     facts: &CheckFacts,
@@ -30,6 +32,7 @@ pub(super) fn view_write(
     source: AssignmentSource,
     trace: &LocalConstructionTrace,
 ) -> Option<CheckedUnitEffectOperationPlan> {
+    trace.phase("indexed store: byte or element backing");
     let index = destination.dynamic_index?;
     if !destination.place.segments.is_empty() {
         return None;
@@ -68,11 +71,23 @@ pub(super) fn view_write(
         Root::Parameter { plan, parameter } => {
             if plan.access != CheckedStructuralAccess::MutableBorrow
                 || plan.multiplicity != Multiplicity::Unrestricted
-                || !plan.qualifications.is_empty()
                 || plan.fused_service_erasure.is_some()
-                || !byte_sequence_carrier(program, parameter.type_reference, &[])
-                    .is_some_and(checked_trees::CheckedByteSequenceCarrier::is_borrowed)
+                || byte_sequence_carrier(program, parameter.type_reference, &[]).is_none()
             {
+                return None;
+            }
+            let domains = crate::facts::field_domain::domain_constraint_symbols(
+                program,
+                parameter.type_reference,
+            );
+            if !domains.into_iter().all(|symbol| {
+                typed_trees::domain::domain_by_symbol(program, symbol).is_some_and(|domain| {
+                    domain.establishment_routes.is_empty()
+                        && domain.semantic_roles == Default::default()
+                        && typed_trees::byte_predicates::domain_byte_predicate(program, symbol)
+                            .is_some()
+                })
+            }) {
                 return None;
             }
         }

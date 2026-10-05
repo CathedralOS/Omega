@@ -224,14 +224,14 @@ pub(in crate::legalization) fn edge_bindings(
                     declaration,
                     &plan.structural_types,
                 ) {
-                    // A whole argument keeps the identical-declaration
-                    // forward; a static projection names the declared byte
+                    // A whole argument lends a completed owner or keeps the
+                    // identical-declaration forward; a projection names the byte
                     // leaf whose carrier is the loan's referent — the same
                     // storage either spelling reaches.
                     return binding.parameter == declaration.place
                         && binding.argument.access == declaration.access
                         && if binding.argument.path.is_empty() {
-                            forwarded_owner_loan(
+                            bounded_owner_source(
                                 function,
                                 source_block,
                                 binding.argument.place,
@@ -283,16 +283,24 @@ pub(in crate::legalization) fn edge_bindings(
             })
 }
 
-/// A bounded owner loan is forwarded whole from a signature parameter or a
-/// dominating owner-loan join with the identical declaration. This retains
-/// access and predicates; it does not treat a mutable referent as frozen.
-fn forwarded_owner_loan(
+/// A bounded owner loan transports the address of its exact carrier. Completed
+/// local results and forwarded parameters share that layout; the former must
+/// dominate this edge, and the latter retain their incoming contract. Predicate
+/// admission belongs to the checked abstract unit, not an instruction selector.
+fn bounded_owner_source(
     function: &PsiOptimizationFunction,
     block: BlockId,
     place: PlaceId,
     declaration: &StructuralParameterDeclaration,
     plan: &AbstractOperationPlan,
 ) -> bool {
+    if let Some((producer, structural_type)) =
+        super::byte_views::owned_byte_result(function, place, &plan.structural_types)
+    {
+        return structural_type == declaration.structural_type
+            && operation_block(function, producer)
+                .is_some_and(|owner| owner == block || dominates(function, owner, block));
+    }
     let identical = |source: &StructuralParameterDeclaration| {
         source.structural_type == declaration.structural_type
             && source.access == declaration.access
@@ -343,9 +351,8 @@ fn root_type(
         .iter()
         .find(|source| source.place == place)
     {
-        // `self` is a valid join root: its referent record is the attached
-        // data, and the projection below resolves through that record's
-        // declared field types like any other root.
+        // Explicit parameters lend their declared referents. Namespace
+        // attachment neither supplies a root nor changes its authority.
         return (loan_access_permitted(source.access, access)
             && plain(
                 source.multiplicity,
@@ -431,26 +438,7 @@ fn operation_block(function: &PsiOptimizationFunction, operation: OperationId) -
         block
             .nodes
             .iter()
-            .any(|node| node_operation(&node.operation) == Some(operation))
+            .any(|node| node.operation.psi_operation() == Some(operation))
             .then_some(block.id)
     })
-}
-
-fn node_operation(operation: &AbstractOperation) -> Option<OperationId> {
-    match operation {
-        AbstractOperation::EstablishRecord { psi_operation, .. }
-        | AbstractOperation::EstablishZeroedStructural { psi_operation, .. }
-        | AbstractOperation::EstablishStructuralLocal { psi_operation, .. }
-        | AbstractOperation::EstablishStructuralArray { psi_operation, .. }
-        | AbstractOperation::EstablishScalarArray { psi_operation, .. }
-        | AbstractOperation::EstablishCase { psi_operation, .. }
-        | AbstractOperation::EstablishPrimitiveLocal { psi_operation, .. }
-        | AbstractOperation::CallStructural { psi_operation, .. }
-        | AbstractOperation::StructuralLeafCopy { psi_operation, .. }
-        | AbstractOperation::MoveStructuralField { psi_operation, .. }
-        | AbstractOperation::EstablishElementView { psi_operation, .. }
-        | AbstractOperation::ElementViewSubslice { psi_operation, .. }
-        | AbstractOperation::BoundaryCall { psi_operation, .. } => Some(*psi_operation),
-        _ => None,
-    }
 }

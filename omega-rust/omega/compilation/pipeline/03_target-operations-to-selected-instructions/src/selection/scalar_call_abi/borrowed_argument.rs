@@ -128,12 +128,15 @@ pub(super) fn validate_borrowed_argument(
             ))
         });
     // A whole owned bounded byte home lends its `{length, bytes}` storage to
-    // a shared bounded-owner formal; the callee reads the owner layout in
+    // a borrowed bounded-owner formal; the callee uses the owner layout in
     // place, so the pointer names the home itself at offset zero.
     let owner_home = aggregate_home
         .filter(|(_, result)| {
             semantic.path.is_empty()
-                && semantic.access == StructuralAccess::SharedBorrow
+                && matches!(
+                    semantic.access,
+                    StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+                )
                 && target.root_structural_type == result.structural_type
                 && target.structural_type == result.structural_type
                 && target.source_byte_offset == 0

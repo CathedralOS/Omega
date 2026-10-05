@@ -176,7 +176,7 @@ pub(super) fn establish(
         }
         if parameter.access == StructuralAccess::SharedBorrow
             && (frontier.partial_custody_paths.contains_key(&argument.place)
-                || (carries_owned_frontier(module, machine, argument.place)
+                || (carries_owned_frontier(machine, argument.place)
                     && !frontier.owned_places.contains_key(&argument.place)))
         {
             return Err(ModuleError::InvalidStructuralSuccessorArgument {
@@ -242,11 +242,7 @@ pub(super) fn establish(
 /// trivial locals carry their declared custody; an operation result enters
 /// the map exactly when its producer does not classify it as copyable or
 /// borrowed. Untracked places stay live by their binding and need no row.
-fn carries_owned_frontier(
-    module: &TerminalModule,
-    machine: &TerminalMachine,
-    place: super::PlaceId,
-) -> bool {
+fn carries_owned_frontier(machine: &TerminalMachine, place: super::PlaceId) -> bool {
     if machine
         .structural_parameters
         .iter()
@@ -273,26 +269,14 @@ fn carries_owned_frontier(
     };
     match declaration.kind {
         StructuralPlaceKind::TrivialAffineLocal { .. } => true,
-        StructuralPlaceKind::OperationResult { .. } => {
-            super::super::byte_sequence::subslice::borrowed_result_in_module(module, machine, place)
-                .is_none()
-                && super::super::element_view::subslice::borrowed_result_in_module(
-                    module, machine, place,
-                )
-                .is_none()
-                && super::super::primitive_storage::local_result(machine, place).is_none()
-                && !super::super::scalar::array::plain_return_source(module, machine, place)
-                && !super::super::structural::leaf_copy::copied_return_source(machine, place)
-                && !(super::super::structural::result_contracts::source_signature(machine, place)
-                    .is_some_and(|source| {
-                        source.multiplicity == StructuralMultiplicity::Unrestricted
-                    })
-                    && ((super::super::scalar::case::plain_return_source(module, machine, place)
-                        || super::super::structural::case::plain_return_source(
-                            module, machine, place,
-                        ))
-                        || super::super::record::plain_return_source(module, machine, place)))
-        }
+        StructuralPlaceKind::OperationResult { producer, .. } => machine
+            .blocks
+            .iter()
+            .flat_map(|block| &block.operations)
+            .find(|operation| operation.id == producer)
+            .and_then(|operation| operation.result.structural())
+            .filter(|result| result.place == place)
+            .is_none_or(super::result_requires_owned_frontier),
         _ => false,
     }
 }

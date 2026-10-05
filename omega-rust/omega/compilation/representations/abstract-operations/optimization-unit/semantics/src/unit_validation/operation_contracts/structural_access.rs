@@ -711,12 +711,14 @@ fn is_material_write_only_type(
     true
 }
 
-/// A whole completed bounded byte owner lent shared to the same owner carrier.
+/// A whole completed bounded byte owner lent to the same owner carrier.
+/// An exclusive loan must restore the owner's declared predicates, rather than
+/// discarding them by accepting a weaker formal contract.
 /// Every byte predicate the formal requires is replayed from the result's
 /// current invariants in this graph. Producer identity is already authenticated
 /// by the structural catalog and source contract; this storage presentation
 /// does not depend on which operation established it.
-fn owned_bounded_owner_loan(
+pub(crate) fn owned_bounded_owner_loan(
     caller: &PsiOptimizationFunction,
     argument: &terminal_psi::StructuralArgument,
     parameter: &terminal_psi::StructuralParameterDeclaration,
@@ -725,8 +727,13 @@ fn owned_bounded_owner_loan(
     domains: &BTreeMap<StructuralDomainId, &terminal_psi::StructuralDomainDeclaration>,
 ) -> bool {
     if !argument.path.is_empty()
-        || argument.access != terminal_psi::StructuralAccess::SharedBorrow
-        || parameter.access != terminal_psi::StructuralAccess::SharedBorrow
+        || !matches!(
+            argument.access,
+            terminal_psi::StructuralAccess::SharedBorrow
+                | terminal_psi::StructuralAccess::MutableBorrow
+                | terminal_psi::StructuralAccess::WriteOnlyBorrow
+        )
+        || parameter.access != argument.access
         || parameter.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
         || !parameter.projected_qualifications.is_empty()
         || source.access != terminal_psi::StructuralAccess::Owned
@@ -758,6 +765,13 @@ fn owned_bounded_owner_loan(
     else {
         return false;
     };
+    if argument.access != terminal_psi::StructuralAccess::SharedBorrow
+        && !source
+            .declared_byte_predicates(domains)
+            .is_some_and(|declared| required.implies(declared))
+    {
+        return false;
+    }
     required.is_empty()
         || crate::unit_validation::function_structure::whole_source_predicates(
             types.values().copied(),

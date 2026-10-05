@@ -1292,6 +1292,7 @@ impl OperationFrame<'_, '_> {
         let value = leaf.lower_value(bindings, self.checked, self.state, self.values)?;
         let kind = crate::emission::indexed_write::emit(
             target,
+            leaf.formation_is_proven(self.checked, self.state)?,
             &self.evaluation.structural_parameters,
             self.structural_types.declarations(),
             &index,

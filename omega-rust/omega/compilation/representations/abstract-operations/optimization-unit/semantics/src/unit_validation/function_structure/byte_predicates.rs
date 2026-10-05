@@ -15,6 +15,21 @@ use terminal_psi::{
     StructuralTypeShape,
 };
 
+/// Indexed writes preserve the same declared invariants through a caller loan
+/// as through owned local backing. Do not use incidental initializer predicates:
+/// a previous write can have invalidated those without changing the contract.
+pub(crate) fn byte_write_predicates(
+    unit: &PsiOptimizationUnit,
+    function: &PsiOptimizationFunction,
+    place: PlaceId,
+) -> Option<ByteSequencePredicateSet> {
+    if let Some(parameter) = function.arrival_parameter(place) {
+        terminal_semantics::byte_parameter_predicates_in(unit.structural_domains.iter(), parameter)
+    } else {
+        owned_byte_predicates(unit, function, place)
+    }
+}
+
 /// Every indexed store into a field declaring `valid_utf8` without
 /// `ascii_only` needs the field all-ASCII on every path of the current graph:
 /// an ASCII byte written over part of a multi-byte scalar would break it. The
@@ -37,7 +52,7 @@ pub(super) fn validate_indexed_byte_stores(
     for (block_position, block) in function.blocks.iter().enumerate() {
         for (node_position, node) in block.nodes.iter().enumerate() {
             if let Operation::ByteSequenceWrite { destination, .. } = &node.operation {
-                if let Some(predicates) = owned_byte_predicates(unit, function, *destination) {
+                if let Some(predicates) = byte_write_predicates(unit, function, *destination) {
                     let splits_scalars = predicates
                         .predicates()
                         .any(|predicate| predicate == ByteSequencePredicate::ValidUtf8)

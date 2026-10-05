@@ -43,7 +43,7 @@ pub(in crate::lowering) fn lower_structural_argument(
     // replayed before native selection. This projection reconstructs physical
     // custody: a domain roster is neither a descriptor layout nor a substitute
     // for the argument's exact producer, access, and storage geometry.
-    // A whole owned bounded byte local lends its home to a shared bounded
+    // A whole owned bounded byte local lends its home to a borrowed bounded
     // owner formal. Unit validation replayed the formal's byte predicates
     // from the local's own operands, so the home's empty roster is not
     // compared against the formal's qualifications.
@@ -528,7 +528,7 @@ pub(in crate::lowering) fn lower_structural_argument(
 }
 
 /// The producer of a whole owned bounded byte local (an owned concatenation
-/// home) lent shared to a bounded owner formal of the same carrier.
+/// home) lent to a bounded owner formal of the same carrier and access.
 fn owned_owner_home(
     argument: &terminal_psi::StructuralArgument,
     callee_parameter: &terminal_psi::StructuralParameterDeclaration,
@@ -537,7 +537,7 @@ fn owned_owner_home(
     structural_types: &StructuralTypeLookup<'_>,
 ) -> Option<OperationId> {
     if !argument.path.is_empty()
-        || argument.access != StructuralAccess::SharedBorrow
+        || argument.access != callee_parameter.access
         || !super::super::scalar::byte_views::is_owner_loan(callee_parameter, structural_types)
     {
         return None;

@@ -427,13 +427,21 @@ pub(super) fn validate_successor(
                     }),
                 _ => None,
             };
+            // A state argument and a call argument borrow the same owned
+            // backing under the same carrier/predicate contract. The edge
+            // additionally requires that exact result live at this arrival;
+            // an initial literal's stale content cannot establish membership.
+            let owned_result = available.contains(&argument.place)
+                && super::structural::operations::owned_bounded_owner_presentation(
+                    module, machine, argument, expected,
+                );
             let projected = !argument.path.is_empty()
                 && argument.access == expected.access
                 && root_type.is_some_and(|root| {
                     byte_leaf_predicates(module, root, &argument.path, expected)
                 });
             if argument.access != expected.access
-                || !(argument.path.is_empty() && forwarded || projected)
+                || !(argument.path.is_empty() && forwarded || projected || owned_result)
             {
                 return Err(ModuleError::InvalidStructuralSuccessorArgument {
                     edge,

@@ -144,6 +144,9 @@ pub struct RetiredFlowCall {
 pub struct FlowStatementFact {
     pub statement_index: usize,
     pub entry_semantic_contexts: HandleSpan<FlowSemanticContextRef>,
+    /// Live facts after this statement's mutations and value transfers, before
+    /// any subsequent statement or proof output can restore an invariant.
+    pub exit_semantic_contexts: HandleSpan<FlowSemanticContextRef>,
     pub entry_constraints: HandleSpan<FlowConstraintRef>,
     /// Live observations after operand evaluation, before destination storage
     /// is invalidated or its replacement established. Replacement cleanup

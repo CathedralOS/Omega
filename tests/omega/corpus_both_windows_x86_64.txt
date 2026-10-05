@@ -7,10 +7,12 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 24, "jobs": "1", "load1_end": null, "load1_start": null, "machine": "amd64", "platform": "windows", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 24, "jobs": "2", "load1_end": null, "load1_start": null, "machine": "amd64", "platform": "windows", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/runtime_dispatch_cast_decisions_exit built 3510ms exit:70 interpreter-exit:70 interpreter:agrees @6dd207b5fbb6+wt
 pass/borrows/interleaved_parameter_field_replacement_exit built 8195ms exit:70 interpreter-exit:70 interpreter:agrees @5b40b0f7256d
+pass/borrows/qualified_byte_owner_exclusive_call_exit built 5310ms exit:70 interpreter-exit:70 interpreter:agrees @e399918ecace+wt
 pass/borrows/runtime_affine_local_case_return_exit built 4164ms exit:42 interpreter-exit:42 interpreter:agrees @5b40b0f7256d
+pass/borrows/runtime_reference_array_pressure_exit built 5997ms exit:70 interpreter-exit:70 interpreter:agrees @f845b4bcdf12+wt
 pass/build/runtime_static_service_exclusion_exit built 4290ms exit:0 interpreter-exit:0 interpreter:agrees @6fa34b94762b+wt
 pass/build/static_assumed_binding_spelling_exit built 6097ms exit:0 interpreter-exit:0 interpreter:agrees @63bca13481de+wt
 pass/calls/runtime_static_proof_only_namespace_exit built 18768ms exit:0 interpreter-exit:0 interpreter:agrees @d5610b396716+wt
@@ -36,6 +38,10 @@ pass/recast/runtime_scalar_parameter_shared_views_exit built 5934ms exit:70 inte
 pass/relevance/runtime_static_proof_namespace_exit built 7745ms exit:0 interpreter-exit:0 interpreter:agrees @0c9d1b8dd763+wt
 pass/structural/runtime_enum_equality_exit built 7520ms exit:70 interpreter-exit:70 interpreter:agrees @5b40b0f7256d
 pass/termination/runtime_receiver_byte_slice_recursion_exit built 5769ms exit:70 interpreter-exit:70 interpreter:agrees @506354b3cca3+wt
+pass/text/borrowed_bounded_byte_indexed_write_exit built 7379ms exit:70 interpreter-exit:70 interpreter:agrees @f845b4bcdf12+wt
+pass/text/local_bounded_byte_indexed_write_exit built 4386ms exit:70 interpreter-exit:70 interpreter:agrees @e399918ecace+wt
+pass/text/mutable_bounded_byte_state_exit built 4316ms exit:70 interpreter-exit:70 interpreter:agrees @e399918ecace+wt
+pass/text/state_parameter_byte_replacement_exit built 4416ms exit:70 interpreter-exit:70 interpreter:agrees @e399918ecace+wt
 pass/wire/runtime_wire_decode_ranged_field_exit built 87176ms exit:70 interpreter-exit:70 interpreter:agrees @9ed8b7d0772d
 pass/wire/wire_compatibility_migration_across_shapes built 2534ms exit:0 interpreter-exit:0 interpreter:agrees @8899cb25e748+wt
 run/borrows/local_mut_borrow built 5502ms exit:9 interpreter-exit:9 interpreter:agrees @506354b3cca3+wt

@@ -1,0 +1,46 @@
+// A scalar-returning helper borrows a qualified owner, not a raw byte view.
+// It preserves live length and ASCII while changing only the caller's home.
+use omega_language_std::console;
+
+domain [u8; 8]::Ascii(bytes) requires ascii_only(bytes);
+
+machine replace(at: u64, bytes: &mut [u8; 8] in Ascii, value: u8) -> bool {
+    transition at < bytes.len && value < 128 {
+        true -> write(at, bytes, value)
+        _ -> false
+    }
+    state write(at: u64, bytes: &mut [u8; 8] in Ascii, value: u8) -> bool {
+        bytes[at] = value;
+        transition { _ -> true }
+    }
+}
+
+machine main() reaches Console {
+    transition { _ -> prepare(0) }
+
+    state prepare(round: u32) {
+        let original: [u8; 8] in Ascii = "ab";
+        let mut bytes: [u8; 8] in Ascii = "ab";
+        let first: bool = replace(0, &mut bytes, 65);
+        let second: bool = replace(1, &mut bytes, 66);
+        let outside: bool = replace(2, &mut bytes, 67);
+        let valid: bool = first && second && !outside
+            && original[0] == 97 && original[1] == 98;
+        transition { _ -> inspect(&bytes, round, valid) }
+    }
+    // A later state's local remains the backing of this shared state loan.
+    // Re-entering prepare creates the next line only after this loan ends.
+    state inspect(bytes: &[u8; 8] in Ascii, round: u32, valid: bool) {
+        transition valid && bytes.len == 2 && bytes[0] == 65 && bytes[1] == 66 {
+            true -> again(round)
+            _ -> finish(71)
+        }
+    }
+    state again(round: u32) {
+        transition round == 0 {
+            true -> prepare(1)
+            _ -> finish(70)
+        }
+    }
+    state finish(code: i32) { Console::exit_process(code); }
+}

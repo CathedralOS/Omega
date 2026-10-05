@@ -169,7 +169,26 @@ pub(super) fn validate(
                                     parameter,
                                 )
                             });
-                    forwarded || copied || projected
+                    // A state arrival lends completed storage under the same
+                    // contract as a call argument. Current predicates, exact
+                    // access and exclusive restoration are not properties of
+                    // the syntax that introduced the receiving parameter.
+                    let owned_result =
+                        super::super::operation_contracts::structural_source_contract(
+                            function,
+                            binding.argument.place,
+                        )
+                        .is_some_and(|source| {
+                            super::super::operation_contracts::owned_bounded_owner_loan(
+                                function,
+                                &binding.argument,
+                                parameter,
+                                &source,
+                                types,
+                                domains,
+                            )
+                        });
+                    forwarded || copied || projected || owned_result
                 } else if address_join(parameter, types) {
                     // The root lends its address; it neither changes owner nor
                     // widens past shared access, and the path names the join's

@@ -769,12 +769,22 @@ pub(in crate::execution::terminal_unit) fn build(
 ) -> Option<StatementSequence> {
     trace.phase("statement sequence: scalar control guard");
     let scalar_control = scalar_control(program, facts, machine, state).map(|(control, _)| control);
-    // A shared loan of a bounded byte owner keeps its domain qualifications
-    // on the declaration: the loan freezes its referent, so a scalar
-    // completion reading it needs no qualification transport.
-    let shared_bounded_owner = |parameter: &CheckedUnitStructuralParameterPlan| {
-        parameter.access == CheckedStructuralAccess::SharedBorrow
-            && parameter.projected_qualifications.is_empty()
+    // A bounded byte owner's primitive predicates survive both a shared loan
+    // and a mutable loan whose stores preserve those predicates. Scalar
+    // completion changes neither that obligation nor the backing's identity.
+    let bounded_owner = |parameter: &CheckedUnitStructuralParameterPlan| {
+        matches!(
+            parameter.access,
+            CheckedStructuralAccess::SharedBorrow | CheckedStructuralAccess::MutableBorrow
+        ) && parameter.projected_qualifications.is_empty()
+            && parameter.qualifications.iter().all(|qualification| {
+                shapes.domains.iter().any(|domain| {
+                    domain.domain == *qualification
+                        && domain.carrier_type_identity == parameter.type_identity
+                        && domain.byte_predicate.is_some()
+                        && domain.establishment_routes.is_empty()
+                })
+            })
             && program
                 .state_parameters(state)
                 .get(parameter.position as usize)
@@ -797,7 +807,7 @@ pub(in crate::execution::terminal_unit) fn build(
             || !trivial_affine_locals.is_empty()
             || structural_parameters.iter().any(|parameter| {
                 parameter.multiplicity != Multiplicity::Unrestricted
-                    || (!parameter.qualifications.is_empty() && !shared_bounded_owner(parameter))
+                    || (!parameter.qualifications.is_empty() && !bounded_owner(parameter))
             }))
     {
         return None;

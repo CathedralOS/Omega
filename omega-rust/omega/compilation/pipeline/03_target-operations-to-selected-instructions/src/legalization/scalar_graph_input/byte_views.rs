@@ -119,6 +119,9 @@ pub(super) fn validate(
     Ok(call_plan.clone())
 }
 
+/// Mutable custody is independent of whole-carrier predicates. Source and
+/// operation admission establish their preservation; a qualified owner uses
+/// the same writable address as its unqualified carrier.
 pub(super) fn mutable_parameter(
     function: &PsiOptimizationFunction,
     place: semantic_vocabulary::PlaceId,
@@ -136,7 +139,6 @@ pub(super) fn mutable_parameter(
             parameter.place == place
                 && parameter.access == terminal_psi::StructuralAccess::MutableBorrow
                 && parameter.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
-                && parameter.qualifications.is_empty()
                 && parameter.projected_qualifications.is_empty()
         })
 }

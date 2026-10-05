@@ -437,8 +437,8 @@ fn owned_byte_loan(
     plan: &AbstractOperationPlan,
 ) -> Result<Option<TargetStructuralArgument>, LegalizationError> {
     if !semantic.path.is_empty()
-        || semantic.access != StructuralAccess::SharedBorrow
-        || !abstract_operations::control_flow::owner_loans::is_shared_bounded_owner_loan_in(
+        || semantic.access != destination_parameter.access
+        || !abstract_operations::control_flow::owner_loans::is_bounded_owner_loan_in(
             destination_parameter,
             &plan.structural_types,
         )

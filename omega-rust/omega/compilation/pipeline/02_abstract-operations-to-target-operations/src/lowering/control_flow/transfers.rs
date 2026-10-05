@@ -143,38 +143,38 @@ fn address_join_argument(
     {
         return false;
     }
-    // A bounded owner loan is forwarded whole from an identically qualified
-    // signature or live join parameter. Forwarding retains the precise access
-    // and predicate roster; a mutable loan does not promise frozen contents.
-    if abstract_operations::control_flow::owner_loans::is_bounded_owner_loan(
+    // Qualifications carry no target storage. The admitted owner loan uses
+    // the same address whether its backing is a parameter or a completed local.
+    // Forwarded parameters retain their precise access and predicate roster;
+    // local homes retain their authenticated result and independently held custody.
+    let owner_loan = abstract_operations::control_flow::owner_loans::is_bounded_owner_loan(
         parameter,
         |identity| structural_types.get(&identity).copied(),
-    ) && argument.path.is_empty()
-    {
-        return !live.structural_homes.contains_key(&argument.place)
-            && function
-                .structural_parameters
-                .iter()
-                .chain(
-                    live.address_joins
-                        .contains(&argument.place)
-                        .then(|| {
-                            function
-                                .block_entries
-                                .iter()
-                                .flat_map(|entry| &entry.structural_parameters)
-                        })
-                        .into_iter()
-                        .flatten(),
-                )
-                .any(|source| {
-                    source.place == argument.place
-                        && source.structural_type == parameter.structural_type
-                        && source.access == parameter.access
-                        && source.multiplicity == parameter.multiplicity
-                        && source.qualifications == parameter.qualifications
-                        && source.projected_qualifications.is_empty()
-                });
+    ) && argument.path.is_empty();
+    if owner_loan && !live.structural_homes.contains_key(&argument.place) {
+        return function
+            .structural_parameters
+            .iter()
+            .chain(
+                live.address_joins
+                    .contains(&argument.place)
+                    .then(|| {
+                        function
+                            .block_entries
+                            .iter()
+                            .flat_map(|entry| &entry.structural_parameters)
+                    })
+                    .into_iter()
+                    .flatten(),
+            )
+            .any(|source| {
+                source.place == argument.place
+                    && source.structural_type == parameter.structural_type
+                    && source.access == parameter.access
+                    && source.multiplicity == parameter.multiplicity
+                    && source.qualifications == parameter.qualifications
+                    && source.projected_qualifications.is_empty()
+            });
     }
     let root_type = if let Some(home) = live.structural_homes.get(&argument.place) {
         ((parameter.access == terminal_psi::StructuralAccess::SharedBorrow
@@ -183,7 +183,7 @@ fn address_join_argument(
                 .is_some_and(|(_, result)| result.place == argument.place))
             && !home.has_claims()
             && home.multiplicity() != terminal_psi::StructuralMultiplicity::Linear
-            && home.qualifications().is_empty()
+            && (home.qualifications().is_empty() || owner_loan)
             && home.projected_qualifications().is_empty())
         .then(|| home.structural_type())
     } else if let Some(source) = function

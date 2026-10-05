@@ -26,8 +26,8 @@ pub use byte_field_freshness::byte_field_root;
 mod byte_predicates;
 mod byte_views;
 pub(crate) use byte_predicates::{
-    byte_field_predicates, concatenation_preserves_predicates, copied_field_predicates_at_call,
-    owned_byte_predicates, replacement_preserves_predicates, whole_source_predicates,
+    byte_field_predicates, byte_write_predicates, concatenation_preserves_predicates,
+    copied_field_predicates_at_call, replacement_preserves_predicates, whole_source_predicates,
 };
 pub(crate) use byte_views::byte_field_store_capacity;
 mod control_flow;

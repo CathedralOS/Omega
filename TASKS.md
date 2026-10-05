@@ -413,6 +413,12 @@ helper that passes does not close an item.
     its local-buffer migration still needs native and interpreted validation
     on a host supplying its Clock provider. Temporary-scoping design is
     deferred and not a prerequisite.
+    `samples/cli/algorithms/maze_flood` now keeps only its Console binding in
+    Main; search storage and row/input buffers are local. Its composed byte
+    loan regression executes natively and interpreted on Windows (exit 70),
+    including creation in a later state and repeated shared state transfers.
+    Full sample acceptance remains `omega run --both` with exit 0 and the
+    documented 235-byte output after fresh package review.
   - A case dispatch over a computed call subject evaluates it once
     (`pass/control_flow/runtime_computed_case_subject_single_evaluation_exit`),
     but the state graph still declines it when the subject's operands call or
@@ -3676,10 +3682,13 @@ deletions, which its commit lists.
     `CheckFacts.proven_scalar_indexes`, and stage 05 marks the read at the row
     boundary (`prepare_expression::mark_checked_index_read`) when the row's
     authored root is that occurrence and it lowers to one
-    `ByteSequenceRead`, `ByteSequenceFieldRead` or `ElementViewRead`. Not yet
-    covered: index writes (their plans are built after the checks, so they
-    can take the flag at construction, as divisions do) and reads that are
-    not a row's root (they need a provenance handle on the checked read).
+    `ByteSequenceRead`, `ByteSequenceFieldRead` or `ElementViewRead`. Byte
+    writes join that bounds verdict with declared byte predicates retained
+    by the exact completed statement (`CheckFacts.proven_byte_writes`);
+    emission rejoins the authored assignment after execution-plan construction.
+    A bounds verdict alone cannot authorize a predicate-breaking byte write.
+    Still uncovered: element-view writes and reads that are not a row's root
+    (they need a provenance handle on the checked read).
     `samples/cli/collections/heat_grid` stops on neither: its unproved
     obligation is a `ScalarBlockInvariant` arrival of the authored
     `requires 0 <= y && y <= grid.max_y` at a loop edge. Source checking

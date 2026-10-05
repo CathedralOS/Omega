@@ -40,7 +40,7 @@ pub(in crate::validation) fn validate_destination(
         .ok_or_else(invalid)?;
     if parameter.access != StructuralAccess::MutableBorrow
         || parameter.multiplicity != StructuralMultiplicity::Unrestricted
-        || !parameter.qualifications.is_empty()
+        || terminal_semantics::byte_parameter_predicates(module, parameter).is_none()
         || !parameter.projected_qualifications.is_empty()
         || machine
             .entry_claims
@@ -66,6 +66,7 @@ pub(in crate::validation) fn validate_destination(
                     StructuralTypeShape::ByteSequence(
                         terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
                             | terminal_psi::ByteSequenceCarrier::BoundedView { .. }
+                            | terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
                     )
                 )
         })
@@ -89,9 +90,7 @@ pub(in crate::validation) fn validate(
         return Err(ModuleError::InvalidByteSequenceWrite(operation.id));
     };
     validate_destination(module, machine, operation, destination)?;
-    if let Some(predicates) =
-        terminal_semantics::byte_owned_result_predicates(module, machine, destination)
-    {
+    if let Some(predicates) = declared_write_predicates(module, machine, destination) {
         use terminal_psi::ByteSequencePredicate;
         if predicates
             .predicates()
@@ -143,8 +142,27 @@ pub(in crate::validation) fn validate(
     Ok(())
 }
 
-/// Whole owned writes preserve the declaration's primitive byte predicates;
-/// borrowed views retain their existing bound-only obligation.
+/// A store preserves the destination's declared predicates regardless of whether
+/// this machine owns the backing or borrows it from its caller. Incidental
+/// initializer facts are not invariants and must not enter this goal.
+fn declared_write_predicates(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    destination: PlaceId,
+) -> Option<terminal_psi::ByteSequencePredicateSet> {
+    if let Some(parameter) = machine
+        .structural_parameters
+        .iter()
+        .find(|parameter| parameter.place == destination)
+        .or_else(|| crate::validation::block_views::parameter(machine, destination))
+    {
+        terminal_semantics::byte_parameter_predicates(module, parameter)
+    } else {
+        terminal_semantics::byte_owned_result_predicates(module, machine, destination)
+    }
+}
+
+/// Every byte write preserves its destination's declared primitive predicates.
 pub(crate) fn byte_store_goal(
     module: &TerminalModule,
     machine: &TerminalMachine,
@@ -158,8 +176,8 @@ pub(crate) fn byte_store_goal(
         return Ok(bound);
     };
     validate_destination(module, machine, operation, destination)?;
-    let predicates = terminal_semantics::byte_owned_result_predicates(module, machine, destination)
-        .unwrap_or(terminal_psi::ByteSequencePredicateSet::EMPTY);
+    let predicates = declared_write_predicates(module, machine, destination)
+        .ok_or(ModuleError::InvalidByteSequenceWrite(operation.id))?;
     terminal_semantics::indexed_byte_store_goal(bound, value, predicates).map_err(|error| {
         ModuleError::OperationSemanticSchema(
             terminal_semantics::OperationSemanticError::InvalidProposition(error),

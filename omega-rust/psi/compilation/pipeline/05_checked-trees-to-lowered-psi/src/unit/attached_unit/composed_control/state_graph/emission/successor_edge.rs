@@ -605,18 +605,19 @@ impl StateGraphEmission<'_, '_> {
                             }
                             _ => None,
                         };
-                        // A whole shared loan of unrestricted storage, such
-                        // as a byte literal local, has no death to place and
-                        // records no home, so any state may lend it.
-                        let needs_home = matches!(target_parameter.access,
+                        // A shared loan of unrestricted storage has no death
+                        // to place and records no cleanup home, whether the
+                        // checked edge names the result directly or borrows a
+                        // projection of it. Place/type/loan checks above still
+                        // retain its actual backing; syntax does not create
+                        // an activation-entry cleanup requirement.
+                        let needs_home = matches!(
+                            target_parameter.access,
                             checked_trees::CheckedStructuralAccess::MutableBorrow
-                                | checked_trees::CheckedStructuralAccess::WriteOnlyBorrow)
-                            || result.multiplicity() == StructuralMultiplicity::Affine
-                            || backing.is_some()
-                            || !matches!(
-                                transfer.source,
-                                checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult { .. }
-                            );
+                                | checked_trees::CheckedStructuralAccess::WriteOnlyBorrow
+                        ) || result.multiplicity()
+                            == StructuralMultiplicity::Affine
+                            || backing.is_some();
                         if needs_home && (position != 0 || self.entry_reentered) {
                             return unsupported(
                                 "Unit graph local loan requires an activation entry home",

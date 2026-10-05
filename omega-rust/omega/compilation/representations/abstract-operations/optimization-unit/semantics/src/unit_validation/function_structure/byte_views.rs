@@ -251,9 +251,7 @@ pub(super) fn validate_source(
                 let owned = matches!(carrier, ByteSequenceCarrier::BoundedOwned { .. });
                 let permitted = match operation {
                     AbstractOperation::ByteSequenceWrite { .. } => {
-                        !owned
-                            && parameter.access == StructuralAccess::MutableBorrow
-                            && parameter.qualifications.is_empty()
+                        parameter.access == StructuralAccess::MutableBorrow
                     }
                     AbstractOperation::ByteSequenceLength { .. } => {
                         matches!(
