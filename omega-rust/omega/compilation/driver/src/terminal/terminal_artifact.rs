@@ -23,16 +23,9 @@ const TERMINAL_PRODUCTION_STAGE: StageMeta = StageMeta::new(
     TimingCategory::Pipeline,
 );
 
-const TERMINAL_VERIFICATION_STAGE: StageMeta = StageMeta::new(
-    "terminal-verification",
-    "CanonicalTerminalArtifact",
-    "VerifiedTerminalArtifact",
-    TimingCategory::Pipeline,
-);
-
 const NATIVE_REALIZATION_PROPOSAL_STAGE: StageMeta = StageMeta::new(
     "native-realization-proposal",
-    "VerifiedTerminalArtifact",
+    "CanonicalTerminalArtifact",
     "NativeRealizationProposal",
     TimingCategory::Pipeline,
 );
@@ -54,11 +47,10 @@ pub struct ProducedTerminalProduct {
 /// re-admits them.
 pub fn produce_terminal_product(
     mut checked: CheckedCompilation,
-    profile: &proof_admission::AdmissionProfile,
     rollback: &OptimizationRollback,
 ) -> Result<ProducedTerminalProduct, Vec<Diagnostic>> {
     let rollback = rollback.settle(&checked.build().config.settings.optimizations);
-    let produced = produce_retained_terminal_artifact(&mut checked, profile, rollback.effective())?;
+    let produced = produce_retained_terminal_artifact(&mut checked, rollback.effective())?;
     Ok(ProducedTerminalProduct {
         artifact: produced.artifact,
         rollback_receipt: rollback.into_receipt(),
@@ -67,13 +59,15 @@ pub fn produce_terminal_product(
     })
 }
 
-/// Produce one verified retained Terminal product from the complete checked
-/// frontend result.
+/// Produce one retained Terminal product from the complete checked frontend
+/// result.
 ///
-/// This owner closes the checked-to-Terminal boundary, replays the canonical
-/// semantic and proof sections under the request admission profile, and binds
-/// the target-owned native-realization proposal. It does not assemble a
-/// compiler report or enter native realization.
+/// This owner closes the checked-to-Terminal boundary and binds the
+/// target-owned native-realization proposal. It does not re-verify the
+/// artifact it just produced: under verification placement
+/// (`omega-rust/pipeline.md`) the producer is the gate, and the corpus runner
+/// and tests exercise the verifier. It does not assemble a compiler report or
+/// enter native realization.
 /// The retained product and the pass decisions that explain it.
 ///
 /// The decisions are producer-side explanation, so they ride beside the
@@ -86,7 +80,6 @@ pub(crate) struct ProducedRetainedTerminal {
 
 pub(crate) fn produce_retained_terminal_artifact(
     checked: &mut CheckedCompilation,
-    profile: &proof_admission::AdmissionProfile,
     selections: &optimization_core::OptimizationSelections,
 ) -> Result<ProducedRetainedTerminal, Vec<Diagnostic>> {
     let selected_program_entry = checked.admit_terminal_production()?;
@@ -159,21 +152,10 @@ pub(crate) fn produce_retained_terminal_artifact(
         selected_ieee_float_comparison_occurrences,
         selected_integer_comparison_occurrences,
     ) = produced.into_parts();
-    stage_timings.record_result(TERMINAL_VERIFICATION_STAGE, || {
-        terminal_codec::verify_terminal_artifact_proof(&artifact, profile)
-            .map(|_| ())
-            .map_err(|error| {
-                vec![Diagnostic::error(format!(
-                    "terminal-artifact verification failed for {}: {}",
-                    error.subject, error.reason,
-                ))]
-            })
-    })?;
     let native_realization_proposal =
         stage_timings.record_result(NATIVE_REALIZATION_PROPOSAL_STAGE, || {
             native_proposal::project_terminal_native_realization_proposal(
                 checked,
-                profile,
                 &artifact,
                 checked_program_entry,
                 checked_boundary_operator_scope,

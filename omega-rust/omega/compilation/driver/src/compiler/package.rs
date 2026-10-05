@@ -19,14 +19,12 @@ use diagnostics::Diagnostic;
 /// measurements travel with the artifact's caller.
 pub fn retained_terminal_artifact_from_checked_package(
     mut checked: CheckedCompilation,
-    profile: proof_admission::AdmissionProfile,
     rollback: optimization_core::OptimizationRollback,
 ) -> Result<(RetainedTerminalArtifact, CompileTimings), Vec<Diagnostic>> {
     crate::checked::run_on_compile_thread(move || {
         let selections = rollback.settle(&checked.build().config.settings.optimizations);
         let retained = crate::terminal::produce_retained_terminal_artifact(
             &mut checked,
-            &profile,
             selections.effective(),
         )?;
         Ok((retained.artifact, std::mem::take(checked.timings_mut())))

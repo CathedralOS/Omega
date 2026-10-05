@@ -230,7 +230,6 @@ pub fn realize_accepted_native_report(
             let (retained, production_timings) =
                 compiler::retained_terminal_artifact_from_checked_package(
                     checked_root,
-                    profile.clone(),
                     optimization_rollback.clone(),
                 )?;
             let report = compiler::CompileReport::from_retained_terminal_artifact(

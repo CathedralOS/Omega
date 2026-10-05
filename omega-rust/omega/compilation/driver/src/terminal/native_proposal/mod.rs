@@ -8,7 +8,6 @@ use terminal_psi_to_abstract_operations::TerminalNativeRealizationProposal;
 
 pub(crate) fn project_terminal_native_realization_proposal(
     checked: &CheckedCompilation,
-    profile: &proof_admission::AdmissionProfile,
     artifact: &terminal_codec::CanonicalTerminalArtifact,
     checked_program_entry: terminal_psi::CheckedProgramEntryTerminalReceipt,
     checked_boundary_operator_scope: lowered_psi_to_terminal_psi::CheckedBoundaryOperatorApplicationScope,
@@ -20,7 +19,7 @@ pub(crate) fn project_terminal_native_realization_proposal(
 ) -> Result<TerminalNativeRealizationProposal, Vec<Diagnostic>> {
     let callback_thunks = callback_placements
         .iter()
-        .map(|placement| produce_callback_thunk_artifact(checked, profile, placement, selections))
+        .map(|placement| produce_callback_thunk_artifact(checked, placement, selections))
         .collect::<Result<Vec<_>, _>>()?;
     terminal_psi_to_abstract_operations::project_terminal_native_realization_proposal(
         artifact,
@@ -39,7 +38,6 @@ pub(crate) fn project_terminal_native_realization_proposal(
 
 fn produce_callback_thunk_artifact(
     checked: &CheckedCompilation,
-    profile: &proof_admission::AdmissionProfile,
     placement: &backend_plan::BoundNominalCallbackPlacement,
     selections: &optimization_core::OptimizationSelections,
 ) -> Result<compilation_products::TerminalCallbackThunkArtifact, Vec<Diagnostic>> {
@@ -93,16 +91,9 @@ fn produce_callback_thunk_artifact(
             "callback thunk Terminal lowering failed: {error}",
         ))]
     })?;
-    let artifact = produced.into_artifact();
-    terminal_codec::verify_terminal_artifact_proof(&artifact, profile).map_err(|error| {
-        vec![Diagnostic::error(format!(
-            "terminal-artifact verification failed for {}: {}",
-            error.subject, error.reason,
-        ))]
-    })?;
     compilation_products::TerminalCallbackThunkArtifact::new(
         backend_plan::canonical_callback_private_symbol(placement),
-        artifact,
+        produced.into_artifact(),
         receipt,
     )
     .map_err(|message| vec![Diagnostic::error(message)])

@@ -32,11 +32,8 @@ pub fn produce_native_product(
     // separately supplied receiver policy remains optional and unchanged.
     let accepted_package_terminal_authority_permission_policy =
         accepted_terminal_authority_permission_policy(&checked)?;
-    let terminal = crate::terminal::produce_retained_terminal_artifact(
-        &mut checked,
-        &request.terminal_admission_profile,
-        rollback.effective(),
-    )?;
+    let terminal =
+        crate::terminal::produce_retained_terminal_artifact(&mut checked, rollback.effective())?;
     let post_terminal = rollback.effective().project_post_terminal();
     // The same Psi passes ran here, so a native product explains its
     // withheld rewrites exactly as a Terminal product does.

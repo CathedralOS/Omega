@@ -347,13 +347,13 @@ fn selected_component_descriptions(
                     package: consumer.clone(),
                     diagnostics,
                 })?;
-            products.description = Some(
-                publish_checked_component(checked, proof_admission::AdmissionProfile::default())
-                    .map_err(|diagnostics| Error::Compilation {
+            products.description =
+                Some(publish_checked_component(checked).map_err(|diagnostics| {
+                    Error::Compilation {
                         package: consumer.clone(),
                         diagnostics,
-                    })?,
-            );
+                    }
+                })?);
         }
         descriptions.extend(products.description.iter().cloned());
     }

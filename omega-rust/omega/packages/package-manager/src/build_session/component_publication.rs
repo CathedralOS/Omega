@@ -29,7 +29,6 @@ use package_compilation::IndependentComponentDescription;
 /// compiling as a fused edge.
 pub(crate) fn publish_checked_component(
     checked: CheckedCompilation,
-    profile: proof_admission::AdmissionProfile,
 ) -> Result<IndependentComponentDescription, Vec<Diagnostic>> {
     let package = checked.sources().package_identity().ok_or_else(|| {
         vec![Diagnostic::error(
@@ -43,7 +42,6 @@ pub(crate) fn publish_checked_component(
     let component_progress = checked.execution().component_progress.as_ref().cloned();
     let (retained, _timings) = compiler::retained_terminal_artifact_from_checked_package(
         checked,
-        profile,
         optimization_core::OptimizationRollback::default(),
     )?;
     let artifact = retained.artifact();

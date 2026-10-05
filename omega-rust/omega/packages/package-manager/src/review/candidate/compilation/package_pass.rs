@@ -1118,11 +1118,8 @@ impl ClosurePass<'_> {
             && let Some(cache) = super::super::review_cache::CompiledReviewCache::open(directory)
             && let Some(subject) = checked.sources().package_subject()
         {
-            let component_description = crate::build_session::publish_checked_component(
-                checked.clone(),
-                proof_admission::AdmissionProfile::default(),
-            )
-            .ok();
+            let component_description =
+                crate::build_session::publish_checked_component(checked.clone()).ok();
             if let Some(record) = super::super::review_cache::record_compiled_review(
                 &review,
                 &checked,
@@ -1259,10 +1256,7 @@ fn publish_independent_component_descriptions(
         }
         let description = match component_candidates.get(&(component, purpose)) {
             Some(OccurrenceCompile::Checked(component_checked)) => {
-                crate::build_session::publish_checked_component(
-                    component_checked.clone(),
-                    proof_admission::AdmissionProfile::default(),
-                )
+                crate::build_session::publish_checked_component(component_checked.clone())
                 .map_err(|diagnostics| {
                     CompileResolvedPackageReviewsError::Compilation {
                         package: key.clone(),

@@ -73,11 +73,7 @@ fn compile_target(
         // Psi 05-07: lower, optimize and publish the Terminal artifact.
         CheckedProductReport::Terminal(settlement) => {
             let profile = target.terminal_admission_profile().clone();
-            let produced = produce_terminal_product(
-                checked,
-                target.terminal_admission_profile(),
-                target.optimization_rollback(),
-            )?;
+            let produced = produce_terminal_product(checked, target.optimization_rollback())?;
             settlement
                 .with_timings(produced.timings)
                 .finish_terminal(produced.artifact, produced.rollback_receipt, profile)

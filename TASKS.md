@@ -3569,9 +3569,6 @@ deletions, which its commit lists.
 
 - **OMEGA-READS-TERMINAL-UNVERIFIED.** (new-scope) Depends on
   **PCC-CERTIFICATES-DELETED**. Stop every consumer from verifying Terminal:
-  - the driver's `verify_terminal_artifact_proof`
-    (`omega-rust/omega/compilation/driver/src/terminal/terminal_artifact.rs`,
-    `omega-rust/omega/compilation/driver/src/terminal/native_proposal/mod.rs`);
   - stage 00
     `omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/artifact_admission/native.rs`
     `verify_module`: decode only;
