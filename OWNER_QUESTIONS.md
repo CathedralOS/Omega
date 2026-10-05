@@ -376,3 +376,42 @@ Disabling its one call site greens both customers and makes
 its authored reason. That fixture has no `build.omg`, so under reachability
 keying nothing in it is reachable either -- closing this needs the rule **and**
 a real entry selection for that fail fixture.
+
+### Q7 - Which lane owns an operand-level float landing's qualification evidence?
+
+Named decision: `operand-level-float-landing-custody`.
+
+**Customer:** any comparison between a computed f32/f64 value and an unsuffixed
+float literal, which does not lower. Two-line repro:
+`machine code() -> bool { F64::square_root(64.0f64) == 8.0 }`. The owner's own
+`pass/float/build_runtime_semantics_twins_*` fixtures use this spelling.
+
+**Existing rules, and why they conflict.** `semantic_casts::requires_custody` is
+recursive over the whole expression tree, so it is true when *any descendant*
+needs custody. The retention filter at
+`values/scalar/expression_plans.rs:185-193` reads that as "the computation graph
+owns this coordinate" and drops the pure plan. But the computation graph claims
+the coordinate only when the custody cast is the **root**
+(`computations.rs:1180`), and its pure fallback at `:1222` is gated behind
+`!requires_custody`. For a custody cast appearing as a mere **operand**, both
+sides decline and the coordinate ends up empty.
+
+**Decision needed:** which side owns an operand-level anonymous-rational float
+landing? Three shapes are defensible and the choice is a semantics-ownership
+call, not an engineering one:
+
+1. Move the decision after computations are built -- retain a pure plan whose
+   coordinate the computation graph did not claim.
+2. Make the computation graph own what `requires_custody` actually says it owns,
+   relaxing the `!requires_custody` gate on the pure-lowering arm when the
+   custody cast is an operand that arm can lower in place.
+3. Make the checker not plant an operand-level landing cast needing custody when
+   the comparison's other side already fixes the carrier.
+
+**Why it is recorded rather than done:** build order forecloses (1) as a local
+change, since `values.scalar_expressions` is built at `facts.rs:166` and
+`values.scalar_computations` at `:227` consumes it, so the drop cannot ask
+whether the coordinate was claimed. And (2) and (3) each look like "recognize
+one more shape" from the other's side, which the hard rule forbids choosing
+arbitrarily. Once ruled, the repair is small and the two-line program pins it
+either way.
