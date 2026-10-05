@@ -201,6 +201,23 @@ pub fn call_origins(
     caller: &TerminalMachine,
     operation: &Operation,
 ) -> Option<Vec<DescriptorCallOrigin>> {
+    let graph = terminal_graph(module);
+    call_origins_in(
+        &mut DescriptorAnalysis::new(&module.structural_types, &graph),
+        module,
+        caller,
+        operation,
+    )
+}
+
+/// `call_origins` over an analysis of this module's `terminal_graph` that the
+/// caller already holds, so asking about many calls builds the graph once.
+pub fn call_origins_in(
+    analysis: &mut DescriptorAnalysis<'_>,
+    module: &TerminalModule,
+    caller: &TerminalMachine,
+    operation: &Operation,
+) -> Option<Vec<DescriptorCallOrigin>> {
     if !matches!(
         operation.kind,
         OperationKind::CallStructural { .. }
@@ -215,12 +232,7 @@ pub fn call_origins(
         return None;
     }
 
-    reconstruct_call_origins(
-        &module.structural_types,
-        &terminal_graph(module),
-        caller.id,
-        result.place,
-    )
+    analysis.call_origins(caller.id, result.place)
 }
 
 /// Current-program adapter records. These are disposable analysis inputs, not
@@ -510,12 +522,22 @@ pub fn call_stored_effects(
     machine: &TerminalMachine,
     operation: &Operation,
 ) -> Option<Vec<DescriptorStoredCallEffect>> {
-    reconstruct_call_stored_effects(
-        &module.structural_types,
-        &terminal_graph(module),
-        machine.id,
-        operation_position(machine, operation)?,
+    let graph = terminal_graph(module);
+    call_stored_effects_in(
+        &mut DescriptorAnalysis::new(&module.structural_types, &graph),
+        machine,
+        operation,
     )
+}
+
+/// `call_stored_effects` over an analysis of this module's `terminal_graph`
+/// that the caller already holds.
+pub fn call_stored_effects_in(
+    analysis: &mut DescriptorAnalysis<'_>,
+    machine: &TerminalMachine,
+    operation: &Operation,
+) -> Option<Vec<DescriptorStoredCallEffect>> {
+    analysis.call_stored_effects(machine.id, operation_position(machine, operation)?)
 }
 pub fn stored_source_origins(
     module: &TerminalModule,

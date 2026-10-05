@@ -540,10 +540,13 @@ pub(super) fn operation(
     }
 }
 
+/// `analysis` is the caller's analysis of this module's descriptor graph; the
+/// call queries below reuse it rather than rebuilding the graph per call.
 pub(super) fn may_escape(
     module: &TerminalModule,
     machine: &TerminalMachine,
     operation: &Operation,
+    analysis: &mut terminal_semantics::descriptor_results::DescriptorAnalysis<'_>,
 ) -> bool {
     if let OperationKind::CallStructural {
         structural_arguments,
@@ -560,8 +563,10 @@ pub(super) fn may_escape(
     {
         return !claim_transfers.is_empty()
             || !returned_claim_transfers.is_empty()
-            || terminal_semantics::descriptor_results::call_origins(module, machine, operation)
-                .is_none()
+            || terminal_semantics::descriptor_results::call_origins_in(
+                analysis, module, machine, operation,
+            )
+            .is_none()
             || structural_arguments.iter().any(|argument| {
                 argument.access != StructuralAccess::SharedBorrow
                     && !super::call_accesses::argument_storage_closed(module, machine, argument)
@@ -578,8 +583,8 @@ pub(super) fn may_escape(
             operation.result,
             OperationResult::Unit | OperationResult::Scalar(_)
         ) || !claim_transfers.is_empty()
-            || terminal_semantics::descriptor_results::call_stored_effects(
-                module, machine, operation,
+            || terminal_semantics::descriptor_results::call_stored_effects_in(
+                analysis, machine, operation,
             )
             .is_none();
     }

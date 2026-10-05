@@ -20,7 +20,8 @@ pub(super) fn reconstruct(
     for block in &machine.blocks {
         for (index, operation) in block.operations.iter().enumerate() {
             if let Some(step) = steps.get_mut(&(block.id, index as u32)) {
-                step.may_escape |= super::accesses::may_escape(module, machine, operation);
+                step.may_escape |=
+                    super::accesses::may_escape(module, machine, operation, analysis);
             }
         }
         let position = (block.id, block.operations.len() as u32);
