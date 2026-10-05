@@ -240,9 +240,6 @@ impl NativeArtifact {
         if self.object.target() != self.target || self.image.target() != self.target {
             return Err("native artifact target disagrees with its object or image");
         }
-        self.terminal_authority_closure_review
-            .validate()
-            .map_err(|_| "native artifact terminal-authority closure receipt is invalid")?;
         if self
             .terminal_authority_closure_review
             .terminal_artifact_identity()

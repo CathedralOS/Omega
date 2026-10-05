@@ -234,9 +234,6 @@ impl DynamicElfNativeArtifact {
         }
         image_emission::validate_requested_dynamic_elf_image(&self.object, &self.image)
             .map_err(|_| "dynamic native artifact failed exact requested-image replay")?;
-        self.terminal_authority_closure_review
-            .validate()
-            .map_err(|_| "dynamic native artifact terminal-authority closure receipt is invalid")?;
         if self
             .terminal_authority_closure_review
             .terminal_artifact_identity()

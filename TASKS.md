@@ -2625,22 +2625,33 @@ lands alone with its corpus slice unchanged and no fallback path.
   **STATIC-MACHINE-MIGRATION** and the execution-planning owner. These are
   implementation dependencies, not unanswered language decisions.
 
-- **AUTHORITY-REVIEW-RECEIPT-UNSEALED.** (new-scope)
-  `TerminalAuthorityClosureReviewReceipt` only feeds the native artifact's
-  identity hash; `NativeArtifact::validate` then recomputes that digest
-  (`TerminalAuthorityClosureReviewReceipt::validate`). The review's
-  cycle/candidate-count/PortWrite-ceiling rejections
-  (`omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/provider_admission/terminal_authority_review/context.rs`)
-  repeat facts Psi established. The filesystem cohort "forged
-  classification" merge check (`provider_admission/mod.rs`) guards against
-  the same process. Delete the receipt re-validation, the repeated rejections
-  and the forged-classification check. Keep the mechanism classification that
-  receiver admission and `validate_physical_authority_closure`
+- **AUTHORITY-REVIEW-RECEIPT-UNSEALED.** (new-scope) The terminal-authority
+  closure review in
+  `omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/provider_admission/terminal_authority_review/`
+  still repeats checks of the same compile's data:
+  - `context.rs` refuses a `CheckedPortWrite` outside its function's
+    `published_service_ceiling`; no Psi check of that ceiling for PortWrite
+    was found, so first confirm where Psi establishes it, then delete;
+  - `reviewer.rs` refuses a checked-provider cycle. Provider planning's
+    `validate_selected_synchronous_invocation_cycles` rejects selected
+    synchronous cycles, but the review's recursion also relies on this guard
+    to terminate; delete it only with a visited set or a proof that the
+    planning graph covers the installed candidates' edges;
+  - the "resolves to N selected provider rows / exact installed candidates /
+    schema methods" refusals are uniqueness checks on lookups whose value
+    the review uses; replace each with the plan or settlement row that
+    already identifies it;
+  - the filesystem cohort merge in `provider_admission/mod.rs` refuses a
+    cohort row whose mechanism the policy classifies differently; both come
+    from the compiler (`current_terminal_authority_policy()` and the
+    settled cohort), so the refusal can only catch a compiler bug.
+
+  Keep the mechanism classification that receiver admission and
+  `validate_physical_authority_closure`
   (`omega-rust/omega/compilation/backend/plans/provider-evidence/src/provider_evidence/executable_scopes/behavior_exclusions.rs`)
   consume. Acceptance: the exclusion fixtures
   (`tests/omega/{pass,fail}/build/*exclusion*`) keep their verdicts, and the
   native corpus is unchanged.
-
 - **BEHAVIOR-EXCLUSIONS-CHECKED-ONCE.** (new-scope) An authored exclusion is
   checked by `trust_model::verify_entry_behavior_exclusions` on the
   unoptimized module, again per callback thunk, three more times inside

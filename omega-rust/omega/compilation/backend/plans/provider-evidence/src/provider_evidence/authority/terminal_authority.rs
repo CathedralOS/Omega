@@ -913,7 +913,9 @@ impl TerminalAuthorityClosureReviewReceipt {
     /// Constructs canonical review data. The receipt is deliberately free
     /// data: receiving authority comes from running the closure review and
     /// explicitly accepting the resulting identity, never from possession of
-    /// a structurally valid value alone.
+    /// a structurally valid value alone. The fields are private and this is
+    /// the only constructor, so every held receipt already has canonical,
+    /// consistent leaves and its own identity; consumers do not re-check them.
     pub fn from_reviewed_leaves(
         terminal_artifact_identity: [u8; 32],
         target: target::NativeTarget,
@@ -990,51 +992,18 @@ impl TerminalAuthorityClosureReviewReceipt {
     pub const fn identity(&self) -> [u8; 32] {
         self.identity
     }
-
-    pub fn validate(&self) -> Result<(), TerminalAuthorityClosureReviewBuildError> {
-        if self.leaves.windows(2).any(|rows| {
-            compare_closure_leaves(&rows[0], &rows[1]).is_ge()
-                || same_closure_leaf_key(&rows[0], &rows[1])
-        }) {
-            return Err(TerminalAuthorityClosureReviewBuildError::NonCanonicalLeaves);
-        }
-        if self
-            .leaves
-            .iter()
-            .any(|leaf| leaf.permitted.is_some() != self.permission_policy.is_some())
-        {
-            return Err(TerminalAuthorityClosureReviewBuildError::AdmissionAxisInconsistent);
-        }
-        for leaf in &self.leaves {
-            leaf.validate()?;
-        }
-        let expected = terminal_authority_closure_review_identity(
-            self.terminal_artifact_identity,
-            self.target,
-            self.selected_provider_closure,
-            self.physical_policy,
-            self.permission_policy,
-            &self.leaves,
-        );
-        if self.identity != expected {
-            return Err(TerminalAuthorityClosureReviewBuildError::IdentityMismatch);
-        }
-        Ok(())
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TerminalAuthorityClosureReviewBuildError {
     EmptyRequirement,
     DuplicateRequirementLeaf,
-    NonCanonicalLeaves,
     /// A receipt mixing a present permission-policy identity with
     /// unadjudicated leaves, or naming no policy while carrying adjudicated
     /// leaves, does not form one consistent receiver-admission axis.
     AdmissionAxisInconsistent,
     UnclassifiedAuthority,
     ExercisedAuthorityNotPermitted,
-    IdentityMismatch,
 }
 
 fn compare_closure_leaves(
