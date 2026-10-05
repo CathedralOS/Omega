@@ -2291,7 +2291,11 @@ crash and native exit behavior.
   (`standing_integer_interval`, `composite_offset_upper_bound`,
   `occurrence_integer_expression_bounds`) applies a proved equation, so
   `size <= 8` is never derived from `size == cap` plus `cap <= 8`. The spec hook
-  is `ValueEqualityTransport` (`wiki/spec/terminal-psi/verification.md:255-264`).
+  is `ValueEqualityTransport` (`wiki/spec/terminal-psi/verification.md:255-264`):
+  it "carries a nonempty ordered list of proved scalar equations, each oriented
+  from an exact scalar value identity to its term", so this is implementation,
+  not a design question. The fixture's "R1/R4" citation has no counterpart in
+  `wiki/spec/`.
 
   **Secondary defect, independently fixable and admission-neutral.** The
   diagnostic reads "the recast target `u32` needs 4 bytes at offset 4294967295,
@@ -2310,6 +2314,8 @@ crash and native exit behavior.
   `OffsetUnproven` arm fires, whose message already tells the author what to do
   (declare a range, guard the arm, or `ensures`-bound the boundary). Both paths
   refuse, so fixing this changes no admission -- only what the author is told.
+  The carrier maximum standing in for "no bound" also breaks the ZII rule,
+  where absence is the zero value.
 
   Refuted, so nobody re-derives it: `standing_integer_interval` is NOT the
   source of the bogus bound; it already applies the carrier-range filter.
@@ -2511,48 +2517,6 @@ check corpus and the native corpus unchanged on the slices it names.
   below remove them. Acceptance: the listed files are gone; a source-scanning
   guard rejects new refusal messages matching those phrasings; the full check
   corpus and the native corpus are unchanged.
-
-- **RECAST-OFFSET-EQUALITY-TRANSPORT.** (new-scope) An interior recast's offset
-  bound is derived from three candidates and **none of them applies a proved
-  scalar equation**, so a bound transported through equality is lost.
-  `checking/src/value_custody/recasts/raw_byte_region.rs:~192` takes the `min`
-  of a declared-range high, `composite_offset_upper_bound`'s structural walk,
-  and `occurrence_integer_expression_bounds`. A boundary `ensures size == cap
-  && cap <= 8` therefore proves nothing about `size`.
-
-  Customer: `tests/omega/pass/dependent/boundary_equality_recast_witness_compile`,
-  whose header states exactly this -- "a boundary contract may transport a
-  symbolic bound through equality between out-parameters. `size == cap && cap
-  <= 8` proves the four-byte view beginning at `size` fits in the twelve-byte
-  region". The needed chain is `size == cap`, `cap <= 8`, so `size <= 8`, and
-  `8 + 4 <= 12`.
-
-  **Not design-blocked.** `wiki/spec/terminal-psi/verification.md:255-264`
-  specifies `ValueEqualityTransport`: it "carries a nonempty ordered list of
-  proved scalar equations, each oriented from an exact scalar value identity to
-  its term", and "the bounded equality-transport owner applies only those
-  carried equations to that proposition and the desired conclusion". The rule
-  exists; the recast offset derivation simply has no equality source among its
-  three candidates. The fixture's own "R1/R4" citation has no counterpart in
-  `wiki/spec/`, so do not look for one.
-
-  **A second, separable defect in the same path, worth fixing first because it
-  is small and makes the real one legible.** When no route bounds the offset,
-  `declared_high` can still resolve to the carrier's maximum, and
-  `InteriorByteRegion::Bounded { offset: 4294967295 }` reports that as a
-  *proven* bound: "the recast target `u32` needs 4 bytes at offset 4294967295,
-  but the region holds 12". A bound equal to the carrier's full width conveys
-  no proof, so the honest classification is `OffsetUnproven`, whose message
-  (`push_offset_unproven`) already says the offset is not bounded. Admission
-  does not change -- both paths refuse -- only the diagnostic stops asserting a
-  fact it does not have. That u32::MAX sentinel is also against the house ZII
-  rule, where absence is the zero value rather than a maximum.
-
-  Acceptance: the fixture compiles, with the offset bound derived through the
-  specified equality transport; and a genuinely unbounded offset reports
-  `OffsetUnproven` rather than a sentinel offset. Note `checking/src` is inside
-  "Codex / static heat grid"'s whole-directory lease, so claim with
-  `--allow-overlap` and name the files.
 
 - **DYN-CONTINUATION-ROOT-REJOIN.** (split-of:UNIT-PLAN-GAPS-REPORTED-AT-SOURCE)
   `pass/traits/runtime_local_named_dyn_devirtualized_exit` now lowers its whole
@@ -3304,12 +3268,8 @@ of a check the same flow already performed, not the check itself.
   `omega-rust/psi/compilation/checking/src/frozen_program.rs` keeps its memos
   in a `thread_local!` `RefCell` slot keyed by the program's address, which
   AGENTS.md rules out as an ownership escape. Replace it with an explicit
-  context value passed to its consumers. The global `ENVIRONMENTS` mutex cache
-  with a linear find in
-  `omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/selection/mod.rs`
-  goes the same way: build the environment once per realization and pass it.
-  Acceptance: neither the thread-local nor the static mutex remains, and the
-  check corpus is unchanged.
+  context value passed to its consumers. Acceptance: the thread-local is
+  gone, and the check corpus is unchanged.
 
 - **TYPED-FROZEN-BEFORE-CHECKING.** (new-scope) `CheckedTrees` embeds the
   typed program, but stage 04 rewrites it in place first, so the embedded

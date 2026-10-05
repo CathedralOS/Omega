@@ -23,12 +23,7 @@ pub(super) fn construct_optimized_instruction_selection(
     )
     .map_err(OptimizedSelectionPipelineError::Legalization)?;
     let selection_constraints = selection_constraints(&legalized, register_environment);
-    let selected = select_instructions(
-        &legalized,
-        &selection_constraints,
-        register_environment.physical(),
-        register_environment.constraints(),
-    )
+    let selected = select_instructions(&legalized, &selection_constraints, register_environment)
     .map_err(OptimizedSelectionPipelineError::Selection)?;
     Ok((legalized, selected))
 }

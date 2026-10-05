@@ -1,9 +1,9 @@
 //! Optimizer module role: executable entrance. Instruction selection: propose one bounded selected CFG, then validate it independently.
 //!
-//! Validate the immutable target/register/catalog join once at this entrance.
-//! Construction and independent replay borrow it across functions; rebuilding
-//! the same catalog for every function or replay mutation adds no evidence.
-//! The public raw validation entrance still validates its own supplied join.
+//! The stage entry validates the target/register/catalog join once per
+//! realization and lends it here. Construction and independent replay borrow
+//! that one environment across functions; rebuilding it for every function or
+//! replay mutation adds no evidence.
 
 mod address_join_input;
 mod aggregate_result_input;
@@ -41,9 +41,7 @@ pub use model::{
     SelectedInstructionError, SelectedInstructionValidationReceipt, ValidatedSelectedInstructions,
 };
 pub use selected_instructions::selected_instruction_plan_identity;
-pub use validation::validate_selected_instructions;
 
-use register_model::{ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog};
 use selected_instructions::SelectedSelectionConstraints;
 
 use crate::legalization::ValidatedLegalizedOperations;
@@ -52,63 +50,8 @@ use construction::build_plan;
 pub fn select_instructions(
     legalized: &ValidatedLegalizedOperations,
     constraints: &SelectedSelectionConstraints,
-    physical: &ValidatedPhysicalRegisterModel,
-    catalog: &ValidatedRegisterConstraintCatalog,
+    environment: &register_environment::ValidatedTargetRegisterEnvironment,
 ) -> Result<ValidatedSelectedInstructions, SelectedInstructionError> {
-    let environment = target_register_environment(legalized.plan().target, physical, catalog)
-        .map_err(|_| SelectedInstructionError::custody())?;
-    let plan = build_plan(legalized, constraints, &environment)?;
-    validation::validate_with_environment(legalized, constraints, &environment, plan)
-}
-
-/// Environments already joined in this process, keyed by the target and the
-/// content identities of the validated physical model and constraint catalog.
-type EnvironmentKey = (
-    target::NativeTarget,
-    register_model::PhysicalRegisterModelIdentity,
-    register_model::RegisterConstraintCatalogIdentity,
-);
-
-/// The joined register environment is a pure function of the target and the
-/// validated physical model and constraint catalog, which their content
-/// identities name. Selection, scalar-graph construction and selection
-/// validation each cloned both and re-validated the join for every function;
-/// each distinct environment is now joined once per process and shared, not
-/// copied, with each request. A failed join is not remembered, so it fails
-/// again on every request.
-pub(crate) fn target_register_environment(
-    target: target::NativeTarget,
-    physical: &ValidatedPhysicalRegisterModel,
-    catalog: &ValidatedRegisterConstraintCatalog,
-) -> Result<
-    std::sync::Arc<register_environment::ValidatedTargetRegisterEnvironment>,
-    register_environment::TargetRegisterEnvironmentValidationError,
-> {
-    static ENVIRONMENTS: std::sync::OnceLock<
-        std::sync::Mutex<
-            Vec<(
-                EnvironmentKey,
-                std::sync::Arc<register_environment::ValidatedTargetRegisterEnvironment>,
-            )>,
-        >,
-    > = std::sync::OnceLock::new();
-    let environments = ENVIRONMENTS.get_or_init(std::sync::Mutex::default);
-    let key = (target, physical.identity(), catalog.identity());
-    if let Ok(environments) = environments.lock()
-        && let Some((_, environment)) = environments.iter().find(|(candidate, _)| *candidate == key)
-    {
-        return Ok(environment.clone());
-    }
-    let environment =
-        std::sync::Arc::new(register_environment::validate_target_register_environment(
-            target,
-            physical.model().clone(),
-            catalog.catalog().clone(),
-        )?);
-    if let Ok(mut environments) = environments.lock()
-        && !environments.iter().any(|(candidate, _)| *candidate == key)
-    {
-        environments.push((key, environment.clone()));
-    }
-    Ok(environment)
+    let plan = build_plan(legalized, constraints, environment)?;
+    validation::validate_with_environment(legalized, constraints, environment, plan)
 }

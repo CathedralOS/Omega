@@ -2,7 +2,6 @@
 
 use crate::legalization::ValidatedLegalizedOperations;
 use crate::selection::model::{SelectedInstructionError, ValidatedSelectedInstructions};
-use register_model::{ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog};
 use selected_instructions::{SelectedInstructionPlan, SelectedSelectionConstraints};
 mod def_use;
 mod integrity;
@@ -12,19 +11,6 @@ pub(super) mod scalar_graph;
 pub(in crate::selection) mod value_transport;
 
 use super::identity::receipt;
-
-pub fn validate_selected_instructions(
-    legalized: &ValidatedLegalizedOperations,
-    constraints: &SelectedSelectionConstraints,
-    physical: &ValidatedPhysicalRegisterModel,
-    catalog: &ValidatedRegisterConstraintCatalog,
-    plan: SelectedInstructionPlan,
-) -> Result<ValidatedSelectedInstructions, SelectedInstructionError> {
-    let environment =
-        crate::selection::target_register_environment(legalized.plan().target, physical, catalog)
-            .map_err(|_| SelectedInstructionError::custody())?;
-    validate_with_environment(legalized, constraints, &environment, plan)
-}
 
 pub(super) fn validate_with_environment(
     legalized: &ValidatedLegalizedOperations,

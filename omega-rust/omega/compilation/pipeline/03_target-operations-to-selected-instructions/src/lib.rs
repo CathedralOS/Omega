@@ -5,8 +5,8 @@
 //! Start at [`stage_optimized_instruction_selection`] in `optimized.rs`: it
 //! owns the target-register environment, runs [`legalize_target_operations`]
 //! and then [`select_instructions`], each of which returns only after its own
-//! checker ([`validate_legalized_operations`], [`validate_selected_instructions`])
-//! accepts the result, and records their identities in one custody receipt.
+//! checker ([`validate_legalized_operations`], the selection replay) accepts
+//! the result, and records their identities in one custody receipt.
 //! `legalization` is the raw-target to legal-operation join, `selection` the
 //! legal-operation to selected-CFG join, and `structural_inputs` the
 //! input-only reconstruction of structural storage, parameter shape and
@@ -31,7 +31,7 @@ pub use legalization::{
 };
 pub use selection::{
     SelectedInstructionError, SelectedInstructionValidationReceipt, ValidatedSelectedInstructions,
-    select_instructions, selected_instruction_plan_identity, validate_selected_instructions,
+    select_instructions, selected_instruction_plan_identity,
 };
 
 // The unit tests allocate heavily across nextest's parallel processes;
