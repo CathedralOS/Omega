@@ -171,8 +171,18 @@ pub(crate) fn lower_selected_machine(
 }
 
 /// The one checked dynamic dispatch plan `selection` lowers, if any. Every
-/// binding kind and result shape shares this admission: one plan per caller
-/// and an attached caller signature.
+/// binding kind and result shape shares this admission: one plan per caller,
+/// whose signature is inside the Terminal Psi slice.
+///
+/// This admission used to require `Attached`, which
+/// `build_checked_terminal_machine_selections` does not produce: under named
+/// implementations a machine's data arrives as an ordinary explicit parameter
+/// and contributes no attached signature, so the requirement refused every
+/// dynamic dispatch that was ever planned. What it stood in for -- that the
+/// caller really does carry the dispatch's context place -- is now a rejoin of
+/// the caller's published structural-parameter roster in
+/// `dynamic_composed_unit::structural_types::caller_context_parameter`, which
+/// reads the roster the checked plan publishes instead of asserting a shape.
 fn select_dynamic_dispatch_plan<'checked>(
     checked: &'checked CheckedTrees,
     selection: &CheckedTerminalMachineSelection,
@@ -199,8 +209,8 @@ fn select_dynamic_dispatch_plan<'checked>(
         }
         return unsupported(duplicated_dynamic_plan_refusal(first));
     };
-    if selection.signature != CheckedTerminalSignatureEligibility::Attached {
-        return unsupported("dynamic dispatch requires an attached caller");
+    if selection.signature == CheckedTerminalSignatureEligibility::Unsupported {
+        return unsupported("machine signature is outside the current terminal-Psi source slice");
     }
     Ok(Some(plan))
 }

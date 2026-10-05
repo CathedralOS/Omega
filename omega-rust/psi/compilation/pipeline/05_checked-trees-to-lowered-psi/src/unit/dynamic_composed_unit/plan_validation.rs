@@ -334,6 +334,28 @@ fn validate_exact_call<Call: DynamicCall>(
             .first()
             .map_or(origin.state, |transfer| transfer.caller_state)
     });
+    // A dynamic call's descriptor travels in the operand at the
+    // requirement's subject position, which is what
+    // `TypedTrees::dynamic_dispatch_subject_place` answers. A call's receiver
+    // symbol is only whatever it spells before its name, and a
+    // trait-qualified spelling (`Shape::code(erased)`) spells the trait
+    // there, which is a namespace and no runtime place -- so reading the
+    // dispatched place off that symbol refused every qualified dynamic call,
+    // the spelling every dynamic pass fixture uses. Whether the call spells
+    // anything before its name does not decide where its descriptor comes
+    // from either, so `has_receiver` no longer gates this rejoin.
+    let dispatched_place = |call: &checked_trees::FlowCallFact| {
+        checked.typed.dynamic_dispatch_subject_place(
+            plan.requirement,
+            checked
+                .facts
+                .flow
+                .control
+                .call_arguments
+                .span_or_empty(call.authored_arguments),
+        )
+    };
+    let expected_place = expected_flow_receiver.unwrap_or(plan.receiver_binding);
     let matching_calls = calls
         .iter()
         .filter(|call| {
@@ -342,9 +364,9 @@ fn validate_exact_call<Call: DynamicCall>(
                 && match forwarded_target {
                     Some(target) => !call.has_receiver && call.target_symbol == target,
                     None => {
-                        call.receiver_symbol
-                            == expected_flow_receiver.unwrap_or(plan.receiver_binding)
-                            && call.target_symbol == plan.requirement
+                        call.target_symbol == plan.requirement
+                            && dispatched_place(call)
+                                .is_some_and(|place| place.leaf == expected_place)
                     }
                 }
         })
@@ -394,9 +416,9 @@ fn validate_exact_call<Call: DynamicCall>(
                     || !validate_forwarded_dynamic_call(checked, plan, origin)?
             }
             _ => {
-                flow_call.receiver_symbol != expected_flow_receiver.unwrap_or(plan.receiver_binding)
-                    || flow_call.target_symbol != plan.requirement
-                    || !flow_call.has_receiver
+                flow_call.target_symbol != plan.requirement
+                    || !dispatched_place(flow_call)
+                        .is_some_and(|place| place.leaf == expected_place)
                     || flow_call.service_reach != plan.checked_call_service_reach
             }
         }

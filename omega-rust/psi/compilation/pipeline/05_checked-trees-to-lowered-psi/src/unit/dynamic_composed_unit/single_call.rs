@@ -10,12 +10,11 @@
 //! helper bodies and source publication.
 
 use super::{
-    Block, CheckedStructuralAccess, CheckedTrees, LoweredPsi, LoweringError, Operation,
-    OperationKind, OperationResult, ProofBundle, StructuralAccess, StructuralParameterDeclaration,
-    StructuralPlaceDeclaration, StructuralPlaceKind, TerminalMachine, TerminalMachineResult,
-    TerminalModule, Terminator, ValueDeclaration, allocate_dense, block_id, edge_id,
-    lookup_type_id, lower_installation_machine_service_ceiling, lower_root_service_reach,
-    machine_id, operation_id, place_id, unsupported, value_id,
+    Block, CheckedTrees, LoweredPsi, LoweringError, Operation, OperationKind, OperationResult,
+    ProofBundle, StructuralPlaceDeclaration, StructuralPlaceKind, TerminalMachine,
+    TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, allocate_dense, block_id,
+    edge_id, lookup_type_id, lower_installation_machine_service_ceiling, lower_root_service_reach,
+    machine_id, operation_id, place_id, value_id,
 };
 use crate::unit::dynamic_composed_unit::LoweredDynamicDispatch;
 use crate::unit::dynamic_composed_unit::applications::{
@@ -38,7 +37,7 @@ use crate::unit::dynamic_composed_unit::store_operations::{
     empty_terminal_contract, lower_caller_store_operations,
 };
 use crate::unit::dynamic_composed_unit::structural_types::{
-    LOAN_MULTIPLICITY, lower_dynamic_structural_types_for_source,
+    caller_context_parameter, lower_dynamic_structural_types_for_source,
 };
 
 /// Lower one checked call: validate it under its lane, lower the caller's
@@ -61,19 +60,7 @@ pub(super) fn lower<Call: DynamicCall>(
         plan.source_type_identity,
     )?;
     let caller_attachment = lookup_type_id(&type_ids, plan.caller_attachment_type_identity)?;
-    let caller_parameter = StructuralParameterDeclaration {
-        place: place_id(1),
-        position: 0,
-        structural_type: caller_attachment,
-        multiplicity: LOAN_MULTIPLICITY,
-        access: match plan.caller_parameter_access {
-            CheckedStructuralAccess::SharedBorrow => StructuralAccess::SharedBorrow,
-            CheckedStructuralAccess::MutableBorrow => StructuralAccess::MutableBorrow,
-            _ => return unsupported("direct dynamic caller requires a borrowed context parameter"),
-        },
-        qualifications: Vec::new(),
-        projected_qualifications: Vec::new(),
-    };
+    let caller_parameter = caller_context_parameter(&plan, caller_attachment, place_id(1))?;
     let source = validate_and_lower_dynamic_source(
         &caller_parameter,
         &plan,

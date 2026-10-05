@@ -168,40 +168,44 @@ pub fn derive_fused_program_entry_establishments(
         return Err(diagnostics);
     }
 
-    let structural_identity =
-        |attachment: &Option<String>,
-         parameters: &[checked_trees::CheckedUnitStructuralParameterPlan]| {
-            if attachment.is_some() {
-                return None;
-            }
-            let TypeReferenceNode::Reference { referee, .. } = checked
-                .type_reference_table
-                .type_reference(receiver_parameter.type_reference)
-            else {
-                return None;
-            };
-            let mut matching = parameters
-                .iter()
-                .filter(|parameter| parameter.position == context.source_position);
-            let parameter = matching.next()?;
-            if matching.next().is_some()
-                || parameter.access != checked_trees::CheckedStructuralAccess::MutableBorrow
-                || parameter.type_identity != checked.normalized_type_identity(*referee).as_str()
-            {
-                return None;
-            }
-            Some(parameter.type_identity.clone())
+    // One derivation over one kind of evidence: the selected entry state's
+    // checked structural-parameter roster. Every Unit-plan family publishes
+    // that roster, so a plan family is admitted here by supplying its roster,
+    // not by matching a shape of its own. A plan that retains its own data
+    // owner as runtime storage is a different establishment contract and
+    // nominates no services; that judgment stays with the rosters that can
+    // carry such an attachment, and is applied where they are read.
+    let context_identity = |parameters: &[checked_trees::CheckedUnitStructuralParameterPlan]| {
+        let TypeReferenceNode::Reference { referee, .. } = checked
+            .type_reference_table
+            .type_reference(receiver_parameter.type_reference)
+        else {
+            return None;
         };
+        let mut matching = parameters
+            .iter()
+            .filter(|parameter| parameter.position == context.source_position);
+        let parameter = matching.next()?;
+        if matching.next().is_some()
+            || parameter.access != checked_trees::CheckedStructuralAccess::MutableBorrow
+            || parameter.type_identity != checked.normalized_type_identity(*referee).as_str()
+        {
+            return None;
+        }
+        Some(parameter.type_identity.clone())
+    };
     let attachment_identities = checked
         .facts
         .flow
         .terminal_unit_effects
         .machines
         .iter()
-        .filter(|plan| plan.machine == machine.symbol && plan.state == state.symbol)
-        .filter_map(|plan| {
-            structural_identity(&plan.attachment_type_identity, &plan.structural_parameters)
+        .filter(|plan| {
+            plan.machine == machine.symbol
+                && plan.state == state.symbol
+                && plan.attachment_type_identity.is_none()
         })
+        .filter_map(|plan| context_identity(&plan.structural_parameters))
         .chain(
             checked
                 .facts
@@ -211,19 +215,24 @@ pub fn derive_fused_program_entry_establishments(
                 .iter()
                 .filter(|plan| {
                     plan.machine == machine.symbol
+                        && plan.attachment_type_identity.is_none()
                         && plan.states.iter().any(|plan| plan.state == state.symbol)
                 })
                 .flat_map(|plan| {
                     plan.states
                         .iter()
                         .filter(|candidate| candidate.state == state.symbol)
-                        .filter_map(|state| {
-                            structural_identity(
-                                &plan.attachment_type_identity,
-                                &state.structural_parameters,
-                            )
-                        })
+                        .filter_map(|state| context_identity(&state.structural_parameters))
                 }),
+        )
+        .chain(
+            checked
+                .facts
+                .flow
+                .terminal_unit_effects
+                .dynamic_dispatch
+                .caller_structural_parameters(machine.symbol, state.symbol)
+                .filter_map(context_identity),
         )
         .collect::<Vec<_>>();
     let [attachment_type_identity] = attachment_identities.as_slice() else {

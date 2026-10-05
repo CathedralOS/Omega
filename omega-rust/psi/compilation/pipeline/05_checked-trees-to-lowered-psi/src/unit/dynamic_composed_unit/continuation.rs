@@ -5,9 +5,8 @@ use super::super::{
     validate_direct_parameter_types,
 };
 use super::{
-    Block, CheckedDynamicScalarCallPlan, CheckedStructuralAccess, CheckedTrees, LoweredPsi,
-    LoweringError, Operation, OperationKind, OperationResult, ProofBundle, StructuralAccess,
-    StructuralParameterDeclaration, StructuralPlaceDeclaration, StructuralPlaceKind,
+    Block, CheckedDynamicScalarCallPlan, CheckedTrees, LoweredPsi, LoweringError, Operation,
+    OperationKind, OperationResult, ProofBundle, StructuralPlaceDeclaration, StructuralPlaceKind,
     TerminalDynamicDispatchCatalog, TerminalMachine, TerminalMachineResult, TerminalModule,
     Terminator, ValueDeclaration, allocate_dense, block_id, edge_id, lookup_type_id,
     lower_installation_machine_service_ceiling, machine_id, operation_id, place_id,
@@ -18,7 +17,7 @@ use crate::unit::dynamic_composed_unit::applications::{
     lower_changed_initial_application, lower_exact_application,
 };
 use crate::unit::dynamic_composed_unit::dynamic_lanes::{
-    DynamicCall, DynamicLoweringLane, retain_dynamic_source_owners,
+    DynamicCall, DynamicCallView, DynamicLoweringLane, retain_dynamic_source_owners,
 };
 use crate::unit::dynamic_composed_unit::forwarded_helpers::{
     dynamic_source_call_occurrences, extend_parameter_forwarding_catalog,
@@ -33,7 +32,7 @@ use crate::unit::dynamic_composed_unit::source_lowering::{
     lower_dynamic_call_custody, validate_and_lower_dynamic_source,
 };
 use crate::unit::dynamic_composed_unit::store_operations::empty_terminal_contract;
-use crate::unit::dynamic_composed_unit::structural_types::LOAN_MULTIPLICITY;
+use crate::unit::dynamic_composed_unit::structural_types::caller_context_parameter;
 
 pub(super) fn lower(
     checked: &CheckedTrees,
@@ -61,19 +60,11 @@ pub(super) fn lower(
     let mut next_place = catalogs.next_place;
     let caller_attachment =
         lookup_type_id(&catalogs.type_ids, &plan.caller_attachment_type_identity)?;
-    let caller_parameter = StructuralParameterDeclaration {
-        place: place_id(allocate_dense(&mut next_place)?),
-        position: 0,
-        structural_type: caller_attachment,
-        multiplicity: LOAN_MULTIPLICITY,
-        access: match plan.caller_parameter_access {
-            CheckedStructuralAccess::SharedBorrow => StructuralAccess::SharedBorrow,
-            CheckedStructuralAccess::MutableBorrow => StructuralAccess::MutableBorrow,
-            _ => return unsupported("direct dynamic caller requires a borrowed context parameter"),
-        },
-        qualifications: Vec::new(),
-        projected_qualifications: Vec::new(),
-    };
+    let caller_parameter = caller_context_parameter(
+        &view,
+        caller_attachment,
+        place_id(allocate_dense(&mut next_place)?),
+    )?;
     let source = validate_and_lower_dynamic_source(
         &caller_parameter,
         &view,
@@ -180,7 +171,14 @@ pub(super) fn lower(
     let when_false = empty_successor(leaf_blocks[1], &mut next_edge)?;
     let mut emitted_leaf_blocks = Vec::new();
     let mut leaf_source_call_occurrences = Vec::new();
-    for (state, block) in continuation.leaves.iter().zip(leaf_blocks) {
+    for ((state, block), successor) in continuation
+        .leaves
+        .iter()
+        .zip(leaf_blocks)
+        .zip([&continuation.when_true, &continuation.when_false])
+    {
+        let leaf_parameters =
+            leaf_structural_parameters(&view, &caller_parameter, state, successor)?;
         let (leaf, mut occurrences) = crate::unit::attached_unit::emit_dynamic_control_leaf(
             checked,
             crate::declarations::state_declaration(checked, state.state)?
@@ -189,7 +187,7 @@ pub(super) fn lower(
             state,
             block,
             &mut catalogs,
-            &[],
+            &leaf_parameters,
             &[],
             &[],
             &[],
@@ -447,6 +445,69 @@ fn append_dynamic_dispatch(
         &mut target.parameter_dispatches,
         source.parameter_dispatches,
     );
+}
+
+/// One leaf's structural-parameter roster, in the caller block's places.
+///
+/// A continuation's leaves are blocks of the caller's own Terminal machine, so
+/// a parameter the edge forwards keeps the caller's place rather than becoming
+/// a block parameter; the edge's transfer says which caller parameter each
+/// leaf position names. The lane declares one context parameter, so anything
+/// the edge forwards from elsewhere is refused by name here instead of
+/// resolving to that one place by position.
+///
+/// This roster was `&[]` while the whole lane was unreachable, which made
+/// every leaf operand naming a forwarded parameter unresolvable.
+fn leaf_structural_parameters(
+    view: &DynamicCallView<'_>,
+    caller: &terminal_psi::StructuralParameterDeclaration,
+    leaf: &checked_trees::CheckedComposedUnitControlStatePlan,
+    successor: &checked_trees::CheckedStructuralControlSuccessorPlan,
+) -> Result<Vec<terminal_psi::StructuralParameterDeclaration>, LoweringError> {
+    if !leaf.entry_claims.is_empty() {
+        return unsupported("direct dynamic continuation leaf claims custody it cannot bind");
+    }
+    let mut parameters = Vec::new();
+    for dense in 0..leaf.structural_parameters.len() {
+        let position = u32::try_from(dense).map_err(|_| {
+            LoweringError::Unsupported("direct dynamic leaf parameter index exceeds u32")
+        })?;
+        let mut matching = successor
+            .transfers
+            .iter()
+            .filter(|transfer| transfer.target_parameter_index == position);
+        let Some(transfer) = matching.next() else {
+            return unsupported("direct dynamic continuation leaf parameter has no edge transfer");
+        };
+        if matching.next().is_some() {
+            return unsupported("direct dynamic continuation leaf parameter rejoins two transfers");
+        }
+        let checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index } =
+            transfer.source
+        else {
+            return unsupported(
+                "direct dynamic continuation edge forwards a source that is not a whole parameter",
+            );
+        };
+        let Some(source) = view
+            .caller_structural_parameters
+            .get(usize::try_from(index).map_err(|_| {
+                LoweringError::Unsupported("direct dynamic caller parameter index exceeds usize")
+            })?)
+        else {
+            return unsupported(
+                "direct dynamic continuation edge forwards a parameter the caller does not declare",
+            );
+        };
+        if leaf.structural_parameters.get(dense) != Some(source) {
+            return unsupported("direct dynamic continuation leaf parameter changed its custody");
+        }
+        parameters.push(terminal_psi::StructuralParameterDeclaration {
+            position,
+            ..caller.clone()
+        });
+    }
+    Ok(parameters)
 }
 
 fn empty_successor(target: BlockId, next_edge: &mut u64) -> Result<SuccessorEdge, LoweringError> {

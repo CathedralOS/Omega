@@ -107,6 +107,64 @@ impl TypedTrees {
         Ok(position)
     }
 
+    /// The place one authored operand names: the root symbol it starts at,
+    /// the leaf member it ends at, and the authored member path between them.
+    /// Only a name or a member chain is a descriptor place; every other
+    /// expression shape supplies no place.
+    pub fn dynamic_descriptor_place(
+        &self,
+        expression: ExpressionHandle,
+    ) -> Option<DynamicDescriptorPlace> {
+        match self.expression_table.expression(expression) {
+            ExpressionNode::Name(name) => {
+                let path = self
+                    .expression_table
+                    .name_path_members(name.members)
+                    .to_vec();
+                if path.is_empty() {
+                    return None;
+                }
+                Some(DynamicDescriptorPlace {
+                    root: if name.head_symbol.is_valid() {
+                        name.head_symbol
+                    } else {
+                        name.symbol
+                    },
+                    leaf: name.symbol,
+                    path,
+                })
+            }
+            ExpressionNode::Member(member) => {
+                let mut place = self.dynamic_descriptor_place(member.receiver)?;
+                place.leaf = member.member_symbol;
+                place.path.push(member.member.clone());
+                Some(place)
+            }
+            _ => None,
+        }
+    }
+
+    /// The place a call supplies as `requirement`'s dynamic subject, given the
+    /// call's authored arguments in source order.
+    ///
+    /// This is the one answer to "which operand carries the descriptor", so
+    /// every owner asks it here instead of reading a call's receiver symbol:
+    /// a trait-qualified call (`Shape::code(erased)`) spells the trait before
+    /// its name, which is a namespace and not a runtime place at all. Only
+    /// the subject operand is supported; a call whose argument list does not
+    /// end at the subject position supplies no place.
+    pub fn dynamic_dispatch_subject_place(
+        &self,
+        requirement: SymbolHandle,
+        arguments: &[ExpressionHandle],
+    ) -> Option<DynamicDescriptorPlace> {
+        let (_, _, position) = self.dynamic_requirement_subject(requirement)?;
+        if arguments.len() != position.checked_add(1)? {
+            return None;
+        }
+        self.dynamic_descriptor_place(*arguments.get(position)?)
+    }
+
     /// The trait requirement `symbol` names, with its dynamic subject
     /// position: what a call site holding only a target symbol needs to find
     /// which operand carries the descriptor.
@@ -612,4 +670,12 @@ fn push_lifetime_name(lifetimes: &mut Vec<String>, name: &Identifier) {
     if !name.is_empty() && !lifetimes.iter().any(|seen| seen == name) {
         lifetimes.push(name.to_owned());
     }
+}
+
+/// The storage place an authored operand names, for the operand carrying a
+/// dynamic descriptor.
+pub struct DynamicDescriptorPlace {
+    pub root: SymbolHandle,
+    pub leaf: SymbolHandle,
+    pub path: Vec<Identifier>,
 }

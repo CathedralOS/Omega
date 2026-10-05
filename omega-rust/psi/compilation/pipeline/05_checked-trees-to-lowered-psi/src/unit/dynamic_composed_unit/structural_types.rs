@@ -70,3 +70,51 @@ pub(crate) fn lower_dynamic_structural_types_for_source(
         ],
     )
 }
+
+/// The caller's context parameter declaration, rejoined to the roster the
+/// checked plan publishes.
+///
+/// Both single-call and continuation lowering used to synthesize this
+/// declaration from `caller_attachment_type_identity` alone, at a fixed
+/// position 0: an assertion that the caller's only runtime parameter is the
+/// data the machine is qualified by. Under named implementations that data is
+/// an ordinary explicit parameter, so the claim is checkable, and the checked
+/// plan now publishes the roster to check it against.
+///
+/// The lane declares exactly one structural parameter, so a caller whose
+/// roster holds more than the context place is refused by name here rather
+/// than lowered with the rest of its signature dropped.
+pub(crate) fn caller_context_parameter(
+    view: &crate::unit::dynamic_composed_unit::dynamic_lanes::DynamicCallView<'_>,
+    structural_type: semantic_vocabulary::StructuralTypeId,
+    place: semantic_vocabulary::PlaceId,
+) -> Result<terminal_psi::StructuralParameterDeclaration, LoweringError> {
+    let [context] = view.caller_structural_parameters else {
+        return unsupported(
+            "direct dynamic caller must carry its context as its one structural parameter",
+        );
+    };
+    if context.position != view.source_parameter_position
+        || context.type_identity != view.caller_attachment_type_identity
+        || context.access != view.caller_parameter_access
+    {
+        return unsupported("direct dynamic caller context parameter drifted from its roster");
+    }
+    Ok(terminal_psi::StructuralParameterDeclaration {
+        place,
+        position: context.position,
+        structural_type,
+        multiplicity: LOAN_MULTIPLICITY,
+        access: match context.access {
+            checked_trees::CheckedStructuralAccess::SharedBorrow => {
+                terminal_psi::StructuralAccess::SharedBorrow
+            }
+            checked_trees::CheckedStructuralAccess::MutableBorrow => {
+                terminal_psi::StructuralAccess::MutableBorrow
+            }
+            _ => return unsupported("direct dynamic caller requires a borrowed context parameter"),
+        },
+        qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
+    })
+}

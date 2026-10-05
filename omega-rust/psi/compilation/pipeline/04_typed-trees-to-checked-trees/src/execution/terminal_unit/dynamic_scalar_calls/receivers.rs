@@ -1,46 +1,14 @@
 //! Dynamic receiver places and stored receivers.
+//!
+//! The place rule itself lives on `TypedTrees`
+//! (`dynamic_descriptor_place`/`dynamic_dispatch_subject_place`) beside the
+//! subject-position rule it depends on, so Psi's later stages rejoin a
+//! dispatched place by asking the same question rather than reading a call's
+//! receiver symbol, which names the trait on a qualified spelling.
 
-use crate::execution::terminal_unit::{CheckFacts, ExpressionNode, SymbolHandle, TypedTrees};
-use typed_trees::name::Identifier;
+use crate::execution::terminal_unit::{CheckFacts, SymbolHandle, TypedTrees};
 
-pub(crate) struct DynamicReceiverPlace {
-    pub(crate) root: SymbolHandle,
-    pub(crate) leaf: SymbolHandle,
-    pub(crate) path: Vec<Identifier>,
-}
-
-pub(crate) fn dynamic_receiver_place(
-    program: &TypedTrees,
-    expression: typed_trees::expression::ExpressionHandle,
-) -> Option<DynamicReceiverPlace> {
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Name(name) => {
-            let path = program
-                .expression_table
-                .name_path_members(name.members)
-                .to_vec();
-            if path.is_empty() {
-                return None;
-            }
-            Some(DynamicReceiverPlace {
-                root: if name.head_symbol.is_valid() {
-                    name.head_symbol
-                } else {
-                    name.symbol
-                },
-                leaf: name.symbol,
-                path,
-            })
-        }
-        ExpressionNode::Member(member) => {
-            let mut place = dynamic_receiver_place(program, member.receiver)?;
-            place.leaf = member.member_symbol;
-            place.path.push(member.member.clone());
-            Some(place)
-        }
-        _ => None,
-    }
-}
+pub(crate) use typed_trees::dynamic_traits::DynamicDescriptorPlace as DynamicReceiverPlace;
 
 /// The place one dynamic dispatch reads its descriptor from: the operand at
 /// the dispatched requirement's subject position.
@@ -57,12 +25,10 @@ pub(crate) fn dispatch_subject_place(
     call_site: &crate::semantic::calls::CallSite<'_>,
     target_symbol: SymbolHandle,
 ) -> Option<DynamicReceiverPlace> {
-    let (_, _, position) = program.dynamic_requirement_subject(target_symbol)?;
-    let arguments = crate::semantic::calls::call_site_argument_expressions(program, call_site);
-    if arguments.len() != position.checked_add(1)? {
-        return None;
-    }
-    dynamic_receiver_place(program, *arguments.get(position)?)
+    program.dynamic_dispatch_subject_place(
+        target_symbol,
+        crate::semantic::calls::call_site_argument_expressions(program, call_site),
+    )
 }
 
 pub(crate) fn stored_dynamic_receiver<'facts>(

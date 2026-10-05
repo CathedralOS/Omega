@@ -40,6 +40,27 @@ impl CheckedDynamicDispatchPlans {
             .iter()
             .flat_map(CheckedDynamicDispatchPlan::scalar_calls)
     }
+
+    /// Every exact structural-parameter roster the dynamic lane publishes for
+    /// state `state` of machine `machine`.
+    ///
+    /// A dynamic caller retains no storage attachment -- the machine's data
+    /// arrives as an ordinary explicit parameter -- so each row here is a
+    /// roster a consumer may rejoin to an authored parameter position
+    /// directly, exactly as it rejoins `CheckedUnitEffectMachinePlan` and
+    /// `CheckedComposedUnitControlStatePlan` rows.
+    pub fn caller_structural_parameters(
+        &self,
+        machine: SymbolHandle,
+        state: SymbolHandle,
+    ) -> impl Iterator<Item = &[crate::CheckedUnitStructuralParameterPlan]> {
+        self.calls
+            .iter()
+            .filter(move |plan| plan.caller_machine() == machine)
+            .flat_map(CheckedDynamicDispatchPlan::caller_rosters)
+            .filter(move |(caller_state, _)| *caller_state == state)
+            .map(|(_, roster)| roster)
+    }
 }
 
 /// One checked dynamic dispatch. The variant names the result the dispatched
@@ -89,6 +110,26 @@ impl CheckedDynamicDispatchPlan {
         }
         .into_iter()
         .flatten()
+    }
+
+    /// Each performed call's caller state paired with the exact
+    /// structural-parameter roster that state publishes.
+    pub fn caller_rosters(
+        &self,
+    ) -> impl Iterator<Item = (SymbolHandle, &[crate::CheckedUnitStructuralParameterPlan])> {
+        let scalar = self.scalar_calls().map(|call| {
+            (
+                call.caller_state,
+                call.caller_structural_parameters.as_slice(),
+            )
+        });
+        let unit = self.unit_calls().map(|call| {
+            (
+                call.caller_state,
+                call.caller_structural_parameters.as_slice(),
+            )
+        });
+        scalar.chain(unit)
     }
 
     /// The realization machine every performed call selects.
@@ -245,6 +286,15 @@ pub struct CheckedDynamicUnitCallPlan {
     pub caller_machine: SymbolHandle,
     pub caller_state: SymbolHandle,
     pub caller_attachment_type_identity: String,
+    /// The caller state's exact checked structural-parameter roster, as every
+    /// other Unit plan publishes its own. `caller_attachment_type_identity`
+    /// names the data type the machine is qualified by; it does not say which
+    /// parameter of this state carries that data, and no other field does
+    /// either -- `source_parameter_position` names the place the erased value
+    /// was selected from, which coincides with the context parameter only when
+    /// the program erases a field of it. A consumer rejoining this caller to
+    /// its context parameter reads the roster instead of re-deriving one.
+    pub caller_structural_parameters: Vec<crate::CheckedUnitStructuralParameterPlan>,
     pub caller_multiplicity: language_semantics::Multiplicity,
     pub caller_parameter_access: super::CheckedStructuralAccess,
     pub caller_contract_report_fingerprint: u64,
@@ -516,6 +566,15 @@ pub struct CheckedDynamicScalarCallPlan {
     pub caller_machine: SymbolHandle,
     pub caller_state: SymbolHandle,
     pub caller_attachment_type_identity: String,
+    /// The caller state's exact checked structural-parameter roster, as every
+    /// other Unit plan publishes its own. `caller_attachment_type_identity`
+    /// names the data type the machine is qualified by; it does not say which
+    /// parameter of this state carries that data, and no other field does
+    /// either -- `source_parameter_position` names the place the erased value
+    /// was selected from, which coincides with the context parameter only when
+    /// the program erases a field of it. A consumer rejoining this caller to
+    /// its context parameter reads the roster instead of re-deriving one.
+    pub caller_structural_parameters: Vec<crate::CheckedUnitStructuralParameterPlan>,
     pub caller_multiplicity: language_semantics::Multiplicity,
     pub caller_parameter_access: super::CheckedStructuralAccess,
     pub caller_contract_report_fingerprint: u64,

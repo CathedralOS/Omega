@@ -93,6 +93,11 @@ pub(crate) struct DynamicCallView<'a> {
     pub(crate) caller_machine: SymbolHandle,
     pub(crate) caller_state: SymbolHandle,
     pub(crate) caller_attachment_type_identity: &'a str,
+    /// The caller state's published structural-parameter roster. The lane
+    /// declares its context parameter from this roster rather than
+    /// synthesizing one from the attachment identity.
+    pub(crate) caller_structural_parameters:
+        &'a [checked_trees::CheckedUnitStructuralParameterPlan],
     pub(crate) caller_multiplicity: Multiplicity,
     pub(crate) caller_parameter_access: CheckedStructuralAccess,
     pub(crate) caller_contract_report_fingerprint: u64,
@@ -133,6 +138,7 @@ macro_rules! dynamic_call_view {
             caller_machine: plan.caller_machine,
             caller_state: plan.caller_state,
             caller_attachment_type_identity: &plan.caller_attachment_type_identity,
+            caller_structural_parameters: &plan.caller_structural_parameters,
             caller_multiplicity: plan.caller_multiplicity,
             caller_parameter_access: plan.caller_parameter_access,
             caller_contract_report_fingerprint: plan.caller_contract_report_fingerprint,

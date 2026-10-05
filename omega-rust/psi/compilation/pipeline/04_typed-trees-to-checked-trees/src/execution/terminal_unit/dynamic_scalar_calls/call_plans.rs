@@ -103,6 +103,7 @@ pub(super) struct DynamicCallCustody<HelperBody> {
     pub(super) caller_machine: SymbolHandle,
     pub(super) caller_state: SymbolHandle,
     pub(super) caller_attachment_type_identity: String,
+    pub(super) caller_structural_parameters: Vec<checked_trees::CheckedUnitStructuralParameterPlan>,
     pub(super) caller_multiplicity: language_semantics::Multiplicity,
     pub(super) caller_parameter_access: CheckedStructuralAccess,
     pub(super) caller_contract_report_fingerprint: u64,
@@ -350,8 +351,17 @@ pub(super) fn build_checked_dynamic_call<'program, 'facts, Lane: DynamicResultLa
             .iter()
             .filter(|data| data.symbol == machine.attached_data_symbol),
     )?;
-    let caller_attachment_type_identity =
-        shapes.add_attached_data(attachment, &machine_binders(program, machine))?;
+    let binders = machine_binders(program, machine);
+    let caller_attachment_type_identity = shapes.add_attached_data(attachment, &binders)?;
+    // The caller state's own roster, from the one signature producer every
+    // Unit plan uses. `caller_attachment_type_identity` above names the data
+    // type the machine is qualified by, not the parameter that carries it, so
+    // a consumer rejoining this caller to its context parameter needs the
+    // roster published beside it rather than a second derivation of its own.
+    let (_, caller_structural_parameters, _) =
+        crate::execution::terminal_unit::calls::structural_scalar_signature(
+            program, shapes, machine, state, &binders,
+        )?;
     let (source_field, source_path, source_type_identity) =
         checked_attachment_source(program, machine, state, &selection)?;
     let source_definition = sole(
@@ -542,6 +552,7 @@ pub(super) fn build_checked_dynamic_call<'program, 'facts, Lane: DynamicResultLa
         caller_machine: machine.symbol,
         caller_state: state.symbol,
         caller_attachment_type_identity,
+        caller_structural_parameters,
         caller_multiplicity: attachment.properties.multiplicity,
         caller_parameter_access,
         caller_contract_report_fingerprint: caller_contract.report_fingerprint,

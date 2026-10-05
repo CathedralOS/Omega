@@ -120,6 +120,7 @@ macro_rules! checked_dynamic_call_plan {
             caller_machine: custody.caller_machine,
             caller_state: custody.caller_state,
             caller_attachment_type_identity: custody.caller_attachment_type_identity,
+            caller_structural_parameters: custody.caller_structural_parameters,
             caller_multiplicity: custody.caller_multiplicity,
             caller_parameter_access: custody.caller_parameter_access,
             caller_contract_report_fingerprint: custody.caller_contract_report_fingerprint,
