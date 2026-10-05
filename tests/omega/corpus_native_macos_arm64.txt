@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 14, "jobs": "3", "load1_end": 4.94, "load1_start": 4.94, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": "3", "load1_end": 9.01, "load1_start": 9.53, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 189ms
 pass/arithmetic/anonymous_rational_integer_landing checked 186ms
 pass/arithmetic/bounded_assignment checked 197ms
@@ -690,7 +690,7 @@ pass/float/scalar_helper_boundary_sequence_exit built 1800ms exit:70 @de54b0ba9f
 pass/float/state_loop_field_refinement_restoration_exit built 1742ms exit:70 @163770eba39c+wt
 pass/float/x86_fma_plan_association rejected 3185ms @48008365d839
 	compiler float arithmetic for `operator::F32::fused_multiply_add(named(name(f32)),named(name(f32)),named(name(f32)))->named(name(f32))` has no local target catalog realization on NativeTarget { architecture: X86_64, object_format: Coff, pointer_size: 8, pointer_alignment: 8 }
-pass/generics/closed_generic_local_field_observation_exit built 1794ms exit:0 @e1bf1e8c9fad+wt
+pass/generics/closed_generic_local_field_observation_exit built 1759ms exit:0 @c9b4ecc7551a
 pass/generics/closed_indexed_quantity built 12715ms @4ffed225fc45+wt
 pass/generics/closed_sum_case_membership checked 191ms
 pass/generics/const_data_param checked 166ms
@@ -917,7 +917,7 @@ pass/providers/foreign_multiregister_result_exit built 1320ms exit:70 @7b8965f77
 pass/providers/foreign_out_parameter_write_observed_exit built 7107ms exit:70 @22d7c734257c+wt
 pass/providers/foreign_owned_record_exit built 1286ms exit:70 @a6215a598e48
 pass/providers/foreign_record_result_exit built 1812ms exit:70 @b10ef07ea7b6
-pass/providers/generic_provider_structural_result_composition_exit built 1803ms exit:0 @e1bf1e8c9fad+wt
+pass/providers/generic_provider_structural_result_composition_exit built 1765ms exit:0 @c9b4ecc7551a
 pass/providers/kernel_import_result_chain_exit built 1378ms @65fd4c9d99fc
 pass/providers/lifetime_boundary_requirement_dispatch_exit built 626ms exit:41
 pass/providers/local_record_foreign_borrow_exit built 1903ms exit:70 @59d57ace39f0+wt
@@ -934,7 +934,7 @@ pass/providers/same_name_requirement_right_dispatch_exit built 934ms exit:70 @b1
 pass/providers/selected_const_provider_call_identity_exit built 1583ms exit:70 @c8e8e86a6e1b
 pass/providers/service_borrowed_parameter checked 226ms @48008365d839
 pass/providers/service_fused_root_establishment built 256ms
-pass/providers/specialized_mixed_structural_result_operator_hosted_native built 1791ms exit:0 @e1bf1e8c9fad+wt
+pass/providers/specialized_mixed_structural_result_operator_hosted_native built 1756ms exit:0 @c9b4ecc7551a
 pass/providers/specialized_structural_fixed_operator_terminal_custody built 370ms
 pass/providers/token_machine_family_override_exit built 676ms exit:70
 pass/range/data_parameter_counter_non_negative_exit built 850ms exit:11 @ec784d4d82e8+wt
