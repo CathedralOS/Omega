@@ -2290,6 +2290,40 @@ crash and native exit behavior.
   fixture compiles and refuses a nonempty release-rollback overlay without
   publishing partial outputs.
 
+- **NATIVE-LEG-DEPENDS-ON-ACCEPTED-PACKAGE-STATE.** (new-scope)
+  The native leg's outcome for a fixture that path-depends on
+  `source/library/std` **and** binds `macos_arm64::ProgramEntry` differs between
+  a warm checkout and a fresh worktree, and the difference is not in the golden.
+  A lane measured `pass/wire/wire_preserving_decode_relay_exit` and
+  `pass/providers/checked_boundary_operator_const_application_alternate_exit`
+  refusing with "target root slot `macos_arm64::ProgramEntry` requires one exact
+  contract-owned boundary schema `MacosApplication`, but found 0"
+  (`realization/provider-planning/src/program_entry.rs:902`) and reported both
+  golden rows as stale. **They are not stale:** measured individually at
+  `origin/main` in the warm main checkout both are `built`, execute, and
+  `exit:70` with 0 oracle failures, and the commit that lane blamed
+  (`5ca18f21938`) already predates the recording of one of those rows.
+
+  The mechanism is consumer acceptance, not a regression. Both fixtures reach
+  std through `Build::depend(Source::Path { .. })`, which makes it an ordinary
+  package whose entry contract needs an accepted package-owned binding;
+  `wiki/spec/build/entry_roots.md` forbids inferring bundled-ness from a path.
+  So an environment holding accepted review state admits them and a fresh one
+  does not, and the same asymmetry already makes bare `omega --check` unusable
+  as a probe for std-dependent macOS programs.
+
+  **Why it matters beyond two rows:** these fixtures carry authored exit oracles,
+  so an unaccepted environment trips the gate's oracle short-circuit and the run
+  exits 3 *before printing its diff* -- 5 of that lane's 9 shard runs died that
+  way. Every lane measuring natively in a fresh worktree loses the measurement
+  and may then misattribute it to whatever commit it happens to be testing.
+  Frontier: decide whether the corpus runner should establish acceptance for a
+  path-dependent std fixture as part of staging, or whether these fixtures should
+  not bind a host `ProgramEntry` at all and stay on the targetless route like
+  their green siblings. Until then, treat a `MacosApplication`-schema refusal in
+  a fresh worktree as an environment artifact and re-measure in the warm
+  checkout before recording anything.
+
 - **SELECTION-CUSTODY-DIAGNOSTIC-QUOTES-RUST-SOURCE.** (new-scope)
   `SelectedInstructionError::custody()` is `#[track_caller]`, so a stage-03
   refusal reaches the author as `SourceCustodyMismatch { site: Location { file:
