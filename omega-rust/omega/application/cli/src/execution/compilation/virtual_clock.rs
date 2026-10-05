@@ -56,7 +56,6 @@ fn selected_bindings(
     let context = ProviderPlanningContext::new(checked, source::DependencyScope::Product);
     let mut bindings = Vec::new();
     let mut requirements = Vec::new();
-    let mut replayed_evaluation = false;
     // Provider settlement sorts both populations together; selected-dispatch's
     // intrinsic review enforces this same row-aligned equality before sealing.
     for (plan, retained) in selected.plans().iter().zip(provenance) {
@@ -88,10 +87,6 @@ fn selected_bindings(
                 return Err(failure(
                     "virtual clock import belongs to another selected target",
                 ));
-            }
-            if !replayed_evaluation {
-                evaluated_bindings.validate_against_typed(context)?;
-                replayed_evaluation = true;
             }
             let parameters = exact_requirement_parameters(
                 checked,
