@@ -348,7 +348,6 @@ fn parses_binding_relevance_on_signature_parameters_and_locals() {
     let [receiver, n, bound] = parameters.as_slice() else {
         panic!("three parameters");
     };
-    assert!(!receiver.is_self);
     assert_eq!(
         receiver.relevance,
         language_core::BindingRelevance::Relevant

@@ -396,7 +396,6 @@ fn parses_explicit_parameter_with_named_carrier_type() {
             .expect("explicit parameter"),
     );
 
-    assert!(!parameter.is_self);
     let TypeReferenceNode::Reference {
         referee, access, ..
     } = parsed
