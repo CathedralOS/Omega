@@ -125,8 +125,10 @@ machine DescriptorTableValidation::run(
     gates: [InterruptGate; 33],
     members: [TableMemberDeclaration; 4],
     ist: [IstBinding; 4],
-    fuel: u64 [1..=768]
+    fuel: u64
 ) -> TableVerdict
+requires 1 <= fuel
+requires fuel <= 768
 terminates by fuel;
 {
     transition { _ -> declared(image, gates, members, ist, fuel, 0) }
@@ -136,9 +138,11 @@ terminates by fuel;
         gates: [InterruptGate; 33],
         members: [TableMemberDeclaration; 4],
         ist: [IstBinding; 4],
-        fuel: u64 [1..=768],
+        fuel: u64,
         row: u64 [0..=4]
-    ) -> TableVerdict {
+    ) -> TableVerdict
+    requires 1 <= fuel
+    requires fuel <= 768 {
         transition {
             fuel > 1 && row < 4 -> declared_row(image, gates, members, ist, fuel - 1, row)
             row < 4 -> reject_index(row, 0)
@@ -152,9 +156,11 @@ terminates by fuel;
         gates: [InterruptGate; 33],
         members: [TableMemberDeclaration; 4],
         ist: [IstBinding; 4],
-        fuel: u64 [1..=768],
+        fuel: u64,
         row: u64 [0..=3]
-    ) -> TableVerdict {
+    ) -> TableVerdict
+    requires 1 <= fuel
+    requires fuel <= 768 {
         transition {
             members[row].vector >= 33 -> reject_index(row, 10)
             members[row].ist_slot == 0 -> reject_index(row, 11)
@@ -168,9 +174,11 @@ terminates by fuel;
         gates: [InterruptGate; 33],
         members: [TableMemberDeclaration; 4],
         ist: [IstBinding; 4],
-        fuel: u64 [1..=768],
+        fuel: u64,
         at: u64 [0..=33]
-    ) -> TableVerdict {
+    ) -> TableVerdict
+    requires 1 <= fuel
+    requires fuel <= 768 {
         transition {
             fuel > 1 && at < 33 -> member_probe(image, gates, members, ist, fuel - 1, at, 0)
             at < 33 -> reject(at, 0)
@@ -183,10 +191,12 @@ terminates by fuel;
         gates: [InterruptGate; 33],
         members: [TableMemberDeclaration; 4],
         ist: [IstBinding; 4],
-        fuel: u64 [1..=768],
+        fuel: u64,
         at: u64 [0..=32],
         row: u64 [0..=4]
-    ) -> TableVerdict {
+    ) -> TableVerdict
+    requires 1 <= fuel
+    requires fuel <= 768 {
         transition {
             fuel > 1 && row < 4 -> member_row(image, gates, members, ist, fuel - 1, at, row)
             row < 4 -> reject(at, 0)
@@ -200,10 +210,12 @@ terminates by fuel;
         gates: [InterruptGate; 33],
         members: [TableMemberDeclaration; 4],
         ist: [IstBinding; 4],
-        fuel: u64 [1..=768],
+        fuel: u64,
         at: u64 [0..=32],
         row: u64 [0..=3]
-    ) -> TableVerdict {
+    ) -> TableVerdict
+    requires 1 <= fuel
+    requires fuel <= 768 {
         transition {
             fuel > 1 && members[row].vector == at -> member_fields(image, gates, members, ist, fuel - 1, at, row)
             fuel > 1 -> member_probe(image, gates, members, ist, fuel - 1, at, row + 1)
@@ -216,10 +228,12 @@ terminates by fuel;
         gates: [InterruptGate; 33],
         members: [TableMemberDeclaration; 4],
         ist: [IstBinding; 4],
-        fuel: u64 [1..=768],
+        fuel: u64,
         at: u64 [0..=32],
         row: u64 [0..=3]
-    ) -> TableVerdict {
+    ) -> TableVerdict
+    requires 1 <= fuel
+    requires fuel <= 768 {
         transition {
             gates[at].entry == 0 -> reject(at, 1)
             gates[at].selector != members[row].selector -> reject(at, 2)
@@ -243,11 +257,13 @@ terminates by fuel;
         gates: [InterruptGate; 33],
         members: [TableMemberDeclaration; 4],
         ist: [IstBinding; 4],
-        fuel: u64 [1..=768],
+        fuel: u64,
         at: u64 [0..=32],
         row: u64 [0..=3],
         binding: u64 [0..=4]
-    ) -> TableVerdict {
+    ) -> TableVerdict
+    requires 1 <= fuel
+    requires fuel <= 768 {
         transition {
             fuel > 1 && binding < 4 -> ist_match(image, gates, members, ist, fuel - 1, at, row, binding)
             binding < 4 -> reject(at, 0)
@@ -260,11 +276,13 @@ terminates by fuel;
         gates: [InterruptGate; 33],
         members: [TableMemberDeclaration; 4],
         ist: [IstBinding; 4],
-        fuel: u64 [1..=768],
+        fuel: u64,
         at: u64 [0..=32],
         row: u64 [0..=3],
         binding: u64 [0..=3]
-    ) -> TableVerdict {
+    ) -> TableVerdict
+    requires 1 <= fuel
+    requires fuel <= 768 {
         transition {
             ist[binding].slot == members[row].ist_slot
                 && ist[binding].dedicated_class != members[row].dedicated_stack_class
@@ -280,9 +298,11 @@ terminates by fuel;
         gates: [InterruptGate; 33],
         members: [TableMemberDeclaration; 4],
         ist: [IstBinding; 4],
-        fuel: u64 [1..=768],
+        fuel: u64,
         at: u64 [0..=32]
-    ) -> TableVerdict {
+    ) -> TableVerdict
+    requires 1 <= fuel
+    requires fuel <= 768 {
         transition {
             gates[at].entry != 0 -> reject(at, 9)
             gates[at].selector != 0 -> reject(at, 9)
@@ -306,9 +326,11 @@ terminates by fuel;
         gates: [InterruptGate; 33],
         members: [TableMemberDeclaration; 4],
         ist: [IstBinding; 4],
-        fuel: u64 [1..=768],
+        fuel: u64,
         at: u64 [0..=32]
-    ) -> TableVerdict {
+    ) -> TableVerdict
+    requires 1 <= fuel
+    requires fuel <= 768 {
         transition {
             fuel > 1 -> vector(image, gates, members, ist, fuel - 1, at + 1)
             _ -> reject(at, 0)
