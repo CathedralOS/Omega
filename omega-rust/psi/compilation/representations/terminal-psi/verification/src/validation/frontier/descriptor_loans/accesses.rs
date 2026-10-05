@@ -67,8 +67,9 @@ fn whole(place: PlaceId, exclusive: bool) -> Access {
 
 /// Follow the declaration owner's dynamic path interpretation. A nested
 /// descriptor dereferences external backing, not the containing record slot.
-/// Whole view roots already have a backing alias in the caller's adapter; a
-/// nested view has no such exact alias and must remain indirect.
+/// Whole view roots already have a backing alias in the caller's adapter -- a
+/// reference as much as an element or byte view, so its own `Referent` hop
+/// resolves; a nested view has no such exact alias and must remain indirect.
 fn path_projection(
     module: &TerminalModule,
     root: Option<StructuralTypeId>,
@@ -89,6 +90,18 @@ fn path_projection(
             projection.indirect = true;
             return (projection, None);
         };
+        // A whole reference root crosses its own borrowed boundary: the
+        // establishment that produced this place registered the exact backing
+        // alias the referent names, so continue into the referent type rather
+        // than abandoning the geometry. `resolve_structural_path` cannot cross
+        // `Referent` itself; it resolves owned subtrees, not loans.
+        if let StructuralTypeShape::Reference { referent, .. } = declaration.shape
+            && index == 0
+            && *segment == StructuralPathSegment::Referent
+        {
+            current = referent;
+            continue;
+        }
         if matches!(declaration.shape, StructuralTypeShape::Reference { .. })
             || (index != 0
                 && (matches!(declaration.shape, StructuralTypeShape::ElementView { .. })

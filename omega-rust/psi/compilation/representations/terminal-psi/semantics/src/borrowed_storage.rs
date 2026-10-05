@@ -45,7 +45,9 @@ impl Projection {
         Self {
             path: path[..bounded_length].to_vec(),
             exact: length == path.len(),
-            indirect: path.contains(&StructuralPathSegment::Referent),
+            // `resolve` discharges a leading `Referent` from the place's own
+            // backing alias, so only a deeper crossing stays indirect.
+            indirect: crate::crosses_unaliased_reference(path),
             window: None,
             captured_at: None,
         }

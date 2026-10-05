@@ -23,6 +23,19 @@ impl StorageRegion {
     }
 }
 
+/// Whether `path` crosses a reference boundary that no backing alias names.
+///
+/// A leading `Referent` is the carrier place's own hop: every establishment
+/// registers that place's exact backing, so resolving the place discharges
+/// the crossing and the geometry beyond it still denotes known storage. A
+/// dereference reached through earlier geometry names a referent nothing
+/// here has reconstructed, so its region stays conservatively indirect.
+pub fn crosses_unaliased_reference(path: &[StructuralPathSegment]) -> bool {
+    path.iter()
+        .skip(1)
+        .any(|segment| *segment == StructuralPathSegment::Referent)
+}
+
 /// Resolve a projection's static enclosing region, including its final field.
 /// A reference crossing remains explicit and never denotes direct backing.
 pub fn projected_storage_region<'a>(
@@ -53,7 +66,7 @@ pub fn projected_storage_region<'a>(
     }
     StorageRegion {
         path: region,
-        indirect: path.contains(&StructuralPathSegment::Referent),
+        indirect: crosses_unaliased_reference(path),
     }
 }
 

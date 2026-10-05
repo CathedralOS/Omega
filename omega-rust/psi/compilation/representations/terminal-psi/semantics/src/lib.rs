@@ -122,7 +122,8 @@ pub use static_path::{
     structural_paths_may_overlap, structural_paths_select_same_location,
 };
 pub use storage_regions::{
-    StorageRegion, canonical_field_storage_region, projected_storage_region,
+    StorageRegion, canonical_field_storage_region, crosses_unaliased_reference,
+    projected_storage_region,
 };
 pub use structural_effect::{
     StructuralEffectAction, StructuralEffectCustody, StructuralEffectExternalEffect,
