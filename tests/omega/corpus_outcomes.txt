@@ -880,6 +880,12 @@ fail/generics/const_data_where_fact_false rejected 18ms expected @2d8ed253669f
 	const fact for generic instance `FixedBuffer<0>` is false
 fail/generics/const_generic_runtime_argument rejected 265ms expected @2d8ed253669f
 	a value call to generic machine `prefix_count` cannot derive a complete type/const/machine/conformance specialization tuple from its argument and result types; add a concrete destination annotation or provide concrete argument type evidence
+fail/generics/grouped_decimal_const_fraction_rejected rejected 11ms expected @1e24b2973189
+	const argument expression for `FixedBuffer` is invalid for `u64`: exact anonymous value `25/8` cannot land in an integer const argument; type an operand if typed integer division was intended
+fail/generics/grouped_decimal_const_suffix_rejected rejected 9ms expected @1e24b2973189
+	const argument expression for `FixedBuffer` is invalid for `u64`: expression is not a symbolic integer const expression
+fail/generics/grouped_decimal_const_zero_division_rejected rejected 13ms expected @1e24b2973189
+	const argument expression for `FixedBuffer` is invalid for `u64`: division by zero is invalid
 fail/generics/indexed_domain_capacity_invalid_initializer rejected 141ms expected @f64782b89114+wt
 	construction of `DomainBytes<u64 in AtMost<256>, 256>` field `length` cannot be proven within its declared range `-9223372036854775808..=256`; constrain the value, construct with a literal in range, or widen the field
 	`as ... in AtMost<256>` cannot mint: a `AtMost<256>` domain fact is FALSE at this value -- the predicate obligation is owed (decision 19's "predicate obligation not discharged" class)
@@ -2286,6 +2292,8 @@ pass/generics/runtime_const_data_where_fact_exit checked 1270ms check-target:mac
 pass/generics/runtime_container_setter_matrix_exit checked 1388ms check-target:macos_arm64 @2d8ed253669f
 pass/generics/runtime_forwarded_value_contract_exit checked 507ms check-target:macos_arm64 @fbbbc025398+wt
 pass/generics/runtime_generic_multiple_specializations_exit checked 1262ms check-target:macos_arm64 @2d8ed253669f
+pass/generics/runtime_grouped_decimal_const_argument_exit checked 3797ms check-target:macos_arm64 @1e24b2973189
+pass/generics/runtime_grouped_decimal_const_exact_arithmetic_exit checked 3452ms check-target:macos_arm64 @1e24b2973189
 pass/generics/runtime_mixed_generic_erased_sum_exit checked 515ms check-target:macos_arm64 @ca8c127c90c5
 pass/generics/runtime_nested_generic_instantiations_exit checked 1285ms check-target:macos_arm64 @2d8ed253669f
 pass/generics/runtime_value_generic_subject_exit checked 1300ms check-target:macos_arm64 @2d8ed253669f

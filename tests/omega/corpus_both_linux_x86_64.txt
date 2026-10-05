@@ -12,6 +12,8 @@ pass/control_flow/runtime_later_state_shared_array_loan built 1003ms exit:0 stdo
 pass/control_flow/runtime_namespace_local_state_loan built 983ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @058b197aec1a+wt
 pass/float/runtime_float_digit_separators_exit built 162056ms exit:0 interpreter-exit:0 interpreter:agrees @e129ea486356
 pass/generics/omitted_data_binder_range_equation built 1576ms exit:92 interpreter-exit:92 interpreter:agrees @f64782b89114+wt
+pass/generics/runtime_grouped_decimal_const_argument_exit built 6818ms exit:0 interpreter-exit:0 interpreter:agrees @1e24b2973189
+pass/generics/runtime_grouped_decimal_const_exact_arithmetic_exit built 6694ms exit:0 interpreter-exit:0 interpreter:agrees @1e24b2973189
 pass/modules/runtime_foreign_generic_scoped_constant_exit built 1465ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @743851d348c6+wt
 pass/operators/crash_routes built 662ms exit:0 interpreter-exit:0 interpreter:agrees @18e5a662881c+wt
 pass/optimizer/address_offset_selection_exit built 3256ms exit:0 interpreter-exit:0 interpreter:agrees @eca6cafd32e7

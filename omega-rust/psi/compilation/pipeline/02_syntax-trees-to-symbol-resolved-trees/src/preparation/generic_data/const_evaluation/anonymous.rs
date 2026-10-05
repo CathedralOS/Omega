@@ -55,7 +55,11 @@ pub(super) fn evaluate_anonymous_numeric_expression(
                     values.push(BigRational::from_integer(value));
                 }
                 ExpressionNode::Float(text) => {
-                    let value = BigRational::from_decimal_str(text.as_str())
+                    // The literal payload owns source normalization. Read its
+                    // exact spelling, not raw grouped digits or a rounded host
+                    // float, so integer landing sees the completed rational.
+                    let value = FloatLiteral::parse(text.as_str())
+                        .and_then(|literal| BigRational::from_decimal_str(literal.text()))
                         .ok_or_else(|| "anonymous decimal literal has no exact value".to_owned())?;
                     if fractional.is_none() && value.to_integer_exact().is_none() {
                         fractional = Some((expression, value.clone()));

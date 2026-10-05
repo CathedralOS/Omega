@@ -580,6 +580,8 @@ pass/generics/runtime_const_data_symbolic_expression_exit built 807ms exit:70 @2
 pass/generics/runtime_const_data_where_fact_exit built 810ms exit:70 @2d8ed253669f+wt
 pass/generics/runtime_container_setter_matrix_exit built 926ms exit:1 @2d8ed253669f+wt
 pass/generics/runtime_generic_multiple_specializations_exit built 781ms exit:14 @2d8ed253669f+wt
+pass/generics/runtime_grouped_decimal_const_argument_exit built 3378ms exit:0 @1e24b2973189
+pass/generics/runtime_grouped_decimal_const_exact_arithmetic_exit built 3383ms exit:0 @1e24b2973189
 pass/generics/runtime_mixed_generic_erased_sum_exit built 843ms exit:70 @2d8ed253669f+wt
 pass/generics/runtime_nested_generic_instantiations_exit built 795ms exit:30 @2d8ed253669f+wt
 pass/generics/runtime_value_generic_subject_exit built 816ms exit:17 @2d8ed253669f+wt

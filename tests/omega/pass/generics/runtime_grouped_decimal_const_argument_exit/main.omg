@@ -1,0 +1,11 @@
+data FixedBuffer<const N: u64> { values: [u8; N]; }
+data Main { buffer: FixedBuffer<1_2.0 / 4>; }
+machine Main::main(main: &mut Main) crashes Trap {
+    main.buffer.values[2] = 37;
+    transition main.buffer.values[2] == 37 {
+        true -> good(main)
+        _ -> bad(main)
+    }
+    state good(main: &mut Main) {}
+    state bad(main: &mut Main) { crash Trap; }
+}
