@@ -114,7 +114,6 @@ pub(super) mod case_emission;
 mod case_leaf_copy;
 mod cases;
 mod cleanup;
-mod cleanup_admission;
 mod edges;
 mod guarded;
 mod result_custody;

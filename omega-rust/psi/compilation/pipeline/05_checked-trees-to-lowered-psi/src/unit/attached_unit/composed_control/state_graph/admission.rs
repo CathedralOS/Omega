@@ -209,15 +209,11 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
         }
     }
     // Reachability is pure topology on the checked plan. States outside the
-    // entry successor closure never execute: the drift checks below still
-    // pair their authored rows, but their custody rows cannot disqualify the
-    // route and emission prunes them.
+    // entry successor closure never execute: their custody rows cannot
+    // disqualify the route and emission prunes them.
     let live = topology::live(plan)?;
     let qualified_invocation = invocation_only_entry(plan, &live);
     for (state_index, ((owner, source), state)) in authored.iter().zip(&plan.states).enumerate() {
-        if live[state_index] {
-            super::cleanup_admission::validate(checked, owner.symbol, source, state)?;
-        }
         crate::unit::attached_unit::claims::validate_entry_claims(
             checked,
             owner.symbol,
