@@ -591,7 +591,7 @@ fn build_state_plan(
                 // transfer of the whole parent. Keep that parent in the
                 // ordinary discard roster; actual partial moves still
                 // require their separate residual-complement evidence.
-                case_payload_copy(
+                projected_read_retains_parent(
                     program,
                     state,
                     statement_index,
@@ -684,12 +684,21 @@ fn build_state_plan(
     })
 }
 
-/// Rejoin the plain whole payload the existing case-leaf operation copies.
-/// A case test alone never consumes its subject: the source move chooses the
-/// payload's next owner, while this physical route retains parent storage
-/// until the edge's ordinary cleanup. Claims, nominal drops and general
-/// projected moves cannot use that no-code retirement.
-fn case_payload_copy(
+/// Whether a projected read out of `root` leaves the parent's storage intact,
+/// so the parent keeps its ordinary state-exit discard row.
+///
+/// Reading a copyable subtree is an observation: the read materializes a
+/// fresh value and the parent survives it, at any field or index path. An
+/// affine subtree is different — that read is a partial move, and this lane
+/// has no residual vocabulary for it — with one exception the physical route
+/// already provides: a proven case test on this edge extracts the selected
+/// payload into a fresh carrier before the edge retires the parent. Crossing
+/// a case also needs that proof, because an unproven case path names storage
+/// the edge never selected. So the selection proof is required exactly where
+/// it is load-bearing rather than on every projected read, which is what made
+/// a copyable field or element read look like an unaccountable partial move.
+/// Claims and nominal drops still cannot use the no-code retirement.
+fn projected_read_retains_parent(
     program: &TypedTrees,
     state: &typed_trees::state::State,
     statement_index: usize,
@@ -697,6 +706,44 @@ fn case_payload_copy(
     root: symbols::SymbolHandle,
     segments: &[facts::PlaceSegment],
 ) -> Option<()> {
+    // A segment carrying no declared field symbol names derived metadata
+    // rather than stored contents — `view.len` is the common one. Metadata is
+    // computed from the storage it describes, so reading it transfers nothing
+    // at any depth and there is no subtree to classify below it.
+    if segments.iter().any(
+        |segment| matches!(segment, facts::PlaceSegment::Field { symbol } if !symbol.is_valid()),
+    ) {
+        return Some(());
+    }
+    // Otherwise the projected subtree is the authority on whether the read
+    // copies: a plain or shared-view leaf with no nominal drop is observable,
+    // and only an unrestricted one leaves the parent's custody whole by
+    // itself.
+    let parameter = program
+        .state_parameters(state)
+        .iter()
+        .find(|parameter| parameter.symbol == root)?;
+    let payload = crate::flow::project_type_reference_from_segments(
+        program,
+        parameter.type_reference,
+        segments,
+    )?;
+    let multiplicity = program.type_multiplicity(payload);
+    if !matches!(
+        multiplicity,
+        Multiplicity::Affine | Multiplicity::Unrestricted
+    ) || !(validation::has_plain_owned_contents_with_numeric_constraints(program, payload)
+        || validation::has_owned_or_shared_view_contents(program, payload))
+        || super::terminal_unit::types::type_graph_requires_nominal_drop(program, payload)
+    {
+        return None;
+    }
+    let crosses_case = segments
+        .iter()
+        .any(|segment| matches!(segment, facts::PlaceSegment::Case { .. }));
+    if multiplicity == Multiplicity::Unrestricted && !crosses_case {
+        return Some(());
+    }
     let TransitionGuardNode::When(guard) = transition.guard else {
         return None;
     };
@@ -725,25 +772,10 @@ fn case_payload_copy(
     }) {
         return None;
     }
-    // The copy is the dispatch's leaf extraction: plain contents or a
-    // shared-view carrier whose descriptor loans keep their lineage on the
-    // fresh copy.
-    let parameter = program
-        .state_parameters(state)
-        .iter()
-        .find(|parameter| parameter.symbol == root)?;
-    let payload = crate::flow::project_type_reference_from_segments(
-        program,
-        parameter.type_reference,
-        segments,
-    )?;
-    (matches!(
-        program.type_multiplicity(payload),
-        Multiplicity::Affine | Multiplicity::Unrestricted
-    ) && (validation::has_plain_owned_contents_with_numeric_constraints(program, payload)
-        || validation::has_owned_or_shared_view_contents(program, payload))
-        && !super::terminal_unit::types::type_graph_requires_nominal_drop(program, payload))
-    .then_some(())
+    // The extraction is the dispatch's leaf copy: the contents judgment above
+    // already admitted plain contents or a shared-view carrier whose
+    // descriptor loans keep their lineage on the fresh carrier.
+    Some(())
 }
 
 pub(super) fn checked_whole_affine_discard_parameters(
