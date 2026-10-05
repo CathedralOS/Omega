@@ -250,6 +250,10 @@ pub(super) fn cleanup(
     })
 }
 
+/// Content qualifications do not add runtime arguments or alter aggregate ABI
+/// layout. Whole-unit ownership reconstruction consumes their entry claims before
+/// this signature join; rejecting their presence here would forbid otherwise
+/// ordinary owned arguments, including the image/storage roots of an entry.
 pub(super) fn header(
     target: &TargetFunction,
     abstracted: &AbstractFunction,
@@ -275,7 +279,6 @@ pub(super) fn header(
             .entry_claims
             .iter()
             .any(|claim| !optimized.entry_claims.contains(&claim.claim))
-        || !optimized.content_entry_claims.is_empty()
         || abstracted.published_service_ceiling != optimized.published_service_ceiling
         || abstracted.parameters.len() != optimized.parameters.len()
         || graph.scalar_parameters.len() != abstracted.parameters.len()
