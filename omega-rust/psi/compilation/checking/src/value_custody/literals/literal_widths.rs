@@ -239,10 +239,7 @@ fn u64_blessed_literals(program: &TypedTrees) -> Vec<ExpressionHandle> {
                             else {
                                 continue;
                             };
-                            let parameters = program
-                                .state_parameters(target_state)
-                                .iter()
-                                .filter(|parameter| !parameter.is_self);
+                            let parameters = program.state_parameters(target_state).iter();
                             let argument_handles =
                                 program.statement_table.expression_handles(*arguments);
                             for (parameter, argument) in

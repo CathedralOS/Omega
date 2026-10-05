@@ -12,9 +12,8 @@ use typed_trees::state::State;
 
 /// FROZEN DECISION 13 residue -- machine-call monomorphization arguments.
 /// A bracket bound on a callee type parameter (`machine copy_it<T [copy]>`)
-/// must hold for the concrete type the call instantiates `T` with. There is
-/// no explicit type-argument list at call sites today: instantiation is
-/// positional inference, so each non-self parameter whose declared type names
+/// must hold for the concrete type the call instantiates `T` with. Each
+/// explicit parameter whose declared type names
 /// a bounded callee type parameter (`x: &T`, `x: T`, `[T; N]`, constrained
 /// forms) pins `T` to the matching argument's declared place type, and that
 /// concrete type must satisfy every bound via the same structural check the
@@ -40,7 +39,6 @@ pub(super) fn validate_machine_call_type_parameter_bounds(
     arguments: &[ExpressionHandle],
     current_machine: &Machine,
     current_state: Option<&State>,
-    self_is_argument: bool,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     // A claim-free bodyless boundary declaration is a SYMBOL for contracts,
@@ -51,7 +49,6 @@ pub(super) fn validate_machine_call_type_parameter_bounds(
     report_bodyless_boundary_symbol_call(
         program,
         callee_machine,
-        callee_state,
         current_machine,
         target_name,
         diagnostics,
@@ -65,71 +62,28 @@ pub(super) fn validate_machine_call_type_parameter_bounds(
         arguments,
         current_machine,
         current_state,
-        self_is_argument,
         diagnostics,
     );
 }
 
-/// Whether a resolved top-level `boundary requirement` may be called directly:
-/// free of static generic binders, and at most an owned `self`, shared
-/// `&self`, or mutable `&mut self` receiver. A receiver-free requirement is
-/// called `Owner::name(...)`; a `self`/`&self`/`&mut self` requirement is
-/// called through a member receiver `place.name(...)`. An erased lifetime
-/// telescope (`Owner::name<'a>(...)`) is admitted: it carries no static
-/// application arguments, so the call executes through the same selected
-/// provider row a nongeneric requirement uses. A `&self`/`&mut self`
-/// borrows the receiver place for the call, so the member call settles
-/// through the same forwarding row with `&place`/`&mut place` as the
-/// adapter's leading argument; the ordinary receiver-borrow checks already
-/// demanded the place be readable or writable for the declared access.
-/// Such a call executes
-/// only through an admitted provider installation. Lexical resolution owns
-/// visibility. A residual authored template may retain a symbolic requirement
-/// call: it is not executable, and every emitted concrete caller must rejoin a
-/// closed requirement after specialization. A write-only or qualified `self` receiver (`&write self`,
-/// `self in Pending`) keeps it too: receiver custody and obligation
-/// transfer are a separate settlement shape.
+/// Direct top-level requirements execute through admitted provider rows.
+/// A residual template may retain a symbolic requirement, but executable
+/// callers must rejoin a closed requirement after specialization. Erased
+/// lifetime binders contribute no static application arguments.
 fn is_directly_callable_top_level_requirement(
     program: &TypedTrees,
     callee_machine: &Machine,
-    callee_state: &State,
     current_machine: &Machine,
 ) -> bool {
     callee_machine.supply_mode == language_semantics::MachineSupplyMode::TopLevelRequirement
         && (program.machine_type_parameters(callee_machine).is_empty()
             || !program.machine_type_parameters(current_machine).is_empty())
         && program.machine_states(callee_machine).len() == 1
-        && program
-            .state_parameters(callee_state)
-            .iter()
-            .filter(|parameter| parameter.is_self)
-            .all(|parameter| {
-                match program
-                    .type_reference_table
-                    .type_reference(parameter.type_reference)
-                {
-                    typed_trees::types::TypeReferenceNode::Named { .. } => true,
-                    typed_trees::types::TypeReferenceNode::Reference {
-                        referee, access, ..
-                    } => {
-                        matches!(
-                            *access,
-                            language_core::ReferenceAccess::Shared
-                                | language_core::ReferenceAccess::Mutable
-                        ) && matches!(
-                            program.type_reference_table.type_reference(*referee),
-                            typed_trees::types::TypeReferenceNode::Named { .. }
-                        )
-                    }
-                    _ => false,
-                }
-            })
 }
 
 fn report_bodyless_boundary_symbol_call(
     program: &TypedTrees,
     callee_machine: &Machine,
-    callee_state: &State,
     current_machine: &Machine,
     target_name: &str,
     diagnostics: &mut Vec<Diagnostic>,
@@ -144,12 +98,7 @@ fn report_bodyless_boundary_symbol_call(
             | language_semantics::MachineSupplyMode::TopLevelRequirement
     ) && !compiler_placed_accessor
         && !callee_machine.body_is_present
-        && !is_directly_callable_top_level_requirement(
-            program,
-            callee_machine,
-            callee_state,
-            current_machine,
-        )
+        && !is_directly_callable_top_level_requirement(program, callee_machine, current_machine)
     {
         diagnostics.push(Diagnostic::error(format!(
             "bodyless boundary symbol `{target_name}` has no executable realization; use it only in contracts, or satisfy a boundary requirement via an admitted provider"
@@ -175,7 +124,6 @@ pub(super) fn validate_resolved_target_type_parameter_bounds(
     arguments: &[ExpressionHandle],
     current_machine: &Machine,
     current_state: Option<&State>,
-    self_is_argument: bool,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     validate_type_parameter_instantiation_bounds(
@@ -187,7 +135,6 @@ pub(super) fn validate_resolved_target_type_parameter_bounds(
         arguments,
         current_machine,
         current_state,
-        self_is_argument,
         diagnostics,
     );
 }
@@ -202,7 +149,6 @@ fn validate_type_parameter_instantiation_bounds(
     arguments: &[ExpressionHandle],
     current_machine: &Machine,
     current_state: Option<&State>,
-    self_is_argument: bool,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let type_parameters = program.machine_type_parameters(callee_machine);
@@ -212,12 +158,10 @@ fn validate_type_parameter_instantiation_bounds(
 
     let caller_type_parameters = program.machine_type_parameters(current_machine);
 
-    for (argument, parameter) in arguments.iter().zip(
-        program
-            .state_parameters(callee_state)
-            .iter()
-            .filter(|parameter| self_is_argument || !parameter.is_self),
-    ) {
+    for (argument, parameter) in arguments
+        .iter()
+        .zip(program.state_parameters(callee_state).iter())
+    {
         let Some(type_parameter) =
             referenced_type_parameter(program, type_parameters, parameter.type_reference)
         else {

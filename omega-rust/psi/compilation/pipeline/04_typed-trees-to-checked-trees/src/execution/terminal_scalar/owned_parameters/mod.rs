@@ -213,7 +213,7 @@ pub(super) fn validate(
         else {
             continue;
         };
-        if source.is_self || source.is_const || source.is_mutable {
+        if (source.is_const) || source.is_mutable {
             continue;
         }
         if !parameters.iter().any(|parameter| {

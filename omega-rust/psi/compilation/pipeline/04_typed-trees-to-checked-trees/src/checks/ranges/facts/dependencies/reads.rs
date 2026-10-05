@@ -186,36 +186,13 @@ pub(super) fn collect_reads<'a, 'b>(
             else {
                 return false;
             };
-            let Some(target_state) = crate::semantic::calls::find_state_in_machine(
+            let Some(_target_state) = crate::semantic::calls::find_state_in_machine(
                 program,
                 target_machine_symbol,
                 target_state_symbol,
             ) else {
                 return false;
             };
-            if program
-                .state_parameters(target_state)
-                .iter()
-                .any(|parameter| parameter.is_self)
-            {
-                let Some(mut place) = crate::flow::canonical_receiver_place_for_call_site(
-                    program,
-                    machine.symbol,
-                    state.symbol,
-                    &site,
-                    statement_index,
-                ) else {
-                    return false;
-                };
-                if validate_place_read(program, machine, state, statement_index, &mut place)
-                    .is_none()
-                {
-                    return false;
-                }
-                if !reads.contains(&place) {
-                    reads.push(place);
-                }
-            }
             true
         }
         ExpressionNode::Name(_) => collect_place_read(
@@ -995,7 +972,7 @@ fn validate_place_read(
     {
         return None;
     }
-    crate::flow::normalize_attached_place_root(program, machine.symbol, state.symbol, place);
+
     (root_is_current(program, machine, state, statement_index, place.root)
         && place.segments.iter().all(|segment| {
             matches!(

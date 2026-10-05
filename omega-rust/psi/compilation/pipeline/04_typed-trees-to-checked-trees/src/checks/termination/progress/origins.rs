@@ -411,22 +411,14 @@ fn call_route_place(
             .iter()
             .find(|parameter| parameter.symbol == root)?;
     }
-    let actual = if parameter.is_self {
-        call.receiver
-    } else {
+    let actual = {
         let arguments = program.expression_table.expression_handles(call.arguments);
-        if arguments.len()
-            != parameters
-                .iter()
-                .filter(|parameter| !parameter.is_self)
-                .count()
-        {
+        if arguments.len() != parameters.iter().count() {
             return None;
         }
         *arguments.get(
             parameters
                 .iter()
-                .filter(|parameter| !parameter.is_self)
                 .position(|candidate| candidate.symbol == root)?,
         )?
     };
@@ -874,8 +866,7 @@ fn callee_leaves_demanded_path_unwritten(
 }
 
 fn places_may_overlap(program: &TypedTrees, left: &CanonicalPlace, right: &CanonicalPlace) -> bool {
-    flow::normalized_event_place_root(program, left.root)
-        == flow::normalized_event_place_root(program, right.root)
+    (left.root) == (right.root)
         && flow::canonical_place_segments_may_overlap(program, &left.segments, &right.segments)
 }
 

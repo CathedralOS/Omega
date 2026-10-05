@@ -88,13 +88,13 @@ pub(super) fn formation_place(
         expression,
         machine.symbol,
     )?;
-    let mut place = crate::flow::canonical_place_from_expression_in_state(
+    let place = crate::flow::canonical_place_from_expression_in_state(
         program,
         state.symbol,
         statement_index,
         expression,
     )?;
-    crate::flow::normalize_attached_place_root(program, machine.symbol, state.symbol, &mut place);
+
     if !place
         .segments
         .iter()

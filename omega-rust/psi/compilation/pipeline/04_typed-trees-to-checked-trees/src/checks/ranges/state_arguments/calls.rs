@@ -46,7 +46,7 @@ pub(super) fn collect_state_argument_facts_for_call(
                 .map(|parameter| ParameterFacts {
                     symbol: parameter.symbol,
                     name: parameter.name.to_string(),
-                    is_self: parameter.is_self,
+                    is_self: false,
                     length: MergedFact::Unseen,
                     minimum_length: super::MergedBound::Unseen,
                     integer: MergedFact::Unseen,
@@ -109,13 +109,7 @@ pub(super) fn collect_state_argument_facts_for_call(
                             .checked_calls
                             .and_then(|context| context.call_frames()),
                     )?;
-                    crate::flow::normalize_attached_place_root(
-                        program,
-                        machine.symbol,
-                        state.symbol,
-                        &mut place,
-                    );
-                    place.root = crate::flow::normalized_event_place_root(program, place.root);
+
                     Some((place, parameter.symbol))
                 })
                 .collect()
@@ -133,21 +127,10 @@ pub(super) fn collect_state_argument_facts_for_call(
     let storage_rows = facts.storage_sub_places(program, machine, state, &argument_storages);
     let mut incoming_storage = Vec::new();
     for (source_label, expression, destination_place) in &storage_rows {
-        // The stable receiver identity is the machine, but range labels use
-        // the destination state's receiver parameter (self), not its machine
-        // name. Keep the canonical place for invalidation across later edges.
-        let label_root = if destination_place.root == facts::PlaceRoot::Symbol(machine.symbol) {
-            let Some(receiver) = program
-                .state_parameters(target_state)
-                .iter()
-                .find(|parameter| parameter.is_self)
-            else {
-                continue;
-            };
-            facts::PlaceRoot::Symbol(receiver.symbol)
-        } else {
-            destination_place.root
-        };
+        if destination_place.root == facts::PlaceRoot::Symbol(machine.symbol) {
+            continue;
+        }
+        let label_root = destination_place.root;
         let destination_label = facts::canonical_place_label_from_parts(
             program,
             label_root,

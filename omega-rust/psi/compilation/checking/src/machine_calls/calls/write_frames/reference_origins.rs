@@ -1,10 +1,7 @@
 //! Proven exclusive-reference origins shared by boundary and method receivers.
 
 use super::caller_aliases::{CallerWriteSite, caller_binding_type, caller_statement_owner};
-use super::isolation::{
-    data_definition_has_only_owned_storage, type_is_caller_isolated_local,
-    type_is_caller_isolated_local_in,
-};
+use super::isolation::{type_is_caller_isolated_local, type_is_caller_isolated_local_in};
 use super::type_instantiation::{bind_formal_type, substituted_head};
 use super::{FramePathPrecision, FramePlaceOrigin, frame_place_path};
 use crate::declarations::symbols::TopLevelSymbols;
@@ -251,24 +248,13 @@ pub(super) fn exclusive_reference_origins(
                     // declared reference leaf. The actual must be a caller
                     // place spelling the carrier itself; the shared suffix
                     // composition below then names the leaf inside it.
-                    if parameter.is_self || result_place.source.root != parameter.symbol {
+                    if result_place.source.root != parameter.symbol {
                         return None;
                     }
                     declared_origin_root(program, current_machine, actual)?;
                     return frame_place_path(program, actual).map(|origin| vec![origin]);
                 };
-                let owned = if parameter.is_self {
-                    // The typed receiver uses nominal `Self`, whose concrete
-                    // declaration belongs to this resolved attached machine.
-                    let attached = callee_machine.attached_data.as_ref()?;
-                    let mut definitions = program
-                        .data_definitions()
-                        .iter()
-                        .filter(|definition| definition.name == *attached);
-                    let definition = definitions.next()?;
-                    definitions.next().is_none()
-                        && data_definition_has_only_owned_storage(program, definition)
-                } else {
+                let owned = {
                     // A generic helper's carrier is judged on the storage the
                     // call instantiates, not the formal parameter name: bind
                     // the callee's `Type` parameters from this actual's
@@ -302,25 +288,7 @@ pub(super) fn exclusive_reference_origins(
                 if !owned {
                     return None;
                 }
-                if parameter.is_self {
-                    // Attached methods implicitly borrow their owned receiver;
-                    // they cannot bypass the origin fence on a loaded reference.
-                    match program.expression_table.expression(actual) {
-                        ExpressionNode::Name(_)
-                        | ExpressionNode::Member(_)
-                        | ExpressionNode::Indexed(_) => {
-                            return owned_receiver_origin(
-                                program,
-                                current_machine,
-                                actual,
-                                symbols,
-                                inference,
-                            )
-                            .map(|origin| vec![origin]);
-                        }
-                        _ => {}
-                    }
-                }
+
                 exclusive_reference_origins(program, current_machine, actual, symbols, inference)
             },
         )?,

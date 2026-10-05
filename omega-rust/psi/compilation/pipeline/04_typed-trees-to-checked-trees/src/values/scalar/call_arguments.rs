@@ -352,12 +352,12 @@ pub(crate) fn nested_structural_call_return_type(
                     .first()
                     .into_iter()
                     .flat_map(|state| program.state_parameters(state).iter())
-                    .any(|parameter| parameter.is_self)
+                    .any(|_parameter| false)
                 && program
                     .state_parameters(target)
                     .iter()
                     .any(|parameter| {
-                        parameter.is_self
+                        false
                             && (!parameter.is_mutable
                                 || (owner.supply_mode
                                     == language_semantics::MachineSupplyMode::CheckedBody
@@ -403,7 +403,7 @@ pub(crate) fn nested_structural_call_return_type(
             || program
                 .state_signature_parameters(signature)
                 .iter()
-                .any(|parameter| parameter.is_self)
+                .any(|_parameter| false)
             || if selected.is_some() {
                 call.receiver.is_valid()
             } else {

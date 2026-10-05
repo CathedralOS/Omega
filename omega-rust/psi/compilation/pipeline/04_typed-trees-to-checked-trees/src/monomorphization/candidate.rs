@@ -112,7 +112,6 @@ pub(super) fn callees(program: &TypedTrees, candidates: &[Candidate]) -> Vec<Cal
                             .iter()
                             .map(|parameter| parameter.type_reference)
                             .collect(),
-                        self_index: parameters.iter().position(|parameter| parameter.is_self),
                     }
                 })
         })

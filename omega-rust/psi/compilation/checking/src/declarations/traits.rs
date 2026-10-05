@@ -45,7 +45,7 @@ pub use conformance::revalidate_top_level_requirement_realization;
 pub(crate) use conformance::{
     GenericBoundRequirement, generic_bound_argument_matches, generic_bound_requirement_call,
     named_conformance_argument_matches, required_is_self_type, required_is_subject_parameter,
-    subject_role_matches, validate_external_leaf_native_shapes, validate_external_via_expression,
+    validate_external_leaf_native_shapes, validate_external_via_expression,
     validate_generic_conformance_bounds, validate_machine_trait_conformances,
     validate_trait_conformance_bounds,
 };

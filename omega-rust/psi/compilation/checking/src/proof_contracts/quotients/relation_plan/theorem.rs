@@ -71,7 +71,6 @@ pub(super) fn derive_selected_theorem_telescope(
             symbol: parameter.symbol,
             type_reference: parameter.type_reference,
             is_mutable: parameter.is_mutable,
-            is_self: parameter.is_self,
         })
         .collect();
     Ok(SelectedTheoremTelescope {

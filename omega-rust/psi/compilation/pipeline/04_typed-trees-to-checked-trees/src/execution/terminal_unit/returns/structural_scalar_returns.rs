@@ -108,7 +108,7 @@ pub(crate) fn build_trait_operator_scalar_return_machine(
     let binders = machine_binders(program, machine);
     // A qualified owner must resolve, but only an authored receiver retains
     // it as attachment storage.
-    let attached = match machine.attached_data.as_ref() {
+    let _attached = match machine.attached_data.as_ref() {
         Some(attached_name) => Some(
             program
                 .data_definitions()
@@ -117,12 +117,7 @@ pub(crate) fn build_trait_operator_scalar_return_machine(
         ),
         None => None,
     };
-    let attachment_type_identity = match attached {
-        Some(attached) if program.machine_has_receiver(machine) => {
-            Some(shapes.add_attached_data(attached, &binders)?)
-        }
-        _ => None,
-    };
+    let attachment_type_identity = None::<String>;
     let source_parameters = program.state_parameters(state);
     let structural_parameters = source_parameters
         .iter()
@@ -137,11 +132,7 @@ pub(crate) fn build_trait_operator_scalar_return_machine(
             {
                 return None;
             }
-            let type_identity = if parameter.is_self {
-                attachment_type_identity.clone()?
-            } else {
-                shapes.add_type(parameter.type_reference, &binders, &[])?
-            };
+            let type_identity = { shapes.add_type(parameter.type_reference, &binders, &[])? };
             let multiplicity = crate::checks::type_multiplicity(program, parameter.type_reference);
             let qualifications =
                 parameter_qualifications(program, shapes, parameter.type_reference, &binders)?;
@@ -150,7 +141,7 @@ pub(crate) fn build_trait_operator_scalar_return_machine(
             }
             Some(CheckedUnitStructuralParameterPlan {
                 position: u32::try_from(position).ok()?,
-                is_self: parameter.is_self,
+                is_self: false,
                 type_identity,
                 multiplicity,
                 access: CheckedStructuralAccess::Owned,
@@ -284,10 +275,7 @@ pub(crate) fn build_structural_scalar_return_machine(
     let forwarded_parameter_positions = source_state_parameters
         .iter()
         .enumerate()
-        .filter(|(_, parameter)| {
-            !parameter.relevance.is_erased()
-                && !(parameter.is_self && is_reference(program, parameter.type_reference))
-        })
+        .filter(|(_, parameter)| !parameter.relevance.is_erased())
         .map(|(position, _)| u32::try_from(position).ok())
         .collect::<Option<BTreeSet<_>>>()?;
     if structural_parameters.is_empty()
@@ -571,8 +559,7 @@ pub(crate) fn build_structural_scalar_return_machine(
                 parameter_index: u32::try_from(parameter_index).ok()?,
             };
             if has_nominal_cleanup
-                && (source_parameter.is_self
-                    || source_parameter.is_const
+                && ((source_parameter.is_const)
                     || source_parameter.is_mutable
                     || checked_parameter.is_self
                     || checked_parameter.multiplicity != Multiplicity::Affine

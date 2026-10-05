@@ -259,8 +259,7 @@ impl ExitScalars<'_, '_> {
         };
         // Immutable identity proves Boolean equality without choosing true or
         // false. Ordering remains integral; floating equality is not reflexive.
-        if parameter.is_mutable
-            || parameter.is_self
+        if (parameter.is_mutable)
             || parameter.is_const
             || !self
                 .program
@@ -316,9 +315,7 @@ impl ExitScalars<'_, '_> {
             .state_parameters(state)
             .iter()
             .any(|parameter| {
-                parameter.symbol == origin.state_parameter
-                    && !parameter.is_mutable
-                    && !parameter.is_self
+                (parameter.symbol == origin.state_parameter && !parameter.is_mutable)
                     && !parameter.is_const
             })
         {

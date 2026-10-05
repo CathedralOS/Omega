@@ -42,7 +42,6 @@ fn parameters_fingerprint(parameters: &[StateParameter]) -> usize {
         fingerprint = fingerprint.rotate_left(7)
             ^ parameter.symbol.arena_index() as usize
             ^ (parameter.type_reference.arena_index() as usize).rotate_left(13)
-            ^ (parameter.is_self as usize).rotate_left(1)
             ^ (parameter.is_mutable as usize).rotate_left(2)
             ^ (parameter.is_const as usize).rotate_left(3);
     }
@@ -780,8 +779,7 @@ pub(super) fn structural_parameter_field_path(
                 || matches!(program.expression_table.name_path_members(name.members),
                     [spelling] if spelling.is_self_receiver())
             {
-                let (position, _) = exact_self_parameter(program, parameters, expression)?;
-                return u32::try_from(position).ok();
+                return None;
             }
             let name_symbol = name.symbol.is_valid().then_some(name.symbol).or_else(|| {
                 program
@@ -810,29 +808,7 @@ pub(super) fn structural_parameter_field_path(
             let parameter =
                 structural_parameter_field_path(program, parameters, member.receiver, fields)?;
             let field_identity = |field: &typed_trees::data::DataField| field.path_identity();
-            if parameters.get(usize::try_from(parameter).ok()?)?.is_self
-                && matches!(
-                    program.expression_table.expression(member.receiver),
-                    ExpressionNode::Name(_)
-                )
-            {
-                // A rejected self alias cannot fall through to a global field
-                // search: only the attached declaration owns this projection.
-                if !member.member_symbol.is_valid()
-                    || program.symbols.get(member.member_symbol).kind != symbols::SymbolKind::Field
-                {
-                    return None;
-                }
-                let (_, machine) = exact_self_parameter(program, parameters, member.receiver)?;
-                let field = validation::exact_self_field(program, machine, expression)?;
-                if field.relevance.is_erased() {
-                    return None;
-                }
-                fields.push(CheckedStructuralPredicatePathSegment::Field(
-                    field_identity(field),
-                ));
-                return Some(parameter);
-            }
+            parameters.get(usize::try_from(parameter).ok()?)?;
             if let Some(case_name) = &member.case_variant {
                 let (case, field) = with_structural_rosters(program, |rosters| {
                     rosters
@@ -879,116 +855,6 @@ pub(super) fn structural_parameter_field_path(
         }
         _ => None,
     }
-}
-
-fn exact_self_parameter<'program>(
-    program: &'program TypedTrees,
-    parameters: &[StateParameter],
-    expression: ExpressionHandle,
-) -> Option<(usize, &'program typed_trees::machine::Machine)> {
-    use symbols::SymbolKind;
-
-    if !program.expression_table.expression_is_valid(expression) {
-        return None;
-    }
-    let ExpressionNode::Name(name) = program.expression_table.expression(expression) else {
-        return None;
-    };
-    if !name.symbol.is_valid()
-        || name.head_symbol != name.symbol
-        || program.symbols.get(name.symbol).kind != SymbolKind::Machine
-        || !matches!(program.expression_table.name_path_members(name.members),
-            [spelling] if spelling.is_self_receiver())
-    {
-        return None;
-    }
-    let positions = machine_positions_by_symbol(program, name.symbol);
-    let [machine_index] = positions.as_slice() else {
-        return None;
-    };
-    let machine = &program.machines()[*machine_index as usize];
-    // `self` is declared on every state of the machine with a distinct
-    // parameter symbol, so the caller's parameter list names exactly one
-    // authoring state — not necessarily the entry state.
-    let state_index = with_structural_rosters(program, |rosters| {
-        rosters
-            .states_by_parameters
-            .get(&parameters_fingerprint(parameters))
-            .into_iter()
-            .flatten()
-            .copied()
-            .find(|&(candidate_machine, state_index)| {
-                let candidate = &program.machines()[candidate_machine as usize];
-                if candidate.symbol != machine.symbol {
-                    return false;
-                }
-                let state = &program.machine_states(candidate)[state_index as usize];
-                let state_symbol = program.symbols.get(state.symbol);
-                state_symbol.kind == SymbolKind::State
-                    && state_symbol.parent == machine.symbol
-                    && program.state_parameters(state) == parameters
-            })
-            .map(|(_, state_index)| state_index)
-    })?;
-    let state = &program.machine_states(machine)[state_index as usize];
-    let mut receivers = parameters
-        .iter()
-        .enumerate()
-        .filter(|(_, parameter)| parameter.is_self);
-    let (position, parameter) = receivers.next()?;
-    let parameter_symbol = program.symbols.get(parameter.symbol);
-    if receivers.next().is_some()
-        || parameter.is_const
-        || !parameter.name.is_self_receiver()
-        || parameter_symbol.kind != SymbolKind::Parameter
-        || parameter_symbol.parent != state.symbol
-        || program.symbols.name(parameter.symbol) != parameter.name.as_str()
-        || parameters
-            .iter()
-            .filter(|candidate| candidate.symbol == parameter.symbol)
-            .count()
-            != 1
-    {
-        return None;
-    }
-    let owners = with_structural_rosters(program, |rosters| {
-        rosters
-            .data_by_symbol
-            .get(&machine.attached_data_symbol)
-            .cloned()
-            .unwrap_or_default()
-    });
-    let [owner_index] = owners.as_slice() else {
-        return None;
-    };
-    let owner = &program.data_definitions()[*owner_index as usize];
-    if program.symbols.get(owner.symbol).kind != SymbolKind::Data
-        || program.symbols.name(owner.symbol) != owner.name.as_str()
-        || machine.attached_data.as_ref() != Some(&owner.name)
-    {
-        return None;
-    }
-    let mut reference = parameter.type_reference;
-    for _ in 0..64 {
-        if !program
-            .type_reference_table
-            .contains_type_reference(reference)
-        {
-            return None;
-        }
-        match program.type_reference_table.type_reference(reference) {
-            TypeReferenceNode::Reference { referee, .. } => reference = *referee,
-            TypeReferenceNode::Constrained { base_type, .. } => reference = *base_type,
-            TypeReferenceNode::Named { symbol, name }
-                if (*symbol == machine.symbol && name.as_str() == "Self")
-                    || (*symbol == owner.symbol && *name == owner.name) =>
-            {
-                return Some((position, machine));
-            }
-            _ => return None,
-        }
-    }
-    None
 }
 
 /// The resolved path is `frozen` when the root parameter and every
@@ -1381,7 +1247,7 @@ pub(super) fn structural_parameter_place(
         }
         authored = member.receiver;
     }
-    let root = crate::flow::normalized_event_place_root(program, place.root);
+    let root = place.root;
     let facts::PlaceRoot::Symbol(_) = root else {
         return None;
     };
@@ -1394,7 +1260,7 @@ pub(super) fn structural_parameter_place(
     };
     let names = program.expression_table.name_path_members(name.members);
     let parameter_position = if matches!(names, [spelling] if spelling.is_self_receiver()) {
-        exact_self_parameter(program, parameters, authored)?.0
+        return None;
     } else {
         if !name.symbol.is_valid()
             || !name.head_symbol.is_valid()
@@ -1408,7 +1274,6 @@ pub(super) fn structural_parameter_place(
                 && names
                     .first()
                     .is_some_and(|spelling| *spelling == parameter.name)
-                && !parameter.is_self
         });
         let (position, _) = candidates.next()?;
         if candidates.next().is_some() {
@@ -1416,11 +1281,7 @@ pub(super) fn structural_parameter_place(
         }
         position
     };
-    if crate::flow::normalized_event_place_root(
-        program,
-        facts::PlaceRoot::Symbol(parameters[parameter_position].symbol),
-    ) != root
-    {
+    if (facts::PlaceRoot::Symbol(parameters[parameter_position].symbol)) != root {
         return None;
     }
     let mut path = Vec::new();
@@ -1455,10 +1316,7 @@ pub(super) fn structural_parameter_place(
     let parameter_position = u32::try_from(parameter_position).ok()?;
     let (resolved_root, segments, type_reference, _) =
         resolve_structural_parameter_path(program, parameters, parameter_position, &path)?;
-    if crate::flow::normalized_event_place_root(program, facts::PlaceRoot::Symbol(resolved_root))
-        != root
-        || segments != place.segments
-    {
+    if (facts::PlaceRoot::Symbol(resolved_root)) != root || segments != place.segments {
         return None;
     }
     Some((parameter_position, path, type_reference))

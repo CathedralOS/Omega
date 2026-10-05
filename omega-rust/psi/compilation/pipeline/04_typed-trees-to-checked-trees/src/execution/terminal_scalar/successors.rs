@@ -171,7 +171,7 @@ fn arguments<'a>(
                     || !program
                         .state_parameters(authored)
                         .iter()
-                        .any(|parameter| parameter.is_self))
+                        .any(|_parameter| false))
             {
                 super::super::terminal_unit::calls::ambient_self_scalar_graph_signature(
                     program, owner, authored,
@@ -251,11 +251,7 @@ fn arguments<'a>(
     // receiver owns no graph parameter entry. Pair each actual with its
     // authored formal so ordinals keep the authored target position; an
     // explicit `self` actual has no counterpart here and refuses the edge.
-    let target_formals = target_parameters
-        .iter()
-        .enumerate()
-        .filter(|(_, parameter)| !parameter.is_self)
-        .collect::<Vec<_>>();
+    let target_formals = target_parameters.iter().enumerate().collect::<Vec<_>>();
     if target_states.get(target_index)?.symbol != target.state
         || arguments.len() != successor.argument_count as usize
         || arguments.len() != target_formals.len()
@@ -467,7 +463,6 @@ fn arguments<'a>(
                                 }
                             ))
                         && !parameter.is_const
-                        && !parameter.is_self
                 })?;
         let source_index = source
             .structural_parameters

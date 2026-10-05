@@ -188,7 +188,7 @@ impl StateGraphEmission<'_, '_> {
                         .erased_proof_parameters
                         .iter()
                         .any(|parameter| parameter.source_position as usize == argument_position);
-                if erased_row || authored_parameters[argument_position].is_self {
+                if erased_row {
                     continue;
                 }
             }

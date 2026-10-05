@@ -121,7 +121,7 @@ pub(crate) fn infer_identity_preserving_reshuffles(program: &TypedTrees, facts: 
                     .expect("state parameter position fits in u32"),
                 symbol: parameter.symbol,
                 name: parameter.name.as_str().to_owned(),
-                is_self: parameter.is_self,
+                is_self: false,
             },
             segments: input_content_path,
         };

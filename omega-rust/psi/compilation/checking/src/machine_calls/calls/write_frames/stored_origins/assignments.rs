@@ -85,12 +85,8 @@ fn assigned_stored_origins(
         return None;
     }
     let declaration = program.symbols.get(source.root);
-    if declaration.parent != state.symbol
-        || !matches!(declaration.kind, SymbolKind::Local | SymbolKind::Parameter)
-        || program
-            .state_parameters(state)
-            .iter()
-            .any(|parameter| parameter.symbol == source.root && parameter.is_self)
+    if (declaration.parent != state.symbol
+        || !matches!(declaration.kind, SymbolKind::Local | SymbolKind::Parameter))
         || source.root == machine.symbol
     {
         return None;

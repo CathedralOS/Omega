@@ -543,21 +543,12 @@ fn has_named_place_root(
     }
 }
 
-/// The source may spell self explicitly or supply it as a receiver. Keep the
-/// original explicit order, including erased formals, for observation replay.
+/// Keep the original explicit order, including erased formals, for observation replay.
 fn explicit_parameters(
     parameters: &[checked_trees::signature::StateParameter],
     argument_count: usize,
 ) -> Result<Vec<&checked_trees::signature::StateParameter>, LoweringError> {
-    let nonself_count = parameters
-        .iter()
-        .filter(|parameter| !parameter.is_self)
-        .count();
-    let explicit_self = argument_count > nonself_count;
-    let explicit = parameters
-        .iter()
-        .filter(|parameter| explicit_self || !parameter.is_self)
-        .collect::<Vec<_>>();
+    let explicit = parameters.iter().collect::<Vec<_>>();
     if explicit.len() != argument_count {
         return unsupported("observation arguments disagree with the selected signature");
     }

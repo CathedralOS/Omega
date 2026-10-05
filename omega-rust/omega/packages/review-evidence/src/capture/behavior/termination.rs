@@ -44,15 +44,10 @@ pub(crate) fn project_trait_requirement_termination(
         }
     }
     project_termination_with_subject(compilation, &requirement.termination_guarantee, |root| {
-        if let Some(parameter) = parameters.iter().find(|parameter| parameter.symbol == root) {
-            if parameter.is_self {
-                return Ok(PackageReviewProgressSubject::Receiver);
-            }
-            let position = parameters
-                .iter()
-                .filter(|candidate| !candidate.is_self)
-                .position(|candidate| candidate.symbol == root)
-                .expect("matched non-self requirement parameter must have an ordinal");
+        if let Some(position) = parameters
+            .iter()
+            .position(|parameter| parameter.symbol == root)
+        {
             let position = u32::try_from(position).map_err(|_| {
                 vec![Diagnostic::error(format!(
                     "public trait requirement `{}` has too many parameters for portable review evidence",
@@ -99,17 +94,10 @@ pub(crate) fn project_machine_parameter_termination(
         }
     }
     project_termination_with_subject(compilation, &signature.termination_guarantee, |root| {
-        if let Some(parameter) = parameters.iter().find(|parameter| parameter.symbol == root) {
-            if parameter.is_self {
-                return Ok(PackageReviewProgressSubject::Receiver);
-            }
-            let position = parameters
-                .iter()
-                .filter(|candidate| !candidate.is_self)
-                .position(|candidate| candidate.symbol == root)
-                .expect(
-                    "matched non-self machine-parameter contract parameter must have an ordinal",
-                );
+        if let Some(position) = parameters
+            .iter()
+            .position(|parameter| parameter.symbol == root)
+        {
             Ok(PackageReviewProgressSubject::Parameter(
                 portable_parameter_position(position)?,
             ))

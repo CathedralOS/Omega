@@ -153,15 +153,10 @@ pub(super) fn resolve<'a>(
         // Erased aliases carry no pointer home. Their validated capture roster
         // supplies the storage path, including nested aliases and selectors.
         // Materialized reference fields never enter this substitution.
-        let root = if alias.root == machine.symbol {
-            program
-                .state_parameters(state)
-                .iter()
-                .find(|parameter| parameter.is_self)?
-                .symbol
-        } else {
-            alias.root
-        };
+        if alias.root == machine.symbol {
+            return None;
+        }
+        let root = alias.root;
         place.root = facts::PlaceRoot::Symbol(root);
         place.segments = alias.segments;
         place.segments.extend(authored_place.segments);
@@ -437,16 +432,12 @@ impl<'a> Destination<'a> {
                 if rows != 0 {
                     return None;
                 }
-            } else if rows != 1
-                && !(rows == 0
-                    && parameter.is_self
-                    && super::super::types::is_reference(program, parameter.type_reference))
-            {
+            } else if rows != 1 {
                 return None;
             }
         }
         if planned_parameters != scalar.len() + structural.len()
-            || parameter.is_self != plan.is_self
+            || plan.is_self
             || parameter.is_const
             || !parameter.is_mutable
         {

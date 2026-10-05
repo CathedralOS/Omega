@@ -268,7 +268,6 @@ fn project_with_binders(
     let source_parameters = compilation
         .state_signature_parameters(signature)
         .iter()
-        .filter(|parameter| !parameter.is_self)
         .collect::<Vec<_>>();
     let mut semantic_parameters = Vec::new();
     for parameter in source_parameters {
@@ -293,7 +292,7 @@ fn project_with_binders(
             )?,
             is_mutable: parameter.is_mutable,
             is_const: parameter.is_const,
-            is_self: parameter.is_self,
+            is_self: false,
         });
     }
     let semantic_result = if signature.return_type.is_valid() {

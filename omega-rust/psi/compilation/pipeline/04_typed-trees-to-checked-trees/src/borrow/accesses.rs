@@ -104,8 +104,7 @@ fn collect_target_argument_accesses(
     let program = collection.program;
     let mut parameters = crate::semantic::calls::call_target_parameters(program, target_symbol)
         .unwrap_or_default()
-        .iter()
-        .filter(|parameter| !parameter.is_self);
+        .iter();
     for argument in arguments {
         let parameter = parameters.next();
         // Forwarding a reference binding retains a loan through the

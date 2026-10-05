@@ -286,8 +286,7 @@ impl RankingOrder {
                     return None;
                 };
                 let subject = program.state_parameters(state).iter().find(|parameter| {
-                    !parameter.is_self
-                        && parameter.symbol.is_valid()
+                    (parameter.symbol.is_valid())
                         && parameter.symbol == subject_path.symbol
                         && subject_path.head_symbol == subject_path.symbol
                 })?;
@@ -497,9 +496,7 @@ fn state_parameter_of_expression<'program>(
         .last()
         .map(|member| member.as_str());
     program.state_parameters(state).iter().find(|parameter| {
-        !parameter.is_self
-            && (parameter.symbol == path.symbol
-                || last.is_some_and(|name| parameter.name.as_str() == name))
+        parameter.symbol == path.symbol || last.is_some_and(|name| parameter.name.as_str() == name)
     })
 }
 
@@ -590,9 +587,8 @@ fn state_parameter_type_name(
         .state_parameters(state)
         .iter()
         .find(|parameter| {
-            !parameter.is_self
-                && (parameter.symbol == symbol
-                    || fallback_name.is_some_and(|name| parameter.name.as_str() == name))
+            parameter.symbol == symbol
+                || fallback_name.is_some_and(|name| parameter.name.as_str() == name)
         })
         .map(|parameter| {
             program

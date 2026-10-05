@@ -355,20 +355,16 @@ fn call_parameter_qualification_join(
     }
     let parameters = crate::semantic::calls::call_target_parameters(program, call_target)?;
     let arguments = crate::semantic::calls::call_site_argument_expressions(program, &site);
-    let position = parameters
-        .iter()
-        .filter(|parameter| !parameter.is_self)
-        .enumerate()
-        .find_map(|(position, _)| {
-            let argument = arguments.get(position)?;
-            let canonical = crate::flow::canonical_place_from_expression_in_state(
-                program,
-                state_symbol,
-                statement_index,
-                *argument,
-            )?;
-            (canonical.root == root && canonical.segments.as_slice() == path).then_some(position)
-        })?;
+    let position = parameters.iter().enumerate().find_map(|(position, _)| {
+        let argument = arguments.get(position)?;
+        let canonical = crate::flow::canonical_place_from_expression_in_state(
+            program,
+            state_symbol,
+            statement_index,
+            *argument,
+        )?;
+        (canonical.root == root && canonical.segments.as_slice() == path).then_some(position)
+    })?;
     if !crate::flow::call_parameter_qualification_identities(program, call_target)
         .iter()
         .any(|(declared, symbol, identity, from_declared_type)| {
@@ -389,10 +385,7 @@ fn call_parameter_qualification_join(
     {
         return Some(());
     }
-    let parameter = parameters
-        .iter()
-        .filter(|parameter| !parameter.is_self)
-        .nth(position)?;
+    let parameter = parameters.iter().nth(position)?;
     if !crate::checks::contracts::is_readable_mutable_reference(program, parameter.type_reference) {
         return None;
     }
@@ -489,10 +482,7 @@ fn replay_equation(
         let Some(path) = content_segments_to_fact_path(&subject.segments) else {
             return false;
         };
-        if subject.version != ContentPlaceVersion::Entry
-            || parameter.symbol != symbol
-            || parameter.is_self != is_self
-        {
+        if subject.version != ContentPlaceVersion::Entry || parameter.symbol != symbol || is_self {
             return false;
         }
         let Some(identity) = input_claim(
@@ -717,8 +707,7 @@ fn projection_places<'term>(
     }
 }
 
-/// The actual argument expression bound to one formal position, including
-/// the implicit receiver.
+/// The actual argument expression bound to one authored formal position.
 fn input_argument(
     program: &TypedTrees,
     invocation: &Invocation<'_>,
@@ -728,18 +717,8 @@ fn input_argument(
     let arguments = program
         .expression_table
         .expression_handles(invocation.call.arguments);
-    let explicit_self =
-        parameters.iter().any(|parameter| parameter.is_self) && arguments.len() == parameters.len();
-    let parameter = parameters.get(position)?;
-    if parameter.is_self && !explicit_self {
-        Some(invocation.call.receiver)
-    } else {
-        let argument_position = parameters[..position]
-            .iter()
-            .filter(|parameter| explicit_self || !parameter.is_self)
-            .count();
-        arguments.get(argument_position).copied()
-    }
+    parameters.get(position)?;
+    arguments.get(position).copied()
 }
 
 /// Whether the call consumes a live owned claim carrying this exact content

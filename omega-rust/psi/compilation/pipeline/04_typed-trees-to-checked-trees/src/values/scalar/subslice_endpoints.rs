@@ -120,12 +120,7 @@ pub(super) fn sites(
             .statement_table
             .expression_handles(*arguments)
             .iter()
-            .zip(
-                parameters
-                    .iter()
-                    .enumerate()
-                    .filter(|(_, parameter)| !parameter.is_self),
-            )
+            .zip(parameters.iter().enumerate())
         {
             if !parameter.relevance.is_erased()
                 && program
@@ -169,8 +164,7 @@ pub(super) fn sites(
 }
 
 /// Structural formals have their own dense ordinal. Erased and scalar formals
-/// consume their authored actual but no structural position; implicit receivers
-/// consume neither an explicit actual nor its range coordinate.
+/// consume their authored actual but no structural position.
 fn structural_call_arguments(
     program: &typed_trees::TypedTrees,
     site: &crate::semantic::calls::CallSite<'_>,
@@ -185,15 +179,8 @@ fn structural_call_arguments(
         return Vec::new();
     };
     let arguments = crate::semantic::calls::call_site_argument_expressions(program, site);
-    let explicit_self = arguments.len()
-        > parameters
-            .iter()
-            .filter(|parameter| !parameter.is_self)
-            .count();
-    let explicit_parameters = parameters
-        .iter()
-        .filter(|parameter| !parameter.is_self || explicit_self);
-    if explicit_parameters.clone().count() != arguments.len() {
+    let explicit_parameters = parameters.iter();
+    if parameters.len() != arguments.len() {
         return Vec::new();
     }
     let mut structural = Vec::new();

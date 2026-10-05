@@ -18,7 +18,7 @@ pub(super) fn collect(
     let Some(parameters) = parameters(program, machine, call) else {
         return;
     };
-    let parameters = parameters.iter().filter(|parameter| !parameter.is_self);
+    let parameters = parameters.iter();
     let arguments = program.statement_table.expression_handles(call.arguments);
     for (parameter, argument) in parameters.zip(arguments) {
         if parameter.type_reference.is_valid() {

@@ -186,7 +186,6 @@ fn local_provenance(
                 let multiplicity = program.type_multiplicity(parameter.type_reference);
                 return if multiplicity == Multiplicity::Unrestricted
                     || (multiplicity == Multiplicity::Affine
-                        && !parameter.is_self
                         && !parameter.is_const
                         && !parameter.is_mutable)
                 {

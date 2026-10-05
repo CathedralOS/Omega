@@ -292,20 +292,7 @@ fn append(
     // neither attachment syntax nor the number of supplied arguments can do so.
     let structural_positions =
         super::call_parameters::structural_positions(checked, call, &target)?;
-    let implicit_self = |position: usize| {
-        parameters[position].is_self
-            && !authored
-                .structural_arguments
-                .iter()
-                .any(|(formal, _)| *formal as usize == position)
-    };
-    let implicit_self_count = (0..parameters.len())
-        .filter(|position| implicit_self(*position))
-        .count();
-    if parameters.len()
-        != authored.scalar_arguments.len()
-            + authored.structural_arguments.len()
-            + implicit_self_count
+    if parameters.len() != authored.scalar_arguments.len() + authored.structural_arguments.len()
         || scalar_arguments.len() != authored.scalar_arguments.len()
         || structural_arguments.len() != structural_positions.len()
     {
@@ -338,9 +325,6 @@ fn append(
         }
         let argument_ordinal = structural_ordinal;
         structural_ordinal += 1;
-        if implicit_self(position) {
-            continue;
-        }
         let expression = authored
             .structural_arguments
             .iter()

@@ -1499,15 +1499,14 @@ fn same_place_set(
 /// local to the source the route currently captures.
 fn resolve_storage_place(
     program: &typed_trees::TypedTrees,
-    machine: &typed_trees::machine::Machine,
+    _machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     statements: &[StatementNode],
     statement_index: usize,
     root_symbol: SymbolHandle,
     path: &[facts::PlaceSegment],
 ) -> (facts::PlaceRoot, Vec<facts::PlaceSegment>) {
-    let mut root =
-        crate::flow::normalized_event_place_root(program, facts::PlaceRoot::Symbol(root_symbol));
+    let mut root = facts::PlaceRoot::Symbol(root_symbol);
     let mut segments = path.to_vec();
     for _ in 0..16 {
         let facts::PlaceRoot::Symbol(symbol) = root else {
@@ -1527,19 +1526,14 @@ fn resolve_storage_place(
         };
         let mut rebased = source.segments;
         rebased.extend_from_slice(&segments);
-        root = crate::flow::normalized_event_place_root(program, source.root);
-        let mut rebased_place = CanonicalPlace {
+        root = source.root;
+        let rebased_place = CanonicalPlace {
             root,
             segments: rebased,
         };
         // A `&mut self.f` capture may record the attached field itself as the
         // root; join it with its receiver storage so it keys like `self.f`.
-        crate::flow::normalize_attached_place_root(
-            program,
-            machine.symbol,
-            state.symbol,
-            &mut rebased_place,
-        );
+
         root = rebased_place.root;
         segments = rebased_place.segments;
     }
@@ -1634,14 +1628,7 @@ fn exclusive_storage_chain(
     root: facts::PlaceRoot,
     path: &[facts::PlaceSegment],
 ) -> bool {
-    if root == facts::PlaceRoot::Symbol(machine.symbol)
-        && program
-            .state_parameters(state)
-            .iter()
-            .find(|parameter| parameter.is_self)
-            .and_then(|parameter| reference_access(program, parameter.type_reference))
-            != Some(ReferenceAccess::Mutable)
-    {
+    if root == facts::PlaceRoot::Symbol(machine.symbol) {
         return false;
     }
     (0..path.len()).all(|length| {
@@ -1660,21 +1647,12 @@ fn exclusive_storage_chain(
 /// and segments spell as field/index/case projections.
 pub(super) fn place_spelling(
     program: &typed_trees::TypedTrees,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    _machine: &typed_trees::machine::Machine,
+    _state: &typed_trees::state::State,
     root: facts::PlaceRoot,
     path: &[facts::PlaceSegment],
 ) -> String {
     let mut spelling = match root {
-        facts::PlaceRoot::Symbol(symbol)
-            if symbol == machine.symbol
-                && program
-                    .state_parameters(state)
-                    .iter()
-                    .any(|parameter| parameter.is_self) =>
-        {
-            "self".to_string()
-        }
         facts::PlaceRoot::Symbol(symbol) => program.symbols.name(symbol).to_string(),
         _ => "?".to_string(),
     };

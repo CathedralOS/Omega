@@ -14,8 +14,7 @@ use crate::execution::terminal_unit::cleanup::cleanup_evidence::{
 use crate::execution::terminal_unit::cleanup::residuals;
 use crate::execution::terminal_unit::control::checked_unit_structural_result_local;
 use crate::execution::terminal_unit::types::{
-    ShapeCollector, is_unit, machine_binders, parameter_root_symbol, state_flow,
-    type_graph_requires_nominal_drop,
+    ShapeCollector, is_unit, machine_binders, state_flow, type_graph_requires_nominal_drop,
 };
 use crate::execution::terminal_unit::{
     BTreeMap, CheckFacts, CheckedPartialAffineUnitCleanupMachinePlan, CheckedStructuralAccess,
@@ -123,8 +122,7 @@ pub(crate) fn build_partial_affine_unit_cleanup_machine(
             .iter()
             .zip(&structural_parameters)
             .any(|(source, checked)| {
-                source.is_self
-                    || checked.is_self
+                (checked.is_self)
                     || checked.position != 0
                     || checked.multiplicity != Multiplicity::Affine
                     || checked.access != CheckedStructuralAccess::Owned
@@ -162,10 +160,7 @@ pub(crate) fn build_partial_affine_unit_cleanup_machine(
     } else {
         (
             CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index: 0 },
-            facts::PlaceRoot::Symbol(parameter_root_symbol(
-                machine.symbol,
-                &program.state_parameters(state)[0],
-            )),
+            facts::PlaceRoot::Symbol((&program.state_parameters(state)[0]).symbol),
             structural_parameters[0].type_identity.clone(),
         )
     };

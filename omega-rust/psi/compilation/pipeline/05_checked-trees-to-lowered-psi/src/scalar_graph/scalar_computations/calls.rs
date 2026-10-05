@@ -434,18 +434,11 @@ impl Expansion<'_> {
                         .ok_or(LoweringError::Unsupported(
                             "computed range has no reserved structural result",
                         ))?;
-                    let receiver_count = usize::from(
-                        self.checked
-                            .state_parameters(source_state)
-                            .first()
-                            .is_some_and(|parameter| parameter.is_self),
-                    );
-                    let argument_ordinal = structural_ordinal
-                        .checked_sub(receiver_count)
-                        .and_then(|ordinal| u32::try_from(ordinal).ok())
-                        .ok_or(LoweringError::Unsupported(
+                    let argument_ordinal = u32::try_from(structural_ordinal).map_err(|_| {
+                        LoweringError::Unsupported(
                             "computed range has no explicit structural ordinal",
-                        ))?;
+                        )
+                    })?;
                     operands.push(Operand::Range {
                         argument: argument.clone(),
                         slot: slot.clone(),

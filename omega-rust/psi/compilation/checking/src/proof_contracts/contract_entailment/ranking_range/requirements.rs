@@ -77,11 +77,7 @@ fn prove(
 ) -> Option<bool> {
     let target = program.machine_states(callee).first()?;
     let parameters = program.state_parameters(target);
-    if parameters
-        .iter()
-        .filter(|parameter| !parameter.is_self)
-        .count()
-        != arguments.len()
+    if parameters.iter().count() != arguments.len()
         || !program
             .machine_states(caller)
             .iter()
@@ -197,11 +193,7 @@ fn prove(
         return None;
     }
     let mut substitutions = BTreeMap::new();
-    for (parameter, argument) in parameters
-        .iter()
-        .filter(|parameter| !parameter.is_self)
-        .zip(arguments)
-    {
+    for (parameter, argument) in parameters.iter().zip(arguments) {
         for field in goal_fields
             .coordinates()
             .filter(|field| field.parameter.symbol == parameter.symbol)
@@ -408,11 +400,7 @@ fn prove(
     source_engine.refresh_opaque_intervals();
     // Subslice geometry consumes established caller facts; the requirement's
     // own conclusion is never installed to form the next slice.
-    for (parameter, argument) in parameters
-        .iter()
-        .filter(|parameter| !parameter.is_self)
-        .zip(arguments)
-    {
+    for (parameter, argument) in parameters.iter().zip(arguments) {
         if let Some((_, identity)) = goal_lengths
             .iter()
             .find(|(symbol, _)| *symbol == parameter.symbol)

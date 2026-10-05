@@ -254,9 +254,7 @@ pub(crate) fn build_payloadless_guarded_call_return_machine(
         .is_some_and(|place| {
             place.root == facts::PlaceRoot::Symbol(parameter.symbol) && place.segments.is_empty()
         });
-        if parameter.is_const
-            || parameter.is_mutable
-            || parameter.is_self
+        if (parameter.is_const || parameter.is_mutable)
             || !(1..=15).contains(&contracts.len())
             || contracts.iter().any(|contract| {
                 !matches!(contract.kind, SignatureContractKind::Requires)

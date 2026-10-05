@@ -131,7 +131,7 @@ fn immutable_parameter_endpoint(
     // is not invocation-fixed: its where clause may be temporarily broken.
     // Only an immutable non-receiver input can contribute declaration bounds
     // here without separate statement-local establishment evidence.
-    if parameter.is_self || parameter.is_mutable || parameter.is_const {
+    if (parameter.is_mutable) || parameter.is_const {
         return None;
     }
     validation::immutable_integer_expression_bounds(program, machine, state, expression)

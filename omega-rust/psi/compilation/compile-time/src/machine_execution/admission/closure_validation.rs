@@ -422,9 +422,6 @@ fn machine_linear_carrier_violation(
 
     for state in program.machine_states(machine) {
         for parameter in program.state_parameters(state) {
-            if parameter.is_self {
-                continue;
-            }
             if let Some(violation) = describe(
                 &format!("state `{}` parameter `{}`", state.name, parameter.name),
                 parameter.type_reference,
@@ -503,9 +500,6 @@ fn callable_contract_violation(
     }
 
     for parameter in program.state_signature_parameters(signature) {
-        if parameter.is_self {
-            continue;
-        }
         if program.type_multiplicity(parameter.type_reference)
             == language_semantics::Multiplicity::Linear
         {

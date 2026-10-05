@@ -193,8 +193,7 @@ fn carrierless_trait_violation(
 
     for requirement in program.trait_machine_signatures(trait_definition) {
         for parameter in program.state_signature_parameters(requirement) {
-            if parameter.is_self || type_reference_contains_self(program, parameter.type_reference)
-            {
+            if type_reference_contains_self(program, parameter.type_reference) {
                 visiting.pop();
                 return Some(format!(
                     "requirement `{}` has a carrier-dependent parameter",

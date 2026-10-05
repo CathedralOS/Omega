@@ -2,8 +2,7 @@
 //! owns their lifetime; this consumer neither replays a body nor assumes zeros.
 
 use crate::flow::{
-    CanonicalPlace, canonical_place_from_semantic_place, normalized_event_place_root,
-    relative_place_segments_from_expression,
+    CanonicalPlace, canonical_place_from_semantic_place, relative_place_segments_from_expression,
 };
 use facts::{FactContextHandle, FactPayload, FactPlace, FactPlan, PlaceHandle};
 use symbols::SymbolHandle;
@@ -151,8 +150,7 @@ fn recorded_element_extent(
         else {
             continue;
         };
-        if normalized_event_place_root(program, candidate.root)
-            != normalized_event_place_root(program, subject.root)
+        if (candidate.root) != (subject.root)
             || candidate.segments.len() != subject.segments.len()
             || !candidate
                 .segments
@@ -209,8 +207,7 @@ fn carried_domain_membership_at_place(
                 };
                 canonical_place_from_semantic_place(program, semantic, semantic.places.get(place))
                     .is_some_and(|candidate| {
-                        normalized_event_place_root(program, candidate.root)
-                            == normalized_event_place_root(program, subject.root)
+                        (candidate.root) == (subject.root)
                             && segments_cover_subject(
                                 program,
                                 &candidate.segments,

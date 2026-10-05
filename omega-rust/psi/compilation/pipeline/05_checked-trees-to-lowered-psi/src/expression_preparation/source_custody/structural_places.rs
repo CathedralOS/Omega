@@ -521,8 +521,7 @@ pub(crate) fn field_selector(
         }
     }
     // A field selector is itself an exact place walk: a pure member chain
-    // rooted at an entry parameter (a `self` root names the is_self slot by
-    // the machine's durable symbol). Indexed or case segments inside the
+    // rooted at an entry parameter. Indexed or case segments inside the
     // selector never mint a `StructuralField` coordinate.
     let (path, root) = walk_exact_place(checked, machine, authored, expression, false)?;
     if path.is_empty() {
@@ -543,9 +542,7 @@ pub(crate) fn field_selector(
     let parameters = checked.state_parameters(authored);
     let parameter_position = parameters
         .iter()
-        .position(|parameter| {
-            parameter.symbol == name.symbol || (parameter.is_self && name.symbol == machine.symbol)
-        })
+        .position(|parameter| parameter.symbol == name.symbol)
         .ok_or(LoweringError::Unsupported(
             "runtime index field selector has no parameter root",
         ))?;

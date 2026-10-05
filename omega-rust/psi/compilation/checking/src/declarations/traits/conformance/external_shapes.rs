@@ -58,11 +58,7 @@ pub(crate) fn validate_external_leaf_native_shapes(
             continue;
         };
 
-        for parameter in program
-            .state_signature_parameters(requirement)
-            .iter()
-            .filter(|parameter| !parameter.is_self)
-        {
+        for parameter in program.state_signature_parameters(requirement).iter() {
             if let Some(carrier) =
                 private_native_carrier(program, parameter.type_reference, &mut Vec::new())
             {

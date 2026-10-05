@@ -152,12 +152,10 @@ impl<'program> FieldCoordinates<'program> {
             let entry_symbol = match entry_parameters {
                 None => coordinate.parameter.symbol,
                 Some(entries) => {
-                    let (_, entry) = program
-                        .state_parameters(state)
-                        .iter()
-                        .filter(|parameter| !parameter.is_self)
-                        .zip(entries)
-                        .find(|(parameter, _)| parameter.symbol == coordinate.parameter.symbol)?;
+                    let (_, entry) =
+                        program.state_parameters(state).iter().zip(entries).find(
+                            |(parameter, _)| parameter.symbol == coordinate.parameter.symbol,
+                        )?;
                     if !entry.is_valid() {
                         // A role-less record serves its own guards only; its
                         // fields never rewrite a template coordinate.

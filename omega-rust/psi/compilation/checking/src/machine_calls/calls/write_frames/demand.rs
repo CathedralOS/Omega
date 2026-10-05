@@ -729,7 +729,6 @@ impl<'program> CallFrameResolver<'program> {
                                 &self.symbols,
                                 &receiver,
                                 call.target.as_str(),
-                                None,
                                 CallerWriteSite::Call(call),
                                 arguments,
                                 inference,
@@ -1199,9 +1198,6 @@ pub(super) fn collect_expression_call_written_paths(
                     symbols,
                     &receiver_members,
                     call.target.as_str(),
-                    (receiver_origins.len() == 1)
-                        .then(|| receiver_origins.first())
-                        .flatten(),
                     CallerWriteSite::Expression(expression),
                     arguments,
                     inference,

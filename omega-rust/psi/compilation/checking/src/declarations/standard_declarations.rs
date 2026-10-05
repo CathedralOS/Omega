@@ -138,7 +138,6 @@ fn has_calling_interface(
     };
     program.state_signature_type_parameters(plan).is_empty()
         && plan.native_callback_parameters.is_empty()
-        && !signature.is_self
         && !signature.is_const
         && signature.relevance == language_core::BindingRelevance::Relevant
         && is_calling_interface_data(

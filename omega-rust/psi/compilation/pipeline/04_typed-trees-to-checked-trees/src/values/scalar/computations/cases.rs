@@ -100,16 +100,11 @@ impl Builder<'_, '_> {
             statement_index,
             subject,
         )?;
-        let facts::PlaceRoot::Symbol(root) =
-            crate::flow::normalized_event_place_root(self.program, place.root)
-        else {
+        let facts::PlaceRoot::Symbol(root) = place.root else {
             return None;
         };
         let parameter = self.authored_parameters.iter().find(|parameter| {
-            crate::flow::normalized_event_place_root(
-                self.program,
-                facts::PlaceRoot::Symbol(parameter.symbol),
-            ) == facts::PlaceRoot::Symbol(root)
+            (facts::PlaceRoot::Symbol(parameter.symbol)) == facts::PlaceRoot::Symbol(root)
         });
         let symbol = if let Some(parameter) = parameter {
             parameter.symbol

@@ -494,15 +494,8 @@ fn frontier_type_multiplicity(
                 return program.data_definitions()[*index].properties.multiplicity;
             }
             if symbol.is_valid()
-                && let Some((multiplicity, kind)) = parameters_by_symbol.get(symbol)
+                && let Some((multiplicity, _)) = parameters_by_symbol.get(symbol)
             {
-                if *multiplicity == Multiplicity::Affine
-                    && matches!(kind, typed_trees::data::TypeParameterKind::Type)
-                    && let Some(receiver) =
-                        program.attached_receiver_parameter_multiplicity(*symbol)
-                {
-                    return receiver;
-                }
                 return *multiplicity;
             }
             if typed_trees::types::PrimitiveType::from_name(name.as_str()).is_some() {

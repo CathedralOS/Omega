@@ -74,7 +74,6 @@ pub(super) fn instantiate_written_path_with_origins(
     }
     if let Some((argument_index, parameter)) = parameters
         .iter()
-        .filter(|parameter| !parameter.is_self)
         .enumerate()
         .find(|(_, parameter)| parameter.name.as_str() == root)
     {

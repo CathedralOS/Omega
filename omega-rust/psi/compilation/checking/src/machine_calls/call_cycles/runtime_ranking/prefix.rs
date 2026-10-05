@@ -63,7 +63,6 @@ pub(super) fn preserves_rank(
     let mut protected = program
         .state_parameters(state)
         .iter()
-        .filter(|parameter| !parameter.is_self)
         .zip(entry_parameters)
         .filter(|(_, role)| {
             role.is_valid()

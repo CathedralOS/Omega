@@ -137,11 +137,8 @@ impl VirtualClockBinding {
         }
         let parameter_types = parameters
             .iter()
-            .map(|parameter| {
-                if parameter.is_self {
-                    return Err("virtual wait cannot provision a receiver");
-                }
-                match checked.primitive_type_reference(parameter.type_reference) {
+            .map(
+                |parameter| match checked.primitive_type_reference(parameter.type_reference) {
                     Some(
                         primitive @ (PrimitiveType::I8
                         | PrimitiveType::I16
@@ -153,8 +150,8 @@ impl VirtualClockBinding {
                         | PrimitiveType::U64),
                     ) => Ok(primitive),
                     _ => Err("virtual wait requires scalar integer operands"),
-                }
-            })
+                },
+            )
             .collect::<Result<Vec<_>, _>>()?;
         Ok(Self {
             checked_program_address: std::ptr::from_ref(checked).addr(),
@@ -194,9 +191,7 @@ impl VirtualClockBinding {
                 .iter()
                 .zip(&self.parameter_types)
                 .all(|(parameter, primitive)| {
-                    !parameter.is_self
-                        && checked.primitive_type_reference(parameter.type_reference)
-                            == Some(*primitive)
+                    checked.primitive_type_reference(parameter.type_reference) == Some(*primitive)
                 })
             || !self
                 .operation

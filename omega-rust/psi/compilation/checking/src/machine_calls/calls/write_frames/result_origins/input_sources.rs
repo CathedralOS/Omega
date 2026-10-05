@@ -5,8 +5,7 @@ use super::super::path_instantiation::aggregate_arguments::{
     AggregateResolver, ReferenceResolver, reference_leaves_with_origins,
 };
 use super::super::reference_origins::{
-    exclusive_reference_origins, exclusive_reference_referee, owned_receiver_origin,
-    referent_has_only_owned_storage,
+    exclusive_reference_origins, exclusive_reference_referee, referent_has_only_owned_storage,
 };
 use super::super::stored_origins::{declared_origins_for_query, place_suffix, source_reaches_leaf};
 use super::super::{
@@ -40,8 +39,7 @@ pub(super) fn instantiate_source(
         // non-builtin source cannot supply the validated boundary.
         if !relative.source.root.is_valid()
             || !relative.source.builtin_coordinates
-            || !(relative.source.root == parameter.symbol
-                || (parameter.is_self && relative.source.root == callee_machine.symbol))
+            || !(relative.source.root == parameter.symbol)
         {
             return None;
         }
@@ -55,23 +53,7 @@ pub(super) fn instantiate_source(
         );
     }
     if let Some(referee) = exclusive_reference_referee(program, parameter.type_reference) {
-        let origins = if parameter.is_self {
-            let definition = crate::program_scope::data_definitions::data_definition_by_symbol(
-                program,
-                callee_machine.attached_data_symbol,
-            )?;
-            if !super::super::isolation::data_definition_has_only_owned_storage(program, definition)
-            {
-                return None;
-            }
-            vec![owned_receiver_origin(
-                program,
-                caller_machine,
-                actual,
-                symbols,
-                inference,
-            )?]
-        } else {
+        let origins = {
             if !referent_has_only_owned_storage(program, referee) {
                 return None;
             }
@@ -85,8 +67,7 @@ pub(super) fn instantiate_source(
                 .collect(),
         );
     }
-    if parameter.is_self
-        || super::super::type_reference_is_reference(program, parameter.type_reference)
+    if super::super::type_reference_is_reference(program, parameter.type_reference)
         || relative.source.root != parameter.symbol
     {
         return None;

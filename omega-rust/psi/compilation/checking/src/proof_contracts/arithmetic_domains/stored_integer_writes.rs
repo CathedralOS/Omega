@@ -106,7 +106,7 @@ fn destination_projections(
     if !crate::place_has_builtin_coordinates(program, machine, Some(state), destination) {
         return Err(());
     }
-    let direct_type = root_type(program, machine, state, root).ok_or(())?;
+    let direct_type = root_type(program, state, root).ok_or(())?;
     // An aggregate's own scalar field has the representation selected by its
     // exact nominal declaration. A whole-record loan does not turn Room.value
     // into some other record's IntegerAt merely because its backing root is
@@ -146,13 +146,9 @@ fn destination_projections(
             .filter(|origin| origin.local_segments.len() == longest)
         {
             let source = origin.source.as_ref().ok_or(())?;
-            if let Some(projection) = stored_integer_source_projection(
-                program,
-                machine,
-                state,
-                source,
-                &segments[longest..],
-            )? {
+            if let Some(projection) =
+                stored_integer_source_projection(program, state, source, &segments[longest..])?
+            {
                 if !projections.contains(&projection) {
                     projections.push(projection);
                 }
@@ -181,7 +177,6 @@ fn destination_projections(
 /// prefix owner; consumers must check every alternative.
 pub fn stored_integer_source_projection(
     program: &TypedTrees,
-    machine: &Machine,
     state: &State,
     source: &crate::LocalWriteSource,
     suffix: &[PlaceSegment],
@@ -189,19 +184,18 @@ pub fn stored_integer_source_projection(
     if source.collection_coarse && !suffix.is_empty() {
         return Err(());
     }
-    recast_history::projection(program, machine, state, source, suffix)
+    recast_history::projection(program, state, source, suffix)
 }
 
 fn source_coordinates(
     program: &TypedTrees,
-    machine: &Machine,
     state: &State,
     source: &crate::LocalWriteSource,
 ) -> Result<(TypeReferenceHandle, Vec<PlaceSegment>), ()> {
     if !source.root.is_valid() {
         return Err(());
     }
-    let declared = root_type(program, machine, state, source.root).ok_or(())?;
+    let declared = root_type(program, state, source.root).ok_or(())?;
     let (carrier, path) = match &source.representation {
         Some((carrier, path)) => (*carrier, path.clone()),
         None => (declared, source.segments.clone()),
@@ -215,14 +209,13 @@ fn source_coordinates(
 
 fn root_type(
     program: &TypedTrees,
-    machine: &Machine,
     state: &State,
     root: SymbolHandle,
 ) -> Option<TypeReferenceHandle> {
     program
         .state_parameters(state)
         .iter()
-        .find(|parameter| parameter.symbol == root || (root == machine.symbol && parameter.is_self))
+        .find(|parameter| parameter.symbol == root)
         .map(|parameter| parameter.type_reference)
         .or_else(|| {
             program

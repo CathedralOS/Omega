@@ -4,7 +4,6 @@ use crate::flow::{
 use crate::lookup::first_valid_name_path_symbol;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use checked_trees::statement::StatementNode;
-use language_core::is_self_receiver;
 use symbols::SymbolHandle;
 
 pub(super) fn contextual_effective_member_symbol(
@@ -114,18 +113,10 @@ pub(super) fn contextual_name_root_symbol(
 
     let state = crate::semantic::calls::find_state(program, state_symbol)?;
     let name = program.expression_table.display_name(expression);
-    if is_self_receiver(&name) {
-        return program
-            .state_parameters(state)
-            .iter()
-            .find(|parameter| parameter.is_self)
-            .map(|parameter| parameter.symbol);
-    }
-
     if let Some(parameter) = program
         .state_parameters(state)
         .iter()
-        .find(|parameter| !parameter.is_self && parameter.name.as_str() == name)
+        .find(|parameter| parameter.name.as_str() == name)
     {
         return Some(parameter.symbol);
     }

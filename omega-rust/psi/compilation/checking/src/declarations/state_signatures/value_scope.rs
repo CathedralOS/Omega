@@ -11,13 +11,14 @@ pub(super) fn validate(
     symbols: &TopLevelSymbols<'_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let machine_symbols = MachineSymbols::build(program, machine, diagnostics);
+    // Retain declaration-roster diagnostics even though value bindings use
+    // their explicit state identities rather than an attached namespace.
+    MachineSymbols::build(program, machine, diagnostics);
     for state in program.machine_states(machine) {
         let scope = crate::value_custody::locals::StateValueScope {
             program,
             machine,
             state,
-            machine_symbols: &machine_symbols,
             symbols,
             prior_statements: &[],
             context: "arrival contract",

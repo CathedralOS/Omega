@@ -168,23 +168,6 @@ pub(super) fn validate(
         if parameter.is_const {
             return unsupported("primitive reference return has unsupported parameter qualifiers");
         }
-        if parameter.is_self {
-            // A borrowed receiver rides the machine's ambient attachment
-            // carrier: the checked signature drops it from the forwarded
-            // structural roster, so this replay skips its authored position
-            // rather than consuming a parameter slot.
-            if !matches!(
-                checked
-                    .type_reference_table
-                    .type_reference(parameter.type_reference),
-                checked_trees::types::TypeReferenceNode::Reference { .. }
-            ) {
-                return unsupported(
-                    "primitive reference return has unsupported parameter qualifiers",
-                );
-            }
-            continue;
-        }
         if let checked_trees::types::TypeReferenceNode::Reference {
             access, referee, ..
         } = checked

@@ -123,7 +123,6 @@ pub(super) fn receiver_is_declared(
         current_machine,
         state_name,
         current_state,
-        machine_symbols,
         symbols,
         writable_roots,
         ..
@@ -140,7 +139,6 @@ pub(super) fn receiver_is_declared(
                     current_machine,
                     state,
                     writable_roots.statements,
-                    machine_symbols,
                     symbols,
                     root,
                     first.as_str(),

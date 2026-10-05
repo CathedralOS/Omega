@@ -194,16 +194,15 @@ fn exact_shared_cohort_observation(
             .state_parameters(target_state)
             .iter()
             .any(|parameter| {
-                parameter.is_self
-                    || !matches!(
-                        program
-                            .type_reference_table
-                            .type_reference(parameter.type_reference),
-                        typed_trees::types::TypeReferenceNode::Reference {
-                            access: language_semantics::ReferenceAccess::Shared,
-                            ..
-                        }
-                    )
+                !matches!(
+                    program
+                        .type_reference_table
+                        .type_reference(parameter.type_reference),
+                    typed_trees::types::TypeReferenceNode::Reference {
+                        access: language_semantics::ReferenceAccess::Shared,
+                        ..
+                    }
+                )
             })
         || (observation.has_receiver
             && target_machine.attached_data_symbol != observation.receiver_symbol)
@@ -411,13 +410,7 @@ pub(crate) fn plan_reborrow_restored_call_uses(
         };
         // A nominal type qualifier is source lookup, not a runtime receiver.
         // Keep true instance-receiver calls outside this certificate.
-        if call.has_receiver
-            && (target_machine.attached_data_symbol != call.receiver_symbol
-                || program
-                    .state_parameters(target_state)
-                    .iter()
-                    .any(|parameter| parameter.is_self))
-        {
+        if call.has_receiver && target_machine.attached_data_symbol != call.receiver_symbol {
             continue;
         }
 
@@ -471,17 +464,11 @@ pub(crate) fn plan_reborrow_restored_call_uses(
         let parameters = program
             .state_parameters(target_state)
             .iter()
-            .filter(|parameter| !parameter.is_self)
             .collect::<Vec<_>>();
         let [parameter] = parameters.as_slice() else {
             continue;
         };
-        if !parameter.is_mutable
-            || program
-                .state_parameters(target_state)
-                .iter()
-                .any(|parameter| parameter.is_self)
-        {
+        if !parameter.is_mutable {
             continue;
         }
         let typed_trees::types::TypeReferenceNode::Reference {

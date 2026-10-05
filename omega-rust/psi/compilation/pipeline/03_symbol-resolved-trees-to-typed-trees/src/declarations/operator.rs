@@ -51,7 +51,6 @@ pub(crate) fn lower_operator_definition(
                 type_reference,
                 is_const: parameter.is_const,
                 is_mutable: parameter.is_mutable,
-                is_self: false,
                 relevance: parameter.relevance,
             },
         );

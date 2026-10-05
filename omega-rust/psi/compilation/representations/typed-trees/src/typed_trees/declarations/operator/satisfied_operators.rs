@@ -206,8 +206,7 @@ fn satisfied_operator_candidates<'program>(
                     .iter()
                     .zip(required_parameters.iter())
                     .all(|(actual, required)| {
-                        actual.is_self == required.is_self
-                            && actual.is_const == required.is_const
+                        actual.is_const == required.is_const
                             && actual.is_mutable == required.is_mutable
                             && program.type_identity(TypeIdentityRequest {
                                 binders: &machine_binders,

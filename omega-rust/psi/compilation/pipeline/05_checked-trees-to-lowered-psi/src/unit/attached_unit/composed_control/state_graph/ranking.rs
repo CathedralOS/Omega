@@ -102,7 +102,7 @@ pub(super) fn validate_witness(
             checked
                 .state_parameters(root)
                 .iter()
-                .find(|parameter| parameter.symbol == subject.symbol && !parameter.is_self)
+                .find(|parameter| parameter.symbol == subject.symbol)
                 .ok_or(LoweringError::Unsupported(
                     "Unit graph rank subject is not an entry parameter",
                 ))
@@ -223,7 +223,6 @@ pub(super) fn validate_witness(
                     RankingViewId::NAT_BOUNDED_DISTANCE | RankingViewId::NAT_INCREASING_TO
                 ) && unsigned_integer(primitive_type)
                     && upper_parameter.symbol == upper
-                    && !upper_parameter.is_self
                     && bound.is_some_and(|(bound, length)| {
                         !length && upper_parameter.name == bound.name
                     })
@@ -240,7 +239,6 @@ pub(super) fn validate_witness(
                     witness.ranking_view,
                     RankingViewId::NAT_BOUNDED_DISTANCE | RankingViewId::NAT_INCREASING_TO
                 ) && collection_parameter.symbol == collection
-                    && !collection_parameter.is_self
                     && bound.is_some_and(|(bound, length)| {
                         length && collection_parameter.name == bound.name
                     })
@@ -256,7 +254,6 @@ pub(super) fn validate_witness(
         let names_subject = checked
             .state_parameters(state)
             .iter()
-            .filter(|formal| !formal.is_self)
             .position(|formal| formal.symbol == parameter.symbol)
             .is_some_and(|index| {
                 entry_roles
@@ -266,11 +263,7 @@ pub(super) fn validate_witness(
                     .is_some_and(|role| *role == subject.symbol)
             })
             || parameter.name == subject.name;
-        if parameter.symbol != rank.parameter
-            || parameter.is_self
-            || !names_subject
-            || !measure_matches
-        {
+        if parameter.symbol != rank.parameter || !names_subject || !measure_matches {
             return unsupported("Unit graph rank no longer names its checked state subject");
         }
     }

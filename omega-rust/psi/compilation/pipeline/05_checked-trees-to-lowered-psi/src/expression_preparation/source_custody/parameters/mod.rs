@@ -1,6 +1,5 @@
 //! Rejoin mutable entry storage to the exact current-state parameter frontier.
 
-use super::super::Multiplicity;
 use super::{CheckedTrees, LoweringError, supported_mutable_parameter, unsupported};
 mod owned;
 mod owned_types;
@@ -88,19 +87,10 @@ pub(crate) fn parameter_storage<'checked>(
     }
     owned::validate(checked, machine, state, &graph.structural_parameters)?;
     let parameters = checked.state_parameters(state);
-    // An `[erased]` binding occurrence owns neither a scalar nor a structural
-    // entry; the retained arity is reconstructed from the typed relevance. A
-    // borrowed `self` stays ambient on the attachment carrier, but when the
-    // entry roster retained it as the machine's receiver it counts here too.
-    let ambient_self = graph
-        .structural_parameters
-        .iter()
-        .any(|parameter| parameter.is_self);
+    // Erased bindings own neither scalar nor structural entry storage.
     let retained_parameters = parameters
         .iter()
-        .filter(|parameter| {
-            !parameter.relevance.is_erased() && (ambient_self || !parameter.is_self)
-        })
+        .filter(|parameter| !parameter.relevance.is_erased())
         .count();
     if retained_parameters != graph.parameter_types.len() + graph.structural_parameters.len()
         || graph.scalar_parameters.len() != graph.parameter_types.len()
@@ -120,45 +110,6 @@ pub(crate) fn parameter_storage<'checked>(
     let mut scalar_position = 0usize;
     let mut structural = graph.structural_parameters.iter();
     for (position, parameter) in parameters.iter().enumerate() {
-        if parameter.is_self {
-            // The receiver rejoins only as a borrowed reference. When the
-            // entry roster retained it as the machine's ambient operand, it
-            // owns the matching structural entry exactly here.
-            let checked_trees::types::TypeReferenceNode::Reference { access, .. } = checked
-                .type_reference_table
-                .type_reference(parameter.type_reference)
-            else {
-                return unsupported(
-                    "scalar parameter storage disagrees with its authored signature",
-                );
-            };
-            if ambient_self {
-                let access = match access {
-                    language_semantics::ReferenceAccess::Shared => {
-                        checked_trees::CheckedStructuralAccess::SharedBorrow
-                    }
-                    language_semantics::ReferenceAccess::Mutable => {
-                        checked_trees::CheckedStructuralAccess::MutableBorrow
-                    }
-                    language_semantics::ReferenceAccess::WriteOnly => {
-                        return unsupported("scalar graph retained receiver must be readable");
-                    }
-                };
-                let retained = structural.next().ok_or(LoweringError::Unsupported(
-                    "scalar graph lost its ambient receiver",
-                ))?;
-                if !retained.is_self
-                    || retained.position as usize != position
-                    || retained.access != access
-                    || retained.multiplicity != Multiplicity::Unrestricted
-                {
-                    return unsupported(
-                        "scalar parameter storage disagrees with its authored signature",
-                    );
-                }
-            }
-            continue;
-        }
         if !parameter.symbol.is_valid()
             || parameters[..position]
                 .iter()

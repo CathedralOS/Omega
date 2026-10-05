@@ -184,7 +184,6 @@ pub(super) fn unknown_inputs(program: &typed_trees::TypedTrees) -> Vec<StateValu
                     values: program
                         .state_parameters(state)
                         .iter()
-                        .filter(|parameter| !parameter.is_self)
                         .map(|parameter| (parameter.symbol, ScalarValue::Unknown))
                         .collect(),
                     bounds: Vec::new(),
@@ -247,9 +246,6 @@ pub(super) fn record_transition(
     let mut values = Vec::new();
     let mut bounds = Vec::new();
     for parameter in program.state_parameters(destination) {
-        if parameter.is_self {
-            continue;
-        }
         let captured = argument_values.get(ordinal);
         let argument = arguments.get(ordinal);
         ordinal += 1;
@@ -299,7 +295,6 @@ pub(super) fn record_transition(
         program,
         semantic,
         build,
-        machine,
         state,
         destination,
         statement_index,
@@ -318,15 +313,7 @@ pub(super) fn record_transition(
         &path_contexts,
         machine.symbol,
     );
-    let mut qualifications = argument_qualifications;
-    qualifications.extend(qualifications::capture_receiver(
-        program,
-        semantic,
-        build,
-        state,
-        destination,
-        contexts,
-    ));
+    let qualifications = argument_qualifications;
     join(
         program,
         build,
@@ -400,7 +387,6 @@ pub(super) fn record_invocation<'plans>(
             values: program
                 .state_parameters(destination)
                 .iter()
-                .filter(|parameter| !parameter.is_self)
                 .map(|parameter| (parameter.symbol, ScalarValue::Unknown))
                 .collect(),
         },

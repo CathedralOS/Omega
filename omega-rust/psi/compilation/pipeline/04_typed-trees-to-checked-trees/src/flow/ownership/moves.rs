@@ -111,7 +111,7 @@ pub(super) fn append_move_events_for_expression(
                     source,
                 );
             } else {
-                append_move_event_for_place(program, sink, place, source, expression);
+                append_move_event_for_place(sink, place, source, expression);
             }
         }
         return;
@@ -506,7 +506,7 @@ pub(in crate::flow::ownership) fn append_move_events_for_operator_statement_call
         && policy.receiver_transfers()
         && let Some(place) = canonical_place_from_symbol(call.receiver_symbol)
     {
-        append_move_event_for_place(program, sink, place, source, Default::default());
+        append_move_event_for_place(sink, place, source, Default::default());
     }
 
     for (ordinal, argument) in arguments.iter().enumerate() {
@@ -577,22 +577,10 @@ fn operator_call_ownership_policy(
     };
 
     let parameters = program.operator_parameters(operator);
-    let self_transfer = parameters
-        .iter()
-        .find(|parameter| parameter.is_self)
-        .map(|parameter| type_requires_ownership(program, parameter.type_reference));
     let positional: Vec<bool> = parameters
         .iter()
-        .filter(|parameter| !parameter.is_self)
         .map(|parameter| type_requires_ownership(program, parameter.type_reference))
         .collect();
-
-    if let Some(receiver_transfers) = self_transfer {
-        return OperatorCallOwnershipPolicy::Known {
-            receiver_transfers,
-            positional_transfers: positional,
-        };
-    }
 
     if has_value_receiver && positional.len() == argument_count + 1 {
         return OperatorCallOwnershipPolicy::Known {

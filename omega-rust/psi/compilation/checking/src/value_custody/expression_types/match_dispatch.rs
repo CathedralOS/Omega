@@ -264,7 +264,6 @@ fn plain_local_owner_selection(
                         // An immutable owned parameter is a live whole source
                         // established at state entry rather than by a statement.
                         parameter.symbol == path.symbol
-                            && !parameter.is_self
                             && !parameter.is_const
                             && !parameter.is_mutable
                     }))
@@ -368,7 +367,6 @@ fn projected_linear_owned_source(
                         })
                         || program.state_parameters(state).iter().any(|parameter| {
                             parameter.symbol == path.symbol
-                                && !parameter.is_self
                                 && !parameter.is_const
                                 && !parameter.is_mutable
                         }));
@@ -434,7 +432,6 @@ fn projected_plain_owned_source(
                             // complement dies on the selected edge, exactly as a
                             // local root does.
                             parameter.symbol == path.symbol
-                                && !parameter.is_self
                                 && !parameter.is_const
                                 && !parameter.is_mutable
                         }));
@@ -829,10 +826,7 @@ fn selected_expression_transfers_owned(
                 });
                 let arguments = program.expression_table.expression_handles(call.arguments);
                 if let Some(parameters) = parameters {
-                    let supplied = parameters
-                        .iter()
-                        .filter(|parameter| !parameter.is_self)
-                        .collect::<Vec<_>>();
+                    let supplied = parameters.iter().collect::<Vec<_>>();
                     // An argument rooted at a reference carrier moves borrowed
                     // storage, not the caller's owned custody -- the window
                     // checker and its arm-agreement rule own that hole. Any
@@ -1093,23 +1087,6 @@ fn parameter_case_subject(
 ) -> Option<()> {
     match program.expression_table.expression(subject) {
         ExpressionNode::Name(path) => {
-            if path.symbol == machine.symbol {
-                // A bare `self` name resolves to the machine symbol, not a
-                // parameter; `StateParameter::is_self` is the real member.
-                let name = program.expression_table.name_path_members(path.members);
-                if !name.first().is_some_and(|member| member.is_self_receiver())
-                    || name.len() != 1
-                    || program
-                        .state_parameters(state)
-                        .iter()
-                        .filter(|parameter| parameter.is_self)
-                        .count()
-                        != 1
-                {
-                    return None;
-                }
-                return Some(());
-            }
             if program
                 .state_parameters(state)
                 .iter()

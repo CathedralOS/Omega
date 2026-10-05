@@ -196,8 +196,7 @@ pub fn initializer_source(
         .enumerate()
         .find(|(_, parameter)| parameter.symbol == path.symbol);
     if let Some((position, parameter)) = found {
-        if parameter.is_self
-            || parameter.name != *name
+        if parameter.name != *name
             || !reference_parameter_can_supply(program, parameter.type_reference, reference)
         {
             return None;
@@ -340,7 +339,7 @@ pub fn borrowed_initializer_source(
     }
     let (root, mut owner_type) = match found {
         Some((position, parameter)) => {
-            if parameter.is_self || parameter.name != *name || projections.is_empty() {
+            if parameter.name != *name || projections.is_empty() {
                 return None;
             }
             (
@@ -621,8 +620,7 @@ fn construction_sources_with_calls(
             })
             .enumerate()
             .find(|(_, parameter)| parameter.symbol == name.symbol)?;
-        if parameter.is_self
-            || name.head_symbol != name.symbol
+        if name.head_symbol != name.symbol
             || program.symbols.get(name.symbol).parent != state.symbol
             || parameter.name != *spelling
             || program.normalized_type_identity(parameter.type_reference)
@@ -682,10 +680,7 @@ fn call_sources_with_calls(
         return None;
     }
     let parameters = program.state_parameters(destination);
-    if parameters.len() != arguments.len()
-        || parameters
-            .iter()
-            .any(|parameter| parameter.is_self || parameter.is_const)
+    if parameters.len() != arguments.len() || parameters.iter().any(|parameter| parameter.is_const)
     {
         return None;
     }
@@ -806,7 +801,7 @@ fn whole_reference_sources(
     if origins.is_empty() || origins.len() > MAX_REFERENCE_ORIGIN_LEAVES {
         return None;
     }
-    let machine = program.machine_holding_state(state.symbol)?;
+    program.machine_holding_state(state.symbol)?;
     let mut sources = Vec::with_capacity(origins.len());
     for origin in origins {
         if !origin.root.is_valid()
@@ -826,10 +821,7 @@ fn whole_reference_sources(
                         .is_none()
             })
             .enumerate()
-            .find(|(_, parameter)| {
-                parameter.symbol == origin.root
-                    || (parameter.is_self && origin.root == machine.symbol)
-            })?;
+            .find(|(_, parameter)| parameter.symbol == origin.root)?;
         let mut selected = parameter.type_reference;
         let mut borrowed = false;
         let mut path = Vec::with_capacity(origin.segments.len() + 1);
@@ -2167,9 +2159,7 @@ pub fn source_parameter(program: &TypedTrees, state: &typed_trees::state::State)
     program
         .state_parameters(state)
         .iter()
-        .position(|parameter| {
-            parameter.symbol == path.symbol && !parameter.is_self && !parameter.is_const
-        })
+        .position(|parameter| parameter.symbol == path.symbol && !parameter.is_const)
 }
 
 /// A bare reference result may also name one projected leaf of an owned
@@ -2233,8 +2223,7 @@ fn expression_source_leaf(
         .iter()
         .enumerate()
         .find(|(_, parameter)| parameter.symbol == path.symbol)?;
-    if parameter.is_self
-        || parameter.is_const
+    if parameter.is_const
         || program
             .primitive_type_reference(parameter.type_reference)
             .is_some()
@@ -2443,37 +2432,10 @@ pub fn result_loan(
             .map(|(position, _)| *position)
             .or_else(|| source_parameter(program, callee))?
     };
-    let argument = if mutable_view || shared_view {
-        // The callee's `self` ingress arrives through the call's receiver,
-        // not its argument span; authored non-self arguments follow it in
-        // order.
-        let callee_parameters = program.state_parameters(callee);
-        if callee_parameters
-            .get(position)
-            .is_some_and(|parameter| parameter.is_self)
-        {
-            expression.receiver
-        } else {
-            let offset = usize::from(callee_parameters.iter().any(|parameter| parameter.is_self));
-            let Some(&argument) = program
-                .expression_table
-                .expression_handles(expression.arguments)
-                .get(position.saturating_sub(offset))
-            else {
-                return None;
-            };
-            argument
-        }
-    } else {
-        let Some(&argument) = program
-            .expression_table
-            .expression_handles(expression.arguments)
-            .get(position)
-        else {
-            return None;
-        };
-        argument
-    };
+    let argument = *program
+        .expression_table
+        .expression_handles(expression.arguments)
+        .get(position)?;
     // A declared-field projection may select the argument carrier out of an
     // owned record local or out of a nested call's anonymous result:
     // `input.inner` and `forward_outer(outer).inner` both move the whole
@@ -2652,7 +2614,6 @@ pub fn result_loan(
             || !program.state_parameters(state).iter().any(|parameter| {
                 parameter.symbol == actual.symbol
                     && !parameter.is_const
-                    && !parameter.is_self
                     && parts(program, parameter.type_reference).is_some()
                     && program.normalized_type_identity(parameter.type_reference)
                         == program.normalized_type_identity(local.type_reference)
@@ -2826,17 +2787,10 @@ fn mutable_name_root(
         return Some(symbol);
     }
     let name = program.expression_table.display_name(expression);
-    if language_core::is_self_receiver(&name) {
-        return program
-            .state_parameters(state)
-            .iter()
-            .find(|parameter| parameter.is_self)
-            .map(|parameter| parameter.symbol);
-    }
     if let Some(parameter) = program
         .state_parameters(state)
         .iter()
-        .find(|parameter| !parameter.is_self && parameter.name.as_str() == name)
+        .find(|parameter| parameter.name.as_str() == name)
     {
         return Some(parameter.symbol);
     }
@@ -3186,7 +3140,7 @@ pub fn mutable_return_source(
         segments,
     );
     let parameters = program.state_parameters(state);
-    let self_position = parameters.iter().position(|parameter| parameter.is_self);
+    let self_position = None::<usize>;
     let mut matches = candidates.iter().filter_map(|(root, segments)| {
         let mut sources = Vec::new();
         if let Some(position) = parameters

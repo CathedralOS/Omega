@@ -48,22 +48,10 @@ pub(crate) fn actual_at<'program>(
     let receiver_offset = usize::from(
         matches!(&site, crate::semantic::calls::CallSite::Expression { call, .. } if call.receiver.is_valid()),
     );
-    let ordinal = parameters[..position]
-        .iter()
-        .filter(|parameter| !parameter.is_self)
-        .count();
-    let operand_position = if parameter.is_self {
-        0
-    } else {
-        ordinal + receiver_offset
-    };
-    let argument = if parameter.is_self {
-        None
-    } else {
-        let ordinal = parameters[..position]
-            .iter()
-            .filter(|parameter| !parameter.is_self)
-            .count();
+    let ordinal = parameters[..position].iter().count();
+    let operand_position = { ordinal + receiver_offset };
+    let argument = {
+        let ordinal = parameters[..position].iter().count();
         Some(*crate::semantic::calls::call_site_argument_expressions(program, &site).get(ordinal)?)
     };
     let place = if let Some(argument) = argument {

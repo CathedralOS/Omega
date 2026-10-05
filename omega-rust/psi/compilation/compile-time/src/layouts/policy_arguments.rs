@@ -2,8 +2,7 @@
 //!
 //! Layout, access and wire scheduling supply schema/plan values, and a policy
 //! may also declare private working storage as its explicit data subject. The
-//! old receiver form obtains that storage from the interpreter's instance;
-//! the static form needs an ordinary positional value at the resolved subject
+//! context is an ordinary positional value at the resolved subject
 //! position. Neither the qualifier's spelling nor a parameter named `self`
 //! selects that position. Every invocation gets fresh storage, so policy
 //! mutations cannot escape into another schema evaluation.
@@ -26,10 +25,7 @@ pub(super) fn policy_request<'a>(
         .first()
         .ok_or_else(|| format!("policy `{}` has no entry state", machine.name.as_str()))?;
     let parameters = typed.state_parameters(entry);
-    let positional_count = parameters
-        .iter()
-        .filter(|parameter| !parameter.is_self)
-        .count();
+    let positional_count = parameters.len();
     if positional_count == arguments.len() {
         return Ok(BuildMachineEvaluationRequest::symbol(
             machine.symbol,
@@ -47,7 +43,7 @@ pub(super) fn policy_request<'a>(
         .data_binding_position(machine.attached_data_symbol, parameters)
         .ok_or_else(missing_context)?;
     let parameter = &parameters[position];
-    if parameter.is_self || positional_count != arguments.len() + 1 {
+    if positional_count != arguments.len() + 1 {
         return Err(missing_context());
     }
     let context_type = match typed

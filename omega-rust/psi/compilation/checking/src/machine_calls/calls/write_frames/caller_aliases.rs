@@ -56,21 +56,6 @@ pub(super) fn caller_name_root_type(
         CallerWriteSite::Expression(argument),
     )?;
     let declaration = program.symbols.get(root);
-    // Typed `self` paths retain the owning machine identity, not the synthetic
-    // state parameter identity. Only that exact machine may select this state's
-    // unique receiver declaration.
-    if member.is_self_receiver()
-        && root == current_machine.symbol
-        && declaration.kind == symbols::SymbolKind::Machine
-    {
-        let mut receivers = program
-            .state_parameters(state)
-            .iter()
-            .filter(|parameter| parameter.is_self);
-        let receiver = receivers.next()?;
-        return (receivers.next().is_none() && receiver.type_reference.is_valid())
-            .then_some(receiver.type_reference);
-    }
     if declaration.parent != state.symbol || program.symbols.name(root) != member.as_str() {
         return None;
     }

@@ -139,11 +139,7 @@ pub(super) fn plan(
         }) else {
             continue;
         };
-        let target_parameters = program
-            .state_parameters(target_state)
-            .iter()
-            .enumerate()
-            .filter(|(_, parameter)| !parameter.is_self);
+        let target_parameters = program.state_parameters(target_state).iter().enumerate();
         for (argument, (target_position, target_parameter)) in program
             .statement_table
             .expression_handles(*arguments)

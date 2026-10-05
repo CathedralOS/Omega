@@ -159,7 +159,7 @@ pub(super) fn local_origin(
     if origins.next().is_some() || origin.precision != FramePathPrecision::Exact {
         return None;
     }
-    let mut source = origin.source.clone();
+    let source = origin.source.clone();
     validate_source_projection(program, machine, state, index, &source, &prefix.stored)?;
     // A reference local left in the result has not been canonically resolved.
     // It is not evidence that the similarly named slot kept its old referent.
@@ -171,11 +171,7 @@ pub(super) fn local_origin(
         return None;
     }
     if source.root == machine.symbol {
-        source.root = program
-            .state_parameters(state)
-            .iter()
-            .find(|parameter| parameter.is_self)?
-            .symbol;
+        return None;
     }
     Some(source)
 }
@@ -562,7 +558,7 @@ pub(super) fn validate_source_projection(
     if !program
         .state_parameters(state)
         .iter()
-        .any(|parameter| parameter.symbol == source.root && !parameter.is_self)
+        .any(|parameter| parameter.symbol == source.root)
         || source.segments.iter().any(|segment| {
             !matches!(
                 segment,
@@ -607,9 +603,10 @@ fn source_root_type(
     if !root.is_valid() {
         return None;
     }
-    let mut parameters = program.state_parameters(state).iter().filter(|parameter| {
-        parameter.symbol == root || (root == machine.symbol && parameter.is_self)
-    });
+    let mut parameters = program
+        .state_parameters(state)
+        .iter()
+        .filter(|parameter| parameter.symbol == root);
     if let Some(parameter) = parameters.next() {
         return parameters
             .next()

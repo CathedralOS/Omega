@@ -23,9 +23,7 @@ pub(super) fn validate_frozen_inputs(
         .state_parameters(state)
         .iter()
         .filter_map(|parameter| {
-            if parameter.is_self
-                || super::super::type_reference_is_reference(program, parameter.type_reference)
-            {
+            if super::super::type_reference_is_reference(program, parameter.type_reference) {
                 return None;
             }
             stored_origins::declared_origins_for_query(
@@ -80,7 +78,6 @@ pub(super) fn instantiate_moves(
     for moved in &relative.moves {
         let (index, parameter) = parameters
             .iter()
-            .filter(|parameter| !parameter.is_self)
             .enumerate()
             .find(|(_, parameter)| parameter.symbol == moved.source.root)?;
         if super::super::type_reference_is_reference(program, parameter.type_reference)

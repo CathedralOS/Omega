@@ -44,14 +44,12 @@ pub(super) fn call_argument_types(
             program
                 .state_signature_parameters(signature)
                 .iter()
-                .filter(|parameter| !parameter.is_self)
                 .map(|parameter| parameter.type_reference)
                 .collect()
         })
         .or_else(|| {
             // A resolved requirement signature supplies the same formal
-            // context. Declaration-qualified calls keep `self` in the
-            // pairing so later formals still align with their actuals.
+            // context, pairing every formal with its explicit argument.
             super::boundary_calls::requirement_signature_for_site(
                 program,
                 current_machine,
@@ -59,11 +57,10 @@ pub(super) fn call_argument_types(
                 target_name,
                 site,
             )
-            .map(|(signature, self_is_argument, _)| {
+            .map(|signature| {
                 program
                     .state_signature_parameters(signature)
                     .iter()
-                    .filter(|parameter| self_is_argument || !parameter.is_self)
                     .map(|parameter| parameter.type_reference)
                     .collect()
             })
@@ -78,7 +75,6 @@ pub(super) fn call_argument_types(
     program
         .state_parameters(state)
         .iter()
-        .filter(|parameter| !parameter.is_self)
         .map(|parameter| parameter.type_reference)
         .collect()
 }

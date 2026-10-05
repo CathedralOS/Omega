@@ -12,8 +12,8 @@ use crate::execution::terminal_unit::calls::reference_forwarding;
 use crate::execution::terminal_unit::calls::result_arguments;
 use crate::execution::terminal_unit::calls::view_subslice;
 use crate::execution::terminal_unit::types::{
-    ShapeCollector, attached_data_identity, base_type_identity, byte_sequence_type_identity,
-    is_unit, structural_access_for_type_reference,
+    ShapeCollector, base_type_identity, byte_sequence_type_identity, is_unit,
+    structural_access_for_type_reference,
 };
 use crate::execution::terminal_unit::types::{
     borrowed_slice_view_element, borrowed_slice_view_type_identity, byte_sequence_carrier,
@@ -24,7 +24,7 @@ use crate::execution::terminal_unit::{
     CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralParameterPlan,
     CheckedUnitStructuralResultBindingPlan, MachineSupplyMode, Multiplicity, PermissionAccess,
     PermissionClaimIdentity, PermissionEventKind, PermissionEventSource, PrimitiveType,
-    StatementNode, SymbolHandle, TypedTrees, is_reference, strips_erased_parameter,
+    StatementNode, SymbolHandle, TypedTrees, strips_erased_parameter,
 };
 
 pub(crate) fn structural_call_arguments(
@@ -39,7 +39,7 @@ pub(crate) fn structural_call_arguments(
     target_machine: &typed_trees::machine::Machine,
     target_state: &typed_trees::state::State,
     call_site: &crate::semantic::calls::CallSite<'_>,
-    receiver_symbol: SymbolHandle,
+    _receiver_symbol: SymbolHandle,
     statement_index: usize,
     allow_field_path_projection: bool,
     caller_structural_results: &[(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)],
@@ -59,11 +59,6 @@ pub(crate) fn structural_call_arguments(
     .unwrap_or_default();
     let explicit_arguments =
         crate::semantic::calls::call_site_argument_expressions(program, call_site);
-    let explicit_self = crate::semantic::calls::call_site_supplies_explicit_subject(
-        program,
-        call_site,
-        target_parameters,
-    );
     let mut explicit_index = 0usize;
     let mut output = Vec::new();
     let mut structural_argument_ordinal = 0usize;
@@ -88,35 +83,14 @@ pub(crate) fn structural_call_arguments(
             .primitive_type_reference(target.type_reference)
             .is_some()
         {
-            if target.is_self {
-                return None;
-            }
             explicit_arguments.get(explicit_index)?;
             explicit_index = explicit_index.checked_add(1)?;
             continue;
         }
         let argument_ordinal = structural_argument_ordinal;
-        if !target.is_self || explicit_self {
-            structural_argument_ordinal = structural_argument_ordinal.checked_add(1)?;
-        }
+        structural_argument_ordinal = structural_argument_ordinal.checked_add(1)?;
         arm("call operation: structural arguments: argument place");
-        let authored_place = if target.is_self && !explicit_self {
-            if is_reference(program, target.type_reference) {
-                // Only an implicit receiver lacks an authored argument here.
-                // Reconciliation supplies it if the completed callee retains
-                // that parameter; explicit operands use ordinary custody below.
-                continue;
-            }
-            crate::flow::owned_method_receiver_place(
-                program,
-                caller_state.symbol,
-                statement_index,
-                call_site,
-                target_parameters,
-                receiver_symbol,
-            )
-            .or_else(|| crate::flow::canonical_place_from_symbol(receiver_symbol))?
-        } else {
+        let authored_place = {
             let expression = *explicit_arguments.get(explicit_index)?;
             explicit_index += 1;
             if target_machine.supply_mode == MachineSupplyMode::CheckedBody
@@ -217,18 +191,17 @@ pub(crate) fn structural_call_arguments(
             .clone()
             .or_else(|| resolved_alias.clone())
             .unwrap_or_else(|| authored_place.clone());
-        let target_identity = if target.is_self {
-            attached_data_identity(program, target_machine)?
-        } else if byte_sequence_carrier(program, target.type_reference, &[]).is_some() {
-            byte_sequence_type_identity(program, target.type_reference, &[], &[])?
-        } else if borrowed_slice_view_element(program, target.type_reference, &[]).is_some() {
-            // A borrowed `&[T]` view names its own carrier, the way a
-            // borrowed byte view does: the reference shell is the loan, not
-            // part of the viewed type.
-            borrowed_slice_view_type_identity(program, target.type_reference, &[], &[])
-        } else {
-            base_type_identity(program, target.type_reference, &[])?
-        };
+        let target_identity =
+            if byte_sequence_carrier(program, target.type_reference, &[]).is_some() {
+                byte_sequence_type_identity(program, target.type_reference, &[], &[])?
+            } else if borrowed_slice_view_element(program, target.type_reference, &[]).is_some() {
+                // A borrowed `&[T]` view names its own carrier, the way a
+                // borrowed byte view does: the reference shell is the loan, not
+                // part of the viewed type.
+                borrowed_slice_view_type_identity(program, target.type_reference, &[], &[])
+            } else {
+                base_type_identity(program, target.type_reference, &[])?
+            };
         arm("call operation: structural arguments: caller structural result");
         if let Some((result, _)) = caller_structural_results
             .iter()
@@ -261,14 +234,7 @@ pub(crate) fn structural_call_arguments(
             {
                 return None;
             }
-            // A method-spelled receiver (`local.consume()`) has no argument
-            // expression of its own: the call names it by symbol, and the
-            // result argument planner joins that symbol to the local's place.
-            let expression = if target.is_self && !explicit_self {
-                typed_trees::expression::ExpressionHandle::invalid()
-            } else {
-                *explicit_arguments.get(explicit_index.checked_sub(1)?)?
-            };
+            let expression = *explicit_arguments.get(explicit_index.checked_sub(1)?)?;
             output.push(result_arguments::argument(
                 program,
                 facts,
@@ -619,9 +585,8 @@ fn reborrow_restored_shared_cohort_observation_alias_target(
         || !is_unit(program, target_state.return_type)
         || !matches!(target_parameters.len(), 2 | 3)
         || target_parameters.iter().any(|parameter| {
-            parameter.is_self
-                || structural_access_for_type_reference(program, parameter.type_reference)
-                    != Some(CheckedStructuralAccess::SharedBorrow)
+            structural_access_for_type_reference(program, parameter.type_reference)
+                != Some(CheckedStructuralAccess::SharedBorrow)
         })
     {
         return None;
@@ -720,21 +685,15 @@ fn reborrow_restored_shared_cohort_observation_alias_target(
 /// recorded as `line` with no segments; every other place is already spelled
 /// the way it was authored.
 fn borrow_access_spelling<'place>(
-    program: &TypedTrees,
+    _program: &TypedTrees,
     machine: SymbolHandle,
-    state: SymbolHandle,
+    _state: SymbolHandle,
     place: &'place crate::flow::CanonicalPlace,
 ) -> Option<(SymbolHandle, &'place [facts::PlaceSegment])> {
     let facts::PlaceRoot::Symbol(root) = place.root else {
         return None;
     };
-    if (root == machine
-        || crate::semantic::calls::find_state(program, state).is_some_and(|state| {
-            program
-                .state_parameters(state)
-                .iter()
-                .any(|parameter| parameter.is_self && parameter.symbol == root)
-        }))
+    if root == machine
         && let Some((facts::PlaceSegment::Field { symbol }, remaining)) =
             place.segments.split_first()
     {
@@ -844,28 +803,12 @@ pub(crate) fn exact_structural_borrow_access(
     let [borrow_call] = matching_calls.as_slice() else {
         return None;
     };
-    // The borrow model keys a bare `self` read at the machine symbol, while
-    // the authored argument's canonical place roots `self` at the state
-    // parameter's own symbol. Both spellings name the same storage, so the
-    // segment-free lookup accepts either.
-    let self_symbol = crate::semantic::calls::find_state(program, state).and_then(|source_state| {
-        program
-            .state_parameters(source_state)
-            .iter()
-            .find(|parameter| parameter.is_self)
-            .map(|parameter| parameter.symbol)
-    });
-    let self_rooted = |symbol: SymbolHandle| Some(symbol) == self_symbol || symbol == machine;
     let kinds = borrow
         .argument_accesses
         .span_or_empty(borrow_call.accesses)
         .iter()
         .filter(|access| {
-            borrow.access_segments(access) == segments
-                && (access.root_symbol == root_symbol
-                    || (segments.is_empty()
-                        && self_rooted(access.root_symbol)
-                        && self_rooted(root_symbol)))
+            borrow.access_segments(access) == segments && access.root_symbol == root_symbol
         })
         .map(|access| &access.kind)
         .collect::<Vec<_>>();

@@ -152,7 +152,7 @@ pub fn exact_toolchain_float_semantic_contract(
     }
     let mut parameters = Vec::new();
     for parameter in program.operator_parameters(operator) {
-        if parameter.is_const || parameter.is_mutable || parameter.is_self {
+        if parameter.is_const || parameter.is_mutable {
             return None;
         }
         parameters.push(typed_value_kind(program, parameter.type_reference)?);

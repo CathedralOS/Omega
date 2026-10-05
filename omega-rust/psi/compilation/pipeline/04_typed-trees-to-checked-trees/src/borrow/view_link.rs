@@ -99,18 +99,10 @@ pub(crate) fn resolve_signature_view_return_source(
         return ViewReturnSource::NotApplicable;
     }
 
-    if parameters.iter().any(|parameter| parameter.is_self) {
-        // Elision rule 3: the returned view borrows self.
-        return ViewReturnSource::SelfReceiver;
-    }
-
-    // Non-self ref parameters paired with their argument ordinal and lifetime.
+    // Reference parameters paired with their argument ordinal and lifetime.
     let mut ref_parameters: Vec<(usize, &str, Option<&str>)> = Vec::new();
     let mut non_self_index = 0usize;
     for parameter in parameters {
-        if parameter.is_self {
-            continue;
-        }
         let index = non_self_index;
         non_self_index = non_self_index.saturating_add(1);
         if is_reference_type(program, parameter.type_reference) {
@@ -174,12 +166,9 @@ pub(crate) fn resolve_signature_view_return_source(
 /// parameters resolve through `substitutions` inside every frontier walk, so
 /// each instantiated output view leaf still borrows the exact input leaf its
 /// lifetime names — or the one unambiguous input an elided leaf admits.
-///
-/// The signature's own rules then govern the closed frontier: a substituted
-/// direct-reference result of a receiver call still names the receiver, a
-/// carrier result resolves leaf by leaf through the shared complete-frontier
-/// query, and a relation that still cannot close stays ambiguous rather than
-/// reading as an empty frontier.
+/// Carrier results resolve leaf by leaf through the shared complete-frontier
+/// query. A relation that cannot close stays ambiguous rather than reading
+/// as an empty frontier.
 pub(crate) fn resolve_substituted_view_return_source(
     program: &TypedTrees,
     parameters: &[StateParameter],
@@ -189,17 +178,9 @@ pub(crate) fn resolve_substituted_view_return_source(
     if !substituted_returns_borrow(program, return_type, substitutions) {
         return ViewReturnSource::NotApplicable;
     }
-    if substituted_is_reference_type(program, return_type, substitutions)
-        && parameters.iter().any(|parameter| parameter.is_self)
-    {
-        // Elision rule 3 survives substitution: a direct-reference result of
-        // a receiver call borrows the receiver.
-        return ViewReturnSource::SelfReceiver;
-    }
     if !substituted_is_reference_type(program, return_type, substitutions)
         || parameters.iter().any(|parameter| {
-            !parameter.is_self
-                && !substituted_is_reference_type(program, parameter.type_reference, substitutions)
+            !substituted_is_reference_type(program, parameter.type_reference, substitutions)
                 && substituted_returns_borrow(program, parameter.type_reference, substitutions)
         })
     {
@@ -212,9 +193,6 @@ pub(crate) fn resolve_substituted_view_return_source(
     let mut ref_parameters: Vec<(usize, &str, Option<&str>)> = Vec::new();
     let mut non_self_index = 0usize;
     for parameter in parameters {
-        if parameter.is_self {
-            continue;
-        }
         let index = non_self_index;
         non_self_index = non_self_index.saturating_add(1);
         if substituted_is_reference_type(program, parameter.type_reference, substitutions) {
@@ -357,11 +335,7 @@ fn structural_view_return_source(
         return ViewReturnSource::NotApplicable;
     }
     let mut inputs = Vec::new();
-    for (index, parameter) in parameters
-        .iter()
-        .filter(|parameter| !parameter.is_self)
-        .enumerate()
-    {
+    for (index, parameter) in parameters.iter().enumerate() {
         if !substituted_returns_borrow(program, parameter.type_reference, substitutions) {
             continue;
         }
@@ -454,7 +428,6 @@ fn whole_elided_result_source(
     }
     let mut candidates = parameters
         .iter()
-        .filter(|parameter| !parameter.is_self)
         .enumerate()
         .filter(|(_, parameter)| returns_borrow(program, parameter.type_reference));
     let (index, parameter) = candidates.next()?;

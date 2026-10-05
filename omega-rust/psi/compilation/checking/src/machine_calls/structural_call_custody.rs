@@ -132,7 +132,7 @@ pub fn structural_state_contract_scalar_predicates(
             reference = *referee;
         }
         if program.primitive_type_reference(reference).is_some() {
-            if !parameter.is_self && !parameter.is_mutable {
+            if !parameter.is_mutable {
                 expected.extend(
                     crate::scalar_interval_domains(program, reference)
                         .into_iter()
@@ -233,8 +233,7 @@ pub fn finite_arrival_parameter(
     parameter: &typed_trees::signature::StateParameter,
 ) -> bool {
     use typed_trees::types::PrimitiveType;
-    if parameter.is_self
-        || parameter.is_const
+    if parameter.is_const
         || parameter.relevance.is_erased()
         || !matches!(
             program.primitive_type_reference(parameter.type_reference),
@@ -616,7 +615,6 @@ pub fn reconstruct_structural_parameter_return_claims(
         .ok_or("structural claim outcome names an absent parameter")?;
     if parameters.next().is_some()
         || owner.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
-        || source.is_self
         || source.is_mutable
         || source.is_const
         || program.type_multiplicity(destination.return_type) != Multiplicity::Linear

@@ -19,7 +19,6 @@ pub(super) fn validate(
         machine,
         state_name,
         current_state,
-        machine_symbols,
         symbols,
         writable_roots,
         ..
@@ -31,7 +30,6 @@ pub(super) fn validate(
             program,
             machine,
             state,
-            machine_symbols,
             symbols,
             prior_statements: writable_roots.statements,
             context: "asm assertion",

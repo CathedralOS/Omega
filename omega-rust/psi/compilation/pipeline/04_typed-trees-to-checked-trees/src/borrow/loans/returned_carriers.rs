@@ -57,13 +57,8 @@ pub(super) fn completed_field_sources(
                         .is_none()
             })
             .nth(parameter_index as usize)?;
-        if parameter.is_self {
-            return None;
-        }
-        let non_self_index = parameters[..position]
-            .iter()
-            .filter(|parameter| !parameter.is_self)
-            .count();
+
+        let non_self_index = parameters[..position].iter().count();
         let owner_path = owner_segments(loan_place_segments(
             program,
             state.return_type,
@@ -359,8 +354,7 @@ pub(super) fn argument_loans(
         )
         && find_state(program, state_symbol).is_some_and(|state| {
             program.state_parameters(state).iter().any(|parameter| {
-                !parameter.is_self
-                    && parameter.symbol == place.root_symbol
+                (parameter.symbol == place.root_symbol)
                     && !is_reference_type(program, parameter.type_reference)
             })
         })

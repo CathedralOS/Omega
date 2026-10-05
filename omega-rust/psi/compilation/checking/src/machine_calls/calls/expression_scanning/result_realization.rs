@@ -34,14 +34,7 @@ pub fn result_initializer_call_is_supported(
             Some(StatementNode::Expression(expression)) if *expression == value)
         && program.expression_table.expression_is_valid(value)
     {
-        return initializer_target_is_supported(
-            program,
-            machine,
-            value,
-            state.return_type,
-            true,
-            false,
-        );
+        return initializer_target_is_supported(program, machine, value, state.return_type, true);
     }
     unit_result_initializer_call_is_supported(program, machine, value)
         || boundary_return::is_supported(program, machine, value)
@@ -340,14 +333,7 @@ pub fn unit_result_initializer_call_is_supported(
         && crate::is_closed_primitive_array_type(program, state.return_type)
         && program.machine_states(machine).len() == 1
     {
-        return initializer_target_is_supported(
-            program,
-            machine,
-            value,
-            state.return_type,
-            true,
-            false,
-        );
+        return initializer_target_is_supported(program, machine, value, state.return_type, true);
     }
     let mut initializers =
         statements
@@ -372,7 +358,6 @@ pub fn unit_result_initializer_call_is_supported(
             machine,
             local.initial_value,
             local.type_reference,
-            false,
             false,
         );
     if initializers.next().is_some()
@@ -410,100 +395,7 @@ pub fn unit_result_initializer_call_is_supported(
         local.initial_value,
         local.type_reference,
         true,
-        false,
-    ) || self_place_receiver_scalar_call(
-        program,
-        machine,
-        local.initial_value,
-        local.type_reference,
     )
-}
-
-/// A scalar local bound directly to a method call on the caller's own
-/// receiver or a field path beneath it (`let f: i32 = self.check.flag(ok)`)
-/// is the same ordinary result operation as a free call. The Unit call lane
-/// lends that place as the callee's borrowed receiver operand in one
-/// operation; the whole-call computation would instead stage every operand
-/// in its own block. Owned receivers, receivers reached through calls or
-/// indexing, boundary callees and structural results keep their routes.
-fn self_place_receiver_scalar_call(
-    program: &TypedTrees,
-    machine: &Machine,
-    value: ExpressionHandle,
-    result_type: typed_trees::types::TypeReferenceHandle,
-) -> bool {
-    let ExpressionNode::Call(call) = program.expression_table.expression(value) else {
-        return false;
-    };
-    if !call.target_symbol.is_valid()
-        || !call.carries_only_positional_arguments()
-        || !call.selects_only_nominal_route()
-        || !program.expression_table.expression_is_valid(call.receiver)
-        || program.primitive_type_reference(result_type).is_none()
-    {
-        return false;
-    }
-    let Some((owner, target)) =
-        program
-            .machine_holding_state(call.target_symbol)
-            .and_then(|owner| {
-                program
-                    .machine_states(owner)
-                    .first()
-                    .filter(|entry| entry.symbol == call.target_symbol)
-                    .map(|entry| (owner, entry))
-            })
-    else {
-        return false;
-    };
-    let parameters = program.state_parameters(target);
-    let Some(receiver) = parameters.first() else {
-        return false;
-    };
-    if owner.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
-        || !owner.attached_data_symbol.is_valid()
-        || !receiver.is_self
-        || parameters
-            .iter()
-            .filter(|parameter| parameter.is_self)
-            .count()
-            != 1
-        || !matches!(
-            program
-                .type_reference_table
-                .type_reference(receiver.type_reference),
-            typed_trees::types::TypeReferenceNode::Reference {
-                access: language_semantics::ReferenceAccess::Shared
-                    | language_semantics::ReferenceAccess::Mutable,
-                ..
-            }
-        )
-        || program
-            .primitive_type_reference(target.return_type)
-            .is_none()
-    {
-        return false;
-    }
-    let mut cursor = call.receiver;
-    let mut visited = Vec::new();
-    loop {
-        if !program.expression_table.expression_is_valid(cursor) || visited.contains(&cursor) {
-            return false;
-        }
-        visited.push(cursor);
-        match program.expression_table.expression(cursor) {
-            ExpressionNode::Member(member) if member.case_variant.is_none() => {
-                cursor = member.receiver;
-            }
-            ExpressionNode::Name(name) => {
-                return name.symbol == machine.symbol
-                    && name.head_symbol == machine.symbol
-                    && matches!(program.expression_table.name_path_members(name.members),
-                        [only] if only.is_self_receiver());
-            }
-            _ => return false,
-        }
-    }
 }
 
 fn boundary_structural_initializer(
@@ -521,7 +413,6 @@ fn boundary_structural_initializer(
             machine,
             local.initial_value,
             local.type_reference,
-            false,
             false,
         )
 }
@@ -580,7 +471,6 @@ fn initializer_target_is_supported(
     value: ExpressionHandle,
     result_type: typed_trees::types::TypeReferenceHandle,
     allow_ordinary: bool,
-    allow_parameter_receiver: bool,
 ) -> bool {
     let ExpressionNode::Call(call) = program.expression_table.expression(value) else {
         return false;
@@ -603,12 +493,7 @@ fn initializer_target_is_supported(
                 .map(|entry| (owner, entry))
         });
     if let Some((owner, target)) = target_pair {
-        return (program.call_has_no_runtime_receiver(call, owner, target)
-            || (allow_parameter_receiver
-                && owner.supply_mode.is_boundary_declaration()
-                && boundary_return::has_parameter_receiver(
-                    program, machine, call, owner, target,
-                )))
+        return program.call_has_no_runtime_receiver(call, owner, target)
             && !unit_type(program, target.return_type)
             && (allow_ordinary
                 || program.primitive_type_reference(target.return_type)
@@ -648,10 +533,6 @@ fn initializer_target_is_supported(
         || (!allow_ordinary
             && program.primitive_type_reference(signature.return_type)
                 != program.primitive_type_reference(result_type))
-        || program
-            .state_signature_parameters(signature)
-            .iter()
-            .any(|parameter| parameter.is_self)
     {
         return false;
     }
@@ -803,8 +684,7 @@ fn unit_scalar_store_assignment_is_supported(
         // Only `&mut`/`&writeonly` primitives are whole-value store
         // destinations; shared borrows, plain scalars, and structural
         // referees keep the fence.
-        return !parameter.is_self
-            && parameter.is_mutable
+        return parameter.is_mutable
             && !parameter.is_const
             && matches!(
                 program
@@ -991,8 +871,7 @@ pub fn nested_boundary_applications_compose(program: &TypedTrees, value: Express
         parameters: &[typed_trees::signature::StateParameter],
     ) -> bool {
         parameters.iter().all(|parameter| {
-            !parameter.is_self
-                && !parameter.is_const
+            !parameter.is_const
                 && !parameter.is_mutable
                 && program
                     .primitive_type_reference(parameter.type_reference)

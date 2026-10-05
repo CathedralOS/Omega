@@ -23,27 +23,7 @@ pub(super) fn validate(
     if attachments.next().is_some() || !program.data_type_parameters(attachment).is_empty() {
         return unsupported("boundary scalar return attachment is ambiguous or generic");
     }
-    // Match ShapeCollector's normalized named identity from the exact authored
-    // declaration. The attached-data spelling only locates that declaration;
-    // the emitted identity must retain its resolved symbol path.
-    let mut attachment_identity = String::from("named(name(");
-    for character in program
-        .symbols
-        .display_path(attachment.symbol, "::")
-        .chars()
-    {
-        if matches!(character, '\\' | '(' | ')' | ',') {
-            attachment_identity.push('\\');
-        }
-        attachment_identity.push(character);
-    }
-    attachment_identity.push_str("))");
-    // The family admits a qualified owner, but only an authored receiver
-    // retains it as attachment storage.
-    let retained_identity = program
-        .machine_has_receiver(machine)
-        .then_some(attachment_identity);
-    if retained_identity != plan.attachment_type_identity {
+    if plan.attachment_type_identity.is_some() {
         return unsupported("boundary scalar return attachment disagrees with its authored owner");
     }
     let mut source_flows = checked
@@ -99,7 +79,7 @@ pub(super) fn validate(
             .zip(&plan.structural_parameters)
             .any(|((position, source), retained)| {
                 source.is_const
-                    || source.is_self != retained.is_self
+                    || retained.is_self
                     || usize::try_from(retained.position).ok() != Some(*position)
             })
         || program

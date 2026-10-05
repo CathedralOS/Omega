@@ -263,9 +263,6 @@ fn verify_parameters(
             if actual.is_const {
                 return Err(RelationPlanError::TheoremSchemaConstParameter(position));
             }
-            if actual.is_self {
-                return Err(RelationPlanError::TheoremSchemaAttachedReceiver(position));
-            }
             if actual.is_mutable != expected.is_mutable {
                 return Err(RelationPlanError::TheoremSchemaParameterModeMismatch(
                     position,

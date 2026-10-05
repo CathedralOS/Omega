@@ -88,21 +88,13 @@ pub(in crate::execution::terminal_unit) fn window_place_admitting(
         root_symbol,
         &place.segments,
     );
-    let position = if root == PlaceRoot::Symbol(machine.symbol) {
-        program
-            .state_parameters(state)
-            .iter()
-            .position(|parameter| parameter.is_self)
-    } else {
-        let PlaceRoot::Symbol(symbol) = root else {
-            return None;
-        };
-        program
-            .state_parameters(state)
-            .iter()
-            .position(|parameter| parameter.symbol == symbol)
+    let PlaceRoot::Symbol(symbol) = root else {
+        return None;
     };
-    let position = position?;
+    let position = program
+        .state_parameters(state)
+        .iter()
+        .position(|parameter| parameter.symbol == symbol)?;
     let position = u32::try_from(position).ok()?;
     let (parameter_index, parameter) = structural_parameters
         .iter()
@@ -164,15 +156,14 @@ pub(in crate::execution::terminal_unit) fn window_place_admitting(
 /// windows key on the resolved storage place, not the access route.
 pub(in crate::execution::terminal_unit) fn resolve_storage_place(
     program: &TypedTrees,
-    machine: &typed_trees::machine::Machine,
+    _machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     statements: &[StatementNode],
     statement_index: usize,
     root_symbol: SymbolHandle,
     path: &[PlaceSegment],
 ) -> (PlaceRoot, Vec<PlaceSegment>) {
-    let mut root =
-        crate::flow::normalized_event_place_root(program, PlaceRoot::Symbol(root_symbol));
+    let mut root = PlaceRoot::Symbol(root_symbol);
     let mut segments = path.to_vec();
     for _ in 0..16 {
         let PlaceRoot::Symbol(symbol) = root else {
@@ -192,17 +183,12 @@ pub(in crate::execution::terminal_unit) fn resolve_storage_place(
         };
         let mut rebased = source.segments;
         rebased.extend_from_slice(&segments);
-        root = crate::flow::normalized_event_place_root(program, source.root);
-        let mut rebased_place = CanonicalPlace {
+        root = source.root;
+        let rebased_place = CanonicalPlace {
             root,
             segments: rebased,
         };
-        crate::flow::normalize_attached_place_root(
-            program,
-            machine.symbol,
-            state.symbol,
-            &mut rebased_place,
-        );
+
         root = rebased_place.root;
         segments = rebased_place.segments;
     }

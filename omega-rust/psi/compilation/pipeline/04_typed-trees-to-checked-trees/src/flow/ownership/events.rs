@@ -74,7 +74,6 @@ impl DirectMoveEventSink<'_> {
 
     fn append_move_event(
         &mut self,
-        program: &typed_trees::TypedTrees,
         place: CanonicalPlace,
         source: FlowOwnershipEventSource,
         expression: typed_trees::expression::ExpressionHandle,
@@ -84,20 +83,19 @@ impl DirectMoveEventSink<'_> {
             evaluation: self.evaluation,
             expression,
             source_arm: self.source_arm,
-            root: normalized_event_place_root(program, place.root),
+            root: place.root,
             segments: self.segments.insert_many(place.segments),
         });
     }
 }
 
 pub(in crate::flow::ownership) fn append_move_event_for_place(
-    program: &typed_trees::TypedTrees,
     sink: &mut DirectMoveEventSink<'_>,
     place: CanonicalPlace,
     source: FlowOwnershipEventSource,
     expression: typed_trees::expression::ExpressionHandle,
 ) {
-    sink.append_move_event(program, place, source, expression);
+    sink.append_move_event(place, source, expression);
 }
 
 /// Join a retained call ordinal to its existing authored transition lane.
@@ -130,63 +128,5 @@ pub(crate) fn call_permission_evaluation(
         }
         Some(_) => Evaluation::Statement,
         None => Evaluation::Unknown,
-    }
-}
-
-/// Re-root a `self`/`self.field` event place at its machine symbol.
-///
-/// A canonical place for `self.field` roots at the producing state's `&mut
-/// self` parameter symbol, but every post-checked stage filters `self` out of
-/// its parameter lists (the state graph drops it when scheduling parameters),
-/// so the permission producer could not publish a durable root for it. The
-/// machine symbol is the durable identity of the `self` instance.
-pub(crate) fn normalized_event_place_root(
-    program: &typed_trees::TypedTrees,
-    root: facts::PlaceRoot,
-) -> facts::PlaceRoot {
-    let facts::PlaceRoot::Symbol(symbol) = root else {
-        return root;
-    };
-
-    let metadata = program.symbols.get(symbol);
-    if metadata.kind != symbols::SymbolKind::Parameter {
-        return root;
-    }
-    let parent = program.symbols.get(metadata.parent);
-    let (machine_symbol, state_symbol) = match parent.kind {
-        symbols::SymbolKind::Machine => (metadata.parent, SymbolHandle::invalid()),
-        symbols::SymbolKind::State => (parent.parent, metadata.parent),
-        _ => return root,
-    };
-    let Some(machine) = crate::lookup::machine_by_symbol(program, machine_symbol) else {
-        return root;
-    };
-    // Authored and specialized state parameters retain exact symbol parents.
-    // Some generated entry parameters are direct machine children. Check the
-    // matching declaration roster in that owner, never every state's roster
-    // in the program for each fact comparison. Names do not establish `self`.
-    let owns_self_parameter = |state: &typed_trees::state::State| {
-        program
-            .state_parameters(state)
-            .iter()
-            .any(|parameter| parameter.is_self && parameter.symbol == symbol)
-    };
-    // A state symbol identifies its one declaration. Reuse the existing
-    // revision-aware owner lookup rather than scanning unrelated states for
-    // every fact. Generated machine children keep their owner-wide fallback.
-    let is_self = if state_symbol.is_valid() {
-        crate::lookup::symbols::state_index_by_symbol(program, machine, state_symbol)
-            .and_then(|position| program.machine_states(machine).get(position))
-            .is_some_and(owns_self_parameter)
-    } else {
-        program
-            .machine_states(machine)
-            .iter()
-            .any(owns_self_parameter)
-    };
-    if is_self {
-        facts::PlaceRoot::Symbol(machine.symbol)
-    } else {
-        root
     }
 }

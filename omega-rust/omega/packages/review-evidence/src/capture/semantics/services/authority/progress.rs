@@ -42,16 +42,11 @@ pub(super) fn project(
                 "progress subject is not one exact requirement parameter",
             ));
         };
-        let subject = if subject.is_self {
-            ServiceProgressSubject::ProviderReceiver
-        } else {
-            let ordinal = parameters
-                .iter()
-                .filter(|parameter| !parameter.is_self)
-                .position(|parameter| parameter.symbol == subject.symbol)
-                .ok_or_else(|| rejected("progress subject has no source parameter ordinal"))?;
-            ServiceProgressSubject::Parameter(ordinal)
-        };
+        let ordinal = parameters
+            .iter()
+            .position(|parameter| parameter.symbol == subject.symbol)
+            .ok_or_else(|| rejected("progress subject has no source parameter ordinal"))?;
+        let subject = ServiceProgressSubject::Parameter(ordinal);
         // Progress profiles project only requirement routes; exact-machine
         // routes are ineligible for admitted boundary progress profiles.
         let mut establishment_routes = profile

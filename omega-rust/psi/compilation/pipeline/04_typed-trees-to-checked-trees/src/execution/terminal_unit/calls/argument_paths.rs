@@ -3,9 +3,8 @@
 
 use crate::execution::terminal_unit::types::byte_sequence_carrier;
 use crate::execution::terminal_unit::types::{
-    base_type_identity, byte_sequence_type_identity, parameter_root_symbol,
-    structural_access_for_type_reference, terminal_field_identity,
-    type_graph_requires_nominal_drop,
+    base_type_identity, byte_sequence_type_identity, structural_access_for_type_reference,
+    terminal_field_identity, type_graph_requires_nominal_drop,
 };
 use crate::execution::terminal_unit::{
     CheckFacts, CheckedScalarExpressionRole, CheckedStructuralAccess,
@@ -14,7 +13,7 @@ use crate::execution::terminal_unit::{
     CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment, ExpressionNode,
     MachineSupplyMode, Multiplicity, PermissionAccess, PermissionClaimIdentity,
     PermissionEventKind, PermissionEventSource, ProofFact, SignatureContractKind, StateParameter,
-    StatementNode, SymbolHandle, TypeReferenceHandle, TypeReferenceNode, TypedTrees, is_reference,
+    StatementNode, SymbolHandle, TypeReferenceHandle, TypeReferenceNode, TypedTrees,
 };
 
 pub(crate) fn checked_call_scalar_arguments(
@@ -606,26 +605,20 @@ fn runtime_index_parameter_position(
 /// admission here only resolves the selector's subject.
 fn runtime_index_field_selector(
     program: &TypedTrees,
-    machine: SymbolHandle,
+    _machine: SymbolHandle,
     state_symbol: SymbolHandle,
     statement_index: usize,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Option<checked_trees::CheckedRuntimeIndex> {
     let place = crate::flow::canonical_place_from_expression(program, expression)?;
-    let facts::PlaceRoot::Symbol(root) =
-        crate::flow::normalized_event_place_root(program, place.root)
-    else {
+    let facts::PlaceRoot::Symbol(root) = place.root else {
         return None;
     };
     let parameters =
         program.state_parameters(crate::semantic::calls::find_state(program, state_symbol)?);
-    let parameter_position = parameters.iter().position(|parameter| {
-        crate::flow::normalized_event_place_root(
-            program,
-            facts::PlaceRoot::Symbol(parameter.symbol),
-        ) == facts::PlaceRoot::Symbol(root)
-            || (parameter.is_self && root == machine)
-    })?;
+    let parameter_position = parameters
+        .iter()
+        .position(|parameter| parameter.symbol == root)?;
     if place.segments.is_empty() {
         // A bare parameter selector is the `Parameter` coordinate, never a
         // field snapshot.
@@ -897,7 +890,7 @@ pub(crate) fn ordinary_projected_call_is_supported(
     caller_parameters: &[CheckedUnitStructuralParameterPlan],
     target_machine: &typed_trees::machine::Machine,
     target_state: &typed_trees::state::State,
-    call_site: &crate::semantic::calls::CallSite<'_>,
+    _call_site: &crate::semantic::calls::CallSite<'_>,
     arguments: &[CheckedUnitStructuralArgumentPlan],
     allow_field_path_projection: bool,
 ) -> bool {
@@ -912,20 +905,10 @@ pub(crate) fn ordinary_projected_call_is_supported(
     }
     let caller_source_parameters = program.state_parameters(caller_state);
     let target_source_parameters = program.state_parameters(target_state);
-    // Before completed-signature reconciliation, explicit operands retain
-    // every authored formal. Only an implicit borrowed subject is absent.
-    let explicit_subject = crate::semantic::calls::call_site_supplies_explicit_subject(
-        program,
-        call_site,
-        target_source_parameters,
-    );
     let target_parameters = target_source_parameters
         .iter()
         .filter(|parameter| {
             !parameter.relevance.is_erased()
-                && !(!explicit_subject
-                    && parameter.is_self
-                    && is_reference(program, parameter.type_reference))
                 && program
                     .primitive_type_reference(parameter.type_reference)
                     .is_none()
@@ -1165,7 +1148,7 @@ pub(crate) fn ordinary_projected_call_is_supported(
                         })
                     });
                 if result_projection || parameter_projection {
-                    return argument.access == CheckedStructuralAccess::Owned
+                    return (argument.access == CheckedStructuralAccess::Owned
                         && !argument.path.is_empty()
                         && argument.path.iter().all(|segment| {
                             matches!(
@@ -1173,8 +1156,7 @@ pub(crate) fn ordinary_projected_call_is_supported(
                                 CheckedUnitStructuralPathSegment::Field(_)
                                     | CheckedUnitStructuralPathSegment::FixedIndex(_)
                             )
-                        })
-                        && !target.is_self
+                        }))
                         && crate::checks::type_multiplicity(program, target.type_reference)
                             == Multiplicity::Affine
                         && !type_graph_requires_nominal_drop(program, target.type_reference);
@@ -1273,14 +1255,13 @@ pub(crate) fn ordinary_projected_call_is_supported(
         let [target_parameter] = target_parameters.as_slice() else {
             return false;
         };
-        return program.machine_states(caller_machine).len() == 1
+        return (program.machine_states(caller_machine).len() == 1
             && program.machine_states(target_machine).len() == 1
             && (result_projection
                 || caller_parameter.is_some_and(|parameter| {
                     parameter.multiplicity == Multiplicity::Affine
                         && parameter.qualifications.is_empty()
-                }))
-            && !target_parameter.is_self
+                })))
             && crate::checks::type_multiplicity(program, target_parameter.type_reference)
                 == Multiplicity::Affine
             && !type_graph_requires_nominal_drop(program, target_parameter.type_reference)
@@ -1320,8 +1301,7 @@ pub(crate) fn ordinary_projected_call_is_supported(
                 }
             }
 
-            let expected_root =
-                facts::PlaceRoot::Symbol(parameter_root_symbol(target_machine.symbol, parameter));
+            let expected_root = facts::PlaceRoot::Symbol((parameter).symbol);
             let matching = facts
                 .flow
                 .ownership
@@ -1359,7 +1339,7 @@ pub(crate) fn target_contract_mentions_projected_parameter(
     target_state: &typed_trees::state::State,
     parameter: &StateParameter,
 ) -> bool {
-    let expected_root = parameter_root_symbol(target_machine.symbol, parameter);
+    let expected_root = (parameter).symbol;
     let runtime_arithmetic_requires_are_terminal = facts
         .contract_plans
         .for_machine(target_machine.symbol)

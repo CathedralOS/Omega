@@ -501,7 +501,6 @@ pub(crate) fn ensures_witness_bounds_at(
                 let parameters: Vec<_> = program
                     .state_signature_parameters(signature)
                     .iter()
-                    .filter(|parameter| !parameter.is_self)
                     .collect();
                 for contract in program
                     .signature_contracts
@@ -857,16 +856,12 @@ fn collect_bounded_call_argument_obligations(
         return;
     };
 
-    for (parameter, argument) in parameters
-        .iter()
-        .filter(|parameter| !parameter.is_self)
-        .zip(
-            program
-                .statement_table
-                .expression_handles(call.arguments)
-                .iter(),
-        )
-    {
+    for (parameter, argument) in parameters.iter().zip(
+        program
+            .statement_table
+            .expression_handles(call.arguments)
+            .iter(),
+    ) {
         let Some((base_type, constraints)) =
             constrained_type_reference(program, parameter.type_reference)
         else {
@@ -884,10 +879,7 @@ fn collect_bounded_call_argument_obligations(
             .to_vec();
         let sibling_argument = sibling_argument_for(
             proof_plan.type_constraints.span(constraints).unwrap_or(&[]),
-            parameters
-                .iter()
-                .filter(|parameter| !parameter.is_self)
-                .map(|parameter| &parameter.name),
+            parameters.iter().map(|parameter| &parameter.name),
             &call_arguments,
         );
 
@@ -1155,8 +1147,5 @@ fn callable_parameters<'program>(
     program: &'program TypedTrees,
     state: &'program State,
 ) -> impl Iterator<Item = &'program StateParameter> {
-    program
-        .state_parameters(state)
-        .iter()
-        .filter(|parameter| !parameter.is_self)
+    program.state_parameters(state).iter()
 }

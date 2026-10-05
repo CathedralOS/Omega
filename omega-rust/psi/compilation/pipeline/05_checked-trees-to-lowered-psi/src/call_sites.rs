@@ -119,29 +119,13 @@ pub(crate) fn locate(
     } = planned_call(checked, state, caller_state, coordinate)?;
     let target = crate::declarations::target_signature(checked, machine.symbol, source_target)?;
     let parameters = target.parameters;
-    let nonself_count = parameters
-        .iter()
-        .filter(|parameter| !parameter.is_self)
-        .count();
-    let explicit_self = arguments.len() > nonself_count;
-    if arguments.len()
-        != if explicit_self {
-            parameters.len()
-        } else {
-            nonself_count
-        }
-    {
+    if arguments.len() != parameters.len() {
         return unsupported("call row disagrees with its callee's argument count");
     }
-    let mut explicit = 0usize;
     let mut scalar_arguments = Vec::new();
     let mut structural_arguments = Vec::new();
     for (position, parameter) in parameters.iter().enumerate() {
-        if parameter.is_self && !explicit_self {
-            continue;
-        }
-        let argument = arguments[explicit];
-        explicit += 1;
+        let argument = arguments[position];
         let Some(primitive) = program.primitive_type_reference(parameter.type_reference) else {
             structural_arguments.push((
                 u32::try_from(position).map_err(|_| {
@@ -151,8 +135,7 @@ pub(crate) fn locate(
             ));
             continue;
         };
-        if parameter.is_self
-            || parameter.is_const
+        if parameter.is_const
             || (parameter.is_mutable
                 && !crate::expression_preparation::source_custody::supported_mutable_parameter(
                     primitive,

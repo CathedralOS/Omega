@@ -199,10 +199,7 @@ fn collect_call_destinations(
     let Some(target) = state_targets.get(&target_symbol).copied() else {
         return;
     };
-    let parameters = program
-        .state_parameters(target)
-        .iter()
-        .filter(|parameter| !parameter.is_self);
+    let parameters = program.state_parameters(target).iter();
     for (parameter, argument) in parameters.zip(arguments.iter().copied()) {
         if parameter.type_reference.is_valid() {
             destinations.push((argument, parameter.type_reference));

@@ -210,10 +210,9 @@ fn bounds(program: &TypedTrees, machine: &Machine, expression: ExpressionHandle)
         return None;
     };
     let parameter = program.state_parameters(state).iter().find(|parameter| {
-        name.symbol.is_valid()
+        (name.symbol.is_valid()
             && name.head_symbol == name.symbol
-            && parameter.symbol == name.symbol
-            && !parameter.is_self
+            && parameter.symbol == name.symbol)
             && !parameter.is_mutable
             && !parameter.is_const
     })?;

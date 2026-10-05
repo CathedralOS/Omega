@@ -77,10 +77,7 @@ pub fn land_float_literal_destinations(program: &mut TypedTrees) {
                     .iter()
                     .copied();
                 if let Some(callee) = program.state_by_symbol(call.target_symbol) {
-                    let parameters = program
-                        .state_parameters(callee)
-                        .iter()
-                        .filter(|parameter| !parameter.is_self);
+                    let parameters = program.state_parameters(callee).iter();
                     for (parameter, argument) in parameters.zip(arguments) {
                         if parameter.type_reference.is_valid() {
                             pairs.push((argument, parameter.type_reference));
@@ -103,9 +100,7 @@ pub fn land_float_literal_destinations(program: &mut TypedTrees) {
                 };
                 let parameters = program.operator_parameters(operator);
                 let receiver_formal = usize::from(
-                    call.receiver.is_valid()
-                        && (parameters.iter().any(|parameter| parameter.is_self)
-                            || parameters.len() == arguments.len() + 1),
+                    call.receiver.is_valid() && (parameters.len() == arguments.len() + 1),
                 );
                 for (parameter, argument) in parameters.iter().skip(receiver_formal).zip(arguments)
                 {
@@ -259,10 +254,7 @@ pub fn land_float_literal_destinations(program: &mut TypedTrees) {
                             // The `&mut self` receiver rides the param list but
                             // never pairs with a spelled argument -- zip only the
                             // value params.
-                            let parameters = program
-                                .state_parameters(target_state)
-                                .iter()
-                                .filter(|parameter| !parameter.is_self);
+                            let parameters = program.state_parameters(target_state).iter();
                             let argument_handles =
                                 program.statement_table.expression_handles(*arguments);
                             for (parameter, argument) in

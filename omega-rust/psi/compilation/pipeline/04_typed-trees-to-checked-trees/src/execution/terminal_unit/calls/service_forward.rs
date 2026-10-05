@@ -3,7 +3,6 @@
 //! than recognizing a one-hop helper body. The argument builder already owns
 //! authored operand order and loan access; no shape here establishes a binding.
 
-use crate::execution::terminal_unit::types::{is_reference, parameter_root_symbol};
 use crate::execution::terminal_unit::{
     CheckedStructuralAccess, CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralParameterPlan,
     CheckedUnitStructuralPathSegment, TypedTrees,
@@ -11,7 +10,7 @@ use crate::execution::terminal_unit::{
 
 pub(super) fn fused_service_arguments_match(
     program: &TypedTrees,
-    caller_machine: &typed_trees::machine::Machine,
+    _caller_machine: &typed_trees::machine::Machine,
     caller_state: &typed_trees::state::State,
     caller_parameters: &[CheckedUnitStructuralParameterPlan],
     target_state: &typed_trees::state::State,
@@ -23,7 +22,6 @@ pub(super) fn fused_service_arguments_match(
         .iter()
         .filter(|parameter| {
             !parameter.relevance.is_erased()
-                && !(parameter.is_self && is_reference(program, parameter.type_reference))
                 && program
                     .primitive_type_reference(parameter.type_reference)
                     .is_none()
@@ -56,7 +54,7 @@ pub(super) fn fused_service_arguments_match(
             return false;
         };
         let mut place = crate::flow::CanonicalPlace {
-            root: facts::PlaceRoot::Symbol(parameter_root_symbol(caller_machine.symbol, source)),
+            root: facts::PlaceRoot::Symbol((source).symbol),
             segments: Vec::new(),
         };
         for segment in &argument.path {
@@ -65,9 +63,7 @@ pub(super) fn fused_service_arguments_match(
             };
             // Field identities are local to their declaring carrier. Another
             // record's same-spelled field cannot disqualify or supply this loan.
-            let owner = if place.segments.is_empty() && source.is_self {
-                caller_machine.attached_data_symbol
-            } else {
+            let owner = {
                 let Some(reference) = crate::flow::canonical_place_type_reference(
                     program,
                     caller_state.symbol,

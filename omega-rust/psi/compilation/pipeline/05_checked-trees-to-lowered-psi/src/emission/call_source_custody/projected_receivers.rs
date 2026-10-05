@@ -203,21 +203,6 @@ fn resolve_source(
                 if let Some(case) = selected_case {
                     path.push(CheckedUnitStructuralPathSegment::Case(case.path_identity()));
                 }
-                if selected_case.is_none()
-                    && matches!(checked.expression_table.expression(member.receiver), ExpressionNode::Name(name)
-                    if name.symbol == machine.symbol && name.head_symbol == name.symbol)
-                {
-                    owner = field.symbol;
-                    captured_root = field.symbol;
-                    break checked
-                        .state_parameters(state)
-                        .iter()
-                        .find(|parameter| parameter.is_self)
-                        .ok_or(LoweringError::Unsupported(
-                            "projected receiver has no borrowed self",
-                        ))?
-                        .symbol;
-                }
                 captured_segments.push(facts::PlaceSegment::Field {
                     symbol: field.symbol,
                 });
@@ -470,10 +455,11 @@ fn resolve_source(
                     return unsupported("projected receiver root identity changed");
                 }
                 owner = name.symbol;
-                if let Some(parameter) = checked.state_parameters(state).iter().find(|parameter| {
-                    parameter.symbol == name.symbol
-                        || (parameter.is_self && name.symbol == machine.symbol)
-                }) {
+                if let Some(parameter) = checked
+                    .state_parameters(state)
+                    .iter()
+                    .find(|parameter| parameter.symbol == name.symbol)
+                {
                     captured_root = name.symbol;
                     break parameter.symbol;
                 }
@@ -533,31 +519,7 @@ fn resolve_source(
                     captured_segments.extend(alias.captured_place.segments.into_iter().rev());
                     break alias.root;
                 }
-                let field = validation::exact_attached_field(
-                    &checked.typed,
-                    machine,
-                    name.symbol,
-                    checked.symbols.name(name.symbol),
-                )
-                .ok_or(LoweringError::Unsupported(
-                    "projected receiver has no exact parameter root",
-                ))?;
-                if field.relevance.is_erased() {
-                    return unsupported("projected receiver cannot select an erased root field");
-                }
-                path.push(field_segment(field));
-                // Bare names capture their resolved inherited occurrence.
-                // The exact data declaration normalizes the call path, not
-                // the separately retained source loan root.
-                captured_root = name.symbol;
-                break checked
-                    .state_parameters(state)
-                    .iter()
-                    .find(|parameter| parameter.is_self)
-                    .ok_or(LoweringError::Unsupported(
-                        "projected receiver has no borrowed self",
-                    ))?
-                    .symbol;
+                return unsupported("projected receiver has no exact parameter root");
             }
             // A spelled recast or borrow is not the projected source itself:
             // the receiver is the borrowed place's own source. Walk through

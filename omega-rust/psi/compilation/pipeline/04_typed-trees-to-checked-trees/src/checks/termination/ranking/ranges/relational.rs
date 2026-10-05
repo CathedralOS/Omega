@@ -151,7 +151,6 @@ pub(super) fn protected_input_paths<'program>(
     program
         .state_parameters(state)
         .iter()
-        .filter(|parameter| !parameter.is_self)
         .enumerate()
         .filter(|(position, parameter)| {
             let role = entry_parameters.map_or(parameter.symbol, |roles| {

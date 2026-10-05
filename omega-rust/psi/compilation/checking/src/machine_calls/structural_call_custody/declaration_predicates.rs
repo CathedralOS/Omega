@@ -98,7 +98,7 @@ pub fn state_declaration_predicates(
             Some(ReferenceAccess::Mutable) => true,
             Some(ReferenceAccess::Shared) => false,
             Some(ReferenceAccess::WriteOnly) => continue,
-            None => parameter.is_self && parameter.is_mutable,
+            None => false,
         };
         let mut emitter = RowEmitter {
             program,

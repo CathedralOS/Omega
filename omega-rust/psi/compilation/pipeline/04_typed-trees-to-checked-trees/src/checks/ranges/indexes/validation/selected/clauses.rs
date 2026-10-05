@@ -36,12 +36,7 @@ pub(super) fn validate(
         return Err("has an unsupported selected operand telescope");
     }
     let mut symbols = [SymbolHandle::invalid(); 3];
-    for (ordinal, parameter) in parameters
-        .iter()
-        .filter(|parameter| parameter.is_self)
-        .chain(parameters.iter().filter(|parameter| !parameter.is_self))
-        .enumerate()
-    {
+    for (ordinal, parameter) in parameters.iter().enumerate() {
         if !parameter.symbol.is_valid() || symbols[..ordinal].contains(&parameter.symbol) {
             return Err("has an unbound or duplicate selected formal parameter");
         }

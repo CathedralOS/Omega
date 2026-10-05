@@ -99,10 +99,7 @@ fn validate_target_names(
                 )));
             }
             typed_trees::signature::AuthoredInvocationTarget::Parameter { ordinal, symbol } => {
-                let parameter = parameters
-                    .iter()
-                    .filter(|parameter| !parameter.is_self)
-                    .nth(ordinal as usize);
+                let parameter = parameters.iter().nth(ordinal as usize);
                 if parameter.is_none_or(|parameter| {
                     parameter.symbol != symbol
                         || boundary_trait_for_type(program, parameter.type_reference).is_none()
@@ -177,10 +174,7 @@ fn validate_conformance_refinement(
                     program,
                     machine,
                     trait_definition.symbol,
-                    parameters
-                        .iter()
-                        .filter(|parameter| !parameter.is_self)
-                        .count(),
+                    parameters.iter().count(),
                 );
             let actual = summary
                 .inferred_transitive
@@ -213,16 +207,9 @@ fn validate_conformance_refinement(
                 )));
                 continue;
             };
-            // Both sets now use full formal positions. Keep diagnostic labels
-            // in that same namespace; the reporting helper otherwise removes
-            // legacy self a second time.
-            let mut explicit_parameters = parameters.to_vec();
-            for parameter in &mut explicit_parameters {
-                parameter.is_self = false;
-            }
             report_missing_targets(
                 program,
-                &explicit_parameters,
+                parameters,
                 &actual,
                 &allowed,
                 |binding, ceiling| {
@@ -267,7 +254,6 @@ fn invocation_target_label(
     match target {
         flow_effects::InvocationTarget::Parameter(index) => parameters
             .iter()
-            .filter(|parameter| !parameter.is_self)
             .nth(index as usize)
             .map(|parameter| parameter.name.as_str().to_owned())
             .unwrap_or_else(|| format!("parameter#{index}")),

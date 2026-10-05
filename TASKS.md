@@ -154,11 +154,13 @@ helper that passes does not close an item.
       `Build::select_representation`, `Build::accept_boundary`, and
     `Build::require_wire_compatibility`. Do not restore
     implicit builder insertion.
-  - Compiler remainder: receiver-specific signatures, lookup, argument
-    insertion, state carry and evidence flags remain (`is_self` from typed
-    trees onward, checking, Terminal Psi, Omega stages and review evidence). Replace
-    them with ordinary parameter identities through both producers, the
-    interpreters and native lowering, and delete the retired paths. Keep
+  - Compiler remainder: typed parameters now have only explicit subject
+    identities; checking, interpretation, provider arity and review capture
+    consume those identities without an implicit receiver parameter. Retire
+    the remaining attachment helpers and the separate checked-plan, Terminal,
+    Omega and review-schema receiver flags through their producers and consumers.
+    Preserve independent rejection of malformed evidence while removing the
+    obsolete representation; do not restore hidden argument insertion. Keep
     unrelated receiver-side artifact admission and mathematical subject
     binding.
   - Domain subjects: `domain Player::Alive(player) requires player.health > 0;`

@@ -521,10 +521,7 @@ pub fn premises_prove_expression(
         return false;
     }
     let parameters = program.state_parameters(entry);
-    if parameters
-        .iter()
-        .any(|parameter| parameter.is_mutable || parameter.is_self)
-    {
+    if parameters.iter().any(|parameter| parameter.is_mutable) {
         return false;
     }
     let mut atoms = Vec::new();

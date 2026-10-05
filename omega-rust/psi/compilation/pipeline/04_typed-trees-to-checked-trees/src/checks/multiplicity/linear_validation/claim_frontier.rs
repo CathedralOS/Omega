@@ -21,7 +21,7 @@ pub(crate) fn initial_linear_places(
         // machine, so its claims and whole multiplicity enumerate against the
         // attachment. Borrowed receivers spell a `Reference` node and keep
         // their ordinary (claim-free, unrestricted) reading.
-        let owned_receiver = parameter.is_self
+        let owned_receiver = false
             && !crate::checks::multiplicity::linear_obligations::type_reference_is_reference(
                 program,
                 parameter.type_reference,

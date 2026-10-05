@@ -317,14 +317,12 @@ fn ensured_subject_carrier(
         .state_signature_parameters(signature)
         .iter()
         .find(|parameter| {
-            !parameter.is_self
-                && crate::checks::contracts::is_readable_mutable_reference(
-                    program,
-                    parameter.type_reference,
-                )
-                && (parameter.name.as_str() == name.as_str()
-                    || parameter.symbol == path.symbol
-                    || parameter.symbol == path.head_symbol)
+            (crate::checks::contracts::is_readable_mutable_reference(
+                program,
+                parameter.type_reference,
+            )) && (parameter.name.as_str() == name.as_str()
+                || parameter.symbol == path.symbol
+                || parameter.symbol == path.head_symbol)
         })
         .map(|parameter| parameter.type_reference)
 }

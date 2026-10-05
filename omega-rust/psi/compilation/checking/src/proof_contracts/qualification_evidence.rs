@@ -223,8 +223,7 @@ fn mutable_parameter<'a>(
         .state_signature_parameters(signature)
         .iter()
         .find(|parameter| {
-            !parameter.is_self
-                && is_mutable_reference(program, parameter.type_reference)
+            is_mutable_reference(program, parameter.type_reference)
                 && program
                     .expression_table
                     .names_parameter(expression, parameter)

@@ -2,7 +2,6 @@ use crate::flow::CanonicalPlace;
 use crate::flow::canonical_place_from_expression;
 use crate::flow::canonical_place_from_expression_in_state;
 use crate::flow::canonical_place_from_symbol;
-use crate::flow::normalize_attached_place_root;
 use crate::proof::contract_target_from_state_symbol;
 use crate::semantic::calls::CallSite;
 use crate::semantic::calls::call_site_argument_expressions;
@@ -22,20 +21,15 @@ pub(crate) fn call_receiver_is_mutable(
     else {
         return false;
     };
-    let Some(state) = find_state_in_machine(program, target_machine_symbol, target_state_symbol)
-    else {
+    if find_state_in_machine(program, target_machine_symbol, target_state_symbol).is_none() {
         return false;
-    };
-    program
-        .state_parameters(state)
-        .iter()
-        .any(|parameter| parameter.is_self && parameter.is_mutable)
-        || borrow_call.accesses.is_empty()
-            && borrow.states.iter().any(|(_, flow_state)| {
-                flow_state.machine_symbol == target_machine_symbol
-                    && flow_state.state_symbol == target_state_symbol
-                    && flow_state.mutable_parameter_count > 0
-            })
+    }
+    borrow_call.accesses.is_empty()
+        && borrow.states.iter().any(|(_, flow_state)| {
+            flow_state.machine_symbol == target_machine_symbol
+                && flow_state.state_symbol == target_state_symbol
+                && flow_state.mutable_parameter_count > 0
+        })
 }
 
 pub(crate) fn call_receiver_mutated_place(
@@ -73,19 +67,13 @@ pub(crate) fn canonical_receiver_place_for_call_site(
     call_site: &CallSite<'_>,
     statement_index: usize,
 ) -> Option<CanonicalPlace> {
-    let mut place = receiver_place_for_call_site(
+    let place = receiver_place_for_call_site(
         program,
         caller_machine_symbol,
         caller_state_symbol,
         call_site,
         statement_index,
     )?;
-    normalize_attached_place_root(
-        program,
-        caller_machine_symbol,
-        caller_state_symbol,
-        &mut place,
-    );
     Some(place)
 }
 

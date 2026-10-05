@@ -88,7 +88,6 @@ fn lower_custody(
         ))?;
     if parameter.symbol != *symbol
         || parameter.name.as_str() != name
-        || parameter.is_self != *is_self
         || *is_self
         || fact.source.version != language_semantics::content::ContentPlaceVersion::Entry
         || !fact.source.segments.is_empty()

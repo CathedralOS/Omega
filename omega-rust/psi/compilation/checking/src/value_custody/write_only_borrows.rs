@@ -48,11 +48,7 @@ pub(crate) fn validate_checked_write_only_slice(
                     };
                     Some(WriteOnlyRoot {
                         symbol: parameter.symbol,
-                        receiver_machine: if parameter.is_self {
-                            machine.symbol
-                        } else {
-                            SymbolHandle::invalid()
-                        },
+                        receiver_machine: { SymbolHandle::invalid() },
                         name: parameter.name.as_str().to_owned(),
                         referee: *referee,
                     })
@@ -513,22 +509,18 @@ fn write_only_record_field_assignment(
 
 /// Mutable-authority bindings that may source a `&write` formation alongside
 /// the state's declared write-only roots: `&mut` state parameters, `mut`
-/// value parameters, a consuming `self`, and the eligible locals declared
+/// value parameters, and the eligible locals declared
 /// before `stop_before_local` (or every such local when `None`) — immutable
 /// `&mut` carriers plus `let mut` value bindings. A `&mut` parameter may
 /// attenuate at formation, an earlier immutable `&mut` carrier preserves
 /// mutable authority until attenuation, and a `mut` value binding owns
 /// writable storage outright — but none is a write-only root: ordinary reads
 /// through them stay legal, so they join the walk only where a `&write`
-/// borrow is being formed. A consuming `self` owns its attached storage
-/// without a `mut` marker — `receiver_allows_mutation` already treats that
-/// storage as mutable — so it lends write authority on the same exact-atom
-/// terms. A mutable binding of reference type is never a source: the binding
+/// borrow is being formed. A mutable binding of reference type is never a source: the binding
 /// could be reseated beneath the loan. An erased binding owns no runtime
 /// storage at all.
 fn mutable_formation_sources(
     program: &TypedTrees,
-    machine: &Machine,
     state: &State,
     stop_before_local: Option<SymbolHandle>,
 ) -> Vec<WriteOnlyRoot> {
@@ -547,50 +539,13 @@ fn mutable_formation_sources(
                         referee,
                         access: ReferenceAccess::Mutable,
                         ..
-                    } => (
-                        *referee,
-                        if parameter.is_self {
-                            machine.symbol
-                        } else {
-                            SymbolHandle::invalid()
-                        },
-                    ),
-                    // A `mut` value parameter lends its own storage — `mut
-                    // self` included, as a consuming receiver with declared
-                    // mutable authority.
+                    } => (*referee, { SymbolHandle::invalid() }),
+                    // A `mut` value parameter lends its own storage.
                     _ if parameter.is_mutable
                         && !parameter.is_const
                         && !parameter.relevance.is_erased() =>
                     {
-                        (
-                            parameter.type_reference,
-                            if parameter.is_self {
-                                machine.symbol
-                            } else {
-                                SymbolHandle::invalid()
-                            },
-                        )
-                    }
-                    // A consuming `self` owns its attached storage outright:
-                    // the receiver contract already treats that storage as
-                    // mutable without a `mut` marker, so the owned binding
-                    // lends write authority on the same exact-atom terms.
-                    // Its `Self`-named referee still equates to the attached
-                    // data declaration at the subloan gate. Reference-typed
-                    // receivers stay out: `&self` lends no mutable authority
-                    // and a declared `&write self` is already a write-only
-                    // root rather than a formation source.
-                    _ if parameter.is_self
-                        && !parameter.is_const
-                        && !parameter.relevance.is_erased()
-                        && !matches!(
-                            program
-                                .type_reference_table
-                                .type_reference(parameter.type_reference),
-                            TypeReferenceNode::Reference { .. }
-                        ) =>
-                    {
-                        (parameter.type_reference, machine.symbol)
+                        (parameter.type_reference, { SymbolHandle::invalid() })
                     }
                     _ => return None,
                 };
@@ -685,7 +640,7 @@ fn write_only_call_subloan(
     // mutable formation sources. The added bindings never become write-only
     // roots elsewhere — expression validation keeps reading through them.
     let mut sources = roots.to_vec();
-    sources.extend(mutable_formation_sources(program, machine, state, None));
+    sources.extend(mutable_formation_sources(program, state, None));
     let roots = &sources;
 
     // Whole-root forwarding lends the complete declared place.
@@ -972,24 +927,10 @@ fn validate_statement<'p>(
             );
         }
         StatementNode::Call(call) => {
-            receiver::validate_statement_call(program, machine, state, call, roots, diagnostics);
-            // A receiver that names a declaration rather than a runtime place
-            // (`Record::replace(&write leaf)`) supplies `self` as its first
-            // argument — the same correspondence the resolved-target rung of
-            // the call validator applies. A bare `self` receiver is the
-            // receiverless spelling: `self` binds through the implicit
-            // receiver even though its root resolves to the machine symbol,
-            // so it must not shift the authored arguments right by one.
-            let self_is_argument = receiver_names_declaration(program, call.receiver_symbol)
-                && !matches!(
-                    program.statement_table.name_path_members(call.receiver),
-                    [member] if member.is_self_receiver()
-                );
+            receiver::validate_statement_call(machine, state, call, roots, diagnostics);
             let declared_parameters =
                 crate::machine_calls::calls::machine_state_by_symbol(program, call.target_symbol)
-                    .map(|(_, callee_state)| {
-                        declared_state_parameters(program, callee_state, self_is_argument)
-                    })
+                    .map(|(_, callee_state)| declared_state_parameters(program, callee_state))
                     .unwrap_or_default();
             for (index, argument) in program
                 .statement_table
@@ -1264,22 +1205,12 @@ fn validate_transition_target(
         TransitionTargetNode::Named {
             path, arguments, ..
         } => {
-            receiver::validate_state_transfer(
-                program,
-                machine.name.as_str(),
-                state.name.as_str(),
-                path.symbol,
-                roots,
-                diagnostics,
-            );
-            // A named transfer never passes `self` as an authored argument,
-            // exactly as the transition argument validator aligns it.
             let declared_parameters =
                 crate::declarations::transitions::resolved_transition_target_state(
                     program,
                     path.symbol,
                 )
-                .map(|(_, callee_state)| declared_state_parameters(program, callee_state, false))
+                .map(|(_, callee_state)| declared_state_parameters(program, callee_state))
                 .unwrap_or_default();
             for (index, argument) in program
                 .statement_table
@@ -1306,38 +1237,12 @@ fn validate_transition_target(
 }
 
 /// The callee parameters an argument list corresponds to, in authored order.
-/// A static carrier receiver (`Record::replace(&write leaf)`) supplies `self`
-/// as its first argument exactly as the arity and access checks align it; a
-/// place receiver binds `self` through the receiver operand, so `self` stays
-/// out of the correspondence.
-fn declared_state_parameters(
-    program: &TypedTrees,
-    state: &State,
-    self_is_argument: bool,
-) -> Vec<TypeReferenceHandle> {
+fn declared_state_parameters(program: &TypedTrees, state: &State) -> Vec<TypeReferenceHandle> {
     program
         .state_parameters(state)
         .iter()
-        .filter(|parameter| self_is_argument || !parameter.is_self)
         .map(|parameter| parameter.type_reference)
         .collect()
-}
-
-/// Whether a statement call's receiver names a declaration rather than a
-/// runtime place, so `self` is an explicit argument — the same rule the
-/// resolved-target rung of the call validator applies to the argument
-/// correspondence.
-fn receiver_names_declaration(program: &TypedTrees, symbol: SymbolHandle) -> bool {
-    matches!(
-        program.symbols.get(symbol).kind,
-        symbols::SymbolKind::BuiltinType
-            | symbols::SymbolKind::Data
-            | symbols::SymbolKind::Domain
-            | symbols::SymbolKind::Machine
-            | symbols::SymbolKind::Module
-            | symbols::SymbolKind::Trait
-            | symbols::SymbolKind::ConformanceParameter
-    )
 }
 
 fn validate_call_argument(
@@ -1492,18 +1397,7 @@ fn validate_expression(
             validate_expression(program, machine, state, cast.value, roots, diagnostics)
         }
         ExpressionNode::Call(call) => {
-            let nonobserving_receiver =
-                receiver::admits_expression_call(program, call.receiver, roots, call.target_symbol);
-            if nonobserving_receiver {
-                receiver::validate_operands(
-                    program,
-                    machine,
-                    state,
-                    call.receiver,
-                    roots,
-                    diagnostics,
-                );
-            } else if call.receiver.is_valid() {
+            if call.receiver.is_valid() {
                 validate_expression(program, machine, state, call.receiver, roots, diagnostics);
             }
             // Every expression-call argument is the same direct checked-call
@@ -1514,18 +1408,9 @@ fn validate_expression(
             // declaration rather than a runtime place supplies `self` as the
             // first argument — the same correspondence the value-position
             // argument validator derives from `declared_place_type`.
-            let self_is_argument = crate::value_custody::places::declared_place_type(
-                program,
-                machine,
-                Some(state),
-                call.receiver,
-            )
-            .is_none();
             let declared_parameters =
                 crate::machine_calls::calls::machine_state_by_symbol(program, call.target_symbol)
-                    .map(|(_, callee_state)| {
-                        declared_state_parameters(program, callee_state, self_is_argument)
-                    })
+                    .map(|(_, callee_state)| declared_state_parameters(program, callee_state))
                     .unwrap_or_default();
             for (index, argument) in program
                 .expression_table
@@ -1610,8 +1495,7 @@ fn binding_without_write_authority(
         .iter()
         .find(|parameter| parameter.symbol == path.head_symbol)
     {
-        return (!parameter.is_self
-            && !parameter.is_mutable
+        return (!parameter.is_mutable
             && !matches!(
                 program
                     .type_reference_table
@@ -1644,11 +1528,7 @@ fn direct_write_only_root<'a>(
         .name_path_members(path.members)
         .len()
         == 1)
-        .then(|| {
-            roots
-                .iter()
-                .find(|root| receiver::matches_name(program, root, path))
-        })
+        .then(|| roots.iter().find(|root| receiver::matches_name(root, path)))
         .flatten()
 }
 

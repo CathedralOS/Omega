@@ -350,7 +350,7 @@ fn validate_parameter_partition(
     for (position, source) in parameters.iter().enumerate() {
         let primitive = checked.primitive_type_reference(source.type_reference);
         if position == plan.structural_parameter.position as usize {
-            if primitive.is_some() || source.is_self || source.is_const {
+            if primitive.is_some() || source.is_const {
                 return unsupported(
                     "affine identity structural position is not an owned source value",
                 );

@@ -76,65 +76,17 @@ pub(super) fn exact_attachment<'a>(
         .machines()
         .iter()
         .filter(|machine| machine.symbol == plan.machine);
-    let machine = machines.next().ok_or(LoweringError::Unsupported(
+    machines.next().ok_or(LoweringError::Unsupported(
         "composed Unit attachment has no authored machine",
     ))?;
     if machines.next().is_some() {
         return unsupported("composed Unit attachment has duplicate authored machines");
     }
-    if !checked.machine_has_receiver(machine) {
-        if plan.attachment_type_identity.is_some()
-            || !plan.provider_attachment_requirements.is_empty()
-        {
-            return unsupported("free composed Unit fabricated an attachment or provider field");
-        }
-        return Ok(None);
-    }
-    let retained_identity =
-        plan.attachment_type_identity
-            .as_deref()
-            .ok_or(LoweringError::Unsupported(
-                "attached composed Unit omitted its authored attachment",
-            ))?;
-    let program = &checked.typed;
-    // The resolved attachment symbol, not the bare name: leaf-keyed modules
-    // can declare same-named attached records (`left::Runner`/`right::Runner`),
-    // and a name match would read the sibling leaf's record here.
-    let attachment = program
-        .data_definitions()
-        .iter()
-        .find(|data| data.symbol == machine.attached_data_symbol)
-        .ok_or(LoweringError::Unsupported(
-            "composed Unit has no authored attachment",
-        ))?;
-    if !program.data_type_parameters(attachment).is_empty() {
-        return unsupported("composed Unit attachment is ambiguous or generic");
-    }
-    // Reproduce the checked shape identity from its resolved declaration, not
-    // from the retained plan's unverified spelling or an unrelated record.
-    let mut identity = String::from("named(name(");
-    for character in program
-        .symbols
-        .display_path(attachment.symbol, "::")
-        .chars()
+    if plan.attachment_type_identity.is_some() || !plan.provider_attachment_requirements.is_empty()
     {
-        if matches!(character, '\\' | '(' | ')' | ',') {
-            identity.push('\\');
-        }
-        identity.push(character);
+        return unsupported("free composed Unit fabricated an attachment or provider field");
     }
-    identity.push_str("))");
-    if identity != retained_identity {
-        return unsupported("composed Unit attachment disagrees with its authored owner");
-    }
-    // A receiver binds to the attachment place whatever its shape: a sum's
-    // `self` parameter is a view over the discriminated value itself, and
-    // `validate_receiver` already pins the parameter's type to the authored
-    // attachment identity. Only provider fields require record storage —
-    // requirements mint upstream exclusively from record shapes, so a
-    // non-empty set on another shape is pure drift.
-    let requires_record_storage = !plan.provider_attachment_requirements.is_empty();
-    exact_attachment_identity(checked, retained_identity, requires_record_storage).map(Some)
+    Ok(None)
 }
 
 fn exact_attachment_identity<'a>(

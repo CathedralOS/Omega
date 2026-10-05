@@ -95,9 +95,7 @@ impl CheckedOperatorFacts {
         };
         let parameters = program.operator_parameters(operator);
         if parameters.len() != operand_expressions.len()
-            || parameters
-                .iter()
-                .any(|parameter| parameter.is_self || parameter.is_const)
+            || parameters.iter().any(|parameter| parameter.is_const)
         {
             return None;
         }

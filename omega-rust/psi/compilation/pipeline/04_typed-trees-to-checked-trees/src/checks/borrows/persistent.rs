@@ -284,11 +284,7 @@ fn rebase_static_paths_for_transition(
     paths: &[StaticPersistentPath],
 ) -> Vec<StaticPersistentPath> {
     let arguments = program.statement_table.expression_handles(arguments);
-    let target_parameters = program
-        .state_parameters(target)
-        .iter()
-        .filter(|parameter| !parameter.is_self)
-        .collect::<Vec<_>>();
+    let target_parameters = program.state_parameters(target).iter().collect::<Vec<_>>();
     if arguments.len() != target_parameters.len() {
         return paths
             .iter()
@@ -365,7 +361,7 @@ fn stable_index_origin_symbol(
     if program
         .state_parameters(state)
         .iter()
-        .any(|parameter| !parameter.is_self && !parameter.is_mutable && parameter.symbol == symbol)
+        .any(|parameter| (!parameter.is_mutable) && parameter.symbol == symbol)
     {
         return Some(symbol);
     }
@@ -644,9 +640,10 @@ fn immutable_state_index_symbol(
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Option<SymbolHandle> {
     let symbol = exact_name_symbol(program, state, expression)?;
-    let parameter_matches = program.state_parameters(state).iter().filter(|parameter| {
-        !parameter.is_self && !parameter.is_mutable && parameter.symbol == symbol
-    });
+    let parameter_matches = program
+        .state_parameters(state)
+        .iter()
+        .filter(|parameter| (!parameter.is_mutable) && parameter.symbol == symbol);
     let local_matches = program
         .state_local_declaration(state, symbol)
         .filter(|(_, local)| !local.is_mutable)

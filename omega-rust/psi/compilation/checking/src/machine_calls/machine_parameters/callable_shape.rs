@@ -244,13 +244,7 @@ fn validate_callable_parts(
         .zip(actual_parameters)
         .enumerate()
     {
-        let role_matches = selected_machine.map_or(required.is_self == actual.is_self, |machine| {
-            crate::declarations::traits::subject_role_matches(program, machine, actual, required)
-        });
-        if !role_matches
-            || required.is_mutable != actual.is_mutable
-            || required.is_const != actual.is_const
-        {
+        if required.is_mutable != actual.is_mutable || required.is_const != actual.is_const {
             diagnostics.push(Diagnostic::error(format!(
                 "{label} does not refine `{}`: parameter {} has a different calling mode",
                 parameter.name, index
@@ -324,7 +318,6 @@ fn validate_callable_parts(
         let name = match invocation {
             flow_effects::InvocationTarget::Parameter(index) => actual_parameters
                 .iter()
-                .filter(|parameter| !parameter.is_self)
                 .nth(*index as usize)
                 .map(|parameter| parameter.name.as_str())
                 .unwrap_or("<unknown binding>"),

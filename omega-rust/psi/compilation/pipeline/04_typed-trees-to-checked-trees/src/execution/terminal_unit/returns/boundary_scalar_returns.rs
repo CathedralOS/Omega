@@ -100,10 +100,9 @@ pub(crate) fn build_boundary_scalar_return_machine(
     let result_type = program.primitive_type_reference(state.return_type)?;
     let binders = machine_binders(program, machine);
     let carries_scalar_parameter = program.state_parameters(state).iter().any(|parameter| {
-        !parameter.is_self
-            && program
-                .primitive_type_reference(parameter.type_reference)
-                .is_some()
+        program
+            .primitive_type_reference(parameter.type_reference)
+            .is_some()
     });
     let (attachment_type_identity, structural_parameters, scalar_parameters) =
         if carries_scalar_parameter {

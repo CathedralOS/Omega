@@ -13,7 +13,7 @@ use crate::execution::terminal_unit::calls::boundary_admission::{
     fixed_array_slice_view_is_admitted, fixed_byte_array_view_is_admitted,
 };
 use crate::execution::terminal_unit::types::{
-    base_type_identity, borrowed_slice_view_element, byte_sequence_carrier, parameter_root_symbol,
+    base_type_identity, borrowed_slice_view_element, byte_sequence_carrier,
 };
 use crate::execution::terminal_unit::{
     CheckedStructuralAccess, CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment,
@@ -27,11 +27,11 @@ type ArgumentPath = Vec<CheckedUnitStructuralPathSegment>;
 /// symbol, while an implicit receiver place roots at the machine the
 /// parameter is attached to. Both spellings name one parameter.
 pub(crate) fn parameter_is_root(
-    machine: SymbolHandle,
+    _machine: SymbolHandle,
     parameter: &StateParameter,
     root: SymbolHandle,
 ) -> bool {
-    parameter_root_symbol(machine, parameter) == root || parameter.symbol == root
+    (parameter).symbol == root || parameter.symbol == root
 }
 
 /// The caller parameter an argument place is rooted at, with the dense index

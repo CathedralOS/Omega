@@ -554,33 +554,6 @@ fn validate_trait_effect_ceiling(
     }
 }
 
-/// Whether `actual` fills the position `required` declares, as far as the
-/// subject role goes.
-///
-/// The requirement fixes WHICH position is the subject, so the two directions
-/// ask different things and the test is deliberately asymmetric:
-///
-/// - A subject position (`&mut self`) is filled by a receiver or by an ordinary
-///   parameter declaring the conforming data (`counter: &mut Counter`), which
-///   denotes exactly what the receiver denotes.
-/// - A non-subject position (`rhs: &Self`) is filled by anything that is not a
-///   receiver. Its own type is compared afterwards, where `Self` binds to the
-///   carrier -- so `other: &Point` fills `rhs: &Self` even though `Point` is
-///   also the conforming data. Requiring it NOT to name that data would refuse
-///   every `equals(point: &Point, other: &Point)`.
-pub(crate) fn subject_role_matches(
-    program: &TypedTrees,
-    machine: &Machine,
-    actual: &StateParameter,
-    required: &StateParameter,
-) -> bool {
-    if required.is_self {
-        program.parameter_declares_attached_data(machine, actual)
-    } else {
-        !actual.is_self
-    }
-}
-
 fn validate_trait_parameter_match(
     program: &TypedTrees,
     machine: &Machine,
@@ -610,9 +583,8 @@ fn validate_trait_parameter_match(
         program
             .data_binding_position(conformance_subject, std::slice::from_ref(actual))
             .is_some()
-            && (!actual.is_self || machine.attached_data_symbol == conformance_subject)
     } else {
-        subject_role_matches(program, machine, actual, required)
+        true
     };
     if !subject_matches || actual.is_mutable != required.is_mutable {
         diagnostics.push(Diagnostic::error(format!(
@@ -637,7 +609,7 @@ fn validate_trait_parameter_match(
     // The whole-conformance path checks the declared subject independently
     // of the realization's namespace; the legacy receiver path checks the
     // realization's attached data. Exact ordinary parameters use the matcher.
-    if required.is_self || has_nominal_subject {
+    if has_nominal_subject {
         return;
     }
 
@@ -1194,9 +1166,8 @@ pub(crate) fn required_is_subject_parameter(
     program: &TypedTrees,
     required: &typed_trees::signature::StateParameter,
 ) -> bool {
-    required.is_self
-        || crate::value_custody::places::unwrapped_type_reference(program, required.type_reference)
-            .is_some_and(|carrier| required_is_self_type(program, carrier))
+    crate::value_custody::places::unwrapped_type_reference(program, required.type_reference)
+        .is_some_and(|carrier| required_is_self_type(program, carrier))
 }
 
 pub(crate) fn required_trait_type_parameter<'program>(
@@ -1217,14 +1188,9 @@ pub(crate) fn required_trait_type_parameter<'program>(
 }
 
 pub(crate) fn parameter_shape_label(program: &TypedTrees, parameter: &StateParameter) -> String {
-    let qualifier = if parameter.is_mutable { "mut " } else { "" };
-    if parameter.is_self {
-        format!("&{qualifier}self")
-    } else {
-        format!(
-            "{}: {}",
-            parameter.name,
-            type_reference_label(program, parameter.type_reference)
-        )
-    }
+    format!(
+        "{}: {}",
+        parameter.name,
+        type_reference_label(program, parameter.type_reference)
+    )
 }

@@ -66,8 +66,7 @@ pub(super) fn call_effects(
     let (callee, state) = super::machine_state_by_symbol(program, call.target_symbol)?;
     let parameters = program.state_parameters(state);
     let arguments = program.statement_table.expression_handles(call.arguments);
-    if parameters.iter().any(|parameter| parameter.is_self)
-        || parameters.len() != arguments.len()
+    if (parameters.len() != arguments.len())
         || !call.machine_arguments.is_empty()
         || !program.machine_type_parameters(callee).is_empty()
         || !callee.body_is_present
@@ -131,9 +130,6 @@ pub(super) fn call_effects(
 fn destination_inventory(program: &TypedTrees, state: &State) -> Option<Vec<StoredWriteOrigin>> {
     let mut leaves = Vec::new();
     for parameter in program.state_parameters(state) {
-        if parameter.is_self {
-            return None;
-        }
         if !super::type_reference_is_reference(program, parameter.type_reference)
             || !super::type_may_carry_write(program, parameter.type_reference)
         {

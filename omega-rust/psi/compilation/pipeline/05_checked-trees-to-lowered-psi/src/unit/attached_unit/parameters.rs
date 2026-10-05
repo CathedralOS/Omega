@@ -266,8 +266,7 @@ pub(crate) fn validate_direct_unit_parameter_custody(
                     .ok_or(LoweringError::Unsupported(
                         "typed routed Service parameter lost its Fused erasure receipt",
                     ))?;
-            if source.is_self
-                || source.is_const
+            if source.is_const
                 || source.is_mutable
                     != (carrier.access == checked_trees::CheckedStructuralAccess::MutableBorrow)
                 || parameter.is_self
@@ -333,7 +332,7 @@ pub(crate) fn checked_scalar_source_parameters(
         .map(|(position, source, primitive_type)| {
             // A mutable scalar still arrives as a value of this exact type;
             // the state body separately establishes its current-value slot.
-            if source.is_self || source.is_const {
+            if source.is_const {
                 return unsupported("scalar parameter is not a direct value binding");
             }
             Ok(checked_trees::CheckedStructuralScalarParameterPlan {

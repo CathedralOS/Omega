@@ -55,16 +55,6 @@ pub(super) trait CapturedValue: Sized {
     ) -> Option<Self> {
         None
     }
-    /// Fallback for a resolved receiver field with no live snapshot: declared
-    /// storage invariants on frozen storage, then the raw carrier. Exact
-    /// scalar values have no declared fallback.
-    fn field_fallback(
-        _program: &typed_trees::TypedTrees,
-        _reference: typed_trees::types::TypeReferenceHandle,
-        _frozen: bool,
-    ) -> Option<Self> {
-        None
-    }
     /// Apply one authored conversion step to a captured call result. A step
     /// that cannot describe a normal-return value fails the capture, never a
     /// guess at the destination carrier.
@@ -293,21 +283,6 @@ impl CapturedValue for IntegerRange {
             state: live.state,
         }
         .bounds_at_place(&place, primitive)
-    }
-
-    fn field_fallback(
-        program: &typed_trees::TypedTrees,
-        reference: typed_trees::types::TypeReferenceHandle,
-        frozen: bool,
-    ) -> Option<Self> {
-        let primitive = program.primitive_type_reference(reference)?;
-        // The declared storage invariant answers only while every link of the
-        // receiver path is frozen; past that the carrier still bounds any
-        // value a successful read can return.
-        (frozen
-            .then(|| crate::values::bounds::declared_bounds(program, reference, primitive))
-            .flatten())
-        .or_else(|| crate::values::bounds::primitive_range(primitive))
     }
 
     fn convert(self, conversion: &SelectedConversion) -> Option<Self> {

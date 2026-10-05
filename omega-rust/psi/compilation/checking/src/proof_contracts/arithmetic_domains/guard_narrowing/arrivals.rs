@@ -331,22 +331,10 @@ fn condition_belongs_to_state(
         ExpressionNode::Name(path) => {
             path.symbol.is_valid()
                 && path.head_symbol.is_valid()
-                && (program
+                && ((program
                     .state_parameters(state)
                     .iter()
-                    .any(|parameter| parameter.symbol == path.head_symbol)
-                    // The receiver parameter's name path binds to the machine
-                    // symbol, not the `is_self` parameter symbol; a `requires`
-                    // fact on `self` or its fields is a precondition on an
-                    // established input and belongs to every state the
-                    // receiver scope covers (same `attached` rule as
-                    // `ordered_values::build_operand`).
-                    || (path.symbol == path.head_symbol
-                        && path.symbol == machine.symbol
-                        && program
-                            .state_parameters(state)
-                            .iter()
-                            .any(|parameter| parameter.is_self))
+                    .any(|parameter| parameter.symbol == path.head_symbol))
                     || (path.symbol == path.head_symbol
                         && program
                             .machine_type_parameters(machine)
@@ -603,44 +591,13 @@ impl ArrivalWalk<'_, '_> {
             return;
         };
         let parameters = self.program.state_parameters(target);
-        if parameters
-            .iter()
-            .filter(|parameter| !parameter.is_self)
-            .count()
-            != arguments.len()
-        {
+        if parameters.iter().count() != arguments.len() {
             self.join(symbol, ValueEnvironment::new());
             return;
         }
         let mut bindings = Vec::new();
         let mut exact_bindings = Vec::new();
-        if let Some(target_self) = parameters.iter().find(|parameter| parameter.is_self)
-            && let Some(source_self) = self
-                .program
-                .state_parameters(source)
-                .iter()
-                .find(|parameter| parameter.is_self)
-        {
-            bindings.push((
-                source_self.name.as_str().to_owned(),
-                target_self.name.as_str().to_owned(),
-            ));
-            exact_bindings.push((
-                ordered_values::Operand::parameter(source_self),
-                ordered_values::Operand::parameter(target_self),
-            ));
-            let attachment = ordered_values::Operand::Place {
-                root: self.machine.symbol,
-                fields: Vec::new(),
-                path: "self".to_owned(),
-            };
-            exact_bindings.push((attachment.clone(), attachment));
-        }
-        for (parameter, argument) in parameters
-            .iter()
-            .filter(|parameter| !parameter.is_self)
-            .zip(arguments)
-        {
+        for (parameter, argument) in parameters.iter().zip(arguments) {
             if let Some(path) = self.bound_place(source, *argument) {
                 bindings.push((path, parameter.name.as_str().to_owned()));
             }
@@ -664,11 +621,7 @@ impl ArrivalWalk<'_, '_> {
                 }
             }
         }
-        for (parameter, interval) in parameters
-            .iter()
-            .filter(|parameter| !parameter.is_self)
-            .zip(intervals)
-        {
+        for (parameter, interval) in parameters.iter().zip(intervals) {
             // A scalar value is a snapshot taken at its own argument position.
             // Reference parameters retain only facts surviving later arguments.
             if !is_reference(self.program, parameter.type_reference) {

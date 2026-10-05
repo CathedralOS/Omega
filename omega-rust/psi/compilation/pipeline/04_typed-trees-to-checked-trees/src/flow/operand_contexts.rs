@@ -64,8 +64,7 @@ fn invocation_contexts_at_referents(
                         return false;
                     };
                     referents.iter().any(|referent| {
-                        crate::flow::normalized_event_place_root(program, place.root)
-                            == crate::flow::normalized_event_place_root(program, referent.root)
+                        place.root == referent.root
                             && crate::flow::canonical_place_segments_may_overlap(
                                 program,
                                 &place.segments,
@@ -139,8 +138,7 @@ pub(crate) fn entry_origin_is_stable(
             .span(writes)
             .is_some_and(|writes| {
                 writes.iter().all(|write| {
-                    crate::flow::normalized_event_place_root(program, place.root)
-                        != crate::flow::normalized_event_place_root(program, write.root)
+                    place.root != write.root
                         || !crate::flow::canonical_place_segments_may_overlap(
                             program,
                             &place.segments,
@@ -200,8 +198,7 @@ pub(crate) fn operand_observations_agree(
         return false;
     }
     extended[prefix.len()..].iter().all(|write| {
-        crate::flow::normalized_event_place_root(program, place.root)
-            != crate::flow::normalized_event_place_root(program, write.root)
+        place.root != write.root
             || flow
                 .control
                 .operand_referent_segments

@@ -59,8 +59,7 @@ pub(super) fn expression_reborrows_transparent_alias_binding(
                     let root_symbol = frame_place_root_symbol(program, inner.target);
                     parameters.iter().any(|parameter| {
                         super::type_reference_is_reference(program, parameter.type_reference)
-                            && (root_symbol == Some(parameter.symbol)
-                                || parameter.is_self && is_self_receiver(root)
+                            && (root_symbol == Some(parameter.symbol) && is_self_receiver(root)
                                 || root == parameter.name.as_str())
                     }) || aliases.iter().any(|(name, symbol, _)| {
                         root_symbol.is_some_and(|root| {

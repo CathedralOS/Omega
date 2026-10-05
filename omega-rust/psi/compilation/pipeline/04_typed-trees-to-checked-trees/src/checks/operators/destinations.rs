@@ -106,7 +106,7 @@ pub(super) fn check(program: &TypedTrees, facts: &CheckFacts) -> Vec<Diagnostic>
             for (argument, parameter) in
                 crate::semantic::calls::call_site_argument_expressions(program, &site)
                     .iter()
-                    .zip(parameters.iter().filter(|parameter| !parameter.is_self))
+                    .zip(parameters.iter())
             {
                 check_destination(
                     program,
@@ -165,12 +165,8 @@ fn positional_operator_parameters(
     argument_count: usize,
 ) -> impl Iterator<Item = &typed_trees::signature::StateParameter> {
     // Named-call resolution has already checked this exact signature's arity.
-    // Method form consumes either explicit self or the first ordinary parameter;
-    // in the latter case it is the signature's one non-positional parameter.
-    let receiver = parameters
-        .iter()
-        .position(|parameter| parameter.is_self)
-        .or_else(|| (parameters.len().checked_sub(argument_count) == Some(1)).then_some(0));
+    // Method form consumes the first ordinary parameter as its subject.
+    let receiver = (parameters.len().checked_sub(argument_count) == Some(1)).then_some(0);
     parameters
         .iter()
         .enumerate()

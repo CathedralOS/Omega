@@ -122,36 +122,13 @@ pub(super) fn source(
                     access, referee, ..
                 } if compatible_access(*access, target_access) => *referee,
                 TypeReferenceNode::Named { .. } | TypeReferenceNode::FixedArray { .. }
-                    if target_access == ReferenceAccess::Shared
-                        || source.is_mutable
-                        || source.is_self =>
+                    if target_access == ReferenceAccess::Shared || source.is_mutable =>
                 {
                     source.type_reference
                 }
                 _ => return unsupported("borrowed operand widens source access"),
             };
-            if source.is_self {
-                let TypeReferenceNode::Named { .. } =
-                    checked.type_reference_table.type_reference(reference)
-                else {
-                    return unsupported("borrowed source self lost its nominal attachment");
-                };
-                // Projected loans reconstruct the endpoint from the authored
-                // place below. Their enclosing attachment need not have an
-                // incidentally interned named type.
-                if whole_source {
-                    checked
-                        .type_reference_table
-                        .find_named_type_reference(caller.attached_data_symbol)
-                        .ok_or(LoweringError::Unsupported(
-                            "borrowed source attachment has no declared type",
-                        ))?
-                } else {
-                    reference
-                }
-            } else {
-                reference
-            }
+            reference
         }
         _ => return unsupported("borrowed operand has no supported source owner"),
     };

@@ -914,11 +914,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                         continue;
                     };
                     for write in writes {
-                        if super::ownership::normalized_event_place_root(self.program, place.root)
-                            != super::ownership::normalized_event_place_root(
-                                self.program,
-                                write.root,
-                            )
+                        if place.root != write.root
                             || !canonical_place_segments_may_overlap(
                                 self.program,
                                 &place.segments,

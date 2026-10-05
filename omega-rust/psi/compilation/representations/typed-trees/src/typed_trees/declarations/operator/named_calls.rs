@@ -131,10 +131,7 @@ pub fn selected_named_expression_call_has_no_runtime_receiver(
     };
     let parameters = program.operator_parameters(operator);
     let arguments = program.expression_table.expression_handles(call.arguments);
-    if arguments.len() != call.arguments.count() as usize
-        || arguments.len() != parameters.len()
-        || parameters.iter().any(|parameter| parameter.is_self)
-    {
+    if arguments.len() != call.arguments.count() as usize || arguments.len() != parameters.len() {
         return false;
     }
     if !call.receiver.is_valid() {
@@ -320,15 +317,7 @@ fn named_operator_arity_fits_call(
     has_value_receiver: bool,
 ) -> bool {
     let parameters = program.operator_parameters(operator);
-    let has_self = parameters.iter().any(|parameter| parameter.is_self);
-    let positional = parameters
-        .iter()
-        .filter(|parameter| !parameter.is_self)
-        .count();
-
-    if has_self {
-        return has_value_receiver && positional == argument_count;
-    }
+    let positional = parameters.len();
     if has_value_receiver {
         return positional == argument_count + 1;
     }

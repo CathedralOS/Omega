@@ -100,11 +100,6 @@ pub(crate) fn lower_call_arguments(
     let target_parameters = crate::semantic::calls::call_target_parameters(program, target_symbol)?;
     let explicit_arguments =
         crate::semantic::calls::call_site_argument_expressions(program, call_site);
-    let explicit_self = explicit_arguments.len()
-        > target_parameters
-            .iter()
-            .filter(|parameter| !parameter.is_self)
-            .count();
     let mut explicit_index = 0usize;
     let mut scalar_index = 0usize;
     let mut scalar_erased_index = 0usize;
@@ -113,9 +108,6 @@ pub(crate) fn lower_call_arguments(
     let mut proof_terms = Vec::new();
     let mut output = Vec::new();
     for target in target_parameters {
-        if target.is_self && !explicit_self {
-            continue;
-        }
         let argument = *explicit_arguments.get(explicit_index)?;
         explicit_index = explicit_index.checked_add(1)?;
         // An erased position consumes its authored argument but owns neither a
@@ -186,8 +178,7 @@ pub(crate) fn lower_call_arguments(
         let Some(expected_type) = program.primitive_type_reference(target.type_reference) else {
             continue;
         };
-        if target.is_self
-            || target.is_const
+        if (target.is_const)
             || (target.is_mutable
                 && crate::values::mutable_scalar_parameter_type(program, target).is_none())
         {
@@ -389,8 +380,7 @@ pub(crate) fn lower_direct_call_binding_arguments(
     let target_parameters =
         crate::semantic::calls::call_target_parameters(program, call.target_symbol)?;
     if target_parameters.iter().any(|parameter| {
-        parameter.is_self
-            || parameter.is_const
+        (parameter.is_const)
             || (parameter.is_mutable
                 && crate::values::mutable_scalar_parameter_type(program, parameter).is_none())
     }) {

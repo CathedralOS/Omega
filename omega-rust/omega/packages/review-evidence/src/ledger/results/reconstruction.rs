@@ -594,4 +594,3 @@ fn apply_contract_entailment_exit_membership_discharges(
         .sort_by(|left, right| left.obligation.cmp(&right.obligation));
     Ok(())
 }
-

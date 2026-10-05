@@ -63,15 +63,9 @@ pub(crate) fn transparent_call_result_origins(
             .iter()
             .find(|parameter| parameter.symbol == result_origin.parameter_symbol)?;
         let (_, result_suffix) = split_place_root(&result_origin.place.path);
-        let actual = if result_parameter.is_self {
-            if callee_machine.attached_data.is_none() || !call.receiver.is_valid() {
-                return None;
-            }
-            call.receiver
-        } else {
+        let actual = {
             let (argument_index, _) = parameters
                 .iter()
-                .filter(|parameter| !parameter.is_self)
                 .enumerate()
                 .find(|(_, parameter)| parameter.symbol == result_parameter.symbol)?;
             *program
@@ -233,10 +227,9 @@ pub(crate) fn transparent_callee_result_origins(
         let parameter_symbol = if place.source.is_static() {
             SymbolHandle::invalid()
         } else {
-            let parameter = parameters.iter().find(|parameter| {
-                place.source.root == parameter.symbol
-                    || (parameter.is_self && place.source.root == callee_machine.symbol)
-            })?;
+            let parameter = parameters
+                .iter()
+                .find(|parameter| place.source.root == parameter.symbol)?;
             if !type_reference_is_reference(program, parameter.type_reference) {
                 let declared = super::stored_origins::declared_origins_for_query(
                     program,

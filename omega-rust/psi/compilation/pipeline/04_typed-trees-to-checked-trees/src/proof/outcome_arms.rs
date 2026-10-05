@@ -384,9 +384,7 @@ fn outcome_call_substitutions(
     let arguments = program.expression_table.expression_handles(call.arguments);
     let mut argument_index = 0usize;
     for parameter in program.state_parameters(target_state) {
-        let value = if parameter.is_self {
-            call.receiver.is_valid().then_some(call.receiver)
-        } else {
+        let value = {
             let value = arguments.get(argument_index).copied();
             argument_index += 1;
             value

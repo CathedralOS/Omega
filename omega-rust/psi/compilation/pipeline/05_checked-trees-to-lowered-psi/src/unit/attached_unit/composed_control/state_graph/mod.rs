@@ -104,7 +104,6 @@ mod topology;
 // Within one state: the persistent receiver, the body statements, and the
 // state-local scalar values.
 mod body;
-mod parameters;
 pub(super) mod scalars;
 
 // A state's terminator and successor edges: closed-case dispatch and

@@ -196,13 +196,6 @@ pub(crate) fn bind_selected_operator_calls(
         let Some(entry) = program.machine_states(machine).first() else {
             continue;
         };
-        if program
-            .state_parameters(entry)
-            .iter()
-            .any(|parameter| parameter.is_self)
-        {
-            continue;
-        }
         let entry_symbol = entry.symbol;
         if let ExpressionNode::Call(call) = program.expression_table.expression_mut(expression) {
             call.receiver = ExpressionHandle::invalid();
@@ -240,10 +233,6 @@ pub(crate) fn bind_selected_operator_calls(
         let (entry_symbol, target) = (entry.symbol, entry.name.clone());
         // Copy the signature views the rewrite needs before endpoint
         // normalization mutates the expression table.
-        let first_is_self = program
-            .state_parameters(entry)
-            .first()
-            .is_some_and(|parameter| parameter.is_self);
         // `[..]` telescopes are exactly (collection, start, end); the range
         // endpoints supply operands one and two after the spec's
         // normalization.
@@ -277,20 +266,12 @@ pub(crate) fn bind_selected_operator_calls(
                 operands
             }
         };
-        // A `self` first operand is the receiver: the collection place takes
-        // the same loan a named `collection.at(index)` call forms. Otherwise
-        // operand zero is an ordinary argument like any binary operand.
-        let (receiver, argument_handles) = if first_is_self {
-            (operands[0], &operands[1..])
-        } else {
-            (ExpressionHandle::invalid(), &operands[..])
-        };
         let arguments = program
             .expression_table
-            .insert_expression_handles(argument_handles.iter().copied());
+            .insert_expression_handles(operands.iter().copied());
         *program.expression_table.expression_mut(expression) =
             ExpressionNode::Call(TableCallExpression {
-                receiver,
+                receiver: ExpressionHandle::invalid(),
                 target_symbol: entry_symbol,
                 static_machine_parameter: SymbolHandle::invalid(),
                 target,

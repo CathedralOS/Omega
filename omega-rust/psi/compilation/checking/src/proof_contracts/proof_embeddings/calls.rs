@@ -116,9 +116,7 @@ pub(crate) fn validate_integer_embedding_calls(
             }
             let mut arguments_match = true;
             for (argument, parameter) in arguments.iter().zip(parameters) {
-                if parameter.is_self
-                    || !argument_has_exact_type(program, *argument, parameter.type_reference)
-                {
+                if !argument_has_exact_type(program, *argument, parameter.type_reference) {
                     reject(
                         &format!(
                             "argument `{}` must establish its exact declared type `{}`; implicit specialization or narrowing is not admitted here",

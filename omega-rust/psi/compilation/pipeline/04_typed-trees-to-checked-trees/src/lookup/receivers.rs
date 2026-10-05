@@ -98,15 +98,7 @@ pub(crate) fn resolve_projected_receiver_calls(
                     continue;
                 };
                 let endpoint = receiver.symbol;
-                if call.receiver_symbol.is_valid()
-                    && !projections::matches_symbol(
-                        program,
-                        state,
-                        call.receiver_root_symbol,
-                        call.receiver_symbol,
-                        endpoint,
-                    )
-                {
+                if call.receiver_symbol.is_valid() && call.receiver_symbol != endpoint {
                     return Err(vec![
                         Diagnostic::error(
                             "projected call receiver disagrees with its exact declared field",

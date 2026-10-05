@@ -125,7 +125,6 @@ pub fn declared_signature_invocations(
     let parameters = program
         .state_signature_parameters(signature)
         .iter()
-        .filter(|parameter| !parameter.is_self)
         .collect::<Vec<_>>();
     declared_targets(
         program,
@@ -144,7 +143,6 @@ pub(crate) fn full_parameter_invocation(
         InvocationTarget::Parameter(ordinal) => parameters
             .iter()
             .enumerate()
-            .filter(|(_, parameter)| !parameter.is_self)
             .nth(ordinal as usize)
             .and_then(|(position, _)| u32::try_from(position).ok())
             .map(InvocationTarget::Parameter),
@@ -212,11 +210,7 @@ pub fn has_self_forwarded_boundary_parameter(
     let Some(state) = program.machine_states(machine).first() else {
         return false;
     };
-    let parameters = program
-        .state_parameters(state)
-        .iter()
-        .filter(|parameter| !parameter.is_self)
-        .collect::<Vec<_>>();
+    let parameters = program.state_parameters(state).iter().collect::<Vec<_>>();
     parameters.len() == requirement_parameter_count + 1
         && parameters.first().is_some_and(|parameter| {
             program
@@ -949,13 +943,7 @@ fn machine_entry_parameters<'a>(
     program
         .machine_states(machine)
         .first()
-        .map(|state| {
-            program
-                .state_parameters(state)
-                .iter()
-                .filter(|parameter| !parameter.is_self)
-                .collect()
-        })
+        .map(|state| program.state_parameters(state).iter().collect())
         .unwrap_or_default()
 }
 

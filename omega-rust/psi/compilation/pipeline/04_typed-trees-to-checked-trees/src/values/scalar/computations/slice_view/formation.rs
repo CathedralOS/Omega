@@ -167,10 +167,7 @@ impl Builder<'_, '_> {
             }
             let parameters =
                 crate::semantic::calls::call_target_parameters(self.program, path.symbol)?;
-            let parameters = parameters
-                .iter()
-                .filter(|parameter| !parameter.is_self)
-                .collect::<Vec<_>>();
+            let parameters = parameters.iter().collect::<Vec<_>>();
             if arguments.len() != parameters.len() {
                 return None;
             }
@@ -205,16 +202,11 @@ impl Builder<'_, '_> {
             expression,
             self.machine,
         )?;
-        let mut place = crate::flow::CanonicalPlace {
+        let place = crate::flow::CanonicalPlace {
             root: facts::PlaceRoot::Symbol(captured.root_symbol),
             segments: captured.segments,
         };
-        crate::flow::normalize_attached_place_root(
-            self.program,
-            self.machine,
-            self.state,
-            &mut place,
-        );
+
         let expected_access = match expected_access {
             language_semantics::ReferenceAccess::Shared => CheckedStructuralAccess::SharedBorrow,
             language_semantics::ReferenceAccess::Mutable => CheckedStructuralAccess::MutableBorrow,

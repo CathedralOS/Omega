@@ -89,12 +89,7 @@ fn signature_ceiling_places_inner(
     let parameters =
         crate::semantic::calls::call_target_parameters(program, borrow_call.target_symbol)?;
     let arguments = crate::semantic::calls::call_site_argument_expressions(program, &site);
-    if parameters
-        .iter()
-        .filter(|parameter| !parameter.is_self)
-        .count()
-        != arguments.len()
-    {
+    if parameters.iter().count() != arguments.len() {
         return None;
     }
     let mut owned_frames = None;
@@ -102,18 +97,7 @@ fn signature_ceiling_places_inner(
     let mut places = Vec::new();
     let mut argument_index = 0usize;
     for parameter in parameters {
-        let actual = if parameter.is_self {
-            if !is_exclusive_reference(program, parameter.type_reference) {
-                continue;
-            }
-            crate::flow::canonical_receiver_place_for_call_site(
-                program,
-                machine.symbol,
-                state.symbol,
-                &site,
-                borrow_call.statement_index,
-            )?
-        } else {
+        let actual = {
             let argument = arguments[argument_index];
             argument_index += 1;
             if !is_exclusive_reference(program, parameter.type_reference) {

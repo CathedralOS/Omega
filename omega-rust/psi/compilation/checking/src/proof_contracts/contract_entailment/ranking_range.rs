@@ -326,7 +326,7 @@ fn carried_natural_coordinate<'program>(
     let entry_formal = program
         .state_parameters(root)
         .iter()
-        .find(|formal| !formal.is_self && formal.symbol == entry)?;
+        .find(|formal| formal.symbol == entry)?;
     if entry_formal.is_const {
         return None;
     }
@@ -545,7 +545,6 @@ fn prove_edge(
         program
             .state_parameters(destination.map_or(state, |destination| destination.state))
             .iter()
-            .filter(|parameter| !parameter.is_self)
             .count()
             != arguments.len()
     }) {
@@ -556,11 +555,7 @@ fn prove_edge(
     let mut bindings = integer_bindings(program, state)?;
     let mut alias_comparisons = Vec::new();
     if let Some(entry_parameters) = entry_parameters {
-        for (parameter, entry_symbol) in parameters
-            .iter()
-            .filter(|parameter| !parameter.is_self)
-            .zip(entry_parameters)
-        {
+        for (parameter, entry_symbol) in parameters.iter().zip(entry_parameters) {
             if !entry_symbol.is_valid()
                 || (entry_parameters
                     .iter()
@@ -853,12 +848,7 @@ fn prove_edge(
     // numeric bindings must not shift a payload slot onto the next rank input.
     let target_parameters =
         program.state_parameters(destination.map_or(state, |destination| destination.state));
-    for (position, (parameter, argument)) in target_parameters
-        .iter()
-        .filter(|parameter| !parameter.is_self)
-        .zip(arguments)
-        .enumerate()
-    {
+    for (position, (parameter, argument)) in target_parameters.iter().zip(arguments).enumerate() {
         let source_symbol = destination.map_or(parameter.symbol, |destination| {
             destination.entry_parameters[position]
         });
@@ -1215,11 +1205,7 @@ fn parameter_comparisons(
 ) -> Option<Vec<Comparison>> {
     let admit = |expression| meanings::builtin(program, machine, root, expression, 0);
     let mut comparisons = Vec::new();
-    for parameter in program
-        .state_parameters(root)
-        .iter()
-        .filter(|parameter| !parameter.is_self)
-    {
+    for parameter in program.state_parameters(root).iter() {
         if exact_integer_parameter(program, parameter.type_reference).is_none() {
             continue;
         }
@@ -1338,19 +1324,10 @@ fn validate_mapping(
     }
     let root_parameters = program.state_parameters(root);
     let parameters = program.state_parameters(state);
-    if entry_parameters.len()
-        != parameters
-            .iter()
-            .filter(|parameter| !parameter.is_self)
-            .count()
-    {
+    if entry_parameters.len() != parameters.iter().count() {
         return None;
     }
-    for (parameter, entry_symbol) in parameters
-        .iter()
-        .filter(|parameter| !parameter.is_self)
-        .zip(entry_parameters)
-    {
+    for (parameter, entry_symbol) in parameters.iter().zip(entry_parameters) {
         if !parameter.symbol.is_valid()
             || parameter.is_const
             || parameters
@@ -1374,7 +1351,7 @@ fn validate_mapping(
         }
         let entry = root_parameters
             .iter()
-            .find(|entry| !entry.is_self && entry.symbol == *entry_symbol)?;
+            .find(|entry| entry.symbol == *entry_symbol)?;
         // A record slot has no integer carrier of its own: it may still carry
         // a bare integer entry role when its declaration holds that role's
         // value at one unique natural leaf of the entry's exact width.
@@ -1397,11 +1374,7 @@ fn integer_bindings(
     state: &State,
 ) -> Option<Vec<StrictArithmeticSymbolBinding>> {
     let mut bindings = Vec::new();
-    for parameter in program
-        .state_parameters(state)
-        .iter()
-        .filter(|parameter| !parameter.is_self)
-    {
+    for parameter in program.state_parameters(state).iter() {
         let Some(primitive) = exact_integer_parameter(program, parameter.type_reference) else {
             // Unrelated payloads are never promoted to numeric facts.
             continue;

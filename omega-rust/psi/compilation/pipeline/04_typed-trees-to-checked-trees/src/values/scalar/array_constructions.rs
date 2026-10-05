@@ -146,21 +146,12 @@ pub(crate) fn call_array_constructions_in(
         // implementation. The common signature lookup retains the original
         // requirement's formals; it never selects or fabricates a provider.
         let arguments = crate::semantic::calls::call_site_argument_expressions(program, &site);
-        let explicit_self = arguments.len()
-            > parameters
-                .iter()
-                .filter(|parameter| !parameter.is_self)
-                .count();
-        let explicit_parameters = parameters
-            .iter()
-            .enumerate()
-            .filter(|(_, parameter)| !parameter.is_self || explicit_self);
-        if explicit_parameters.clone().count() != arguments.len() {
+        let explicit_parameters = parameters.iter().enumerate();
+        if parameters.len() != arguments.len() {
             continue;
         }
         for ((position, parameter), expression) in explicit_parameters.zip(arguments) {
-            if parameter.is_self
-                || parameter.is_const
+            if (parameter.is_const)
                 || parameter.is_mutable
                 || !validation::is_closed_primitive_array_type(program, parameter.type_reference)
                 || validation::scalar_array_elements(

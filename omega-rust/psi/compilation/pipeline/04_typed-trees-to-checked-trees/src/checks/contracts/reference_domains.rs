@@ -176,8 +176,7 @@ fn contexts_prove_domain(
                 let Some(candidate) = resolve_candidate(candidate) else {
                     return false;
                 };
-                crate::flow::normalized_event_place_root(program, candidate.root)
-                    == crate::flow::normalized_event_place_root(program, source.root)
+                (candidate.root) == (source.root)
                     && super::prover::segments_cover_subject(
                         program,
                         &candidate.segments,

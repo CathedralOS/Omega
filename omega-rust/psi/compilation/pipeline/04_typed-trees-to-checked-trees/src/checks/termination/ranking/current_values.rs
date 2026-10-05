@@ -152,7 +152,6 @@ fn prove_edge(
             let position = program
                 .state_parameters(target)
                 .iter()
-                .filter(|parameter| !parameter.is_self)
                 .position(|parameter| parameter.symbol == target_rank.parameter)?;
             ScopedArithmeticValue::Term(values.current(*edge.arguments.get(position)?)?)
         }

@@ -190,8 +190,7 @@ fn stable_references(program: &TypedTrees, state: &State, expression: Expression
             .iter()
             .find(|parameter| parameter.symbol == symbol)
         {
-            !parameter.is_self
-                && !exclusive_referent(program, parameter.type_reference)
+            !exclusive_referent(program, parameter.type_reference)
                 && !lengths::binding_is_exclusively_exposed(program, state, symbol)
                 && !lengths::binding_is_written(program, state, symbol)
         } else {

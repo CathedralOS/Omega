@@ -188,9 +188,8 @@ pub(crate) fn proven_nat_countdown_sccs_with_call_frames(
                 .iter()
                 .enumerate()
                 .find(|(_, parameter)| {
-                    !parameter.is_self
-                        && (parameter.symbol == decreases_path.symbol
-                            || parameter.name.as_str() == decrease_name)
+                    parameter.symbol == decreases_path.symbol
+                        || parameter.name.as_str() == decrease_name
                 })?,
         };
         let rank_primitive_type =
@@ -228,7 +227,6 @@ pub(crate) fn proven_nat_countdown_sccs_with_call_frames(
             let target_parameter = program
                 .state_parameters(state)
                 .iter()
-                .filter(|parameter| !parameter.is_self)
                 .nth(proof.target_argument_index)?;
             let target_rank_parameter_position = program
                 .state_parameters(state)
@@ -348,9 +346,8 @@ pub(crate) fn proven_fused_nat_countdown_sccs_with_call_frames(
             .iter()
             .enumerate()
             .find(|(_, parameter)| {
-                !parameter.is_self
-                    && (parameter.symbol == decreases_path.symbol
-                        || parameter.name.as_str() == decrease_name)
+                parameter.symbol == decreases_path.symbol
+                    || parameter.name.as_str() == decrease_name
             })?;
         let rank_primitive_type =
             program.primitive_type_reference(rank_parameter.type_reference)?;
@@ -400,7 +397,6 @@ pub(crate) fn proven_fused_nat_countdown_sccs_with_call_frames(
                     let target_parameter = program
                         .state_parameters(target)
                         .iter()
-                        .filter(|parameter| !parameter.is_self)
                         .nth(proof.target_argument_index)?;
                     let target_rank_parameter_position = program
                         .state_parameters(target)

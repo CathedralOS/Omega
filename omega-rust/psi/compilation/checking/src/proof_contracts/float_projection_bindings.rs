@@ -144,7 +144,6 @@ pub fn exact_toolchain_float_projection_contract(
         && program.operator_type_parameters(operator).is_empty()
         && !parameter.is_const
         && !parameter.is_mutable
-        && !parameter.is_self
         && program.operator_contracts(operator).is_empty()
         && program.primitive_type_reference(parameter.type_reference) == Some(expected_primitive)
         && has_exact_toolchain_float_meaning_result(program, operator))

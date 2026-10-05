@@ -460,12 +460,7 @@ fn append_call_carried_argument_diagnostics(
         return;
     };
     let arguments = crate::semantic::calls::call_site_argument_expressions(program, call_site);
-    for (position, (parameter, argument)) in parameters
-        .iter()
-        .filter(|parameter| !parameter.is_self)
-        .zip(arguments)
-        .enumerate()
-    {
+    for (position, (parameter, argument)) in parameters.iter().zip(arguments).enumerate() {
         let display_name = program.expression_table.display_name(*argument);
         append_if_suspension_forbidden_with_type_parameters(
             program,
@@ -735,12 +730,7 @@ fn append_live_parameter_diagnostics(
     crossing: &mut CrossingAccumulator,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    for (position, parameter) in program
-        .state_parameters(state)
-        .iter()
-        .filter(|parameter| !parameter.is_self)
-        .enumerate()
-    {
+    for (position, parameter) in program.state_parameters(state).iter().enumerate() {
         if !crate::borrow::place_is_used_after_statement(
             program,
             state.statement_nodes,
@@ -787,11 +777,7 @@ fn append_live_local_diagnostics(
     crossing: &mut CrossingAccumulator,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let parameter_count = program
-        .state_parameters(state)
-        .iter()
-        .filter(|parameter| !parameter.is_self)
-        .count();
+    let parameter_count = program.state_parameters(state).iter().count();
     let mut local_position = 0;
     for (definition_index, statement) in program
         .statement_table

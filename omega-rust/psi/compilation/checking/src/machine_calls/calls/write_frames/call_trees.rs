@@ -380,7 +380,6 @@ fn complete_expression_tree(
                 symbols,
                 &receiver_members,
                 call.target.as_str(),
-                single_receiver_origin,
                 super::caller_aliases::CallerWriteSite::Expression(expression),
                 arguments,
                 inference,

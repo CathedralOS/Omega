@@ -1,6 +1,5 @@
 //! Content evidence, empty service reach and exact affine discards.
 
-use crate::execution::terminal_unit::types::parameter_root_symbol;
 use crate::execution::terminal_unit::{
     CheckFacts, Multiplicity, PermissionAccess, PermissionClaimIdentity, PermissionEventKind,
     PermissionEventSource, StateParameter, SymbolHandle,
@@ -69,7 +68,7 @@ pub(crate) fn has_exact_root_affine_discard(
         facts,
         machine,
         state,
-        parameter_root_symbol(machine.symbol, parameter),
+        (parameter).symbol,
         language_semantics::PermissionProvenance::Unknown,
     )
 }
@@ -140,7 +139,7 @@ pub(super) fn has_exact_root_nominal_disposition(
     {
         return false;
     }
-    let root = facts::PlaceRoot::Symbol(parameter_root_symbol(machine.symbol, parameter));
+    let root = facts::PlaceRoot::Symbol((parameter).symbol);
     let mut matching = facts
         .flow
         .ownership

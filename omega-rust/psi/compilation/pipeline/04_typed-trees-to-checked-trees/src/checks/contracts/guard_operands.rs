@@ -11,7 +11,7 @@
 //! nothing and consults no source shape.
 
 use checked_trees::{CheckFacts, FlowCallFact, FlowStateFact};
-use facts::{FactPayload, PlaceRoot};
+use facts::FactPayload;
 use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::signature::StateParameter;
@@ -20,11 +20,9 @@ use typed_trees::statement::TransitionTargetHandle;
 use super::assembly::expression_reads_overlapping_place;
 
 /// What a requirement instance reads at the jump: the argument expression a
-/// mentioned parameter binds, at that operand's position, or the receiver,
-/// read at the jump itself after every operand.
+/// mentioned parameter binds, at that operand's position.
 enum RequirementRead {
     Argument(ExpressionHandle),
-    Receiver,
 }
 
 /// `true` when no operand call evaluated before one of the requirement's
@@ -57,11 +55,6 @@ pub(super) fn requirement_reads_survive_earlier_operand_writes(
     else {
         return false;
     };
-    let receiver = program
-        .state_parameters(state)
-        .iter()
-        .find(|parameter| parameter.is_self)
-        .map(|parameter| parameter.symbol);
     let arm_of = |call_ordinal: usize| -> Option<TransitionTargetHandle> {
         crate::semantic::calls::transition_call_target(
             program,
@@ -147,18 +140,6 @@ pub(super) fn requirement_reads_survive_earlier_operand_writes(
         }
         let written = writes.iter().any(|write| {
             later_reads.iter().any(|read| match read {
-                RequirementRead::Receiver => {
-                    // Storage identity: a callee's write frame roots `self`
-                    // at the machine symbol, the receiver parameter is a
-                    // state-level symbol for that same storage.
-                    receiver.is_some_and(|receiver| {
-                        crate::flow::normalized_event_place_root(program, write.root)
-                            == crate::flow::normalized_event_place_root(
-                                program,
-                                PlaceRoot::Symbol(receiver),
-                            )
-                    })
-                }
                 RequirementRead::Argument(argument) => expression_reads_overlapping_place(
                     program,
                     state.symbol,
@@ -214,30 +195,13 @@ fn requirement_reads(
     target_parameters: &[StateParameter],
     mentioned: &[SymbolHandle],
 ) -> Vec<(usize, RequirementRead)> {
-    let non_self_count = target_parameters
-        .iter()
-        .filter(|parameter| !parameter.is_self)
-        .count();
-    let uses_receiver = target_parameters.iter().any(|parameter| parameter.is_self)
-        && arguments.len() == non_self_count;
     mentioned
         .iter()
         .filter_map(|symbol| {
             let index = target_parameters
                 .iter()
                 .position(|parameter| parameter.symbol == *symbol)?;
-            let parameter = &target_parameters[index];
-            if parameter.is_self {
-                return Some((arguments.len(), RequirementRead::Receiver));
-            }
-            let argument_index = if uses_receiver {
-                target_parameters[..index]
-                    .iter()
-                    .filter(|parameter| !parameter.is_self)
-                    .count()
-            } else {
-                index
-            };
+            let argument_index = index;
             let argument = *arguments.get(argument_index)?;
             Some((argument_index, RequirementRead::Argument(argument)))
         })

@@ -84,53 +84,13 @@ fn authored_execution(
     let mut dispatch_subject = ExpressionHandle::invalid();
     let (statement_root, outer_expression) = match statement {
         StatementNode::Call(call) => {
-            let signature = target_signature(checked, machine.symbol, call.target_symbol)?;
-            if !signature.boundary
-                && signature
-                    .parameters
-                    .iter()
-                    .any(|parameter| parameter.is_self)
-            {
-                // A statement receiver is a retained name path, so it contains
-                // no expressions to schedule. Rejoin its captured occurrence;
-                // ordinary call replay owns the receiver's storage and loan.
-                let control = &checked.facts.flow.control;
-                let mut states = control
-                    .states
-                    .iter()
-                    .map(|(_, state)| state)
-                    .filter(|state| {
-                        state.machine_symbol == machine.symbol && state.state_symbol == caller_state
-                    });
-                let captured_state = states.next().ok_or(LoweringError::Unsupported(
-                    "nested receiver call has no captured state",
-                ))?;
-                if states.next().is_some() {
-                    return unsupported("nested receiver call has ambiguous captured states");
-                }
-                if !control
-                    .calls
-                    .span(captured_state.calls)
-                    .ok_or(LoweringError::Unsupported(
-                        "nested receiver call has an invalid occurrence span",
-                    ))?
-                    .iter()
-                    .any(|occurrence| {
-                        occurrence.statement_index == statement_index as usize
-                            && occurrence.call_ordinal == 0
-                    })
-                {
-                    return unsupported("nested receiver call has no captured occurrence");
-                }
-            } else {
-                validate_static_receiver(
-                    checked,
-                    machine.symbol,
-                    call.target_symbol,
-                    call.receiver_symbol,
-                    !call.receiver.is_empty(),
-                )?;
-            }
+            validate_static_receiver(
+                checked,
+                machine.symbol,
+                call.target_symbol,
+                call.receiver_symbol,
+                !call.receiver.is_empty(),
+            )?;
             if !call.machine_arguments.is_empty()
                 || !call.evidence_arguments.is_empty()
                 || call.static_requirement_dispatch.is_some()
@@ -394,22 +354,7 @@ fn authored_execution(
                         "nested boundary result is not a direct plain-owned affine operand",
                     );
                 }
-                if outer
-                    && !signature.boundary
-                    && signature
-                        .parameters
-                        .iter()
-                        .any(|parameter| parameter.is_self)
-                {
-                    // The enclosing call can itself borrow a receiver. This
-                    // walk establishes authored evaluation order; the ordinary
-                    // call replay still checks its exact receiver place and
-                    // loan. Do not turn a runtime receiver into a static-call
-                    // requirement merely because one argument contains a call.
-                    if call.receiver.is_valid() {
-                        children.push((call.receiver, true));
-                    }
-                } else if outer || signature.boundary {
+                if outer || signature.boundary {
                     let receiver = if call.receiver.is_valid() {
                         if !table.expression_is_valid(call.receiver) {
                             return unsupported("nested call has a stale receiver");
@@ -442,45 +387,9 @@ fn authored_execution(
                         );
                     }
                     if !checked.call_has_no_runtime_receiver(call, owner, target) {
-                        // This walk owns occurrence order, not receiver
-                        // authority. Call replay independently rejoins the
-                        // captured receiver's exact place and loan. A completed
-                        // byte owner can therefore be an ordinary operand of
-                        // a mutable receiver call without becoming static.
-                        let byte_result = direct_argument
-                            && validation::bounded_byte_buffer_capacity(
-                                &checked.typed,
-                                target.return_type,
-                            )
-                            .is_some()
-                            && validation::has_plain_owned_contents_with_represented_constraints(
-                                &checked.typed,
-                                target.return_type,
-                            );
-                        let borrowed_receiver =
-                            checked
-                                .state_parameters(target)
-                                .first()
-                                .is_some_and(|parameter| {
-                                    parameter.is_self
-                                        && matches!(
-                                            checked
-                                                .type_reference_table
-                                                .type_reference(parameter.type_reference),
-                                            checked_trees::types::TypeReferenceNode::Reference { access, .. }
-                                                if *access == language_core::ReferenceAccess::Shared
-                                                    || (byte_result && *access == language_core::ReferenceAccess::Mutable)
-                                        )
-                                });
-                        if !(scalar_result || byte_result)
-                            || !borrowed_receiver
-                            || !call.receiver.is_valid()
-                        {
-                            return unsupported(
-                                "nested call has no ordinary producer or scalar helper",
-                            );
-                        }
-                        children.push((call.receiver, true));
+                        return unsupported(
+                            "nested call has no ordinary producer or scalar helper",
+                        );
                     }
                 }
                 children.extend(arguments.iter().map(|argument| (*argument, true)));
@@ -613,12 +522,7 @@ pub(in crate::emission::call_source_custody) fn validate_static_receiver(
     has_receiver: bool,
 ) -> Result<(), LoweringError> {
     let signature = target_signature(checked, caller, target)?;
-    if signature
-        .parameters
-        .iter()
-        .any(|parameter| parameter.is_self)
-        || has_receiver != receiver.is_valid()
-    {
+    if has_receiver != receiver.is_valid() {
         return unsupported("nested call root has no exact nonself receiver identity");
     }
     if let Some((_, qualifier)) =

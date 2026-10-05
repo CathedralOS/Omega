@@ -272,9 +272,7 @@ pub fn closed_operator_realization_application(
             .iter()
             .zip(required_parameters)
             .any(|(actual, required)| {
-                actual.is_self != required.is_self
-                    || actual.is_const != required.is_const
-                    || actual.is_mutable != required.is_mutable
+                actual.is_const != required.is_const || actual.is_mutable != required.is_mutable
             })
     {
         return None;

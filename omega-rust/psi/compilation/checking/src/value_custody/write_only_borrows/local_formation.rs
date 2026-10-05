@@ -98,7 +98,6 @@ fn capture(
     let mut sources = roots.to_vec();
     sources.extend(super::mutable_formation_sources(
         program,
-        machine,
         state,
         Some(local.symbol),
     ));

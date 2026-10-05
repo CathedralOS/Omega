@@ -304,7 +304,6 @@ pub(super) fn seed_boundary_call_ensures_facts(
     let parameters: Vec<_> = program
         .state_signature_parameters(signature)
         .iter()
-        .filter(|parameter| !parameter.is_self)
         .collect();
     for contract in program
         .signature_contracts

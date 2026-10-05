@@ -138,8 +138,6 @@ pub(crate) fn instantiate_operator_contract_expression_label_with_labels(
             for (parameter_index, parameter) in parameters.iter().enumerate() {
                 let operand = if operands_include_self {
                     operand_labels.get(parameter_index)
-                } else if parameter.is_self {
-                    None
                 } else {
                     let operand = operand_labels.get(positional_operand_index);
                     positional_operand_index = positional_operand_index.saturating_add(1);

@@ -6,8 +6,6 @@ use checked_trees::CheckedProviderAttachmentRequirementPlan;
 use checked_trees::CheckedTrees;
 use checked_trees::CheckedUnitEffectOperationPlan;
 use checked_trees::data::DataMember;
-use checked_trees::expression::ExpressionNode;
-use checked_trees::statement::StatementNode;
 use symbols::SymbolHandle;
 
 /// Replay a boundary occurrence and report whether it consumes attachment
@@ -49,7 +47,7 @@ pub(in crate::unit::attached_unit) fn validate_call_source(
         // Complete-set validation separately rejects missing required roots.
         return Ok(true);
     };
-    let (owner, source) = crate::declarations::state_declaration(checked, state)?;
+    let (owner, _) = crate::declarations::state_declaration(checked, state)?;
     if owner.symbol != machine {
         return unsupported("provider call lost its authored machine");
     }
@@ -76,36 +74,5 @@ pub(in crate::unit::attached_unit) fn validate_call_source(
         }
         return Ok(true);
     }
-    if !checked
-        .state_parameters(source)
-        .iter()
-        .any(|parameter| parameter.is_self)
-    {
-        return unsupported("provider field call has no authored receiver");
-    }
-    match authored.source_site {
-        Some(checked_trees::NominalMachineUseSite::Statement(_)) => {
-            let Some(StatementNode::Call(_)) = checked
-                .statement_table
-                .statements(source.statement_nodes)
-                .get(coordinate.statement_index as usize)
-            else {
-                return unsupported("provider field call lost its authored statement");
-            };
-        }
-        Some(checked_trees::NominalMachineUseSite::Expression(expression)) => {
-            let ExpressionNode::Call(call) = checked.expression_table.expression(expression) else {
-                return unsupported("provider field call lost its authored expression");
-            };
-            crate::emission::call_source_custody::projected_receivers::source(
-                checked,
-                machine,
-                state,
-                coordinate.statement_index as usize,
-                call.receiver,
-            )?;
-        }
-        None => return unsupported("provider field call has no authored occurrence"),
-    }
-    Ok(true)
+    unsupported("provider field call has no authored receiver")
 }

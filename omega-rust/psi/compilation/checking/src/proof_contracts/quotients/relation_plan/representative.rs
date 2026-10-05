@@ -34,7 +34,6 @@ pub(super) struct RepresentativeRuntimeParameter {
     pub(super) symbol: SymbolHandle,
     pub(super) type_reference: TypeReferenceHandle,
     pub(super) is_mutable: bool,
-    pub(super) is_self: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -69,7 +68,6 @@ pub(super) fn derive_representative_telescope(
             symbol: parameter.symbol,
             type_reference: parameter.type_reference,
             is_mutable: parameter.is_mutable,
-            is_self: parameter.is_self,
         })
         .collect();
     Ok(RepresentativeTelescope {

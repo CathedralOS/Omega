@@ -114,10 +114,7 @@ pub(crate) fn callable_identity(
             "parameter",
             &[
                 type_identity(parameter.type_reference)?,
-                format!(
-                    "{}:{}:{}",
-                    parameter.is_self, parameter.is_mutable, parameter.is_const
-                ),
+                format!("{}:{}", parameter.is_mutable, parameter.is_const),
             ],
         ));
     }

@@ -54,13 +54,9 @@ impl ExitScalars<'_, '_> {
         // Owned mutable inputs still need invocation-value transport, and the
         // origin check below rejects renamed or rebound reference bindings.
         if parameters.iter().any(|parameter| {
-            !parameter.is_self
-                && (parameter.is_const
-                    || (parameter.is_mutable
-                        && !crate::values::exclusive_reference(
-                            self.program,
-                            parameter.type_reference,
-                        )))
+            parameter.is_const
+                || (parameter.is_mutable
+                    && !crate::values::exclusive_reference(self.program, parameter.type_reference))
         }) || self
             .facts
             .flow

@@ -370,16 +370,11 @@ fn check_call_mutation_borrows<'p>(
                     )
                 })
                 .map(|_| {
-                    let mut captured = crate::flow::CanonicalPlace {
+                    let captured = crate::flow::CanonicalPlace {
                         root: facts::PlaceRoot::Symbol(loan.root_symbol),
                         segments: facts.borrow.loan_segments(loan).to_vec(),
                     };
-                    crate::flow::normalize_attached_place_root(
-                        program,
-                        state_flow.machine_symbol,
-                        state_flow.state_symbol,
-                        &mut captured,
-                    );
+
                     call_write_accesses(
                         program,
                         state_flow.machine_symbol,
@@ -502,7 +497,7 @@ pub(super) fn source_exiting_without_local_loan_carriers<'program>(
     let machine = crate::lookup::machine_by_symbol(program, flow.machine_symbol)?;
     let arguments = crate::semantic::calls::call_site_argument_expressions(program, &site);
     let parameters = program.state_parameters(target);
-    let mut positional = parameters.iter().filter(|parameter| !parameter.is_self);
+    let mut positional = parameters.iter();
     for argument in arguments {
         let parameter = positional.next()?;
         let actual =

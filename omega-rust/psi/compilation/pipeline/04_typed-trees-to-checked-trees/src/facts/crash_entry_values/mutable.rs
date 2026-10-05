@@ -74,13 +74,6 @@ pub(super) fn receiver_field_holds_entry_value(
     // so the escape scan tracks every one of them.
     let states = program.machine_states(machine);
     let mut receiver_roots = vec![machine.symbol, machine.attached_data_symbol];
-    receiver_roots.extend(states.iter().flat_map(|state| {
-        program
-            .state_parameters(state)
-            .iter()
-            .filter(|parameter| parameter.is_self)
-            .map(|parameter| parameter.symbol)
-    }));
     receiver_roots.retain(|root| root.is_valid());
     receiver_roots.dedup();
     let Some(read_index) = states.iter().position(|state| state.symbol == state_symbol) else {
@@ -752,7 +745,7 @@ fn receiver_call_writes(program: &TypedTrees, target_symbol: SymbolHandle) -> bo
     match crate::semantic::calls::call_target_parameters(program, target_symbol) {
         Some(parameters) => parameters
             .iter()
-            .find(|parameter| parameter.is_self)
+            .find(|_parameter| false)
             .is_none_or(|parameter| parameter.is_mutable),
         None => true,
     }
@@ -782,7 +775,6 @@ fn call_arguments_may_overwrite(
     };
     parameters
         .iter()
-        .filter(|parameter| !parameter.is_self)
         .zip(arguments)
         .any(|(parameter, argument)| {
             let mut reference = parameter.type_reference;

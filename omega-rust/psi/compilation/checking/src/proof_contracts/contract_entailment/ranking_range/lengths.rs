@@ -57,7 +57,6 @@ pub(super) fn parameter<'program>(
     // denotes its arrival sequence -- and its arrival length -- at the edge.
     program.state_parameters(state).iter().find(|parameter| {
         parameter.symbol == path.symbol
-            && !parameter.is_self
             && !parameter.is_const
             && is_slice(program, parameter.type_reference)
     })
@@ -70,12 +69,7 @@ pub(super) fn bindings(
     entry_parameters: Option<&[SymbolHandle]>,
 ) -> Vec<(SymbolHandle, String)> {
     let mut bindings = Vec::new();
-    for (position, parameter) in program
-        .state_parameters(state)
-        .iter()
-        .filter(|parameter| !parameter.is_self)
-        .enumerate()
-    {
+    for (position, parameter) in program.state_parameters(state).iter().enumerate() {
         // Mutable slices are admitted on the same contract as `parameter`:
         // callers evaluate the produced length facts over a prefix that is
         // proven to preserve the parameter's path, so the arrival binding is
@@ -110,12 +104,7 @@ pub(super) fn bindings(
         return bindings;
     };
     if let Some(entries) = entry_parameters {
-        for (parameter, entry) in program
-            .state_parameters(state)
-            .iter()
-            .filter(|parameter| !parameter.is_self)
-            .zip(entries)
-        {
+        for (parameter, entry) in program.state_parameters(state).iter().zip(entries) {
             if !entry.is_valid()
                 || entries
                     .iter()
@@ -129,7 +118,7 @@ pub(super) fn bindings(
             let Some(root_formal) = program
                 .state_parameters(root)
                 .iter()
-                .find(|formal| !formal.is_self && formal.symbol == *entry)
+                .find(|formal| formal.symbol == *entry)
             else {
                 continue;
             };
@@ -509,19 +498,10 @@ pub(super) fn binding_is_written(
         })
 }
 
-/// Whether the callee selected for `target_symbol` claims a mutable `self`
-/// receiver -- the write channel a `place.step()` call on a mutable local
-/// uses without ever spelling a borrow expression. An unresolvable callee
-/// is treated as mutating.
+/// Unknown callees conservatively invalidate a receiver observation. Resolved
+/// static calls carry every writable place through their explicit arguments.
 fn call_receiver_is_mutable(program: &TypedTrees, target_symbol: SymbolHandle) -> bool {
-    crate::machine_calls::calls::machine_state_by_symbol(program, target_symbol)
-        .map(|(_, callee)| {
-            program
-                .state_parameters(callee)
-                .iter()
-                .any(|parameter| parameter.is_self && parameter.is_mutable)
-        })
-        .unwrap_or(true)
+    crate::machine_calls::calls::machine_state_by_symbol(program, target_symbol).is_none()
 }
 
 /// Every expression root a statement of `state` can carry: the channels a
@@ -639,7 +619,7 @@ impl<'program> SliceCoordinate<'program> {
         // A mutable record still denotes its arrival value at an edge whose
         // evaluated prefix is proven to preserve its path; mutability is a
         // storage capability, not evidence the collection moved.
-        if parameter.is_self || parameter.is_const {
+        if parameter.is_const {
             return None;
         }
         let (root, borrowed) = record_referent(program, parameter.type_reference)?;
@@ -703,7 +683,6 @@ impl<'program> SliceCoordinate<'program> {
         let mut parameters = program
             .state_parameters(arrival.state)
             .iter()
-            .filter(|parameter| !parameter.is_self)
             .zip(arrival.entry_parameters)
             .filter_map(|(parameter, entry)| (*entry == entry_symbol).then_some(parameter));
         let parameter = parameters.next()?;
@@ -1050,12 +1029,10 @@ impl<'program> SliceCoordinates<'program> {
             let entry_symbol = match entry_parameters {
                 None => coordinate.parameter.symbol,
                 Some(entries) => {
-                    let (_, entry) = program
-                        .state_parameters(state)
-                        .iter()
-                        .filter(|parameter| !parameter.is_self)
-                        .zip(entries)
-                        .find(|(parameter, _)| parameter.symbol == coordinate.parameter.symbol)?;
+                    let (_, entry) =
+                        program.state_parameters(state).iter().zip(entries).find(
+                            |(parameter, _)| parameter.symbol == coordinate.parameter.symbol,
+                        )?;
                     if !entry.is_valid() {
                         // A role-less record serves its own guards only; its
                         // projected slices never rewrite a template

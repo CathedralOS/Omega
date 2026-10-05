@@ -239,7 +239,7 @@ fn capture_place(
         return Vec::new();
     };
     let isolated = frames.proof_value_is_caller_isolated(source_type);
-    let source_root = crate::flow::normalized_event_place_root(program, source_root);
+    let source_root = source_root;
     let mut captured = Vec::new();
     for context in flow_context
         .contexts
@@ -283,9 +283,7 @@ fn capture_place(
             ) else {
                 continue;
             };
-            if crate::flow::normalized_event_place_root(program, place.root) != source_root
-                || !place.segments.starts_with(source_segments)
-            {
+            if place.root != source_root || !place.segments.starts_with(source_segments) {
                 continue;
             }
             let segments = &place.segments[source_segments.len()..];
@@ -338,12 +336,7 @@ pub(in crate::flow) fn capture_argument(
     else {
         return Vec::new();
     };
-    let Some(parameter) = program
-        .state_parameters(destination)
-        .iter()
-        .filter(|parameter| !parameter.is_self)
-        .nth(ordinal)
-    else {
+    let Some(parameter) = program.state_parameters(destination).iter().nth(ordinal) else {
         return Vec::new();
     };
     let Some(source) =
@@ -391,44 +384,6 @@ pub(in crate::flow) fn finish(
         }
     }
     inputs
-}
-
-/// An implicit receiver carries its live storage at the edge, not a detached
-/// scalar argument read earlier. Explicit arguments continue to use their
-/// operand-time captures and the existing reference-liveness fence.
-pub(super) fn capture_receiver(
-    program: &typed_trees::TypedTrees,
-    semantic: &FactPlan,
-    flow_context: &FlowBuildContext,
-    source: &typed_trees::state::State,
-    destination: &typed_trees::state::State,
-    contexts: HandleSpan<FlowSemanticContextRef>,
-) -> Vec<QualifiedInput> {
-    let Some(source) = program
-        .state_parameters(source)
-        .iter()
-        .find(|parameter| parameter.is_self)
-    else {
-        return Vec::new();
-    };
-    let Some(destination) = program
-        .state_parameters(destination)
-        .iter()
-        .find(|parameter| parameter.is_self)
-    else {
-        return Vec::new();
-    };
-    let captured = capture_place(
-        program,
-        semantic,
-        flow_context,
-        facts::PlaceRoot::Symbol(source.symbol),
-        &[],
-        source.type_reference,
-        destination.symbol,
-        contexts,
-    );
-    finish(flow_context, contexts, captured, true)
 }
 
 pub(super) fn append(semantic: &mut FactPlan, inputs: &[QualifiedInput], point: ProgramPoint) {

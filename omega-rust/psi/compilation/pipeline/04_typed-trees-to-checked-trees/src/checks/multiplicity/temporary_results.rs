@@ -128,14 +128,7 @@ pub(super) fn append_constructed_argument_transfers(
             continue;
         };
         let arguments = crate::semantic::calls::call_site_argument_expressions(program, &site);
-        let explicit_self = arguments.len()
-            > parameters
-                .iter()
-                .filter(|parameter| !parameter.is_self)
-                .count();
-        let explicit_parameters = parameters
-            .iter()
-            .filter(|parameter| !parameter.is_self || explicit_self);
+        let explicit_parameters = parameters.iter();
         for (parameter, argument) in explicit_parameters.zip(arguments.iter()) {
             let typed_trees::expression::ExpressionNode::StructLiteral(literal) =
                 program.expression_table.expression(*argument)
@@ -156,10 +149,9 @@ pub(super) fn append_constructed_argument_transfers(
                 target_symbol: call.target_symbol,
             };
             let root = facts::PlaceRoot::Expression(*argument);
-            if permission_events
+            if (permission_events
                 .iter()
-                .any(|event| event.source == source && event.root == root)
-                || parameter.is_self
+                .any(|event| event.source == source && event.root == root))
                 || parameter.is_const
                 || parameter.relevance.is_erased()
                 || multiplicity != Multiplicity::Affine

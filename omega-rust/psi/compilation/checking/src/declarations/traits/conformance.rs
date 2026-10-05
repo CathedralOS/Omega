@@ -27,7 +27,7 @@ pub use machine_conformance::{
     revalidate_top_level_requirement_realization,
 };
 pub(crate) use signature_matching::{
-    required_is_self_type, required_is_subject_parameter, subject_role_matches,
+    required_is_self_type, required_is_subject_parameter,
     validate_machine_state_satisfies_trait_signature_with_arguments,
 };
 pub(crate) use trait_applications::validate_trait_application_obligations;

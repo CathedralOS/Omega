@@ -569,7 +569,6 @@ fn signature_operational(
     let parameters = program
         .state_signature_parameters(signature)
         .iter()
-        .filter(|parameter| !parameter.is_self)
         .collect::<Vec<_>>();
     for target in super::declared_signature_invocations(program, signature) {
         let service = match target {

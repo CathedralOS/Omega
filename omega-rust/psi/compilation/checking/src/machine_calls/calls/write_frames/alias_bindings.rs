@@ -43,9 +43,11 @@ fn assignment_copies_primitive_referent(
     {
         return false;
     }
-    let Some(parameter) = program.state_parameters(state).iter().find(|parameter| {
-        parameter.symbol == target.symbol && !parameter.is_self && !parameter.is_const
-    }) else {
+    let Some(parameter) = program
+        .state_parameters(state)
+        .iter()
+        .find(|parameter| parameter.symbol == target.symbol && !parameter.is_const)
+    else {
         return false;
     };
     let TypeReferenceNode::Reference {

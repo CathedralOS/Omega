@@ -66,9 +66,7 @@ fn build_projected_edge_plan(
     let [source_parameter] = program.state_parameters(state) else {
         return None;
     };
-    if source_parameter.is_self {
-        return None;
-    }
+
     let statements = program.statement_table.statements(state.statement_nodes);
     let (last, prefix) = statements.split_last()?;
     let StatementNode::Transition(transition) = last else {
@@ -169,9 +167,7 @@ fn build_projected_edge_plan(
     let [target_parameter] = program.state_parameters(target) else {
         return None;
     };
-    if target_parameter.is_self {
-        return None;
-    }
+
     let [argument] = program.statement_table.expression_handles(*arguments) else {
         return None;
     };
@@ -874,9 +870,8 @@ fn checked_whole_affine_discard_parameters_excluding_results(
         .enumerate()
         .rev()
         .filter_map(|(position, parameter)| {
-            if parameter.is_self
-                || crate::checks::type_multiplicity(program, parameter.type_reference)
-                    != Multiplicity::Affine
+            if (crate::checks::type_multiplicity(program, parameter.type_reference)
+                != Multiplicity::Affine)
                 || entry_claim_roots.contains(&facts::PlaceRoot::Symbol(parameter.symbol))
                 || selection_source_roots.contains(&facts::PlaceRoot::Symbol(parameter.symbol))
                 || moved_roots.contains(&facts::PlaceRoot::Symbol(parameter.symbol))
@@ -914,8 +909,7 @@ fn checked_whole_affine_discard_parameters_excluding_results(
             return None;
         };
         let position = parameters.iter().position(|parameter| {
-            !parameter.is_self
-                && parameter.symbol == root
+            (parameter.symbol == root)
                 && crate::checks::type_multiplicity(program, parameter.type_reference)
                     == Multiplicity::Affine
         })?;
@@ -1107,9 +1101,7 @@ pub(super) fn state_exit_result_locals(
             let target_parameters =
                 crate::semantic::calls::call_target_parameters(program, path.symbol)?;
             let arguments = program.statement_table.expression_handles(*arguments);
-            let target_parameters = target_parameters
-                .iter()
-                .filter(|parameter| !parameter.is_self);
+            let target_parameters = target_parameters.iter();
             if target_parameters.clone().count() != arguments.len() {
                 return None;
             }

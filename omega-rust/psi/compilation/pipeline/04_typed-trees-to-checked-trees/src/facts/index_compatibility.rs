@@ -133,10 +133,7 @@ pub(super) fn build_index_compatibility_facts(
                 statement_index: call.statement_index,
                 call_ordinal: call.call_ordinal,
             };
-            for (argument, parameter) in arguments
-                .iter()
-                .zip(parameters.iter().filter(|parameter| !parameter.is_self))
-            {
+            for (argument, parameter) in arguments.iter().zip(parameters.iter()) {
                 append_expression_compatibilities(
                     program,
                     operators,
@@ -1038,7 +1035,6 @@ fn fact_substitutions<'program>(
     let arguments = crate::semantic::calls::call_site_argument_expressions(program, &call_site);
     parameters
         .iter()
-        .filter(|parameter| !parameter.is_self)
         .zip(arguments)
         .map(|(parameter, value)| ExpressionSubstitution {
             symbol: parameter.symbol,

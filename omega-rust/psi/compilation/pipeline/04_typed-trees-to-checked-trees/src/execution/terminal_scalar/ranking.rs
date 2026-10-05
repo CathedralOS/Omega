@@ -136,11 +136,7 @@ pub(super) fn plan(
         let (_, target_state) =
             crate::semantic::calls::find_state_with_machine(program, edge.target_state)?;
         let target_parameters = program.state_parameters(target_state);
-        if successor.argument_count as usize
-            != target_parameters
-                .iter()
-                .filter(|parameter| !parameter.is_self)
-                .count()
+        if successor.argument_count as usize != target_parameters.iter().count()
             || edge.target_rank_parameter_position as usize >= target_parameters.len()
         {
             return None;

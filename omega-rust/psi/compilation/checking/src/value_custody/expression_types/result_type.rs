@@ -742,8 +742,6 @@ fn bound_result_type_parameter(
     let parameters = program.operator_parameters(operator);
     parameters
         .iter()
-        .filter(|parameter| parameter.is_self)
-        .chain(parameters.iter().filter(|parameter| !parameter.is_self))
         .zip(operands.iter())
         .find_map(|(parameter, operand)| {
             let operand = (*operand)?;

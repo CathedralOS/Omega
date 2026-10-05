@@ -54,7 +54,7 @@ pub(super) fn declared(
         .iter()
         .filter(|parameter| parameter.symbol == name.symbol);
     let parameter = matching.next()?;
-    if matching.next().is_some() || parameter.is_self || parameter.is_const {
+    if (matching.next().is_some()) || parameter.is_const {
         return None;
     }
     let (primitive_type, arithmetic_domain) = readable_type(program, parameter.type_reference)?;

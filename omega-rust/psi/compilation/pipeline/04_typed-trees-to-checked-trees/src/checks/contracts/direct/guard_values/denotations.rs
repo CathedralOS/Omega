@@ -49,11 +49,7 @@ impl Denotations<'_> {
             && let ExpressionNode::Name(path) = table.expression(right)
             && path.symbol == path.head_symbol
             && table.name_path_members(path.members).len() == 1
-            && let Some(position) = self
-                .parameters
-                .iter()
-                .filter(|p| !p.is_self)
-                .position(|p| p.symbol == path.symbol)
+            && let Some(position) = self.parameters.iter().position(|p| p.symbol == path.symbol)
         {
             return self
                 .arguments
@@ -69,11 +65,7 @@ impl Denotations<'_> {
         if formal
             && let Some(mut required) = super::super::projected_leaf_place(self.program, right)
             && let facts::PlaceRoot::Symbol(root) = required.root
-            && let Some(position) = self
-                .parameters
-                .iter()
-                .filter(|p| !p.is_self)
-                .position(|p| p.symbol == root)
+            && let Some(position) = self.parameters.iter().position(|p| p.symbol == root)
             && let Some(actual) = self.arguments.get(position)
             && let Some(mut actual) = super::super::projected_leaf_place(self.program, *actual)
             && let Some(observed) = super::super::projected_leaf_place(self.program, left)

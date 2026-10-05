@@ -18,7 +18,6 @@ pub fn call_type_arguments(
     entry: &State,
     selected: &[StaticMachineArgument],
     arguments: &[ExpressionHandle],
-    self_is_argument: bool,
 ) -> Option<Vec<(SymbolHandle, TypeReferenceHandle)>> {
     let parameters = program.machine_type_parameters(callee);
     // Specialization already owns retained authored static operands. A concrete
@@ -77,12 +76,7 @@ pub fn call_type_arguments(
         }
     }
     if bindings.len() < type_parameters.len() {
-        for (parameter, argument) in program
-            .state_parameters(entry)
-            .iter()
-            .filter(|parameter| self_is_argument || !parameter.is_self)
-            .zip(arguments)
-        {
+        for (parameter, argument) in program.state_parameters(entry).iter().zip(arguments) {
             let actual = crate::value_custody::places::declared_place_type_raw(
                 program, caller, state, *argument,
             )
@@ -119,19 +113,11 @@ pub(super) fn validate_resolved_call_arguments(
     entry: &State,
     selected: &[StaticMachineArgument],
     writable_roots: &WritableRoots<'_, '_>,
-    self_is_argument: bool,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let Some(bindings) = call_type_arguments(
-        program,
-        caller,
-        state,
-        callee,
-        entry,
-        selected,
-        arguments,
-        self_is_argument,
-    ) else {
+    let Some(bindings) =
+        call_type_arguments(program, caller, state, callee, entry, selected, arguments)
+    else {
         diagnostics.push(Diagnostic::error(format!(
             "call `{target}` has an invalid static type argument correspondence"
         )));
@@ -148,7 +134,6 @@ pub(super) fn validate_resolved_call_arguments(
         writable_roots,
         primitive_float_operator_retains_argument_policy(program, callee.symbol),
         &[],
-        self_is_argument,
         |argument, required| {
             crate::value_custody::expression_types::argument_matches_carrier_with_substitutions(
                 program, argument, required, &bindings,

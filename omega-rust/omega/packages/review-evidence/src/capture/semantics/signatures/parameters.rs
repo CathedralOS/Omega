@@ -186,7 +186,7 @@ fn project_type_parameters_inner(
                         )?,
                         is_const: value_parameter.is_const,
                         is_mutable: value_parameter.is_mutable,
-                        is_self: value_parameter.is_self,
+                        is_self: false,
                     });
                 }
                 PackageReviewTypeParameterKind::Proposition(
@@ -353,7 +353,7 @@ fn project_machine_parameter_contract_inner(
                                 )?,
                                 is_const: parameter.is_const,
                                 is_mutable: parameter.is_mutable,
-                                is_self: parameter.is_self,
+                                is_self: false,
                             })
                         })
                         .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?,

@@ -230,13 +230,9 @@ pub fn from_typed_boundary_requirement(
             requirement_owner: requirement_owner.to_owned(),
             requirement_owner_package_identity: package_identity,
             requirement_identity,
-            parameter_count: parameters
-                .iter()
-                .filter(|parameter| !parameter.is_self)
-                .count(),
+            parameter_count: parameters.iter().count(),
             parameter_type_identities: parameters
                 .iter()
-                .filter(|parameter| !parameter.is_self)
                 .map(|parameter| {
                     program
                         .normalized_type_identity(parameter.type_reference)
@@ -320,15 +316,10 @@ fn collect_service_methods(
                 .symbols
                 .symbol_package_identity(trait_definition.symbol),
             requirement_identity,
-            parameter_count: program
-                .state_signature_parameters(signature)
-                .iter()
-                .filter(|parameter| !parameter.is_self)
-                .count(),
+            parameter_count: program.state_signature_parameters(signature).iter().count(),
             parameter_type_identities: program
                 .state_signature_parameters(signature)
                 .iter()
-                .filter(|parameter| !parameter.is_self)
                 .map(|parameter| {
                     program
                         .normalized_type_identity(parameter.type_reference)
@@ -378,21 +369,11 @@ fn service_progress_premises_for_parameters(
     premises
         .iter()
         .map(|premise| {
-            let parameter = parameters
+            let position = parameters
                 .iter()
-                .find(|parameter| parameter.symbol == premise.subject.root)
+                .position(|parameter| parameter.symbol == premise.subject.root)
                 .expect("normalized public progress premise must be parameter-rooted");
-            let subject = if parameter.is_self {
-                ServiceProgressSubject::ProviderReceiver
-            } else {
-                ServiceProgressSubject::Parameter(
-                    parameters
-                        .iter()
-                        .filter(|candidate| !candidate.is_self)
-                        .position(|candidate| candidate.symbol == parameter.symbol)
-                        .expect("non-receiver premise root must be an ordinary parameter"),
-                )
-            };
+            let subject = ServiceProgressSubject::Parameter(position);
             let profile = program
                 .semantic_domains
                 .name(premise.profile)
@@ -484,7 +465,6 @@ fn service_entry_claims(
     for (parameter_index, parameter) in program
         .state_signature_parameters(signature)
         .iter()
-        .filter(|parameter| !parameter.is_self)
         .enumerate()
     {
         if program.type_multiplicity(parameter.type_reference)
@@ -714,7 +694,6 @@ fn synchronous_invocation_names(
     let parameters = program
         .state_signature_parameters(signature)
         .iter()
-        .filter(|parameter| !parameter.is_self)
         .collect::<Vec<_>>();
     let mut names = validation::declared_signature_invocations(program, signature)
         .into_iter()
@@ -742,11 +721,7 @@ fn machine_synchronous_invocation_names(
     let Some(entry) = program.machine_states(machine).first() else {
         return Vec::new();
     };
-    let parameters = program
-        .state_parameters(entry)
-        .iter()
-        .filter(|parameter| !parameter.is_self)
-        .collect::<Vec<_>>();
+    let parameters = program.state_parameters(entry).iter().collect::<Vec<_>>();
     let mut names = validation::declared_machine_invocations(program, machine)
         .into_iter()
         .filter_map(|target| match target {

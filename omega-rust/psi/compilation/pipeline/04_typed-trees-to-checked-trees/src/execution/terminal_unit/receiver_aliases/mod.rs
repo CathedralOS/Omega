@@ -1,7 +1,7 @@
 //! Erase nonescaping reference carriers, not their captured referent or access.
 use super::{
     CheckFacts, CheckedStructuralAccess, ExpressionNode, StatementNode, SymbolHandle,
-    TypeReferenceHandle, TypeReferenceNode, TypedTrees,
+    TypeReferenceHandle, TypedTrees,
 };
 use crate::execution::terminal_unit::types::{
     base_type_identity, state_flow, structural_access_for_type_reference,
@@ -121,9 +121,9 @@ fn formation(
             Some(parent_position),
         ));
     }
-    let mut roots = parameters.iter().filter(|parameter| {
-        parameter.symbol == source_root || (parameter.is_self && source_root == machine.symbol)
-    });
+    let mut roots = parameters
+        .iter()
+        .filter(|parameter| parameter.symbol == source_root);
     let parameter_root = roots.next();
     if parameter_root.is_some() && roots.next().is_some() {
         return None;
@@ -144,38 +144,8 @@ fn formation(
             // referent is the exact attachment, as in the ordinary Unit
             // signature collector; no other parameter may borrow that
             // substitution.
-            let root_type = if root.is_self {
-                let reference = validation::unwrapped_type_reference(program, root.type_reference)?;
-                let TypeReferenceNode::Named { symbol, .. } =
-                    program.type_reference_table.type_reference(reference)
-                else {
-                    return None;
-                };
-                if *symbol != machine.symbol && *symbol != machine.attached_data_symbol {
-                    return None;
-                }
-                if !machine.attached_data_symbol.is_valid()
-                    || !program
-                        .data_definitions()
-                        .iter()
-                        .any(|data| data.symbol == machine.attached_data_symbol)
-                {
-                    return None;
-                }
-                if place.segments.is_empty() {
-                    program
-                        .type_reference_table
-                        .find_named_type_reference(machine.attached_data_symbol)?
-                } else {
-                    // Projected self reaches its type through the exact
-                    // attachment field below; no separately authored root
-                    // type is required.
-                    root.type_reference
-                }
-            } else {
-                root.type_reference
-            };
-            (root.is_self, root.symbol, root_type)
+            let root_type = { root.type_reference };
+            (false, root.symbol, root_type)
         }
         None => {
             let (local_ordinal, root_local) =

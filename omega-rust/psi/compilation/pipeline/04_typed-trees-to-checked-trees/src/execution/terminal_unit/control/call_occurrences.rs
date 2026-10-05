@@ -1212,15 +1212,7 @@ fn collect_argument_calls(
     consumed: &mut Vec<arena::Handle<checked_trees::FlowCallFact>>,
 ) -> Option<()> {
     let parameters = crate::semantic::calls::call_target_parameters(program, call.target_symbol)?;
-    let explicit_self = arguments.len()
-        > parameters
-            .iter()
-            .filter(|parameter| !parameter.is_self)
-            .count();
-    let formals = parameters
-        .iter()
-        .filter(|parameter| !parameter.is_self || explicit_self)
-        .collect::<Vec<_>>();
+    let formals = parameters.iter().collect::<Vec<_>>();
     if arguments.len() != formals.len() {
         return None;
     }

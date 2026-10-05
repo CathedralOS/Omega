@@ -442,16 +442,6 @@ fn case_test_subject_actual(
     typed_trees::expression::ExpressionHandle,
     Vec<facts::PlaceSegment>,
 )> {
-    if let typed_trees::expression::ExpressionNode::Name(path) =
-        program.expression_table.expression(subject)
-        && path.symbol.is_valid()
-        && parameters
-            .iter()
-            .any(|parameter| parameter.is_self && parameter.symbol == path.symbol)
-        && let crate::semantic::calls::CallSite::Expression { call, .. } = call_site
-    {
-        return Some((call.receiver, Vec::new()));
-    }
     crate::semantic::places::call_contract_argument_projection(
         program,
         parameters,

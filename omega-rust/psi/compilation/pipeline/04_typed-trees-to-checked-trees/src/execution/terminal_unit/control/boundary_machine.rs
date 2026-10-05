@@ -50,10 +50,6 @@ pub(crate) fn build_boundary_machine(
     let (attachment_type_identity, structural_parameters, scalar_parameters) =
         if machine.supply_mode == language_semantics::MachineSupplyMode::TopLevelRequirement
             && !has_data_attachment
-            && !program
-                .state_parameters(state)
-                .iter()
-                .any(|parameter| parameter.is_self)
         {
             let (structural, scalar) =
                 free_structural_scalar_signature(program, shapes, state, &binders)?;
@@ -262,10 +258,7 @@ pub(crate) fn build_static_boundary_requirements(
             let Some((structural_parameters, scalar_parameters)) = boundary_parameters(
                 program,
                 shapes,
-                program
-                    .state_signature_parameters(signature)
-                    .iter()
-                    .filter(|parameter| !parameter.is_self),
+                program.state_signature_parameters(signature).iter(),
                 &substitutions,
             ) else {
                 continue;
@@ -434,7 +427,7 @@ fn boundary_parameters<'program>(
         }
         structural_parameters.push(CheckedUnitStructuralParameterPlan {
             position: source_position,
-            is_self: parameter.is_self,
+            is_self: false,
             type_identity,
             multiplicity: crate::checks::type_multiplicity(program, parameter_type),
             access: structural_access_for_type_reference(program, parameter_type)?,

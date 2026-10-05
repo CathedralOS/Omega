@@ -1,8 +1,7 @@
 //! Adapter rows, generic boundary requirements and their resolution.
 
 use crate::boundary_dispatch::boundary_fields::{
-    exact_adapter_receiver_shape, exact_boundary_trait, exact_conformance_requirement_identity,
-    named_type_symbol,
+    exact_boundary_trait, exact_conformance_requirement_identity,
 };
 use crate::boundary_dispatch::signature_families::{FamilyProbe, finite_signature_family};
 use diagnostics::Diagnostic;
@@ -18,8 +17,6 @@ pub(crate) struct AdapterRow {
     pub(crate) requirement_symbol: symbols::SymbolHandle,
     pub(crate) adapter_target: String,
     pub(crate) symbol: symbols::SymbolHandle,
-    /// Self-forwarding shape: prepend the call's receiver as argument 0.
-    pub(crate) forward_receiver: bool,
     /// Finite-family tuple this row realizes: canonical const identities in
     /// the requirement's value-binder declaration order (the same strings a
     /// `MachineSpecialization` retains in `const_argument_identities`). Empty
@@ -323,39 +320,15 @@ pub(crate) fn resolve_selected_adapter_row(
         )));
     }
 
-    // The provider subject belongs to its realization, not the boundary's
-    // forwarded arguments. Its declared binding has the same role whether
-    // the satisfier names it explicitly or retains receiver spelling.
-    let subject = typed
-        .state_signature_parameters(signature)
-        .iter()
-        .position(|parameter| parameter.is_self)
-        .and_then(|position| typed.state_parameters(entry).get(position))
-        .filter(|parameter| typed.parameter_declares_attached_data(adapter, parameter));
-    let actual_parameters = typed
-        .state_parameters(entry)
-        .iter()
-        .filter(|parameter| !subject.is_some_and(|subject| subject.symbol == parameter.symbol))
-        .collect::<Vec<_>>();
-    // A trait requirement's receiver is never the adapter's leading
-    // parameter: the adapter's own `self` belongs to the provider, so a
-    // forwarded receiver here is always an owned `Owner` argument.
-    let forward_receiver = match exact_adapter_receiver_shape(
-        typed,
-        &actual_parameters,
-        method.parameter_count,
-        requirement_owner.symbol,
-        None,
-    ) {
-        Some(forward_receiver) => forward_receiver,
-        None => {
-            let count = actual_parameters.len();
-            return Err(Diagnostic::error(format!(
-                "selected checked adapter `{machine_identity}` has {count} non-self entry parameters; exact overload `{}` requires {} or one leading `{}` receiver",
-                method.requirement_identity, method.parameter_count, requirement_owner.name,
-            )));
-        }
-    };
+    let actual_parameters = typed.state_parameters(entry);
+    if actual_parameters.len() != method.parameter_count {
+        return Err(Diagnostic::error(format!(
+            "selected checked adapter for `{}` has {} entry parameters; expected exactly {}",
+            method.requirement_identity,
+            actual_parameters.len(),
+            method.parameter_count,
+        )));
+    }
 
     Ok(vec![ResolvedAdapterRow::Adapter(AdapterRow {
         receiver_trait: receiver_trait.symbol,
@@ -366,7 +339,6 @@ pub(crate) fn resolve_selected_adapter_row(
         requirement_symbol: signature.symbol,
         adapter_target: adapter.name.as_str().to_owned(),
         symbol: entry.symbol,
-        forward_receiver,
         family_tuple: Box::default(),
         family_tuple_display: Box::default(),
         top_level_owner: None,
@@ -378,7 +350,7 @@ pub(crate) fn resolve_selected_adapter_row(
 /// (`pub boundary requirement Owner::name(...);`, optionally with an erased
 /// lifetime telescope `Owner::name<'a>(...)`) settles through a checked-body
 /// adapter with no static generic binders whose sole `satisfies` edge rejoins
-/// that exact requirement symbol with the same non-self arity. A generic
+/// that exact requirement symbol with the same explicit arity. A generic
 /// token-machine requirement instead settles through its selected
 /// specialization roster: the plan row stays keyed by the authored template
 /// and every demanded closed requirement instance emits one row naming the
@@ -429,45 +401,6 @@ fn resolve_top_level_requirement_adapter_row(
             "selected top-level boundary requirement `{requirement_name}` has no exact entry-state symbol",
         )));
     }
-    // `self` types as a plain `Named` `Self` reference and `&self`/`&mut
-    // self` carry a `Reference` node whose referee is that same `Named`
-    // owner; an `in`-qualified receiver carries a `Constrained` node. A
-    // shared `&self` borrows the receiver place for the duration of the
-    // call, so it forwards `&place` to the adapter's leading `&Owner`
-    // parameter -- the same member-call settlement an owned `self` uses,
-    // with the borrow recorded on the spliced argument. A mutating `&mut
-    // self` takes the same forwarding shape: the member call mutably
-    // borrows the place, checking already required a writable receiver
-    // source, and the adapter's leading parameter must be `&mut Owner`.
-    // Write-only and qualified receivers stay closed here: their custody
-    // and obligation transfer are separate shapes this row does not settle.
-    let self_receiver = typed
-        .state_parameters(entry)
-        .iter()
-        .find(|parameter| parameter.is_self);
-    let receiver_access = match self_receiver {
-        Some(self_receiver) => match typed
-            .type_reference_table
-            .type_reference(self_receiver.type_reference)
-        {
-            typed_trees::types::TypeReferenceNode::Named { .. } => None,
-            typed_trees::types::TypeReferenceNode::Reference {
-                referee, access, ..
-            } if matches!(
-                *access,
-                language_core::ReferenceAccess::Shared | language_core::ReferenceAccess::Mutable
-            ) && named_type_symbol(typed, *referee).is_some() =>
-            {
-                Some(*access)
-            }
-            _ => {
-                return Err(Diagnostic::error(format!(
-                    "selected top-level boundary requirement `{requirement_name}` takes a write-only or qualified `self` receiver; only an owned `self`, shared `&self`, or mutable `&mut self` receiver settles a direct-call dispatch row",
-                )));
-            }
-        },
-        None => None,
-    };
     if plan.provider_type.is_empty() {
         return Err(Diagnostic::error(format!(
             "selected checked-adapter ProviderPlan `{}` has no nominal provider type",
@@ -498,8 +431,6 @@ fn resolve_top_level_requirement_adapter_row(
             method,
             requirement,
             adapter,
-            receiver_access,
-            self_receiver.is_some(),
             machine_identity,
             specialization_rows,
         );
@@ -535,31 +466,13 @@ fn resolve_top_level_requirement_adapter_row(
             method.requirement_identity,
         )));
     }
-    let actual_parameters: Vec<_> = typed
-        .state_parameters(adapter_entry)
-        .iter()
-        .filter(|parameter| !parameter.is_self)
-        .collect();
-    let forward_receiver = match exact_adapter_receiver_shape(
-        typed,
-        &actual_parameters,
-        method.parameter_count,
-        requirement.attached_data_symbol,
-        receiver_access,
-    ) {
-        Some(forward_receiver) => forward_receiver,
-        None => {
-            let count = actual_parameters.len();
-            return Err(Diagnostic::error(format!(
-                "selected checked adapter `{machine_identity}` has {count} non-self entry parameters; top-level boundary requirement `{}` requires {} or one leading `{}` receiver",
-                method.requirement_identity, method.parameter_count, plan.provider_type,
-            )));
-        }
-    };
-    if self_receiver.is_some() != forward_receiver {
+    let actual_parameters = typed.state_parameters(adapter_entry);
+    if actual_parameters.len() != method.parameter_count {
         return Err(Diagnostic::error(format!(
-            "selected checked adapter `{machine_identity}` receiver shape does not match top-level boundary requirement `{}`: a `self`/`&self`/`&mut self` requirement forwards the receiver place to a leading owner parameter of the same access, a receiver-free requirement takes the exact declared arity",
+            "selected checked adapter for `{}` has {} entry parameters; expected exactly {}",
             method.requirement_identity,
+            actual_parameters.len(),
+            method.parameter_count,
         )));
     }
     // A direct machine call targets the requirement's entry state, exactly
@@ -573,7 +486,6 @@ fn resolve_top_level_requirement_adapter_row(
         requirement_symbol: entry.symbol,
         adapter_target: adapter.name.as_str().to_owned(),
         symbol: adapter_entry.symbol,
-        forward_receiver,
         family_tuple: Box::default(),
         family_tuple_display: Box::default(),
         top_level_owner: Some(requirement.attached_data_symbol),
@@ -601,8 +513,6 @@ fn resolve_specialized_top_level_requirement_adapter_rows(
     method: &effects::provider_plan::ServiceMethod,
     requirement: &typed_trees::machine::Machine,
     adapter: &typed_trees::machine::Machine,
-    receiver_access: Option<language_core::ReferenceAccess>,
-    requirement_self_receiver: bool,
     machine_identity: &str,
     specialization_rows: &[effects::SelectedRequirementSpecialization],
 ) -> Result<Vec<ResolvedAdapterRow>, Diagnostic> {
@@ -668,16 +578,6 @@ fn resolve_specialized_top_level_requirement_adapter_rows(
                 closed.name,
             )));
         }
-        let closed_self_receiver = typed
-            .state_parameters(closed_entry)
-            .iter()
-            .any(|parameter| parameter.is_self);
-        if closed_self_receiver != requirement_self_receiver {
-            return Err(Diagnostic::error(format!(
-                "closed requirement instance `{}` drifts from the receiver shape its requirement template declares",
-                closed.name,
-            )));
-        }
         let Some(instance) = typed.machine_by_callable_identity(
             typed.callable_identity_by_text(&specialization.machine_identity),
         ) else {
@@ -723,33 +623,13 @@ fn resolve_specialized_top_level_requirement_adapter_rows(
                 specialization.machine_identity,
             )));
         }
-        let actual_parameters = typed
-            .state_parameters(instance_entry)
-            .iter()
-            .filter(|parameter| !parameter.is_self)
-            .collect::<Vec<_>>();
-        let forward_receiver = match exact_adapter_receiver_shape(
-            typed,
-            &actual_parameters,
-            method.parameter_count,
-            closed.attached_data_symbol,
-            receiver_access,
-        ) {
-            Some(forward_receiver) => forward_receiver,
-            None => {
-                let count = actual_parameters.len();
-                return Err(Diagnostic::error(format!(
-                    "selected provider instance `{}` has {count} non-self entry parameters; closed requirement `{}` requires {} or one leading owner receiver",
-                    specialization.machine_identity,
-                    specialization.requirement_identity,
-                    method.parameter_count,
-                )));
-            }
-        };
-        if closed_self_receiver != forward_receiver {
+        let actual_parameters = typed.state_parameters(instance_entry);
+        if actual_parameters.len() != method.parameter_count {
             return Err(Diagnostic::error(format!(
-                "selected provider instance `{}` receiver shape does not match closed requirement `{}`: a `self`/`&self`/`&mut self` requirement forwards the receiver place to a leading owner parameter of the same access, a receiver-free requirement takes the exact declared arity",
-                specialization.machine_identity, specialization.requirement_identity,
+                "selected checked adapter for `{}` has {} entry parameters; expected exactly {}",
+                method.requirement_identity,
+                actual_parameters.len(),
+                method.parameter_count,
             )));
         }
         resolved.push(ResolvedAdapterRow::Adapter(AdapterRow {
@@ -761,7 +641,6 @@ fn resolve_specialized_top_level_requirement_adapter_rows(
             requirement_symbol: closed_entry.symbol,
             adapter_target: instance.name.as_str().to_owned(),
             symbol: instance_entry.symbol,
-            forward_receiver,
             family_tuple: Box::default(),
             family_tuple_display: Box::default(),
             top_level_owner: Some(closed.attached_data_symbol),
@@ -916,28 +795,16 @@ fn resolve_family_adapter_row(
     }
 
     // The template entry's parameter shape is invariant under const
-    // specialization, so the receiver check is computed once on the template.
-    let actual_parameters = typed
-        .state_parameters(template_entry)
-        .iter()
-        .filter(|parameter| !parameter.is_self)
-        .collect::<Vec<_>>();
-    let forward_receiver = match exact_adapter_receiver_shape(
-        typed,
-        &actual_parameters,
-        method.parameter_count,
-        requirement_owner.symbol,
-        None,
-    ) {
-        Some(forward_receiver) => forward_receiver,
-        None => {
-            let count = actual_parameters.len();
-            return Err(Diagnostic::error(format!(
-                "selected checked adapter `{machine_identity}` has {count} non-self entry parameters; exact overload `{}` requires {} or one leading `{}` receiver",
-                method.requirement_identity, method.parameter_count, requirement_owner.name,
-            )));
-        }
-    };
+    // specialization, so the arity check is computed once on the template.
+    let actual_parameters = typed.state_parameters(template_entry);
+    if actual_parameters.len() != method.parameter_count {
+        return Err(Diagnostic::error(format!(
+            "selected checked adapter for `{}` has {} entry parameters; expected exactly {}",
+            method.requirement_identity,
+            actual_parameters.len(),
+            method.parameter_count,
+        )));
+    }
 
     let mut rows = Vec::new();
     let mut missing = Vec::new();
@@ -1005,7 +872,6 @@ fn resolve_family_adapter_row(
             requirement_symbol: signature.symbol,
             adapter_target: instance.name.as_str().to_owned(),
             symbol: entry.symbol,
-            forward_receiver,
             family_tuple: tuple.identities.clone(),
             family_tuple_display: tuple.display.clone(),
             top_level_owner: None,

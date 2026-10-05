@@ -235,7 +235,7 @@ fn authored_store(
         Some(statement_index as usize),
         assignment.target,
     )?;
-    target.path = authored_storage_path(checked, machine, state, &target)?;
+    target.path = authored_storage_path(checked, state, &target)?;
     Ok((assignment, target))
 }
 
@@ -245,7 +245,6 @@ fn authored_store(
 /// retain their original steps around each explicit crossing.
 fn authored_storage_path(
     checked: &CheckedTrees,
-    machine: &checked_trees::machine::Machine,
     state: &checked_trees::state::State,
     target: &crate::emission::call_source_custody::projected_receivers::ReceiverSource,
 ) -> Result<Vec<CheckedUnitStructuralPathSegment>, LoweringError> {
@@ -263,16 +262,7 @@ fn authored_storage_path(
         else {
             return Err(invalid());
         };
-        (
-            *referee,
-            if parameter.is_self {
-                checked
-                    .typed
-                    .unique_data_definition_by_symbol(machine.attached_data_symbol)
-            } else {
-                None
-            },
-        )
+        (*referee, None)
     } else {
         let (_, local) = checked
             .state_local_declaration(state, target.root)

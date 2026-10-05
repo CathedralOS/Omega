@@ -29,8 +29,8 @@ pub(crate) fn contract_call_value_receiver(
     if !call.receiver.is_valid() {
         return None;
     }
-    if target.and_then(|target| contract_call_target_has_self_parameter(compilation, target))
-        == Some(false)
+    if target
+        .is_some_and(|target| contract_call_target_parameter_sets(compilation, target).len() == 1)
     {
         return None;
     }
@@ -53,17 +53,6 @@ pub(crate) fn contract_call_value_receiver(
         }
     }
     Some(call.receiver)
-}
-
-fn contract_call_target_has_self_parameter(
-    compilation: &PackageReviewInput<'_>,
-    target: SymbolHandle,
-) -> Option<bool> {
-    let candidates = contract_call_target_parameter_sets(compilation, target);
-    let [parameters] = candidates.as_slice() else {
-        return None;
-    };
-    Some(parameters.iter().any(|parameter| parameter.is_self))
 }
 
 fn contract_call_target_parameter_sets<'a>(
@@ -121,10 +110,7 @@ pub(crate) fn require_exact_contract_call_reference_arguments(
     let arguments = compilation
         .expression_table
         .expression_handles(call.arguments);
-    let parameters = parameters
-        .iter()
-        .filter(|parameter| !parameter.is_self)
-        .collect::<Vec<_>>();
+    let parameters = parameters.iter().collect::<Vec<_>>();
     if arguments.len() != parameters.len() {
         return Err(vec![Diagnostic::error(format!(
             "reviewed {} `{}` contract call has inconsistent checked value arity",

@@ -13,7 +13,6 @@ use checked_trees::{
     CheckedScalarExpression, CheckedScalarExpressionRole, CheckedTrees,
     CheckedUnitStructuralPathSegment,
 };
-use language_semantics::Multiplicity;
 use semantic_vocabulary::{PlaceId, ScalarType, StructuralFieldId, StructuralTypeId};
 use terminal_psi::{
     StructuralAccess, StructuralArgument, StructuralFieldType, StructuralMultiplicity,

@@ -48,9 +48,7 @@ fn exact_mutable_referent(
         .iter()
         .filter(|parameter| parameter.symbol == source_symbol);
     let source = sources.next()?;
-    if sources.next().is_some()
-        || !source_symbol.is_valid()
-        || source.is_self
+    if (sources.next().is_some() || !source_symbol.is_valid())
         || source.is_const
         || structural_access_for_type_reference(program, source.type_reference)?
             != CheckedStructuralAccess::MutableBorrow
@@ -86,10 +84,7 @@ fn exact_mutable_referent(
     let arguments = crate::semantic::calls::call_site_argument_expressions(program, &site);
     // Method calls pass no expression for the receiver: align the formal list
     // with the authored argument list by dropping `self`, then compare kinds.
-    let formals: Vec<&typed_trees::signature::StateParameter> = parameters
-        .iter()
-        .filter(|parameter| !parameter.is_self)
-        .collect();
+    let formals: Vec<&typed_trees::signature::StateParameter> = parameters.iter().collect();
     if formals.len() != arguments.len() || formals.iter().any(|parameter| parameter.is_const) {
         return None;
     }
@@ -314,14 +309,7 @@ fn preceding_reborrow_preserves_carrier(
     // Runtime receivers supply `self` separately; static carrier calls may
     // spell it as the first argument. Rejoin the same explicit telescope as
     // ordinary call planning before judging a completed operand's reborrow.
-    let explicit_self = arguments.len()
-        > parameters
-            .iter()
-            .filter(|parameter| !parameter.is_self)
-            .count();
-    let parameters = parameters
-        .iter()
-        .filter(|parameter| explicit_self || !parameter.is_self);
+    let parameters = parameters.iter();
     if parameters.clone().count() != arguments.len() {
         return false;
     }
@@ -331,8 +319,7 @@ fn preceding_reborrow_preserves_carrier(
     let Some((parameter, expression)) = matching.next() else {
         return false;
     };
-    if matching.next().is_some()
-        || parameter.is_self
+    if (matching.next().is_some())
         || parameter.is_const
         || !(crate::execution::terminal_unit::calls::boundary_admission::fixed_byte_array_view_is_admitted(
             program,

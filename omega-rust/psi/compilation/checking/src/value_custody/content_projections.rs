@@ -598,7 +598,7 @@ fn projection_subject(program: &TypedTrees, machine: &Machine) -> Option<Project
     let [parameter] = program.state_parameters(state) else {
         return None;
     };
-    if parameter.is_self || parameter.is_mutable {
+    if parameter.is_mutable {
         return None;
     }
     match program

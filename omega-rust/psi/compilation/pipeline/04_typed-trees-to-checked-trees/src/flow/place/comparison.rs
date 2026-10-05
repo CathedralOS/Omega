@@ -95,8 +95,7 @@ pub(crate) fn canonical_places_agree(
     left: &super::CanonicalPlace,
     right: &super::CanonicalPlace,
 ) -> bool {
-    crate::flow::ownership::normalized_event_place_root(program, left.root)
-        == crate::flow::ownership::normalized_event_place_root(program, right.root)
+    left.root == right.root
         && left.segments.len() == right.segments.len()
         && left
             .segments

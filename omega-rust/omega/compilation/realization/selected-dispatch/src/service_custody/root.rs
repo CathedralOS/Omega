@@ -171,9 +171,6 @@ pub fn derive_fused_program_entry_establishments(
     let structural_identity =
         |attachment: &Option<String>,
          parameters: &[checked_trees::CheckedUnitStructuralParameterPlan]| {
-            if receiver_parameter.is_self {
-                return attachment.clone();
-            }
             if attachment.is_some() {
                 return None;
             }

@@ -360,32 +360,6 @@ pub(crate) fn instantiate_call_contract_expression_label(
                 let parameter_matches = first_member == Some(parameter.name.as_str())
                     || path.head_symbol == parameter.symbol
                     || path.symbol == parameter.symbol;
-                if parameter.is_self {
-                    if parameter_matches {
-                        // The callee's self denotes the selected receiver, not
-                        // necessarily the caller's enclosing machine value.
-                        return match call_site {
-                            crate::semantic::calls::CallSite::Expression { call, .. }
-                                if call.receiver.is_valid() =>
-                            {
-                                program.render_proof_expression(
-                                    call.receiver,
-                                    ProofSubstitutions::None,
-                                )
-                            }
-                            crate::semantic::calls::CallSite::Statement(call)
-                                if !call.receiver.is_empty() =>
-                            {
-                                typed_trees::expression::display_name_path(
-                                    program.statement_table.name_path_members(call.receiver),
-                                    ".",
-                                )
-                            }
-                            _ => "self".to_owned(),
-                        };
-                    }
-                    continue;
-                }
 
                 let argument = arguments.get(argument_index).copied();
                 argument_index = argument_index.saturating_add(1);

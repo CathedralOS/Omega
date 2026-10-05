@@ -344,7 +344,7 @@ impl GuardContext<'_> {
         self.program
             .state_parameters(state)
             .iter()
-            .find(|parameter| parameter.symbol == symbol && !parameter.is_self)
+            .find(|parameter| parameter.symbol == symbol)
             .map(|parameter| RootBinding {
                 sensitive: parameter.is_mutable
                     || self

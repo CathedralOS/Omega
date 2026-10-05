@@ -229,16 +229,6 @@ impl<'program> Evaluator<'program> {
                 let Some(state) = self.program.machine_states(machine).first() else {
                     return trap("selected operator realization has no entry state");
                 };
-                // A static requirement contributes no receiver; a realization
-                // that expects one cannot run from this call.
-                if self
-                    .program
-                    .state_parameters(state)
-                    .iter()
-                    .any(|parameter| parameter.is_self)
-                {
-                    return Ok(None);
-                }
                 Ok(Some(SelectedRealization::CheckedBody { machine, state }))
             }
             ([], 1.., 0) => Ok(self.compiler_known_realization(requirement.signature, adapter)),
@@ -386,7 +376,7 @@ impl<'program> Evaluator<'program> {
         let [parameter] = self.program.operator_parameters(signature) else {
             return None;
         };
-        if parameter.is_self || parameter.is_const || parameter.is_mutable {
+        if parameter.is_const || parameter.is_mutable {
             return None;
         }
         let source = self

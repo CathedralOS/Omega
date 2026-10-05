@@ -22,7 +22,7 @@ pub(in crate::execution::terminal_unit) fn checked_state_contracts_supported(
 
 pub(in crate::execution::terminal_unit) fn checked_structural_signature_contract_supported(
     program: &TypedTrees,
-    machine: &typed_trees::machine::Machine,
+    _machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     structural_parameters: &[CheckedUnitStructuralParameterPlan],
     contract: &typed_trees::signature::SignatureContract,
@@ -50,10 +50,9 @@ pub(in crate::execution::terminal_unit) fn checked_structural_signature_contract
                     let facts::PlaceRoot::Symbol(root) = place.root else {
                         return false;
                     };
-                    let rooted_in_telescope = source_parameters.iter().any(|parameter| {
-                        parameter_root_symbol(machine.symbol, parameter) == root
-                            || parameter.symbol == root
-                    });
+                    let rooted_in_telescope = source_parameters
+                        .iter()
+                        .any(|parameter| (parameter).symbol == root || parameter.symbol == root);
                     return rooted_in_telescope
                         && place
                             .segments
@@ -66,10 +65,10 @@ pub(in crate::execution::terminal_unit) fn checked_structural_signature_contract
                 let facts::PlaceRoot::Symbol(root) = place.root else {
                     return false;
                 };
-                let Some(position) = source_parameters.iter().position(|parameter| {
-                    parameter_root_symbol(machine.symbol, parameter) == root
-                        || parameter.symbol == root
-                }) else {
+                let Some(position) = source_parameters
+                    .iter()
+                    .position(|parameter| (parameter).symbol == root || parameter.symbol == root)
+                else {
                     return false;
                 };
                 let Some(domain) = type_domain_semantic_id(
@@ -121,17 +120,6 @@ pub(in crate::execution::terminal_unit) fn signature_contracts_are_exact_paramet
                         };
                         if !domain.semantic_id.is_valid() {
                             return false;
-                        }
-                        if parameter.is_self
-                            && program.domain_definitions().iter().any(|definition| {
-                                definition.symbol == domain.symbol
-                                    && definition.classification
-                                        == Some(
-                                            language_semantics::DomainClassification::ProgressProfile,
-                                        )
-                            })
-                        {
-                            continue;
                         }
                         expected.push((position, domain.semantic_id));
                     }
@@ -225,24 +213,12 @@ pub(in crate::execution::terminal_unit) fn signature_contracts_are_exact_paramet
             let [name] = program.expression_table.name_path_members(path.members) else {
                 return false;
             };
-            let Some(position) = parameters.iter().position(|parameter| {
-                parameter.symbol == path.symbol
-                    || parameter.name == *name
-                    || (parameter.is_self && name.is_self_receiver())
-            }) else {
+            let Some(position) = parameters
+                .iter()
+                .position(|parameter| parameter.symbol == path.symbol || parameter.name == *name)
+            else {
                 return false;
             };
-            // A provider receiver's progress profile is an installation-time
-            // premise, not an outbound structural ABI qualification.
-            if parameters[position].is_self
-                && program.domain_definitions().iter().any(|domain| {
-                    domain.symbol == membership.domain_symbol
-                        && domain.classification
-                            == Some(language_semantics::DomainClassification::ProgressProfile)
-                })
-            {
-                continue;
-            }
             if contract.token_count != 0 {
                 return false;
             }
@@ -324,9 +300,9 @@ pub(in crate::execution::terminal_unit) fn boundary_domain_requirements(
         let facts::PlaceRoot::Symbol(root) = place.root else {
             return None;
         };
-        let source_position = source_parameters.iter().position(|parameter| {
-            parameter_root_symbol(machine.symbol, parameter) == root || parameter.symbol == root
-        })?;
+        let source_position = source_parameters
+            .iter()
+            .position(|parameter| (parameter).symbol == root || parameter.symbol == root)?;
         let argument_index = structural_parameters
             .iter()
             .position(|parameter| parameter.position as usize == source_position)?;

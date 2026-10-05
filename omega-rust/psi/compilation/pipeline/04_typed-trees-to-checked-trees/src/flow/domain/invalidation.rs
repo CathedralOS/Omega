@@ -7,7 +7,7 @@ use checked_trees::{
 use facts::{FactPayload, FactPlace, FactPlan};
 mod matching;
 
-use self::matching::{matching_mutation_for_fact_place, prepare_mutated_places};
+use self::matching::matching_mutation_for_fact_place;
 
 pub(crate) fn filter_contexts_after_place_mutations(
     program: &typed_trees::TypedTrees,
@@ -23,7 +23,6 @@ pub(crate) fn filter_contexts_after_place_mutations(
     if mutated_places.is_empty() {
         return source;
     }
-    let mutated_places = prepare_mutated_places(program, mutated_places);
 
     reference_spans::filter_flow_references(semantic_context_refs, source, |context_ref| {
         let context = semantic.contexts.get(context_ref.context);
@@ -45,7 +44,7 @@ pub(crate) fn filter_contexts_after_place_mutations(
                 domain_dependencies,
                 fact,
                 place,
-                &mutated_places,
+                mutated_places,
             ) else {
                 continue;
             };

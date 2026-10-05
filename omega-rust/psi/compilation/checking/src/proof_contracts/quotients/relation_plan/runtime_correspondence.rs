@@ -224,7 +224,7 @@ pub(super) fn derive_direct_lift_runtime_correspondence(
             }
             DirectLiftArgumentSource::PublicParameter(public.symbol)
         } else {
-            if representative_parameter.is_mutable || representative_parameter.is_self {
+            if representative_parameter.is_mutable {
                 return Err(RelationPlanError::DirectLiftParameterModeMismatch(position));
             }
             let literal = closed_lift_literal_for_representative(

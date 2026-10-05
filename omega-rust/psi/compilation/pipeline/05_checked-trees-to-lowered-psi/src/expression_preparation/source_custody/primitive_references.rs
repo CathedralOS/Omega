@@ -16,7 +16,7 @@ pub(super) fn parameter_type(
     checked: &CheckedTrees,
     parameter: &StateParameter,
 ) -> Option<(PrimitiveType, StructuralAccess)> {
-    if !parameter.symbol.is_valid() || parameter.is_self || parameter.is_const {
+    if !parameter.symbol.is_valid() || parameter.is_const {
         return None;
     }
     reference_type(checked, parameter.type_reference)

@@ -340,19 +340,7 @@ pub(crate) fn call_signature_from_top_level_requirement(
     let mut parameters = Vec::with_capacity(runtime_parameters.len());
     let mut native_parameters = Vec::with_capacity(runtime_parameters.len());
     for (formal_ordinal, parameter) in runtime_parameters.iter().enumerate() {
-        let (_, root) = if parameter.is_self {
-            let attachment = typed
-                .data_definitions()
-                .iter()
-                .find(|definition| definition.symbol == requirement.attached_data_symbol)
-                .ok_or_else(|| {
-                    "top-level boundary requirement `self` lost its exact attached data declaration"
-                        .to_owned()
-                })?;
-            values.data(attachment.symbol, attachment.name.as_str())
-        } else {
-            values.value_type(parameter.type_reference)
-        }?;
+        let (_, root) = values.value_type(parameter.type_reference)?;
         parameters.push(root);
         let native_ordinal = u32::try_from(formal_ordinal)
             .map_err(|_| "top-level boundary requirement has too many runtime parameters")?;
@@ -372,11 +360,7 @@ pub(crate) fn call_signature_from_top_level_requirement(
             origin: BoundaryNativeParameterOrigin::SemanticFormal {
                 formal_ordinal: native_ordinal,
             },
-            layout_data_symbol: if parameter.is_self {
-                requirement.attached_data_symbol
-            } else {
-                exact_boundary_layout_root_symbol(typed, parameter.type_reference)
-            },
+            layout_data_symbol: exact_boundary_layout_root_symbol(typed, parameter.type_reference),
         });
     }
 
@@ -692,7 +676,6 @@ pub(crate) fn call_signature_from_typed(
     let runtime_parameters = typed
         .state_signature_parameters(signature)
         .iter()
-        .filter(|parameter| !parameter.is_self)
         .collect::<Vec<_>>();
     let total_native_parameters = runtime_parameters
         .len()

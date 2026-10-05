@@ -52,12 +52,7 @@ pub fn attached_storage_root<'parameters>(
         return None;
     }
     let parameter = program.data_binding_parameter(machine, parameters)?;
-    if parameter.is_self {
-        return Some(AttachedStorageRoot {
-            name: SELF_RECEIVER,
-            symbol: machine.symbol,
-        });
-    }
+
     parameter.symbol.is_valid().then(|| AttachedStorageRoot {
         name: parameter.name.as_str(),
         symbol: parameter.symbol,

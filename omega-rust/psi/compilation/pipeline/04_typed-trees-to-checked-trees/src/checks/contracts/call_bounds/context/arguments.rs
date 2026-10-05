@@ -70,10 +70,8 @@ pub(super) fn capture_is_current<'program>(
         )
         .is_some_and(|writes| {
             writes.iter().all(|write| {
-                let root = crate::flow::normalized_event_place_root(program, write.root);
-                !captured.iter().any(|captured| {
-                    root == crate::flow::normalized_event_place_root(program, *captured)
-                })
+                let root = write.root;
+                !captured.iter().any(|captured| root == (*captured))
             })
         })
     })
@@ -154,18 +152,8 @@ fn meaning(
             // closed vocabulary gives it no binding -- its atom would collide
             // with the caller's same-declared parameter in a recursive call.
             let machine = crate::lookup::machine_by_symbol(program, owner)?;
-            // `self` canonicalizes to the machine-symbol root; some surfaces
-            // spell the is_self parameter's symbol instead.
-            let self_root = program
-                .machine_states(machine)
-                .iter()
-                .flat_map(|state| program.state_parameters(state))
-                .find(|parameter| parameter.is_self)
-                .map(|parameter| parameter.symbol);
             match crate::flow::canonical_place_from_expression(program, expression) {
-                Some(place)
-                    if place.root == facts::PlaceRoot::Symbol(machine.symbol)
-                        || Some(place.root) == self_root.map(facts::PlaceRoot::Symbol) => {}
+                Some(place) if place.root == facts::PlaceRoot::Symbol(machine.symbol) => {}
                 _ => return None,
             }
             let type_reference = validation::declared_place_type_raw(

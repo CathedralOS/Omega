@@ -331,7 +331,7 @@ fn owned_input(
     };
     *complete
         && parameter.symbol == symbol
-        && parameter.is_self == is_self
+        && !is_self
         && sources.iter().any(|source| {
             !source.borrowed
                 && source.domain.symbol == projection.domain

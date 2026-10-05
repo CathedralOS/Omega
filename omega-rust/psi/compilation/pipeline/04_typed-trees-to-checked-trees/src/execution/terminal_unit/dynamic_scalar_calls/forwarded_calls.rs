@@ -154,8 +154,7 @@ fn resolve_forwarded_dynamic_call<'program, 'facts, Lane: DynamicResultLane>(
         let [parameter] = program.state_parameters(target_state) else {
             return None;
         };
-        if parameter.is_self
-            || parameter.is_const
+        if (parameter.is_const)
             || !parameter.symbol.is_valid()
             || parameter.symbol != current.parameter
             || current.parameter_position != 0

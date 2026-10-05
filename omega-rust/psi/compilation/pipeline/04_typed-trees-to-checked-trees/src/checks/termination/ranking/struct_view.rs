@@ -32,7 +32,6 @@ pub(super) fn state_has_proven_self_loop(
     let Some((argument_index, parameter)) = program
         .state_parameters(state)
         .iter()
-        .filter(|parameter| !parameter.is_self)
         .enumerate()
         .find(|(_, parameter)| exact_parameter(program, decreases, parameter.symbol))
     else {

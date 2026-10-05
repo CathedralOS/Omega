@@ -11,7 +11,7 @@ use checked_trees::{
 
 use crate::execution::terminal_unit::cleanup::service_reach_is_empty;
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
-use crate::execution::terminal_unit::types::{ShapeCollector, base_type_identity, machine_binders};
+use crate::execution::terminal_unit::types::{base_type_identity, machine_binders};
 use crate::execution::terminal_unit::{
     CheckFacts, CheckedStructuralAccess, CheckedUnitEffectOperationPlan,
     CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralParameterPlan,
@@ -124,8 +124,7 @@ pub(super) fn build(
                         program
                             .primitive_type_reference(parameter.type_reference)
                             .is_none()
-                            && !(parameter.is_self
-                                && is_reference(program, parameter.type_reference))
+                            && !(false && is_reference(program, parameter.type_reference))
                     })
                     .nth(argument_index)
                     .is_some_and(|parameter| {
@@ -133,32 +132,7 @@ pub(super) fn build(
                         // Use the same checked signature that declares the
                         // callee's receiver; this also covers non-generic
                         // attachments without a retained owner application.
-                        if parameter.is_self {
-                            let Some((_, parameters, _)) = super::structural_scalar_signature(
-                                program,
-                                &mut ShapeCollector::new(program),
-                                target_machine,
-                                target_state,
-                                &[],
-                                false,
-                            ) else {
-                                return false;
-                            };
-                            return parameters.iter().find(|formal| formal.is_self).is_some_and(
-                                |formal| {
-                                    formal.access == CheckedStructuralAccess::Owned
-                                        && matches!(
-                                            formal.multiplicity,
-                                            Multiplicity::Affine | Multiplicity::Unrestricted
-                                        )
-                                        && formal.type_identity == argument.type_identity
-                                        && formal.qualifications.is_empty()
-                                        && formal.projected_qualifications.is_empty()
-                                        && formal.fused_service_erasure.is_none()
-                                        && argument.path.is_empty()
-                                },
-                            );
-                        }
+
                         let carrier = parameter.type_reference;
                         (validation::is_closed_primitive_array_type(
                                 program,

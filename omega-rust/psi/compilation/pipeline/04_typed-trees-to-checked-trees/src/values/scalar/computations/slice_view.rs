@@ -72,12 +72,7 @@ impl Builder<'_, '_> {
                 })?;
         let state = crate::semantic::calls::find_state(self.program, self.state)?;
         let (mut place, access) = self.view_formation(expression, expected, view.access)?;
-        crate::flow::normalize_attached_place_root(
-            self.program,
-            self.machine,
-            self.state,
-            &mut place,
-        );
+
         let machine = crate::lookup::machine_by_symbol(self.program, self.machine)?;
         let authored_recast = validation::slice_recast_source(self.program, expression);
         let recast = validation::slice_recast_byte_region(self.program, machine, state, expression);
@@ -89,14 +84,9 @@ impl Builder<'_, '_> {
                 return None;
             }
             if recast.is_none() {
-                let mut collection =
+                let collection =
                     crate::flow::canonical_place_from_expression(self.program, authored.source)?;
-                crate::flow::normalize_attached_place_root(
-                    self.program,
-                    self.machine,
-                    self.state,
-                    &mut collection,
-                );
+
                 if collection != place {
                     return None;
                 }
@@ -109,14 +99,9 @@ impl Builder<'_, '_> {
             {
                 return None;
             }
-            let mut collection =
+            let collection =
                 crate::flow::canonical_place_from_expression(self.program, region.collection)?;
-            crate::flow::normalize_attached_place_root(
-                self.program,
-                self.machine,
-                self.state,
-                &mut collection,
-            );
+
             // Literal suffixes have an exact range loan. A runtime suffix
             // borrows the whole byte backing conservatively; its captured
             // endpoints, rather than an element-sized loan, narrow the view.

@@ -5,7 +5,7 @@ use crate::flow::{CanonicalPlace, FlowBuildContext};
 use arena::HandleSpan;
 use checked_trees::FlowSemanticContextRef;
 use facts::{FactOrigin, FactPlan, ProgramPoint, ScalarValue};
-use typed_trees::{TypedTrees, expression::ExpressionHandle, machine::Machine, state::State};
+use typed_trees::{TypedTrees, expression::ExpressionHandle, state::State};
 
 pub(super) fn meet(previous: &mut Vec<BoundPredicate>, incoming: &[BoundPredicate]) -> bool {
     let before = previous.len();
@@ -18,7 +18,6 @@ pub(super) fn capture(
     program: &TypedTrees,
     semantic: &FactPlan,
     build: &mut FlowBuildContext,
-    machine: &Machine,
     state: &State,
     destination: &State,
     statement_index: usize,
@@ -35,41 +34,17 @@ pub(super) fn capture(
     let mut transfers = Vec::new();
     let mut arguments = arguments.iter();
     for parameter in program.state_parameters(destination) {
-        let source = if parameter.is_self {
-            program
-                .state_parameters(state)
-                .iter()
-                .find(|parameter| parameter.is_self)
-                .and_then(|parameter| crate::flow::canonical_place_from_symbol(parameter.symbol))
-        } else {
+        let source = {
             arguments.next().and_then(|argument| {
                 build.canonical_place_at(program, state.symbol, statement_index, *argument)
             })
         };
-        if let Some(mut source) = source {
-            crate::flow::normalize_attached_place_root(
-                program,
-                machine.symbol,
-                state.symbol,
-                &mut source,
-            );
-            source.root = crate::flow::normalized_event_place_root(program, source.root);
+        if let Some(source) = source {
             transfers.push((source, parameter.symbol));
         }
     }
-    let normalize = |place: &CanonicalPlace| {
-        let mut place = place.clone();
-        crate::flow::normalize_attached_place_root(
-            program,
-            machine.symbol,
-            state.symbol,
-            &mut place,
-        );
-        place.root = crate::flow::normalized_event_place_root(program, place.root);
-        place
-    };
     let rebase = |binding: &BoundObservation| {
-        let source = normalize(&binding.place);
+        let source = &binding.place;
         let mut candidate = None;
         for (argument, parameter) in &transfers {
             if argument.root != source.root || !source.segments.starts_with(&argument.segments) {

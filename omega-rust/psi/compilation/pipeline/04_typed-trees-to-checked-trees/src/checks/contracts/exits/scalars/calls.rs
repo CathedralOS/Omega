@@ -249,10 +249,7 @@ impl ExitScalars<'_, '_> {
         let (callee, entry) =
             crate::semantic::calls::find_machine_by_entry_state(self.program, call.target_symbol)?;
         let parameters = self.program.state_parameters(entry);
-        if parameters
-            .iter()
-            .any(|parameter| parameter.is_self || parameter.is_const)
-        {
+        if parameters.iter().any(|parameter| parameter.is_const) {
             return None;
         }
         let arguments = self

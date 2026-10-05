@@ -20,7 +20,6 @@ use crate::flow::symbol_type_symbol;
 use crate::semantic::calls::find_state;
 use checked_trees::expression::ExpressionNode;
 use checked_trees::statement::StatementNode;
-use language_core::is_self_receiver;
 use symbols::SymbolHandle;
 mod coordinates;
 pub(crate) use coordinates::origin_place;
@@ -66,7 +65,7 @@ pub(crate) fn close_storage_places_over_aliases_with_resolver(
         let (source, exact) = origin_place(program, state, statement_index, &origin)?;
         let normalized_source_root = *normalized_roots
             .entry(source.root)
-            .or_insert_with(|| crate::flow::normalized_event_place_root(program, source.root));
+            .or_insert_with(|| source.root);
         // The alias base is per-origin; it is built lazily so a `None` from
         // `canonical_place_from_symbol` only surfaces when a root-matching
         // place pair actually reaches it, as before.
@@ -74,7 +73,7 @@ pub(crate) fn close_storage_places_over_aliases_with_resolver(
         for place in &storage {
             let normalized_place_root = *normalized_roots
                 .entry(place.root)
-                .or_insert_with(|| crate::flow::normalized_event_place_root(program, place.root));
+                .or_insert_with(|| place.root);
             if normalized_source_root != normalized_place_root {
                 continue;
             }
@@ -381,11 +380,7 @@ pub(crate) fn place_from_origin_path(
     let root = program
         .state_parameters(state)
         .iter()
-        .find_map(|parameter| {
-            ((parameter.is_self && is_self_receiver(root_name))
-                || parameter.name.as_str() == root_name)
-                .then_some(parameter.symbol)
-        })
+        .find_map(|parameter| (parameter.name.as_str() == root_name).then_some(parameter.symbol))
         .or_else(|| {
             program
                 .statement_table

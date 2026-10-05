@@ -149,7 +149,7 @@ pub(crate) fn infer_return_interval(
     // beneath constraints). Only immutable scalar values can retain caller
     // bounds across the body; borrowed or mutable storage is never seeded.
     for parameter in program.state_parameters(callee_state) {
-        if parameter.is_self || parameter.is_mutable || parameter.is_const {
+        if parameter.is_mutable || parameter.is_const {
             continue;
         }
         if let Some(carrier) = program

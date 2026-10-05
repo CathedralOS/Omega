@@ -319,7 +319,6 @@ pub(in crate::checks) fn collect_incoming_guard_facts_with_call_frames(
             program
                 .state_parameters(state)
                 .iter()
-                .filter(|parameter| !parameter.is_self)
                 .map(|parameter| {
                     (
                         parameter.symbol,
@@ -554,9 +553,6 @@ fn compose_parameter_argument_places(
     let mut replacements = Vec::new();
     let mut argument_index = 0usize;
     for parameter in program.state_parameters(target_state) {
-        if parameter.is_self {
-            continue;
-        }
         let argument = arguments.get(argument_index)?;
         replacements.push((
             parameter.symbol,
@@ -588,7 +584,6 @@ fn direct_edge_parameter_argument_places(
     let identity = program
         .state_parameters(target_state)
         .iter()
-        .filter(|parameter| !parameter.is_self)
         .map(|parameter| {
             (
                 parameter.symbol,
@@ -614,7 +609,6 @@ fn compose_carried_parameter_argument_places(
     let replacements = program
         .state_parameters(source_state)
         .iter()
-        .filter(|parameter| !parameter.is_self)
         .map(|parameter| {
             (
                 parameter.symbol,
@@ -642,7 +636,6 @@ fn immutable_parameter_symbols(
     program
         .state_parameters(state)
         .iter()
-        .filter(|parameter| !parameter.is_self)
         .map(|parameter| {
             (
                 parameter.symbol,
@@ -759,7 +752,7 @@ fn immutable_integer_binding(
         .iter()
         .find(|parameter| parameter.symbol == symbol)
     {
-        if parameter.is_mutable || parameter.is_self {
+        if parameter.is_mutable {
             return false;
         }
         parameter.type_reference
@@ -1196,7 +1189,7 @@ fn expression_in_stable_scope(
             else {
                 return false;
             };
-            match crate::flow::normalized_event_place_root(program, place.root) {
+            match place.root {
                 facts::PlaceRoot::Symbol(symbol) if symbol == machine.symbol => true,
                 facts::PlaceRoot::Symbol(symbol) if symbol.is_valid() => {
                     parameter_bound_identically(
@@ -1283,10 +1276,8 @@ fn guard_uses_machine_storage_only(
     let eligible = |expression| guard_uses_machine_storage_only(program, machine, expression);
     match program.expression_table.expression(expression) {
         ExpressionNode::Name(_) => {
-            crate::flow::canonical_place_from_expression(program, expression).is_some_and(|place| {
-                crate::flow::normalized_event_place_root(program, place.root)
-                    == facts::PlaceRoot::Symbol(machine.symbol)
-            })
+            crate::flow::canonical_place_from_expression(program, expression)
+                .is_some_and(|place| (place.root) == facts::PlaceRoot::Symbol(machine.symbol))
         }
         ExpressionNode::Member(member) => eligible(member.receiver),
         ExpressionNode::Indexed(indexed) => eligible(indexed.collection) && eligible(indexed.index),

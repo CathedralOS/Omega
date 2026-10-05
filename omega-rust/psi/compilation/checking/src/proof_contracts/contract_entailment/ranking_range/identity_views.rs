@@ -505,7 +505,6 @@ pub fn identity_subject_matches(
                         .name_path_members(path.members)
                         .len()
                         == 1
-                    && !parameter.is_self
                     && parameter.symbol == path.symbol
             })
             .map(|parameter| parameter.type_reference)

@@ -51,7 +51,7 @@ pub(crate) fn structural_positions(
                 "retained call formal has no authored position",
             ))?;
         let authored = &signature.parameters[position as usize];
-        if authored.is_self != retained.is_self
+        if retained.is_self
             || authored.relevance.is_erased()
             || checked
                 .primitive_type_reference(authored.type_reference)

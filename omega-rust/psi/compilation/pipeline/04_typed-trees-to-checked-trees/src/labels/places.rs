@@ -7,22 +7,9 @@ pub(crate) fn borrow_access_label(
     borrow: &checked_trees::BorrowFacts,
     access: &checked_trees::BorrowArgumentAccessFact,
 ) -> String {
-    // An access rooted at a machine symbol is its whole `self` receiver;
-    // label it through the receiver binding the source spells.
-    let self_parameter = program
-        .machine_by_symbol(access.root_symbol)
-        .and_then(|machine| {
-            program
-                .machine_states(machine)
-                .iter()
-                .flat_map(|state| program.state_parameters(state))
-                .find(|parameter| parameter.is_self)
-        });
     facts::canonical_place_label_from_parts(
         program,
-        facts::PlaceRoot::Symbol(
-            self_parameter.map_or(access.root_symbol, |parameter| parameter.symbol),
-        ),
+        facts::PlaceRoot::Symbol(access.root_symbol),
         borrow.access_segments(access),
     )
 }

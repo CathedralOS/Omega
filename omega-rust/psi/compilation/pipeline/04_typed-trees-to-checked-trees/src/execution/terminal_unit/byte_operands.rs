@@ -93,22 +93,14 @@ fn place(
     if !validation::place_has_builtin_coordinates(program, machine, Some(state), operand) {
         return None;
     }
-    let facts::PlaceRoot::Symbol(root) =
-        crate::flow::normalized_event_place_root(program, place.root)
-    else {
+    let facts::PlaceRoot::Symbol(root) = place.root else {
         return None;
     };
-    let source = if let Some(position) =
-        program
-            .state_parameters(state)
-            .iter()
-            .position(|parameter| {
-                (parameter.is_self && root == machine.symbol)
-                    || crate::flow::normalized_event_place_root(
-                        program,
-                        facts::PlaceRoot::Symbol(parameter.symbol),
-                    ) == facts::PlaceRoot::Symbol(root)
-            }) {
+    let source = if let Some(position) = program
+        .state_parameters(state)
+        .iter()
+        .position(|parameter| parameter.symbol == root)
+    {
         Source::Parameter {
             parameter_index: dense_parameter(position)?,
         }

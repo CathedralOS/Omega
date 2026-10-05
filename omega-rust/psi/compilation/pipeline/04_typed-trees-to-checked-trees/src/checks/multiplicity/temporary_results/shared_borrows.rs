@@ -50,14 +50,7 @@ pub(in crate::checks::multiplicity) fn append_shared_borrow(
             continue;
         };
         let arguments = crate::semantic::calls::call_site_argument_expressions(program, &source);
-        let explicit_self = arguments.len()
-            > parameters
-                .iter()
-                .filter(|parameter| !parameter.is_self)
-                .count();
-        let parameters = parameters
-            .iter()
-            .filter(|parameter| !parameter.is_self || explicit_self);
+        let parameters = parameters.iter();
         if parameters.clone().count() != arguments.len() {
             continue;
         }
@@ -118,8 +111,7 @@ fn events(
         return None;
     };
     let produced_type = crate::flow::call_target_return_type(program, producer.target_symbol)?;
-    if parameter.is_self
-        || parameter.is_const
+    if (parameter.is_const)
         || parameter.is_mutable
         || parameter.relevance.is_erased()
         || program.normalized_type_identity(*referee)

@@ -262,11 +262,7 @@ fn lifetime_bound_borrow_custody(
         )));
     }
     let source = &borrowed_sources[0];
-    if source.parameter.is_self {
-        return Err(BorrowCustodyFailure::Directed(
-            "retained `self` loans are outside the bounded whole-parameter rung".to_owned(),
-        ));
-    }
+
     let Some((access, source_lifetime)) =
         direct_reference(program, source.parameter.type_reference)
     else {

@@ -368,7 +368,6 @@ fn walk_state_write_prefix_inner(
     let mut stored = if include_shared {
         parameters
             .iter()
-            .filter(|parameter| !parameter.is_self)
             .filter_map(|parameter| {
                 let reference =
                     reference_subjects::carrier_storage_type(program, parameter.type_reference)?;
@@ -1063,7 +1062,6 @@ fn walk_state_write_prefix_inner(
                                 symbols,
                                 receiver_members,
                                 nested_call.target.as_str(),
-                                None,
                                 CallerWriteSite::Call(nested_call),
                                 arguments,
                                 inference,

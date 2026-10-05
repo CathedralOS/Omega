@@ -122,7 +122,7 @@ pub(in crate::machine_calls::calls::write_frames) fn reference_leaves_before_sta
             program
                 .state_parameters(state)
                 .iter()
-                .find(|parameter| parameter.symbol == root && !parameter.is_self)
+                .find(|parameter| parameter.symbol == root)
         })
         .flatten();
     let (source_name, source_reference) = if let Some(parameter) = parameter {

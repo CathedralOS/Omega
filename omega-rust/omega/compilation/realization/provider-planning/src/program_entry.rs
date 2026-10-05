@@ -211,13 +211,8 @@ fn validate_program_entry_source_compatibility(
     }
 
     let parameters = entry.parameters;
-    let context = provisioned_entry_context_from_parameters(
-        typed,
-        machine_name,
-        declaration.attached_data_symbol,
-        parameters,
-    )
-    .map_err(|diagnostic| vec![diagnostic])?;
+    let context = provisioned_entry_context_from_parameters(typed, machine_name, parameters)
+        .map_err(|diagnostic| vec![diagnostic])?;
     if let Some(context) = &context
         && typed_trees_to_checked_trees::data_requires_establishment(typed, context.definition)
     {
@@ -316,8 +311,7 @@ pub struct ProvisionedEntryContext<'program> {
 
 /// The source occurrence provisioned by the entry bridge is not a physical
 /// arrival argument and is unrelated to the machine's namespace qualifier.
-/// Placed views keep their own custody-input role. Legacy receivers remain
-/// identifiable only while their source migration is unfinished.
+/// Placed views keep their own custody-input role.
 pub fn provisioned_entry_context<'program>(
     typed: &'program TypedTrees,
     machine: &typed_trees::machine::Machine,
@@ -326,7 +320,6 @@ pub fn provisioned_entry_context<'program>(
     provisioned_entry_context_from_parameters(
         typed,
         machine.name.as_str(),
-        machine.attached_data_symbol,
         typed.state_parameters(entry),
     )
 }
@@ -334,23 +327,21 @@ pub fn provisioned_entry_context<'program>(
 fn provisioned_entry_context_from_parameters<'program>(
     typed: &'program TypedTrees,
     machine_name: &str,
-    attached_data_symbol: symbols::SymbolHandle,
     parameters: &'program [typed_trees::signature::StateParameter],
 ) -> Result<Option<ProvisionedEntryContext<'program>>, Diagnostic> {
     use typed_trees::types::TypeReferenceNode;
 
     let mut candidates = parameters.iter().enumerate().filter(|(_, parameter)| {
-        parameter.is_self
-            || (!parameter.relevance.is_erased()
-                && typed
-                    .placed_view_plan_for_input_type_reference(parameter.type_reference)
-                    .is_none()
-                && matches!(
-                    typed
-                        .type_reference_table
-                        .type_reference(parameter.type_reference),
-                    TypeReferenceNode::Reference { .. }
-                ))
+        !parameter.relevance.is_erased()
+            && typed
+                .placed_view_plan_for_input_type_reference(parameter.type_reference)
+                .is_none()
+            && matches!(
+                typed
+                    .type_reference_table
+                    .type_reference(parameter.type_reference),
+                TypeReferenceNode::Reference { .. }
+            )
     });
     let Some((source_position, parameter)) = candidates.next() else {
         return Ok(None);
@@ -365,14 +356,7 @@ fn provisioned_entry_context_from_parameters<'program>(
             "entry machine `{machine_name}` context must be an ordinary runtime parameter"
         )));
     }
-    let definition_symbol = if parameter.is_self {
-        if !parameter.is_mutable {
-            return Err(Diagnostic::error(format!(
-                "entry machine `{machine_name}` context requires an exclusive mutable borrow"
-            )));
-        }
-        attached_data_symbol
-    } else {
+    let definition_symbol = {
         let TypeReferenceNode::Reference {
             access: language_core::ReferenceAccess::Mutable,
             referee,
@@ -1069,7 +1053,6 @@ fn arrival_requirement_contract(
         parameters: typed
             .state_signature_parameters(signature)
             .iter()
-            .filter(|parameter| !parameter.is_self)
             .map(|parameter| ArrivalRequirementParameterType {
                 identity: typed.normalized_type_identity(parameter.type_reference),
                 display: typed.display_type_reference_with_constraints(parameter.type_reference),

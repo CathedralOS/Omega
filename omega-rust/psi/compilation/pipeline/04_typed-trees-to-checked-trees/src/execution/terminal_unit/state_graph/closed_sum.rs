@@ -442,7 +442,6 @@ pub(super) fn build(
                         let argument_index = target_parameters
                             .iter()
                             .take(parameter.source_position as usize)
-                            .filter(|parameter| !parameter.is_self)
                             .count();
                         let argument = *arguments.get(argument_index)?;
                         let Some(field) = dispatch.payload_field(

@@ -39,7 +39,6 @@ fn directly_callable_requirement(
             && matches!(
                 program.machine_states(machine),
                 [entry] if entry.symbol == entry_symbol
-                    && !program.state_parameters(entry).iter().any(|parameter| parameter.is_self)
             )
     })
 }

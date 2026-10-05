@@ -604,7 +604,7 @@ fn resolve_member<'a>(
     if !checked
         .state_parameters(entry)
         .iter()
-        .any(|parameter| parameter.symbol == name.symbol && !parameter.is_self)
+        .any(|parameter| parameter.symbol == name.symbol)
     {
         return unsupported("scalar loop rank names a foreign parameter");
     }
@@ -653,7 +653,6 @@ fn resolve_member<'a>(
         let mut matching = parameters
             .iter()
             .enumerate()
-            .filter(|(_, parameter)| !parameter.is_self)
             .zip(roles)
             .filter_map(|((position, _), role)| (*role == name.symbol).then_some(position));
         match (matching.next(), matching.next()) {

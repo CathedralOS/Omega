@@ -51,19 +51,7 @@ pub(super) fn check_mutable_argument_writability(
             continue;
         };
 
-        let root_symbol =
-            if place.root_symbol == state_flow.machine_symbol && place.segments.is_empty() {
-                crate::semantic::calls::find_state(program, state_flow.state_symbol)
-                    .and_then(|state| {
-                        program
-                            .state_parameters(state)
-                            .iter()
-                            .find(|parameter| parameter.is_self)
-                    })
-                    .map_or(place.root_symbol, |parameter| parameter.symbol)
-            } else {
-                place.root_symbol
-            };
+        let root_symbol = place.root_symbol;
         let root_name = program.symbols.name(root_symbol);
         let root_is_writable = facts
             .flow

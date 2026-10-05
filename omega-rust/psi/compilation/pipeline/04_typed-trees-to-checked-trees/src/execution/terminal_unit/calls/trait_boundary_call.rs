@@ -126,13 +126,7 @@ pub(super) fn build(
     {
         return None;
     }
-    let abi_parameters = source_parameters
-        .iter()
-        .enumerate()
-        .filter(|(_, parameter)| {
-            !parameter.is_self || matches!(requirement, BoundaryRequirement::Operator(_))
-        })
-        .collect::<Vec<_>>();
+    let abi_parameters = source_parameters.iter().enumerate().collect::<Vec<_>>();
     let caller_source_parameters = program.state_parameters(state);
     // MP2b's admission of this call's static machine arguments survives
     // checking as a specialization fact: each `Type` binder's derived
@@ -408,19 +402,17 @@ pub(super) fn build(
         // mutable storage in this Unit caller. Other owned mutable
         // carriers remain outside this call surface.
         .any(|parameter| {
-            !parameter.is_self
-                && (parameter.is_const
-                    || (parameter.is_mutable
-                        && !is_reference(
+            parameter.is_const
+                || (parameter.is_mutable
+                    && !is_reference(
+                        program,
+                        substituted_formal_type(
                             program,
-                            substituted_formal_type(
-                                program,
-                                parameter.type_reference,
-                                substitutions.as_slice(),
-                            ),
-                        )
-                        && crate::values::mutable_scalar_parameter_type(program, parameter)
-                            .is_none()))
+                            parameter.type_reference,
+                            substitutions.as_slice(),
+                        ),
+                    )
+                    && crate::values::mutable_scalar_parameter_type(program, parameter).is_none())
         })
     {
         return None;

@@ -263,19 +263,17 @@ fn returned_named_view(
         .iter()
         .position(|parameter| parameter.symbol == symbol)?;
     let carrier = &authored[position];
-    if carrier.is_self
-        || !matches!(
-            crate::execution::terminal_unit::types::structural_access_for_type_reference(
-                program,
-                carrier.type_reference,
-            ),
-            Some(
-                CheckedStructuralAccess::SharedBorrow
-                    | CheckedStructuralAccess::MutableBorrow
-                    | CheckedStructuralAccess::Owned
-            )
+    if !matches!(
+        crate::execution::terminal_unit::types::structural_access_for_type_reference(
+            program,
+            carrier.type_reference,
+        ),
+        Some(
+            CheckedStructuralAccess::SharedBorrow
+                | CheckedStructuralAccess::MutableBorrow
+                | CheckedStructuralAccess::Owned
         )
-    {
+    ) {
         return None;
     }
     let parameter_index = parameters

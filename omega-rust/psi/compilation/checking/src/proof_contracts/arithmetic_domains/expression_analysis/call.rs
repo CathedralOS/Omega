@@ -223,7 +223,6 @@ fn exact_ordinary_actual_intervals(
         .program
         .state_parameters(entry)
         .iter()
-        .filter(|parameter| !parameter.is_self)
         .collect::<Vec<_>>();
     let arguments = walk
         .program

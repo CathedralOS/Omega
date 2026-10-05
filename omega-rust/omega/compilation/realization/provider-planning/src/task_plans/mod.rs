@@ -127,7 +127,6 @@ pub fn elaborate_task_activation_plans(
             program
                 .state_parameters(entry)
                 .iter()
-                .filter(|parameter| !parameter.is_self)
                 .map(|parameter| parameter.type_reference),
         )?;
         let argument_layout_report_fingerprint =
@@ -337,7 +336,6 @@ fn entry_report_fingerprint(
     hash.string(machine.name.as_str());
     hash.string(entry.name.as_str());
     for parameter in program.state_parameters(entry) {
-        hash.byte(u8::from(parameter.is_self));
         hash.byte(u8::from(parameter.is_mutable));
         hash.string(
             program

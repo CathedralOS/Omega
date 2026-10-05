@@ -482,7 +482,6 @@ fn self_call_argument_map(
         .program
         .state_parameters(root)
         .iter()
-        .filter(|parameter| !parameter.is_self)
         .map(|parameter| parameter.name.as_str().to_owned())
         .collect();
     if parameters.len() != arguments.len() {

@@ -16,7 +16,7 @@ use super::isolation::{
     TypeIdentityMemo, aggregate_storage_types_match_in, type_is_caller_isolated_local_in,
 };
 use super::place_paths::{
-    FramePathPrecision, FramePlaceOrigin, FrameSourcePlace, append_place_suffix, coarse_place_path,
+    FramePathPrecision, FramePlaceOrigin, FrameSourcePlace, append_place_suffix,
     push_unique_origin, split_place_root,
 };
 use super::receiver_member_chain;
@@ -377,12 +377,7 @@ fn boundary_trait_signature_and_receiver_inner<'program>(
         && (has_runtime_receiver
             || (program.symbols.get(target_symbol).kind == symbols::SymbolKind::State
                 && program.symbols.get(target_symbol).parent == trait_definition.symbol
-                && program.symbols.name(target_symbol) == signature.name.as_str()))
-        && (has_runtime_receiver
-            || !program
-                .state_signature_parameters(signature)
-                .iter()
-                .any(|parameter| parameter.is_self));
+                && program.symbols.name(target_symbol) == signature.name.as_str()));
     if !exact_signature {
         return None;
     }
@@ -623,28 +618,7 @@ fn requirement_signature_for_receiver_path<'program>(
     None
 }
 
-/// Does the signature's `self` parameter grant exclusive reach? A `&mut self`
-/// requirement may write the whole runtime receiver object; a shared or
-/// by-value `self` cannot publish a receiver write at all.
-fn self_parameter_is_exclusive(
-    program: &TypedTrees,
-    signature: &typed_trees::signature::StateSignature,
-) -> bool {
-    program
-        .state_signature_parameters(signature)
-        .iter()
-        .find(|parameter| parameter.is_self)
-        .is_some_and(|parameter| {
-            live_unconstrained_type(program, parameter.type_reference).is_some_and(|reference| {
-                matches!(
-                    program.type_reference_table.type_reference(reference),
-                    TypeReferenceNode::Reference { access, .. } if access.is_exclusive()
-                )
-            })
-        })
-}
-
-/// The resolved requirement signature plus how `self` reaches the callee, at
+/// The resolved requirement signature at
 /// a call write site. Value-position calls rejoin the receiver symbol from
 /// the receiver expression exactly as boundary selection does. When the
 /// retained target symbol is absent — a nested receiver path the typer did
@@ -656,30 +630,19 @@ pub(super) fn requirement_signature_for_site<'program>(
     receiver: &[String],
     target: &str,
     site: CallerWriteSite<'_>,
-) -> Option<(&'program typed_trees::signature::StateSignature, bool, bool)> {
-    let (receiver_symbol, target_symbol) = call_site_symbols(program, site)?;
-    requirement_signature_and_self(
-        program,
-        current_machine,
-        receiver,
-        target,
-        receiver_symbol,
-        target_symbol,
-    )
+) -> Option<&'program typed_trees::signature::StateSignature> {
+    let (_, target_symbol) = call_site_symbols(program, site)?;
+    requirement_signature_for_target(program, current_machine, receiver, target, target_symbol)
 }
 
-/// The resolved requirement signature plus how `self` reaches the callee. A
-/// declaration qualifier (`Issuer::issue(x)`, `Receipt::ack(v)`) is not a
-/// runtime place: the callee's `self` then arrives as an ordinary argument,
-/// exactly as the resolved-target validation rung pairs them.
-fn requirement_signature_and_self<'program>(
+/// Resolve the exact requirement independently of its explicit argument storage.
+fn requirement_signature_for_target<'program>(
     program: &'program TypedTrees,
     current_machine: &Machine,
     receiver: &[String],
     target: &str,
-    receiver_symbol: SymbolHandle,
     target_symbol: SymbolHandle,
-) -> Option<(&'program typed_trees::signature::StateSignature, bool, bool)> {
+) -> Option<&'program typed_trees::signature::StateSignature> {
     // The retained target is authoritative evidence: a valid symbol must name
     // the selected signature, so a stale or foreign selection fails closed
     // here even when the receiver's declared trait offers a same-named
@@ -693,31 +656,13 @@ fn requirement_signature_and_self<'program>(
             })
             .flatten()
     })?;
-    let self_is_argument = matches!(
-        program.symbols.get(receiver_symbol).kind,
-        symbols::SymbolKind::BuiltinType
-            | symbols::SymbolKind::Data
-            | symbols::SymbolKind::Domain
-            | symbols::SymbolKind::Machine
-            | symbols::SymbolKind::Module
-            | symbols::SymbolKind::Trait
-            | symbols::SymbolKind::ConformanceParameter
-    );
-    Some((
-        signature,
-        self_is_argument,
-        self_parameter_is_exclusive(program, signature),
-    ))
+    Some(signature)
 }
 
 /// The exact frame of a resolved non-boundary trait requirement call. The
 /// implementing body is selected at runtime, so the signature's declared
-/// reach is the complete caller-visible evidence: an exclusive `self` writes
-/// the receiver place (or the explicit `self` argument on a declaration-
-/// qualified call such as `Issuer::issue(self.issuer)`), and every exclusive
-/// parameter writes its argument's proven origins. A caller cannot supply a
-/// path for a receiver expression that names no place; such writes stay
-/// inside the temporary and contribute nothing.
+/// reach is the complete caller-visible evidence: every exclusive
+/// parameter writes its argument's proven origins.
 pub(super) fn known_requirement_call_written_paths_for_parts(
     program: &TypedTrees,
     current_machine: &Machine,
@@ -725,47 +670,27 @@ pub(super) fn known_requirement_call_written_paths_for_parts(
     symbols: &TopLevelSymbols<'_>,
     receiver: &[String],
     target: &str,
-    receiver_origin: Option<&FramePlaceOrigin>,
     site: CallerWriteSite<'_>,
     arguments: &[ExpressionHandle],
     inference: &mut FrameInference,
 ) -> Option<Vec<String>> {
-    let (signature, self_is_argument, self_exclusive) =
+    let signature =
         requirement_signature_for_site(program, current_machine, receiver, target, site)?;
     let parameters = program.state_signature_parameters(signature);
-    let paired = parameters
-        .iter()
-        .filter(|parameter| self_is_argument || !parameter.is_self)
-        .collect::<Vec<_>>();
+    let paired = parameters.iter().collect::<Vec<_>>();
     if paired.len() != arguments.len() {
         return None;
     }
     let mut written = Vec::new();
-    if !self_is_argument && self_exclusive {
-        let path = receiver_origin
-            .map(|origin| origin.path.clone())
-            .or_else(|| (!receiver.is_empty()).then(|| receiver.join(".")))
-            .unwrap_or_else(|| "self".to_owned());
-        written.push(path);
-    }
-    let bindings = super::type_instantiation::signature_call_type_bindings_with_self(
+    let bindings = super::type_instantiation::signature_call_type_bindings_seeded(
         program,
         current_machine,
         signature,
         site,
         arguments,
-        self_is_argument,
+        Vec::new(),
     )?;
     for (parameter, argument) in paired.into_iter().zip(arguments) {
-        if parameter.is_self {
-            if self_exclusive {
-                let path = coarse_place_path(program, *argument)?;
-                if !written.contains(&path) {
-                    written.push(path);
-                }
-            }
-            continue;
-        }
         let parameter_type = live_unconstrained_type(program, parameter.type_reference)?;
         let parameter_type = substituted_head(program, parameter_type, &bindings);
         let TypeReferenceNode::Reference {
@@ -810,8 +735,7 @@ pub(super) fn known_requirement_call_written_paths_for_parts(
 /// The exact frame of a resolved signature-only machine callee: a boundary,
 /// requirement, admitted, or externally realized machine has no authored
 /// body, so its declared signature is the complete caller-visible write
-/// contract -- an exclusive `self` writes every proven receiver base (or the
-/// spelled receiver place), and each exclusive parameter writes its
+/// contract -- each exclusive parameter writes its
 /// argument's proven origins, exactly the reach the trait-signature rungs
 /// derive. A by-value carrier that can still contain mutable references
 /// keeps the call opaque rather than manufacturing a receiver-only frame,
@@ -825,8 +749,6 @@ pub(super) fn signature_state_call_written_paths(
     symbols: &TopLevelSymbols<'_>,
     callee_machine: &Machine,
     callee_state: &typed_trees::state::State,
-    receiver: &[String],
-    receiver_origins: &[FramePlaceOrigin],
     arguments: &[ExpressionHandle],
     inference: &mut FrameInference,
 ) -> Option<Vec<String>> {
@@ -841,9 +763,6 @@ pub(super) fn signature_state_call_written_paths(
         machine_symbols,
         symbols,
         program.state_parameters(callee_state),
-        callee_machine.attached_data.is_some(),
-        receiver,
-        receiver_origins,
         arguments,
         inference,
     )
@@ -860,60 +779,15 @@ pub(super) fn signature_parameters_written_paths(
     machine_symbols: &MachineSymbols<'_>,
     symbols: &TopLevelSymbols<'_>,
     parameters: &[StateParameter],
-    has_implicit_self: bool,
-    receiver: &[String],
-    receiver_origins: &[FramePlaceOrigin],
     arguments: &[ExpressionHandle],
     inference: &mut FrameInference,
 ) -> Option<Vec<String>> {
-    // A declaration-qualified call (`Receipt::ack(v)`) supplies `self` as an
-    // ordinary argument; a receiver call (`v.ack()`) does not. Arity alone
-    // separates the two forms: the declared parameter list and the non-self
-    // list differ by exactly the receiver.
-    let self_is_argument =
-        parameters.iter().any(|parameter| parameter.is_self) && parameters.len() == arguments.len();
-    let paired = parameters
-        .iter()
-        .filter(|parameter| self_is_argument || !parameter.is_self)
-        .collect::<Vec<_>>();
+    let paired = parameters.iter().collect::<Vec<_>>();
     if paired.len() != arguments.len() {
         return None;
     }
     let mut written = Vec::new();
-    let self_is_exclusive = parameters.iter().any(|parameter| {
-        parameter.is_self
-            && live_unconstrained_type(program, parameter.type_reference).is_some_and(|reference| {
-                matches!(
-                    program.type_reference_table.type_reference(reference),
-                    TypeReferenceNode::Reference { access, .. } if access.is_exclusive()
-                )
-            })
-    });
-    if self_is_exclusive && !self_is_argument {
-        if receiver_origins.is_empty() {
-            if !receiver.is_empty() {
-                written.push(receiver.join("."));
-            } else if has_implicit_self {
-                written.push("self".to_owned());
-            }
-        } else {
-            for origin in receiver_origins {
-                if !written.contains(&origin.path) {
-                    written.push(origin.path.clone());
-                }
-            }
-        }
-    }
     for (parameter, argument) in paired.into_iter().zip(arguments) {
-        if parameter.is_self {
-            if self_is_exclusive {
-                let path = coarse_place_path(program, *argument)?;
-                if !written.contains(&path) {
-                    written.push(path);
-                }
-            }
-            continue;
-        }
         let parameter_type = live_unconstrained_type(program, parameter.type_reference)?;
         let TypeReferenceNode::Reference {
             access, referee, ..
@@ -1050,7 +924,6 @@ pub(super) fn known_boundary_call_written_paths_for_parts(
     let parameters = program
         .state_signature_parameters(signature)
         .iter()
-        .filter(|parameter| !parameter.is_self)
         .collect::<Vec<_>>();
     if parameters.len() != arguments.len() {
         return None;
@@ -1220,7 +1093,6 @@ fn boundary_result_origins(
     let parameters = program
         .state_signature_parameters(signature)
         .iter()
-        .filter(|parameter| !parameter.is_self)
         .collect::<Vec<_>>();
     if parameters.len() != arguments.len() {
         return None;
@@ -1318,10 +1190,8 @@ pub(super) fn boundary_result_candidate_origins(
 /// The candidate caller-storage origins a resolved requirement call's
 /// exclusive result may alias — the same admitted routes as a boundary
 /// result, with the signature selected by retained `target_symbol` rather
-/// than receiver spelling. An exclusive `self` contributes the whole runtime
-/// receiver storage as a coarse candidate, whether it arrives as a place
-/// receiver or as the explicit `self` argument on a declaration-qualified
-/// call.
+/// than receiver spelling. Explicit exclusive arguments supply the admitted
+/// storage origins.
 fn requirement_result_origins(
     program: &TypedTrees,
     current_machine: &Machine,
@@ -1332,7 +1202,7 @@ fn requirement_result_origins(
     inference: &mut FrameInference,
 ) -> Option<Vec<FramePlaceOrigin>> {
     let receiver = receiver_member_chain(program, call.receiver).unwrap_or_default();
-    let (signature, self_is_argument, self_exclusive) = requirement_signature_for_site(
+    let signature = requirement_signature_for_site(
         program,
         current_machine,
         &receiver,
@@ -1341,20 +1211,17 @@ fn requirement_result_origins(
     )?;
     let arguments = program.expression_table.expression_handles(call.arguments);
     let parameters = program.state_signature_parameters(signature);
-    let paired = parameters
-        .iter()
-        .filter(|parameter| self_is_argument || !parameter.is_self)
-        .collect::<Vec<_>>();
+    let paired = parameters.iter().collect::<Vec<_>>();
     if paired.len() != arguments.len() {
         return None;
     }
-    let mut bindings = super::type_instantiation::signature_call_type_bindings_with_self(
+    let mut bindings = super::type_instantiation::signature_call_type_bindings_seeded(
         program,
         current_machine,
         signature,
         CallerWriteSite::Expression(expression),
         arguments,
-        self_is_argument,
+        Vec::new(),
     )?;
     let result_type = live_unconstrained_type(program, signature.return_type)?;
     let TypeReferenceNode::Reference {
@@ -1370,36 +1237,7 @@ fn requirement_result_origins(
         live_unconstrained_type(program, substituted_head(program, *referee, &bindings))?;
 
     let mut origins = Vec::new();
-    if self_exclusive {
-        // The implementor's storage is opaque to the caller: an exclusive
-        // result may point anywhere inside it. The receiver place covers
-        // every such subpath, but a member projection must not narrow it to
-        // a fabricated subpath, so the candidate stays collection-coarse.
-        let (path, source) = if self_is_argument {
-            let actual = parameters
-                .iter()
-                .position(|parameter| parameter.is_self)
-                .and_then(|index| arguments.get(index))?;
-            (
-                coarse_place_path(program, *actual)?,
-                FrameSourcePlace::from_expression(program, *actual),
-            )
-        } else {
-            (
-                receiver.join("."),
-                FrameSourcePlace::from_expression(program, call.receiver),
-            )
-        };
-        origins.push(FramePlaceOrigin {
-            path,
-            precision: FramePathPrecision::CollectionCoarse,
-            source,
-        });
-    }
     for (parameter, actual) in paired.into_iter().zip(arguments) {
-        if parameter.is_self {
-            continue;
-        }
         let parameter_type = live_unconstrained_type(program, parameter.type_reference)?;
         let parameter_type = substituted_head(program, parameter_type, &bindings);
         let TypeReferenceNode::Reference {

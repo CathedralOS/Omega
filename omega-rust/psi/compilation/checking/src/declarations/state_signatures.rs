@@ -255,10 +255,6 @@ fn validate_state_signature_types<'program>(
         validate_state_signature_contracts(program, signature, owner, diagnostics);
 
         for parameter in signature.parameters {
-            if parameter.is_self {
-                continue;
-            }
-
             if matches!(owner, StateSignatureOwner::Machine(_))
                 && typed_trees::service::exact_bound_service_requirement(
                     program,

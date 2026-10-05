@@ -120,10 +120,7 @@ fn prove(
     let parameters = program.state_parameters(callee_state);
     // Only explicit scalar operands are substituted below. A runtime receiver
     // contributes no premises or implicit-self value to this interval query.
-    let explicit = parameters
-        .iter()
-        .filter(|parameter| !parameter.is_self)
-        .collect::<Vec<_>>();
+    let explicit = parameters.iter().collect::<Vec<_>>();
     let arguments = crate::semantic::calls::call_site_argument_expressions(program, &site);
     if arguments.len() != explicit.len() {
         return None;
@@ -139,7 +136,7 @@ fn prove(
     // or not the caller's intervals can name it, and a decided-true requires
     // needs no other premise.
     if validation::instantiated_value_call_requires_proven(
-        program, machine, state, parameters, &arguments, expression, false,
+        program, machine, state, parameters, &arguments, expression,
     ) {
         return Some(true);
     }

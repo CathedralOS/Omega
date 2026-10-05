@@ -163,7 +163,6 @@ pub(super) fn validate_receiver_call(
                 arguments,
                 current_machine,
                 current_state,
-                false,
                 diagnostics,
             );
             return;
@@ -201,7 +200,6 @@ pub(super) fn validate_receiver_call(
             arguments,
             current_machine,
             current_state,
-            false,
             diagnostics,
         );
         return;
@@ -284,13 +282,6 @@ fn validate_resolved_receiver_call(
             )));
             return true;
         }
-        // A receiver that names a declaration rather than a runtime place
-        // (`Receipt::ack(value)`, `Domain::content(&v)`) supplies the callee's
-        // `self` parameter as an explicit argument, exactly as the lowering's
-        // `explicit_self` rule does. A place receiver -- parameter, local,
-        // field, or nested member path -- binds `self` through the receiver
-        // itself, so `self` stays out of the argument correspondence.
-        let self_is_argument = namespace;
         validate_result_use(
             program,
             call,
@@ -309,7 +300,6 @@ fn validate_resolved_receiver_call(
             state,
             &call.machine_arguments,
             writable_roots,
-            self_is_argument,
             diagnostics,
         );
         validate_resolved_target_type_parameter_bounds(
@@ -321,7 +311,6 @@ fn validate_resolved_receiver_call(
             arguments,
             current_machine,
             current_state,
-            self_is_argument,
             diagnostics,
         );
         return true;

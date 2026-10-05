@@ -19,7 +19,6 @@ use crate::machine_calls::calls::write_frames::transparent_effects::{
 use crate::machine_calls::calls::write_frames::transparent_results::transparent_callee_result_origins;
 use crate::machine_calls::calls::write_frames::type_capabilities::type_reference_is_reference;
 use crate::machine_calls::calls::write_frames::value_expressions::ValuePosition;
-use language_core::is_self_receiver;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
@@ -322,9 +321,9 @@ fn parameter_relative_name_origins(
     reference_origins::declared_origin_root(program, current_machine, expression)?;
     let place = frame_place_path(program, expression)?;
     let root_symbol = frame_place_root_symbol(program, expression);
-    let (root, suffix) = split_place_root(&place.path);
+    let (_, suffix) = split_place_root(&place.path);
     if let Some(parameter) = parameters.iter().find(|parameter| {
-        (root_symbol == Some(parameter.symbol) || (parameter.is_self && is_self_receiver(root)))
+        (root_symbol == Some(parameter.symbol))
             && (admit_carrier_roots
                 || type_reference_is_reference(program, parameter.type_reference))
     }) {
@@ -385,12 +384,10 @@ fn parameter_relative_aggregate_leaf_origins(
     origins
         .into_iter()
         .map(|origin| {
-            let (root, _) = split_place_root(&origin.path);
             parameters
                 .iter()
                 .find(|parameter| {
-                    (origin.source.root == parameter.symbol
-                        || (parameter.is_self && is_self_receiver(root)))
+                    (origin.source.root == parameter.symbol)
                         && (admit_carrier_roots
                             || type_reference_is_reference(program, parameter.type_reference))
                 })
@@ -451,15 +448,9 @@ fn parameter_relative_call_result_origins(
         let callee_parameter = callee_parameters
             .iter()
             .find(|parameter| parameter.symbol == callee_origin.parameter_symbol)?;
-        let actual = if callee_parameter.is_self {
-            if callee_machine.attached_data.is_none() || !call.receiver.is_valid() {
-                return None;
-            }
-            call.receiver
-        } else {
+        let actual = {
             let (argument_index, _) = callee_parameters
                 .iter()
-                .filter(|parameter| !parameter.is_self)
                 .enumerate()
                 .find(|(_, parameter)| parameter.symbol == callee_parameter.symbol)?;
             *program

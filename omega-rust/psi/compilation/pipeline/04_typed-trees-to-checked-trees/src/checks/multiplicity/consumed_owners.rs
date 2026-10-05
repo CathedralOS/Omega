@@ -248,26 +248,26 @@ fn is_operational(statement: &StatementNode) -> bool {
 /// machine exactly as move events do, and a bare attached-field root joins
 /// its receiver storage.
 fn storage_place(
-    program: &typed_trees::TypedTrees,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    _program: &typed_trees::TypedTrees,
+    _machine: &typed_trees::machine::Machine,
+    _state: &typed_trees::state::State,
     place: &CanonicalPlace,
 ) -> CanonicalPlace {
-    let mut storage = CanonicalPlace {
-        root: crate::flow::normalized_event_place_root(program, place.root),
+    let storage = CanonicalPlace {
+        root: (place.root),
         segments: place.segments.clone(),
     };
-    crate::flow::normalize_attached_place_root(program, machine.symbol, state.symbol, &mut storage);
+
     storage
 }
 
 /// Whether `place` is owned storage of this activation reached without
 /// crossing a reference: a local declared in this state, a by-value
-/// parameter, or the owned `self` receiver, and every prefix through the
+/// parameter, and every prefix through the
 /// place itself has a non-reference type.
 fn owned_custody_chain(
     program: &typed_trees::TypedTrees,
-    machine: &typed_trees::machine::Machine,
+    _machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     statement_index: usize,
     place: &CanonicalPlace,
@@ -276,21 +276,10 @@ fn owned_custody_chain(
         return false;
     };
     let parameters = program.state_parameters(state);
-    let receiver_root = root == machine.symbol;
-    let owned_root = if receiver_root {
-        parameters.iter().any(|parameter| {
-            parameter.is_self && !type_reference_is_reference(program, parameter.type_reference)
-        })
-    } else {
-        program.state_local_declaration(state, root).is_some()
-            || parameters
-                .iter()
-                .any(|parameter| !parameter.is_self && parameter.symbol == root)
-    };
-    // The receiver root's own type is the attached declaration, checked
-    // through its parameter above; projections still resolve their types.
+    let owned_root = program.state_local_declaration(state, root).is_some()
+        || parameters.iter().any(|parameter| parameter.symbol == root);
     owned_root
-        && (usize::from(receiver_root)..=place.segments.len()).all(|length| {
+        && (0..=place.segments.len()).all(|length| {
             crate::flow::canonical_place_type_reference(
                 program,
                 state.symbol,

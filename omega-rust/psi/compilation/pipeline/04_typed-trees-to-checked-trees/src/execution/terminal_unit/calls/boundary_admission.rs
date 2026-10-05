@@ -72,9 +72,10 @@ pub(crate) fn parameter_binding_receiver_source<'program>(
     if place.segments.is_empty() {
         return None;
     }
-    let source = program.state_parameters(state).iter().find(|parameter| {
-        parameter.symbol == root && !parameter.is_self && !parameter.relevance.is_erased()
-    })?;
+    let source = program
+        .state_parameters(state)
+        .iter()
+        .find(|parameter| (parameter.symbol == root) && !parameter.relevance.is_erased())?;
     let (reference, _) = super::argument_paths::projected_argument_path(
         program,
         state.symbol,

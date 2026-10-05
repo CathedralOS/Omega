@@ -1,9 +1,6 @@
 //! Rebase a live reference before tracing the value currently in its referent.
 
-use super::{
-    CanonicalPlace, canonical_place_segments_may_overlap, frame_storage_writes,
-    normalized_event_place_root,
-};
+use super::{CanonicalPlace, canonical_place_segments_may_overlap, frame_storage_writes};
 use checked_trees::{FlowCallFact, FlowFacts, FlowStateFact};
 use facts::PlaceRoot;
 use typed_trees::types::TypeReferenceNode;
@@ -269,8 +266,7 @@ fn preserve_candidate_call_prefix_storage(
         )?;
         if places.iter().any(|place| {
             writes.iter().any(|write| {
-                normalized_event_place_root(program, place.root)
-                    == normalized_event_place_root(program, write.root)
+                place.root == write.root
                     && canonical_place_segments_may_overlap(
                         program,
                         &place.segments,
@@ -303,8 +299,7 @@ fn preserve_frame(
     )?;
     if places.iter().any(|place| {
         writes.iter().any(|write| {
-            normalized_event_place_root(program, place.root)
-                == normalized_event_place_root(program, write.root)
+            place.root == write.root
                 && canonical_place_segments_may_overlap(program, &place.segments, &write.segments)
         })
     }) {

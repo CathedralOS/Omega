@@ -618,7 +618,6 @@ fn instantiate_call_contract_payload(
                     type_reference: actual.type_reference,
                     is_const: actual.is_const,
                     is_mutable: actual.is_mutable,
-                    is_self: actual.is_self,
                     relevance: actual.relevance,
                 },
             )

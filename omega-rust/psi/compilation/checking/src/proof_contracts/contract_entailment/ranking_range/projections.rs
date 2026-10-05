@@ -59,11 +59,7 @@ pub(super) fn entry_expressions(
             }
         }
     }
-    for parameter in program
-        .state_parameters(root)
-        .iter()
-        .filter(|parameter| !parameter.is_self)
-    {
+    for parameter in program.state_parameters(root).iter() {
         if exact_integer_parameter(program, parameter.type_reference).is_none() {
             continue;
         }

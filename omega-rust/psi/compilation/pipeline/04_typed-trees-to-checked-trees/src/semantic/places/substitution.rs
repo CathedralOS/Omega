@@ -32,12 +32,7 @@ pub(crate) fn call_contract_place_substitution(
     for parameter in target_parameters {
         let parameter_matches = parameter.symbol == parameter_symbol
             || symbol_name(program, parameter_symbol) == parameter.name.as_str();
-        let substitution_place = if parameter.is_self {
-            if !parameter_matches {
-                continue;
-            }
-            super::receiver_place_for_call(program, facts, call, &call_site)
-        } else {
+        let substitution_place = {
             let argument = super::call_site_argument_expressions(program, &call_site)
                 .get(argument_index)
                 .copied();

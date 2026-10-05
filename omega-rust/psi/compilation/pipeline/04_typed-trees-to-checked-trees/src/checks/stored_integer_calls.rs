@@ -315,12 +315,11 @@ impl<'a> Admission<'a> {
                 let sources = actual_origins(parameters, position, &origins)
                     .ok_or("write-capable operator has unknown actual storage")?;
                 for source in sources {
-                    for (owner, state, destination) in
+                    for (_owner, state, destination) in
                         self.destinations(machine, body, source, self.stack.len())?
                     {
                         if validation::stored_integer_source_may_require_fit(
                             self.program,
-                            owner,
                             state,
                             &destination,
                         )
@@ -400,11 +399,10 @@ impl<'a> Admission<'a> {
                         for source in sources {
                             let destinations =
                                 self.destinations(machine, body, &source, self.stack.len())?;
-                            for (owner, state, destination) in destinations {
+                            for (_owner, state, destination) in destinations {
                                 if let Some((field, stored)) =
                                     validation::stored_integer_source_projection(
                                         self.program,
-                                        owner,
                                         state,
                                         &destination,
                                         &[],
@@ -598,12 +596,11 @@ impl<'a> Admission<'a> {
             let sources = actual_origins(parameters, position, origins)
                 .ok_or("effectful invocation has unknown writable storage")?;
             for source in sources {
-                for (owner, state, destination) in
+                for (_owner, state, destination) in
                     self.destinations(machine, body, source, self.stack.len())?
                 {
                     needs_fit |= validation::stored_integer_source_may_require_fit(
                         self.program,
-                        owner,
                         state,
                         &destination,
                     )
@@ -806,15 +803,8 @@ fn actual_origins<'a>(
     position: usize,
     origins: &'a CallWriteOrigins,
 ) -> Option<&'a [LocalWriteSource]> {
-    if parameters.get(position)?.is_self {
-        origins.receiver.as_deref()
-    } else {
-        let ordinal = parameters[..position]
-            .iter()
-            .filter(|parameter| !parameter.is_self)
-            .count();
-        origins.arguments.get(ordinal)?.as_deref()
-    }
+    parameters.get(position)?;
+    origins.arguments.get(position)?.as_deref()
 }
 
 fn is_reference(

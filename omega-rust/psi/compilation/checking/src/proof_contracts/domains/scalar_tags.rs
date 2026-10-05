@@ -97,7 +97,6 @@ pub fn scalar_state_contracts_are_qualifications(
                 program.state_parameters(state).iter().any(|parameter| {
                     parameter.symbol.is_valid()
                         && parameter.symbol == path.symbol
-                        && !parameter.is_self
                         && !parameter.is_mutable
                         && (arguments.is_empty()
                             && scalar_interval_domains(program, parameter.type_reference)

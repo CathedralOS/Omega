@@ -160,7 +160,7 @@ fn prove(
         return Some(true);
     }
     let arguments = crate::semantic::calls::call_site_argument_expressions(program, &site);
-    let explicit_parameters = parameters.iter().filter(|parameter| !parameter.is_self);
+    let explicit_parameters = parameters.iter();
     if explicit_parameters.clone().count() != arguments.len() {
         return None;
     }
@@ -454,7 +454,7 @@ fn fixed_integer(primitive: PrimitiveType) -> bool {
 }
 
 fn fixed_parameter_type(program: &TypedTrees, parameter: &StateParameter) -> Option<PrimitiveType> {
-    if !parameter.symbol.is_valid() || parameter.is_const || parameter.is_self {
+    if !parameter.symbol.is_valid() || parameter.is_const {
         return None;
     }
     program

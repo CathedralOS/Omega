@@ -835,7 +835,7 @@ fn exact_i32_parameter(
     let [parameter] = parameters else {
         return false;
     };
-    if parameter.is_self || parameter.is_const || parameter.is_mutable {
+    if parameter.is_const || parameter.is_mutable {
         return false;
     }
     let TypeReferenceNode::Named { symbol, name } = typed

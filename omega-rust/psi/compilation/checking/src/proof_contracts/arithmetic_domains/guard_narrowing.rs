@@ -1299,7 +1299,6 @@ pub(crate) fn seed_out_param_ensures(
     let parameters: Vec<&typed_trees::signature::StateParameter> = program
         .state_signature_parameters(signature)
         .iter()
-        .filter(|parameter| !parameter.is_self)
         .collect();
     for contract in program
         .signature_contracts

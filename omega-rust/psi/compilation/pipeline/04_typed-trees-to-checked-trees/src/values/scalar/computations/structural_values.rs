@@ -1188,9 +1188,7 @@ impl Builder<'_, '_> {
         let symbol = self
             .authored_parameters
             .iter()
-            .find(|parameter| {
-                parameter.is_self && (parameter.symbol == symbol || self.machine == symbol)
-            })
+            .find(|parameter| false && (parameter.symbol == symbol || self.machine == symbol))
             .map_or(symbol, |parameter| parameter.symbol);
         let source =
             checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol };

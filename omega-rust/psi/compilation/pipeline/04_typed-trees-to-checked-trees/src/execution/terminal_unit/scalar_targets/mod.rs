@@ -6,7 +6,7 @@
 use super::{
     CarryPolicy, CheckFacts, CheckedStructuralScalarReturnMachinePlan,
     CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan, MachineSupplyMode, PrimitiveType,
-    SignatureContractKind, SymbolHandle, TypeReferenceNode, TypedTrees, is_reference, returns,
+    SignatureContractKind, SymbolHandle, TypeReferenceNode, TypedTrees, returns,
 };
 use crate::execution::terminal_unit::ScalarCalleePlans;
 use crate::execution::terminal_unit::types::{ShapeCollector, machine_binders, state_flow};
@@ -382,28 +382,8 @@ pub(super) fn available_target(
             return None;
         }
         let mut shapes = ShapeCollector::new(program);
-        // Same receiver pivot the mint applies: attachment storage exists
-        // only when an authored `self` parameter retains it.
-        let signature = if !program.machine_has_receiver(machine) {
-            free_structural_scalar_signature(program, &mut shapes, state, &[])
-                .map(|(structural, scalar)| (None, structural, scalar))
-        } else {
-            // The graph decides per state whether a borrowed `self` keeps its
-            // structural place; rebuild with the entry's own decision so a
-            // receiver the graph legitimately erased does not falsify the
-            // comparison.
-            structural_scalar_signature(
-                program,
-                &mut shapes,
-                machine,
-                state,
-                &[],
-                entry
-                    .structural_parameters
-                    .iter()
-                    .any(|parameter| parameter.is_self),
-            )
-        };
+        let signature = free_structural_scalar_signature(program, &mut shapes, state, &[])
+            .map(|(structural, scalar)| (None, structural, scalar));
         let (attachment, structural, scalar) = signature?;
         if attachment != plan.attachment_type_identity
             || structural != entry.structural_parameters
@@ -471,24 +451,8 @@ pub(super) fn available_target(
         }
         let mut shapes = ShapeCollector::new(program);
         let binders = machine_binders(program, machine);
-        // The plan mints attachment storage only when some state parameter is
-        // a receiver; a receiver-free attached machine carries no attachment
-        // identity and must compare signatures through the free route.
-        let signature = if !program.machine_has_receiver(machine) {
-            free_structural_scalar_signature(program, &mut shapes, state, &binders)
-                .map(|(structural, scalar)| (None, structural, scalar))
-        } else {
-            structural_scalar_signature(
-                program,
-                &mut shapes,
-                machine,
-                state,
-                &binders,
-                plan.structural_parameters
-                    .iter()
-                    .any(|parameter| parameter.is_self),
-            )
-        };
+        let signature = free_structural_scalar_signature(program, &mut shapes, state, &binders)
+            .map(|(structural, scalar)| (None, structural, scalar));
         let (attachment, structural, scalar) = signature?;
         if attachment != plan.attachment_type_identity
             || structural != plan.structural_parameters
@@ -519,26 +483,8 @@ pub(super) fn available_target(
             primitive_type,
         )
     };
-    // A borrowed receiver the callee leaves ambient on its attachment carrier
-    // still occupies its authored slot among the call's structural arguments;
-    // it owns no plan entry, so forwarded operands compare around it. The gap
-    // is real only when the arguments actually carry one extra slot — a
-    // roster that forwards self (a `&mut self` callee whose plan parameter
-    // does not flag it) keeps argument and parameter arity equal.
-    let ambient_receiver = program
-        .state_parameters(state)
-        .iter()
-        .position(|parameter| parameter.is_self && is_reference(program, parameter.type_reference))
-        .filter(|_| !structural.iter().any(|parameter| parameter.is_self))
-        .filter(|_| structural_arguments.len() == structural.len() + 1);
-    let forwarded = structural_arguments
-        .iter()
-        .enumerate()
-        .filter(|(index, _)| ambient_receiver != Some(*index))
-        .map(|(_, argument)| argument)
-        .collect::<Vec<_>>();
-    if forwarded.len() != structural.len()
-        || forwarded
+    if structural_arguments.len() != structural.len()
+        || structural_arguments
             .iter()
             .zip(structural)
             .any(|(argument, parameter)| {
@@ -547,17 +493,11 @@ pub(super) fn available_target(
             })
         || claim_transfers.len() != claims.len()
         || claim_transfers.iter().zip(claims).any(|(transfer, claim)| {
-            // A claim names a dense structural parameter; its transfer names
-            // the dense call-argument slot forwarded to that parameter, one
-            // later when the ambient receiver's slot precedes it. Authored
-            // signature positions also count scalar formals, so they never
-            // index this list.
+            // Claims and transfers share the dense structural namespace.
+            // Authored signature positions also count scalar formals.
             let parameter_index = usize::try_from(claim.parameter_index).unwrap_or(usize::MAX);
             let expected_argument = (parameter_index < structural.len())
-                .then(|| {
-                    parameter_index
-                        + usize::from(ambient_receiver.is_some_and(|slot| slot <= parameter_index))
-                })
+                .then_some(parameter_index)
                 .and_then(|index| u32::try_from(index).ok());
             Some(transfer.argument_index) != expected_argument || claim.carry != CarryPolicy::STRICT
         })
@@ -642,14 +582,7 @@ pub(super) fn available_target(
                     crate::semantic::calls::CallSite::TransitionNamed { path, .. } => path.symbol,
                 };
                 let parameters = crate::semantic::calls::call_target_parameters(program, target)?;
-                let explicit_self = crate::semantic::calls::call_site_supplies_explicit_subject(
-                    program, &site, parameters,
-                );
-                let mut actuals = parameters
-                    .iter()
-                    .enumerate()
-                    .filter(|(_, parameter)| !parameter.is_self || explicit_self)
-                    .zip(arguments);
+                let mut actuals = parameters.iter().enumerate().zip(arguments);
                 let expression = actuals.find_map(|((position, _), expression)| {
                     (position == *parameter_position as usize).then_some(*expression)
                 })?;
@@ -695,20 +628,11 @@ pub(super) fn available_target(
         return None;
     }
     // Authored positions partition into dense scalar and structural namespaces;
-    // no receiver or claim may disappear while selecting the real callee body.
-    // Two authored positions legitimately own no plan entry here: an erased
-    // binding, and a borrowed `self` the callee leaves ambient on the
-    // attachment carrier instead of retaining as a structural parameter.
-    let receiver_retained = structural.iter().any(|parameter| parameter.is_self);
+    // only erased bindings own no runtime plan entry.
     let planned_positions = program
         .state_parameters(state)
         .iter()
-        .filter(|parameter| {
-            !parameter.relevance.is_erased()
-                && !(parameter.is_self
-                    && !receiver_retained
-                    && is_reference(program, parameter.type_reference))
-        })
+        .filter(|parameter| !parameter.relevance.is_erased())
         .count();
     (machine.supply_mode == MachineSupplyMode::CheckedBody
         && state.symbol == *target_state

@@ -105,7 +105,6 @@ fn meaning_consequence(
             program
                 .state_parameters(state)
                 .iter()
-                .filter(|parameter| !parameter.is_self)
                 .map(|parameter| program.symbols.name(parameter.symbol)),
         )
     {

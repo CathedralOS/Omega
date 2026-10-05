@@ -211,8 +211,7 @@ impl<'field> RangeFacts<'field> {
                 )?;
                 (row.machine == machine.symbol
                     && row.state == state.symbol
-                    && crate::flow::normalized_event_place_root(program, place.root)
-                        == facts::PlaceRoot::Symbol(machine.symbol)
+                    && (place.root) == facts::PlaceRoot::Symbol(machine.symbol)
                     && !place.segments.is_empty()
                     && place
                         .segments
@@ -257,20 +256,14 @@ impl<'field> RangeFacts<'field> {
                 let [place] = row.reads.as_deref()? else {
                     return None;
                 };
-                let mut place = crate::flow::rebase_exact_local_place(
+                let place = crate::flow::rebase_exact_local_place(
                     program,
                     state.symbol,
                     self.statement_index,
                     place.clone(),
                     self.checked_calls.and_then(|context| context.call_frames()),
                 )?;
-                crate::flow::normalize_attached_place_root(
-                    program,
-                    machine.symbol,
-                    state.symbol,
-                    &mut place,
-                );
-                place.root = crate::flow::normalized_event_place_root(program, place.root);
+
                 storages.iter().find_map(|(storage, destination)| {
                     if place.root != storage.root || !place.segments.starts_with(&storage.segments)
                     {
@@ -603,12 +596,6 @@ impl<'field> RangeFacts<'field> {
         };
         let mut writes = writes.to_vec();
         for write in &mut writes {
-            crate::flow::normalize_attached_place_root(
-                program,
-                machine.symbol,
-                state.symbol,
-                write,
-            );
             if !matches!(write.root, facts::PlaceRoot::Symbol(symbol) if symbol.is_valid() && program.symbols.get(symbol).kind != symbols::SymbolKind::Field)
             {
                 return Vec::new();
@@ -718,8 +705,7 @@ impl<'field> RangeFacts<'field> {
 }
 
 fn places_overlap(program: &TypedTrees, left: &CanonicalPlace, right: &CanonicalPlace) -> bool {
-    crate::flow::normalized_event_place_root(program, left.root)
-        == crate::flow::normalized_event_place_root(program, right.root)
+    (left.root) == (right.root)
         && crate::flow::canonical_place_segments_may_overlap(
             program,
             &left.segments,

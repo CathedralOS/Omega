@@ -114,15 +114,8 @@ fn operator_statement_operands<'program>(
 )> {
     let resolved = resolve_operator_statement_call(program, call)?;
     let parameters = program.operator_parameters(resolved.operator);
-    let receiver_parameter_index = parameters
-        .iter()
-        .position(|parameter| parameter.is_self)
-        .or_else(|| {
-            resolved
-                .receiver_is_value
-                .then(|| parameters.iter().position(|parameter| !parameter.is_self))
-                .flatten()
-        });
+    let receiver_parameter_index =
+        (resolved.receiver_is_value && !parameters.is_empty()).then_some(0);
     let receiver_place = receiver_parameter_index.and_then(|_| {
         crate::flow::mutation::canonical_receiver_place_for_call_site(
             program,

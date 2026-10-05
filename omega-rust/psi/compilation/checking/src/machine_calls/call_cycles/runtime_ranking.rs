@@ -487,12 +487,7 @@ pub(super) fn project_component(
                             continue;
                         };
                         let parameters = program.state_parameters(callee_entry);
-                        if arguments.len()
-                            != parameters
-                                .iter()
-                                .filter(|parameter| !parameter.is_self)
-                                .count()
-                        {
+                        if arguments.len() != parameters.iter().count() {
                             return Err("call arguments do not match the exact entry parameters");
                         }
                         let Some(argument) =
@@ -888,7 +883,6 @@ fn carrier_arrival_bound(
         program
             .state_parameters(source)
             .iter()
-            .filter(|parameter| !parameter.is_self)
             .position(|parameter| parameter.symbol == symbol && !parameter.is_const)
             .filter(|position| source_slots[*position] == role)
             .and_then(|position| source_bounds.get(position).copied())

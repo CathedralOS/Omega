@@ -645,7 +645,6 @@ pub(crate) fn summarize_transition_target_written_paths(
             // divergent actual still fails closed.
             let argument_types = parameters
                 .iter()
-                .filter(|parameter| !parameter.is_self)
                 .map(|parameter| parameter.type_reference)
                 .collect::<Vec<_>>();
             let argument_origins = origins.argument_origins(

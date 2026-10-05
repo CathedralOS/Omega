@@ -308,8 +308,7 @@ fn retains_values_across_unit_call<Value>(
     let parameters = program.state_parameters(entry);
     if arguments.len() != parameters.len()
         || parameters.iter().any(|parameter| {
-            parameter.is_self
-                || parameter.is_const
+            (parameter.is_const)
                 || program
                     .primitive_type_reference(parameter.type_reference)
                     .is_none()

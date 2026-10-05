@@ -124,12 +124,6 @@ impl ContractExpressionEvaluator<'_, '_> {
             } else {
                 name.is_some_and(|name| name == parameter.name.as_str())
             };
-            if parameter.is_self {
-                if parameter_matches {
-                    return None;
-                }
-                continue;
-            }
 
             let argument = arguments.get(argument_index).copied();
             argument_index = argument_index.saturating_add(1);

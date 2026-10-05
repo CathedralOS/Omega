@@ -189,31 +189,17 @@ pub(crate) fn validate_call_node(
 /// Reports the "state `X` expects N argument(s), got M" error when `arguments`
 /// does not match the callee's callable parameter count, returning `true` on a
 /// mismatch so callers skip the per-argument checks (which zip the two and
-/// would misalign). `self_is_argument` selects the arity contract: a runtime
-/// receiver binds `self` through the receiver place (the callee's `self`
-/// parameter is not an authored argument), while a static carrier call spells
-/// the declaration and its first argument IS the `self` operand. SINGLE SOURCE
-/// OF TRUTH for call arity across the statement-position
+/// would misalign). Every parameter corresponds to an authored argument.
+/// This is the common arity contract for the statement-position
 /// (`validate_call_arguments_handles`) and value-position
 /// (`validate_value_call_argument_classes`) paths.
 pub(crate) fn report_argument_count_mismatch(
     target_name: &str,
     parameters: &[StateParameter],
     arguments: &[ExpressionHandle],
-    self_is_argument: bool,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> bool {
-    let callable_parameter_count = parameters
-        .iter()
-        .filter(|parameter| self_is_argument || !parameter.is_self)
-        .count();
-
-    report_callable_argument_count_mismatch(
-        target_name,
-        callable_parameter_count,
-        arguments,
-        diagnostics,
-    )
+    report_callable_argument_count_mismatch(target_name, parameters.len(), arguments, diagnostics)
 }
 
 fn report_callable_argument_count_mismatch(
@@ -350,7 +336,6 @@ fn argument_forwards_mutable_reference(
     }
     let Some(binding_type) = crate::value_custody::locals::state_binding_type(
         program,
-        current_machine,
         state,
         writable_roots.statements,
         path.symbol,
@@ -522,8 +507,7 @@ fn validate_generic_bound_argument_types(
 ) {
     let parameters = program
         .state_signature_parameters(requirement.signature)
-        .iter()
-        .filter(|parameter| !parameter.is_self);
+        .iter();
     for (argument, parameter) in arguments.iter().zip(parameters) {
         let Some(actual) = declared_place_type(program, current_machine, current_state, *argument)
         else {
@@ -580,7 +564,6 @@ pub(crate) fn validate_call_arguments_with_environments(
         writable_roots,
         retains_primitive_float_policy,
         argument_environments,
-        false,
         |argument, required| argument_matches_carrier(program, argument, required),
         diagnostics,
     );
@@ -600,28 +583,15 @@ fn validate_call_arguments_with_type_correspondence(
     writable_roots: &WritableRoots<'_, '_>,
     retains_primitive_float_policy: bool,
     argument_environments: &[ValueEnvironment],
-    self_is_argument: bool,
     type_matches: impl Fn(ExpressionHandle, TypeReferenceHandle) -> bool,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    if report_argument_count_mismatch(
-        target_name,
-        parameters,
-        arguments,
-        self_is_argument,
-        diagnostics,
-    ) {
+    if report_argument_count_mismatch(target_name, parameters, arguments, diagnostics) {
         return;
     }
 
-    for (argument_index, (argument, parameter)) in arguments
-        .iter()
-        .zip(
-            parameters
-                .iter()
-                .filter(|parameter| self_is_argument || !parameter.is_self),
-        )
-        .enumerate()
+    for (argument_index, (argument, parameter)) in
+        arguments.iter().zip(parameters.iter()).enumerate()
     {
         let value_environment = argument_environments
             .get(argument_index)
@@ -642,19 +612,16 @@ fn validate_call_arguments_with_type_correspondence(
         let expected_access = declared_reference_access(program, parameter.type_reference);
         let supplied_access = supplied_reference_access(program, *argument);
 
-        // The `self` receiver operand is not an authored borrow argument; the
-        // write-only attenuation rule applies to the explicit parameters only.
-        if !parameter.is_self
-            && report_write_only_argument_access(
-                program,
-                *argument,
-                parameter,
-                expected_access,
-                supplied_access,
-                target_name,
-                diagnostics,
-            )
-        {
+        // Each explicit parameter retains the ordinary write-only attenuation rule.
+        if report_write_only_argument_access(
+            program,
+            *argument,
+            parameter,
+            expected_access,
+            supplied_access,
+            target_name,
+            diagnostics,
+        ) {
             continue;
         }
 
@@ -847,16 +814,13 @@ fn report_cross_class_argument(
 /// (`let r = self.f(self.bool_field)`). The value-position path validates only
 /// type-parameter bounds, so the same cross-class hole the statement/transition
 /// paths had applies here. Unlike `validate_call_arguments_handles` there is no
-/// shape gate ahead of this, so it also covers literal arguments. A static
-/// attached call passes its receiver as an explicit argument
-/// (`self_is_argument`).
+/// shape gate ahead of this, so it also covers literal arguments.
 #[allow(clippy::too_many_arguments)]
 fn validate_value_call_argument_classes(
     program: &TypedTrees,
     current_machine: &Machine,
     current_state: &State,
     value_environment: &ValueEnvironment,
-    self_is_argument: bool,
     arguments: &[ExpressionHandle],
     callee_machine: &Machine,
     callee_state: &State,
@@ -875,13 +839,9 @@ fn validate_value_call_argument_classes(
     // because this function runs only on a RESOLVED callee -- the resolver's blind
     // spots fall through earlier without reaching it.
     let parameters = program.state_parameters(callee_state);
-    let parameter_count = parameters
-        .iter()
-        .filter(|parameter| self_is_argument || !parameter.is_self)
-        .count();
     if report_callable_argument_count_mismatch(
         callee_state.name.as_str(),
-        parameter_count,
+        parameters.len(),
         arguments,
         diagnostics,
     ) {
@@ -896,7 +856,6 @@ fn validate_value_call_argument_classes(
         callee_state,
         static_arguments,
         arguments,
-        self_is_argument,
     ) else {
         diagnostics.push(Diagnostic::error(format!(
             "call `{}` has an invalid static type argument correspondence",
@@ -914,18 +873,15 @@ fn validate_value_call_argument_classes(
             callee_machine,
             callee_state,
             arguments,
-            self_is_argument,
             diagnostics,
         );
     }
     let retains_primitive_float_policy =
         primitive_float_operator_retains_argument_policy(program, callee_machine.symbol);
-    for (argument, parameter) in arguments.iter().zip(
-        program
-            .state_parameters(callee_state)
-            .iter()
-            .filter(|parameter| self_is_argument || !parameter.is_self),
-    ) {
+    for (argument, parameter) in arguments
+        .iter()
+        .zip(program.state_parameters(callee_state).iter())
+    {
         if !program.machine_type_parameters(callee_machine).is_empty()
             && !crate::value_custody::expression_types::argument_matches_carrier_with_substitutions(
                 program,
@@ -959,17 +915,15 @@ fn validate_value_call_argument_classes(
         // The write-only access contract is the same one the statement and
         // transition paths enforce in `validate_call_arguments_handles`; the
         // `self` receiver place is not an authored borrow argument.
-        if !parameter.is_self
-            && report_write_only_argument_access(
-                program,
-                *argument,
-                parameter,
-                declared_reference_access(program, parameter.type_reference),
-                supplied_reference_access(program, *argument),
-                callee_state.name.as_str(),
-                diagnostics,
-            )
-        {
+        if report_write_only_argument_access(
+            program,
+            *argument,
+            parameter,
+            declared_reference_access(program, parameter.type_reference),
+            supplied_reference_access(program, *argument),
+            callee_state.name.as_str(),
+            diagnostics,
+        ) {
             continue;
         }
         let slot_context = format!(

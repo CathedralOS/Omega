@@ -433,11 +433,6 @@ fn validate_partial_moves(
                             &mut diagnostics,
                         );
                         for prefix_len in 0..path.len() {
-                            if prefix_len == 0
-                                && event_is_owned_self_projection(program, state, event)
-                            {
-                                continue;
-                            }
                             let prefix = crate::flow::CanonicalPlace {
                                 root: event.root,
                                 segments: path[..prefix_len].to_vec(),
@@ -559,22 +554,6 @@ fn borrowed_move_crosses_nominal_drop(
     })
 }
 
-fn event_is_owned_self_projection(
-    program: &typed_trees::TypedTrees,
-    state: &typed_trees::state::State,
-    event: &crate::flow::DiscoveredMoveEvent,
-) -> bool {
-    let facts::PlaceRoot::Symbol(event_root) = event.root else {
-        return false;
-    };
-    if crate::semantic::calls::find_state_in_machine(program, event_root, state.symbol).is_none() {
-        return false;
-    }
-    program.state_parameters(state).iter().any(|parameter| {
-        parameter.is_self && !type_reference_is_reference(program, parameter.type_reference)
-    })
-}
-
 pub(crate) fn type_reference_is_reference(
     program: &typed_trees::TypedTrees,
     type_reference: TypeReferenceHandle,
@@ -685,8 +664,7 @@ pub(super) fn move_event_is_production_target(
         }
         _ => return false,
     };
-    crate::flow::normalized_event_place_root(program, target.root) == event.root
-        && target.segments.as_slice() == path
+    (target.root) == event.root && target.segments.as_slice() == path
 }
 
 fn nominal_drop_type_name(

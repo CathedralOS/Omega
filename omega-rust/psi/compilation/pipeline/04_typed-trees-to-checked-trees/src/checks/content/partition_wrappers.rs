@@ -434,7 +434,6 @@ fn instantiate_partition_subject(
             let argument = argument_for_target_parameter(
                 target_parameters,
                 &invocation.arguments,
-                invocation.receiver,
                 parameter.symbol,
             )?;
             let actual = partition_argument_place(
@@ -494,7 +493,7 @@ fn instantiate_partition_subject(
                     position: u32::try_from(caller_position).ok()?,
                     symbol: caller_parameter.symbol,
                     name: caller_parameter.name.as_str().to_owned(),
-                    is_self: caller_parameter.is_self,
+                    is_self: false,
                 },
                 segments: content_path(program, &actual.segments)?,
             };
@@ -635,25 +634,12 @@ fn instantiate_partition_result_subject(
 fn argument_for_target_parameter(
     parameters: &[StateParameter],
     arguments: &[ExpressionHandle],
-    receiver: Option<ExpressionHandle>,
     parameter_symbol: SymbolHandle,
 ) -> Option<ExpressionHandle> {
-    let includes_explicit_self =
-        parameters.iter().any(|parameter| parameter.is_self) && arguments.len() == parameters.len();
-    let mut argument_index = 0usize;
-    for parameter in parameters {
-        let argument = if parameter.is_self && !includes_explicit_self {
-            receiver
-        } else {
-            let argument = arguments.get(argument_index).copied();
-            argument_index = argument_index.saturating_add(1);
-            argument
-        };
-        if parameter.symbol == parameter_symbol {
-            return argument;
-        }
-    }
-    None
+    let position = parameters
+        .iter()
+        .position(|parameter| parameter.symbol == parameter_symbol)?;
+    arguments.get(position).copied()
 }
 
 fn partition_argument_place(

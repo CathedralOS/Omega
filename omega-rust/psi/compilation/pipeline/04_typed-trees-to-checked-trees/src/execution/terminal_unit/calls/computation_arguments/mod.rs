@@ -49,13 +49,13 @@ pub(crate) fn structural_computation_argument(
         }
         _ => return None,
     };
-    let mut place = crate::flow::canonical_place_from_expression_in_state(
+    let place = crate::flow::canonical_place_from_expression_in_state(
         program,
         state.symbol,
         call.statement_index,
         expression,
     )?;
-    crate::flow::normalize_attached_place_root(program, machine, state.symbol, &mut place);
+
     rejoin_computation_accesses(program, borrow, machine, state.symbol, call)?;
     exact_actual(program, call, expression, target)?;
     // Mutable scalar locals have their own storage representation. Resolve
@@ -123,9 +123,7 @@ pub(crate) fn structural_computation_argument(
         .iter()
         .position(|source| source.symbol == name.symbol)?;
     let source = &parameters[source_position];
-    if source.is_self
-        || source.is_const
-        || plain_primitive_referent(program, source.type_reference)? != target_type
+    if (source.is_const) || plain_primitive_referent(program, source.type_reference)? != target_type
     {
         return None;
     }
@@ -185,7 +183,7 @@ pub(crate) fn subslice_computation_argument(
     target: &StateParameter,
     argument_ordinal: u32,
 ) -> Option<CheckedUnitStructuralArgumentPlan> {
-    if target.is_self || target.is_const {
+    if target.is_const {
         return None;
     }
     exact_actual(program, call, expression, target)?;
@@ -194,13 +192,13 @@ pub(crate) fn subslice_computation_argument(
         .machines()
         .iter()
         .find(|owner| owner.symbol == machine)?;
-    let mut place = crate::flow::canonical_place_from_expression_in_state(
+    let place = crate::flow::canonical_place_from_expression_in_state(
         program,
         state.symbol,
         call.statement_index,
         expression,
     )?;
-    crate::flow::normalize_attached_place_root(program, machine, state.symbol, &mut place);
+
     // Local storage already owns its identity. Only a parameter
     // root needs the caller's structural signature namespace; rebuilding the
     // enclosing attachment for a local would unnecessarily require every
@@ -590,7 +588,7 @@ pub(in crate::execution) fn borrowed_view_argument(
         super::parameter_argument_paths::parameter_is_root(machine, parameter, symbol)
     }) {
         let parameter = &parameters[position];
-        if parameter.is_const || (parameter.is_self && place.segments.is_empty()) {
+        if parameter.is_const {
             return None;
         }
         (
@@ -742,8 +740,7 @@ fn owned_parameter_argument(
     let source = &parameters[source_position];
     let mut shapes = ShapeCollector::new(program);
     for parameter in [source, target] {
-        if parameter.is_self
-            || parameter.is_const
+        if (parameter.is_const)
             || parameter.is_mutable
             || !(matches!(
                 program

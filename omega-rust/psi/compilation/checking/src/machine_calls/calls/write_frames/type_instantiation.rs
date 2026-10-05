@@ -175,32 +175,7 @@ pub(super) fn signature_call_type_bindings_seeded(
         signature,
         site,
         arguments,
-        false,
         bindings,
-    )
-}
-
-/// The same binding walk with `self` retained in the formal→actual
-/// correspondence. Declaration-qualified requirement calls (`Trait::m(x)`)
-/// supply `self` as an ordinary argument, so excluding it would shift every
-/// remaining pairing. `Self` itself names no signature `Type` binder, so the
-/// extra pair still contributes no binding.
-pub(super) fn signature_call_type_bindings_with_self(
-    program: &TypedTrees,
-    current_machine: &Machine,
-    signature: &StateSignature,
-    site: CallerWriteSite<'_>,
-    arguments: &[ExpressionHandle],
-    include_self: bool,
-) -> Option<TypeBindings> {
-    signature_call_type_bindings_in(
-        program,
-        current_machine,
-        signature,
-        site,
-        arguments,
-        include_self,
-        Vec::new(),
     )
 }
 
@@ -210,7 +185,6 @@ fn signature_call_type_bindings_in(
     signature: &StateSignature,
     site: CallerWriteSite<'_>,
     arguments: &[ExpressionHandle],
-    include_self: bool,
     mut bindings: TypeBindings,
 ) -> Option<TypeBindings> {
     let type_parameters = program.state_signature_type_parameters(signature);
@@ -226,7 +200,6 @@ fn signature_call_type_bindings_in(
     let parameters = program
         .state_signature_parameters(signature)
         .iter()
-        .filter(|parameter| include_self || !parameter.is_self)
         .collect::<Vec<_>>();
     if parameters.len() != arguments.len() {
         return None;

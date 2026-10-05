@@ -187,7 +187,6 @@ fn state_frontiers(
                                             state,
                                             statement_index,
                                             program.statement_table.expression_handles(*arguments),
-                                            None,
                                             target_state,
                                             &entry.source,
                                             &ownership.segments,
@@ -536,7 +535,6 @@ fn excluded_input_at_call(
     let argument = argument_for_parameter(
         program,
         program.expression_table.expression_handles(call.arguments),
-        call.receiver.is_valid().then_some(call.receiver),
         target,
         *parameter_symbol,
     )?;
@@ -636,8 +634,7 @@ fn excluded_input_at_call(
             )?);
         }
         if writes.iter().any(|write| {
-            crate::flow::normalized_event_place_root(program, write.root)
-                == crate::flow::normalized_event_place_root(program, place.root)
+            (write.root) == (place.root)
                 && crate::flow::canonical_place_segments_may_overlap(
                     program,
                     &write.segments,

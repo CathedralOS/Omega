@@ -144,23 +144,11 @@ pub(super) fn validate_bindings(
         ))?;
     let arguments = checked.statement_table.expression_handles(*arguments);
     let source_parameters = checked.state_parameters(source);
-    // Authored operands omit an implicit `self` whether or not the target's
-    // signature retained it: a graph-erased receiver still occupies its
-    // authored formal position but no operand slot. Count authored `self`
-    // formals, not signature rows, so both shapes map to the same operand.
     let target_formals = crate::declarations::state_declaration(checked, edge.target_state)
         .map(|(_, state)| checked.state_parameters(state))?;
-    let explicit_argument_position = |position: u32| {
-        position as usize
-            - target_formals
-                .iter()
-                .take(position as usize)
-                .filter(|parameter| parameter.is_self)
-                .count()
-    };
     let validate_argument =
         |argument_position: u32, source_position: u32| {
-            let argument_position = explicit_argument_position(argument_position);
+            let argument_position = argument_position as usize;
             let expression = arguments
                 .get(argument_position)
                 .ok_or(LoweringError::Unsupported(
@@ -169,14 +157,7 @@ pub(super) fn validate_bindings(
             let source = source_parameters.get(source_position as usize).ok_or(
                 LoweringError::Unsupported("Unit graph source parameter missing"),
             )?;
-            // Authored `self` resolves to the machine, while retained edge
-            // custody names the state's receiver parameter. Only that exact
-            // declared receiver may use the machine-root spelling.
-            let source_symbol = if source.is_self {
-                plan.machine
-            } else {
-                source.symbol
-            };
+            let source_symbol = source.symbol;
             // `value as T` on a structural type ascribes the same parameter;
             // scalar (primitive-target) casts stay opaque to this binding.
             let mut argument = *expression;
@@ -239,11 +220,12 @@ pub(super) fn validate_bindings(
             // `&mut [T]` view local's affine binding is the exclusive loan
             // custody its `let` established; the target's mutable view
             // parameter continues that same loan.
-            let expression = arguments
-                .get(explicit_argument_position(target.position))
-                .ok_or(LoweringError::Unsupported(
-                    "Unit graph result argument missing",
-                ))?;
+            let expression =
+                arguments
+                    .get(target.position as usize)
+                    .ok_or(LoweringError::Unsupported(
+                        "Unit graph result argument missing",
+                    ))?;
             let borrowed_local = matches!(
                 checked.expression_table.expression(*expression),
                 ExpressionNode::Borrow(_)
@@ -323,7 +305,7 @@ pub(super) fn validate_bindings(
             // the edge emits it.
             // Retained positions count the receiver formal; the authored
             // argument list does not.
-            if arguments.get(explicit_argument_position(target.position)) != Some(&expression) {
+            if arguments.get(target.position as usize) != Some(&expression) {
                 return unsupported("Unit graph subslice disagrees with its source argument");
             }
             if let ExpressionNode::Borrow(_) = checked.expression_table.expression(expression)
@@ -407,7 +389,7 @@ pub(super) fn validate_bindings(
             if establishment.structural_result_binding().is_none() {
                 return unsupported("Unit graph established argument has no result");
             }
-            let argument_position = explicit_argument_position(target.position);
+            let argument_position = target.position as usize;
             let expression = arguments
                 .get(argument_position)
                 .ok_or(LoweringError::Unsupported(
@@ -496,7 +478,7 @@ pub(super) fn validate_bindings(
             // identity is the target's, the path carries only the segments
             // the admit side admits, and the subject roots at a parameter or
             // a rejoinable result binding.
-            let argument_position = explicit_argument_position(target.position);
+            let argument_position = target.position as usize;
             let expression = arguments
                 .get(argument_position)
                 .ok_or(LoweringError::Unsupported(
@@ -559,11 +541,7 @@ pub(super) fn validate_bindings(
                         LoweringError::Unsupported("Unit graph case-payload parameter missing"),
                     )?;
                     (
-                        if parameter.is_self {
-                            plan.machine
-                        } else {
-                            parameter.symbol
-                        },
+                        parameter.symbol,
                         parameter.type_reference,
                         retained.type_identity.as_str(),
                     )
@@ -678,7 +656,7 @@ pub(super) fn validate_bindings(
             {
                 return unsupported("Unit graph case-payload subject is not the tested sum");
             }
-            let argument_position = explicit_argument_position(target.position);
+            let argument_position = target.position as usize;
             let expression = arguments
                 .get(argument_position)
                 .ok_or(LoweringError::Unsupported(
@@ -720,7 +698,7 @@ pub(super) fn validate_bindings(
             // The authored operand is the projected place itself —
             // `param.field` — reading a copyable subtree out of a live
             // parameter root.
-            let argument_position = explicit_argument_position(target.position);
+            let argument_position = target.position as usize;
             let expression = arguments
                 .get(argument_position)
                 .ok_or(LoweringError::Unsupported(
@@ -764,7 +742,7 @@ pub(super) fn validate_bindings(
             // the authored octets into immutable storage the borrowed
             // byte-view target reads. The authored operand must be a string
             // literal.
-            let argument_position = explicit_argument_position(target.position);
+            let argument_position = target.position as usize;
             let expression = arguments
                 .get(argument_position)
                 .ok_or(LoweringError::Unsupported(

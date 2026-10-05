@@ -28,8 +28,6 @@ mod anonymous_shared;
 mod bounded_owner;
 mod reference;
 
-pub(in crate::execution::terminal_unit) use reference::receiver_argument as reference_result_receiver_argument;
-
 #[allow(clippy::too_many_arguments)]
 pub(super) fn argument(
     program: &TypedTrees,
@@ -108,16 +106,7 @@ pub(super) fn argument(
     // A by-value `self` formal is spelled `Self`; its referent is the
     // receiver value's own declared type, whose identity already matched the
     // attached data above. A local binding names that type directly.
-    let formal_type = if parameter.is_self {
-        crate::execution::terminal_unit::types::attached_self_application(
-            program,
-            parameter.type_reference,
-        )
-        .or_else(|| receiver_local_type(program, source_state, place, result))
-        .unwrap_or(parameter.type_reference)
-    } else {
-        parameter.type_reference
-    };
+    let formal_type = { parameter.type_reference };
     let projected = !place.segments.is_empty();
     let unrestricted = result.multiplicity == Multiplicity::Unrestricted;
     let linear = result.multiplicity == Multiplicity::Linear;
@@ -918,22 +907,10 @@ pub(super) fn argument(
                             == place.segments.as_slice())
             });
         let event = events.next()?;
-        // `permission_kind_for_move` settles an owned `self` move as Consume
-        // when the callee's return carries no linear obligation — the
-        // receiver's terminal settlement, not an ordinary value handoff.
-        // Non-self owned parameters always transfer custody. Linear handoffs
+        // Owned parameters transfer custody. Linear handoffs
         // retain a known live claim; affine handoffs have neither a claim
         // identity nor a live obligation.
-        let expected_move_kind = if parameter.is_self
-            && crate::semantic::calls::find_state(program, call.target_symbol).is_some_and(
-                |target| {
-                    !crate::checks::type_carries_linear_obligation(program, target.return_type)
-                },
-            ) {
-            PermissionEventKind::Consume
-        } else {
-            PermissionEventKind::Transfer
-        };
+        let expected_move_kind = PermissionEventKind::Transfer;
         if linear {
             // Moving one whole aggregate transfers every live claim below it.
             // This operand check establishes typed source events; the enclosing

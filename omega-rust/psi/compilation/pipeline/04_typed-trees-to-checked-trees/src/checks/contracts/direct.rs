@@ -83,18 +83,8 @@ pub(super) fn direct_context_proves_instantiated_boolean_expression(
         {
             return expression;
         }
-        if parameters
-            .iter()
-            .any(|parameter| parameter.is_self && parameter.symbol == path.symbol)
-        {
-            return match call_site {
-                crate::semantic::calls::CallSite::Expression { call, .. } => call.receiver,
-                _ => expression,
-            };
-        }
         parameters
             .iter()
-            .filter(|parameter| !parameter.is_self)
             .position(|parameter| parameter.symbol == path.symbol)
             .and_then(|position| arguments.get(position).copied())
             .unwrap_or(expression)
@@ -212,21 +202,10 @@ fn instantiated_live_value_proves(
                         .len()
                         == 1 =>
             {
-                if parameters
+                let position = parameters
                     .iter()
-                    .any(|parameter| parameter.is_self && parameter.symbol == path.symbol)
-                {
-                    match call_site {
-                        crate::semantic::calls::CallSite::Expression { call, .. } => call.receiver,
-                        _ => return None,
-                    }
-                } else {
-                    let position = parameters
-                        .iter()
-                        .filter(|parameter| !parameter.is_self)
-                        .position(|parameter| parameter.symbol == path.symbol)?;
-                    *arguments.get(position)?
-                }
+                    .position(|parameter| parameter.symbol == path.symbol)?;
+                *arguments.get(position)?
             }
             // A member or indexed projection of an explicit formal (`room.count`,
             // `table[i]`) names the actual's storage, not a value the call
@@ -321,7 +300,6 @@ fn projected_formal_leaf_value(
     // only explicit formals join the positional argument roster.
     let position = parameters
         .iter()
-        .filter(|parameter| !parameter.is_self)
         .position(|parameter| parameter.symbol == formal)?;
     let argument = *arguments.get(position)?;
     let mut actual = crate::flow::canonical_place_from_expression_in_state(
@@ -388,7 +366,6 @@ fn projected_collection_extent(
     };
     if !parameters
         .iter()
-        .filter(|parameter| !parameter.is_self)
         .any(|parameter| parameter.symbol == formal)
     {
         return None;

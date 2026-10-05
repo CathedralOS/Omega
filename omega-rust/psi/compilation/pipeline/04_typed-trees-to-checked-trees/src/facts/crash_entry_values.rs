@@ -972,7 +972,7 @@ fn receiver_parameter_symbol(
     program
         .state_parameters(state)
         .iter()
-        .find(|parameter| parameter.is_self)
+        .find(|_parameter| false)
         .map(|parameter| parameter.symbol)
 }
 
@@ -1066,7 +1066,7 @@ fn state_parameter_entry_operand(
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     parameter_symbol: SymbolHandle,
-    before_statement: usize,
+    _before_statement: usize,
     write_scan_end: usize,
     field_path: &[PlaceSegment],
     depth: u32,
@@ -1085,42 +1085,7 @@ fn state_parameter_entry_operand(
         machine,
         machine.symbol,
     )?;
-    if parameter.is_self {
-        // `self` binds once, at the invocation: transitions never rebind the
-        // receiver, so an immutable receiver's storage is the entry storage in
-        // every state — including through field projections. A mutable
-        // receiver keeps entry identity only below a field projection no
-        // statement that can precede the read can write through: `self.<field>`
-        // writes root at the field rather than this parameter, and any earlier
-        // arrival may already have run any state that still reaches this one,
-        // so the pristine-storage window is bounded by re-entrancy
-        // reachability (`mutable::receiver_field_holds_entry_value` — the
-        // write-escape rule). The produced `Parameter` names the
-        // receiver's position in the ENTRY state's telescope, matching the
-        // ordinal authored `self.<field>` contract predicates take through
-        // `parameter_names`.
-        if !receiver_contents_stable(program, machine) {
-            return None;
-        }
-        let entry_ordinal = program
-            .state_parameters(&states[entry_index])
-            .iter()
-            .position(|candidate| candidate.is_self)?;
-        if parameter.is_mutable
-            && !mutable::receiver_field_holds_entry_value(
-                program,
-                machine,
-                state_symbol,
-                before_statement,
-                field_path,
-            )
-        {
-            return None;
-        }
-        return Some(CrashPredicateExpression::Parameter(
-            u32::try_from(entry_ordinal).ok()?,
-        ));
-    }
+
     let mutable_storage =
         observation_requires_write_scan(program, parameter.type_reference, field_path)?;
     let mutable = parameter.is_mutable || mutable_storage;
@@ -1138,10 +1103,7 @@ fn state_parameter_entry_operand(
         return None;
     }
     // Transition arguments bind only the non-self parameters, in order.
-    let argument_index = parameters[..parameter_ordinal]
-        .iter()
-        .filter(|parameter| !parameter.is_self)
-        .count();
+    let argument_index = parameters[..parameter_ordinal].iter().count();
     // The invocation itself is the entry state's one non-transition arrival.
     let mut provenance = if state_index == entry_index {
         Some(CrashPredicateExpression::Parameter(

@@ -113,9 +113,6 @@ struct ValueCallee<'program> {
     state: &'program State,
     /// The spelling type-parameter bound diagnostics name.
     spelling: &'program str,
-    /// A static attached call passes its receiver as the explicit first
-    /// argument rather than as the callee's implicit `self`.
-    self_is_argument: bool,
 }
 
 impl<'program> ValueCallee<'program> {
@@ -129,7 +126,6 @@ impl<'program> ValueCallee<'program> {
             machine,
             state,
             spelling: call.target.as_str(),
-            self_is_argument: false,
         }
     }
 
@@ -139,7 +135,6 @@ impl<'program> ValueCallee<'program> {
             machine,
             state,
             spelling: state.name.as_str(),
-            self_is_argument: false,
         }
     }
 }
@@ -192,7 +187,6 @@ impl ValueCallSite<'_> {
             self.arguments,
             self.current_machine,
             Some(self.current_state),
-            callee.self_is_argument,
             diagnostics,
         );
         validate_value_call_argument_classes(
@@ -200,7 +194,6 @@ impl ValueCallSite<'_> {
             self.current_machine,
             self.current_state,
             self.value_environment,
-            callee.self_is_argument,
             self.arguments,
             callee.machine,
             callee.state,
@@ -696,34 +689,9 @@ fn validate_expression_call_bounds(
             )));
             return;
         }
-        if receiver_type_reference.is_none()
-            && program
-                .state_parameters(callee_state)
-                .iter()
-                .any(|parameter| parameter.is_self)
-            && let Some(argument) = arguments.first()
-            && crate::value_custody::expression_types::value_concrete_data_symbol(
-                program,
-                current_machine,
-                Some(current_state),
-                *argument,
-            ) != Some(callee_machine.attached_data_symbol)
-        {
-            // A static carrier selects the declaration. Its explicit self
-            // argument must still supply that same receiver owner; the formal
-            // Self symbol is not itself a concrete data declaration.
-            diagnostics.push(Diagnostic::error(format!(
-                "explicit self argument for attached call `{}` does not belong to the receiver's exact data type",
-                call.target,
-            )));
-            return;
-        }
         site.validate_callee(
             symbols,
-            ValueCallee {
-                self_is_argument: receiver_type_reference.is_none(),
-                ..ValueCallee::declared(callee_machine, callee_state)
-            },
+            ValueCallee::declared(callee_machine, callee_state),
             diagnostics,
         );
         return;

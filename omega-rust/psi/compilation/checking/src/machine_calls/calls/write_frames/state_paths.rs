@@ -71,7 +71,6 @@ pub(super) fn normalize_state_relative_path(
     if let Some(parameter_index) = program
         .state_parameters(state)
         .iter()
-        .filter(|parameter| !parameter.is_self)
         .position(|parameter| parameter.name.as_str() == root)
     {
         return Some(Some(append_place_suffix(

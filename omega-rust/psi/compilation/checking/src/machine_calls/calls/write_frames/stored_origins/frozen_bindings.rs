@@ -71,7 +71,7 @@ pub(in crate::machine_calls::calls::write_frames) fn call_exposes_frozen_binding
         symbols,
         inference,
     );
-    (receiver_allows_replacement(program, call.target_symbol)
+    (receiver_target_is_unresolved(program, call.target_symbol)
         && statement_receiver_exposes_binding(program, state, call, stored, aliases)
         && (!statement_receiver_has_identity(program, call, stored, aliases)
             || writes_may_replace_binding(program, stored, aliases, writes.as_deref())))
@@ -154,7 +154,7 @@ fn expression_exposes_with_writes(
             };
         }
         let writes = call_writes.as_deref();
-        if receiver_allows_replacement(program, call.target_symbol)
+        if receiver_target_is_unresolved(program, call.target_symbol)
             && (target_replaces_case_binding(program, call.receiver, stored, aliases)
                 || target_replaces_reference_binding(
                     program,
@@ -353,31 +353,8 @@ fn call_written_paths(
     Some(paths)
 }
 
-fn receiver_allows_replacement(program: &TypedTrees, target: symbols::SymbolHandle) -> bool {
-    let Some((_, state)) =
-        crate::machine_calls::calls::write_frames::machine_state_by_symbol(program, target)
-    else {
-        return true;
-    };
-    let Some(parameter) = program
-        .state_parameters(state)
-        .iter()
-        .find(|parameter| parameter.is_self)
-    else {
-        return false;
-    };
-    let mut reference = parameter.type_reference;
-    loop {
-        match program.type_reference_table.type_reference(reference) {
-            typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
-                reference = *base_type
-            }
-            typed_trees::types::TypeReferenceNode::Reference { access, .. } => {
-                return access.is_exclusive();
-            }
-            _ => return false,
-        }
-    }
+fn receiver_target_is_unresolved(program: &TypedTrees, target: symbols::SymbolHandle) -> bool {
+    crate::machine_calls::calls::write_frames::machine_state_by_symbol(program, target).is_none()
 }
 
 fn statement_receiver_has_identity(

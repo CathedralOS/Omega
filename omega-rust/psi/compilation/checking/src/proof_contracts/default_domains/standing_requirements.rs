@@ -141,6 +141,5 @@ fn formal_position(
     }
     parameters
         .iter()
-        .filter(|parameter| !parameter.is_self)
         .position(|parameter| parameter.symbol == path.symbol)
 }

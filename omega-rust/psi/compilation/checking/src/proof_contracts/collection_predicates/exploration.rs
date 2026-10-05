@@ -186,7 +186,7 @@ pub(crate) fn admitted_predicate_machine(
         program
             .state_parameters(state)
             .iter()
-            .all(|parameter| !parameter.is_mutable && !parameter.is_self)
+            .all(|parameter| !parameter.is_mutable)
     });
     (pure && returns_boolean && unconditional && parameters_readable).then_some(index)
 }

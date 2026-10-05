@@ -207,7 +207,7 @@ pub(super) fn detached_borrowed_copy_admitted(
     place: &CanonicalPlace,
     source: FlowOwnershipEventSource,
 ) -> bool {
-    let facts::PlaceRoot::Symbol(root) = place.root else {
+    let facts::PlaceRoot::Symbol(_) = place.root else {
         return false;
     };
     let Some(projected) =
@@ -227,19 +227,6 @@ pub(super) fn detached_borrowed_copy_admitted(
         }
     };
 
-    // A `self`-rooted place crosses the state receiver's loan; the machine
-    // symbol and the `self` parameter are the two spellings of that root.
-    if let Some(state_decl) = crate::semantic::calls::find_state(program, state)
-        && let Some(self_parameter) = program
-            .state_parameters(state_decl)
-            .iter()
-            .find(|parameter| parameter.is_self)
-    {
-        let machine_symbol = program.symbols.get(state_decl.symbol).parent;
-        if root == machine_symbol || root == self_parameter.symbol {
-            note(reference_access(program, self_parameter.type_reference));
-        }
-    }
     // The root place and each proper prefix may each cross a reference.
     for length in 0..place.segments.len() {
         let prefix = CanonicalPlace {

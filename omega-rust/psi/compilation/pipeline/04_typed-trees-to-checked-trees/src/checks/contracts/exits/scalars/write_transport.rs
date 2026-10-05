@@ -16,8 +16,7 @@ use facts::{FactPayload, PlaceRoot};
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 
 use crate::flow::{
-    CanonicalPlace, canonical_place_from_expression_in_state, normalize_attached_place_root,
-    statement_mutated_place,
+    CanonicalPlace, canonical_place_from_expression_in_state, statement_mutated_place,
 };
 
 use super::ExitScalars;
@@ -54,7 +53,7 @@ impl ExitScalars<'_, '_> {
         ) else {
             return false;
         };
-        let Some(mut place) = canonical_place_from_expression_in_state(
+        let Some(place) = canonical_place_from_expression_in_state(
             self.program,
             self.exit.state_symbol,
             self.exit.statement_index,
@@ -62,12 +61,7 @@ impl ExitScalars<'_, '_> {
         ) else {
             return false;
         };
-        normalize_attached_place_root(
-            self.program,
-            self.machine.symbol,
-            self.exit.state_symbol,
-            &mut place,
-        );
+
         if !matches!(place.root, PlaceRoot::Symbol(_)) || !super::stable_segments(&place.segments) {
             return false;
         }
@@ -89,7 +83,7 @@ impl ExitScalars<'_, '_> {
             let statement = &statements[index];
             match statement {
                 typed_trees::statement::StatementNode::Assignment(assignment) => {
-                    let Some(mut written) = statement_mutated_place(
+                    let Some(written) = statement_mutated_place(
                         self.program,
                         self.machine.symbol,
                         state.symbol,
@@ -98,12 +92,7 @@ impl ExitScalars<'_, '_> {
                     ) else {
                         continue;
                     };
-                    normalize_attached_place_root(
-                        self.program,
-                        self.machine.symbol,
-                        state.symbol,
-                        &mut written,
-                    );
+
                     if places_overlap(&written, &place) {
                         write = Some((index, assignment.value));
                         later_writes.push(place.clone());
@@ -213,7 +202,7 @@ impl ExitScalars<'_, '_> {
                 };
                 for (left, right) in expressions {
                     for (subject, substitution) in [(left, right), (right, left)] {
-                        let Some(mut place) = canonical_place_from_expression_in_state(
+                        let Some(place) = canonical_place_from_expression_in_state(
                             self.program,
                             state.symbol,
                             write_index,
@@ -221,12 +210,7 @@ impl ExitScalars<'_, '_> {
                         ) else {
                             continue;
                         };
-                        normalize_attached_place_root(
-                            self.program,
-                            self.machine.symbol,
-                            state.symbol,
-                            &mut place,
-                        );
+
                         if !matches!(place.root, PlaceRoot::Symbol(_))
                             || !super::stable_segments(&place.segments)
                             || !transport_expression_is_pure(self.program, substitution)
@@ -287,7 +271,7 @@ impl ExitScalars<'_, '_> {
         let mut nodes = Vec::new();
         crate::monomorphization::collect_expression_tree(self.program, substitution, &mut nodes);
         nodes.iter().all(|node| {
-            let Some(mut leaf) = canonical_place_from_expression_in_state(
+            let Some(leaf) = canonical_place_from_expression_in_state(
                 self.program,
                 state.symbol,
                 write_index,
@@ -295,12 +279,7 @@ impl ExitScalars<'_, '_> {
             ) else {
                 return true;
             };
-            normalize_attached_place_root(
-                self.program,
-                self.machine.symbol,
-                state.symbol,
-                &mut leaf,
-            );
+
             if !matches!(leaf.root, PlaceRoot::Symbol(_)) {
                 return true;
             }
@@ -321,18 +300,12 @@ impl ExitScalars<'_, '_> {
         state: &typed_trees::state::State,
         write_index: usize,
     ) -> bool {
-        if let Some(mut leaf) = canonical_place_from_expression_in_state(
+        if let Some(leaf) = canonical_place_from_expression_in_state(
             self.program,
             state.symbol,
             write_index,
             expression,
         ) {
-            normalize_attached_place_root(
-                self.program,
-                self.machine.symbol,
-                state.symbol,
-                &mut leaf,
-            );
             if matches!(leaf.root, PlaceRoot::Symbol(_)) {
                 if !super::stable_segments(&leaf.segments) {
                     return false;

@@ -1,7 +1,7 @@
 //! Value operand visibility shared by proof assertions and arrival contracts.
 //! This traversal checks scope only; calls are not executed or granted facts.
 
-use crate::declarations::symbols::{MachineSymbols, TopLevelSymbols};
+use crate::declarations::symbols::TopLevelSymbols;
 use diagnostics::Diagnostic;
 use typed_trees::{
     TypedTrees,
@@ -14,7 +14,6 @@ pub(crate) struct StateValueScope<'program, 'symbols> {
     pub(crate) program: &'program TypedTrees,
     pub(crate) machine: &'program Machine,
     pub(crate) state: &'program State,
-    pub(crate) machine_symbols: &'symbols MachineSymbols<'program>,
     pub(crate) symbols: &'symbols TopLevelSymbols<'program>,
     pub(crate) prior_statements: &'symbols [typed_trees::statement::StatementNode],
     pub(crate) context: &'static str,
@@ -60,7 +59,6 @@ impl StateValueScope<'_, '_> {
                         self.machine,
                         self.state,
                         self.prior_statements,
-                        self.machine_symbols,
                         self.symbols,
                         root,
                         name.as_str(),

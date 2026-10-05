@@ -56,9 +56,7 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
     let mut rows = Vec::new();
     let mut argument_index = 0usize;
     for parameter in parameters {
-        let argument = if parameter.is_self {
-            None
-        } else {
+        let argument = {
             let argument = arguments.get(argument_index).copied();
             argument_index += 1;
             argument
@@ -95,15 +93,7 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
         else {
             continue;
         };
-        let actual = if parameter.is_self {
-            crate::flow::canonical_receiver_place_for_call_site(
-                program,
-                machine.symbol,
-                state.symbol,
-                &site,
-                borrow_call.statement_index,
-            )
-        } else {
+        let actual = {
             argument.and_then(|argument| {
                 build.canonical_place_at(
                     program,
@@ -123,11 +113,6 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
         // and the others were merely retired conservatively, so a candidate
         // gets a row back exactly when that row was live before the call.
         // Any other ambiguity seeds nothing.
-        let self_symbol = program
-            .state_parameters(state)
-            .iter()
-            .find(|parameter| parameter.is_self)
-            .map(|parameter| parameter.symbol);
         let exact = crate::flow::rebase_exact_local_place(
             program,
             state.symbol,
@@ -159,14 +144,7 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts<'plans>(
                     .collect()
             }
         };
-        for (mut storage, requires_prior_row) in targets {
-            // Machine storage canonicalizes to the machine-symbol root; the
-            // seeded field facts and their consumers spell it as `self`.
-            if storage.root == PlaceRoot::Symbol(machine.symbol)
-                && let Some(self_symbol) = self_symbol
-            {
-                storage.root = PlaceRoot::Symbol(self_symbol);
-            }
+        for (storage, requires_prior_row) in targets {
             for (path, domain_symbol, semantic_domain) in paths.iter() {
                 if requires_prior_row
                     && !row_was_live(

@@ -7,7 +7,6 @@ use symbols::SymbolHandle;
 
 mod aliases;
 mod points;
-pub(crate) use points::checked_self_parameter_symbol;
 
 /// A compiler-owned standing measure selected by authored member syntax on a
 /// fixed array or slice receiver. The authored member spelling, its exact
@@ -296,8 +295,7 @@ pub(crate) fn contract_member_path_root(
             .first()
             .is_some_and(|name| language_core::is_self_receiver(name.as_str()))
     {
-        return checked_self_parameter_symbol(compilation, context, path)
-            .map(facts::PlaceRoot::Symbol);
+        return None;
     }
     let resolved = path
         .head_symbol

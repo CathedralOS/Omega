@@ -51,7 +51,6 @@ use crate::flow::mutation::{
     WritePlaceNamespace, call_receiver_mutated_place, canonical_receiver_place_for_call_site,
     instantiate_call_relative_places, local_jump_data_argument,
 };
-use crate::flow::normalize_attached_place_root;
 use crate::semantic::calls::{CallSite, find_call_site_in_state, find_state};
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use checked_trees::statement::StatementNode;
@@ -207,7 +206,7 @@ fn build_state_receiver_reads(
                 continue;
             };
             let data_argument = local_jump_data_argument(program, machine.symbol, &site);
-            if !target_takes_receiver(program, call.target_symbol) && data_argument.is_none() {
+            if data_argument.is_none() {
                 continue;
             }
             match site {
@@ -352,16 +351,7 @@ fn extend_new(reads: &mut Vec<CanonicalPlace>, additions: Vec<CanonicalPlace>) -
     grew
 }
 
-fn target_takes_receiver(program: &typed_trees::TypedTrees, target_symbol: SymbolHandle) -> bool {
-    crate::semantic::calls::call_target_parameters(program, target_symbol)
-        .is_some_and(|parameters| parameters.iter().any(|parameter| parameter.is_self))
-}
-
 impl FootprintOwner<'_> {
-    fn normalize(&self, program: &typed_trees::TypedTrees, place: &mut CanonicalPlace) {
-        normalize_attached_place_root(program, self.machine_symbol, self.state.symbol, place);
-    }
-
     /// One target footprint at `receiver_call`, in this owner's coordinates.
     /// An unknown footprint or an unplaceable read widens to the call's
     /// receiver place; so does an instantiated place deeper than
@@ -393,8 +383,7 @@ impl FootprintOwner<'_> {
             return vec![receiver_call.receiver.clone()];
         };
         let mut owned = Vec::new();
-        for mut place in places {
-            self.normalize(program, &mut place);
+        for place in places {
             if !self.reaches(program, &place) {
                 continue;
             }
@@ -488,8 +477,7 @@ impl DirectReads<'_, '_> {
         }
     }
 
-    fn record(&mut self, mut place: CanonicalPlace) {
-        self.owner.normalize(self.program, &mut place);
+    fn record(&mut self, place: CanonicalPlace) {
         if self.owner.reaches(self.program, &place) && !self.reads.contains(&place) {
             self.reads.push(place);
         }

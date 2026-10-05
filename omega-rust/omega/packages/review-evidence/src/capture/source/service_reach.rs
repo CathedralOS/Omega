@@ -245,10 +245,7 @@ fn derive_declared_service_reach(
                 })
         })
         .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
-    let non_self_parameters = parameters
-        .iter()
-        .filter(|parameter| !parameter.is_self)
-        .collect::<Vec<_>>();
+    let non_self_parameters = parameters.iter().collect::<Vec<_>>();
     for invocation in invocations {
         let symbol = match invocation {
             flow_effects::InvocationTarget::Parameter(ordinal) => non_self_parameters

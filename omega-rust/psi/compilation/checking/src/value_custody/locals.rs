@@ -10,11 +10,9 @@ mod value_scope;
 pub(crate) use value_scope::StateValueScope;
 
 /// An executable binding belongs to this state and is identified by its
-/// retained declaration, not another state's spelling. `self` may use the
-/// machine symbol retained by typed expression lowering.
+/// retained declaration, not another state's spelling.
 pub(crate) fn state_binding_type(
     program: &typed_trees::TypedTrees,
-    machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     prior_statements: &[StatementNode],
     symbol: symbols::SymbolHandle,
@@ -22,13 +20,6 @@ pub(crate) fn state_binding_type(
 ) -> Option<typed_trees::types::TypeReferenceHandle> {
     if !symbol.is_valid() {
         return None;
-    }
-    if is_self_receiver(name) && symbol == machine.symbol {
-        return program
-            .state_parameters(state)
-            .iter()
-            .find(|parameter| parameter.is_self)
-            .map(|parameter| parameter.type_reference);
     }
     let declaration = program.symbols.get(symbol);
     if declaration.parent != state.symbol || program.symbols.name(symbol) != name {
@@ -62,7 +53,6 @@ pub(crate) fn state_value_root_is_known(
     machine: &Machine,
     state: &State,
     prior_statements: &[StatementNode],
-    machine_symbols: &MachineSymbols<'_>,
     symbols: &TopLevelSymbols<'_>,
     root: symbols::SymbolHandle,
     name: &str,
@@ -76,7 +66,6 @@ pub(crate) fn state_value_root_is_known(
     {
         return crate::value_custody::locals::state_binding_type(
             program,
-            machine,
             state,
             prior_statements,
             root,
@@ -86,18 +75,6 @@ pub(crate) fn state_value_root_is_known(
     }
     if root.is_valid() && kind == symbols::SymbolKind::Unknown {
         return false;
-    }
-    // Field of the receiver data (bare `fld` == `self.fld`), owned data, or a
-    // callable field.
-    if program
-        .state_parameters(state)
-        .iter()
-        .any(|parameter| parameter.is_self)
-        && (machine_symbols.has_member(name)
-            || machine_symbols.has_owned_data(name)
-            || machine_symbols.callable_field_type(name).is_some())
-    {
-        return true;
     }
     // Generated case operands retain the selected declaration even when their
     // diagnostic carrier includes a package prefix absent from the roster name.
@@ -152,15 +129,8 @@ pub(crate) fn state_value_root_is_known(
             }
         }
     }
-    crate::value_custody::locals::state_binding_type(
-        program,
-        machine,
-        state,
-        prior_statements,
-        root,
-        name,
-    )
-    .is_some()
+    crate::value_custody::locals::state_binding_type(program, state, prior_statements, root, name)
+        .is_some()
 }
 
 pub(crate) struct WritableRoots<'program, 'state> {
@@ -176,12 +146,11 @@ impl WritableRoots<'_, '_> {
     /// and index writes pass `false` and keep the ZII fill idiom ungated.
     pub(crate) fn contains_for_write(&self, root_name: &str, bare_reassignment: bool) -> bool {
         (self.machine_symbols.has_owned_data(root_name)
-            && (receiver_allows_mutation(self.program, self.parameters)
-                || self
-                    .program
-                    .machine_owned_data(self.machine)
-                    .iter()
-                    .any(|owned| owned.name.as_str() == root_name)))
+            && self
+                .program
+                .machine_owned_data(self.machine)
+                .iter()
+                .any(|owned| owned.name.as_str() == root_name))
             || self.statements.iter().any(|statement| {
                 let StatementNode::LocalData(local_data) = statement else {
                     return false;
@@ -207,12 +176,11 @@ impl WritableRoots<'_, '_> {
     /// receiver (the atomic families); it still refuses an undeclared root.
     pub(crate) fn contains_for_shared_access(&self, root_name: &str) -> bool {
         (self.machine_symbols.has_owned_data(root_name)
-            && (self.parameters.iter().any(|parameter| parameter.is_self)
-                || self
-                    .program
-                    .machine_owned_data(self.machine)
-                    .iter()
-                    .any(|owned| owned.name.as_str() == root_name)))
+            && (self
+                .program
+                .machine_owned_data(self.machine)
+                .iter()
+                .any(|owned| owned.name.as_str() == root_name)))
             || self.statements.iter().any(|statement| {
                 matches!(
                     statement,
@@ -224,25 +192,6 @@ impl WritableRoots<'_, '_> {
                 .iter()
                 .any(|parameter| parameter.name.as_str() == root_name)
     }
-}
-
-/// Attached fields inherit the current state's receiver access, not ownership
-/// merely from their presence in the machine's declaration namespace.
-pub fn receiver_allows_mutation(program: &TypedTrees, parameters: &[StateParameter]) -> bool {
-    parameters.iter().any(|parameter| {
-        parameter.is_self
-            && !parameter.is_const
-            && parameter.type_reference.is_valid()
-            && match program
-                .type_reference_table
-                .type_reference(parameter.type_reference)
-            {
-                typed_trees::types::TypeReferenceNode::Reference { access, .. } => {
-                    access.is_exclusive()
-                }
-                _ => true,
-            }
-    })
 }
 
 pub(crate) fn local_is_mutable_reference(

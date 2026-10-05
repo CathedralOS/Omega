@@ -89,9 +89,7 @@ pub(crate) use shape_validation::{
 
 #[allow(unused_imports)]
 pub(crate) use value_classification::ValueClass;
-pub(crate) use value_classification::{
-    report_cross_class_store, report_data_type_conflict, value_concrete_data_symbol,
-};
+pub(crate) use value_classification::{report_cross_class_store, report_data_type_conflict};
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum ExpressionTypeOwner<'program> {

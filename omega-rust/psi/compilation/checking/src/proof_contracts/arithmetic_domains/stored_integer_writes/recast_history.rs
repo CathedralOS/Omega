@@ -5,12 +5,11 @@ use super::*;
 
 pub(super) fn projection(
     program: &TypedTrees,
-    machine: &Machine,
     state: &State,
     source: &crate::LocalWriteSource,
     suffix: &[PlaceSegment],
 ) -> Result<Option<(SymbolHandle, IntegerType)>, ()> {
-    let (mut carrier, mut path) = source_coordinates(program, machine, state, source)?;
+    let (mut carrier, mut path) = source_coordinates(program, state, source)?;
     path.extend_from_slice(suffix);
     let current = typed_storage_projection(program, carrier, &path)?;
     let logical_primitive = program.primitive_type_reference(
@@ -21,7 +20,7 @@ pub(super) fn projection(
         .recasts
         .iter()
         .map(|recast| {
-            let (carrier, path) = predecessor_coordinates(program, machine, state, recast)?;
+            let (carrier, path) = predecessor_coordinates(program, state, recast)?;
             let needs_fit = source_geometry::coordinate_requires_fit(program, carrier, &path)?;
             Ok((carrier, path, needs_fit))
         })
@@ -84,11 +83,10 @@ pub(super) fn projection(
 
 pub(super) fn predecessor_coordinates(
     program: &TypedTrees,
-    machine: &Machine,
     state: &State,
     recast: &crate::RecastSource,
 ) -> Result<(TypeReferenceHandle, Vec<PlaceSegment>), ()> {
-    let declared = root_type(program, machine, state, recast.root).ok_or(())?;
+    let declared = root_type(program, state, recast.root).ok_or(())?;
     let (carrier, path) = recast
         .representation
         .as_ref()

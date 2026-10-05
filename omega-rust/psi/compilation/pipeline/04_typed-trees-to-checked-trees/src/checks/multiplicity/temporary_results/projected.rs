@@ -4,7 +4,6 @@ use super::{
     PermissionClaimIdentity, PermissionEventKind, PermissionProvenance, SymbolHandle,
     TypeReferenceNode,
 };
-use crate::checks::multiplicity::linear_validation::permission_kind_for_move;
 use crate::checks::multiplicity::linear_validation::permission_source;
 use crate::checks::type_carries_linear_obligation;
 use crate::checks::type_multiplicity;
@@ -45,8 +44,6 @@ pub(super) fn append(
                 facts::PlaceSegment::Field { .. } | facts::PlaceSegment::FixedIndex { .. }
             )
         })
-        || permission_kind_for_move(program, facts, machine, state, event)
-            != PermissionEventKind::Transfer
         || permissions.iter().any(|prior| {
             prior.machine_symbol == machine
                 && prior.state_symbol == state

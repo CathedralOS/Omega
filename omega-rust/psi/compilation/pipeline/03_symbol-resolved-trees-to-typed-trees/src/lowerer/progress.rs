@@ -22,7 +22,6 @@ pub(crate) fn normalize_progress_premises(
                         program,
                         program.state_signature_contracts(signature),
                         program.state_signature_parameters(signature),
-                        None,
                     )?,
                 }
             } else {
@@ -76,19 +75,11 @@ fn normalize_machine_progress_premises_from(
                     .first()
                     .map(|state| program.state_parameters(state))
                     .unwrap_or_default();
-                let self_data_symbol = machine.attached_data.as_ref().and_then(|name| {
-                    program
-                        .data_definitions()
-                        .iter()
-                        .find(|data| data.name == *name)
-                        .map(|data| data.symbol)
-                });
                 TerminationInterface::Published(TerminationGuarantee::Terminates {
                     premises: authored_premises(
                         program,
                         program.machine_contracts(machine),
                         parameters,
-                        self_data_symbol,
                     )?,
                 })
             } else if let Some(inherited) = inherited_guarantee(program, machine)? {
@@ -167,7 +158,6 @@ fn authored_premises(
     program: &typed::TypedTrees,
     contracts: &[typed::signature::SignatureContract],
     parameters: &[typed::signature::StateParameter],
-    self_data_symbol: Option<symbols::SymbolHandle>,
 ) -> Result<Vec<ProgressPremise>, Diagnostic> {
     let mut premises = Vec::new();
     for contract in contracts
@@ -190,9 +180,7 @@ fn authored_premises(
             {
                 continue;
             }
-            let Some(subject) =
-                subject_path(program, membership.value, parameters, self_data_symbol)
-            else {
+            let Some(subject) = subject_path(program, membership.value, parameters) else {
                 return Err(Diagnostic::error(format!(
                     "progress premise for `{}` must name one identity-preserving parameter or field path",
                     domain.name
@@ -214,7 +202,6 @@ fn subject_path(
     program: &typed::TypedTrees,
     expression: typed::expression::ExpressionHandle,
     parameters: &[typed::signature::StateParameter],
-    self_data_symbol: Option<symbols::SymbolHandle>,
 ) -> Option<ProgressSubject> {
     match program.expression_table.expression(expression) {
         typed::expression::ExpressionNode::Name(path)
@@ -234,15 +221,6 @@ fn subject_path(
                         .iter()
                         .find(|parameter| parameter.name.as_str() == name)
                 })
-                // `self` may carry the receiver data symbol rather than the
-                // telescope-row symbol. Its durable progress-subject identity
-                // is still the exact receiver parameter.
-                .or_else(|| {
-                    identifier
-                        .is_self_receiver()
-                        .then(|| parameters.iter().find(|parameter| parameter.is_self))
-                        .flatten()
-                })
                 .map(|parameter| parameter.symbol)?;
             Some(ProgressSubject {
                 root,
@@ -250,7 +228,7 @@ fn subject_path(
             })
         }
         typed::expression::ExpressionNode::Member(member) => {
-            let mut subject = subject_path(program, member.receiver, parameters, self_data_symbol)?;
+            let mut subject = subject_path(program, member.receiver, parameters)?;
             let symbol = member
                 .member_symbol
                 .is_valid()
@@ -261,7 +239,6 @@ fn subject_path(
                         &subject,
                         member.member.as_str(),
                         parameters,
-                        self_data_symbol,
                     )
                 })?;
             subject.projections.push(symbol);
@@ -276,23 +253,11 @@ fn resolve_subject_member_symbol(
     subject: &ProgressSubject,
     member_name: &str,
     parameters: &[typed::signature::StateParameter],
-    self_data_symbol: Option<symbols::SymbolHandle>,
 ) -> Option<symbols::SymbolHandle> {
     let parameter = parameters
         .iter()
         .find(|parameter| parameter.symbol == subject.root)?;
-    // The demanded path's position is a declared type plus the arguments the
-    // reaching generic application bound to that declaration's type
-    // parameters. `self` starts at the attached data declaration, which binds
-    // no arguments. An opaque leaf (a machine type parameter, an unevaluated
-    // const type, a dynamic trait) binds nothing either: the projections that
-    // follow it verify by their own exact field identity rather than by
-    // member lookup, as the checker's partition replay does.
-    let mut position = if let Some(symbol) = self_data_symbol.filter(|_| parameter.is_self) {
-        SubjectPosition::AttachedData(symbol)
-    } else {
-        SubjectPosition::Reference(parameter.type_reference)
-    };
+    let mut position = parameter.type_reference;
     let mut substitution = Vec::new();
     for projection in &subject.projections {
         let field = match replay_subject_position(program, position, &substitution) {
@@ -305,7 +270,7 @@ fn resolve_subject_member_symbol(
                 exact_declared_field(program, *projection)?
             }
         };
-        position = SubjectPosition::Reference(field.type_reference);
+        position = field.type_reference;
     }
 
     let (data, _) = replay_subject_position(program, position, &substitution)?;
@@ -317,14 +282,6 @@ fn resolve_subject_member_symbol(
     })
 }
 
-/// Where a demanded subject path currently points: a stored type reference,
-/// or the attached `self` datum reached without one.
-#[derive(Clone, Copy)]
-enum SubjectPosition {
-    Reference(typed::types::TypeReferenceHandle),
-    AttachedData(symbols::SymbolHandle),
-}
-
 /// The declaration a subject position may still replay, plus the bindings the
 /// reaching generic application supplies for that declaration's type
 /// parameters. A `Box<Context>` leaf names `Box`'s own declaration — its
@@ -334,23 +291,14 @@ enum SubjectPosition {
 /// identity, mirroring `checks/termination/progress/lineage/places.rs`.
 fn replay_subject_position<'program>(
     program: &'program typed::TypedTrees,
-    position: SubjectPosition,
+    position: typed::types::TypeReferenceHandle,
     substitution: &[(symbols::SymbolHandle, typed::types::TypeReferenceHandle)],
 ) -> Option<(
     &'program typed::data::DataDefinition,
     Vec<(symbols::SymbolHandle, typed::types::TypeReferenceHandle)>,
 )> {
     use typed::types::TypeReferenceNode;
-    let mut reference = match position {
-        SubjectPosition::AttachedData(symbol) => {
-            return program
-                .data_definitions()
-                .iter()
-                .find(|data| data.symbol == symbol)
-                .map(|data| (data, Vec::new()));
-        }
-        SubjectPosition::Reference(reference) => reference,
-    };
+    let mut reference = position;
     let mut substituted = Vec::new();
     loop {
         match program.type_reference_table.type_reference(reference) {

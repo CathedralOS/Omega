@@ -250,7 +250,6 @@ fn selected_conversion(
             && program.operator_type_parameters(operator).is_empty()
             && owner.as_str() == destination_owner
             && member.as_str() == requirement_member
-            && !parameter.is_self
             && !parameter.is_mutable
             && !parameter.is_const
             && program.primitive_type_reference(parameter.type_reference) == Some(source)

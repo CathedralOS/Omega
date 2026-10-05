@@ -78,9 +78,7 @@ pub fn closed_static_call_type_bindings(
             .map(|(_, parameter)| selected_subject_carrier(program, Some(machine), parameter))
             .unwrap_or_else(TypeReferenceHandle::invalid);
         for (required, actual) in required.iter().zip(actual) {
-            if !crate::declarations::traits::subject_role_matches(
-                program, machine, actual, required,
-            ) || required.is_mutable != actual.is_mutable
+            if required.is_mutable != actual.is_mutable
                 || required.is_const != actual.is_const
                 || !required_type_matches_exact_with_subject(
                     program,
@@ -108,7 +106,6 @@ pub fn closed_static_call_type_bindings(
     let required = program
         .state_signature_parameters(signature)
         .iter()
-        .filter(|parameter| !parameter.is_self)
         .collect::<Vec<_>>();
     if required.len() != arguments.len() {
         return None;

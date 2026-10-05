@@ -164,7 +164,7 @@ fn canonical_correspondence(
                 .selected_application
                 .parameters
                 .iter()
-                .map(|parameter| (parameter.is_mutable, parameter.is_self)),
+                .map(|parameter| parameter.is_mutable),
             "selected theorem",
         )?;
     }
@@ -177,21 +177,21 @@ fn canonical_correspondence(
     require_plain_immutable_parameters(
         public_parameters
             .iter()
-            .map(|parameter| (parameter.is_mutable, parameter.is_self)),
+            .map(|parameter| parameter.is_mutable),
         "public operation",
     )?;
     require_plain_immutable_parameters(
         plan.representative
             .parameters
             .iter()
-            .map(|parameter| (parameter.is_mutable, parameter.is_self)),
+            .map(|parameter| parameter.is_mutable),
         "representative",
     )?;
     require_plain_immutable_parameters(
         selected_theorem
             .parameters
             .iter()
-            .map(|parameter| (parameter.is_mutable, parameter.is_self)),
+            .map(|parameter| parameter.is_mutable),
         "selected theorem",
     )?;
 
@@ -471,7 +471,6 @@ fn require_positional_state_forwarding(
     {
         if source_parameter.is_const != target_parameter.is_const
             || source_parameter.is_mutable != target_parameter.is_mutable
-            || source_parameter.is_self != target_parameter.is_self
             || program.normalized_type_identity(source_parameter.type_reference)
                 != program.normalized_type_identity(target_parameter.type_reference)
             || direct_public_parameter_symbol(program, arguments[position])
@@ -807,16 +806,11 @@ fn require_empty_owner_telescope(
 }
 
 fn require_plain_immutable_parameters(
-    parameters: impl IntoIterator<Item = (bool, bool)>,
+    parameters: impl IntoIterator<Item = bool>,
     label: &str,
 ) -> Result<(), String> {
-    if parameters
-        .into_iter()
-        .any(|(is_mutable, is_self)| is_mutable || is_self)
-    {
-        return Err(format!(
-            "{label} parameters must be immutable and non-attached"
-        ));
+    if parameters.into_iter().any(|is_mutable| is_mutable) {
+        return Err(format!("{label} parameters must be immutable"));
     }
     Ok(())
 }

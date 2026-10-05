@@ -94,29 +94,10 @@ pub(super) fn capture_call<Value: CapturedValue>(
     let statements = program.statement_table.statements(state.statement_nodes);
     let parameters = program.state_parameters(state);
     let arguments = program.expression_table.expression_handles(call.arguments);
-    // The self parameter is the callee's view of the receiver, not a scalar
-    // argument; it occupies no dense binding position.
-    let mut self_positions = parameters
-        .iter()
-        .enumerate()
-        .filter(|(_, parameter)| parameter.is_self)
-        .map(|(position, _)| position);
-    let self_position = match (
-        receiver_place.is_some(),
-        self_positions.next(),
-        self_positions.next(),
-    ) {
-        (true, Some(position), None) => Some(u32::try_from(position).ok()?),
-        (false, None, None) => None,
-        _ => return None,
-    };
-    if self_position.is_some() && !machine.attached_data_symbol.is_valid() {
+    if receiver_place.is_some() {
         return None;
     }
-    let explicit_parameters: Vec<_> = parameters
-        .iter()
-        .filter(|parameter| !parameter.is_self)
-        .collect();
+    let explicit_parameters: Vec<_> = parameters.iter().collect();
     // Erased positions carry proof material only; they own no scalar binding
     // ordinal, so ordinals below count the retained positions alone.
     if explicit_parameters.iter().any(|parameter| {
@@ -264,36 +245,6 @@ pub(super) fn capture_call<Value: CapturedValue>(
             values.storage.push((parameter.symbol, value));
         } else {
             values.bindings.push(Some(value));
-        }
-    }
-    if let Some(self_position) = self_position {
-        let receiver_place = receiver_place.expect("self position implies receiver");
-        // Every self-field read retained by the callee's selected plan
-        // resolves against the receiver place in the caller: a live snapshot
-        // first, then the levels `field_fallback` can still vouch for.
-        let mut paths: Vec<Vec<checked_trees::CheckedStructuralPredicatePathSegment>> = Vec::new();
-        for statement_ordinal in 0..statements.len() as u32 {
-            for row in context.scalar_expression_rows_at(state.symbol, statement_ordinal) {
-                collect_self_field_paths(
-                    &plans.expressions[*row].expression,
-                    self_position,
-                    &mut paths,
-                );
-            }
-        }
-        for path in paths {
-            let (_, segments, reference, frozen) =
-                crate::values::resolve_structural_parameter_path(
-                    program,
-                    parameters,
-                    self_position,
-                    &path,
-                )?;
-            let mut place = receiver_place.clone();
-            place.segments.extend(segments);
-            let value = Value::at_place(&place, &live)
-                .or_else(|| Value::field_fallback(program, reference, frozen))?;
-            values.fields.push((self_position, path, value));
         }
     }
     let mut immutable_local_count = 0_u32;
@@ -474,95 +425,4 @@ fn exact_call_occurrence<'facts>(
         return None;
     }
     Some(captured)
-}
-
-/// Collect the self-parameter field paths retained in the callee's selected
-/// scalar plan so each can be resolved against the caller's receiver once.
-fn collect_self_field_paths(
-    expression: &checked_trees::CheckedScalarExpression,
-    self_position: u32,
-    paths: &mut Vec<Vec<checked_trees::CheckedStructuralPredicatePathSegment>>,
-) {
-    use checked_trees::CheckedScalarExpression as Expression;
-    match expression {
-        Expression::StructuralParameterField {
-            parameter_position,
-            path,
-            ..
-        } if *parameter_position == self_position => {
-            if !paths.iter().any(|candidate| candidate == path) {
-                paths.push(path.clone());
-            }
-        }
-        Expression::StructuralParameterIndexedRead {
-            index,
-            inner_indexes,
-            ..
-        } => {
-            collect_self_field_paths(index, self_position, paths);
-            for inner in inner_indexes {
-                collect_self_field_paths(inner, self_position, paths);
-            }
-        }
-        Expression::IntegerBinary { left, right, .. } => {
-            collect_self_field_paths(left, self_position, paths);
-            collect_self_field_paths(right, self_position, paths);
-        }
-        Expression::IntegerBitwiseNot { operand, .. }
-        | Expression::IntegerWiden { operand, .. }
-        | Expression::IntegerExactCast { operand, .. }
-        | Expression::IntegerWrappingCast { operand, .. }
-        | Expression::IntegerSaturatingCast { operand, .. }
-        | Expression::IntegerTrappingCast { operand, .. } => {
-            collect_self_field_paths(operand, self_position, paths);
-        }
-        Expression::Boolean(expression) => {
-            collect_self_field_paths_boolean(expression, self_position, paths);
-        }
-        _ => {}
-    }
-}
-
-fn collect_self_field_paths_boolean(
-    expression: &checked_trees::CheckedBooleanExpression,
-    self_position: u32,
-    paths: &mut Vec<Vec<checked_trees::CheckedStructuralPredicatePathSegment>>,
-) {
-    use checked_trees::CheckedBooleanExpression as Expression;
-    let mut push = |field: &checked_trees::CheckedStructuralParameterField| {
-        if field.parameter_position == self_position && !paths.contains(&field.path) {
-            paths.push(field.path.clone());
-        }
-    };
-    match expression {
-        Expression::StructuralParameterField {
-            parameter_position,
-            path,
-        } if *parameter_position == self_position => {
-            if !paths.iter().any(|candidate| candidate == path) {
-                paths.push(path.clone());
-            }
-        }
-        Expression::Not(operand) => {
-            collect_self_field_paths_boolean(operand, self_position, paths);
-        }
-        Expression::Equal { left, right }
-        | Expression::And { left, right }
-        | Expression::Or { left, right } => {
-            collect_self_field_paths_boolean(left, self_position, paths);
-            collect_self_field_paths_boolean(right, self_position, paths);
-        }
-        Expression::IntegerComparison { left, right, .. } => {
-            collect_self_field_paths(left, self_position, paths);
-            collect_self_field_paths(right, self_position, paths);
-        }
-        Expression::IeeeFloatComparison { left, right, .. }
-        | Expression::ByteSequenceEqual { left, right }
-        | Expression::PayloadlessSumEqual { left, right, .. } => {
-            push(left);
-            push(right);
-        }
-        Expression::StructuralCaseMembership { subject, .. } => push(subject),
-        _ => {}
-    }
 }

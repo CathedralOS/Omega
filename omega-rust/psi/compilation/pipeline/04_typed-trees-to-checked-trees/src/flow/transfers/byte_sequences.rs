@@ -4,8 +4,6 @@
 use super::PlaceHandle;
 use crate::flow::FlowBuildContext;
 use crate::flow::canonical_place_from_semantic_place;
-use crate::flow::normalize_attached_place_root;
-use crate::flow::normalized_event_place_root;
 use crate::flow::transfers::contextual_expression_place;
 use arena::HandleSpan;
 use checked_trees::FlowSemanticContextRef;
@@ -316,13 +314,7 @@ pub(super) fn append_element_replacement_predicates(
     // propagation path that genuinely cannot carry a class refutes the
     // candidate by itself.
     let canonical_carrier =
-        canonical_place_from_semantic_place(program, semantic, semantic.places.get(carrier)).map(
-            |mut place| {
-                normalize_attached_place_root(program, machine_symbol, state_symbol, &mut place);
-                place.root = normalized_event_place_root(program, place.root);
-                place
-            },
-        );
+        canonical_place_from_semantic_place(program, semantic, semantic.places.get(carrier));
     let carrier_ceiling: Vec<crate::facts::field_domain::ByteSequencePredicate> = canonical_carrier
         .as_ref()
         .and_then(|place| {
@@ -345,14 +337,7 @@ pub(super) fn append_element_replacement_predicates(
                 .is_some_and(|(minimum, maximum)| predicate.holds_for(&[minimum, maximum]))
                 || source_place.is_some_and(|place| {
                     let facts = source_facts.get_or_insert_with(|| {
-                        facts_about_place(
-                            program,
-                            semantic,
-                            &active_facts,
-                            machine_symbol,
-                            state_symbol,
-                            place,
-                        )
+                        facts_about_place(program, semantic, &active_facts, place)
                     });
                     carrier_proves_predicate(program, facts, predicate, &[])
                 });
@@ -416,14 +401,7 @@ pub(super) fn append_element_replacement_predicates(
         } else if predicate == crate::facts::field_domain::ByteSequencePredicate::ValidUtf8 {
             ascii_stored && {
                 let facts = carrier_facts.get_or_insert_with(|| {
-                    facts_about_place(
-                        program,
-                        semantic,
-                        &active_facts,
-                        machine_symbol,
-                        state_symbol,
-                        carrier,
-                    )
+                    facts_about_place(program, semantic, &active_facts, carrier)
                 });
                 carrier_proves_predicate(
                     program,
@@ -438,16 +416,8 @@ pub(super) fn append_element_replacement_predicates(
         if !byte_in_class {
             continue;
         }
-        let facts = carrier_facts.get_or_insert_with(|| {
-            facts_about_place(
-                program,
-                semantic,
-                &active_facts,
-                machine_symbol,
-                state_symbol,
-                carrier,
-            )
-        });
+        let facts = carrier_facts
+            .get_or_insert_with(|| facts_about_place(program, semantic, &active_facts, carrier));
         if !carrier_proves_predicate(program, facts, predicate, &carrier_ceiling) {
             continue;
         }
@@ -554,15 +524,12 @@ fn facts_about_place(
     program: &typed_trees::TypedTrees,
     semantic: &FactPlan,
     active: &[Fact],
-    machine_symbol: SymbolHandle,
-    state_symbol: SymbolHandle,
     carrier: PlaceHandle,
 ) -> Vec<Fact> {
     let canonical = |place| {
-        let mut place =
+        let place =
             canonical_place_from_semantic_place(program, semantic, semantic.places.get(place))?;
-        normalize_attached_place_root(program, machine_symbol, state_symbol, &mut place);
-        place.root = normalized_event_place_root(program, place.root);
+
         Some(place)
     };
     let Some(carrier) = canonical(carrier) else {

@@ -41,7 +41,6 @@ pub(super) fn proves(
     };
     let position = parameters
         .iter()
-        .filter(|parameter| !parameter.is_self)
         .position(|parameter| parameter.symbol == formal)?;
     let Some(argument) = crate::semantic::calls::call_site_argument_expressions(program, call)
         .get(position)
@@ -86,8 +85,7 @@ fn has_explicit_formal_root(
                     return None;
                 }
                 return Some(parameters.iter().any(|parameter| {
-                    !parameter.is_self
-                        && (parameter.symbol == name.head_symbol || parameter.symbol == name.symbol)
+                    parameter.symbol == name.head_symbol || parameter.symbol == name.symbol
                 }));
             }
             _ => return Some(false),

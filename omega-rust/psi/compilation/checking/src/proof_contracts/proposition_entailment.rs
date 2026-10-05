@@ -327,17 +327,11 @@ fn call_parameter_substitutions(
     parameters: &[StateParameter],
 ) -> Vec<(symbols::SymbolHandle, String, String)> {
     let arguments = program.statement_table.expression_handles(call.arguments);
-    let receiver = typed_trees::expression::display_name_path(
-        program.statement_table.name_path_members(call.receiver),
-        "::",
-    );
     let mut argument_index = 0usize;
     parameters
         .iter()
         .map(|parameter| {
-            let label = if parameter.is_self {
-                receiver.clone()
-            } else {
+            let label = {
                 let label = arguments
                     .get(argument_index)
                     .map(|argument| program.expression_table.display_name(*argument))

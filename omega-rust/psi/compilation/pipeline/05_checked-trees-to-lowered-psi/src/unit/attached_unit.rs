@@ -127,7 +127,6 @@ pub(crate) use parameters::{
     validate_transfer_shape,
 };
 pub(crate) use provider_attachments::lower_provider_attachment_places;
-pub(crate) use providers::realize_receiver_adapters;
 use providers::{ProviderBody, checked_unit_provider_candidates};
 
 /// The one closure assembly request. `plans` is the Unit roster the closure

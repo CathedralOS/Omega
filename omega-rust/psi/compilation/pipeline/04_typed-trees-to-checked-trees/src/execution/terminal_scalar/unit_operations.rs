@@ -217,8 +217,7 @@ fn eligible(
             .services(service_reach.transitive)
             .is_empty()
         && program.state_parameters(state).iter().all(|parameter| {
-            !parameter.is_self
-                && !parameter.is_const
+            (!parameter.is_const)
                 && (plain_primitive(parameter.type_reference)
                     || matches!(
                         program.type_reference_table.type_reference(parameter.type_reference),

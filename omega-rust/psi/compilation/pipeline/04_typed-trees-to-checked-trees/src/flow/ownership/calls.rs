@@ -1,7 +1,5 @@
 use crate::flow::CanonicalPlace;
 use crate::flow::FlowOwnershipEventSource;
-use crate::flow::canonical_place_from_expression_in_state;
-use crate::flow::canonical_place_from_symbol;
 use crate::flow::ownership::DirectMoveEventSink;
 use crate::flow::ownership::append_move_event_for_place;
 use crate::flow::ownership::moves;
@@ -14,47 +12,6 @@ use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use symbols::SymbolHandle;
 
 pub(crate) use crate::semantic::calls::call_target_parameters;
-
-/// Resolve the owned `self` place bound through a method-form call receiver.
-///
-/// Static spelling includes `self` in the positional argument span, while
-/// method spelling binds it through the receiver and exposes only the
-/// non-self arguments. Ownership discovery and permission-event
-/// classification must use the same distinction so the latter does not
-/// mistake a terminal method consume for an ordinary transfer.
-pub(crate) fn owned_method_receiver_place(
-    program: &typed_trees::TypedTrees,
-    caller_state_symbol: SymbolHandle,
-    statement_index: usize,
-    call_site: &CallSite<'_>,
-    declared_parameters: &[typed_trees::signature::StateParameter],
-    fallback_receiver_symbol: SymbolHandle,
-) -> Option<CanonicalPlace> {
-    let arguments = call_site_argument_expressions(program, call_site);
-    let positional_parameter_count = declared_parameters
-        .iter()
-        .filter(|parameter| !parameter.is_self)
-        .count();
-    if arguments.len() != positional_parameter_count
-        || !declared_parameters.iter().any(|parameter| {
-            parameter.is_self && type_requires_ownership(program, parameter.type_reference)
-        })
-    {
-        return None;
-    }
-
-    match call_site {
-        CallSite::Expression { call, .. } => canonical_place_from_expression_in_state(
-            program,
-            caller_state_symbol,
-            statement_index,
-            call.receiver,
-        ),
-        CallSite::Statement(call) => canonical_place_from_symbol(call.receiver_symbol),
-        CallSite::TransitionNamed { .. } => None,
-    }
-    .or_else(|| canonical_place_from_symbol(fallback_receiver_symbol))
-}
 
 pub(in crate::flow) fn append_call_ownership_events(
     program: &typed_trees::TypedTrees,
@@ -109,51 +66,13 @@ pub(in crate::flow) fn append_call_ownership_events(
                 && !crate::checks::type_carries_linear_obligation(program, parameter.type_reference))
     };
 
-    // A static invocation of a consuming attached machine spells the by-value
-    // self explicitly (`Receipt::ack(receipt)`). In that shape the argument
-    // count equals the full parameter count and self participates in ordinary
-    // ownership transfer. Method-form calls bind self through the receiver and
-    // expose only the non-self positional arguments here.
-    let includes_explicit_self = declared_parameters
-        .iter()
-        .any(|parameter| parameter.is_self)
-        && arguments.len() == declared_parameters.len();
     let source = FlowOwnershipEventSource::Call {
         statement_index: borrow_call.statement_index,
         call_ordinal: borrow_call.call_ordinal,
         target_symbol: borrow_call.target_symbol,
     };
 
-    // A method-form call binds declared `self` through the receiver rather
-    // than through the positional argument span. Borrowed `&self`/`&mut self`
-    // carries no ownership, but a by-value `self` is the terminal transfer of
-    // that receiver and must emit the same move event as the explicit static
-    // spelling (`Type::consume(value)`). Without this edge, `value.finish()`
-    // left the original linear obligation live at scope exit.
-    if !includes_explicit_self
-        && borrow_call.has_receiver
-        && declared_parameters
-            .iter()
-            .any(|parameter| parameter.is_self && parameter_transfers(parameter))
-        && let Some(receiver) = owned_method_receiver_place(
-            program,
-            state.symbol,
-            borrow_call.statement_index,
-            &call_site,
-            declared_parameters,
-            borrow_call.receiver_symbol,
-        )
-    {
-        let expression = match &call_site {
-            CallSite::Expression { call, .. } => call.receiver,
-            _ => Default::default(),
-        };
-        append_move_event_for_place(program, sink, receiver, source, expression);
-    }
-
-    let parameters = declared_parameters
-        .iter()
-        .filter(|parameter| includes_explicit_self || !parameter.is_self);
+    let parameters = declared_parameters.iter();
 
     for (parameter, argument) in parameters.zip(arguments.iter()) {
         if !parameter_transfers(parameter) {
@@ -165,7 +84,6 @@ pub(in crate::flow) fn append_call_ownership_events(
         // this consuming call owns just the result expression's transfer.
         if affine_call_result_type(program, machine, state, *argument).is_some() {
             append_move_event_for_place(
-                program,
                 sink,
                 CanonicalPlace {
                     root: facts::PlaceRoot::Expression(*argument),

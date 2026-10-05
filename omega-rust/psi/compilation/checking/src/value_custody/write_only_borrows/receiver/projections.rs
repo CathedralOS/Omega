@@ -1,12 +1,11 @@
 //! Content-independent receiver addresses through closed fields and fixed arrays.
 
 use super::super::{
-    Machine, State, TypeReferenceHandle, direct_write_only_root,
-    fixed_unrestricted_write_only_array_shape, is_supported_checked_referee, validate_expression,
+    TypeReferenceHandle, direct_write_only_root, fixed_unrestricted_write_only_array_shape,
+    is_supported_checked_referee,
 };
 use super::{
-    DataDefinition, Diagnostic, ExpressionHandle, ExpressionNode, TypedTrees, WriteOnlyRoot,
-    bare_field, write_only_record,
+    ExpressionHandle, ExpressionNode, TypedTrees, WriteOnlyRoot, bare_field, write_only_record,
 };
 
 /// How far a non-observing projected address may descend through fixed-array
@@ -14,31 +13,10 @@ use super::{
 /// every receiver is an admitted plain record and every selected field is
 /// relevant. `LiteralIndexes` additionally freezes each element hop at a
 /// literal in-bounds index; local formation admits only frozen coordinates.
-/// `RuntimeIndexes` admits element hops whose selector evaluation and range
-/// bounds stay with the ordinary receiver-dispatch checks.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(in crate::value_custody::write_only_borrows) enum ProjectionAdmission {
     MembersOnly,
     LiteralIndexes,
-    RuntimeIndexes,
-}
-
-pub(super) fn record<'program>(
-    program: &'program TypedTrees,
-    expression: ExpressionHandle,
-    roots: &[WriteOnlyRoot],
-) -> Option<&'program DataDefinition> {
-    let (root, referee, attached_root) = projected(
-        program,
-        expression,
-        roots,
-        ProjectionAdmission::RuntimeIndexes,
-    )?;
-    if attached_root {
-        super::record(program, root)
-    } else {
-        write_only_record(program, referee)
-    }
 }
 
 /// Local formation freezes only literal coordinates. Runtime receiver dispatch
@@ -149,27 +127,4 @@ pub(in crate::value_custody::write_only_borrows) fn projected<'roots>(
         attached_root = false;
     }
     Some((root, referee, attached_root))
-}
-
-/// Admitting an address does not exempt selector evaluation from the ordinary
-/// non-observation check. The range checker separately establishes index bounds.
-pub(in crate::value_custody::write_only_borrows) fn validate_operands(
-    program: &TypedTrees,
-    machine: &Machine,
-    state: &State,
-    expression: ExpressionHandle,
-    roots: &[WriteOnlyRoot],
-    diagnostics: &mut Vec<Diagnostic>,
-) {
-    let mut cursor = expression;
-    loop {
-        cursor = match program.expression_table.expression(cursor) {
-            ExpressionNode::Member(member) => member.receiver,
-            ExpressionNode::Indexed(indexed) => {
-                validate_expression(program, machine, state, indexed.index, roots, diagnostics);
-                indexed.collection
-            }
-            _ => break,
-        };
-    }
 }

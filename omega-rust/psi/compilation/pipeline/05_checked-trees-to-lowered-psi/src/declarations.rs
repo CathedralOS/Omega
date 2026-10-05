@@ -71,12 +71,7 @@ impl TargetSignature<'_> {
                 retained_position
             }
             ParameterCoordinates::ServiceOperands => {
-                self.parameters
-                    .iter()
-                    .enumerate()
-                    .filter(|(_, parameter)| !parameter.is_self)
-                    .nth(retained_position)?
-                    .0
+                self.parameters.iter().enumerate().nth(retained_position)?.0
             }
         };
         u32::try_from(position).ok()

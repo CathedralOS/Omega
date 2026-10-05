@@ -128,7 +128,6 @@ pub(super) fn written_paths(
                 symbols,
                 &receiver,
                 name.as_str(),
-                None,
                 site,
                 arguments,
                 inference,

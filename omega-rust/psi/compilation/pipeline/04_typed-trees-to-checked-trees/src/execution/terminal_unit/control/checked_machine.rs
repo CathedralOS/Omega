@@ -5,7 +5,7 @@ use crate::execution::terminal_unit::control::statement_sequence;
 
 use crate::execution::terminal_unit::calls::{
     build_affine_array_construction_prefix, build_unit_trivial_affine_locals, entry_claims,
-    free_structural_scalar_signature, structural_scalar_signature, structural_signature,
+    free_structural_scalar_signature,
 };
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
 use crate::execution::terminal_unit::control::call_occurrences;
@@ -122,25 +122,7 @@ pub(crate) fn build_checked_machine_residual_parts(
     // Ambient attachment cannot replace runtime field observations or published
     // crash predicates: both need the invocation's actual receiver. Contextual
     // cleanup requirements retain their separate receipt-bound environment.
-    let retain_reference_self = retain_reference_self
-        // Scalar computation calls retain their declared borrowed receiver as an
-        // operand even when the body does not read it. Body specialization must
-        // not change the producer/consumer signature of that ordinary call.
-        || (program.primitive_type_reference(state.return_type).is_some()
-            && program.state_parameters(state).iter().any(|parameter| parameter.is_self
-                && matches!(program.type_reference_table.type_reference(parameter.type_reference),
-                    TypeReferenceNode::Reference { access: language_semantics::ReferenceAccess::Shared | language_semantics::ReferenceAccess::Mutable, .. })))
-        // A `&'a V` named-view return borrows the receiver's storage through
-        // its declared result — the shared `&self` operand is retained
-        // exactly as the scalar-return clause above keeps it.
-        || (crate::execution::terminal_unit::types::borrowed_named_view(
-            program,
-            state.return_type,
-        ) && program.state_parameters(state).iter().any(|parameter| {
-            parameter.is_self
-                && matches!(program.type_reference_table.type_reference(parameter.type_reference),
-                    TypeReferenceNode::Reference { access: language_semantics::ReferenceAccess::Shared, .. })
-        }))
+    let _retain_reference_self = retain_reference_self
         || crate::execution::terminal_unit::receiver_calls::uses_receiver_storage(
             program, facts, machine, state,
         )
@@ -218,49 +200,9 @@ pub(crate) fn build_checked_machine_residual_parts(
     trace.phase("signature");
     let statements = program.statement_table.statements(state.statement_nodes);
     let binders = machine_binders(program, machine);
-    let carries_fused_service_parameter = program.state_parameters(state).iter().any(|parameter| {
-        typed_trees::service::classify_exact_service_parameter_carrier(
-            program,
-            parameter.type_reference,
-        )
-        .ok()
-        .flatten()
-        .is_some()
-    });
-    let carries_scalar_parameter = program.state_parameters(state).iter().any(|parameter| {
-        !parameter.is_self
-            && !parameter.relevance.is_erased()
-            && program
-                .primitive_type_reference(parameter.type_reference)
-                .is_some()
-    });
-    // Qualification names the semantic owner; only a receiver parameter can
-    // request legacy attachment storage during the static-machine migration.
-    let (attachment_type_identity, mut structural_parameters, scalar_parameters) =
-        if !program.machine_has_receiver(machine) {
-            let (structural, scalar) =
-                free_structural_scalar_signature(program, shapes, state, &binders)?;
-            (None, structural, scalar)
-        } else if carries_scalar_parameter || carries_fused_service_parameter {
-            structural_scalar_signature(
-                program,
-                shapes,
-                machine,
-                state,
-                &binders,
-                retain_reference_self,
-            )?
-        } else {
-            let (attachment, structural) = structural_signature(
-                program,
-                shapes,
-                machine,
-                state,
-                &binders,
-                retain_reference_self,
-            )?;
-            (attachment, structural, Vec::new())
-        };
+    let (mut structural_parameters, scalar_parameters) =
+        free_structural_scalar_signature(program, shapes, state, &binders)?;
+    let attachment_type_identity = None;
     trace.phase("state contracts");
     if !checked_state_contracts_supported(program, machine, state, &structural_parameters) {
         return None;

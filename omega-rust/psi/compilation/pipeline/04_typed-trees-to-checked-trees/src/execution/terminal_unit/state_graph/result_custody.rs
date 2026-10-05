@@ -177,9 +177,7 @@ pub(super) fn account(
             let authored = program
                 .state_parameters(state)
                 .get(parameter.position as usize)?;
-            (authored.is_self)
-                .then_some(machine.symbol)
-                .or(Some(authored.symbol))
+            false.then_some(machine.symbol).or(Some(authored.symbol))
         };
         let same_view_root = |argument: &checked_trees::CheckedUnitStructuralArgumentPlan| {
             let Some(view_source) = view_source else {

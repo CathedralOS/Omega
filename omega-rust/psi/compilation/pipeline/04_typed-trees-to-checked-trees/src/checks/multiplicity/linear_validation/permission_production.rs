@@ -2,7 +2,6 @@
 
 use crate::checks::multiplicity::linear_obligations::{ClaimIdentityAllocator, LinearPlace};
 use crate::checks::multiplicity::linear_validation::claim_provenance::written_linear_targets;
-use crate::checks::multiplicity::type_multiplicity::type_carries_linear_obligation;
 use crate::checks::multiplicity::{projected_affine, temporary_results};
 use crate::flow::FlowOwnershipEventSource;
 use checked_trees::{CheckFacts, FlowPermissionEventFact};
@@ -141,7 +140,7 @@ pub(crate) fn apply_statement_permission_production(
             );
             continue;
         }
-        let kind = permission_kind_for_move(program, facts, machine_symbol, state_symbol, event);
+        let kind = PermissionEventKind::Transfer;
         for index in matching {
             let claim_path = places[index].path.clone();
             if places[index].ever_established
@@ -371,79 +370,4 @@ pub(crate) fn permission_source(source: FlowOwnershipEventSource) -> PermissionE
             target_symbol,
         },
     }
-}
-
-pub(crate) fn permission_kind_for_move(
-    program: &typed_trees::TypedTrees,
-    facts: &CheckFacts,
-    machine_symbol: SymbolHandle,
-    state_symbol: SymbolHandle,
-    event: &crate::flow::DiscoveredMoveEvent,
-) -> PermissionEventKind {
-    let FlowOwnershipEventSource::Call {
-        statement_index,
-        call_ordinal,
-        target_symbol,
-    } = event.source
-    else {
-        return PermissionEventKind::Transfer;
-    };
-    let Some(call_site) = crate::semantic::calls::find_call_site(
-        program,
-        machine_symbol,
-        state_symbol,
-        statement_index,
-        call_ordinal,
-    ) else {
-        return PermissionEventKind::Transfer;
-    };
-    let Some(target_state) = crate::semantic::calls::find_state(program, target_symbol) else {
-        return PermissionEventKind::Transfer;
-    };
-    let arguments = crate::semantic::calls::call_site_argument_expressions(program, &call_site);
-    let parameters = program.state_parameters(target_state);
-    let event_segments = facts.flow.ownership.segments.span_or_empty(event.segments);
-    if arguments.len() == parameters.len() {
-        for (parameter, argument) in parameters.iter().zip(arguments) {
-            if !parameter.is_self {
-                continue;
-            }
-            let Some(place) = crate::flow::canonical_place_from_expression_in_state(
-                program,
-                state_symbol,
-                statement_index,
-                *argument,
-            ) else {
-                continue;
-            };
-            // The caller's own `self` argument roots at its receiver parameter
-            // symbol while its move events re-root at the machine; compare in
-            // the event's spelling.
-            if crate::flow::normalized_event_place_root(program, place.root) == event.root
-                && place.segments.as_slice() == event_segments
-            {
-                return if type_carries_linear_obligation(program, target_state.return_type) {
-                    PermissionEventKind::Transfer
-                } else {
-                    PermissionEventKind::Consume
-                };
-            }
-        }
-    } else if let Some(place) = crate::flow::owned_method_receiver_place(
-        program,
-        state_symbol,
-        statement_index,
-        &call_site,
-        parameters,
-        SymbolHandle::invalid(),
-    ) && crate::flow::normalized_event_place_root(program, place.root) == event.root
-        && place.segments.as_slice() == event_segments
-    {
-        return if type_carries_linear_obligation(program, target_state.return_type) {
-            PermissionEventKind::Transfer
-        } else {
-            PermissionEventKind::Consume
-        };
-    }
-    PermissionEventKind::Transfer
 }

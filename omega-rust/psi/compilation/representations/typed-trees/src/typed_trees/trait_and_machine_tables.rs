@@ -382,30 +382,11 @@ impl TypedTrees {
         self.machine_states.span_mut_or_empty(machine.states)
     }
 
-    /// Whether some state of `machine` declares an authored `self`
-    /// parameter. Only such a receiver requests attachment storage while
-    /// receiver-based source is migrated: under the static-machine contract a
-    /// carrier qualification (`Counter::clear`) names the semantic owner and
-    /// contributes no argument or storage, so `machine.attached_data` alone
-    /// never implies an attachment.
-    pub fn machine_has_receiver(&self, machine: &machine::Machine) -> bool {
-        self.machine_states(machine).iter().any(|state| {
-            self.state_parameters(state)
-                .iter()
-                .any(|parameter| parameter.is_self)
-        })
-    }
-
     /// The parameter of `parameters` that carries the machine's data record.
     ///
-    /// Under the receiver spelling this is the authored `self`, which cannot be
-    /// shadowed, so a declaration that takes one reaches its data through
-    /// nothing else and the receiver wins outright. The same declaration
-    /// written statically names the data directly (`main: &mut Main`), and the
-    /// attached data's symbol is what identifies it. Both spellings answer one
-    /// question -- which binding holds the record this body's field places are
-    /// rooted at -- so a rendered place is data-rooted when its head names
-    /// this parameter, whatever the parameter is called.
+    /// An explicit parameter names the data directly (`main: &mut Main`). The
+    /// attached data's symbol identifies the carrier, never an implicit argument.
+    /// A rendered place is data-rooted when its head names this parameter.
     ///
     /// `None` when the declaration reaches no single such record:
     ///
@@ -461,17 +442,15 @@ impl TypedTrees {
         machine: &machine::Machine,
         parameter: &signature::StateParameter,
     ) -> bool {
-        parameter.is_self
-            || self.type_reference_names_attached_data(
-                parameter.type_reference,
-                machine.attached_data_symbol,
-            )
+        self.type_reference_names_attached_data(
+            parameter.type_reference,
+            machine.attached_data_symbol,
+        )
     }
 
     /// The position of the one parameter carrying `attached_data_symbol`'s
-    /// record, by the same rule as `data_binding_parameter`: a receiver wins
-    /// outright, otherwise the single parameter declaring that data, and
-    /// `None` when two could be.
+    /// record, by the same rule as `data_binding_parameter`: the single
+    /// parameter declaring that data, and `None` when two could be.
     ///
     /// Callers that hold the attachment without the machine record ask here.
     pub fn data_binding_position(
@@ -479,9 +458,6 @@ impl TypedTrees {
         attached_data_symbol: symbols::SymbolHandle,
         parameters: &[signature::StateParameter],
     ) -> Option<usize> {
-        if let Some(index) = parameters.iter().position(|parameter| parameter.is_self) {
-            return Some(index);
-        }
         if !attached_data_symbol.is_valid() {
             return None;
         }

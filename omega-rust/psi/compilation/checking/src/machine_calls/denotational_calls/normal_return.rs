@@ -91,7 +91,6 @@ fn primitive_value_machine(program: &TypedTrees, machine: &Machine) -> bool {
                 && program.state_parameters(state).iter().all(|parameter| {
                     parameter.symbol.is_valid()
                         && !parameter.is_mutable
-                        && !parameter.is_self
                         && program
                             .primitive_type_reference(parameter.type_reference)
                             .is_some()

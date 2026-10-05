@@ -325,7 +325,7 @@ fn parameter_domain_grants(
     else {
         return false;
     };
-    if parameter.is_mutable || parameter.is_self {
+    if parameter.is_mutable {
         return false;
     }
     crate::facts::field_domain::domain_constraint_symbols(program, parameter.type_reference)
@@ -761,8 +761,8 @@ fn caller_state_preserves_predicate_premise(
                     return false;
                 };
                 let subject = facts.semantic.places.get(place_handle);
-                crate::flow::normalized_event_place_root(program, invalidation.mutated_root)
-                    == crate::flow::normalized_event_place_root(program, subject.root)
+                (invalidation.mutated_root)
+                    == (subject.root)
                     && crate::flow::canonical_place_segments_may_overlap(
                         program,
                         facts
@@ -1128,7 +1128,6 @@ fn incoming_guard_interval_discharges(
     }
     let Some(argument) = target_parameters
         .iter()
-        .filter(|parameter| !parameter.is_self)
         .position(|parameter| parameter.symbol == path.symbol)
         .and_then(|position| {
             crate::semantic::calls::call_site_argument_expressions(program, call_site).get(position)
@@ -1276,9 +1275,6 @@ fn instantiate_state_parameter_label(
     let mut replacements: Vec<(&str, String)> = Vec::new();
     let mut argument_index = 0usize;
     for parameter in program.state_parameters(state) {
-        if parameter.is_self {
-            continue;
-        }
         let Some(argument) = arguments.get(argument_index) else {
             break;
         };
@@ -1675,9 +1671,7 @@ fn caller_state_preserves_self_fields_against_call_writes(
         .flow
         .state_call_prior_invalidations(state_flow, call_flow)
         .any(|invalidation| {
-            if crate::flow::normalized_event_place_root(program, invalidation.mutated_root)
-                != PlaceRoot::Symbol(state_flow.machine_symbol)
-            {
+            if (invalidation.mutated_root) != PlaceRoot::Symbol(state_flow.machine_symbol) {
                 return false;
             }
             let segments = facts

@@ -41,7 +41,7 @@ pub(super) fn loan(
     let facts::PlaceRoot::Symbol(symbol) = place.root else {
         return None;
     };
-    if !place.segments.is_empty() || parameter.is_self {
+    if !place.segments.is_empty() {
         return None;
     }
     let StatementNode::LocalData(local) = program

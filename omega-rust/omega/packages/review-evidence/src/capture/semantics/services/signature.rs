@@ -208,7 +208,6 @@ pub(super) fn project(
     )?;
     let parameters = values
         .iter()
-        .filter(|parameter| !parameter.is_self)
         .map(|parameter| {
             Ok(PackageReviewTraitRequirementParameter {
                 name: parameter.name.as_str().to_owned(),
@@ -220,7 +219,7 @@ pub(super) fn project(
                 )?,
                 is_const: parameter.is_const,
                 is_mutable: parameter.is_mutable,
-                is_self: parameter.is_self,
+                is_self: false,
             })
         })
         .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;

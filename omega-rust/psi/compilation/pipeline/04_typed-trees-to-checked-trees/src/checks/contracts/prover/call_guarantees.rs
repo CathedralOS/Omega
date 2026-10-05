@@ -183,8 +183,7 @@ fn capture_preserved(
             return false;
         };
         if !writes.iter().any(|write| {
-            crate::flow::normalized_event_place_root(program, write.root)
-                == crate::flow::normalized_event_place_root(program, place.root)
+            (write.root) == (place.root)
                 && crate::flow::canonical_place_segments_may_overlap(
                     program,
                     &write.segments,
@@ -264,14 +263,8 @@ fn ordinary_arguments(program: &TypedTrees, invocation: &Invocation<'_>) -> bool
         } => evidence_arguments.is_empty(),
     };
     ordinary
-        && parameters
-            .iter()
-            .filter(|parameter| !parameter.is_self)
-            .count()
-            == arguments.len()
+        && parameters.iter().count() == arguments.len()
         && parameters.iter().all(|parameter| !parameter.is_const)
-        && (!parameters.iter().any(|parameter| parameter.is_self)
-            || receiver_place(program, invocation).is_some())
 }
 
 /// A proof query consumes only the actuals its predicate names. Requiring every

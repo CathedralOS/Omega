@@ -488,9 +488,6 @@ impl<'program> Engine<'program> {
         let mut unsigned_atoms = Vec::new();
         for state in program.machine_states(machine) {
             for parameter in program.state_parameters(state) {
-                if parameter.is_self {
-                    continue;
-                }
                 let name = parameter.name.as_str().to_owned();
                 if !parameter_atoms.contains(&name) {
                     let primitive = program
@@ -1657,7 +1654,7 @@ impl<'program> Engine<'program> {
         let shadowed = program
             .state_parameters(root)
             .iter()
-            .any(|parameter| !parameter.is_self && parameter.name.as_str() == RESULT_BINDER);
+            .any(|parameter| parameter.name.as_str() == RESULT_BINDER);
         if !shadowed {
             engine.parameter_atoms.push(RESULT_BINDER.to_owned());
             if root.return_type.is_valid()
@@ -1706,9 +1703,6 @@ impl<'program> Engine<'program> {
             return;
         };
         for parameter in self.program.state_parameters(entry) {
-            if parameter.is_self {
-                continue;
-            }
             let Some(interval) =
                 crate::proof_contracts::arithmetic_domains::range_constraint_interval(
                     self.program,
@@ -2319,17 +2313,8 @@ impl<'program> Engine<'program> {
                     .machines()
                     .iter()
                     .find(|candidate| candidate.symbol == self.machine_symbol)?;
-                let self_symbol = self
-                    .program
-                    .machine_states(machine)
-                    .iter()
-                    .flat_map(|state| self.program.state_parameters(state))
-                    .find(|parameter| parameter.is_self)
-                    .map(|parameter| parameter.symbol);
-                // `self` canonicalizes to the machine-symbol root; some
-                // surfaces spell the is_self parameter's symbol instead.
                 let root = member_receiver_root_symbol(self.program, expression);
-                if root != Some(self.machine_symbol) && root != self_symbol {
+                if root != Some(self.machine_symbol) && root.is_some() {
                     return None;
                 }
                 let state = self.program.machine_states(machine).first()?;

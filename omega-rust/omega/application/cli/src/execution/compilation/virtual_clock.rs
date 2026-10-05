@@ -338,9 +338,7 @@ impl PhysicalClockOperation {
                 .iter()
                 .zip(expected)
                 .all(|(parameter, expected)| {
-                    !parameter.is_self
-                        && checked.primitive_type_reference(parameter.type_reference)
-                            == Some(*expected)
+                    checked.primitive_type_reference(parameter.type_reference) == Some(*expected)
                 })
     }
 

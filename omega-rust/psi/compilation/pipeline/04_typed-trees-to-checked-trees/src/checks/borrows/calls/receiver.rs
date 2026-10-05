@@ -160,7 +160,7 @@ fn receiver_is_writable(
         return false;
     };
     if receiver.root_symbol == state_flow.machine_symbol {
-        return validation::receiver_allows_mutation(program, program.state_parameters(state));
+        return false;
     }
     // Writable-root facts retain local bindings; the declared reference access
     // still decides whether the referent can be exclusively borrowed.

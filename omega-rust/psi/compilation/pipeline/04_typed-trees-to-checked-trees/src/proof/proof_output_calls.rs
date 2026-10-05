@@ -987,7 +987,7 @@ pub(crate) fn intake_call_ensures_propositions(
     };
     let parameters = program.state_parameters(state);
     let arguments = program.statement_table.expression_handles(call.arguments);
-    let receiver = typed_trees::expression::display_name_path(
+    let _receiver = typed_trees::expression::display_name_path(
         program.statement_table.name_path_members(call.receiver),
         "::",
     );
@@ -995,9 +995,7 @@ pub(crate) fn intake_call_ensures_propositions(
     let substitutions = parameters
         .iter()
         .map(|parameter| {
-            let replacement = if parameter.is_self {
-                receiver.clone()
-            } else {
+            let replacement = {
                 let label = arguments
                     .get(argument_index)
                     .map(|argument| {

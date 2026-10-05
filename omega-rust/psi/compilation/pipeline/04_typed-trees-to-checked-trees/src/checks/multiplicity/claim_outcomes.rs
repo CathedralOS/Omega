@@ -93,7 +93,7 @@ fn derive_checked_claim_outcome_map(
         && place.segments.is_empty()
         && let facts::PlaceRoot::Symbol(parameter_symbol) = place.root
         && program.state_parameters(state).iter().any(|parameter| {
-            parameter.is_self
+            false
                 && (parameter.symbol == parameter_symbol || parameter_symbol == machine_symbol)
                 && (program.normalized_type_identity(parameter.type_reference)
                     == program.normalized_type_identity(state.return_type)
@@ -426,7 +426,6 @@ fn claim_outcomes_for_named_transition(
                 state,
                 statement_index,
                 arguments,
-                None,
                 target_state,
                 &entry.source,
                 segments,
@@ -895,7 +894,6 @@ fn bind_claim_outcome_source_at_call(
         caller_state,
         statement_index,
         program.expression_table.expression_handles(call.arguments),
-        call.receiver.is_valid().then_some(call.receiver),
         target_state,
         source,
         segments,
@@ -909,7 +907,6 @@ fn bind_claim_outcome_source_at_arguments(
     caller_state: &typed_trees::state::State,
     statement_index: usize,
     arguments: &[typed_trees::expression::ExpressionHandle],
-    receiver: Option<typed_trees::expression::ExpressionHandle>,
     target_state: &typed_trees::state::State,
     source: &CheckedClaimOutcomeSource,
     segments: &arena::Arena<facts::PlaceSegment>,
@@ -922,13 +919,7 @@ fn bind_claim_outcome_source_at_arguments(
     else {
         return Some(source.clone());
     };
-    let argument = argument_for_parameter(
-        program,
-        arguments,
-        receiver,
-        target_state,
-        *parameter_symbol,
-    )?;
+    let argument = argument_for_parameter(program, arguments, target_state, *parameter_symbol)?;
     let parameter = parameter_for_symbol(program, target_state, *parameter_symbol)?;
     // Constructor operands already name the transferred claims. Resolve the
     // exact typed projection instead of inventing storage below a literal.
@@ -982,53 +973,30 @@ fn bind_claim_outcome_source_at_arguments(
     Some(source.clone())
 }
 
-/// Resolve `parameter_symbol` to the state parameter it names. An owned
-/// `self` receiver's durable place root is the owning machine's symbol
-/// (`normalized_event_place_root`), so a machine symbol resolves to the
-/// `is_self` parameter.
+/// Resolve `parameter_symbol` to its authored state parameter.
 fn parameter_for_symbol<'a>(
     program: &'a typed_trees::TypedTrees,
     state: &typed_trees::state::State,
     parameter_symbol: SymbolHandle,
 ) -> Option<&'a typed_trees::signature::StateParameter> {
     let parameters = program.state_parameters(state);
-    if let Some(parameter) = parameters
+    parameters
         .iter()
         .find(|parameter| parameter.symbol == parameter_symbol)
-    {
-        return Some(parameter);
-    }
-    let (machine, _) = crate::semantic::calls::find_state_with_machine(program, state.symbol)?;
-    (machine.symbol == parameter_symbol)
-        .then(|| parameters.iter().find(|parameter| parameter.is_self))
-        .flatten()
 }
 
 fn argument_for_parameter(
     program: &typed_trees::TypedTrees,
     arguments: &[typed_trees::expression::ExpressionHandle],
-    receiver: Option<typed_trees::expression::ExpressionHandle>,
     target_state: &typed_trees::state::State,
     parameter_symbol: SymbolHandle,
 ) -> Option<typed_trees::expression::ExpressionHandle> {
     let parameters = program.state_parameters(target_state);
     let matched = parameter_for_symbol(program, target_state, parameter_symbol)?;
-    let includes_explicit_self =
-        parameters.iter().any(|parameter| parameter.is_self) && arguments.len() == parameters.len();
-    let mut argument_index = 0usize;
-    for parameter in parameters {
-        let argument = if parameter.is_self && !includes_explicit_self {
-            receiver
-        } else {
-            let argument = arguments.get(argument_index).copied();
-            argument_index = argument_index.saturating_add(1);
-            argument
-        };
-        if parameter.symbol == matched.symbol {
-            return argument;
-        }
-    }
-    None
+    let position = parameters
+        .iter()
+        .position(|parameter| parameter.symbol == matched.symbol)?;
+    arguments.get(position).copied()
 }
 
 pub(crate) fn call_result_origin_rewrites(

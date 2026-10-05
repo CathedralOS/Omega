@@ -22,7 +22,6 @@ pub(crate) fn selection_for_call(
     target_symbol: SymbolHandle,
     machine_arguments: &[StaticMachineArgument],
     arguments: &[ExpressionHandle],
-    receiver_type: Option<TypeReferenceHandle>,
     expected_return: Option<TypeReferenceHandle>,
     caller_is_generic: bool,
 ) -> Option<CallSelection> {
@@ -47,7 +46,6 @@ pub(crate) fn selection_for_call(
         target_symbol,
         machine_arguments,
         arguments,
-        receiver_type,
         expected_return,
         scope_limit,
         &mut machine_proposals,

@@ -103,10 +103,8 @@ impl Operand {
                     .state_parameters(state)
                     .iter()
                     .filter_map(|parameter| {
-                        (parameter.symbol == *root).then_some((
-                            !parameter.is_mutable && !parameter.is_self,
-                            parameter.type_reference,
-                        ))
+                        (parameter.symbol == *root)
+                            .then_some((!parameter.is_mutable, parameter.type_reference))
                     });
                 let locals = program
                     .statement_table
@@ -396,8 +394,6 @@ fn build_operand(
             let parameter = parameters
                 .iter()
                 .any(|parameter| parameter.symbol == path.symbol);
-            let attached = path.symbol == machine.symbol
-                && parameters.iter().any(|parameter| parameter.is_self);
             let value_binder = program
                 .machine_type_parameters(machine)
                 .iter()
@@ -409,7 +405,7 @@ fn build_operand(
                                 | typed_trees::data::TypeParameterKind::Const { .. }
                         )
                 });
-            if !local && !parameter && !attached && !value_binder {
+            if !local && !parameter && !value_binder {
                 return None;
             }
             Some(Operand::Place {

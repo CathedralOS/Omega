@@ -31,11 +31,7 @@ pub(super) fn derive(
         .find(|machine| machine.symbol == selection.machine)?;
     let state = checked.machine_states(machine).first()?;
     let source_parameters = checked.state_parameters(state);
-    let has_legacy_receiver = source_parameters.iter().any(|parameter| parameter.is_self);
     let mut receivers = source_parameters.iter().enumerate().filter(|(_, parameter)| {
-        if has_legacy_receiver {
-            return parameter.is_self;
-        }
         // An ordinary mutable record parameter can be provisioned by the
         // selected entry schema. This is eligibility, not root authority;
         // selection must still name and replay this exact source occurrence.
@@ -51,7 +47,7 @@ pub(super) fn derive(
             )
     });
     let (source_position, receiver) = receivers.next()?;
-    if receivers.next().is_some() || (receiver.is_self && !receiver.is_mutable) {
+    if receivers.next().is_some() {
         return None;
     }
     let source_position = u32::try_from(source_position).ok()?;
@@ -68,21 +64,13 @@ pub(super) fn derive(
     else {
         return None;
     };
-    let definition = checked.data_definitions().iter().find(|definition| {
-        definition.symbol
-            == if receiver.is_self {
-                machine.attached_data_symbol
-            } else {
-                *symbol
-            }
-    })?;
-    // Resolved Self names its enclosing machine, not the data declaration.
-    // Explicit nominal receivers name the data directly. Both must rejoin the
-    // exact attachment; a matching source display name is insufficient.
-    if (receiver.is_self
-        && ((*symbol != machine.symbol && *symbol != definition.symbol)
-            || machine.attached_data.as_ref() != Some(&definition.name)))
-        || !checked.data_type_parameters(definition).is_empty()
+    let definition = checked
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.symbol == *symbol)?;
+    // Source parameters name their nominal data directly. Rejoin that identity;
+    // never infer eligibility from a matching layout or display name.
+    if !checked.data_type_parameters(definition).is_empty()
         || validation::data_requires_establishment(&checked.typed, definition)
     {
         return None;
@@ -91,38 +79,32 @@ pub(super) fn derive(
     // extent can carry the obligation as ledger occupancy. Whether it must
     // is classified against the actual Terminal projection below.
     let requires_cleanup = validation::data_requires_nominal_drop(&checked.typed, definition);
-    let terminal_position = if receiver.is_self {
-        source_position
-    } else {
-        ordinary_context_terminal_position(
-            checked,
-            selection,
-            state.symbol,
-            source_position,
-            owned,
-        )?
-    };
+    let terminal_position = ordinary_context_terminal_position(
+        checked,
+        selection,
+        state.symbol,
+        source_position,
+        owned,
+    )?;
     let entry = module
         .machines
         .iter()
         .find(|machine| machine.id == module.entry)?;
-    if !receiver.is_self && entry.attachment.is_some() {
+    if entry.attachment.is_some() {
         return None;
     }
-    let mut parameters = entry.structural_parameters.iter().filter(|parameter| {
-        if receiver.is_self {
-            parameter.is_self
-        } else {
-            parameter.position == terminal_position
-        }
-    });
+    let mut parameters = entry
+        .structural_parameters
+        .iter()
+        .filter(|parameter| parameter.position == terminal_position);
     let (terminal_receiver_type, projection) = match parameters.next() {
         Some(parameter) => {
             if parameters.next().is_some()
                 || parameter.access != StructuralAccess::MutableBorrow
                 || parameter.position != terminal_position
-                || parameter.is_self != receiver.is_self
-                || (receiver.is_self && entry.attachment != Some(parameter.structural_type))
+                // Terminal metadata is independently checked: an implicit
+                // receiver there cannot stand in for this explicit parameter.
+                || parameter.is_self
             {
                 return None;
             }
@@ -137,23 +119,7 @@ pub(super) fn derive(
         None => {
             // Ordinary parameter erasure needs its own exact projection
             // evidence; absence alone cannot authorize implicit storage.
-            if !receiver.is_self {
-                return None;
-            }
-            // Clearing the marker on a surviving parameter is not erasure.
-            // Structural positions retain their authored source positions,
-            // independently of the compact scalar parameter partition.
-            if entry
-                .structural_parameters
-                .iter()
-                .any(|parameter| parameter.position == source_position)
-            {
-                return None;
-            }
-            (
-                entry.attachment?,
-                CheckedProgramEntryReceiverProjection::Erased { source_position },
-            )
+            return None;
         }
     };
     let cleanup = if requires_cleanup {

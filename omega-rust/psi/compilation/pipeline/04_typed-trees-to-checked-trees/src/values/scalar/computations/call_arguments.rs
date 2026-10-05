@@ -13,16 +13,8 @@ impl Builder<'_, '_> {
         else {
             return;
         };
-        let explicit_self = arguments.len()
-            > parameters
-                .iter()
-                .filter(|parameter| !parameter.is_self)
-                .count();
-        let explicit_parameters = parameters
-            .iter()
-            .filter(|parameter| !parameter.is_self || explicit_self)
-            .collect::<Vec<_>>();
-        if explicit_parameters.len() != arguments.len() {
+        let explicit_parameters = parameters.iter();
+        if parameters.len() != arguments.len() {
             return;
         }
         let boundary = call_is_boundary(self.program, target);
@@ -49,8 +41,7 @@ impl Builder<'_, '_> {
                 // Cases with structural payloads use that same construction
                 // owner. Scalar-case admission alone misses nested enums and
                 // record payloads even though local initializers retain them.
-                if !parameter.is_self
-                    && !parameter.is_const
+                if (!parameter.is_const)
                     && (validation::scalar_case_constructor(self.program, *argument).is_some_and(
                         |constructor| {
                             self.program
@@ -96,8 +87,7 @@ impl Builder<'_, '_> {
                 }
                 continue;
             };
-            if parameter.is_self
-                || parameter.is_const
+            if (parameter.is_const)
                 || (parameter.is_mutable
                     && crate::values::mutable_scalar_parameter_type(self.program, parameter)
                         .is_none())

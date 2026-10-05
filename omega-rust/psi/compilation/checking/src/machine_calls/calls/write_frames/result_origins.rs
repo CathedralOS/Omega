@@ -85,11 +85,7 @@ pub(super) fn call_result_origins(
         || !program.machine_type_parameters(machine).is_empty()
         || !call.machine_arguments.is_empty()
         || call.receiver.is_valid() != machine.attached_data.is_some()
-        || arguments.len()
-            != parameters
-                .iter()
-                .filter(|parameter| !parameter.is_self)
-                .count()
+        || arguments.len() != parameters.iter().count()
         || !super::isolation::aggregate_storage_types_match(program, state.return_type, expected)
     {
         return None;
@@ -551,8 +547,7 @@ fn merge_relative_origins(
                 && include_shared
                 && parameters.iter().any(|parameter| {
                     super::type_reference_is_reference(program, parameter.type_reference)
-                        && (parameter.symbol == origin.source.root
-                            || (parameter.is_self && machine.symbol == origin.source.root))
+                        && (parameter.symbol == origin.source.root)
                 })
             {
                 // Check a borrowed carrier's loaded boundary while its
@@ -690,12 +685,7 @@ fn merge_named_edge<'program>(
     };
     let arguments = program.statement_table.expression_handles(edge_arguments);
     let parameters = program.state_parameters(target_state);
-    if arguments.len()
-        != parameters
-            .iter()
-            .filter(|parameter| !parameter.is_self)
-            .count()
-    {
+    if arguments.len() != parameters.iter().count() {
         return None;
     }
     // A named state may omit its own `-> T` annotation; one that declares it
@@ -887,25 +877,12 @@ fn instantiate_result_origins(
             returned.references.push(leaf.clone());
             continue;
         }
-        let parameter = parameters.iter().find(|parameter| {
-            origin.source.root == parameter.symbol
-                || (parameter.is_self && origin.source.root == callee_machine.symbol)
-        })?;
-        let actual = if parameter.is_self {
-            match receiver {
-                Some(receiver) => receiver,
-                // An intra-machine named edge has no receiver operand: `self`
-                // is the same machine, so the leaf already names it.
-                None if host_machine.symbol == callee_machine.symbol => {
-                    returned.references.push(leaf.clone());
-                    continue;
-                }
-                None => return None,
-            }
-        } else {
+        let parameter = parameters
+            .iter()
+            .find(|parameter| origin.source.root == parameter.symbol)?;
+        let actual = {
             let index = parameters
                 .iter()
-                .filter(|parameter| !parameter.is_self)
                 .position(|candidate| candidate.symbol == parameter.symbol)?;
             *arguments.get(index)?
         };

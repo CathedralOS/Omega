@@ -209,9 +209,7 @@ pub(crate) fn parameter_source(
     let roots = checked
         .state_parameters(authored_state)
         .iter()
-        .filter(|parameter| {
-            parameter.symbol == root_symbol || (parameter.is_self && root_symbol == machine)
-        })
+        .filter(|parameter| parameter.symbol == root_symbol)
         .collect::<Vec<_>>();
     // A view local is itself a loan binding, so it carries no parameter
     // row: the alias reborrows it through the state's declaration, and the
@@ -221,7 +219,7 @@ pub(crate) fn parameter_source(
     // local's slot is the referent itself: writing its contents never
     // moves the place, and the ledger already suspends the root for the
     // loan's live interval, so owned storage grants every admitted access.
-    let (root_is_self, root_is_const, root_type, root_access) = match roots.as_slice() {
+    let (root_is_const, root_type, root_access) = match roots.as_slice() {
         [root] => {
             let TypeReferenceNode::Reference {
                 referee: root_type,
@@ -233,7 +231,7 @@ pub(crate) fn parameter_source(
             else {
                 return unsupported("receiver alias root cannot grant write-only access");
             };
-            (root.is_self, root.is_const, *root_type, *root_access)
+            (root.is_const, *root_type, *root_access)
         }
         [] => {
             let Some((_, local_root)) =
@@ -260,7 +258,7 @@ pub(crate) fn parameter_source(
                 }
                 _ => (local_root.type_reference, ReferenceAccess::Mutable),
             };
-            (false, false, root_type, root_access)
+            (false, root_type, root_access)
         }
         _ => return unsupported("receiver alias has no unique parameter root"),
     };
@@ -280,38 +278,6 @@ pub(crate) fn parameter_source(
     if root_access == ReferenceAccess::WriteOnly && access != BorrowAccessKind::WriteOnly {
         return unsupported("receiver alias widens its root access");
     }
-    // Attached self carries machine/Self identity in the typed reference. Its
-    // actual referent is the independently resolved attachment, as in signatures.
-    let root_type = if root_is_self {
-        let TypeReferenceNode::Named { symbol, .. } =
-            checked.type_reference_table.type_reference(root_type)
-        else {
-            return unsupported("receiver alias self has no exact nominal referent");
-        };
-        if (*symbol != machine && *symbol != authored_machine.attached_data_symbol)
-            || !authored_machine.attached_data_symbol.is_valid()
-            || !checked
-                .data_definitions()
-                .iter()
-                .any(|data| data.symbol == authored_machine.attached_data_symbol)
-        {
-            return unsupported("receiver alias self disagrees with its attachment");
-        }
-        if captured.path.is_empty() {
-            checked
-                .type_reference_table
-                .find_named_type_reference(authored_machine.attached_data_symbol)
-                .ok_or(LoweringError::Unsupported(
-                    "receiver alias self lost its attachment",
-                ))?
-        } else {
-            // A projected initializer supplies its exact field/element type.
-            // It does not require a separately authored whole attachment type.
-            root_type
-        }
-    } else {
-        root_type
-    };
     let projected_type = if captured.path.is_empty() {
         root_type
     } else {

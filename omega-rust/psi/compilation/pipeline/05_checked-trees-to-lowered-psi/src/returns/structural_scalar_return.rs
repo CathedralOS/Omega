@@ -488,44 +488,12 @@ pub(crate) fn lower_structural_scalar_return_machine_in_namespace(
         .ok_or(LoweringError::Unsupported(
             "structural scalar return parameter count exceeds usize",
         ))?;
-    // A borrowed receiver the machine leaves ambient on its attachment
-    // carrier owns no forwarded formal; the retained source positions
-    // partition the authored positions around that one gap.
-    let ambient_position = crate::declarations::state_declaration(checked, plan.state)
-        .ok()
-        .and_then(|(_, callee_state)| {
-            checked
-                .state_parameters(callee_state)
-                .iter()
-                .position(|parameter| {
-                    parameter.is_self
-                        && matches!(
-                            checked
-                                .type_reference_table
-                                .type_reference(parameter.type_reference),
-                            checked_trees::types::TypeReferenceNode::Reference { .. }
-                        )
-                })
-        })
-        .filter(|_| {
-            !plan
-                .structural_parameters
-                .iter()
-                .any(|parameter| parameter.is_self)
-        })
-        // A roster that forwards self unflagged still maps its position — only a
-        // position the map actually excluded counts as the ambient gap.
-        .filter(|position| !positions.contains(&u32::try_from(*position).unwrap_or(u32::MAX)));
     if positions.len() != parameter_count
         || positions
             .iter()
             .copied()
             .enumerate()
-            .any(|(index, position)| {
-                u32::try_from(index + usize::from(ambient_position.is_some_and(|gap| index >= gap)))
-                    .ok()
-                    != Some(position)
-            })
+            .any(|(index, position)| u32::try_from(index).ok() != Some(position))
     {
         return unsupported(
             "structural scalar return parameter maps do not partition source positions",

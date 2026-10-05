@@ -150,7 +150,6 @@ impl<'program> CallFrameResolver<'program> {
             program
                 .state_parameters(entry)
                 .iter()
-                .filter(|parameter| !parameter.is_self)
                 .map(|parameter| parameter.type_reference)
                 .collect()
         } else {
@@ -176,13 +175,7 @@ impl<'program> CallFrameResolver<'program> {
                     receiver: Some(Vec::new()),
                     arguments: Vec::new(),
                 };
-                let has_receiver =
-                    frames::machine_state_by_symbol(program, target).map(|(_, entry)| {
-                        program
-                            .state_parameters(entry)
-                            .iter()
-                            .any(|parameter| parameter.is_self)
-                    });
+                let callee_is_resolved = frames::machine_state_by_symbol(program, target).is_some();
                 // A nested call can follow effects in an enclosing operand. The
                 // prefix owner has not captured those substatement updates.
                 // Reuse its expression inventory and frame query; do not
@@ -191,7 +184,7 @@ impl<'program> CallFrameResolver<'program> {
                 let preceding_effect = nested_effect
                     || (receiver_expression.is_valid()
                         && self.operand_may_change_origins(machine, receiver_expression));
-                if has_receiver != Some(false)
+                if !callee_is_resolved
                     && (!receiver_members.is_empty() || receiver_expression.is_valid())
                 {
                     result.receiver = if receiver_expression.is_valid() {
@@ -332,9 +325,7 @@ impl<'program> CallFrameResolver<'program> {
         let root_reference = program
             .state_parameters(state)
             .iter()
-            .find(|parameter| {
-                parameter.symbol == root || (root == machine.symbol && parameter.is_self)
-            })
+            .find(|parameter| parameter.symbol == root)
             .map(|parameter| parameter.type_reference)
             .or_else(|| {
                 program

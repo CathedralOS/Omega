@@ -288,11 +288,7 @@ pub(super) fn resolve(
                         .ok_or(LoweringError::Unsupported(
                             "Unit graph claim transfer source is missing",
                         ))?;
-                    let root = facts::PlaceRoot::Symbol(if source_parameter_source.is_self {
-                        plan.machine
-                    } else {
-                        source_parameter_source.symbol
-                    });
+                    let root = facts::PlaceRoot::Symbol(source_parameter_source.symbol);
                     if !checked
                         .facts
                         .flow

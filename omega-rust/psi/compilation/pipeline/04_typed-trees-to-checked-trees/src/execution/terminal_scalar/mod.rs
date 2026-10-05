@@ -50,11 +50,7 @@ pub(crate) fn build_checked_terminal_machine_selections(
                 // `satisfies` is checked requirement refinement, not a runtime
                 // receiver or an alternate body. A closed checked machine keeps
                 // its ordinary signature and its own published contract.
-                // A qualified static name does not supply a receiver. The
-                // legacy signature class follows the authored parameters.
-                signature: if program.machine_has_receiver(machine) {
-                    CheckedTerminalSignatureEligibility::Attached
-                } else if !machine.type_parameters.is_empty()
+                signature: if !machine.type_parameters.is_empty()
                     || !machine.owned_data.is_empty()
                     || (machine.termination_plan.implementation_witness.is_some()
                         // The graph already projects the shared runtime rank
@@ -382,7 +378,7 @@ fn build_machine_graph(
             continue;
         }
         let parameters = program.state_parameters(state);
-        if let Some(position) = parameters.iter().position(|parameter| parameter.is_self) {
+        if let Some(position) = parameters.iter().position(|_parameter| false) {
             let Ok(position) = u32::try_from(position) else {
                 *reason = "machine has no source-independent checked scalar control plan (receiver position)";
                 return None;
@@ -417,7 +413,7 @@ fn build_machine_graph(
 /// with a signature that disagrees with the caller's checked borrow.
 fn retains_borrowed_receiver(program: &TypedTrees, state: &typed_trees::state::State) -> bool {
     program.state_parameters(state).iter().any(|parameter| {
-        parameter.is_self
+        false
             && matches!(
                 program
                     .type_reference_table
@@ -459,7 +455,7 @@ fn checked_state_graph(
             // plan; attachment identity alone does not provide its custody.
             if parameters.iter().any(|parameter| {
                 super::terminal_unit::strips_erased_parameter(parameter).is_none()
-                    || (parameter.is_self
+                    || (false
                         && !crate::borrow::view_link::is_reference_type(
                             program,
                             parameter.type_reference,
@@ -484,8 +480,7 @@ fn checked_state_graph(
             // `Nat` is exactly what erasure exists for. Neither does the
             // ambient borrowed receiver, which is not a value argument.
             let mixed = parameters.iter().any(|parameter| {
-                !parameter.relevance.is_erased()
-                    && !parameter.is_self
+                (!parameter.relevance.is_erased())
                     && program
                         .primitive_type_reference(parameter.type_reference)
                         .is_none()
@@ -493,7 +488,7 @@ fn checked_state_graph(
             // Preserve the signature before selecting a representation.
             // Explicit loans bind per state; implicit receiver custody keeps
             // its separate machine-scoped admission in `build_machine_graph`.
-            let receiver = parameters.iter().any(|parameter| parameter.is_self);
+            let receiver = parameters.iter().any(|_parameter| false);
             let retains_receiver = retains_borrowed_receiver(program, state);
             let (structural_parameters, scalar_parameters, mut shapes) = if mixed
                 && machine.attached_data.is_some()
@@ -549,9 +544,7 @@ fn checked_state_graph(
                     parameters
                         .iter()
                         .enumerate()
-                        .filter(|(_, parameter)| {
-                            !parameter.relevance.is_erased() && !parameter.is_self
-                        })
+                        .filter(|(_, parameter)| !parameter.relevance.is_erased())
                         .map(|(position, parameter)| {
                             Some(checked_trees::CheckedStructuralScalarParameterPlan {
                                 source_position: u32::try_from(position).ok()?,
@@ -648,25 +641,23 @@ fn checked_state_graph(
             // (`scalar_targets::available_target`), so a leaf that owner keeps
             // must not also register here. A borrowed record is not one of
             // those lanes; its state stays on this graph.
-            if mixed
-                && structural_parameters.iter().all(|parameter| {
-                    parameter.access != checked_trees::CheckedStructuralAccess::Owned
-                        && parameters.get(parameter.position as usize).is_some_and(|source| {
-                            source.is_self
-                                || matches!(
-                                    program.type_reference_table.type_reference(source.type_reference),
-                                    typed_trees::types::TypeReferenceNode::Reference { referee, .. }
-                                        if program.primitive_type_reference(*referee).is_some()
-                                )
-                                || crate::execution::terminal_unit::types::byte_sequence_carrier(
-                                    program,
-                                    source.type_reference,
-                                    &[],
-                                )
-                                .is_some_and(checked_trees::CheckedByteSequenceCarrier::is_borrowed)
+            if mixed && structural_parameters.iter().all(|parameter| {
+                parameter.access != checked_trees::CheckedStructuralAccess::Owned
+                    && parameters
+                        .get(parameter.position as usize)
+                        .is_some_and(|source| {
+                            (matches!(
+                                program.type_reference_table.type_reference(source.type_reference),
+                                typed_trees::types::TypeReferenceNode::Reference { referee, .. }
+                                    if program.primitive_type_reference(*referee).is_some()
+                            )) || crate::execution::terminal_unit::types::byte_sequence_carrier(
+                                program,
+                                source.type_reference,
+                                &[],
+                            )
+                            .is_some_and(checked_trees::CheckedByteSequenceCarrier::is_borrowed)
                         })
-                })
-                && matches!(statements, [StatementNode::Expression(_)])
+            }) && matches!(statements, [StatementNode::Expression(_)])
                 && !computations
                     .roots
                     .iter()

@@ -46,7 +46,6 @@ impl super::TypedTrees {
             || !call.target_symbol.is_valid()
             || arguments.len() != call.arguments.count() as usize
             || arguments.len() != parameters.len()
-            || parameters.iter().any(|parameter| parameter.is_self)
             || call.target.as_str() != signature.name.as_str()
         {
             return false;
@@ -69,12 +68,7 @@ impl super::TypedTrees {
         owner: &crate::machine::Machine,
         target: &crate::state::State,
     ) -> bool {
-        if call.target_symbol != target.symbol
-            || self
-                .state_parameters(target)
-                .iter()
-                .any(|parameter| parameter.is_self)
-        {
+        if call.target_symbol != target.symbol {
             return false;
         }
         if !call.receiver.is_valid() {

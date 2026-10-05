@@ -215,8 +215,7 @@ impl Builder<'_, '_> {
         }
         let mut operand_types = Vec::with_capacity(parameters.len());
         for parameter in parameters {
-            if parameter.is_self
-                || parameter.is_const
+            if (parameter.is_const)
                 || parameter.is_mutable
                 || crate::execution::terminal_unit::strips_erased_parameter(parameter)?
             {

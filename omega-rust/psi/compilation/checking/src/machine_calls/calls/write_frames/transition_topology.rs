@@ -205,12 +205,10 @@ pub(super) fn named_transition_preserves_state_namespace(
     let source_parameters = program
         .state_parameters(source_state)
         .iter()
-        .filter(|parameter| !parameter.is_self)
         .collect::<Vec<_>>();
     let target_parameters = program
         .state_parameters(target_state)
         .iter()
-        .filter(|parameter| !parameter.is_self)
         .collect::<Vec<_>>();
     source_parameters.len() == target_parameters.len()
         && target_parameters.len() == arguments.len()

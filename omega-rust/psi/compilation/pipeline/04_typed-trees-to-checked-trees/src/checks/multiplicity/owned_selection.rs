@@ -238,7 +238,7 @@ pub(super) fn record_statement(
             parameter,
         )) = parameter
         {
-            if parameter.is_self || parameter.is_const || parameter.is_mutable {
+            if (parameter.is_const) || parameter.is_mutable {
                 return Err(Diagnostic::error(
                     "owned match source must be an available whole immutable plain-affine local of the exact result type",
                 ));
@@ -909,11 +909,7 @@ fn projected_leaf_source(
     }
     match place.root {
         facts::PlaceRoot::Symbol(symbol) => {
-            if program
-                .state_parameters(state)
-                .iter()
-                .any(|parameter| parameter.symbol == symbol && parameter.is_self)
-                || symbol == machine.symbol
+            if symbol == machine.symbol
                 || !matches!(
                     program.symbols.get(symbol).kind,
                     symbols::SymbolKind::Local | symbols::SymbolKind::Parameter

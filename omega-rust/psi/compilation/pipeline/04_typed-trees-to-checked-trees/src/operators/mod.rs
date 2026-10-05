@@ -809,8 +809,7 @@ pub(super) fn builtin_float_operator_selection(
                 let parameters = program.state_parameters(entry);
                 parameters.len() == arity
                     && parameters.iter().all(|parameter| {
-                        !parameter.is_self
-                            && program.primitive_type_reference(parameter.type_reference)
+                        program.primitive_type_reference(parameter.type_reference)
                                 == Some(primitive)
                     })
                     && program.primitive_type_reference(entry.return_type) == Some(primitive)
@@ -1228,14 +1227,7 @@ fn trait_operator_use_fact(
         .with_signature(
             program
                 .state_signature_parameters(candidate.requirement)
-                .iter()
-                .find(|parameter| parameter.is_self)
-                .or_else(|| {
-                    program
-                        .state_signature_parameters(candidate.requirement)
-                        .iter()
-                        .find(|parameter| !parameter.is_self)
-                })
+                .first()
                 .map(|parameter| parameter.type_reference)
                 .unwrap_or_else(TypeReferenceHandle::invalid),
             candidate.requirement.return_type,

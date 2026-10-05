@@ -281,8 +281,7 @@ fn exact_catalog_i32_to_unit_signature(
     let [parameter] = parameters else {
         return false;
     };
-    !parameter.is_self
-        && !parameter.is_const
+    !parameter.is_const
         && !parameter.is_mutable
         && typed.primitive_type_reference(parameter.type_reference)
             == Some(typed_trees::types::PrimitiveType::I32)

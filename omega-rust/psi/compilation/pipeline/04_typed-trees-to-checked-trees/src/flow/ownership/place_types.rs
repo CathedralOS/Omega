@@ -60,13 +60,9 @@ pub(crate) fn canonical_place_type_reference(
     // normalized to the durable machine symbol. In either form, project their
     // fields through the exact attached data declaration rather than treating
     // the machine's nominal self type as an ordinary data reference.
-    if let Some((machine, state)) =
+    if let Some((machine, _)) =
         crate::semantic::calls::find_state_with_machine(program, state_symbol)
-        && (machine.symbol == root_symbol
-            || program
-                .state_parameters(state)
-                .iter()
-                .any(|parameter| parameter.is_self && parameter.symbol == root_symbol))
+        && machine.symbol == root_symbol
         && let Some((facts::PlaceSegment::Field { symbol }, remaining)) =
             place.segments.split_first()
     {

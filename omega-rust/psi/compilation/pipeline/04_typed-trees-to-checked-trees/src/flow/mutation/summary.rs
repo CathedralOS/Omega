@@ -22,7 +22,6 @@ use crate::semantic::calls::find_call_site;
 use crate::semantic::calls::find_state;
 
 use super::local_origins::rebase_local_write_places;
-use crate::flow::mutation::receiver::canonical_receiver_place_for_call_site;
 use checked_trees::expression::ExpressionNode;
 use checked_trees::statement::StatementNode;
 use checked_trees::{BorrowCallFact, BorrowFacts, StateBorrowFact};
@@ -497,10 +496,9 @@ fn state_summary_exposes_place(
     root == machine_symbol_for_state(program, state)
         || program.state_parameters(state).iter().any(|parameter| {
             parameter.symbol == root
-                && (parameter.is_self
-                    || program
-                        .primitive_type_reference(parameter.type_reference)
-                        .is_none())
+                && (program
+                    .primitive_type_reference(parameter.type_reference)
+                    .is_none())
         })
 }
 
@@ -605,22 +603,10 @@ pub(in crate::flow) fn instantiate_call_relative_places(
         return None;
     }
     let target_state = find_state(program, borrow_call.target_symbol)?;
-    let target_machine_symbol = machine_symbol_for_state(program, target_state);
     let mut argument_index = 0usize;
 
     for parameter in program.state_parameters(target_state) {
-        let base_place = if parameter.is_self {
-            if parameter.symbol != parameter_symbol && target_machine_symbol != parameter_symbol {
-                continue;
-            }
-            canonical_receiver_place_for_call_site(
-                program,
-                caller_machine_symbol,
-                caller_state_symbol,
-                &call_site,
-                borrow_call.statement_index,
-            )
-        } else {
+        let base_place = {
             let argument = call_site_argument_expressions(program, &call_site)
                 .get(argument_index)
                 .copied();

@@ -61,9 +61,7 @@ pub(super) fn state_rank(
             .state_parameters(state)
             .iter()
             .enumerate()
-            .find(|(_, parameter)| {
-                !parameter.is_self && patterns::expression_is_parameter(program, subject, parameter)
-            })
+            .find(|(_, parameter)| patterns::expression_is_parameter(program, subject, parameter))
             .and_then(|(position, parameter)| Some((u32::try_from(position).ok()?, parameter)))
     };
     match measure {
@@ -164,7 +162,6 @@ pub(super) fn carried_subject<'program>(
         .state_parameters(state)
         .iter()
         .enumerate()
-        .filter(|(_, parameter)| !parameter.is_self)
         .nth(position)
 }
 
@@ -343,7 +340,6 @@ fn target_argument_index(
     program
         .state_parameters(target)
         .iter()
-        .filter(|parameter| !parameter.is_self)
         .position(|parameter| parameter.name.as_str() == name)
 }
 
@@ -387,13 +383,9 @@ fn countdown_edge_parts<'program>(
         .last()
         .map(|member| member.as_str())
         .unwrap_or_default();
-    let parameter = program
-        .state_parameters(source)
-        .iter()
-        .filter(|parameter| !parameter.is_self)
-        .find(|parameter| {
-            parameter.symbol == decreases_path.symbol || parameter.name.as_str() == decrease_name
-        })?;
+    let parameter = program.state_parameters(source).iter().find(|parameter| {
+        parameter.symbol == decreases_path.symbol || parameter.name.as_str() == decrease_name
+    })?;
     let argument_index = target_argument_index(program, target, parameter.name.as_str())?;
     let argument = arguments.get(argument_index).copied()?;
     Some((parameter, argument_index, argument))

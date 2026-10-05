@@ -351,9 +351,7 @@ pub fn validate_selected_provider_bodies(
                 return Err("selected build-time requirement has no unique entry signature".into());
             };
             let parameters = program.state_parameters(required_entry);
-            if parameters.iter().any(|parameter| parameter.is_self)
-                || parameters.len() != row.operands.len()
-            {
+            if parameters.len() != row.operands.len() {
                 return Err(
                     "selected build-time provider requirement arity differs from retained operands"
                         .into(),
@@ -467,11 +465,7 @@ pub fn validate_selected_provider_bodies(
                     .into(),
             );
         }
-        let entry_parameters: Vec<_> = program
-            .state_parameters(entry)
-            .iter()
-            .filter(|parameter| !parameter.is_self)
-            .collect();
+        let entry_parameters: Vec<_> = program.state_parameters(entry).iter().collect();
         if entry_parameters.len() != row.operands.len()
             || program.normalized_type_identity(entry.return_type)
                 != program.normalized_type_identity(operator.return_type)
@@ -635,10 +629,6 @@ pub fn validate_selected_operators(
                 || entry.return_type != operator.return_type
                 || requirement.type_parameters != operator.type_parameters
                 || requirement.contracts != operator.contracts
-                || program
-                    .state_parameters(entry)
-                    .iter()
-                    .any(|parameter| parameter.is_self)
             {
                 return Err(
                     "selected build-time token view differs from its actual requirement".into(),

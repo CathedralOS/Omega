@@ -771,9 +771,7 @@ fn returning_view_discard(
     else {
         return false;
     };
-    let Ok((source_machine, source_state)) =
-        crate::declarations::state_declaration(checked, state.state)
-    else {
+    let Ok((_, source_state)) = crate::declarations::state_declaration(checked, state.state) else {
         return false;
     };
     let parameter_symbol = |parameter_index: u32| {
@@ -782,10 +780,7 @@ fn returning_view_discard(
             .typed
             .state_parameters(source_state)
             .get(parameter.position as usize)?;
-        authored
-            .is_self
-            .then_some(source_machine.symbol)
-            .or(Some(authored.symbol))
+        Some(authored.symbol)
     };
     let same_root = |argument: &checked_trees::CheckedUnitStructuralArgumentPlan| match (
         &argument.source,

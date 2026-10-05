@@ -525,7 +525,6 @@ fn entry_parameter<'program>(
     let mut parameters = program
         .state_parameters(entry)
         .iter()
-        .filter(|parameter| !parameter.is_self)
         .enumerate()
         .filter(|(_, parameter)| parameter.symbol == path.symbol);
     let found = parameters.next()?;
@@ -657,7 +656,6 @@ pub(super) fn natural_component(
                 .state_parameters(state)
                 .iter()
                 .enumerate()
-                .filter(|(_, parameter)| !parameter.is_self)
                 .nth(argument_position)?;
             if unsigned_carrier_type(program, parameter.type_reference) != Some(primitive_type) {
                 return None;
@@ -705,7 +703,6 @@ pub(super) fn retain_internal_transfer(
     let Some(argument_position) = program
         .state_parameters(target_state)
         .iter()
-        .filter(|parameter| !parameter.is_self)
         .position(|parameter| parameter.symbol == target_rank.parameter)
     else {
         return false;

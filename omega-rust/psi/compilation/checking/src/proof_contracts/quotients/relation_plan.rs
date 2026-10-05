@@ -1034,11 +1034,7 @@ impl DirectTerminalRelationPlan {
             .parameters
             .iter()
             .map(|parameter| {
-                let receiver = if parameter.is_self { "self:" } else { "" };
-                format!(
-                    "{receiver}{}",
-                    program.display_type_reference_with_constraints(parameter.type_reference)
-                )
+                program.display_type_reference_with_constraints(parameter.type_reference)
             })
             .collect::<Vec<_>>()
             .join(", ");

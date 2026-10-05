@@ -26,22 +26,11 @@ pub(in crate::execution::terminal_unit) fn machine_binders(
         .collect()
 }
 
-pub(in crate::execution::terminal_unit) fn parameter_root_symbol(
-    machine: SymbolHandle,
-    parameter: &StateParameter,
-) -> SymbolHandle {
-    if parameter.is_self {
-        machine
-    } else {
-        parameter.symbol
-    }
-}
-
 /// Whether the calling plan strips this parameter as an `[erased]` binding
 /// occurrence (contracts.md#explicit-erased-bindings): it receives no
 /// structural or scalar plan entry and no ABI position, while the retained
 /// parameters keep their authored `position`/`source_position` indices. Only
-/// a plain immutable value binding is strippable. `self`, `const`, and
+/// a plain immutable value binding is strippable. `const` and
 /// mutable bindings carry runtime custody or entry storage that erasure does
 /// not define away, so an erased one refuses the plan (`None`) instead of
 /// silently vanishing or silently keeping a slot.
@@ -49,7 +38,7 @@ pub(crate) fn strips_erased_parameter(parameter: &StateParameter) -> Option<bool
     if !parameter.relevance.is_erased() {
         return Some(false);
     }
-    (!parameter.is_self && !parameter.is_const && !parameter.is_mutable).then_some(true)
+    (!parameter.is_const && !parameter.is_mutable).then_some(true)
 }
 
 /// The authored parameters that own an ABI position. An `[erased]` binding
@@ -141,18 +130,14 @@ pub(crate) fn erased_proof_parameter_plans(
 /// argument namespace once the unit plan is sealed. Erased bindings and
 /// `const` formals carry no runtime slot, direct `Placed` view parameters
 /// stay custody-only, and scalar primitives live in the scalar namespace. A
-/// borrowed `self` is excluded here because it joins only when the plan
-/// retains it; receivers that read `self` go through `reads_receiver`, which
-/// decides retention before this index is committed.
+/// structural parameter retains its authored position independently of the
+/// machine's qualification.
 pub(crate) fn structural_parameter_candidate(
     program: &TypedTrees,
     parameter: &StateParameter,
 ) -> bool {
     if parameter.is_const || strips_erased_parameter(parameter) == Some(true) {
         return false;
-    }
-    if parameter.is_self {
-        return !is_reference(program, parameter.type_reference);
     }
     if matches!(
         program.type_reference_table.type_reference(parameter.type_reference),
@@ -167,23 +152,13 @@ pub(crate) fn structural_parameter_candidate(
 }
 
 /// Resolve the authored slot before the final structural roster is available.
-/// Borrowed self is retained by a later receiver-observation decision; a
-/// following parameter cannot acquire a definite dense index until then.
 /// Callers with a completed roster must use that roster instead.
 pub(crate) fn dense_structural_parameter_index(
     program: &TypedTrees,
     parameters: &[StateParameter],
     authored_position: usize,
 ) -> Option<u32> {
-    let subject = parameters.get(authored_position)?;
-    if !subject.is_self
-        && parameters
-            .iter()
-            .take(authored_position)
-            .any(|parameter| parameter.is_self && is_reference(program, parameter.type_reference))
-    {
-        return None;
-    }
+    parameters.get(authored_position)?;
     u32::try_from(
         parameters
             .iter()

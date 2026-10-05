@@ -39,7 +39,6 @@ fn build_machine_debug_plan(
             parameter_spans: program
                 .state_parameters(state)
                 .iter()
-                .filter(|parameter| !parameter.is_self)
                 // Terminal ValueIds use the dense scalar lane, not authored
                 // positions interleaved with structural places and borrows.
                 .filter(|parameter| {

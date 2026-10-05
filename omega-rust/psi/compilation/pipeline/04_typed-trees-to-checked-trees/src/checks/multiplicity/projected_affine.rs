@@ -2,7 +2,6 @@
 use crate::checks::multiplicity::linear_obligations::LinearPlace;
 use crate::checks::multiplicity::linear_obligations::type_reference_is_reference;
 use crate::checks::multiplicity::linear_validation::event_statement_index;
-use crate::checks::multiplicity::linear_validation::permission_kind_for_move;
 use crate::checks::multiplicity::linear_validation::permission_source;
 use crate::checks::type_multiplicity;
 use checked_trees::CheckFacts;
@@ -18,7 +17,7 @@ use typed_trees::types::TypeReferenceNode;
 #[allow(clippy::too_many_arguments)]
 pub(super) fn append_transfer(
     program: &typed_trees::TypedTrees,
-    facts: &CheckFacts,
+    _facts: &CheckFacts,
     machine: SymbolHandle,
     state: SymbolHandle,
     event: &crate::flow::DiscoveredMoveEvent,
@@ -39,13 +38,7 @@ pub(super) fn append_transfer(
                 facts::PlaceSegment::Field { .. } | facts::PlaceSegment::FixedIndex { .. }
             )
         })
-        || permission_kind_for_move(program, facts, machine, state, event)
-            != PermissionEventKind::Transfer
-        || crate::semantic::calls::find_state(program, state).is_none_or(|state| {
-            program.state_parameters(state).iter().any(|parameter| {
-                parameter.is_self && (parameter.symbol == symbol || symbol == machine)
-            })
-        })
+        || crate::semantic::calls::find_state(program, state).is_none()
     {
         return;
     }
@@ -144,7 +137,7 @@ pub(in crate::checks) fn transfers_owned_storage(
 /// checks; moving a reference carrier itself does not move its referent.
 pub(super) fn is_borrowed_place_transfer(
     program: &typed_trees::TypedTrees,
-    machine: SymbolHandle,
+    _machine: SymbolHandle,
     state: &typed_trees::state::State,
     event: &crate::flow::DiscoveredMoveEvent,
     path: &[facts::PlaceSegment],
@@ -152,16 +145,6 @@ pub(super) fn is_borrowed_place_transfer(
     let statement_index = event_statement_index(event.source).unwrap_or(0);
     if !transfers_owned_storage(program, state.symbol, statement_index, event, path) {
         return false;
-    }
-    // Self event roots are normalized to the machine; recover its actual
-    // receiver declaration rather than interpreting the machine as a value.
-    if let facts::PlaceRoot::Symbol(root) = event.root
-        && root == machine
-        && program.state_parameters(state).iter().any(|parameter| {
-            parameter.is_self && type_reference_is_reference(program, parameter.type_reference)
-        })
-    {
-        return true;
     }
     // A reference may occur at the root or inside an owned wrapper. Copying
     // or moving that reference does not permit taking its referent's value.
@@ -192,7 +175,7 @@ pub(super) fn append_replacement(
     let typed_trees::statement::StatementNode::Assignment(assignment) = statement else {
         return;
     };
-    let Some(mut place) = crate::flow::canonical_place_from_expression_in_state(
+    let Some(place) = crate::flow::canonical_place_from_expression_in_state(
         program,
         state,
         statement_index,
@@ -200,8 +183,7 @@ pub(super) fn append_replacement(
     ) else {
         return;
     };
-    place.root = crate::flow::normalized_event_place_root(program, place.root);
-    crate::flow::normalize_attached_place_root(program, machine, state, &mut place);
+
     let facts::PlaceRoot::Symbol(symbol) = place.root else {
         return;
     };

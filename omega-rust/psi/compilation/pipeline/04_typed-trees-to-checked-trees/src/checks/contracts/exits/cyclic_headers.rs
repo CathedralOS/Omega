@@ -186,9 +186,7 @@ impl<'program, 'facts> Header<'program, 'facts> {
             program
                 .state_parameters(state)
                 .iter()
-                .filter(|parameter| {
-                    !parameter.is_mutable && !parameter.is_self && !parameter.is_const
-                })
+                .filter(|parameter| (!parameter.is_mutable) && !parameter.is_const)
                 .filter_map(|parameter| {
                     let (primitive, domain) = fixed_integer(program, parameter.type_reference)?;
                     Some(RosterParameter {
@@ -340,12 +338,7 @@ impl<'program, 'facts> Header<'program, 'facts> {
     /// parameter unchanged and preserves the conjunction trivially, so it
     /// needs no obligation here.
     fn arrivals(&self) -> Option<Vec<Arrival>> {
-        let explicit = self
-            .program
-            .state_parameters(self.header)
-            .iter()
-            .filter(|parameter| !parameter.is_self)
-            .count();
+        let explicit = self.program.state_parameters(self.header).iter().count();
         let mut arrivals = Vec::new();
         for caller in self.program.machine_states(self.machine) {
             let caller_flow = Self::state_flow(self.facts, self.machine, caller)?;
@@ -537,7 +530,7 @@ impl<'program, 'facts> Header<'program, 'facts> {
             .program
             .state_parameters(caller)
             .iter()
-            .filter(|parameter| !parameter.is_mutable && !parameter.is_self && !parameter.is_const)
+            .filter(|parameter| (!parameter.is_mutable) && !parameter.is_const)
             .filter_map(|parameter| {
                 self.terms
                     .iter()
@@ -599,7 +592,6 @@ impl<'program, 'facts> Header<'program, 'facts> {
         self.program
             .state_parameters(self.header)
             .iter()
-            .filter(|parameter| !parameter.is_self)
             .zip(arguments)
             .filter(|(parameter, _)| {
                 self.roster

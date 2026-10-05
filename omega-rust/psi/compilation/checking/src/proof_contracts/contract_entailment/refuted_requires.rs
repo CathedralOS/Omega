@@ -25,7 +25,6 @@ pub(crate) fn reject_refuted_value_call_requires(
     callee_machine: &Machine,
     callee_state: &typed_trees::state::State,
     arguments: &[ExpressionHandle],
-    self_is_argument: bool,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let Some(map) = argument_term_map(
@@ -34,7 +33,6 @@ pub(crate) fn reject_refuted_value_call_requires(
         caller_state,
         program.state_parameters(callee_state),
         arguments,
-        self_is_argument,
     ) else {
         return;
     };
@@ -97,7 +95,6 @@ pub fn instantiated_value_call_requires_proven(
     callee_parameters: &[typed_trees::signature::StateParameter],
     arguments: &[ExpressionHandle],
     expression: ExpressionHandle,
-    self_is_argument: bool,
 ) -> bool {
     let Some(map) = argument_term_map(
         program,
@@ -105,7 +102,6 @@ pub fn instantiated_value_call_requires_proven(
         caller_state,
         callee_parameters,
         arguments,
-        self_is_argument,
     ) else {
         return false;
     };
@@ -135,12 +131,8 @@ fn argument_term_map(
     caller_state: &typed_trees::state::State,
     callee_parameters: &[typed_trees::signature::StateParameter],
     arguments: &[ExpressionHandle],
-    self_is_argument: bool,
 ) -> Option<Vec<(String, StructuralTerm)>> {
-    let parameters = callee_parameters
-        .iter()
-        .filter(|parameter| self_is_argument || !parameter.is_self)
-        .collect::<Vec<_>>();
+    let parameters = callee_parameters.iter().collect::<Vec<_>>();
     if parameters.len() != arguments.len() {
         return None;
     }

@@ -722,10 +722,7 @@ fn validate_dynamic_call_arguments(
     let Some(target_state) = called_state(program, target_symbol, target_name) else {
         return;
     };
-    let parameters = program
-        .state_parameters(target_state)
-        .iter()
-        .filter(|parameter| !parameter.is_self);
+    let parameters = program.state_parameters(target_state).iter();
     for (parameter, argument) in parameters.zip(
         program
             .expression_table
@@ -916,8 +913,7 @@ fn is_direct_dynamic_parameter(
             .state_parameters(caller_state)
             .iter()
             .any(|parameter| {
-                !parameter.is_self
-                    && parameter.symbol == source.symbol
+                parameter.symbol == source.symbol
                     && dynamic_trait_reference(program, parameter.type_reference).is_some_and(
                         |node| {
                             matches!(

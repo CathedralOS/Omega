@@ -74,10 +74,7 @@ fn validate_erased_runtime_scalar_formals(program: &TypedTrees, diagnostics: &mu
         }
         for state in program.machine_states(machine) {
             for parameter in program.state_parameters(state) {
-                if !parameter.relevance.is_erased()
-                    || parameter.is_self
-                    || !parameter.type_reference.is_valid()
-                {
+                if !parameter.relevance.is_erased() || !parameter.type_reference.is_valid() {
                     continue;
                 }
                 if program
@@ -102,8 +99,8 @@ fn validate_erased_runtime_scalar_formals(program: &TypedTrees, diagnostics: &mu
     }
 }
 
-/// `mut`, `const`, and the receiver `self` describe runtime storage or
-/// custody. An erased binding owns neither, so attaching the qualifier to an
+/// `mut` and `const` describe runtime storage or custody. An erased binding
+/// owns neither, so attaching the qualifier to an
 /// erased occurrence has no meaning: refuse it here rather than letting the
 /// calling plan silently refuse with no name for the cause.
 fn validate_erased_binding_qualifiers(program: &TypedTrees, diagnostics: &mut Vec<Diagnostic>) {
@@ -114,7 +111,6 @@ fn validate_erased_binding_qualifiers(program: &TypedTrees, diagnostics: &mut Ve
                     parameter.relevance,
                     parameter.is_const,
                     parameter.is_mutable,
-                    parameter.is_self,
                 ) else {
                     continue;
                 };
@@ -143,7 +139,6 @@ fn validate_erased_binding_qualifiers(program: &TypedTrees, diagnostics: &mut Ve
                     parameter.relevance,
                     parameter.is_const,
                     parameter.is_mutable,
-                    parameter.is_self,
                 ) else {
                     continue;
                 };
@@ -160,14 +155,11 @@ fn erased_qualifier(
     relevance: BindingRelevance,
     is_const: bool,
     is_mutable: bool,
-    is_self: bool,
 ) -> Option<&'static str> {
     if !relevance.is_erased() {
         return None;
     }
-    if is_self {
-        Some("self")
-    } else if is_const {
+    if is_const {
         Some("const")
     } else if is_mutable {
         Some("mut")

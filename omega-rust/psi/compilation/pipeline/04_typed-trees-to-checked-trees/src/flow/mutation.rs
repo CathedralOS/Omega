@@ -6,8 +6,6 @@ use crate::flow::CanonicalPlace;
 use crate::flow::canonical_place_from_expression_in_state;
 use crate::flow::canonical_place_from_symbol;
 use crate::flow::canonical_place_segments_may_overlap;
-use crate::flow::normalize_attached_place_root;
-use crate::flow::normalized_event_place_root;
 use crate::lookup::expression_root_symbol;
 use crate::semantic::calls::CallSite;
 use crate::semantic::calls::call_site_argument_expressions;
@@ -231,10 +229,6 @@ fn call_write_places(
         {
             let mut argument_index = 0usize;
             for parameter in program.state_parameters(target_state) {
-                if parameter.is_self {
-                    continue;
-                }
-
                 let argument = call_site_argument_expressions(program, &call_site)
                     .get(argument_index)
                     .copied();
@@ -374,12 +368,7 @@ fn shared_call_storage_places(
             // referents only while every other contribution that renders to
             // the same path — a non-exclusive access or a mutable receiver —
             // keeps it from narrowing; otherwise emit the collection.
-            let identity = storage_normalized_place(
-                program,
-                caller_machine_symbol,
-                caller_state_symbol,
-                &coarse,
-            );
+            let identity = coarse.clone();
             let blocked = !refinable
                 || coarse_anchors
                     .iter()
@@ -451,12 +440,6 @@ fn boundary_frame_access_places(
             break;
         };
         for rebased in rebased {
-            let rebased = storage_normalized_place(
-                program,
-                caller_machine_symbol,
-                caller_state_symbol,
-                &rebased,
-            );
             if !exclusive_referents.contains(&rebased) {
                 exclusive_referents.push(rebased);
             }
@@ -467,19 +450,11 @@ fn boundary_frame_access_places(
             crate::semantic::calls::call_target_parameters(program, borrow_call.target_symbol)
     {
         let arguments = call_site_argument_expressions(program, site);
-        if parameters
-            .iter()
-            .filter(|parameter| !parameter.is_self)
-            .count()
-            != arguments.len()
-        {
+        if parameters.iter().count() != arguments.len() {
             refinable = false;
         } else {
             let mut argument_index = 0usize;
             for parameter in parameters {
-                if parameter.is_self {
-                    continue;
-                }
                 let argument = arguments[argument_index];
                 argument_index += 1;
                 if !ceiling::is_exclusive_reference(program, parameter.type_reference) {
@@ -527,12 +502,6 @@ fn boundary_frame_access_places(
                 ) {
                     Some(rebased) => {
                         for anchor in rebased {
-                            let anchor = storage_normalized_place(
-                                program,
-                                caller_machine_symbol,
-                                caller_state_symbol,
-                                &anchor,
-                            );
                             if !coarse_anchors.contains(&anchor) {
                                 coarse_anchors.push(anchor);
                             }
@@ -568,12 +537,6 @@ fn boundary_frame_access_places(
         ) {
             Some(rebased) => {
                 for receiver in rebased {
-                    let receiver = storage_normalized_place(
-                        program,
-                        caller_machine_symbol,
-                        caller_state_symbol,
-                        &receiver,
-                    );
                     if !coarse_anchors.contains(&receiver) {
                         coarse_anchors.push(receiver);
                     }
@@ -592,27 +555,6 @@ fn is_index_place_segment(segment: facts::PlaceSegment) -> bool {
             | facts::PlaceSegment::FixedRange { .. }
             | facts::PlaceSegment::Index { .. }
     )
-}
-
-/// The machine-rooted storage identity used to compare frame-path places with
-/// recorded access places: attached field roots rejoin their receiver storage
-/// and the authored `self` parameter maps to the machine symbol, matching how
-/// seeded field facts normalize.
-fn storage_normalized_place(
-    program: &typed_trees::TypedTrees,
-    caller_machine_symbol: SymbolHandle,
-    caller_state_symbol: SymbolHandle,
-    place: &CanonicalPlace,
-) -> CanonicalPlace {
-    let mut normalized = place.clone();
-    normalize_attached_place_root(
-        program,
-        caller_machine_symbol,
-        caller_state_symbol,
-        &mut normalized,
-    );
-    normalized.root = normalized_event_place_root(program, normalized.root);
-    normalized
 }
 
 /// Whether `exact` names storage inside `coarse` whose first segment past

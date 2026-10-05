@@ -349,40 +349,14 @@ fn validate_machine_top_level_requirement_conformance(
             )));
             continue;
         }
-        if required.is_self {
-            let carrier_matches = requirement.attached_data_symbol.is_valid()
-                && nominal_type_symbol(program, actual.type_reference)
-                    == Some(requirement.attached_data_symbol);
-            let shape_matches = !actual.is_self
-                && type_references_match_with_trait_bindings(
-                    program,
-                    actual.type_reference,
-                    required.type_reference,
-                    required_type_parameters,
-                    &mut type_bindings,
-                );
-            if !carrier_matches || !shape_matches {
-                diagnostics.push(Diagnostic::error(format!(
-                    "{label} parameter {} must realize the requirement receiver as exact carrier `{}` with the same reference shape; got `{}`",
-                    index,
-                    requirement
-                        .attached_data
-                        .as_ref()
-                        .map_or("<missing carrier>", |name| name.as_str()),
-                    parameter_shape_label(program, actual),
-                )));
-            }
-            continue;
-        }
-        if actual.is_self
-            || !type_references_match_with_trait_bindings(
-                program,
-                actual.type_reference,
-                required.type_reference,
-                required_type_parameters,
-                &mut type_bindings,
-            )
-        {
+
+        if !type_references_match_with_trait_bindings(
+            program,
+            actual.type_reference,
+            required.type_reference,
+            required_type_parameters,
+            &mut type_bindings,
+        ) {
             diagnostics.push(Diagnostic::error(format!(
                 "{label} parameter {} expects `{}`, got `{}`",
                 index,
@@ -514,20 +488,6 @@ pub fn revalidate_top_level_requirement_realization(
         Ok(())
     } else {
         Err(diagnostics)
-    }
-}
-
-fn nominal_type_symbol(program: &TypedTrees, handle: TypeReferenceHandle) -> Option<SymbolHandle> {
-    match program.type_reference_table.type_reference(handle) {
-        TypeReferenceNode::Reference { referee, .. } => nominal_type_symbol(program, *referee),
-        TypeReferenceNode::Constrained { base_type, .. } => {
-            nominal_type_symbol(program, *base_type)
-        }
-        TypeReferenceNode::Named { symbol, .. } => symbol.is_valid().then_some(*symbol),
-        TypeReferenceNode::Generic { base_symbol, .. } => {
-            base_symbol.is_valid().then_some(*base_symbol)
-        }
-        _ => None,
     }
 }
 

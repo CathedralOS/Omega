@@ -239,14 +239,10 @@ fn source_origin_is_exact(
         return false;
     };
     match origin {
-        checked_trees::SuspensionCrossingValueOrigin::Persistent { symbol } => checked
-            .state_parameters(state)
-            .iter()
-            .any(|parameter| parameter.is_self && parameter.symbol == symbol),
+        checked_trees::SuspensionCrossingValueOrigin::Persistent { .. } => false,
         checked_trees::SuspensionCrossingValueOrigin::Parameter { symbol, position } => checked
             .state_parameters(state)
             .iter()
-            .filter(|parameter| !parameter.is_self)
             .nth(position)
             .is_some_and(|parameter| parameter.symbol == symbol),
         checked_trees::SuspensionCrossingValueOrigin::Local {
@@ -269,11 +265,7 @@ fn source_origin_is_exact(
                     )
                 })
                 .count();
-            let parameter_count = checked
-                .state_parameters(state)
-                .iter()
-                .filter(|parameter| !parameter.is_self)
-                .count();
+            let parameter_count = checked.state_parameters(state).iter().count();
             local.symbol == symbol
                 && environment_position == parameter_count.saturating_add(preceding_locals)
         }

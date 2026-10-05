@@ -225,21 +225,7 @@ fn contract_name_path_place(
         .first()
         .is_some_and(|member| member.is_self_receiver())
     {
-        let self_symbol = contract_owner_self_symbol(program, contract.owner)?;
-        // Typed source names retain the machine attachment identity for self.
-        // Contract flow instead transports the owner's explicit self formal;
-        // keep that declaration root even once name resolution stamps the path.
-        let attachment_root = crate::flow::normalized_event_place_root(
-            program,
-            facts::PlaceRoot::Symbol(self_symbol),
-        );
-        if path.head_symbol.is_valid()
-            && path.head_symbol != self_symbol
-            && attachment_root != facts::PlaceRoot::Symbol(path.head_symbol)
-        {
-            return None;
-        }
-        (facts.append_symbol_place(self_symbol), 1usize)
+        return None;
     } else if path.head_symbol.is_valid() {
         (facts.append_symbol_place(path.head_symbol), 1usize)
     } else if let Some(parameter_symbol) =
@@ -251,13 +237,7 @@ fn contract_name_path_place(
         // instantiate the same contract against caller arguments.
         (facts.append_symbol_place(parameter_symbol), 1usize)
     } else {
-        let self_symbol = contract_owner_self_symbol(program, contract.owner)?;
-        let start_index = usize::from(
-            members
-                .first()
-                .is_some_and(|member| member.is_self_receiver()),
-        );
-        (facts.append_symbol_place(self_symbol), start_index)
+        return None;
     };
 
     for (offset, member_name) in members.iter().skip(start_index).enumerate() {
@@ -282,14 +262,6 @@ fn contract_name_path_place(
     Some(place)
 }
 
-fn contract_owner_self_symbol(
-    program: &typed_trees::TypedTrees,
-    owner: ContractProofFactOwner,
-) -> Option<SymbolHandle> {
-    contract_owner_parameter(program, owner, |parameter| parameter.is_self)
-        .map(|parameter| parameter.symbol)
-}
-
 /// Resolves a contract name-path head that names one of the owner's
 /// parameters (for example `item` in `requires item in Item::Ready`). Returns
 /// the parameter symbol so the fact place is rooted at the parameter, which
@@ -306,9 +278,8 @@ fn contract_owner_parameter_symbol(
     }
 
     contract_owner_parameter(program, owner, |parameter| {
-        !parameter.is_self
-            && (parameter.name.as_str() == head_name
-                || (path.symbol.is_valid() && parameter.symbol == path.symbol))
+        parameter.name.as_str() == head_name
+            || (path.symbol.is_valid() && parameter.symbol == path.symbol)
     })
     .map(|parameter| parameter.symbol)
 }

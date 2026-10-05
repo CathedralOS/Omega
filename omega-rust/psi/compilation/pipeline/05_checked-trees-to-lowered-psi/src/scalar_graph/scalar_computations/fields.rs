@@ -481,18 +481,12 @@ fn captured_place_subject(
         }
     }
     let parameters = checked.state_parameters(source_state);
-    // A `self`-rooted capture names the machine's own declared symbol rather
-    // than a parameter spelling; it resolves to the `is_self` parameter, the
-    // same join the shared borrow rosters make. A local-rooted capture keeps
+    // A parameter-rooted capture names its declaration. A local-rooted capture keeps
     // that local's established place — the owned record is established storage
     // even though the `&` loan binding itself stays a silent marker.
     let authored_index = parameters
         .iter()
-        .position(|parameter| parameter.symbol == root)
-        .or_else(|| {
-            (root == source_machine.symbol)
-                .then(|| parameters.iter().position(|parameter| parameter.is_self))?
-        });
+        .position(|parameter| parameter.symbol == root);
     let (source, mut type_reference) = match authored_index {
         Some(authored_index) => {
             // Both unit-plan shapes carry the same authored-position roster:

@@ -91,8 +91,7 @@ impl ContractPredicates<'_, '_> {
                 parameter.symbol == path.symbol && path.head_symbol == parameter.symbol
             })
         {
-            if parameter.is_self
-                || parameter.is_const
+            if (parameter.is_const)
                 || !matches!(program.expression_table.name_path_members(path.members), [name] if name == &parameter.name)
             {
                 return None;
@@ -587,9 +586,6 @@ impl ContractPredicates<'_, '_> {
 /// alike. An owned by-value parameter is the callee's own copy, so its
 /// post-state is no caller fact and its members stay outside the namespace.
 fn caller_storage_root(program: &TypedTrees, parameter: &StateParameter) -> bool {
-    if parameter.is_self {
-        return true;
-    }
     let mut type_reference = parameter.type_reference;
     loop {
         match program.type_reference_table.type_reference(type_reference) {
@@ -839,8 +835,7 @@ pub(crate) fn lower_callable_parameter_range_requirements(
                         let requirement = || {
                             // Existing source validation rejects range constraints
                             // outside Exact: those domains do not enforce stores.
-                            if parameter.is_self
-                                || parameter.is_const
+                            if (parameter.is_const)
                                 || program
                                     .arithmetic_domain_for_type_reference(parameter.type_reference)
                                     != ArithmeticDomain::Exact
@@ -985,8 +980,7 @@ fn closed_integer_entry_range(
 )> {
     // Existing source validation rejects range constraints outside Exact:
     // those domains do not enforce stores.
-    if parameter.is_self
-        || parameter.is_const
+    if (parameter.is_const)
         || program.arithmetic_domain_for_type_reference(parameter.type_reference)
             != ArithmeticDomain::Exact
     {

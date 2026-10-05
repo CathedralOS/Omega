@@ -333,10 +333,7 @@ impl ReturnReader<'_, '_> {
                 .state_parameters(self.state)
                 .iter()
                 .any(|parameter| {
-                    parameter.symbol == path.symbol
-                        && !parameter.is_self
-                        && !parameter.is_const
-                        && !parameter.is_mutable
+                    parameter.symbol == path.symbol && !parameter.is_const && !parameter.is_mutable
                 })
             && let Some((minimum, maximum)) = crate::state_parameter_integer_interval(
                 self.program,
@@ -710,32 +707,6 @@ impl ReturnReader<'_, '_> {
                     .map(|(_, local)| local.type_reference)
             }
             ExpressionNode::Member(member) => {
-                // Attached self expressions retain the machine's symbol, not
-                // the parameter's. Rejoin the existing exact field identity
-                // and the current state's actual receiver declaration.
-                if let Some(field) = exact_self_field(self.program, self.machine, expression) {
-                    let mut receivers = self
-                        .program
-                        .state_parameters(self.state)
-                        .iter()
-                        .filter(|parameter| parameter.is_self);
-                    let receiver = receivers.next()?;
-                    if receivers.next().is_some() {
-                        return None;
-                    }
-                    let reference =
-                        unwrapped_type_reference(self.program, receiver.type_reference)?;
-                    let owner = match self.program.type_reference_table.type_reference(reference) {
-                        TypeReferenceNode::Named { symbol, .. } => *symbol,
-                        TypeReferenceNode::Generic { base_symbol, .. } => *base_symbol,
-                        _ => return None,
-                    };
-                    // Pristine receiver `Self` is bound to the machine;
-                    // realized nominal receivers bind the attached data.
-                    return (owner == self.machine.symbol
-                        || owner == self.machine.attached_data_symbol)
-                        .then_some(field.type_reference);
-                }
                 let receiver = unwrapped_type_reference(
                     self.program,
                     self.place_type(member.receiver, before, depth + 1)?,

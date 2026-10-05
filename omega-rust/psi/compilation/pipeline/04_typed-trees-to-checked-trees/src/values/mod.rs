@@ -48,11 +48,7 @@ pub(crate) fn mutable_scalar_parameter_type(
     parameter: &typed_trees::signature::StateParameter,
 ) -> Option<typed_trees::types::PrimitiveType> {
     use typed_trees::types::PrimitiveType;
-    if !parameter.is_mutable
-        || parameter.is_self
-        || parameter.is_const
-        || !parameter.symbol.is_valid()
-    {
+    if (!parameter.is_mutable) || parameter.is_const || !parameter.symbol.is_valid() {
         return None;
     }
     let primitive = program.primitive_type_reference(parameter.type_reference)?;

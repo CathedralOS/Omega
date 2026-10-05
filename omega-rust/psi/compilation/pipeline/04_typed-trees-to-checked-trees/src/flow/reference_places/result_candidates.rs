@@ -176,12 +176,7 @@ pub(crate) fn call_result_sources(
     }
     let parameters = program.state_parameters(callee_state);
     let arguments = program.expression_table.expression_handles(call.arguments);
-    if arguments.len()
-        != parameters
-            .iter()
-            .filter(|parameter| !parameter.is_self)
-            .count()
-    {
+    if arguments.len() != parameters.iter().count() {
         return None;
     }
     let mut sources = Vec::new();
@@ -223,13 +218,10 @@ pub(crate) fn call_result_sources(
         ) {
             return None;
         }
-        let actual = if parameter.is_self {
-            call.receiver
-        } else {
+        let actual = {
             *arguments.get(
                 parameters
                     .iter()
-                    .filter(|parameter| !parameter.is_self)
                     .position(|candidate| candidate.symbol == root)?,
             )?
         };

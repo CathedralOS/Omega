@@ -541,11 +541,7 @@ fn call_argument_destinations_uncached(
     {
         return None;
     }
-    let parameters: Vec<_> = program
-        .state_parameters(state)
-        .iter()
-        .filter(|parameter| !parameter.is_self)
-        .collect();
+    let parameters: Vec<_> = program.state_parameters(state).iter().collect();
     if parameters.len() != argument_count {
         return None;
     }

@@ -19,14 +19,11 @@ pub(super) fn validate(
     let (root, projected) = parameter_root(checked, membership.value).ok_or(
         LoweringError::Unsupported("structural membership has no exact parameter root"),
     )?;
-    let mut parameters =
-        checked
-            .state_parameters(state)
-            .iter()
-            .enumerate()
-            .filter(|(_, parameter)| {
-                parameter.symbol == root || (parameter.is_self && root == machine.symbol)
-            });
+    let mut parameters = checked
+        .state_parameters(state)
+        .iter()
+        .enumerate()
+        .filter(|(_, parameter)| parameter.symbol == root);
     let (position, source) = parameters.next().ok_or(LoweringError::Unsupported(
         "structural membership is not rooted in its entry signature",
     ))?;

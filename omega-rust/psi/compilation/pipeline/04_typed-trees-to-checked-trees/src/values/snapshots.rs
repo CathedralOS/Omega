@@ -3,7 +3,6 @@
 
 use crate::flow::{
     CanonicalPlace, canonical_place_from_semantic_place, canonical_place_from_symbol,
-    normalized_event_place_root,
 };
 use facts::{FactContext, FactPayload, FactPlace, FactPlan, PlaceRoot, ScalarValue};
 use typed_trees::{
@@ -325,9 +324,8 @@ pub(crate) fn prepare_assignment_observations(
             let FactPlace::Place(place) = fact.place else {
                 return None;
             };
-            let mut place =
+            let place =
                 canonical_place_from_semantic_place(program, semantic, semantic.places.get(place))?;
-            place.root = normalized_event_place_root(program, place.root);
             if has_completed_call_snapshot(program, semantic, context, fact) {
                 return None;
             }

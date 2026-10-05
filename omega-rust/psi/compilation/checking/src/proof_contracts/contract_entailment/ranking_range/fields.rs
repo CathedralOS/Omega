@@ -374,7 +374,7 @@ impl<'program> FieldCoordinate<'program> {
         // A mutable record still denotes its arrival value at an edge whose
         // evaluated prefix is proven to preserve its path; mutability is a
         // storage capability, not evidence the field moved.
-        if parameter.is_self || parameter.is_const {
+        if parameter.is_const {
             return None;
         }
         let (root, borrowed) = record_referent(program, parameter.type_reference)?;
@@ -450,7 +450,6 @@ impl<'program> FieldCoordinate<'program> {
         let mut parameters = program
             .state_parameters(arrival.state)
             .iter()
-            .filter(|parameter| !parameter.is_self)
             .zip(arrival.entry_parameters)
             .filter_map(|(parameter, entry)| (*entry == entry_symbol).then_some(parameter));
         let parameter = parameters.next()?;
@@ -869,7 +868,6 @@ pub(super) fn parameter<'program>(
             && path.symbol == path.head_symbol
             && parameter.symbol == path.symbol
             && parameter.name == *name
-            && !parameter.is_self
             && !parameter.is_const
     })
 }
@@ -1163,7 +1161,6 @@ pub(super) fn unique_entry_carrier<'program>(
     let mut carriers = program
         .state_parameters(state)
         .iter()
-        .filter(|parameter| !parameter.is_self)
         .zip(entry_parameters)
         .filter_map(|(parameter, claimed)| (*claimed == entry).then_some(parameter));
     let carrier = carriers.next()?;

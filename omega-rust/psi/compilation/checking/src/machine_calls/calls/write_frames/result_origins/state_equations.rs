@@ -312,11 +312,7 @@ fn finite_substitutions(
                     continue;
                 }
                 let source = super::super::FrameSourcePlace {
-                    root: if parameter.is_self {
-                        machine.symbol
-                    } else {
-                        parameter.symbol
-                    },
+                    root: { parameter.symbol },
                     builtin_coordinates: true,
                     ..Default::default()
                 };
@@ -328,11 +324,7 @@ fn finite_substitutions(
                                 local_suffix: String::new(),
                                 local_segments: Vec::new(),
                                 origin: Some(FramePlaceOrigin {
-                                    path: if parameter.is_self {
-                                        "self".to_owned()
-                                    } else {
-                                        parameter.name.as_str().to_owned()
-                                    },
+                                    path: { parameter.name.as_str().to_owned() },
                                     precision: FramePathPrecision::Exact,
                                     source,
                                 }),
@@ -385,14 +377,10 @@ fn finite_substitutions(
                     if source.is_static() {
                         return Some(());
                     }
-                    let source_parameter =
-                        program
-                            .state_parameters(equation.state)
-                            .iter()
-                            .find(|candidate| {
-                                candidate.symbol == source.root
-                                    || (candidate.is_self && source.root == machine.symbol)
-                            })?;
+                    let source_parameter = program
+                        .state_parameters(equation.state)
+                        .iter()
+                        .find(|candidate| candidate.symbol == source.root)?;
                     let to =
                         substitutions.parameter(equation.state.symbol, source_parameter.symbol);
                     substitutions.insert(

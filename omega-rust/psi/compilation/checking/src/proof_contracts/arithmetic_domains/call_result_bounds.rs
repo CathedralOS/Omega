@@ -21,7 +21,7 @@ pub(super) fn normal_return_interval(
     // relation. The ordinary source guard environment is not selection evidence.
     let mut environment = ValueEnvironment::new();
     for parameter in program.state_parameters(entry) {
-        if parameter.is_self || parameter.is_mutable || parameter.is_const {
+        if parameter.is_mutable || parameter.is_const {
             continue;
         }
         let Some(mut interval) = program
@@ -190,7 +190,7 @@ fn operand_interval(
         .state_parameters(entry)
         .iter()
         .find(|parameter| parameter.symbol == path.symbol)?;
-    if parameter.is_self || parameter.is_mutable || parameter.is_const {
+    if parameter.is_mutable || parameter.is_const {
         return None;
     }
     let primitive = program.primitive_type_reference(parameter.type_reference)?;

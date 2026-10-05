@@ -39,10 +39,7 @@ pub fn operator_operand_signature(program: &TypedTrees, operator: &OperatorDefin
 pub(crate) fn normalized_operand_parameters(
     parameters: &[crate::signature::StateParameter],
 ) -> impl Iterator<Item = &crate::signature::StateParameter> {
-    parameters
-        .iter()
-        .filter(|parameter| parameter.is_self)
-        .chain(parameters.iter().filter(|parameter| !parameter.is_self))
+    parameters.iter()
 }
 
 pub(crate) fn collect_type_parameter_occurrences(

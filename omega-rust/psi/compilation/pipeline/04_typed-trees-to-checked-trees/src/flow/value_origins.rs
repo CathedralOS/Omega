@@ -439,8 +439,7 @@ fn exact_suffix<'place>(
 }
 
 fn overlaps(program: &TypedTrees, left: &CanonicalPlace, right: &CanonicalPlace) -> bool {
-    flow::normalized_event_place_root(program, left.root)
-        == flow::normalized_event_place_root(program, right.root)
+    left.root == right.root
         && flow::canonical_place_segments_may_overlap(program, &left.segments, &right.segments)
 }
 

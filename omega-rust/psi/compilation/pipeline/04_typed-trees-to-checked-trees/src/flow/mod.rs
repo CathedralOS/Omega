@@ -178,8 +178,7 @@ pub(crate) fn resolved_operator_statement_symbol(
 pub(crate) use ownership::{
     DiscoveredMoveEvent, FlowOwnershipEventSource, call_permission_evaluation,
     canonical_place_type_reference, collection_element_type_reference, discover_state_move_events,
-    expression_type_reference_in_state, loan_carrier_has_owned_storage,
-    normalized_event_place_root, owned_call_operand_places, owned_method_receiver_place,
+    expression_type_reference_in_state, loan_carrier_has_owned_storage, owned_call_operand_places,
     project_type_reference_from_segments,
 };
 #[allow(unused_imports)]
@@ -191,9 +190,9 @@ pub(crate) use place::{
     effective_member_symbol, effective_member_symbol_from_type_symbol,
     expression_place_type_reference, expression_type_symbol, index_place_segment,
     literal_argument_access_places, literal_value_path_is_inactive, literal_value_projections,
-    narrow_pinned_index_segments, normalize_attached_place_root, place_case_has_value,
-    place_case_path_is_inactive, place_cases_are_selected, place_segment_has_unresolved_identity,
-    push_field_place_segments, resolve_member_symbol_from_type_symbol, symbol_type_symbol,
+    narrow_pinned_index_segments, place_case_has_value, place_case_path_is_inactive,
+    place_cases_are_selected, place_segment_has_unresolved_identity, push_field_place_segments,
+    resolve_member_symbol_from_type_symbol, symbol_type_symbol,
 };
 pub(crate) use reach::attach_reach_summaries;
 use state::build_state_flow_fact;

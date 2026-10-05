@@ -32,7 +32,6 @@ pub(super) fn required_symbols(
     symbols.retain(|symbol| {
         program.state_parameters(root).iter().any(|parameter| {
             parameter.symbol == *symbol
-                && !parameter.is_self
                 && exact_integer_parameter(program, parameter.type_reference).is_some()
         })
     });
@@ -80,8 +79,7 @@ pub(super) fn premise_symbols(
             }
         }
         for parameter in program.state_parameters(root).iter().filter(|parameter| {
-            !parameter.is_self
-                && exact_integer_parameter(program, parameter.type_reference).is_some()
+            exact_integer_parameter(program, parameter.type_reference).is_some()
         }) {
             let mut reference = parameter.type_reference;
             while let TypeReferenceNode::Constrained {
@@ -111,7 +109,7 @@ pub(super) fn premise_symbols(
         program
             .state_parameters(root)
             .iter()
-            .any(|parameter| parameter.symbol == *symbol && !parameter.is_self)
+            .any(|parameter| parameter.symbol == *symbol)
     });
     Some(symbols)
 }

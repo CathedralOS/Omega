@@ -183,7 +183,6 @@ pub(super) fn canonical_template_contract_bytes(
                 bytes.extend((contract.parameters.len() as u32).to_le_bytes());
                 for parameter in program.state_parameters.span_or_empty(contract.parameters) {
                     bytes.push(u8::from(parameter.is_mutable));
-                    bytes.push(u8::from(parameter.is_self));
                     encode_normalized_text(
                         program
                             .type_identity(TypeIdentityRequest {
@@ -755,7 +754,6 @@ pub(super) fn encode_parameter(
     type_binders: &[(SymbolHandle, String)],
     output: &mut Vec<u8>,
 ) {
-    output.push(u8::from(parameter.is_self));
     output.push(u8::from(parameter.is_mutable));
     output.push(u8::from(parameter.is_const));
     encode_normalized_text(

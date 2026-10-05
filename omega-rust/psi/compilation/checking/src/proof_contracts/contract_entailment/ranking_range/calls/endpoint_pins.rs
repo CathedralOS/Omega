@@ -187,13 +187,7 @@ pub(crate) fn mixed_call_endpoints_are_pinned(
             .collect::<Option<Vec<_>>>()?;
         let parameters = entries
             .iter()
-            .map(|state| {
-                program
-                    .state_parameters(state)
-                    .iter()
-                    .filter(|parameter| !parameter.is_self)
-                    .collect::<Vec<_>>()
-            })
+            .map(|state| program.state_parameters(state).iter().collect::<Vec<_>>())
             .collect::<Vec<_>>();
         // Discover every ranged member's endpoint inputs before building any
         // edge table: a projected input adds a coordinate the actual must
@@ -386,7 +380,6 @@ fn argument_sources<'program>(
     let parameters = program
         .state_parameters(destination)
         .iter()
-        .filter(|parameter| !parameter.is_self)
         .collect::<Vec<_>>();
     if parameters.len() != edge.arguments.len() {
         return None;
@@ -482,11 +475,7 @@ fn argument_sources<'program>(
     if !engine.install_hypotheses(comparisons) {
         return None;
     }
-    let source_formals = program
-        .state_parameters(entry)
-        .iter()
-        .filter(|parameter| !parameter.is_self)
-        .collect::<Vec<_>>();
+    let source_formals = program.state_parameters(entry).iter().collect::<Vec<_>>();
     let source_values = source_formals
         .iter()
         .map(|parameter| {
@@ -714,7 +703,7 @@ fn endpoint_inputs<'program>(
             let parameter = program
                 .state_parameters(state)
                 .iter()
-                .find(|parameter| parameter.symbol == symbol && !parameter.is_self)?;
+                .find(|parameter| parameter.symbol == symbol)?;
             exact_integer_parameter(program, parameter.type_reference)?;
             let input = EndpointInput::Scalar(symbol);
             if !inputs.contains(&input) {

@@ -105,7 +105,6 @@ pub(crate) fn build_crash_contract_capsules(
                 .collect::<Vec<_>>();
             let mut callable_shape = vec![0xa0];
             for parameter in parameters {
-                callable_shape.push(u8::from(parameter.is_self));
                 callable_shape.push(u8::from(parameter.is_mutable));
                 callable_shape.push(u8::from(parameter.is_const));
                 encode_type_spelling(
@@ -217,7 +216,6 @@ fn build_operator_crash_contract_capsule(
         .collect::<Vec<_>>();
     let mut callable_shape = vec![0xa0];
     for parameter in parameters {
-        callable_shape.push(u8::from(parameter.is_self));
         callable_shape.push(u8::from(parameter.is_mutable));
         callable_shape.push(u8::from(parameter.is_const));
         encode_type_spelling(

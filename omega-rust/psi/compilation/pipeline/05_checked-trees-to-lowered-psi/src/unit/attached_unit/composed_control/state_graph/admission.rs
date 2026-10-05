@@ -29,43 +29,42 @@ pub(in crate::unit::attached_unit::composed_control) fn has_shared_graph_custody
     // Authored lifetime binders erase at checking: the retained plan's
     // type identities and custody paths never spell an 'a name. Generic
     // type parameters still need instantiation machinery and stay out.
-    checked.machine_type_parameters(machine).is_empty()
-        // A persistent receiver remains part of every state's invocation
-        // custody, even when its body only calls a compile-selected service.
-        && checked.machine_states(machine).iter().all(|source| {
-            !checked.state_parameters(source).iter().any(|parameter| parameter.is_self)
-                || plan.states.iter().find(|state| state.state == source.symbol)
-                    .is_some_and(|state| state.structural_parameters.iter().any(|parameter| parameter.is_self))
-        })
-        && plan.body_qualifications.is_empty()
-        && {
-            // Unreachable states never execute: their custody rows cannot
-            // disqualify the route. Reachable positions still enforce every
-            // parameter's custody shape. A missing edge target is topology
-            // drift, not custody — defer to `admit`'s authored-roster checks
-            // for the precise drift diagnostic.
-            let Ok(live) = topology::live(plan) else {
-                return true;
-            };
-            let qualified_invocation = invocation_only_entry(plan, &live);
-            plan.states
-                .iter()
-                .zip(&live)
-                .enumerate()
-                .filter_map(|(index, (state, live))| live.then_some((index, state)))
-                .all(|(index, state)| {
-                    state.structural_parameters.iter().enumerate().all(|(parameter_index, parameter)| {
+    checked.machine_type_parameters(machine).is_empty() && plan.body_qualifications.is_empty() && {
+        // Unreachable states never execute: their custody rows cannot
+        // disqualify the route. Reachable positions still enforce every
+        // parameter's custody shape. A missing edge target is topology
+        // drift, not custody — defer to `admit`'s authored-roster checks
+        // for the precise drift diagnostic.
+        let Ok(live) = topology::live(plan) else {
+            return true;
+        };
+        let qualified_invocation = invocation_only_entry(plan, &live);
+        plan.states
+            .iter()
+            .zip(&live)
+            .enumerate()
+            .filter_map(|(index, (state, live))| live.then_some((index, state)))
+            .all(|(index, state)| {
+                state.structural_parameters.iter().enumerate().all(
+                    |(parameter_index, parameter)| {
                         ((parameter.multiplicity == Multiplicity::Unrestricted
                             && parameter.access != checked_trees::CheckedStructuralAccess::Owned)
                             || parameter.access == checked_trees::CheckedStructuralAccess::Owned)
                             && (parameter.qualifications.is_empty()
                                 || parameter.multiplicity == Multiplicity::Linear
                                 || (index == 0 && qualified_invocation)
-                                || forwards_qualified_parameter(checked, plan, &live, index, parameter_index))
-                    })
-                })
-                && claim_transport_supported(checked, plan, &live)
-        }
+                                || forwards_qualified_parameter(
+                                    checked,
+                                    plan,
+                                    &live,
+                                    index,
+                                    parameter_index,
+                                ))
+                    },
+                )
+            })
+            && claim_transport_supported(checked, plan, &live)
+    }
 }
 
 /// A state's entry claims are established at every admission of that state,
@@ -241,30 +240,11 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
             return unsupported("Unit graph scalar signature disagrees with source");
         }
         let source_parameters = checked.state_parameters(source);
-        // `[erased]` bindings own no plan entry; count the retained ones by
-        // their typed relevance. A borrowed `self` whose place the state
-        // never names also owns no plan entry — it rides the ambient
-        // attachment — so count it only while the plan keeps a receiver.
+        // Erased bindings own no plan entry.
         let retained_parameters = source_parameters
             .iter()
             .filter(|parameter| !parameter.relevance.is_erased())
-            .count()
-            - usize::from(
-                state
-                    .structural_parameters
-                    .iter()
-                    .all(|parameter| !parameter.is_self)
-                    && source_parameters.iter().any(|parameter| {
-                        parameter.is_self
-                            && !parameter.relevance.is_erased()
-                            && matches!(
-                                checked
-                                    .type_reference_table
-                                    .type_reference(parameter.type_reference),
-                                TypeReferenceNode::Reference { .. }
-                            )
-                    }),
-            );
+            .count();
         if state.structural_parameters.len() + state.scalar_parameters.len() != retained_parameters
             || state
                 .structural_parameters
@@ -328,8 +308,7 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                 // State parameters receive established values. The complete
                 // type below retains nested byte predicates; this storage
                 // classifier grants neither construction nor copy permission.
-                if source.is_self
-                    || source.is_const
+                if source.is_const
                     || source.is_mutable
                     || parameter.is_self
                     || parameter.fused_service_erasure.is_some()
@@ -408,8 +387,7 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                 );
             }
             if parameter.is_self {
-                super::parameters::validate_receiver(checked, plan, source, parameter, access)?;
-                continue;
+                return unsupported("static state acquired an unauthored receiver");
             }
             let expected_shape = if let Some(primitive) = checked.primitive_type_reference(referee)
             {
@@ -500,8 +478,7 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                     }
                 }
             };
-            if source.is_self
-                || source.is_const
+            if source.is_const
                 || source.is_mutable != access.is_exclusive()
                 || parameter.is_self
                 || parameter.multiplicity != Multiplicity::Unrestricted
@@ -1090,7 +1067,7 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
             }
             false
         } else {
-            let (owner, source) = crate::declarations::state_declaration(checked, boundary.state)?;
+            let (owner, _) = crate::declarations::state_declaration(checked, boundary.state)?;
             // A qualified top-level requirement such as `Float::add` names a
             // semantic namespace, not a data attachment, and stage 04's
             // `build_boundary_machine` retains no attachment identity for it.
@@ -1132,10 +1109,7 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                     );
                 }
             }
-            checked
-                .state_parameters(source)
-                .iter()
-                .any(|parameter| parameter.is_self)
+            false
         };
         if has_receiver != source_has_receiver {
             return unsupported(

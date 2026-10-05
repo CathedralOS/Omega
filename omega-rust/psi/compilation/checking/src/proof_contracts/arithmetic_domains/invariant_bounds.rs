@@ -191,7 +191,7 @@ pub fn state_parameter_integer_interval(
         .state_parameters(state)
         .iter()
         .find(|candidate| candidate.symbol == parameter)?;
-    if parameter.is_self || parameter.is_const {
+    if parameter.is_const {
         return None;
     }
     let mut interval = type_bounds(program, parameter.type_reference)?.interval;
@@ -370,10 +370,7 @@ fn bounds(
                 .state_parameters(state)
                 .iter()
                 .find(|parameter| parameter.symbol == path.symbol)?;
-            if parameter.is_self
-                || parameter.is_const
-                || (parameter.is_mutable && !declared_mutable_leaves)
-            {
+            if parameter.is_const || (parameter.is_mutable && !declared_mutable_leaves) {
                 return None;
             }
             let declared = type_bounds(program, parameter.type_reference)?;

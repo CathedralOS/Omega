@@ -96,9 +96,7 @@ impl TypedTrees {
             .state_signature_parameters(requirement)
             .iter()
             .enumerate()
-            .filter(|(_, parameter)| {
-                parameter.is_self || type_reference_contains_self(self, parameter.type_reference)
-            })
+            .filter(|(_, parameter)| type_reference_contains_self(self, parameter.type_reference))
             .map(|(position, _)| position);
         let Some(position) = positions.next() else {
             return Err(DynamicSignatureIneligibility::MissingBorrowedReceiver);

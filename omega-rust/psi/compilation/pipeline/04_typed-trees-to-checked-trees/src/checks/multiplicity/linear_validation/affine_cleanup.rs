@@ -102,7 +102,7 @@ pub(crate) fn append_owned_cleanup_permission_events(
         // same durable root `normalized_event_place_root` publishes for its
         // moves. Borrowed receivers keep their unrestricted reference type and
         // produce no cleanup event either way.
-        let symbol = if parameter.is_self
+        let symbol = if false
             && !crate::checks::multiplicity::linear_obligations::type_reference_is_reference(
                 program,
                 parameter.type_reference,

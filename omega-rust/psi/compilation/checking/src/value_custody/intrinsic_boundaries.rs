@@ -146,9 +146,7 @@ fn same_runtime_signature(
             .iter()
             .zip(requirement_parameters)
             .all(|(leaf, requirement)| {
-                !leaf.is_self
-                    && !requirement.is_self
-                    && leaf.is_const == requirement.is_const
+                leaf.is_const == requirement.is_const
                     && leaf.is_mutable == requirement.is_mutable
                     && leaf.relevance == requirement.relevance
                     && program.normalized_type_identity(leaf.type_reference)
@@ -390,8 +388,7 @@ fn exact_direct_intrinsic_signature(
     let [parameter] = parameters else {
         return false;
     };
-    !parameter.is_self
-        && !parameter.is_const
+    !parameter.is_const
         && !parameter.is_mutable
         && program.primitive_type_reference(parameter.type_reference) == Some(PrimitiveType::I32)
         && {

@@ -113,22 +113,12 @@ pub(super) fn check(
     let arguments = crate::semantic::calls::call_site_argument_expressions(program, &site);
     let mut argument_index = 0;
     for parameter in parameters {
-        let argument = if parameter.is_self {
-            None
-        } else {
+        let argument = {
             let argument = arguments.get(argument_index).copied();
             argument_index += 1;
             argument
         };
-        let actual = if parameter.is_self {
-            crate::flow::canonical_receiver_place_for_call_site(
-                program,
-                state.machine_symbol,
-                state.state_symbol,
-                &site,
-                call.statement_index,
-            )
-        } else {
+        let actual = {
             argument.and_then(|argument| {
                 crate::flow::canonical_place_from_expression_in_state(
                     program,

@@ -116,7 +116,6 @@ pub(super) fn substitutions_are_finite(
             let parameters = program
                 .state_parameters(target.state)
                 .iter()
-                .filter(|parameter| !parameter.is_self)
                 .collect::<Vec<_>>();
             if parameters.len() != edge.arguments.len() {
                 return false;

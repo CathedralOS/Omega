@@ -275,7 +275,6 @@ pub(super) fn argument_position_context(
     let erased_position = callee_parameters.is_some_and(|parameters| {
         parameters
             .iter()
-            .filter(|parameter| !parameter.is_self)
             .nth(position)
             .is_some_and(|parameter| parameter.relevance.is_erased())
     });

@@ -254,9 +254,7 @@ fn append_one_to_one_call_carry_facts<'plans>(
         return;
     };
     for parameter in parameters {
-        let argument = if parameter.is_self {
-            call.receiver.is_valid().then_some(call.receiver)
-        } else {
+        let argument = {
             let argument = arguments.get(argument_index).copied();
             argument_index = argument_index.saturating_add(1);
             argument
@@ -964,9 +962,6 @@ fn parameter_identity_rows(
     // nothing the caller did not already have to prove.
     let mut position = 0;
     for parameter in parameters {
-        if parameter.is_self {
-            continue;
-        }
         let argument_position = position;
         position += 1;
         if !matches!(
@@ -1012,12 +1007,9 @@ pub(crate) fn ensured_parameter_position(
     if program.expression_table.names_reserved_result(value) {
         return None;
     }
-    parameters
-        .iter()
-        .filter(|parameter| !parameter.is_self)
-        .position(|parameter| {
-            parameter.name.as_str() == name.as_str()
-                || parameter.symbol == path.symbol
-                || parameter.symbol == path.head_symbol
-        })
+    parameters.iter().position(|parameter| {
+        parameter.name.as_str() == name.as_str()
+            || parameter.symbol == path.symbol
+            || parameter.symbol == path.head_symbol
+    })
 }

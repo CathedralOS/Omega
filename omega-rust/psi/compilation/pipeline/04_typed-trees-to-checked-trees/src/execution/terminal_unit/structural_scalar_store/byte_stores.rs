@@ -476,16 +476,11 @@ pub(in crate::execution::terminal_unit) fn byte_value_plan(
                 statement_index as usize,
                 expression,
             )?;
-            let root = crate::flow::normalized_event_place_root(program, place.root);
+            let root = place.root;
             let parameter_position = program
                 .state_parameters(state)
                 .iter()
-                .position(|parameter| {
-                    crate::flow::normalized_event_place_root(
-                        program,
-                        facts::PlaceRoot::Symbol(parameter.symbol),
-                    ) == root
-                });
+                .position(|parameter| (facts::PlaceRoot::Symbol(parameter.symbol)) == root);
             let type_reference = crate::flow::canonical_place_type_reference(
                 program,
                 state.symbol,

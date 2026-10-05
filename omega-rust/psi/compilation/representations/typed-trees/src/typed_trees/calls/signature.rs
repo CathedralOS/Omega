@@ -132,6 +132,8 @@ pub struct NativeCallbackParameter {
     pub native_ordinal: u32,
 }
 
+/// An authored parameter with an explicit subject identity. Qualified machine
+/// names do not contribute a hidden receiver or shift argument positions.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StateParameter {
     pub symbol: SymbolHandle,
@@ -139,7 +141,6 @@ pub struct StateParameter {
     pub type_reference: TypeReferenceHandle,
     pub is_const: bool,
     pub is_mutable: bool,
-    pub is_self: bool,
     /// Authored `[erased]` on the binding occurrence. An erased parameter
     /// stays in the signature, contracts, and semantic identity but owns no
     /// runtime storage, transfer, or read; runtime faces skip it the way
@@ -155,7 +156,6 @@ impl Default for StateParameter {
             type_reference: TypeReferenceHandle::invalid(),
             is_const: false,
             is_mutable: false,
-            is_self: false,
             relevance: language_core::BindingRelevance::Relevant,
         }
     }

@@ -127,12 +127,7 @@ fn mutable_view_source(
             if !view_source_parameter_is_mutable(program, parameter) {
                 return None;
             }
-            MutableViewSource::Parameter(
-                parameters[..position]
-                    .iter()
-                    .filter(|parameter| !parameter.is_self)
-                    .count(),
-            )
+            MutableViewSource::Parameter(parameters[..position].iter().count())
         } else if root == callee_machine.symbol
             || view_data_member_symbol(program, callee_state, callee_machine.symbol, root).is_some()
         {

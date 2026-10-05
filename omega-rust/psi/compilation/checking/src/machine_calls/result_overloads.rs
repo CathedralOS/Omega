@@ -886,7 +886,7 @@ fn collect_call_argument_expectations(
     let Some(parameters) = parameters else {
         return;
     };
-    let parameters = parameters.iter().filter(|parameter| !parameter.is_self);
+    let parameters = parameters.iter();
     let arguments = program
         .expression_table
         .expression_handles(call.arguments)

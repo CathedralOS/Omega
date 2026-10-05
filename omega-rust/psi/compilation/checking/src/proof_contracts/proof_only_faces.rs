@@ -110,7 +110,7 @@ pub(crate) fn validate_proof_only_consumption(
                 // An erased parameter is a proof-side binding occurrence with
                 // no runtime transfer, so a proof-only type there is legal --
                 // the same exemption as an erased data field below.
-                if parameter.is_self || parameter.relevance.is_erased() {
+                if parameter.relevance.is_erased() {
                     continue;
                 }
                 if let Some(held) =

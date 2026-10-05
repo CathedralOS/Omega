@@ -2,8 +2,6 @@
 use crate::facts::field_domain::ByteSequencePredicate;
 use crate::flow::FlowBuildContext;
 use crate::flow::canonical_place_from_semantic_place;
-use crate::flow::normalize_attached_place_root;
-use crate::flow::normalized_event_place_root;
 use arena::HandleSpan;
 use checked_trees::FlowSemanticContextRef;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -541,15 +539,6 @@ impl FieldValue {
     }
 }
 
-fn has_self(program: &typed_trees::TypedTrees, state: &typed_trees::state::State) -> bool {
-    program
-        .state_parameters(state)
-        .iter()
-        .filter(|parameter| parameter.is_self)
-        .count()
-        == 1
-}
-
 /// A Named edge's explicit arguments bind the destination's non-self
 /// parameters. Each argument's canonical place names the caller storage the
 /// parameter aliases, so a captured fact rooted at that place -- with the
@@ -568,7 +557,6 @@ pub(super) fn capture(
     arguments: &[typed_trees::expression::ExpressionHandle],
     contexts: HandleSpan<FlowSemanticContextRef>,
 ) -> Vec<FieldValue> {
-    let self_carrier = has_self(program, state) && has_self(program, destination);
     // (argument storage root, argument's own prefix, destination parameter).
     // `put(&mut buf)` and `put(buf)` both resolve to the caller's `buf`
     // storage; `put(&mut self.holder)` strips the `holder` field prefix.
@@ -576,25 +564,21 @@ pub(super) fn capture(
         Vec::new();
     let mut ordinal = 0;
     for parameter in program.state_parameters(destination) {
-        if parameter.is_self {
-            continue;
-        }
         let Some(&argument) = arguments.get(ordinal) else {
             break;
         };
         ordinal += 1;
-        let Some(mut place) =
+        let Some(place) =
             build.canonical_place_at(program, state.symbol, statement_index, argument)
         else {
             continue;
         };
-        normalize_attached_place_root(program, machine.symbol, state.symbol, &mut place);
-        place.root = normalized_event_place_root(program, place.root);
+
         if let facts::PlaceRoot::Symbol(_) = place.root {
             argument_roots.push((place.root, place.segments, parameter.symbol));
         }
     }
-    if !self_carrier && argument_roots.is_empty() {
+    if argument_roots.is_empty() {
         return Vec::new();
     }
     // A bound minted at a later point refines what came before it: an arm's
@@ -721,13 +705,12 @@ pub(super) fn capture(
             let FactPlace::Place(place) = fact.place else {
                 continue;
             };
-            let Some(mut place) =
+            let Some(place) =
                 canonical_place_from_semantic_place(program, semantic, semantic.places.get(place))
             else {
                 continue;
             };
-            normalize_attached_place_root(program, machine.symbol, state.symbol, &mut place);
-            place.root = normalized_event_place_root(program, place.root);
+
             // Each destination identity this evidence serves: the shared
             // machine root for an attached `self` field, and every transition
             // argument whose storage prefix the fact's place extends. A
@@ -742,13 +725,6 @@ pub(super) fn capture(
                 })
             };
             let mut targets: Vec<(facts::PlaceRoot, &[facts::PlaceSegment])> = Vec::new();
-            if self_carrier
-                && place.root == facts::PlaceRoot::Symbol(machine.symbol)
-                && matches!(place.segments.first(), Some(facts::PlaceSegment::Field { symbol }) if symbol.is_valid())
-                && field_segments(&place.segments)
-            {
-                targets.push((place.root, place.segments.as_slice()));
-            }
             for (root, prefix, parameter) in &argument_roots {
                 if place.root != *root
                     || !place.segments.starts_with(prefix)

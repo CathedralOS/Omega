@@ -12,7 +12,7 @@ pub(in crate::execution::terminal_unit) fn reads_receiver(
     let Some(position) = program
         .state_parameters(state)
         .iter()
-        .position(|parameter| parameter.is_self && is_reference(program, parameter.type_reference))
+        .position(|parameter| false && is_reference(program, parameter.type_reference))
     else {
         return false;
     };
@@ -268,13 +268,7 @@ pub(in crate::execution::terminal_unit) fn uses_receiver_storage(
     if reads_receiver(program, facts, state) {
         return true;
     }
-    let receiver_roots = program
-        .state_parameters(state)
-        .iter()
-        .filter(|parameter| parameter.is_self)
-        .map(|parameter| facts::PlaceRoot::Symbol(parameter.symbol))
-        .chain(std::iter::once(facts::PlaceRoot::Symbol(machine.symbol)))
-        .collect::<Vec<_>>();
+    let receiver_roots = [facts::PlaceRoot::Symbol(machine.symbol)];
     let statements = program.statement_table.statements(state.statement_nodes);
     // A store spelled through a reference local (`view.field = ..` after
     // `let view: &mut Self = &mut self`) writes the storage that local

@@ -378,7 +378,7 @@ fn resolve_direct_float_parameter(
         .typed
         .state_parameters(source_entry)
         .iter()
-        .filter(|parameter| !parameter.is_self && !parameter.is_const)
+        .filter(|parameter| !parameter.is_const)
         .filter_map(|parameter| {
             checked
                 .typed

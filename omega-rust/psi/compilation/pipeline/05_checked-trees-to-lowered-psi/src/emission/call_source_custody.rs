@@ -81,16 +81,14 @@ pub(crate) fn validate_parameter_binding_receiver(
             };
             let members = checked.statement_table.name_path_members(source.receiver);
             if !checked.state_parameters(state).iter().any(|parameter| {
-                !parameter.is_self
-                    && (parameter.symbol == source.receiver_root_symbol
-                        || members.first() == Some(&parameter.name))
+                parameter.symbol == source.receiver_root_symbol
+                    || members.first() == Some(&parameter.name)
             }) || members.len() < 2
             {
                 return Ok(false);
             }
-            let (root, path) = crate::unit::attached_unit::statement_receiver_path(
-                checked, machine, state, statement,
-            )?;
+            let (root, path) =
+                crate::unit::attached_unit::statement_receiver_path(checked, state, statement)?;
             // The shared path validator has checked the endpoint against its
             // exact declared owner. Recover that field's type, not its spelling.
             let mut fields = checked
@@ -119,7 +117,7 @@ pub(crate) fn validate_parameter_binding_receiver(
         .state_parameters(state)
         .iter()
         .enumerate()
-        .find(|(_, parameter)| parameter.symbol == root && !parameter.is_self)
+        .find(|(_, parameter)| parameter.symbol == root)
     else {
         // Attached self and local receiver routes retain their existing owners.
         return Ok(false);

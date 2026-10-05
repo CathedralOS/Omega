@@ -2,15 +2,13 @@
 
 use crate::checks::termination::progress::CheckedProgressSummary;
 use crate::checks::termination::progress::fact_subjects::{
-    fact_domain, fact_subject, profile_label, subject_from_place,
+    fact_domain, fact_subject, subject_from_place,
 };
 use crate::checks::termination::progress::{lineage, origins};
 use crate::semantic::calls::call_site_argument_expressions;
 use crate::semantic::calls::call_target_parameters;
 use crate::semantic::calls::find_call_site;
-use checked_trees::{
-    BuildBoundProgressDemand, FlowCallFact, FlowFacts, FlowStateFact, ProgressDemandCallSite,
-};
+use checked_trees::{BuildBoundProgressDemand, FlowCallFact, FlowFacts, FlowStateFact};
 use language_semantics::{ProgressPremise, ProgressSubject, TerminationGuarantee};
 use symbols::SymbolHandle;
 
@@ -75,12 +73,6 @@ pub(crate) fn derive_machine_summary(
                 return Some(no_guarantee(machine.symbol));
             };
             for callee_premise in callee_premises {
-                let build_bound_requirement = provider_receiver_requirement(
-                    program,
-                    call.receiver_symbol,
-                    call.target_symbol,
-                    callee_premise,
-                );
                 let local_instance = instantiate_call_premise(
                     program,
                     machine,
@@ -97,41 +89,6 @@ pub(crate) fn derive_machine_summary(
                     call,
                     &local_instance,
                 ) {
-                    continue;
-                }
-                if let Some((
-                    provider_service_package_identity,
-                    provider_service_identity,
-                    requirement_owner_package_identity,
-                    requirement_identity,
-                )) = &build_bound_requirement
-                {
-                    // A requirement receiver remains build-bound even when a
-                    // checked wrapper happens to hold it in one of its own
-                    // parameters. Rewriting it into that caller parameter
-                    // would lose the exact selected-provider subject class.
-                    let demand = BuildBoundProgressDemand {
-                        provider_service_identity: provider_service_identity.clone(),
-                        provider_service_package_identity: *provider_service_package_identity,
-                        requirement_identity: requirement_identity.clone(),
-                        requirement_owner_package_identity: *requirement_owner_package_identity,
-                        profile_identity: profile_label(program, callee_premise.profile),
-                        subject_projections: callee_premise
-                            .subject
-                            .projections
-                            .iter()
-                            .map(|symbol| program.symbols.display_path(*symbol, "::"))
-                            .collect(),
-                        origin: ProgressDemandCallSite {
-                            machine: machine.symbol,
-                            state: state_flow.state_symbol,
-                            statement_ordinal: call.statement_index,
-                            call_ordinal: call.call_ordinal,
-                        },
-                    };
-                    if !build_bound_demands.contains(&demand) {
-                        build_bound_demands.push(demand);
-                    }
                     continue;
                 }
                 // A call whose routes disagree yields one subject per route.
@@ -263,50 +220,6 @@ pub(crate) fn selected_call_summary<'a>(
     }
 }
 
-fn provider_receiver_requirement(
-    program: &typed_trees::TypedTrees,
-    receiver_symbol: SymbolHandle,
-    target_symbol: SymbolHandle,
-    premise: &ProgressPremise,
-) -> Option<(
-    Option<semantic_vocabulary::PackageKeyIdentity>,
-    String,
-    Option<semantic_vocabulary::PackageKeyIdentity>,
-    String,
-)> {
-    program.traits().iter().find_map(|owner| {
-        program
-            .trait_machine_signatures(owner)
-            .iter()
-            .find(|requirement| requirement.symbol == target_symbol)
-            .and_then(|requirement| {
-                program
-                    .state_signature_parameters(requirement)
-                    .iter()
-                    .find(|parameter| parameter.symbol == premise.subject.root)
-                    .filter(|parameter| parameter.is_self)
-                    .map(|_| {
-                        let provider_service =
-                            crate::flow::symbol_type_symbol(program, receiver_symbol)
-                                .and_then(|symbol| {
-                                    program.traits().iter().find(|candidate| {
-                                        candidate.is_boundary && candidate.symbol == symbol
-                                    })
-                                })
-                                .unwrap_or(owner);
-                        (
-                            program
-                                .symbols
-                                .symbol_package_identity(provider_service.symbol),
-                            provider_service.name.as_str().to_owned(),
-                            program.symbols.symbol_package_identity(requirement.symbol),
-                            program.trait_requirement_callable_identity_text(owner, requirement),
-                        )
-                    })
-            })
-    })
-}
-
 fn instantiate_call_premise(
     program: &typed_trees::TypedTrees,
     machine: &typed_trees::machine::Machine,
@@ -397,60 +310,16 @@ pub(crate) fn call_argument_subjects_with_parameters(
         .iter()
         .position(|parameter| parameter.symbol == parameter_symbol)?;
     let arguments = call_site_argument_expressions(program, &call_site);
-    let non_self_count = parameters
-        .iter()
-        .filter(|parameter| !parameter.is_self)
-        .count();
-    let uses_receiver =
-        parameters.iter().any(|parameter| parameter.is_self) && arguments.len() == non_self_count;
     let parameter = &parameters[parameter_index];
-    let place = if parameter.is_self && uses_receiver {
-        let place = crate::flow::canonical_receiver_place_for_call_site(
-            program,
-            machine.symbol,
-            state_flow.state_symbol,
-            &call_site,
-            call.statement_index,
-        )?;
-        // A receiver that is itself a value-call result has no storage to
-        // demand; the same origin replay proves which exact caller input the
-        // callee returned, carrying the receiver's own peeled projection.
-        // What it cannot prove keeps no subject.
-        match place.root {
-            facts::PlaceRoot::Expression(expression) => origins::call_argument_place(
-                program,
-                state_flow,
-                call.statement_index,
-                expression,
-                parameter.type_reference,
-                &place.segments,
-                call_frames,
-            )?,
-            _ => place,
-        }
-    } else {
-        let argument_index = if uses_receiver {
-            parameters[..parameter_index]
-                .iter()
-                .filter(|parameter| !parameter.is_self)
-                .count()
-        } else {
-            parameter_index
-        };
-        // A spelled name or member path keeps its own place; an argument that
-        // is itself a value-call result or a constructor has no storage to
-        // demand, so the shared origin replay proves which exact caller input
-        // supplied it. What it cannot prove keeps no subject.
-        origins::call_argument_place(
-            program,
-            state_flow,
-            call.statement_index,
-            *arguments.get(argument_index)?,
-            parameter.type_reference,
-            &[],
-            call_frames,
-        )?
-    };
+    let place = origins::call_argument_place(
+        program,
+        state_flow,
+        call.statement_index,
+        *arguments.get(parameter_index)?,
+        parameter.type_reference,
+        &[],
+        call_frames,
+    )?;
     // A demanded operand spelled through a reference leaf names the
     // referent's storage, not the carrier's: resolve the leaf so the premise
     // surface never sees the index selectors it cannot carry.

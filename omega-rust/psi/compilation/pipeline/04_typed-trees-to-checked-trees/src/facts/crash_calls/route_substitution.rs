@@ -39,14 +39,9 @@ pub(crate) fn call_argument_entry_operand(
     if members.is_empty() {
         return whole.get(ordinal)?.clone();
     }
-    if parameter.is_self {
-        return None;
-    }
+
     // Transition/call arguments bind only the non-self parameters, in order.
-    let argument_index = parameters[..ordinal]
-        .iter()
-        .filter(|parameter| !parameter.is_self)
-        .count();
+    let argument_index = parameters[..ordinal].iter().count();
     let argument = arguments.get(argument_index).copied()?;
     let projection = crate::facts::crash_entry_values::formal_member_projection(
         program,
@@ -167,14 +162,6 @@ pub(crate) fn call_argument_substitution(
     let mut fields = Vec::with_capacity(target_parameters.len());
     let mut values = Vec::with_capacity(target_parameters.len());
     for parameter in target_parameters {
-        if parameter.is_self {
-            // Receiver-entry identity needs retained referent custody. A name
-            // alone must not impersonate a caller entry value.
-            identity.push(None);
-            fields.push(None);
-            values.push(None);
-            continue;
-        }
         let argument = arguments.get(argument_index).copied();
         argument_index = argument_index.saturating_add(1);
         fields.push(argument.and_then(|argument| {
@@ -348,16 +335,13 @@ fn structural_actual_root(
     actual: ExpressionHandle,
 ) -> Option<checked_trees::CheckedStructuralParameterField> {
     let place = crate::flow::canonical_place_from_expression(program, actual)?;
-    let root = crate::flow::normalized_event_place_root(program, place.root);
+    let root = place.root;
     if !matches!(root, facts::PlaceRoot::Symbol(_)) {
         return None;
     }
-    let parameter_position = caller_parameters.iter().position(|parameter| {
-        crate::flow::normalized_event_place_root(
-            program,
-            facts::PlaceRoot::Symbol(parameter.symbol),
-        ) == root
-    })?;
+    let parameter_position = caller_parameters
+        .iter()
+        .position(|parameter| (facts::PlaceRoot::Symbol(parameter.symbol)) == root)?;
     let mut path = Vec::with_capacity(place.segments.len());
     for segment in &place.segments {
         path.push(match *segment {
@@ -383,12 +367,7 @@ fn structural_actual_root(
         parameter_position,
         &path,
     )?;
-    (frozen
-        && crate::flow::normalized_event_place_root(
-            program,
-            facts::PlaceRoot::Symbol(resolved_root),
-        ) == root
-        && segments == place.segments)
+    (frozen && (facts::PlaceRoot::Symbol(resolved_root)) == root && segments == place.segments)
         .then_some(checked_trees::CheckedStructuralParameterField {
             parameter_position,
             path,
@@ -889,13 +868,7 @@ pub(crate) fn refine_published_crash_routes(
     let mut ordinary_arguments = arguments.iter().copied();
     let operands = target_parameters
         .iter()
-        .map(|parameter| {
-            if parameter.is_self {
-                ExpressionHandle::invalid()
-            } else {
-                ordinary_arguments.next().unwrap_or_default()
-            }
-        })
+        .map(|_parameter| ordinary_arguments.next().unwrap_or_default())
         .collect::<Vec<_>>();
     for bucket in buckets {
         let mut guards = Vec::new();

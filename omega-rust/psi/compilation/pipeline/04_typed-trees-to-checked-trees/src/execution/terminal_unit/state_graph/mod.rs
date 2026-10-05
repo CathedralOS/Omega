@@ -1618,13 +1618,7 @@ fn receiver_rooted_operand(
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
 ) -> bool {
-    let receiver_roots = program
-        .state_parameters(state)
-        .iter()
-        .filter(|parameter| parameter.is_self)
-        .map(|parameter| parameter.symbol)
-        .chain(std::iter::once(machine.symbol))
-        .collect::<Vec<_>>();
+    let receiver_roots = [machine.symbol];
     // `uses_receiver_storage` already counts a lent receiver field by its
     // attached-data parent. The complementary shapes are a whole-`self`
     // operand and any receiver-rooted loan, either of which roots directly
@@ -2397,7 +2391,7 @@ fn successor_bindings(
                             .iter()
                             .enumerate()
                             .find(|(_, parameter)| {
-                                super::types::parameter_root_symbol(machine.symbol, parameter)
+                                (parameter).symbol
                                     == root_symbol
                                     || parameter.symbol == root_symbol
                             })
@@ -2810,8 +2804,7 @@ fn projected_copy_subject(
             .iter()
             .enumerate()
             .find(|(_, parameter)| {
-                super::types::parameter_root_symbol(machine.symbol, parameter) == root_symbol
-                    || parameter.symbol == root_symbol
+                (parameter).symbol == root_symbol || parameter.symbol == root_symbol
             })?;
     let (parameter_index, parameter) = source_structural
         .iter()

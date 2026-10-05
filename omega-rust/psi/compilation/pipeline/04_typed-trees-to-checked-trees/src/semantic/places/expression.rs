@@ -145,7 +145,6 @@ pub(crate) fn call_contract_argument_projection(
     };
     let (position, parameter) = parameters
         .iter()
-        .filter(|parameter| !parameter.is_self)
         .enumerate()
         .find(|(_, parameter)| parameter.symbol == symbol)?;
     if formal
@@ -202,23 +201,12 @@ fn instantiate_call_contract_name_path_place(
             };
             facts.append_place_from_expression(program, expression)
         }
-    } else if first_member.is_some_and(is_self_receiver)
-        || target_parameters
-            .iter()
-            .find(|parameter| parameter.is_self)
-            .is_some_and(|parameter| {
-                path.head_symbol == parameter.symbol || path.symbol == parameter.symbol
-            })
-    {
+    } else if first_member.is_some_and(is_self_receiver) {
         super::receiver_place_for_call(program, facts, call, &call_site)?
     } else {
         let mut argument_index = 0usize;
         let mut matched = None;
         for parameter in target_parameters {
-            if parameter.is_self {
-                continue;
-            }
-
             let argument = super::call_site_argument_expressions(program, &call_site)
                 .get(argument_index)
                 .copied();

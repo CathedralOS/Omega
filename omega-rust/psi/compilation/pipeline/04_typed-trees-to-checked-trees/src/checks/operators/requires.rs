@@ -1096,8 +1096,6 @@ fn operand_for_parameter(
     for (parameter_index, parameter) in parameters.iter().enumerate() {
         let operand = if operands_include_self {
             operands.get(parameter_index)
-        } else if parameter.is_self {
-            None
         } else {
             let operand = operands.get(positional_operand_index);
             positional_operand_index += 1;
@@ -1303,7 +1301,6 @@ fn contexts_prove_case_membership(
     };
     let Some(position) = parameters
         .iter()
-        .filter(|parameter| !parameter.is_self)
         .position(|parameter| parameter.symbol == symbol)
     else {
         return false;
@@ -1329,8 +1326,7 @@ fn contexts_prove_case_membership(
                         semantic.places.get(candidate),
                     )
                     .is_some_and(|candidate| {
-                        crate::flow::normalized_event_place_root(program, candidate.root)
-                            == crate::flow::normalized_event_place_root(program, place.root)
+                        candidate.root == place.root
                             && candidate.segments == place.segments
                     }))
             })

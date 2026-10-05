@@ -20,7 +20,7 @@ use crate::execution::terminal_unit::{
     CheckedTrivialAffineStructuralLocalPlan, CheckedUnitCallCoordinate,
     CheckedUnitEffectOperationPlan, CheckedUnitEntryClaimPlan, CheckedUnitStructuralArgumentPlan,
     CheckedUnitStructuralParameterPlan, CheckedUnitStructuralResultBindingPlan, MachineSupplyMode,
-    Multiplicity, PrimitiveType, SymbolHandle, TypedTrees, is_reference, strips_erased_parameter,
+    Multiplicity, PrimitiveType, SymbolHandle, TypedTrees, strips_erased_parameter,
 };
 use checked_trees::{
     CheckedUnitCallParts, CheckedUnitCallPlan, CheckedUnitCallResult, CheckedUnitCallRoute,
@@ -353,8 +353,7 @@ pub(in crate::execution) fn build_call_operation(
         else {
             continue;
         };
-        if parameter.is_self
-            || parameter.is_const
+        if (parameter.is_const)
             || (parameter.is_mutable
                 && crate::values::mutable_scalar_parameter_type(program, parameter).is_none())
         {
@@ -631,7 +630,6 @@ fn projected_reference_record_operands_supported(
         .iter()
         .filter(|parameter| {
             !parameter.relevance.is_erased()
-                && !(parameter.is_self && is_reference(program, parameter.type_reference))
                 && program
                     .primitive_type_reference(parameter.type_reference)
                     .is_none()
@@ -679,7 +677,7 @@ fn projected_reference_record_operands_supported(
         .zip(&target_parameters)
         .all(|(argument, target)| {
             argument.path.is_empty()
-                || (argument
+                || ((argument
                     .source_structural_result_binding_ordinal()
                     .is_some()
                     && argument.access == CheckedStructuralAccess::Owned
@@ -688,8 +686,7 @@ fn projected_reference_record_operands_supported(
                             segment,
                             checked_trees::CheckedUnitStructuralPathSegment::Field(_)
                         )
-                    })
-                    && !target.is_self
+                    }))
                     && validation::reference_result_custody::is_reference_record(
                         program,
                         target.type_reference,

@@ -49,7 +49,6 @@ impl<'program> EndpointInput<'program> {
         let (argument_position, parameter) = program
             .state_parameters(state)
             .iter()
-            .filter(|parameter| !parameter.is_self)
             .enumerate()
             .find(|(_, parameter)| {
                 name.symbol.is_valid()

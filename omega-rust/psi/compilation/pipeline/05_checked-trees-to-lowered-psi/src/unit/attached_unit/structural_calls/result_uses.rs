@@ -1365,7 +1365,6 @@ pub(crate) fn validate_consumer(
                     || !parameter.qualifications.is_empty()
                     || source.fused_service_erasure.is_some()
                     || parameter.fused_service_erasure.is_some()
-                    || source_parameter.is_self
                     || parameter.is_self
                     || !expression.is_some_and(|expression| matches!(
                         checked.expression_table.expression(expression), ExpressionNode::Name(name)

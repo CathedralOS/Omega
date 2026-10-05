@@ -155,9 +155,7 @@ pub(in crate::execution::terminal_unit) fn return_unit_affine_discards(
         let parameter_index = structural_parameters.iter().position(|parameter| {
             source_parameters
                 .get(parameter.position as usize)
-                .is_some_and(|source| {
-                    event.root == facts::PlaceRoot::Symbol(parameter_root_symbol(machine, source))
-                })
+                .is_some_and(|source| event.root == facts::PlaceRoot::Symbol((source).symbol))
         });
         if parameter_index.is_none() {
             let facts::PlaceRoot::Symbol(root) = event.root else {
@@ -166,8 +164,7 @@ pub(in crate::execution::terminal_unit) fn return_unit_affine_discards(
             // An erased formal has no runtime storage and no roster row, so
             // its exit drop owes the return edge nothing.
             let erased_formal = source_parameters.iter().any(|source| {
-                strips_erased_parameter(source) == Some(true)
-                    && root == parameter_root_symbol(machine, source)
+                strips_erased_parameter(source) == Some(true) && root == (source).symbol
             });
             if erased_formal || admitted_local_symbols.contains(&root) {
                 continue;

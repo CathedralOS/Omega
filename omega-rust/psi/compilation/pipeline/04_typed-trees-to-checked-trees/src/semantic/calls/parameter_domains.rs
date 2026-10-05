@@ -4,7 +4,7 @@
 //! qualified type for a formal adds obligations on the actual argument; it does
 //! not add assumptions to the caller or mutate the generic declaration.
 
-use super::{CallSite, call_site_argument_expressions, call_site_supplies_explicit_subject};
+use super::{CallSite, call_site_argument_expressions};
 use facts::FactPayload;
 use symbols::SymbolHandle;
 use typed_trees::{TypedTrees, expression::ExpressionHandle};
@@ -44,7 +44,6 @@ pub(crate) fn call_parameter_domains(
     };
     let arguments = call_site_argument_expressions(program, site);
     let parameters = program.state_parameters(entry);
-    let explicit_subject = call_site_supplies_explicit_subject(program, site, parameters);
     let Some(bindings) = validation::call_type_arguments(
         program,
         caller,
@@ -53,17 +52,12 @@ pub(crate) fn call_parameter_domains(
         entry,
         selected,
         arguments,
-        explicit_subject,
     ) else {
         // The ordinary call validator rejects an invalid static application.
         return Vec::new();
     };
     let mut requirements = Vec::new();
-    for (parameter, argument) in parameters
-        .iter()
-        .filter(|parameter| explicit_subject || !parameter.is_self)
-        .zip(arguments)
-    {
+    for (parameter, argument) in parameters.iter().zip(arguments) {
         let declared = validation::parameter_domain_constraints(program, parameter.type_reference);
         for domain in validation::parameter_domain_constraints_with_substitutions(
             program,

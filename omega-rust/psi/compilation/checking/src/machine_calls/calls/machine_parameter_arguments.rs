@@ -1,9 +1,8 @@
 //! A static binder calls its complete declared parameter roster explicitly.
 //!
-//! Nominal requirements retain receiver spelling for their subject identity;
-//! that spelling does not insert a receiver at a binder invocation. Only this
-//! scratch call view clears it. Nominal selection and its complete effect and
-//! proof contract remain with the ordinary binder admission owner.
+//! Nominal selection and its complete effect and proof contract remain with
+//! the ordinary binder admission owner; subject types are instantiated through
+//! the explicit argument at the corresponding parameter position.
 
 use super::*;
 use typed_trees::signature::StateSignature;
@@ -31,10 +30,6 @@ pub(super) fn validate_machine_parameter_arguments(
             crate::value_custody::places::unwrapped_type_reference(program, carrier)
         })
         .unwrap_or_else(TypeReferenceHandle::invalid);
-    let mut explicit = authored.to_vec();
-    for parameter in &mut explicit {
-        parameter.is_self = false;
-    }
     validate_call_arguments_with_type_correspondence(
         program,
         machine,
@@ -42,11 +37,10 @@ pub(super) fn validate_machine_parameter_arguments(
         value_environment,
         arguments,
         signature.name.as_str(),
-        &explicit,
+        authored,
         writable_roots,
         false,
         &[],
-        false,
         |argument, required| {
             if !type_reference_mentions_self(program, required) {
                 return argument_matches_carrier(program, argument, required);

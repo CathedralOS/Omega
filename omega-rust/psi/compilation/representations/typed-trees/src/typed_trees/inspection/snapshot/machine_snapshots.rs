@@ -233,7 +233,6 @@ pub struct StateParameterSnapshot {
     pub type_reference: TypeReferenceSnapshot,
     pub is_const: bool,
     pub is_mutable: bool,
-    pub is_self: bool,
     pub relevance: &'static str,
 }
 
@@ -660,7 +659,6 @@ pub(crate) fn state_parameter_snapshot(
         type_reference: type_reference_snapshot(program, parameter.type_reference),
         is_const: parameter.is_const,
         is_mutable: parameter.is_mutable,
-        is_self: parameter.is_self,
         relevance: super::declaration_snapshots::snapshot_binding_relevance(parameter.relevance),
     }
 }

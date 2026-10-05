@@ -695,10 +695,7 @@ pub(crate) fn prove_ranking_range_call(
             }
         }
     }
-    let parameters = program
-        .state_parameters(destination)
-        .iter()
-        .filter(|parameter| !parameter.is_self);
+    let parameters = program.state_parameters(destination).iter();
     if parameters.clone().count() != arguments.len() {
         return None;
     }
@@ -787,7 +784,6 @@ pub(crate) fn prove_ranking_range_call(
                 let position = program
                     .state_parameters(destination)
                     .iter()
-                    .filter(|parameter| !parameter.is_self)
                     .position(|parameter| parameter.symbol == coordinate.parameter.symbol)?;
                 coordinate.arrived(
                     program,
@@ -803,7 +799,6 @@ pub(crate) fn prove_ranking_range_call(
                 let position = program
                     .state_parameters(destination)
                     .iter()
-                    .filter(|parameter| !parameter.is_self)
                     .position(|parameter| parameter.symbol == formal.symbol)?;
                 lengths::actual(
                     program,
@@ -827,7 +822,6 @@ pub(crate) fn prove_ranking_range_call(
             let position = program
                 .state_parameters(destination)
                 .iter()
-                .filter(|parameter| !parameter.is_self)
                 .position(|parameter| {
                     parameter.symbol == destination_coordinate.parameter.symbol
                 })?;
@@ -1110,7 +1104,6 @@ fn bind_destination_fields(
                     && let Some(position) = program
                         .state_parameters(destination)
                         .iter()
-                        .filter(|parameter| !parameter.is_self)
                         .position(|parameter| parameter.symbol == coordinate.parameter.symbol)
                     && let Some(actual) = coordinate.arrived(
                         program,
@@ -1181,7 +1174,6 @@ fn bind_destination_lengths(
                         program
                             .state_parameters(destination)
                             .iter()
-                            .filter(|parameter| !parameter.is_self)
                             .position(|parameter| parameter.symbol == coordinate.parameter.symbol)
                             .and_then(|position| {
                                 coordinate.arrived(
@@ -1202,7 +1194,6 @@ fn bind_destination_lengths(
                             program
                                 .state_parameters(destination)
                                 .iter()
-                                .filter(|parameter| !parameter.is_self)
                                 .position(|parameter| parameter.symbol == formal.symbol)
                                 .and_then(|position| {
                                     lengths::actual(
@@ -1316,11 +1307,7 @@ pub(super) fn telescoped_bindings(
     let root = program.machine_states(machine).first()?;
     let mut bindings = integer_bindings(program, state)?;
     let mut equalities = Vec::new();
-    let formals = program
-        .state_parameters(state)
-        .iter()
-        .filter(|parameter| !parameter.is_self)
-        .collect::<Vec<_>>();
+    let formals = program.state_parameters(state).iter().collect::<Vec<_>>();
     if formals.len() != entry_parameters.len() {
         return None;
     }
@@ -1386,12 +1373,7 @@ pub(super) fn telescoped_length_bindings(
     let mut roles: Vec<(SymbolHandle, String)> = Vec::new();
     let mut equalities = Vec::new();
     let root = program.machine_states(machine).first();
-    for (formal, role) in program
-        .state_parameters(state)
-        .iter()
-        .filter(|parameter| !parameter.is_self)
-        .zip(entry_parameters)
-    {
+    for (formal, role) in program.state_parameters(state).iter().zip(entry_parameters) {
         if !role.is_valid() {
             continue;
         }
@@ -1405,7 +1387,7 @@ pub(super) fn telescoped_length_bindings(
                     program
                         .state_parameters(root)
                         .iter()
-                        .find(|formal| !formal.is_self && formal.symbol == *role)
+                        .find(|formal| formal.symbol == *role)
                 }) else {
                     continue;
                 };
@@ -1701,8 +1683,7 @@ fn entry_scalar_parameter(
         .state_parameters(state)
         .iter()
         .find(|parameter| parameter.symbol == path.symbol)?;
-    if parameter.is_self
-        || parameter.is_const
+    if parameter.is_const
         || !matches!(
             exact_integer_parameter(program, parameter.type_reference),
             Some(PrimitiveType::U8 | PrimitiveType::U16 | PrimitiveType::U32 | PrimitiveType::U64)

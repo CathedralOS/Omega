@@ -68,7 +68,6 @@ pub fn discover_state_entry_mappings_preferring(
         program
             .state_parameters(root)
             .iter()
-            .filter(|parameter| !parameter.is_self)
             .map(|parameter| parameter.symbol)
             .collect::<Vec<_>>(),
     );
@@ -369,7 +368,6 @@ fn strict_step_claim(
     program
         .state_parameters(source)
         .iter()
-        .filter(|parameter| !parameter.is_self)
         .position(|parameter| parameter.symbol == name.symbol && !parameter.is_const)
         .is_some_and(|position| source_mapping.get(position).copied() == Some(claimed))
 }
@@ -503,7 +501,6 @@ fn carrier_root_carries(
                 return program
                     .state_parameters(source)
                     .iter()
-                    .filter(|parameter| !parameter.is_self)
                     .position(|parameter| parameter.symbol == name.symbol && !parameter.is_const)
                     .is_some_and(|position| {
                         source_mapping.get(position).copied() == Some(claimed)
@@ -534,8 +531,7 @@ pub(crate) fn positive_step_amount(
         ExpressionNode::Integer(literal) => literal.value_i64().is_some_and(|amount| amount > 0),
         ExpressionNode::Name(name) if name.symbol.is_valid() && name.head_symbol == name.symbol => {
             program.state_parameters(state).iter().any(|parameter| {
-                !parameter.is_self
-                    && parameter.symbol == name.symbol
+                parameter.symbol == name.symbol
                     && (declared_positive_floor(program, parameter.type_reference)
                         || requires_positive_floor(program, state, parameter.symbol))
             })
@@ -744,18 +740,9 @@ fn argument_mapping(
     record_subject: SymbolHandle,
     required: &[SymbolHandle],
 ) -> Option<Vec<SymbolHandle>> {
-    let source_parameters = program
-        .state_parameters(source)
-        .iter()
-        .filter(|parameter| !parameter.is_self)
-        .collect::<Vec<_>>();
+    let source_parameters = program.state_parameters(source).iter().collect::<Vec<_>>();
     if source_mapping.len() != source_parameters.len()
-        || arguments.len()
-            != program
-                .state_parameters(target)
-                .iter()
-                .filter(|parameter| !parameter.is_self)
-                .count()
+        || arguments.len() != program.state_parameters(target).iter().count()
     {
         return None;
     }
@@ -911,16 +898,12 @@ fn fresh_record_carrier(
     let subject = program
         .state_parameters(root)
         .iter()
-        .find(|parameter| !parameter.is_self && parameter.symbol == rank_subject)?;
+        .find(|parameter| parameter.symbol == rank_subject)?;
     // The same referent the field coordinate resolves: a subject or formal
     // reached through one reference is still this record, and its literal
     // actual arrives under one borrow.
     let (owner, _) = record_referent(program, subject.type_reference)?;
-    let target_parameters = program
-        .state_parameters(target)
-        .iter()
-        .filter(|parameter| !parameter.is_self)
-        .collect::<Vec<_>>();
+    let target_parameters = program.state_parameters(target).iter().collect::<Vec<_>>();
     let mut carriers = target_parameters.iter().filter(|parameter| {
         let Some((referent, _)) = record_referent(program, parameter.type_reference) else {
             return false;
@@ -968,8 +951,7 @@ fn entry_is_record_of(
         return false;
     };
     program.state_parameters(root).iter().any(|parameter| {
-        !parameter.is_self
-            && parameter.symbol == entry
+        parameter.symbol == entry
             && record_referent(program, parameter.type_reference)
                 .is_some_and(|(referent, _)| referent == owner)
     })

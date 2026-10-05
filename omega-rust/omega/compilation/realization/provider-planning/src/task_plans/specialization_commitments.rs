@@ -87,7 +87,6 @@ pub(crate) fn task_specialization_commitment(
     let requirement_parameters = program.state_signature_parameters(requirement);
     strong.length(requirement_parameters.len());
     for parameter in requirement_parameters {
-        strong.byte(u8::from(parameter.is_self));
         strong.byte(u8::from(parameter.is_mutable));
         strong.byte(u8::from(parameter.is_const));
         strong.string(
@@ -290,7 +289,6 @@ impl ExactSpecializationEncoder {
         let parameters = program.state_parameters(state);
         self.length(parameters.len());
         for parameter in parameters {
-            self.byte(u8::from(parameter.is_self));
             self.byte(u8::from(parameter.is_mutable));
             self.byte(u8::from(parameter.is_const));
             self.string(

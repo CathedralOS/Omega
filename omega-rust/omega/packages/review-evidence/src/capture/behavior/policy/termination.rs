@@ -99,24 +99,14 @@ fn project_guarantee(
             ));
         }
         let root = premise.subject.root;
-        let subject = if let Some(parameter) =
-            parameters.iter().find(|parameter| parameter.symbol == root)
+        let subject = if let Some(position) = parameters
+            .iter()
+            .position(|parameter| parameter.symbol == root)
         {
-            if parameter.is_self {
-                PackageReviewProgressSubject::Receiver
-            } else {
-                let position = parameters
-                    .iter()
-                    .filter(|parameter| !parameter.is_self)
-                    .position(|parameter| parameter.symbol == root)
-                    .ok_or_else(|| {
-                        rejected("termination parameter has no canonical entry position")
-                    })?;
-                PackageReviewProgressSubject::Parameter(
-                    u32::try_from(position)
-                        .map_err(|_| rejected("termination position exceeds portable width"))?,
-                )
-            }
+            PackageReviewProgressSubject::Parameter(
+                u32::try_from(position)
+                    .map_err(|_| rejected("termination position exceeds portable width"))?,
+            )
         } else if compilation
             .data_definitions()
             .iter()

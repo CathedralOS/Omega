@@ -347,9 +347,7 @@ impl ConstantCalls for Invocation<'_> {
             return Err("constant validation lost its selected call".into());
         };
         let arguments = typed.expression_table.expression_handles(call.arguments);
-        // Each named operand owes its exact carrier validation; a `self`
-        // operator parameter is carried by the value receiver, which the
-        // enclosing expression already answers for.
+        // Each explicit operand owes its exact carrier validation.
         let operands: Vec<(ExpressionHandle, &typed_trees::signature::StateParameter)> =
             match selected {
                 SelectedCall::Entry { entry, .. } => {
@@ -371,20 +369,10 @@ impl ConstantCalls for Invocation<'_> {
                     )> = Vec::new();
                     let mut argument = arguments.iter().copied();
                     for parameter in parameters {
-                        if parameter.is_self {
-                            if call.receiver.is_valid() {
-                                operands.push((call.receiver, parameter));
-                            } else {
-                                return Err(
-                                    "constant operator call lost its receiver operand".into()
-                                );
-                            }
-                        } else {
-                            let argument = argument.next().ok_or(
-                                "constant call argument count differs from its exact requirement",
-                            )?;
-                            operands.push((argument, parameter));
-                        }
+                        let argument = argument.next().ok_or(
+                            "constant call argument count differs from its exact requirement",
+                        )?;
+                        operands.push((argument, parameter));
                     }
                     if argument.next().is_some() {
                         return Err(
@@ -599,58 +587,47 @@ impl Invocation<'_> {
         let ExpressionNode::Call(call) = typed.expression_table.expression(expression) else {
             return Err("constant execution lost its selected call".into());
         };
-        // Pair each evaluated operand expression with its declared carrier: a
-        // `self` operator parameter is carried by the value receiver.
-        let operands: Vec<(
-            bool,
-            ExpressionHandle,
-            typed_trees::types::TypeReferenceHandle,
-        )> = match target {
-            SelectedCall::Entry { entry, .. } => typed
-                .expression_table
-                .expression_handles(call.arguments)
-                .iter()
-                .copied()
-                .zip(
-                    typed
-                        .state_parameters(entry)
-                        .iter()
-                        .map(|parameter| parameter.type_reference),
-                )
-                .map(|(argument, carrier)| (false, argument, carrier))
-                .collect(),
-            SelectedCall::Operator(operator) => {
-                let mut operands = Vec::new();
-                let mut arguments = typed
+        // Pair each evaluated operand expression with its declared carrier.
+        let operands: Vec<(ExpressionHandle, typed_trees::types::TypeReferenceHandle)> =
+            match target {
+                SelectedCall::Entry { entry, .. } => typed
                     .expression_table
                     .expression_handles(call.arguments)
                     .iter()
-                    .copied();
-                for parameter in typed.operator_parameters(operator) {
-                    if parameter.is_self {
-                        if !call.receiver.is_valid() {
-                            return Err("constant operator call lost its receiver operand".into());
-                        }
-                        operands.push((true, call.receiver, parameter.type_reference));
-                    } else {
+                    .copied()
+                    .zip(
+                        typed
+                            .state_parameters(entry)
+                            .iter()
+                            .map(|parameter| parameter.type_reference),
+                    )
+                    .collect(),
+                SelectedCall::Operator(operator) => {
+                    let mut operands = Vec::new();
+                    let mut arguments = typed
+                        .expression_table
+                        .expression_handles(call.arguments)
+                        .iter()
+                        .copied();
+                    for parameter in typed.operator_parameters(operator) {
                         let argument = arguments.next().ok_or(
                             "constant call argument count differs from its exact requirement",
                         )?;
-                        operands.push((false, argument, parameter.type_reference));
+                        operands.push((argument, parameter.type_reference));
                     }
+                    if arguments.next().is_some() {
+                        return Err(
+                            "constant call argument count differs from its exact requirement"
+                                .into(),
+                        );
+                    }
+                    operands
                 }
-                if arguments.next().is_some() {
-                    return Err(
-                        "constant call argument count differs from its exact requirement".into(),
-                    );
-                }
-                operands
-            }
-        };
+            };
         let mut arguments = Vec::new();
         let mut snapshots = Vec::new();
         let mut warnings = Vec::new();
-        for (receiver, argument, type_reference) in operands {
+        for (argument, type_reference) in operands {
             let destination = scalar_probe_destination(typed, type_reference)
                 .ok_or("constant call argument lost its exact carrier")?;
             let (value, argument_warnings) = value::evaluate_scalar(
@@ -670,7 +647,7 @@ impl Invocation<'_> {
                 // The ordinary checker must still discharge every premise
                 // and failure route; successful evaluation is not evidence.
                 snapshots.push(ArgumentSnapshot {
-                    receiver,
+                    receiver: false,
                     original: argument,
                     literal: match &value {
                         ScalarValue::UndeterminedNaN(_) => None,

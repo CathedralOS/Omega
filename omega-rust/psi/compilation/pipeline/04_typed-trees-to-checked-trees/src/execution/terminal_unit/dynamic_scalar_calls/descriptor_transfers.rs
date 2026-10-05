@@ -48,7 +48,6 @@ pub(super) fn build_checked_dynamic_descriptor_transfers(
                     let parameters = program
                         .state_parameters(target_state)
                         .iter()
-                        .filter(|parameter| !parameter.is_self)
                         .collect::<Vec<_>>();
                     if arguments.len() != parameters.len() {
                         continue;
@@ -122,7 +121,6 @@ pub(super) fn build_checked_dynamic_descriptor_transfers(
                                 let source_parameters = program
                                     .state_parameters(caller_state)
                                     .iter()
-                                    .filter(|parameter| !parameter.is_self)
                                     .collect::<Vec<_>>();
                                 let Some((source_parameter_position, source_parameter)) =
                                     source_parameters.iter().enumerate().find(|(_, parameter)| {

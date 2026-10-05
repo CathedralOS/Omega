@@ -321,9 +321,10 @@ fn nested_flow_reaches_caller(
 
 /// Whether `state` declares a non-self capability-typed parameter.
 fn state_has_capability_parameter(program: &TypedTrees, state: &State) -> bool {
-    program.state_parameters(state).iter().any(|parameter| {
-        !parameter.is_self && is_capability_type(program, parameter.type_reference)
-    })
+    program
+        .state_parameters(state)
+        .iter()
+        .any(|parameter| is_capability_type(program, parameter.type_reference))
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -398,7 +399,7 @@ fn call_receiver_provenance(
     if program
         .state_parameters(state)
         .iter()
-        .any(|parameter| !parameter.is_self && parameter.name.as_str() == head)
+        .any(|parameter| parameter.name.as_str() == head)
     {
         return ReceiverProvenance::CallerProvided;
     }
@@ -517,7 +518,6 @@ fn passes_capability_argument(program: &TypedTrees, signature: &StateSignature) 
     program
         .state_signature_parameters(signature)
         .iter()
-        .filter(|parameter| !parameter.is_self)
         .any(|parameter| is_capability_type(program, parameter.type_reference))
 }
 

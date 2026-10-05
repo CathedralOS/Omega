@@ -612,8 +612,7 @@ pub(crate) fn build_checked_value_computation_plans(
                                     .iter()
                                     .find(|parameter| parameter.symbol == name.symbol)
                                     .filter(|parameter| {
-                                        parameter.is_mutable
-                                            && !parameter.is_self
+                                        (parameter.is_mutable)
                                             && !parameter.is_const
                                     })
                                     .and_then(|parameter| {
@@ -804,11 +803,8 @@ pub(crate) fn build_checked_value_computation_plans(
                     // recorded role joins the pure expression plan, the saved
                     // jump-argument capture, and every downstream consumer on
                     // the same coordinate.
-                    let target_parameters = program
-                        .state_parameters(target_state)
-                        .iter()
-                        .enumerate()
-                        .filter(|(_, parameter)| !parameter.is_self);
+                    let target_parameters =
+                        program.state_parameters(target_state).iter().enumerate();
                     let arguments = program.statement_table.expression_handles(*arguments);
                     for (argument, (target_position, parameter)) in
                         arguments.iter().zip(target_parameters)
@@ -1324,8 +1320,7 @@ impl Builder<'_, '_> {
                 }
                 let target_parameters = self.program.state_parameters(target_state);
                 if target_parameters.iter().any(|parameter| {
-                    (parameter.is_self && !has_runtime_receiver)
-                        || parameter.is_const
+                    parameter.is_const
                         || (parameter.is_mutable
                             && self
                                 .program
@@ -1341,27 +1336,13 @@ impl Builder<'_, '_> {
                 }
                 let (source_call, call_ordinal) =
                     self.call_ordinal(expression, call.target_symbol)?;
-                let mut arguments = self
+                let arguments = self
                     .program
                     .expression_table
                     .expression_handles(call.arguments)
                     .to_vec();
                 if has_runtime_receiver {
-                    // The receiver is an ordinary structural operand, ordered
-                    // before explicit actuals, not ambient attachment storage.
-                    if !call.receiver.is_valid()
-                        || !target_parameters
-                            .first()
-                            .is_some_and(|parameter| parameter.is_self)
-                        || target_parameters
-                            .iter()
-                            .filter(|parameter| parameter.is_self)
-                            .count()
-                            != 1
-                    {
-                        return None;
-                    }
-                    arguments.insert(0, call.receiver);
+                    return None;
                 }
                 if arguments.len() != target_parameters.len() {
                     return None;

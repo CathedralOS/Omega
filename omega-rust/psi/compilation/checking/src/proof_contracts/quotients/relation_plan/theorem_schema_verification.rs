@@ -79,9 +79,6 @@ pub(super) fn verify_selected_theorem_schema(
         if actual.is_const {
             return Err(RelationPlanError::TheoremSchemaConstParameter(position));
         }
-        if actual.is_self {
-            return Err(RelationPlanError::TheoremSchemaAttachedReceiver(position));
-        }
         if actual.is_mutable != expected.is_mutable {
             return Err(RelationPlanError::TheoremSchemaParameterModeMismatch(
                 position,
@@ -361,19 +358,8 @@ fn representative_application_matches(
     {
         return false;
     }
-    let mut expected_arguments = expected.arguments.iter().copied();
-    let receiver_matches = representative
-        .parameters
-        .first()
-        .is_some_and(|parameter| parameter.is_self);
-    if receiver_matches {
-        let Some(position) = expected_arguments.next() else {
-            return false;
-        };
-        if !expression_is_parameter(program, call.receiver, theorem_parameters, position) {
-            return false;
-        }
-    } else if call.receiver.is_valid() {
+    let expected_arguments = expected.arguments.iter().copied();
+    if call.receiver.is_valid() {
         return false;
     }
     let arguments = program.expression_table.expression_handles(call.arguments);

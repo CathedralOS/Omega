@@ -139,8 +139,7 @@ fn stable_guard(
     use typed_trees::expression::{BinaryOperator, UnaryOperator};
     match program.expression_table.expression(expression) {
         ExpressionNode::Name(name) => program.state_parameters(state).iter().any(|parameter| {
-            parameter.symbol == name.symbol
-                && !parameter.is_self
+            (parameter.symbol == name.symbol)
                 && program
                     .primitive_type_reference(parameter.type_reference)
                     .is_some()
@@ -204,9 +203,10 @@ pub(super) fn parameter_matched_by_expression<'program>(
     state: &'program typed_trees::state::State,
     expression: ExpressionHandle,
 ) -> Option<&'program typed_trees::signature::StateParameter> {
-    program.state_parameters(state).iter().find(|parameter| {
-        !parameter.is_self && expression_matches_parameter(program, expression, parameter)
-    })
+    program
+        .state_parameters(state)
+        .iter()
+        .find(|parameter| expression_matches_parameter(program, expression, parameter))
 }
 
 pub(super) fn parameter_and_argument_index_matched_by_expression<'program>(
@@ -217,7 +217,6 @@ pub(super) fn parameter_and_argument_index_matched_by_expression<'program>(
     program
         .state_parameters(state)
         .iter()
-        .filter(|parameter| !parameter.is_self)
         .enumerate()
         .find_map(|(index, parameter)| {
             expression_matches_parameter(program, expression, parameter)
@@ -233,7 +232,6 @@ pub(super) fn non_self_parameter_index(
     program
         .state_parameters(state)
         .iter()
-        .filter(|candidate| !candidate.is_self)
         .position(|candidate| candidate.symbol == parameter.symbol)
 }
 

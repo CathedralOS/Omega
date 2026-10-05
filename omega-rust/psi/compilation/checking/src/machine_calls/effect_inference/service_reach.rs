@@ -898,7 +898,6 @@ fn extend_invoked_binding_services(
     let parameters = program
         .state_signature_parameters(signature)
         .iter()
-        .filter(|parameter| !parameter.is_self)
         .collect::<Vec<_>>();
     extend_invocation_target_services(
         program,
@@ -919,7 +918,6 @@ fn extend_machine_invoked_binding_services(
         .map(|state| program.state_parameters(state))
         .unwrap_or_default()
         .iter()
-        .filter(|parameter| !parameter.is_self)
         .collect::<Vec<_>>();
     extend_invocation_target_services(
         program,

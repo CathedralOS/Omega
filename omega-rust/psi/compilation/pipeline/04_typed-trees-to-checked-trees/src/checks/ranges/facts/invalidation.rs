@@ -351,8 +351,7 @@ fn write_covers_place(
     write: &CanonicalPlace,
     place: &CanonicalPlace,
 ) -> bool {
-    crate::flow::normalized_event_place_root(program, write.root)
-        == crate::flow::normalized_event_place_root(program, place.root)
+    (write.root) == (place.root)
         && write.segments.len() <= place.segments.len()
         && crate::flow::canonical_place_segments_may_overlap(
             program,

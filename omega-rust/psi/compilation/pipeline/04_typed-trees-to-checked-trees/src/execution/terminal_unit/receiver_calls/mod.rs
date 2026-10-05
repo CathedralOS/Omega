@@ -339,52 +339,14 @@ fn reconcile_operands(
                                         .all(|parameter| !parameter.is_self)
                             })
                         });
-                let Some(explicit_subject) = explicit_borrowed_subject(
+                if crate::semantic::calls::find_state_in_machine(
                     program,
-                    machine,
-                    state,
-                    coordinate,
                     target_machine,
                     target_state,
-                ) else {
+                )
+                .is_none()
+                {
                     return false;
-                };
-                if let Some((subject_index, authored_count)) = explicit_subject {
-                    // The ordinary argument planner has already authenticated
-                    // this explicit operand. A namespace is never its storage
-                    // source. Only completed signature erasure can remove it.
-                    if call.structural_arguments.len() != authored_count {
-                        return false;
-                    }
-                    if let Some((_, _, retained_index, _, count)) = retained
-                        .iter()
-                        .find(|(machine, state, ..)| {
-                            *machine == target_machine && *state == target_state
-                        })
-                        .filter(|_| !scalar_graph_erases_subject)
-                    {
-                        if *retained_index != subject_index || *count != authored_count {
-                            return false;
-                        }
-                    } else {
-                        if call
-                            .claim_transfers_mut()
-                            .iter()
-                            .any(|transfer| transfer.argument_index as usize == subject_index)
-                        {
-                            return false;
-                        }
-                        call.structural_arguments.remove(subject_index);
-                        if !shifts_claim_transfers {
-                            continue;
-                        }
-                        for transfer in call.claim_transfers_mut() {
-                            if transfer.argument_index as usize > subject_index {
-                                transfer.argument_index -= 1;
-                            }
-                        }
-                    }
-                    continue;
                 }
                 if scalar_graph_erases_subject {
                     continue;
@@ -471,56 +433,6 @@ fn reconcile_operands(
             })
         })
     });
-}
-
-/// Locate a fully explicit borrowed subject by its authored formal position.
-/// `None` inside the successful result means this call has no explicit borrowed
-/// subject; a missing source occurrence or malformed formal roster fails closed.
-fn explicit_borrowed_subject(
-    program: &TypedTrees,
-    machine: SymbolHandle,
-    state: SymbolHandle,
-    coordinate: CheckedUnitCallCoordinate,
-    target_machine: SymbolHandle,
-    target_state: SymbolHandle,
-) -> Option<Option<(usize, usize)>> {
-    let target =
-        crate::semantic::calls::find_state_in_machine(program, target_machine, target_state)?;
-    let parameters = program.state_parameters(target);
-    if !parameters.iter().any(|parameter| {
-        parameter.is_self
-            && crate::execution::terminal_unit::is_reference(program, parameter.type_reference)
-    }) {
-        return Some(None);
-    }
-    let site = crate::semantic::calls::find_call_site(
-        program,
-        machine,
-        state,
-        usize::try_from(coordinate.statement_index).ok()?,
-        usize::try_from(coordinate.call_ordinal).ok()?,
-    )?;
-    if !crate::semantic::calls::call_site_supplies_explicit_subject(program, &site, parameters) {
-        return Some(None);
-    }
-    let mut subject = None;
-    let mut count = 0;
-    for parameter in parameters {
-        if crate::execution::terminal_unit::strips_erased_parameter(parameter)?
-            || program
-                .primitive_type_reference(parameter.type_reference)
-                .is_some()
-        {
-            continue;
-        }
-        if parameter.is_self {
-            if subject.replace(count).is_some() {
-                return None;
-            }
-        }
-        count += 1;
-    }
-    Some(Some((subject?, count)))
 }
 
 fn local_initializer_result<'operation>(
@@ -655,20 +567,6 @@ fn result_receiver_argument(
     {
         return None;
     }
-    if let Some(argument) = calls::reference_result_receiver_argument(
-        program,
-        facts,
-        machine,
-        source,
-        call,
-        place,
-        local,
-        result,
-        target_state,
-        target,
-    ) {
-        return Some(argument);
-    }
     if !validation::has_plain_owned_contents_with_numeric_constraints(program, local.type_reference)
         || program.type_multiplicity(local.type_reference) != result.multiplicity
         || result.multiplicity == Multiplicity::Linear
@@ -751,7 +649,7 @@ fn is_self_root(
 ) -> bool {
     crate::semantic::calls::find_state(program, state).is_some_and(|state| {
         program.state_parameters(state).iter().any(|parameter| {
-            parameter.is_self
+            false
                 && matches!(place.root, facts::PlaceRoot::Symbol(root)
                 if root == machine || root == parameter.symbol)
         })
@@ -771,9 +669,10 @@ fn receiver_argument(
         return None;
     };
     let source = program.state_parameters(crate::semantic::calls::find_state(program, state)?);
-    let (position, _) = source.iter().enumerate().find(|(_, parameter)| {
-        parameter.symbol == root || (parameter.is_self && root == machine)
-    })?;
+    let (position, _) = source
+        .iter()
+        .enumerate()
+        .find(|(_, parameter)| parameter.symbol == root || (false && root == machine))?;
     let (index, parameter) = parameters
         .iter()
         .enumerate()

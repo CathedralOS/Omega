@@ -75,7 +75,6 @@ pub(crate) fn build_contract_plans(
             let mut encoded = vec![0xa0];
             let state_parameters = program.state_parameters(state);
             for parameter in state_parameters {
-                encoded.push(u8::from(parameter.is_self));
                 encoded.push(u8::from(parameter.is_mutable));
                 encoded.push(u8::from(parameter.is_const));
                 encode_type_spelling(

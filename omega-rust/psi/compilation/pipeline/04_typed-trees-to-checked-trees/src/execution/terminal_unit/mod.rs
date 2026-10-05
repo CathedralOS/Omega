@@ -1109,7 +1109,7 @@ pub(crate) fn structural_scalar_graph_parameter_admission(
     state: &typed_trees::state::State,
 ) -> bool {
     !program.state_parameters(state).iter().any(|parameter| {
-        if parameter.is_self || parameter.relevance.is_erased() {
+        if parameter.relevance.is_erased() {
             return false;
         }
         // Numeric constraints retain their separate scalar contract owner;

@@ -1,6 +1,6 @@
 //! Direct owned projections contribute storage bounds under their exact owner.
 
-use symbols::{SymbolHandle, SymbolKind};
+use symbols::SymbolKind;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
@@ -35,14 +35,13 @@ pub(super) fn type_reference(
         .data_binding_position(machine.attached_data_symbol, parameters)
         .map(|position| parameters[position].symbol);
     let is_subject = |parameter: &typed_trees::signature::StateParameter| {
-        parameter.is_self || (parameter.symbol.is_valid() && Some(parameter.symbol) == subject)
+        parameter.symbol.is_valid() && Some(parameter.symbol) == subject
     };
     let parameter = parameters.iter().find(|parameter| {
         let symbol_match = receiver.symbol.is_valid()
             && receiver.symbol == receiver.head_symbol
             && parameter.symbol == receiver.symbol;
-        let self_match = parameter.is_self && name.is_self_receiver();
-        (symbol_match || self_match)
+        symbol_match
             && parameter.name == *name
             // The machine's own field storage enforces its declared bounds on
             // every write, so `self.k` keeps them even through a `&mut self`
@@ -73,13 +72,7 @@ pub(super) fn type_reference(
     else {
         return None;
     };
-    let declaration = if parameter.is_self {
-        let attached = machine.attached_data.as_ref()?;
-        program
-            .data_definitions()
-            .iter()
-            .find(|definition| definition.name == *attached)?
-    } else {
+    let declaration = {
         program
             .data_definitions()
             .iter()
@@ -93,14 +86,7 @@ pub(super) fn type_reference(
     {
         return None;
     }
-    // A `self` member's resolved symbol is scoped to the `Self` receiver
-    // spelling, not to the declaration's own field symbols — the exact-name
-    // match inside the owning record is already unique.
-    let member_symbol = if parameter.is_self {
-        SymbolHandle::invalid()
-    } else {
-        member.member_symbol
-    };
+    let member_symbol = member.member_symbol;
     crate::value_custody::places::exact_data_member_field(
         program,
         declaration,

@@ -199,9 +199,9 @@ fn reference_source(
     }
     let parameters = checked.state_parameters(authored);
     let ingress_position = |symbol| {
-        parameters.iter().position(|parameter| {
-            parameter.symbol == symbol || (parameter.is_self && symbol == machine.symbol)
-        })
+        parameters
+            .iter()
+            .position(|parameter| parameter.symbol == symbol)
     };
     let mut root_symbol = root.symbol;
     let borrow_state = {

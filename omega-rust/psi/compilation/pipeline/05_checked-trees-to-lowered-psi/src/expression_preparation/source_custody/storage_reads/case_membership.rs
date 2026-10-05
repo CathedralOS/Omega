@@ -226,67 +226,7 @@ pub(crate) fn authored(
     {
         subject.symbol
     } else {
-        // Authored `self` resolves to its declaring machine, whereas the
-        // observation namespace names the receiver formal. Rejoin that exact
-        // declaration; spelling alone or another machine cannot select it.
-        if subject.symbol != machine.symbol
-            || subject.head_symbol != machine.symbol
-            || checked.symbols.get(machine.symbol).kind != symbols::SymbolKind::Machine
-            || !matches!(checked.expression_table.name_path_members(subject.members),
-                [name] if name.is_self_receiver())
-            || !checked
-                .machine_states(machine)
-                .iter()
-                .any(|candidate| candidate.symbol == state.symbol)
-            || checked.symbols.get(state.symbol).parent != machine.symbol
-        {
-            return Ok(None);
-        }
-        let mut receivers = checked
-            .state_parameters(state)
-            .iter()
-            .filter(|parameter| parameter.is_self);
-        let Some(receiver) = receivers.next() else {
-            return Ok(None);
-        };
-        if receivers.next().is_some()
-            || receiver.is_const
-            || !receiver.name.is_self_receiver()
-            || checked.symbols.get(receiver.symbol).kind != symbols::SymbolKind::Parameter
-            || checked.symbols.get(receiver.symbol).parent != state.symbol
-            || checked
-                .state_parameters(state)
-                .iter()
-                .filter(|parameter| parameter.symbol == receiver.symbol)
-                .count()
-                != 1
-        {
-            return Ok(None);
-        }
-        let mut reference = receiver.type_reference;
-        let mut exact_receiver = false;
-        for _ in 0..64 {
-            use checked_trees::types::TypeReferenceNode;
-            match checked.type_reference_table.type_reference(reference) {
-                TypeReferenceNode::Reference { referee, .. } => reference = *referee,
-                TypeReferenceNode::Constrained { base_type, .. } => reference = *base_type,
-                TypeReferenceNode::Named { symbol, .. } => {
-                    exact_receiver =
-                        *symbol == machine.symbol || *symbol == machine.attached_data_symbol;
-                    break;
-                }
-                _ => break,
-            }
-        }
-        if !exact_receiver
-            || !checked
-                .data_definitions()
-                .iter()
-                .any(|data| data.symbol.is_valid() && data.symbol == machine.attached_data_symbol)
-        {
-            return Ok(None);
-        }
-        receiver.symbol
+        return Ok(None);
     };
     let case = checked
         .data_definitions()

@@ -31,32 +31,13 @@ pub(super) fn root(
     let type_reference = program
         .state_parameters(state)
         .iter()
-        .find(|parameter| {
-            parameter.name == *name
-                && (parameter.symbol == symbol
-                    || (parameter.is_self
-                        && crate::semantic::calls::find_state_with_machine(program, state.symbol)
-                            .is_some_and(|(machine, _)| machine.symbol == symbol)))
-        })
+        .find(|parameter| parameter.name == *name && parameter.symbol == symbol)
         .map(|parameter| parameter.type_reference)
         .or_else(|| {
             program
                 .state_local_declaration(state, symbol)
                 .filter(|&(ordinal, local)| ordinal < before && local.name == *name)
                 .map(|(_, local)| local.type_reference)
-        })
-        .or_else(|| {
-            if !program
-                .state_parameters(state)
-                .iter()
-                .any(|parameter| parameter.is_self)
-            {
-                return None;
-            }
-            let (machine, _) =
-                crate::semantic::calls::find_state_with_machine(program, state.symbol)?;
-            validation::exact_attached_field(program, machine, symbol, name.as_str())
-                .map(|field| field.type_reference)
         })?;
     Some(Projection {
         root_symbol: symbol,
@@ -77,15 +58,10 @@ pub(super) fn field(
     // Rejoin only that machine's actual self root before walking record fields;
     // ordinary values cannot borrow a same-spelled machine's attachment.
     if receiver.depth == 0
-        && let Some(machine) = program.machines().iter().find(|machine| {
-            machine.symbol == nominal
-                && (receiver.symbol == machine.symbol
-                    || program.machine_states(machine).iter().any(|state| {
-                        program.state_parameters(state).iter().any(|parameter| {
-                            parameter.is_self && parameter.symbol == receiver.symbol
-                        })
-                    }))
-        })
+        && let Some(machine) = program
+            .machines()
+            .iter()
+            .find(|machine| machine.symbol == nominal && receiver.symbol == machine.symbol)
     {
         nominal = machine.attached_data_symbol;
     }
@@ -148,7 +124,6 @@ pub(super) fn expression(
                 }
                 check_symbol(
                     program,
-                    state,
                     handle,
                     symbols
                         .get(index)
@@ -157,7 +132,7 @@ pub(super) fn expression(
                     &selected,
                 )?;
             }
-            check_symbol(program, state, handle, path.symbol, &selected)?;
+            check_symbol(program, handle, path.symbol, &selected)?;
             Some(selected)
         }
         ExpressionNode::Member(member) if member.case_variant.is_none() => {
@@ -168,7 +143,7 @@ pub(super) fn expression(
             let Some(selected) = field(program, receiver, &member.member) else {
                 return Ok(None);
             };
-            check_symbol(program, state, handle, member.member_symbol, &selected)?;
+            check_symbol(program, handle, member.member_symbol, &selected)?;
             Some(selected)
         }
         ExpressionNode::Indexed(indexed) => {
@@ -217,49 +192,15 @@ pub(super) fn expression(
 
 fn check_symbol(
     program: &TypedTrees,
-    state: &State,
     expression: ExpressionHandle,
     authored: SymbolHandle,
     selected: &Projection,
 ) -> Result<(), Vec<Diagnostic>> {
-    if authored.is_valid()
-        && !matches_symbol(
-            program,
-            state,
-            selected.root_symbol,
-            authored,
-            selected.symbol,
-        )
-    {
+    if authored.is_valid() && authored != selected.symbol {
         return Err(vec![
             Diagnostic::error("projected call receiver disagrees with its exact declared field")
                 .with_source_span(program.expression_table.source_span(expression)),
         ]);
     }
     Ok(())
-}
-
-/// Original data fields and their inherited self slots identify the same
-/// declaration only beneath this state's exact attached receiver root.
-pub(super) fn matches_symbol(
-    program: &TypedTrees,
-    state: &State,
-    root: SymbolHandle,
-    authored: SymbolHandle,
-    selected: SymbolHandle,
-) -> bool {
-    authored == selected
-        || crate::semantic::calls::find_state_with_machine(program, state.symbol).is_some_and(
-            |(machine, _)| {
-                program.state_parameters(state).iter().any(|parameter| {
-                    parameter.is_self && (root == machine.symbol || root == parameter.symbol)
-                }) && validation::exact_attached_field(
-                    program,
-                    machine,
-                    authored,
-                    program.symbols.name(authored),
-                )
-                .is_some_and(|field| field.symbol == selected)
-            },
-        )
 }

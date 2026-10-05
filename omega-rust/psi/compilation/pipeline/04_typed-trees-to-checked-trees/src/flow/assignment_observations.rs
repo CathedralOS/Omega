@@ -12,7 +12,7 @@
 //! program also stays immutable throughout that build. Do not expose this reuse
 //! to callers that can mutate published facts, places, values, or context refs.
 
-use crate::flow::{CanonicalPlace, FlowBuildContext, normalized_event_place_root};
+use crate::flow::{CanonicalPlace, FlowBuildContext};
 use crate::values::{AssignmentObservation, prepare_assignment_observations};
 use arena::HandleSpan;
 use checked_trees::FlowSemanticContextRef;
@@ -67,7 +67,7 @@ impl AssignmentObservations {
                 }
             }
         }
-        let subject_root = normalized_event_place_root(program, subject.root);
+        let subject_root = subject.root;
         let prepared_contexts = &self.contexts;
         literal
             .into_iter()

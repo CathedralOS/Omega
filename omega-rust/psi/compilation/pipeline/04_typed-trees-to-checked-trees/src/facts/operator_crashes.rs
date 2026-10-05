@@ -404,20 +404,14 @@ pub(crate) fn named_call_operands(
     parameters: &[typed_trees::signature::StateParameter],
 ) -> Option<Vec<ExpressionHandle>> {
     let arguments = program.expression_table.expression_handles(call.arguments);
-    if parameters.iter().any(|parameter| parameter.is_self) {
+    if parameters.iter().any(|_parameter| false) {
         if !call.receiver.is_valid() {
             return None;
         }
         let mut argument = arguments.iter().copied();
         let operands = parameters
             .iter()
-            .map(|parameter| {
-                if parameter.is_self {
-                    Some(call.receiver)
-                } else {
-                    argument.next()
-                }
-            })
+            .map(|_parameter| argument.next())
             .collect::<Option<Vec<_>>>()?;
         return argument.next().is_none().then_some(operands);
     }

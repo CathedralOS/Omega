@@ -38,8 +38,7 @@ pub(super) fn builtin(
                 // Meaning is independent of binding stability. State and call
                 // edge owners separately establish exact prefix preservation,
                 // including for mutable parameters.
-                return (!parameter.is_self && !parameter.is_const)
-                    .then_some(Some(parameter.type_reference));
+                return (!parameter.is_const).then_some(Some(parameter.type_reference));
             }
             // A state-local `let` the saved-observation owner admits denotes
             // the exact value its initializer produced at binding time: one

@@ -95,7 +95,7 @@ fn read_only_parameter(
     program: &TypedTrees,
     parameter: &typed_trees::signature::StateParameter,
 ) -> bool {
-    if parameter.is_self || parameter.is_mutable {
+    if parameter.is_mutable {
         return false;
     }
     if program

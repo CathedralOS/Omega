@@ -6,15 +6,13 @@ use super::*;
 
 pub fn stored_integer_source_may_require_fit(
     program: &TypedTrees,
-    machine: &Machine,
     state: &State,
     source: &crate::LocalWriteSource,
 ) -> Result<bool, ()> {
-    let (carrier, path) = source_coordinates(program, machine, state, source)?;
+    let (carrier, path) = source_coordinates(program, state, source)?;
     let mut needs_fit = coordinate_requires_fit(program, carrier, &path)?;
     for recast in &source.recasts {
-        let (carrier, path) =
-            recast_history::predecessor_coordinates(program, machine, state, recast)?;
+        let (carrier, path) = recast_history::predecessor_coordinates(program, state, recast)?;
         needs_fit |= coordinate_requires_fit(program, carrier, &path)?;
     }
     Ok(needs_fit)

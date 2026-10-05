@@ -47,11 +47,7 @@ pub fn structural_call_requirement_entailed(
     };
     if !crate::machine_calls::calls::named_state_transition_subgraph_is_acyclic(
         program, machine, entry,
-    ) || program
-        .state_parameters(callee)
-        .iter()
-        .any(|parameter| parameter.is_self)
-    {
+    ) {
         return false;
     }
     let Some(callee_machine) = program.machines().iter().find(|candidate| {

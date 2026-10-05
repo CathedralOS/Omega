@@ -271,11 +271,7 @@ fn scope_engine<'program>(
         });
     };
     if let Some(state) = state {
-        for parameter in program
-            .state_parameters(state)
-            .iter()
-            .filter(|parameter| !parameter.is_self)
-        {
+        for parameter in program.state_parameters(state).iter() {
             bind_scoped_integer(parameter.symbol, parameter.type_reference);
         }
         for statement in program.statement_table.statements(state.statement_nodes) {
@@ -482,12 +478,7 @@ fn value_bounds(
             .expression_table
             .expression_handles(call.arguments)
             .iter()
-            .zip(
-                program
-                    .state_parameters(entry)
-                    .iter()
-                    .filter(|parameter| !parameter.is_self),
-            )
+            .zip(program.state_parameters(entry).iter())
         {
             if let Some(value) = term(
                 program,
@@ -566,12 +557,7 @@ pub(crate) fn selected_const_call_result_bounds(
         program,
         call.target_symbol,
     )?;
-    if callee.attached_data.is_some()
-        || program
-            .state_parameters(entry)
-            .iter()
-            .any(|parameter| parameter.is_self)
-    {
+    if callee.attached_data.is_some() {
         return None;
     }
     let mut engine = scope_engine(program, machine, state, None)?;
@@ -783,12 +769,7 @@ fn call_bindings(
     // As in specialization, inference reads declared range endpoints only.
     // Explicit slots stay fixed. Every repeated omitted endpoint must agree;
     // exact singleton-carrier premises may establish that symbolic agreement.
-    for (argument, parameter) in arguments.iter().zip(
-        program
-            .state_parameters(entry)
-            .iter()
-            .filter(|parameter| !parameter.is_self),
-    ) {
+    for (argument, parameter) in arguments.iter().zip(program.state_parameters(entry).iter()) {
         // The same caller-scope binding as `value_bounds`: a callee parameter
         // that names its own bound resolves to the argument's term here.
         if let Some(value) = term(
@@ -998,12 +979,7 @@ pub(crate) fn validate_const_range_call_in_environment(
             selections,
             arguments,
         )?;
-        for (argument, parameter) in arguments.iter().zip(
-            program
-                .state_parameters(entry)
-                .iter()
-                .filter(|parameter| !parameter.is_self),
-        ) {
+        for (argument, parameter) in arguments.iter().zip(program.state_parameters(entry).iter()) {
             if !has_const_range(
                 program,
                 program.machine_type_parameters(callee),

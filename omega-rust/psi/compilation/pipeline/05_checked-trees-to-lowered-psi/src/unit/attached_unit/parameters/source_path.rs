@@ -75,11 +75,9 @@ pub(crate) fn source_path(
 /// exact field owners an expression receiver's `Member` chain resolves. The
 /// final field must also match a call statement's captured endpoint. A named
 /// transition retains its root and selected target, but not that endpoint.
-/// Lexical `self` resolves
-/// to the machine symbol; any other root must be a formal of `source_state`.
+/// The root must be a formal of `source_state`.
 pub(crate) fn statement_receiver_path(
     checked: &CheckedTrees,
-    machine: &checked_trees::machine::Machine,
     source_state: &checked_trees::state::State,
     statement: &StatementNode,
 ) -> Result<
@@ -127,15 +125,9 @@ pub(crate) fn statement_receiver_path(
         return unsupported("statement receiver has an invalid authored path");
     }
     let parameters = checked.state_parameters(source_state);
-    let root_parameter = if root == machine.symbol {
-        (root_member.as_str() == "self")
-            .then(|| parameters.iter().find(|parameter| parameter.is_self))
-            .flatten()
-    } else {
-        parameters.iter().find(|parameter| {
-            parameter.symbol == root && parameter.name.as_str() == root_member.as_str()
-        })
-    };
+    let root_parameter = parameters.iter().find(|parameter| {
+        parameter.symbol == root && parameter.name.as_str() == root_member.as_str()
+    });
     let Some(root_parameter) = root_parameter else {
         return unsupported("statement receiver root is not a formal of its state");
     };
@@ -153,13 +145,7 @@ pub(crate) fn statement_receiver_path(
         else {
             return unsupported("statement receiver field has no declared record owner");
         };
-        // Attached Self retains its machine symbol in the source type; only
-        // the receiver's own first projection rejoins the attachment record.
-        let owner = if *symbol == machine.symbol && position == 1 && root_parameter.is_self {
-            machine.attached_data_symbol
-        } else {
-            *symbol
-        };
+        let owner = *symbol;
         let data = checked
             .data_definitions()
             .iter()

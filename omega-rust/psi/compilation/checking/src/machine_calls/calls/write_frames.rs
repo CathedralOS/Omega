@@ -214,9 +214,6 @@ fn known_call_written_paths_for_parts_with_origins(
             machine_symbols,
             symbols,
             program.operator_parameters(operator),
-            false,
-            receiver_members,
-            receiver_origins,
             arguments,
             inference,
         );
@@ -295,8 +292,6 @@ fn known_call_written_paths_for_parts_with_origins(
             symbols,
             callee_machine,
             callee_state,
-            receiver_members,
-            receiver_origins,
             arguments,
             inference,
         );
@@ -323,11 +318,7 @@ fn known_call_written_paths_for_parts_with_origins(
         // does not establish the body, its termination, or returned origins.
         // Captured/receiver state and separately authorized service state need
         // their own complete origins, so they cannot use this static ceiling.
-        if exact_callee.is_none()
-            || program
-                .state_parameters(callee_state)
-                .iter()
-                .any(|parameter| parameter.is_self)
+        if (exact_callee.is_none())
             || !program.machine_owned_data(callee_machine).is_empty()
             || !program.machine_type_parameters(callee_machine).is_empty()
             || !callee_machine.lifetime_parameters.is_empty()
@@ -341,8 +332,6 @@ fn known_call_written_paths_for_parts_with_origins(
             symbols,
             callee_machine,
             callee_state,
-            receiver_members,
-            receiver_origins,
             arguments,
             inference,
         )?;

@@ -196,21 +196,6 @@ fn forwarded_result_selection(
         call.target_symbol,
         &call.machine_arguments,
         program.expression_table.expression_handles(call.arguments),
-        // The receiver place carries the same `self` evidence here as it
-        // does during selection.
-        if call.receiver.is_valid() {
-            validation::declared_place_type_raw(program, caller, Some(state), call.receiver)
-                .or_else(|| {
-                    validation::expression_result_type_reference(
-                        program,
-                        caller,
-                        state,
-                        call.receiver,
-                    )
-                })
-        } else {
-            None
-        },
         None,
         usize::MAX,
         &mut Vec::new(),
@@ -346,7 +331,6 @@ fn substitute_runtime_bound_result_bounds(
             program
                 .state_parameters(state)
                 .iter()
-                .filter(|parameter| !parameter.is_self)
                 .map(|parameter| parameter.symbol),
         )
         .map(|(argument, symbol)| (symbol, argument))

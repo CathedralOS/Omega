@@ -342,7 +342,6 @@ fn direct_machine_result_source(
         program
             .state_parameters(entry)
             .iter()
-            .filter(|parameter| !parameter.is_self)
             .map(|parameter| program.symbols.name(parameter.symbol)),
     ) {
         return None;
@@ -379,7 +378,7 @@ fn direct_machine_parameter_source(
         .state_parameters(entry)
         .iter()
         .find(|parameter| parameter.symbol == path.symbol)?;
-    if parameter.is_const || parameter.is_self {
+    if parameter.is_const {
         return None;
     }
     let primitive = program.primitive_type_reference(parameter.type_reference)?;
@@ -430,7 +429,7 @@ fn direct_block_parameter_source(
         .state_parameters(state)
         .iter()
         .find(|parameter| parameter.symbol == path.symbol)?;
-    if parameter.is_const || parameter.is_self {
+    if parameter.is_const {
         return None;
     }
     let primitive = program.primitive_type_reference(parameter.type_reference)?;
@@ -600,7 +599,6 @@ fn replay_invocation(
         || !program.operator_type_parameters(operator).is_empty()
         || parameter.is_const
         || parameter.is_mutable
-        || parameter.is_self
     {
         return Err(Diagnostic::error(
             "validated float-meaning projection declaration shape drifted before checked binding",
@@ -806,7 +804,6 @@ fn imported_call_operand_key(
         !language_core::signature_reserves_result(
             parameters
                 .iter()
-                .filter(|parameter| !parameter.is_self)
                 .map(|parameter| program.symbols.name(parameter.symbol)),
         )
     });

@@ -88,7 +88,6 @@ pub use access_plans::AtomicAccessOperation;
 pub use value_custody::atomic_operations::{
     AtomicCarrierAccess, atomic_assignment_carrier, atomic_load_carrier, place_is_atomic_storage,
 };
-pub use value_custody::locals::receiver_allows_mutation;
 pub use value_custody::places::{
     AttachedStorageRoot, StructuralScalarField, assignment_target_selectors, attached_storage_root,
     canonical_storage_label, collection_length_receiver, declaration_storage_label,

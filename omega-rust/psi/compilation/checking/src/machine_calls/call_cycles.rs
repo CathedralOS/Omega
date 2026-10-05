@@ -1080,7 +1080,6 @@ fn proof_edge_decrease_witness(
     let (measure_position, callee_parameter) = program
         .state_parameters(callee_entry)
         .iter()
-        .filter(|parameter| !parameter.is_self)
         .enumerate()
         .find(|(_, parameter)| parameter.name.as_str() == callee_subject.as_str())?;
     let callee_rank_type_identity = program

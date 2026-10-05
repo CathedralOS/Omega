@@ -75,7 +75,6 @@ pub(super) fn validate_receiverless_call(
             state,
             &call.machine_arguments,
             writable_roots,
-            false,
             diagnostics,
         );
         validate_machine_call_type_parameter_bounds(
@@ -87,7 +86,6 @@ pub(super) fn validate_receiverless_call(
             arguments,
             current_machine,
             current_state,
-            false,
             diagnostics,
         );
         return;
@@ -118,7 +116,6 @@ pub(super) fn validate_receiverless_call(
             state,
             &call.machine_arguments,
             writable_roots,
-            false,
             diagnostics,
         );
         validate_machine_call_type_parameter_bounds(
@@ -130,7 +127,6 @@ pub(super) fn validate_receiverless_call(
             arguments,
             current_machine,
             current_state,
-            false,
             diagnostics,
         );
         return;
@@ -195,7 +191,6 @@ pub(super) fn validate_receiverless_call(
         state,
         &call.machine_arguments,
         writable_roots,
-        false,
         diagnostics,
     );
     validate_machine_call_type_parameter_bounds(
@@ -207,7 +202,6 @@ pub(super) fn validate_receiverless_call(
         arguments,
         current_machine,
         current_state,
-        false,
         diagnostics,
     );
 }

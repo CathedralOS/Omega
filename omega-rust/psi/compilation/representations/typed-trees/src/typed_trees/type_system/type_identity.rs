@@ -534,8 +534,8 @@ impl TypedTrees {
             .iter()
             .map(|parameter| {
                 format!(
-                    "self={};mutable={};const={}",
-                    parameter.is_self, parameter.is_mutable, parameter.is_const
+                    "mutable={};const={}",
+                    parameter.is_mutable, parameter.is_const
                 )
             })
             .collect::<Vec<_>>()
@@ -578,7 +578,6 @@ impl TypedTrees {
                 compound(
                     "parameter",
                     [
-                        atom("self", if parameter.is_self { "yes" } else { "no" }),
                         atom("mutable", if parameter.is_mutable { "yes" } else { "no" }),
                         atom("const", if parameter.is_const { "yes" } else { "no" }),
                         self.type_identity(TypeIdentityRequest {

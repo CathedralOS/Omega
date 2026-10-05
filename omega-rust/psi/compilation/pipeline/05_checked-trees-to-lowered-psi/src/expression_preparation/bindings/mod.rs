@@ -169,7 +169,7 @@ impl ScalarBindings {
     pub(crate) fn borrowed_structural_place(
         &self,
         argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
-        machine: &checked_trees::machine::Machine,
+        _machine: &checked_trees::machine::Machine,
         parameters: &[checked_trees::signature::StateParameter],
     ) -> Result<PlaceId, LoweringError> {
         if !matches!(
@@ -239,11 +239,6 @@ impl ScalarBindings {
                         let position = parameters
                             .iter()
                             .position(|parameter| parameter.symbol == symbol)
-                            .or_else(|| {
-                                (symbol == machine.symbol).then(|| {
-                                    parameters.iter().position(|parameter| parameter.is_self)
-                                })?
-                            })
                             .ok_or(LoweringError::Unsupported(
                                 "computed borrow lost its established local",
                             ))?;
@@ -317,9 +312,7 @@ impl ScalarBindings {
     /// Source replay checks the declaration and loan occurrence; this join binds
     /// that source to the current activation's exact local or parameter place.
     /// `parameters` is the authored signature list: `StructuralLocal` names a
-    /// live local or an authored parameter directly by symbol; a receiver place
-    /// (`self.member`) roots at the machine's own declared symbol and resolves
-    /// to the `is_self` parameter.
+    /// live local or an authored parameter directly by symbol.
     pub(crate) fn shared_structural_argument(
         &self,
         argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
@@ -371,9 +364,9 @@ impl ScalarBindings {
                 if !symbol.is_valid() {
                     return unsupported("case observation has an invalid source symbol");
                 }
-                let mut formals = parameters.iter().filter(|parameter| {
-                    parameter.symbol == symbol || (parameter.is_self && symbol == machine.symbol)
-                });
+                let mut formals = parameters
+                    .iter()
+                    .filter(|parameter| parameter.symbol == symbol);
                 if formals.next().is_none() {
                     return Ok(None);
                 }

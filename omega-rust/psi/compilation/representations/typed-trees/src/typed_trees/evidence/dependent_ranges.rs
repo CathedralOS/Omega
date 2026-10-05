@@ -246,12 +246,10 @@ fn receiver_is_subject_parameter(program: &crate::TypedTrees, receiver: SymbolHa
         for state in program.machine_states(machine) {
             for parameter in program.state_parameters(state) {
                 if parameter.symbol == receiver {
-                    return parameter.is_self
-                        || program.type_reference_names_attached_data(
-                            parameter.type_reference,
-                            machine.attached_data_symbol,
-                        )
-                        || type_reference_is_self(program, parameter.type_reference);
+                    return program.type_reference_names_attached_data(
+                        parameter.type_reference,
+                        machine.attached_data_symbol,
+                    ) || type_reference_is_self(program, parameter.type_reference);
                 }
             }
         }

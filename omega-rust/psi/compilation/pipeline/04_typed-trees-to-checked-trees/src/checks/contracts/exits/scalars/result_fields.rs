@@ -403,7 +403,7 @@ impl ExitScalars<'_, '_> {
                 let parameter = parameters
                     .iter()
                     .find(|parameter| parameter.symbol == root)?;
-                if parameter.is_self || parameter.is_const {
+                if parameter.is_const {
                     return None;
                 }
                 let mut origins = self

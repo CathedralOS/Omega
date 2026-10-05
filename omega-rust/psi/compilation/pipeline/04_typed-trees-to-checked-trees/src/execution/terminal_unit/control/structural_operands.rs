@@ -352,15 +352,7 @@ pub(in crate::execution::terminal_unit) fn operations_for_call<'a>(
         else {
             return false;
         };
-        let explicit_self = arguments.len()
-            > parameters
-                .iter()
-                .filter(|parameter| !parameter.is_self)
-                .count();
-        let parameters = parameters
-            .iter()
-            .filter(|parameter| !parameter.is_self || explicit_self)
-            .collect::<Vec<_>>();
+        let parameters = parameters.iter().collect::<Vec<_>>();
         parameters.len() == arguments.len()
             && arguments
                 .iter()
@@ -432,16 +424,7 @@ fn collect<'a>(
     )?;
     let arguments = crate::semantic::calls::call_site_argument_expressions(program, &site);
     let parameters = crate::semantic::calls::call_target_parameters(program, call.target_symbol)?;
-    let explicit_self = arguments.len()
-        > parameters
-            .iter()
-            .filter(|parameter| !parameter.is_self)
-            .count();
-    let parameters = parameters
-        .iter()
-        .enumerate()
-        .filter(|(_, parameter)| !parameter.is_self || explicit_self)
-        .collect::<Vec<_>>();
+    let parameters = parameters.iter().enumerate().collect::<Vec<_>>();
     if parameters.len() != arguments.len() {
         return None;
     }

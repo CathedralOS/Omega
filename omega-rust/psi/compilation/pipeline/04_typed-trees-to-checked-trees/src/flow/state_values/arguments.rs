@@ -50,7 +50,6 @@ pub(in crate::flow) fn capture_argument(
         .state_parameters(destination)
         .iter()
         .enumerate()
-        .filter(|(_, parameter)| !parameter.is_self)
         .nth(ordinal)
     else {
         return ScalarValue::Unknown;

@@ -104,9 +104,6 @@ impl<'typed> IntrinsicRequirement<'typed> {
             return None;
         };
         let parameters = typed.state_parameters(entry);
-        if parameters.iter().any(|parameter| parameter.is_self) {
-            return None;
-        }
         let (namespace, name) = requirement.name.as_str().rsplit_once("::")?;
         if namespace.is_empty() || name.is_empty() || namespace.contains("::") {
             return None;

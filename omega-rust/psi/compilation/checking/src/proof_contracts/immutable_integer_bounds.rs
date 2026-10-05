@@ -84,11 +84,6 @@ impl BoundMaps {
                         .entry(parameter.symbol)
                         .and_modify(|entry| *entry = None)
                         .or_insert(Some(position));
-                    if parameter.is_self {
-                        maps.machine_self_parameters
-                            .entry(machine.symbol)
-                            .or_insert(position);
-                    }
                 }
                 for (handle, statement) in program
                     .statement_table

@@ -308,12 +308,7 @@ fn exact_invocation_service_name(
                     machine.name,
                 )));
             };
-            let Some(parameter) = typed
-                .state_parameters(entry)
-                .iter()
-                .filter(|parameter| !parameter.is_self)
-                .nth(parameter_index)
-            else {
+            let Some(parameter) = typed.state_parameters(entry).iter().nth(parameter_index) else {
                 return Err(diagnostics::Diagnostic::error(format!(
                     "checked adapter `{}` has no exact non-self synchronous-invocation parameter {index}",
                     machine.name,
@@ -453,13 +448,7 @@ pub(crate) fn exact_checked_adapter_invocations(
                 let parameter_count = typed
                     .machine_states(adapter)
                     .first()
-                    .map(|entry| {
-                        typed
-                            .state_parameters(entry)
-                            .iter()
-                            .filter(|parameter| !parameter.is_self)
-                            .count()
-                    })
+                    .map(|entry| typed.state_parameters(entry).iter().count())
                     .unwrap_or_default();
                 method.parameter_count.checked_add(1) == Some(parameter_count)
                     && target_name == typed.trait_declaration_path(boundary)

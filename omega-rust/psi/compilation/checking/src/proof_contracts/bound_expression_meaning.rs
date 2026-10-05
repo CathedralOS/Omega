@@ -680,42 +680,9 @@ fn membership_subject_matches_owner(
                 path.symbol == machine.symbol && path.head_symbol == machine.symbol
             }) =>
         {
-            let Some((machine, state)) = machine_context else {
-                return false;
-            };
-            // Attached `self` is rooted at the machine symbol, not the entry
-            // parameter symbol. Rejoin that exact owner; its diagnostic name
-            // alone cannot authorize a foreign receiver's tag observation.
-            return machine.symbol.is_valid()
-                && machine.attached_data_symbol == owner.symbol
-                && matches!(program.expression_table.name_path_members(path.members),
-                    [name] if name.is_self_receiver())
-                && program
-                    .expression_table
-                    .name_path_member_symbols(path.member_symbols)
-                    == [machine.symbol]
-                && state.map_or_else(
-                    || {
-                        program.machine_states(machine).iter().any(|state| {
-                            program
-                                .state_parameters(state)
-                                .iter()
-                                .any(|parameter| parameter.is_self)
-                        })
-                    },
-                    |state| {
-                        // A receiver on another callable state cannot establish
-                        // this machine's `self`, even for the same nominal type.
-                        program
-                            .machine_states(machine)
-                            .iter()
-                            .any(|candidate| candidate.symbol == state.symbol)
-                            && program
-                                .state_parameters(state)
-                                .iter()
-                                .any(|parameter| parameter.is_self)
-                    },
-                );
+            // A machine declaration does not supply a runtime value whose
+            // case tag can be observed.
+            return false;
         }
         ExpressionNode::StructLiteral(literal) => {
             return literal.type_symbol == owner.symbol

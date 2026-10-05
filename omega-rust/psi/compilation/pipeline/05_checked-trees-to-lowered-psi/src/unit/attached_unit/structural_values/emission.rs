@@ -594,7 +594,7 @@ fn prepare_owners(
             {
                 continue;
             }
-            if parameter.is_self || parameter.is_const || parameter.is_mutable {
+            if parameter.is_const || parameter.is_mutable {
                 return unsupported("selection parameter source is not immutable owned ingress");
             }
             let declaration = evaluation
@@ -1950,7 +1950,7 @@ impl Emission<'_, '_, '_> {
             }
             _ => return Ok(None),
         };
-        if parameter.is_self || parameter.is_const || parameter.is_mutable {
+        if parameter.is_const || parameter.is_mutable {
             return unsupported("owned selection parameter is not immutable owned ingress");
         }
         let declaration = self

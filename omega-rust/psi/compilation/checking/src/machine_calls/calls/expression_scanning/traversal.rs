@@ -165,7 +165,6 @@ pub(crate) fn validate_value_position_calls(
                 program,
                 machine,
                 state,
-                machine_symbols,
                 symbols,
                 prior_statements: writable_roots.statements,
                 context: "local type bound",
@@ -687,7 +686,6 @@ fn scan_expression_calls_at_position(
                     machine,
                     state,
                     writable_roots.statements,
-                    machine_symbols,
                     symbols,
                     root,
                     name,
@@ -709,7 +707,6 @@ fn scan_expression_calls_at_position(
             > 1
             && crate::value_custody::locals::state_binding_type(
                 program,
-                machine,
                 state,
                 writable_roots.statements,
                 root,
@@ -964,7 +961,6 @@ fn scan_expression_calls_at_position(
                 program,
                 machine,
                 state,
-                machine_symbols,
                 symbols,
                 prior_statements: writable_roots.statements,
                 context: "cast type bound",

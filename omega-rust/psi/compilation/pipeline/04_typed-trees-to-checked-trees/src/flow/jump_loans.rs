@@ -15,7 +15,6 @@
 //! dropping just one such leaf can therefore still be conservatively rejected.
 
 use crate::flow::mutation::{WritePlaceNamespace, instantiate_call_relative_places};
-use crate::flow::normalize_attached_place_root;
 use crate::flow::{CanonicalPlace, canonical_place_segments_may_overlap};
 use crate::semantic::calls::{CallSite, find_call_site, find_state_in_machine};
 use checked_trees::{BorrowCallFact, BorrowFacts};
@@ -50,11 +49,10 @@ fn loan_parameters<'program>(
         .state_parameters(state)
         .iter()
         .filter_map(|parameter| {
-            (!parameter.is_self
-                && !validation::has_plain_owned_contents_with_numeric_constraints(
-                    program,
-                    parameter.type_reference,
-                ))
+            (!validation::has_plain_owned_contents_with_numeric_constraints(
+                program,
+                parameter.type_reference,
+            ))
             .then_some(parameter.symbol)
         })
 }
@@ -111,7 +109,7 @@ impl TargetRun {
                 if !matches!(loan.root, PlaceRoot::Symbol(symbol) if symbol.is_valid()) {
                     return true;
                 }
-                source.root == crate::flow::normalized_event_place_root(program, loan.root)
+                source.root == loan.root
                     // Transporting a suspended parent does not also forward
                     // every descendant loan. The exact loan or a reborrow
                     // inside it still retains its held footprint, including
@@ -191,14 +189,6 @@ pub(super) fn target_run(
                         if !matches!(source.root, PlaceRoot::Symbol(root) if root.is_valid()) {
                             return None;
                         }
-                        normalize_attached_place_root(
-                            program,
-                            machine_symbol,
-                            state_symbol,
-                            source,
-                        );
-                        source.root =
-                            crate::flow::normalized_event_place_root(program, source.root);
                         let PlaceRoot::Symbol(root) = source.root else {
                             return None;
                         };

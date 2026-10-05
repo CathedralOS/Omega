@@ -69,8 +69,7 @@ pub(crate) fn construction_expression(
             // ordinary and boundary calls alike. Boundary selection and custody
             // are separate obligations of the consuming call, not its operand.
             let parameter = target.parameters.get(parameter_position as usize)?;
-            if parameter.is_self
-                || parameter.is_mutable
+            if parameter.is_mutable
                 || parameter.is_const
                 || !validation::is_closed_primitive_array_type(
                     &checked.typed,

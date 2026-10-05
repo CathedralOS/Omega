@@ -84,7 +84,6 @@ fn site_role(
     program
         .state_parameters(site.state)
         .iter()
-        .filter(|parameter| !parameter.is_self)
         .zip(site.entry_parameters)
         .find_map(|(parameter, role)| (parameter.symbol == symbol).then_some(*role))
         .unwrap_or(symbol)

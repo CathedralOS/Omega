@@ -5,40 +5,17 @@ use crate::flow::canonical_place_segments_may_overlap;
 use checked_trees::{DomainDependencyFact, DomainFacts};
 use facts::{Fact, FactPayload, FactPlan};
 
-pub(super) struct PreparedMutation<'place> {
-    original: &'place CanonicalPlace,
-    normalized_root: facts::PlaceRoot,
-}
-
-/// Roots depend only on the immutable program for this invalidation operation.
-/// Retain original places and order: normalization is comparison authority,
-/// not permission to rewrite the mutation recorded in invalidation evidence.
-pub(super) fn prepare_mutated_places<'place>(
-    program: &typed_trees::TypedTrees,
-    places: &'place [CanonicalPlace],
-) -> Vec<PreparedMutation<'place>> {
-    places
-        .iter()
-        .map(|place| PreparedMutation {
-            original: place,
-            normalized_root: crate::flow::normalized_event_place_root(program, place.root),
-        })
-        .collect()
-}
-
 pub(super) fn matching_mutation_for_fact_place<'a, 'b>(
     program: &typed_trees::TypedTrees,
     semantic: &FactPlan,
     domain_dependencies: &'a DomainFacts,
     fact: &Fact,
     fact_place: facts::PlaceHandle,
-    mutated_places: &[PreparedMutation<'b>],
+    mutated_places: &'b [CanonicalPlace],
 ) -> Option<(&'b CanonicalPlace, &'a [facts::PlaceSegment])> {
     let place = semantic.places.get(fact_place);
     let fact_canonical_place = canonical_place_from_semantic_place(program, semantic, place)?;
-    // Expression-rooted semantic places may expand to a different root, so
-    // normalize after canonicalization, once for this fact occurrence.
-    let fact_root = crate::flow::normalized_event_place_root(program, fact_canonical_place.root);
+    let fact_root = fact_canonical_place.root;
     let dependency = match fact.payload {
         FactPayload::DomainMembership { domain_symbol, .. }
         | FactPayload::ContractDomainMembership { domain_symbol, .. } => {
@@ -48,7 +25,7 @@ pub(super) fn matching_mutation_for_fact_place<'a, 'b>(
     };
 
     for mutation in mutated_places {
-        if fact_root != mutation.normalized_root {
+        if fact_root != mutation.root {
             continue;
         }
         if let Some(dependency_segments) = matching_dependency_segments(
@@ -56,9 +33,9 @@ pub(super) fn matching_mutation_for_fact_place<'a, 'b>(
             domain_dependencies,
             dependency,
             &fact_canonical_place,
-            mutation.original,
+            mutation,
         ) {
-            return Some((mutation.original, dependency_segments));
+            return Some((mutation, dependency_segments));
         }
     }
 

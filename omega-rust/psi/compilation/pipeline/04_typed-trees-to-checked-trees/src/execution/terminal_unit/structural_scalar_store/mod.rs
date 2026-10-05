@@ -711,10 +711,8 @@ fn case_field_store(
     let value_position = source_parameters
         .iter()
         .position(|parameter| parameter.symbol == value_root)?;
-    let value_state_parameter = source_parameters.get(value_position)?;
-    if value_state_parameter.is_self {
-        return None;
-    }
+    let _value_state_parameter = source_parameters.get(value_position)?;
+
     let (projected, value_path) = super::calls::projected_argument_path(
         program,
         state.symbol,

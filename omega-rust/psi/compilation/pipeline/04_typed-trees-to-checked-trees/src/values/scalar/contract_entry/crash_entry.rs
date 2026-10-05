@@ -686,7 +686,7 @@ impl<'program> Reader<'program> {
         }
     }
 
-    fn parameter(&self, expression: ExpressionHandle, allow_self: bool) -> Option<usize> {
+    fn parameter(&self, expression: ExpressionHandle, _allow_self: bool) -> Option<usize> {
         let ExpressionNode::Name(name) = self.program.expression_table.expression(expression)
         else {
             return None;
@@ -702,15 +702,7 @@ impl<'program> Reader<'program> {
             !parameter.is_const
                 && parameter.name.as_str() == spelling.as_str()
                 && self.program.symbols.name(parameter.symbol) == parameter.name.as_str()
-                && if parameter.is_self {
-                    allow_self
-                        && parameter.name.is_self_receiver()
-                        && self.machine.is_some_and(|machine| {
-                            name.symbol == machine.symbol && name.head_symbol == machine.symbol
-                        })
-                } else {
-                    name.symbol == parameter.symbol && name.head_symbol == parameter.symbol
-                }
+                && { name.symbol == parameter.symbol && name.head_symbol == parameter.symbol }
         })
     }
 
@@ -737,37 +729,35 @@ impl<'program> Reader<'program> {
             return None;
         }
         let mut receiver = self.field_path(member.receiver, depth + 1)?;
-        let self_root =
-            receiver.path.is_empty() && self.parameters[receiver.parameter_position].is_self;
+        let self_root = receiver.path.is_empty() && false;
         let owner = self.nominal(
             receiver.type_reference,
             receiver.path.is_empty(),
             self_root,
             depth + 1,
         )?;
-        let field =
-            if receiver.path.is_empty() && self.parameters[receiver.parameter_position].is_self {
-                if owner.symbol != machine.attached_data_symbol {
-                    return None;
-                }
-                validation::exact_self_field(self.program, machine, expression)?
-            } else {
-                let mut fields =
-                    self.program
-                        .data_members(owner)
-                        .iter()
-                        .filter_map(|member_kind| {
-                            let DataMember::Field(field) = member_kind else {
-                                return None;
-                            };
-                            (field.symbol == member.member_symbol).then_some(field)
-                        });
-                let field = fields.next()?;
-                if fields.next().is_some() {
-                    return None;
-                }
-                field
-            };
+        let field = if receiver.path.is_empty() && false {
+            if owner.symbol != machine.attached_data_symbol {
+                return None;
+            }
+            validation::exact_self_field(self.program, machine, expression)?
+        } else {
+            let mut fields = self
+                .program
+                .data_members(owner)
+                .iter()
+                .filter_map(|member_kind| {
+                    let DataMember::Field(field) = member_kind else {
+                        return None;
+                    };
+                    (field.symbol == member.member_symbol).then_some(field)
+                });
+            let field = fields.next()?;
+            if fields.next().is_some() {
+                return None;
+            }
+            field
+        };
         if field.name.as_str() != member.member.as_str()
             || field.relevance.is_erased()
             || self.program.symbols.get(field.symbol).kind != SymbolKind::Field

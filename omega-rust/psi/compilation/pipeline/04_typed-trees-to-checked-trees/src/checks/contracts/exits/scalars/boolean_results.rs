@@ -66,8 +66,7 @@ impl ExitScalars<'_, '_> {
         // clause and an immutable Boolean binder on both ends of that edge.
         let origin = |position| {
             let parameter = scalar_parameters().nth(position)?;
-            if parameter.is_mutable
-                || parameter.is_self
+            if (parameter.is_mutable)
                 || parameter.is_const
                 || self
                     .program
@@ -94,9 +93,7 @@ impl ExitScalars<'_, '_> {
                 .state_parameters(state)
                 .iter()
                 .find(|parameter| {
-                    parameter.symbol == origin.state_parameter
-                        && !parameter.is_mutable
-                        && !parameter.is_self
+                    (parameter.symbol == origin.state_parameter && !parameter.is_mutable)
                         && !parameter.is_const
                         && self
                             .program

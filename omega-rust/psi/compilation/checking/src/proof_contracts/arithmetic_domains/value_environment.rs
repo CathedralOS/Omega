@@ -209,7 +209,7 @@ impl ValueEnvironment {
         for parameter in program.state_parameters(state) {
             declaration(
                 parameter.name.as_str(),
-                !parameter.is_mutable && !parameter.is_self,
+                !parameter.is_mutable,
                 parameter.type_reference,
             );
         }

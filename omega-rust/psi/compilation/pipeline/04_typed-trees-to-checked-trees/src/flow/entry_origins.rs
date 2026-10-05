@@ -28,8 +28,7 @@ fn immutable_scalar(
     program: &typed_trees::TypedTrees,
     parameter: &typed_trees::signature::StateParameter,
 ) -> bool {
-    !parameter.is_mutable
-        && !parameter.is_self
+    (!parameter.is_mutable)
         && !parameter.is_const
         && program
             .primitive_type_reference(parameter.type_reference)
@@ -190,13 +189,7 @@ fn parameter_edges<'program>(
                 let mut mapped = Vec::new();
                 for parameter in program.state_parameters(state) {
                     if tracked_parameter(program, parameter) {
-                        let sources = if parameter.is_self {
-                            program
-                                .state_parameters(source)
-                                .iter()
-                                .find(|candidate| candidate.is_self)
-                                .map(|candidate| vec![root_storage(program, candidate.symbol)])
-                        } else {
+                        let sources = {
                             captured
                                 .as_ref()
                                 .and_then(|captured| captured.arguments.get(nonself_index))
@@ -205,12 +198,7 @@ fn parameter_edges<'program>(
                         };
                         storage.push((parameter.symbol, sources));
                     }
-                    let source_parameter = if parameter.is_self {
-                        program
-                            .state_parameters(source)
-                            .iter()
-                            .find(|candidate| candidate.is_self)
-                    } else {
+                    let source_parameter = {
                         let argument = arguments.get(nonself_index).copied();
                         nonself_index += 1;
                         argument.and_then(|argument| {
@@ -521,7 +509,7 @@ pub(super) fn rebase_contexts(
     if entry.symbol == state.symbol && assumptions {
         return (contexts, HandleSpan::empty());
     }
-    let mut origins = if entry.symbol == state.symbol {
+    let origins = if entry.symbol == state.symbol {
         // Entry can also be reached by a named backedge. Immutable scalar
         // bindings retain the original invocation value only when every
         // incoming argument preserves it, just as for other named states.
@@ -559,20 +547,6 @@ pub(super) fn rebase_contexts(
             .as_ref()
             .clone()
     };
-    // `self` is the machine attachment context, explicitly admitted by each
-    // state's self parameter rather than an ordinary named jump argument.
-    if let Some(entry_self) = program
-        .state_parameters(entry)
-        .iter()
-        .find(|parameter| parameter.is_self)
-        && let Some(state_self) = program
-            .state_parameters(state)
-            .iter()
-            .find(|parameter| parameter.is_self)
-    {
-        origins.retain(|(source, _)| *source != entry_self.symbol);
-        origins.push((entry_self.symbol, state_self.symbol));
-    }
     let mut rebased = HandleSpan::empty();
     let mut parameter_origins = HandleSpan::empty();
     let sources = build

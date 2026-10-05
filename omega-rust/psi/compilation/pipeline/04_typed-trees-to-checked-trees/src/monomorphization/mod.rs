@@ -117,11 +117,6 @@ struct CalleeState {
     candidate_index: usize,
     return_type: TypeReferenceHandle,
     parameter_types: Vec<TypeReferenceHandle>,
-    /// An attached method's `self` formal's position in `parameter_types`
-    /// (`Named { machine, "Self" }`). Receiver-syntax calls exclude it from
-    /// the argument list, so its binding evidence arrives through the
-    /// receiver place instead.
-    self_index: Option<usize>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
