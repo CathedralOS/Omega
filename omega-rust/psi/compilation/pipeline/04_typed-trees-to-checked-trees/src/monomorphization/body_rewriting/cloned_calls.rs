@@ -15,23 +15,6 @@ use crate::monomorphization::{
     TypedTrees,
 };
 
-pub(crate) fn span_without_first<T>(span: HandleSpan<T>) -> HandleSpan<T> {
-    if span.count() <= 1 {
-        return HandleSpan::empty();
-    }
-    let start = span.start();
-    HandleSpan::from_parts(
-        Handle::from_parts(
-            start
-                .arena_index()
-                .checked_add(1)
-                .expect("argument span index overflow"),
-            start.generation(),
-        ),
-        span.count() - 1,
-    )
-}
-
 pub(crate) fn statement_span_handles(
     span: HandleSpan<StatementNode>,
 ) -> Vec<Handle<StatementNode>> {
@@ -46,34 +29,6 @@ pub(crate) fn statement_span_handles(
             )
         })
         .collect()
-}
-
-pub(crate) fn statement_receiver_path(
-    program: &TypedTrees,
-    expression: ExpressionHandle,
-) -> Option<(
-    SymbolHandle,
-    SymbolHandle,
-    Vec<typed_trees::name::Identifier>,
-)> {
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Atomic(atomic) => statement_receiver_path(program, atomic.value),
-        ExpressionNode::Borrow(inner) => statement_receiver_path(program, inner.target),
-        ExpressionNode::Name(path) => Some((
-            path.head_symbol,
-            path.symbol,
-            program
-                .expression_table
-                .name_path_members(path.members)
-                .to_vec(),
-        )),
-        ExpressionNode::Member(member) => {
-            let (root, symbol, mut path) = statement_receiver_path(program, member.receiver)?;
-            path.push(member.member.clone());
-            Some((root, symbol, path))
-        }
-        _ => None,
-    }
 }
 
 pub(crate) fn rewrite_cloned_calls(
@@ -206,26 +161,6 @@ pub(crate) fn rewrite_cloned_calls(
                         .push_name_path_member(&mut members, name.clone());
                     (*symbol, members)
                 });
-            let evidence_receiver = evidence_dispatch
-                .is_some()
-                .then(|| {
-                    program
-                        .statement_table
-                        .expression_handles(snapshot.arguments)
-                        .first()
-                        .copied()
-                })
-                .flatten()
-                .and_then(|receiver| statement_receiver_path(program, receiver));
-            let receiver = evidence_receiver.as_ref().map(|(_, _, members)| {
-                let mut receiver = HandleSpan::empty();
-                for member in members {
-                    program
-                        .statement_table
-                        .push_name_path_member(&mut receiver, member.clone());
-                }
-                receiver
-            });
             let StatementNode::Call(call) = program.statement_table.statement_mut(statement_handle)
             else {
                 unreachable!();
@@ -250,14 +185,12 @@ pub(crate) fn rewrite_cloned_calls(
                 call.receiver_symbol = symbol;
                 call.receiver = members;
             }
-            if let (Some((root, receiver_symbol, _)), Some(receiver)) =
-                (evidence_receiver, receiver)
-            {
-                call.receiver_root_symbol = root;
-                call.receiver_symbol = receiver_symbol;
-                call.receiver = receiver;
-                call.arguments = span_without_first(call.arguments);
-            } else if evidence_dispatch.is_some() {
+            // Static requirement dispatch selects a concrete declaration; the
+            // conformance-evidence namespace that spelled the call is not a
+            // runtime receiver and the rewritten target owns every parameter as
+            // an explicit argument. Clearing the receiver leaves the operand
+            // roster exactly as authored.
+            if evidence_dispatch.is_some() {
                 call.receiver_root_symbol = SymbolHandle::invalid();
                 call.receiver_symbol = SymbolHandle::invalid();
                 call.receiver = HandleSpan::empty();
@@ -330,14 +263,6 @@ pub(crate) fn rewrite_cloned_calls(
                 .find(|rewrite| rewrite.placeholder == call.target_symbol),
             _ => None,
         };
-        let evidence_receiver = match program.expression_table.expression(handle) {
-            ExpressionNode::Call(call) if evidence_dispatch.is_some() => program
-                .expression_table
-                .expression_handles(call.arguments)
-                .first()
-                .copied(),
-            _ => None,
-        };
         let selected_carrier = match program.expression_table.expression(handle) {
             ExpressionNode::Call(call) => selected_carriers
                 .iter()
@@ -367,12 +292,7 @@ pub(crate) fn rewrite_cloned_calls(
         if let Some(receiver) = selected_carrier {
             call.receiver = receiver;
         }
-        if evidence_dispatch.is_some()
-            && let Some(receiver) = evidence_receiver
-        {
-            call.receiver = receiver;
-            call.arguments = span_without_first(call.arguments);
-        } else if evidence_dispatch.is_some() {
+        if evidence_dispatch.is_some() {
             call.receiver = ExpressionHandle::invalid();
         }
         if let Some(rewrite) = evidence_dispatch {
