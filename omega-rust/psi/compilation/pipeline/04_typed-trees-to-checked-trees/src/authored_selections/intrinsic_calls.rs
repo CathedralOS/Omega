@@ -46,8 +46,6 @@ pub(crate) fn static_argument_role(
 enum BuildOperationForm {
     /// Namespace-qualified operation with an explicit Build argument.
     StaticBuildArgument,
-    /// Selected on the mutable root `Build` receiver.
-    MutableBuildReceiver,
     /// Selected on a receiver of one exact build-prelude data type.
     PreludeDataReceiver(&'static str),
 }
@@ -58,8 +56,8 @@ fn build_operation_form(operation: BuildOperation) -> BuildOperationForm {
         | BuildOperation::ServiceExclusion
         | BuildOperation::RepresentationSelection
         | BuildOperation::BoundaryAcceptance
-        | BuildOperation::WireCompatibilityRequest => BuildOperationForm::StaticBuildArgument,
-        BuildOperation::AssumedBindingContract => BuildOperationForm::MutableBuildReceiver,
+        | BuildOperation::WireCompatibilityRequest
+        | BuildOperation::AssumedBindingContract => BuildOperationForm::StaticBuildArgument,
         BuildOperation::IncludedSourceHandoff => {
             BuildOperationForm::PreludeDataReceiver("BuildOutput")
         }
@@ -82,9 +80,6 @@ pub(crate) fn checked_statement_call_intrinsic(
     }
     if let Some(operation) = BuildOperation::from_call_target(call.target.as_str())
         && match build_operation_form(operation) {
-            BuildOperationForm::MutableBuildReceiver => {
-                super::provider_selection::exact_mutable_build_statement_receiver(program, call)
-            }
             BuildOperationForm::PreludeDataReceiver(expected_receiver) => {
                 exact_statement_build_member_receiver(program, state, call, expected_receiver)
             }
@@ -133,7 +128,8 @@ pub(crate) fn checked_expression_call_intrinsic(
         operation @ (BuildOperation::ServiceExclusion
         | BuildOperation::RepresentationSelection
         | BuildOperation::BoundaryAcceptance
-        | BuildOperation::WireCompatibilityRequest),
+        | BuildOperation::WireCompatibilityRequest
+        | BuildOperation::AssumedBindingContract),
     ) = BuildOperation::from_call_target(call.target.as_str())
         && super::provider_selection::has_explicit_build_argument(program, call)
         && program
@@ -143,7 +139,9 @@ pub(crate) fn checked_expression_call_intrinsic(
             == 1
         && match operation {
             BuildOperation::WireCompatibilityRequest => call.machine_arguments.len() >= 5,
-            BuildOperation::RepresentationSelection => call.machine_arguments.len() == 2,
+            BuildOperation::RepresentationSelection | BuildOperation::AssumedBindingContract => {
+                call.machine_arguments.len() == 2
+            }
             _ => call.machine_arguments.len() == 1,
         }
     {
@@ -174,9 +172,6 @@ fn checked_call_intrinsic(
     } else if receiver.is_valid() {
         let operation = BuildOperation::from_call_target(target)?;
         let receiver_selects = match build_operation_form(operation) {
-            BuildOperationForm::MutableBuildReceiver => {
-                super::provider_selection::exact_mutable_build_receiver(program, receiver)
-            }
             BuildOperationForm::PreludeDataReceiver(expected_receiver) => {
                 exact_build_prelude_receiver(program, receiver, expected_receiver)
             }

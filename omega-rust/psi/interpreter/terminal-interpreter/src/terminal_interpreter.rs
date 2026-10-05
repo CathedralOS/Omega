@@ -159,7 +159,7 @@ pub fn admit_provider_installation_from_artifact(
 /// installation bound to that exact artifact identity.
 ///
 /// `assumptions` are the runtime-policy side of
-/// `Build::assume_binding_contract<Required::operation, Supplied::operation>()`
+/// `Build::assume_binding_contract<Required::operation, Supplied::operation>(builder)`
 /// (wiki/spec/build/assumed_binding_contracts.md): only the consuming runtime
 /// root may authorize them, so they arrive as sponsor input beside the
 /// checked selections, never from artifact bytes — a dependency cannot grant

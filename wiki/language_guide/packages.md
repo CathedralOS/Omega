@@ -88,7 +88,7 @@ normal review controls: it records your decisions, not a certificate of safety.
 
 ### Assumed binding contracts are extremely high risk
 
-`builder.assume_binding_contract<Required::operation, Supplied::operation>()`
+`Build::assume_binding_contract<Required::operation, Supplied::operation>(builder)`
 asks the root to accept a semantic relationship that ordinary conformance
 checking has not proved. Audit shows both contracts, the actual implementation,
 the missing guarantees/authority and the transitive dependency path. Install and

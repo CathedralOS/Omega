@@ -5,9 +5,11 @@ implementation of another while explicitly assuming a semantic relationship
 that ordinary conformance checking has not proved:
 
 ```omega
-builder.assume_binding_contract<Required::operation, Supplied::operation>();
+Build::assume_binding_contract<Required::operation, Supplied::operation>(builder);
 ```
 
+The first ordinary argument is the mutable Build context; namespace qualification
+supplies no implicit receiver. The receiver-style spelling is retired.
 This is a typed Build operation, not a language keyword, unchecked body, or
 cast between `Binding` values. It records a runtime installation rule. Both
 requirements retain their own identities and contracts; the actual implementation
@@ -48,7 +50,7 @@ reaches WritableMemory;
 machine build(builder: &mut Build) {
     Build::application(builder, "memory_editor");
     Build::select_provider<RangeSupplier, EchoSupplier>(builder);
-    builder.assume_binding_contract<WritableMemory::claim, RangeSupplier::supply>();
+    Build::assume_binding_contract<WritableMemory::claim, RangeSupplier::supply>(builder);
 }
 ```
 

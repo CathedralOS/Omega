@@ -211,7 +211,7 @@ explicitly assume a relationship between two compatible boundary contracts:
 machine build(builder: &mut Build) {
     Build::application(builder, "memory_editor");
     Build::select_provider<RangeSupplier, EchoSupplier>(builder);
-    builder.assume_binding_contract<WritableMemory::claim, RangeSupplier::supply>();
+    Build::assume_binding_contract<WritableMemory::claim, RangeSupplier::supply>(builder);
 }
 ```
 
@@ -282,7 +282,7 @@ satisfies Supplied::value {
 
 machine build(builder: &mut Build) {
     Build::select_provider<Supplied, ZeroProvider>(builder);
-    builder.assume_binding_contract<Expected::value, Supplied::value>();
+    Build::assume_binding_contract<Expected::value, Supplied::value>(builder);
 }
 ```
 

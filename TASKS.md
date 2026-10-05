@@ -147,12 +147,12 @@ helper that passes does not close an item.
     (owner question Q1 `trait-requirement-subject-binding` and
     **STATELESS-PROVIDERS**) and the two memory canaries
     (**STATIC-BOUNDARY-REQUIREMENT-CALL-FORM**). Build receiver calls remain
-      for assumed bindings,
-    and facets such as test groups. Move their producers and consumers to
+    for facets such as test groups. Move their producers and consumers to
     namespace-qualified calls with explicit arguments, following `Build::bind`,
     `Build::select_provider`, `Build::exclude_service`, and
       `Build::select_representation`, `Build::accept_boundary`, and
-    `Build::require_wire_compatibility`. Do not restore
+    `Build::require_wire_compatibility`, and `Build::assume_binding_contract`.
+    Do not restore
     implicit builder insertion.
   - Compiler remainder: typed parameters now have only explicit subject
     identities; checking, interpretation, provider arity and review capture
@@ -3272,7 +3272,7 @@ rejects at build and `mapped` needs a Windows full-i32 measurement.
   fabricated code size or region.
 
 - **ASSUMED-BINDING-CONTRACTS.** (new-scope) The root-only
-  [`Build::assume_binding_contract<Required::operation, Supplied::operation>()`](wiki/spec/build/assumed_binding_contracts.md)
+  [`Build::assume_binding_contract<Required::operation, Supplied::operation>(builder)`](wiki/spec/build/assumed_binding_contracts.md)
   relationship is not delivered. Psi classifies the call
   (`BuildOperation::AssumedBindingContract` in
   `omega-rust/psi/foundation/language-semantics/src/declaration_selection/mod.rs`,

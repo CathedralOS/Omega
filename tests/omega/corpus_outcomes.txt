@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": null, "load1_end": 48.69, "load1_start": 47.79, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 24, "jobs": null, "load1_end": null, "load1_start": null, "machine": "amd64", "platform": "windows", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -371,6 +371,8 @@ fail/build/program_entry_returns_value rejected 1077ms expected @2d8ed253669f
 	entry machine `launch` returns a value, but `ProgramEntry` has no result
 fail/build/representation_selection_fabricated_activation rejected 1578ms expected @9daaa9bd9280+wt
 	the compiler-owned Build activation cannot be copied into local `counterfeit`
+fail/build/retired_assumed_binding_receiver rejected 1ms expected @63bca13481de+wt
+	tests/omega/fail/build/retired_assumed_binding_receiver/main.omg:2:36: receiver-style assumed binding is retired; use Build::assume_binding_contract<Required::operation, Supplied::operation>(builder)
 fail/build/retired_boundary_acceptance_receiver rejected 2ms expected @b429d3348cac+wt
 	tests/omega/fail/build/retired_boundary_acceptance_receiver/main.omg:2:28: receiver-style boundary acceptance is retired; use Build::accept_boundary<Boundary>(builder)
 fail/build/retired_provider_selection_receiver rejected 5ms expected @944ee0efb38f+wt
@@ -1612,6 +1614,7 @@ pass/build/runtime_static_service_exclusion_exit checked 3456ms @6fa34b94762b+wt
 pass/build/same_leaf_runner_entry_left_exit checked 1023ms @d7dd90112d31
 pass/build/same_leaf_runner_entry_right_exit checked 1015ms @d7dd90112d31
 pass/build/selected_const_array_length_exit checked 12131ms @ae8939e231af+wt
+pass/build/static_assumed_binding_spelling_exit checked 2563ms @63bca13481de+wt
 pass/build/uefi_os_handoff_invocation rejected 1774ms @c47f8652484
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Loader::drive`), which was itself omitted at an unavailable callee (`UefiOsHandoffCycle::run`), which was itself omitted at an unavailable callee (`UefiOsHandoffCycle::acquire`), which was itself omitted at local construction at `call operation: projected operand support`
 pass/calls/ambient_receiver_scalar_return_exit checked 3170ms @48d34a64a938+wt

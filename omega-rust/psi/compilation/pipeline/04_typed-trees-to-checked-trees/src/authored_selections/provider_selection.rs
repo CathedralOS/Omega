@@ -123,14 +123,11 @@ pub(super) fn has_explicit_build_argument(
             .expression_table
             .expression_handles(call.arguments)
             .first()
-            .is_some_and(|builder| exact_mutable_build_receiver(program, *builder))
+            .is_some_and(|builder| exact_mutable_build_argument(program, *builder))
         && call.evidence_arguments.is_empty()
 }
 
-pub(crate) fn exact_mutable_build_receiver(
-    program: &TypedTrees,
-    receiver: ExpressionHandle,
-) -> bool {
+fn exact_mutable_build_argument(program: &TypedTrees, receiver: ExpressionHandle) -> bool {
     if !receiver.is_valid() {
         return false;
     }
@@ -145,19 +142,6 @@ pub(crate) fn exact_mutable_build_receiver(
                 if *access == language_semantics::ReferenceAccess::Mutable
                     && exact_build_prelude_data(program, program.type_reference_table.type_symbol(*referee), "Build"))
     })
-}
-
-pub(crate) fn exact_mutable_build_statement_receiver(
-    program: &TypedTrees,
-    call: &typed_trees::statement::TableCall,
-) -> bool {
-    super::operator_targets::type_reference_for_symbol(program, call.receiver_symbol)
-        .is_some_and(|reference| {
-            matches!(program.type_reference_table.type_reference(reference),
-                typed_trees::types::TypeReferenceNode::Reference { access, referee, .. }
-                    if *access == language_semantics::ReferenceAccess::Mutable
-                        && exact_build_prelude_data(program, program.type_reference_table.type_symbol(*referee), "Build"))
-        })
 }
 
 /// Resolve an already classified product operand, never an ordinary static use.

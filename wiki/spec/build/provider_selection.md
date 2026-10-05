@@ -136,7 +136,7 @@ Composite adapters are ordinary checked machines, not plan-shaped call sequences
 Build-time code may choose declared candidates or compute a leaf binding; it
 cannot append plan rows. Structural coincidence never supplies a satisfaction.
 
-`Build::assume_binding_contract<Required::operation, Supplied::operation>()`
+`Build::assume_binding_contract<Required::operation, Supplied::operation>(builder)`
 records a relationship for the compiler to validate and derive, not authored
 ProviderPlan rows. It retains the caller contract and actual supplied operation
 separately. The supplier's body stays checked against its own contract; the

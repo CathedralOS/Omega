@@ -150,38 +150,31 @@ fn parse_postfix_suffixes_handle<'tokens, 'source>(
             let after_dot = input.take_punctuation(PunctuationKind::Dot, ".")?;
             let (member, rest) = after_dot.take_identifier()?;
 
-            if member.as_str() == "accept_boundary" && rest.at_punctuation(PunctuationKind::Less) {
-                return Err(rest.error_here(
-                    "receiver-style boundary acceptance is retired; use Build::accept_boundary<Boundary>(builder)",
-                ));
-            }
-
-            if member.as_str() == "select_provider" && rest.at_punctuation(PunctuationKind::Less) {
-                return Err(rest.error_here(
-                    "receiver-style provider selection is retired; use Build::select_provider<Slot, Provider>(builder)",
-                ));
-            }
-
-            if member.as_str() == "exclude_service" && rest.at_punctuation(PunctuationKind::Less) {
-                return Err(rest.error_here(
-                    "receiver-style service exclusion is retired; use Build::exclude_service<BoundaryTrait>(builder)",
-                ));
-            }
-
-            if member.as_str() == "select_representation"
-                && rest.at_punctuation(PunctuationKind::Less)
-            {
-                return Err(rest.error_here(
-                    "receiver-style representation selection is retired; use Build::select_representation<Opaque, Conformance>(builder)",
-                ));
-            }
-
-            if member.as_str() == "require_wire_compatibility"
-                && rest.at_punctuation(PunctuationKind::Less)
-            {
-                return Err(rest.error_here(
-                    "receiver-style wire compatibility is retired; use Build::require_wire_compatibility<Edge, Lineage, Local, Peer, Fact>(builder)",
-                ));
+            if rest.at_punctuation(PunctuationKind::Less) {
+                let retired = match member.as_str() {
+                    "accept_boundary" => Some(
+                        "receiver-style boundary acceptance is retired; use Build::accept_boundary<Boundary>(builder)",
+                    ),
+                    "select_provider" => Some(
+                        "receiver-style provider selection is retired; use Build::select_provider<Slot, Provider>(builder)",
+                    ),
+                    "exclude_service" => Some(
+                        "receiver-style service exclusion is retired; use Build::exclude_service<BoundaryTrait>(builder)",
+                    ),
+                    "select_representation" => Some(
+                        "receiver-style representation selection is retired; use Build::select_representation<Opaque, Conformance>(builder)",
+                    ),
+                    "require_wire_compatibility" => Some(
+                        "receiver-style wire compatibility is retired; use Build::require_wire_compatibility<Edge, Lineage, Local, Peer, Fact>(builder)",
+                    ),
+                    "assume_binding_contract" => Some(
+                        "receiver-style assumed binding is retired; use Build::assume_binding_contract<Required::operation, Supplied::operation>(builder)",
+                    ),
+                    _ => None,
+                };
+                if let Some(message) = retired {
+                    return Err(rest.error_here(message));
+                }
             }
 
             // ATOMICS STAGE 1 (ch17, M2): `atomic_place.load(ordering)` is the

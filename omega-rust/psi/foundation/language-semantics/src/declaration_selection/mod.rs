@@ -210,7 +210,7 @@ impl CollectionMeasure {
 pub enum BuildOperation {
     /// `Build::select_provider<Subject, Product>(b)` on the mutable root `Build`.
     ProviderSelection,
-    /// `b.assume_binding_contract<Required::operation, Supplied::operation>()`
+    /// `Build::assume_binding_contract<Required::operation, Supplied::operation>(b)`
     /// on the mutable root `Build`: the consuming root's authorization of one
     /// runtime link from a boundary requirement to another requirement's
     /// selected implementation (wiki/spec/build/assumed_binding_contracts.md).
@@ -336,7 +336,7 @@ pub enum AuthoredDeclarationSelectionIntrinsic {
     /// reconstruct semantic identity from the call's diagnostic spelling.
     ByteSequencePredicate(crate::byte_predicates::ByteSequencePredicate),
     BuildProviderSelection,
-    /// `b.assume_binding_contract<Required::operation, Supplied::operation>()`:
+    /// `Build::assume_binding_contract<Required::operation, Supplied::operation>(b)`:
     /// the consuming root's runtime-only authorization of one boundary
     /// requirement's link to another requirement's selected implementation
     /// (wiki/spec/build/assumed_binding_contracts.md). Recording the intrinsic
