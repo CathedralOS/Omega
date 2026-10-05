@@ -2344,6 +2344,33 @@ crash and native exit behavior.
   Acceptance: no corpus diagnostic in any golden under `tests/omega/` contains
   the string `omega-rust/`.
 
+- **UNSELECTED-DIRECT-REQUIREMENT-GATE-WIDENED.** (split-of:MACOS-NATIVE-LOST-SUCCESSES)
+  `pass/core/interrupt_obligations_surface` has one blocking line, proved by
+  measurement. `reject_unselected_direct_requirement_calls`
+  (`realization/selected-dispatch/src/boundary_dispatch.rs:512`) refuses it
+  through `is_directly_callable_top_level_requirement` (~line 428), whose last
+  clause `63bca13481d` deleted: the gate once required a requirement to be
+  **receiver-free** and now admits every top-level requirement. `50da9413d4e`
+  then rewrote this fixture's two calls from `guard.restore()` to
+  `InterruptMaskGuard::restore(guard)`, straight into the widened gate. Both
+  surrounding comments still state the retired rule -- the predicate's doc says
+  "without a `self` receiver" and the call site says "Receiver-bearing
+  requirements keep their existing routes".
+
+  **The gate is load-bearing; narrow it, do not delete it.** Measured with the
+  one call site disabled at `c9eb93b5756`: `interrupt_obligations_surface` and
+  `pass/memory/address_translation_canary` both reach `checked`, and
+  `fail/providers/boundary_requirement_direct_call_unselected` stops rejecting
+  for its authored reason. `StateParameter::is_self` no longer merely reads
+  false -- the field does not exist -- so the carve-out cannot be restored, only
+  replaced.
+
+  Blocked on the owner question `unselected-requirement-carve-out` in
+  `OWNER_QUESTIONS.md`. Note the cost if reachability is chosen: the only
+  fixture pinning this rule has no `build.omg`, so nothing in it is reachable
+  either and it would stop pinning its authored reason -- closing this needs the
+  rule plus a real entry selection for that fail fixture.
+
 - **RECAST-OFFSET-EQUALITY-TRANSPORT.** (split-of:MACOS-NATIVE-LOST-SUCCESSES)
   `pass/dependent/boundary_equality_recast_witness_compile` lost `checked`. It
   is the authored customer for transporting an offset bound across a proved
@@ -2400,16 +2427,22 @@ crash and native exit behavior.
   against current main before assigning a repair. Two lost a running program with an authored exit
   (`pass/text/local_bounded_text_case_result_loan_exit` and
   `pass/text/local_bounded_text_scalar_loan_exit`, now `incomplete` at the
-  proof-search provision); one lost `exit:0`
-  (`pass/providers/specialized_mixed_structural_result_operator_hosted_native`
-  on an ambiguous terminal body plan). Another lost `built` on an absent boundary
+  proof-search provision). Another lost `built` on an absent boundary
   provider (`pass/memory/secondary_processor_canary`, on
   StartupEnvelope::confirm).
 
-  Five more lost `checked`: three on an absent boundary provider this host
-  does not supply (`pass/core/interrupt_obligations_surface`,
-  `pass/memory/address_translation_canary`,
-  `pass/memory/interrupt_table_canary`),
+  More lost `checked`. **Re-measured at `c9eb93b5756`, the provider-absence
+  grouping is wrong and splits in two.** Only two rows are still held by the
+  unselected-direct-requirement gate, and both declare no provider anywhere in
+  the repo for any target, so neither is host-dependent:
+  `pass/core/interrupt_obligations_surface` and
+  `pass/memory/address_translation_canary`.
+  `pass/memory/interrupt_table_canary` and
+  `pass/memory/secondary_processor_canary` have moved **past** that gate -- they
+  do select providers and realize them `via ForeignBinding::CompilerIntrinsic`
+  -- and now reject with `selected overload ... has no compiler-known intrinsic
+  realization`, which belongs to whoever owns intrinsic realization rather than
+  to provider absence. Also here:
   `pass/dependent/boundary_equality_recast_witness_compile` on a recast offset
   of 4294967295 (see RECAST-OFFSET-EQUALITY-TRANSPORT).
   Every diagnostic matches the
