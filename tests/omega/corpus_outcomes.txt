@@ -2464,6 +2464,7 @@ pass/providers/direct_boundary_array_snapshot_exit checked 4430ms @cfe60a3a242
 pass/providers/external_boundary_requirement_via_exit checked 8941ms @5ce9755c44a5+wt
 pass/providers/external_leaf_dllimport_compile checked 808ms @2d8ed253669f
 pass/providers/foreign_multiregister_result_exit checked 5866ms @cfe60a3a242
+pass/providers/foreign_out_parameter_write_observed_exit checked 11330ms @22d7c734257c+wt
 pass/providers/foreign_owned_record_exit checked 5220ms @cfe60a3a242
 pass/providers/foreign_record_result_exit checked 4756ms @cfe60a3a242
 pass/providers/kernel_import_result_chain_exit checked 654ms @ee08fad015b6+wt
@@ -2780,6 +2781,7 @@ pass/time/runtime_fs_mtime_system_time_interop_exit rejected 3465ms @c47f8652484
 pass/time/runtime_time_elapsed_since_exit rejected 12746ms @95e4e5c52dc
 	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(TimeHost::monotonic_ticks_per_second),parameters(),result-dispatch())` resolves to 0 selected provider rows
 pass/time/runtime_time_host_native_darwin_exit checked 4141ms @ca8c127c90c5
+pass/time/runtime_time_host_native_darwin_x86_64_exit checked 13546ms @22d7c734257c+wt
 pass/time/runtime_time_host_virtual_exit checked 1234ms @2d8ed253669f
 pass/time/static_duration_accessors checked 7010ms @2d8ed253669f
 pass/traits/boundary_trait_effects_host_call rejected 3739ms @c5d32a00863

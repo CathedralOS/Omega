@@ -6201,13 +6201,32 @@ report a missing runtime leg explicitly.
     repeated park/resume without repeated effects; cancellation; early parent
     access, missing carry, forbidden live resources and missing/redundant
     markers reject.
-  - **Host-provider execution:** macOS TimeHost runs through
-    `source/library/std/targets/macos_arm64/time_host_impl.omg`
-    (`pass/time/runtime_time_host_native_darwin_exit` and
-    `runtime_time_elapsed_since_exit` exit 70 on macOS ARM64). Remaining:
-    Windows and Linux TimeHost (`runtime_time_elapsed_since_exit` rejects on
-    both) and filesystem adapters with real syscall marshalling and result
-    transport, beyond the Linux x86-64 rows in
+  - **Host-provider execution:** every hosted target has a reviewed TimeHost
+    provider at `source/library/std/targets/<target>/time_host_impl.omg`.
+    Only the two Darwin targets are EXECUTED:
+    `pass/time/runtime_time_host_native_darwin_exit` exits 70 on macOS ARM64
+    and `runtime_time_host_native_darwin_x86_64_exit` exits 70 under Rosetta.
+    For linux_x86_64, linux_arm64 and windows_x86_64 the providers only make
+    the artifact REALIZABLE: `corpus_gate.py --native-target <target> --filter
+    time/runtime_time_elapsed_since_exit` moves that fixture from `rejected`
+    to `built` for all three at 22d7c734257, measured against the same command
+    with the four provider files removed. Nothing executes them, so their
+    `clock_gettime` numbers (228 on x86-64's own table, 113 on arm64's
+    asm-generic table) and their kernel32 exports rest on the kernel and API
+    sources each file cites, not on a run. The lent-storage read all three
+    depend on is pinned on Darwin by
+    `pass/providers/foreign_out_parameter_write_observed_exit`, which exits 72
+    if a caller observes the pre-call initializer instead of the kernel's
+    write. Next acceptance: `runtime_time_elapsed_since_exit` exits 70
+    natively on a Linux x86-64, a Linux arm64 and a Windows x86-64 host. Those
+    three native goldens still read `rejected` for it, and `--record` cannot
+    refresh them from this host: the exit-oracle promise is weighed before
+    recording and a foreign-target build supplies no runtime evidence. The
+    check-leg row for that fixture is separately stale at `rejected` — it
+    measures `checked` with the providers REMOVED, so the closure-review
+    change owns that row, not this provider work. Remaining beside that:
+    filesystem adapters with real syscall marshalling and result transport,
+    beyond the Linux x86-64 rows in
     `omega-rust/omega/compilation/realization/provider-planning/src/provider_settlement/canonical_{filesystem,time}_host.rs`.
     Follow [toolchain-selected implementations](wiki/spec/build/provider_selection.md#toolchain-selected-checked-implementations);
     `ProviderBinding::Import` must commit to the exact locator. Prove native

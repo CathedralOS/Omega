@@ -1,0 +1,9 @@
+// Darwin-only: the host that can actually execute the lent-storage write.
+
+machine build(builder: &mut Build) {
+    Build::application(builder, "foreign_out_parameter_write_observed_exit");
+    Build::depend(builder, Source::Path {
+        location: "../../../../../source/library/std"
+    });
+    Build::bind(builder, macos_arm64::ProgramEntry, main);
+}

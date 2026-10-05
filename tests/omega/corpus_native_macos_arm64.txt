@@ -898,6 +898,7 @@ pass/providers/component_owner_provider_override_compile built 300ms
 pass/providers/external_boundary_requirement_via_exit built 2953ms exit:21 @fb2178def922
 pass/providers/external_leaf_dllimport_compile built 2074ms @fb2178def922
 pass/providers/foreign_multiregister_result_exit built 1320ms exit:70 @7b8965f77903+wt
+pass/providers/foreign_out_parameter_write_observed_exit built 7107ms exit:70 @22d7c734257c+wt
 pass/providers/foreign_owned_record_exit built 1286ms exit:70 @a6215a598e48
 pass/providers/foreign_record_result_exit built 1812ms exit:70 @b10ef07ea7b6
 pass/providers/kernel_import_result_chain_exit built 1378ms @65fd4c9d99fc
@@ -1192,6 +1193,7 @@ pass/time/runtime_fs_mtime_system_time_interop_exit rejected 3161ms @48008365d83
 	selected ProgramEntry Binding field `Main::fs` requires a selected Fused provider for boundary `FilesystemHost`
 pass/time/runtime_time_elapsed_since_exit built 12008ms exit:70 @dfbd9bc4ec99+wt
 pass/time/runtime_time_host_native_darwin_exit built 2086ms exit:70 @dfbd9bc4ec99+wt
+pass/time/runtime_time_host_native_darwin_x86_64_exit built 9486ms @22d7c734257c+wt
 pass/time/runtime_time_host_virtual_exit checked 413ms
 pass/time/static_duration_accessors built 2763ms exit:70 @48008365d839
 pass/traits/boundary_trait_effects_host_call built 976ms exit:0 @bed5f45e9185+wt
