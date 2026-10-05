@@ -2200,7 +2200,9 @@ pass/float/named_ieee_truncations_exit checked 18313ms @2d8ed253669f
 pass/float/named_infinity_classification_exit checked 4472ms @2d8ed253669f
 pass/float/named_nan_semantic_only_exit checked 23555ms @2d8ed253669f
 pass/float/named_provider_directed_divide_exit checked 22722ms @cb6b089b27de+wt
-pass/float/named_provider_fused_multiply_add_exit checked 50298ms @89e29450ebe3+wt
+pass/float/named_provider_fused_multiply_add_exit rejected 3671ms @30cb22686a0
+	selected x86 scalar FMA ProviderPlan `<selected target>::FloatNativeProvider::satisfies::operator::F32::fused_multiply_add(named(name(f32)),named(name(f32)),named(name(f32)))->named(name(f32))` requires explicit AVX+FMA3 admission for slot `F32::fused_multiply_add`
+	selected x86 scalar FMA ProviderPlan `<selected target>::FloatNativeProvider::satisfies::operator::F64::fused_multiply_add(named(name(f64)),named(name(f64)),named(name(f64)))->named(name(f64))` requires explicit AVX+FMA3 admission for slot `F64::fused_multiply_add`
 pass/float/named_provider_min_max_sqrt_exit checked 7600ms @2d8ed253669f
 pass/float/named_provider_multiply_then_add_exit checked 4722ms @2d8ed253669f
 pass/float/named_provider_negate_is_nan_exit checked 5868ms @2d8ed253669f
