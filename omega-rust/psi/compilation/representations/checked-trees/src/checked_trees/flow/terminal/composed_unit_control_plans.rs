@@ -230,6 +230,8 @@ pub enum CheckedComposedUnitControlTerminatorPlan {
     /// value's producer instead of a transfer.
     ClosedSum {
         subject: CheckedUnitStructuralArgumentPlan,
+        /// Whether `subject` names a place or the dispatch's one computed call.
+        subject_kind: CheckedClosedSumSubjectKind,
         cases: Vec<CheckedClosedSumCasePlan>,
     },
     /// Leave checked execution without cleanup, a successor, or an
@@ -637,6 +639,20 @@ impl CheckedGuardedJumpFallbackPlan {
             }
         }
     }
+}
+
+/// How a closed-case dispatch holds the sum it inspects.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum CheckedClosedSumSubjectKind {
+    /// A whole parameter or an earlier immutable local that every arm names.
+    #[default]
+    Place,
+    /// The dispatch's one authored call, evaluated once at the first arm's
+    /// statement. Its structural result is an anonymous temporary that every
+    /// case edge consumes; the parser's copies of the call in later guards
+    /// and payload reads observe that one result
+    /// (wiki/spec/language/expressions.md, "Transition dispatch").
+    Computed,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

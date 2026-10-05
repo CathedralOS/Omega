@@ -3,12 +3,10 @@
 //! the caller retains its own root custody and argument occurrence checks.
 
 use crate::lowering_error::{LoweringError, unsupported};
-use checked_trees::CheckedStructuralPredicatePathSegment;
 use checked_trees::CheckedTrees;
-use checked_trees::data::{DataDefinition, DataMember};
+use checked_trees::data::DataMember;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use checked_trees::statement::StatementNode;
-use checked_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
 use symbols::SymbolHandle;
 
 /// The exact variant that owns a declaration-resolved payload field. A case
@@ -37,156 +35,6 @@ pub(crate) fn payload_case(
         return unsupported("payload case is ambiguous");
     }
     Ok(case)
-}
-
-/// Resolve a retained static path from its exact authored parameter type.
-/// Field identities are local to their current declaration, including case
-/// payloads. Runtime coordinates require a separate source/evaluation contract.
-pub(crate) fn declared_parameter_path_type(
-    checked: &CheckedTrees,
-    state: &checked_trees::state::State,
-    subject: &checked_trees::CheckedStructuralParameterField,
-) -> Option<TypeReferenceHandle> {
-    let parameter = checked
-        .state_parameters(state)
-        .get(usize::try_from(subject.parameter_position).ok()?)?;
-    if parameter.relevance.is_erased() {
-        return None;
-    }
-    let mut reference = parameter.type_reference;
-    let mut selected_case = None;
-    for segment in &subject.path {
-        match segment {
-            CheckedStructuralPredicatePathSegment::Field(identity) => {
-                let field = match selected_case.take() {
-                    Some(case) => unique_path_member(
-                        checked
-                            .data_payload_fields(case)
-                            .iter()
-                            .filter(|field| field.path_identity() == *identity),
-                    )?,
-                    None => unique_path_member(
-                        checked
-                            .data_members(declared_nominal(checked, reference)?)
-                            .iter()
-                            .filter_map(|member| match member {
-                                DataMember::Field(field) if field.path_identity() == *identity => {
-                                    Some(field)
-                                }
-                                _ => None,
-                            }),
-                    )?,
-                };
-                if field.relevance.is_erased() {
-                    return None;
-                }
-                reference = field.type_reference;
-            }
-            CheckedStructuralPredicatePathSegment::Case(identity) => {
-                if selected_case.is_some() {
-                    return None;
-                }
-                selected_case = Some(unique_path_member(
-                    checked
-                        .data_members(declared_nominal(checked, reference)?)
-                        .iter()
-                        .filter_map(|member| match member {
-                            DataMember::Variant(case) if case.path_identity() == *identity => {
-                                Some(case)
-                            }
-                            _ => None,
-                        }),
-                )?);
-            }
-            CheckedStructuralPredicatePathSegment::FixedIndex(index) => {
-                if selected_case.is_some() {
-                    return None;
-                }
-                reference = fixed_element(checked, reference, *index)?;
-            }
-            // Runtime selection requires its own source and evaluation
-            // contract; this declaration-only walk does not supply it.
-            CheckedStructuralPredicatePathSegment::RuntimeIndex(_) => return None,
-        }
-    }
-    if selected_case.is_some() {
-        return None;
-    }
-    Some(reference)
-}
-
-fn unique_path_member<T>(mut members: impl Iterator<Item = T>) -> Option<T> {
-    let member = members.next()?;
-    members.next().is_none().then_some(member)
-}
-
-/// The data declaration a structural type names through references and
-/// constraints. A machine's `Self` names its attached data.
-pub(crate) fn declared_nominal(
-    checked: &CheckedTrees,
-    mut reference: TypeReferenceHandle,
-) -> Option<&DataDefinition> {
-    let mut visited = Vec::new();
-    let (symbol, name) = loop {
-        if !reference.is_valid() || visited.contains(&reference) {
-            return None;
-        }
-        visited.push(reference);
-        match checked.type_reference_table.type_reference(reference) {
-            TypeReferenceNode::Reference { referee, .. }
-            | TypeReferenceNode::Constrained {
-                base_type: referee, ..
-            } => reference = *referee,
-            TypeReferenceNode::Named { symbol, name }
-            | TypeReferenceNode::Generic {
-                base_symbol: symbol,
-                base_name: name,
-                ..
-            } => break (*symbol, name),
-            _ => return None,
-        }
-    };
-    let mut machines = checked.machines().iter().filter(|machine| {
-        symbol.is_valid() && machine.symbol == symbol && machine.attached_data_symbol.is_valid()
-    });
-    let symbol = machines
-        .next()
-        .map_or(symbol, |machine| machine.attached_data_symbol);
-    if machines.next().is_some() {
-        return None;
-    }
-    unique_path_member(checked.data_definitions().iter().filter(|data| {
-        if symbol.is_valid() {
-            data.symbol == symbol
-        } else {
-            data.name == *name
-        }
-    }))
-}
-
-fn fixed_element(
-    checked: &CheckedTrees,
-    mut reference: TypeReferenceHandle,
-    index: u64,
-) -> Option<TypeReferenceHandle> {
-    let mut visited = Vec::new();
-    loop {
-        if !reference.is_valid() || visited.contains(&reference) {
-            return None;
-        }
-        visited.push(reference);
-        match checked.type_reference_table.type_reference(reference) {
-            TypeReferenceNode::Reference { referee, .. }
-            | TypeReferenceNode::Constrained {
-                base_type: referee, ..
-            } => reference = *referee,
-            TypeReferenceNode::FixedArray {
-                element_type,
-                length: FixedArrayLength::Literal(length),
-            } => return (index < u64::try_from(*length).ok()?).then_some(*element_type),
-            _ => return None,
-        }
-    }
 }
 
 /// Walk an authored member/indexed place chain to its root name, rebuilding

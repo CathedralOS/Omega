@@ -10,7 +10,6 @@ use super::{
     StructuralTypeDeclaration, source_custody, terminal_scalar_type, unsupported,
 };
 use checked_trees::expression::ExpressionNode;
-use checked_trees::statement::{StatementNode, TransitionExit, TransitionTargetNode};
 use checked_trees::{CheckedStructuralRankedArgumentPlan, CheckedStructuralRankedSccPlan};
 use terminal_psi::StructuralTypeShape;
 
@@ -280,7 +279,6 @@ pub(super) fn prepare(
 
 /// One SCC member, resolved against its own authored source and witness.
 struct MemberRank<'a> {
-    machine: &'a checked_trees::machine::Machine,
     source: &'a checked_trees::state::State,
 }
 
@@ -333,82 +331,6 @@ fn validate_rank<'a>(
         |state: symbols::SymbolHandle| members.iter().find(|member| member.source.symbol == state);
     if member_lookup(source.symbol).is_none() {
         return unsupported("scalar loop lost its header rank coordinate");
-    }
-
-    fn branch(destination: &CheckedScalarBranchDestination) -> Option<&CheckedScalarSuccessor> {
-        match destination {
-            CheckedScalarBranchDestination::Jump(successor) => Some(successor),
-            _ => None,
-        }
-    }
-    // Source order is authoritative, not retained witness order or emitted
-    // block order. Rejoin every authored backedge before deriving its row;
-    // a transition landing outside the member set leaves the cycle and is not
-    // a covered cyclic edge.
-    for member in &members {
-        let member_row = graph
-            .states
-            .iter()
-            .find(|row| row.state == member.source.symbol)
-            .expect("member row checked above");
-        let successors = match &member_row.terminator {
-            CheckedScalarStateTerminator::Jump(successor) => [Some(successor), None],
-            CheckedScalarStateTerminator::Conditional {
-                when_true,
-                when_false,
-                ..
-            } => [branch(when_true), branch(when_false)],
-            _ => [None, None],
-        };
-        for (statement_ordinal, statement) in checked
-            .statement_table
-            .statements(member.source.statement_nodes)
-            .iter()
-            .enumerate()
-        {
-            let StatementNode::Transition(transition) = statement else {
-                continue;
-            };
-            for (target, is_continuation) in
-                [(transition.target, false), (transition.continuation, true)]
-            {
-                if !target.is_valid() {
-                    continue;
-                }
-                let TransitionTargetNode::Named { path, .. } =
-                    checked.statement_table.transition_target(target)
-                else {
-                    continue;
-                };
-                let normalized = source_custody::successors::normalize_machine_state_target(
-                    checked,
-                    member.machine,
-                    path.symbol,
-                )?;
-                if member_lookup(normalized).is_none() {
-                    continue;
-                }
-                // The existing Nat countdown judgment records primary targets only.
-                // Its guard/decrement proof remains with that owner; do not add a
-                // second syntax recognizer for Boolean wrappers or failed guards.
-                if transition.exit != TransitionExit::Ordinary || is_continuation {
-                    return unsupported("scalar natural rank has an unsupported source edge role");
-                }
-                let statement_ordinal = u32::try_from(statement_ordinal)
-                    .map_err(|_| LoweringError::Unsupported("scalar loop statement exceeds u32"))?;
-                let mut matching = successors.iter().flatten().copied().filter(|successor| {
-                    successor.statement_ordinal == statement_ordinal
-                        && successor.is_continuation == is_continuation
-                        && successor.target == normalized
-                });
-                let _ = matching.next().ok_or(LoweringError::Unsupported(
-                    "scalar natural rank lost an authored successor",
-                ))?;
-                if matching.next().is_some() {
-                    return unsupported("scalar natural rank duplicated an authored successor");
-                }
-            }
-        }
     }
     Ok(())
 }
@@ -678,5 +600,5 @@ fn resolve_member<'a>(
     let IntegerValue::Unsigned(_) = carrier.maximum_value() else {
         return unsupported("scalar natural rank requires an unsigned integer carrier");
     };
-    Ok(MemberRank { machine, source })
+    Ok(MemberRank { source })
 }

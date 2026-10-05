@@ -1392,9 +1392,9 @@ crash and native exit behavior.
     its Linux/Windows rows record rejection; rerun there.
   - **Stage 05 storage-read custody.** Unverified whether still red:
     `samples/cli/basics/temperature_convert`, `samples/cli/arithmetic/vector_distance` and
-    `samples/cli/arithmetic/sensor_min_max` stopped in
-    `omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/expression_preparation/source_custody/storage_reads/mod.rs`
-    ("scalar read differs from its authored binding or mutable place"). Two
+    `samples/cli/arithmetic/sensor_min_max` stopped at stage 05's storage-read
+    check ("scalar read differs from its authored binding or mutable place"),
+    which is deleted; rerun them to find the next frontier. Two
     reductions: a state doing `self.console.write_line("start"); self.celsius = 20.0;
     self.fahrenheit = self.celsius * 1.8 + 32.0;` whose successor guards on
     `self.fahrenheit`, and `self.nums[0] = 20.5; self.lo = self.nums[0];` in one
@@ -1686,9 +1686,11 @@ check corpus and the native corpus unchanged on the slices it names.
   carry. The validators that only re-confirmed a row against its source are
   deleted. What remains:
   - `omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/expression_preparation/source_custody/`
-    (5.3k lines): structural operand and place lookups, parameter storage,
-    primitive references and dispatch subjects;
-  - `.../src/emission/call_source_custody/` (3.1k lines): the nested call
+    (3.9k lines): structural operand and place lookups, parameter storage,
+    primitive references, computation calls and constructed values (the
+    control readers moved: dispatch subject kinds and dispatch call roles
+    are plan rows, guarded exits come from the plan's arm ordinals);
+  - `.../src/emission/call_source_custody/` (2.7k lines): the nested call
     occurrence walk, named terminal arguments and projected receivers.
 
   Calls already show the pattern: `FlowCallFact` carries each call's
@@ -1702,8 +1704,8 @@ check corpus and the native corpus unchanged on the slices it names.
   affine operands); those refusals stay until the route items admit the
   shapes. Then add a source-scanning guard in stage 05 that lists the few
   files allowed to read `statement_table`, `expression_table`,
-  `StatementNode::` or `ExpressionNode::`; today there are 850 such
-  references across 81 files. Acceptance: both modules are gone, the guard
+  `StatementNode::` or `ExpressionNode::`; today there are 777 such
+  references across 505 files. Acceptance: both modules are gone, the guard
   passes, and the full check corpus and the native corpus are unchanged.
 
 - **STAGE05-PLAN-REVALIDATION-DELETED.** (new-scope) Depends on

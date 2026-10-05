@@ -46,8 +46,7 @@ pub(super) fn validate(
                     ..
                 },
             ..
-        } => super::cases::computed_subject(checked, source, state, *binding_ordinal)?
-            .map(|(_, call)| call),
+        } => super::cases::computed_subject(state, *binding_ordinal)?,
         _ => None,
     }
     .filter(|call| call.coordinate.statement_index as usize == end);

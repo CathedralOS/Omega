@@ -34,26 +34,22 @@ pub(super) fn result(
 /// dispatch: the anonymous result the dispatch's first arm mints and every
 /// case edge consumes. It names no local and has no permission rows.
 fn computed_case_subject(
-    checked: &CheckedTrees,
-    statements: &[StatementNode],
     state: &CheckedComposedUnitControlStatePlan,
     result: &checked_trees::CheckedUnitStructuralResultBindingPlan,
 ) -> bool {
     matches!(
         &state.terminator,
-        checked_trees::CheckedComposedUnitControlTerminatorPlan::ClosedSum { subject, .. }
-            if matches!(
-                subject.source,
-                checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-                    binding_ordinal,
-                } if binding_ordinal == result.binding_ordinal
-            )
-    ) && crate::expression_preparation::source_custody::dispatch_subjects::evaluated_case_subject(
-        checked,
-        statements,
-        result.statement_index as usize,
+        checked_trees::CheckedComposedUnitControlTerminatorPlan::ClosedSum {
+            subject,
+            subject_kind: checked_trees::CheckedClosedSumSubjectKind::Computed,
+            ..
+        } if matches!(
+            subject.source,
+            checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                binding_ordinal,
+            } if binding_ordinal == result.binding_ordinal
+        )
     )
-    .is_some()
 }
 
 /// Which role an authored local plays in an owned-selection receipt, if any.
@@ -490,7 +486,7 @@ pub(super) fn local_discards(
         // The case edges that consume a computed dispatch subject leave from
         // its own statement; the edge emitter removes it from their roster.
         let mut authored_local = None;
-        if !computed_case_subject(checked, statements, state, result) {
+        if !computed_case_subject(state, result) {
             let Some(StatementNode::LocalData(local)) =
                 statements.get(result.statement_index as usize)
             else {

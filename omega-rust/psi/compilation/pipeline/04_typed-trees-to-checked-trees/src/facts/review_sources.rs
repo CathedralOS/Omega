@@ -10,7 +10,7 @@ use typed_trees::TypedTrees;
 use crate::lookup::{
     call_receiver_parts, resolve_state_call_target, statement_call_receiver_members,
 };
-use crate::semantic::calls::{CallSite, collect_call_sites_in_statement};
+use crate::semantic::calls::{CallSite, collect_call_sites_in_statement, dispatch_subjects};
 use checked_trees::{FlowCallResult, FlowCallSite};
 use typed_trees::statement::StatementNode;
 
@@ -58,18 +58,31 @@ pub(crate) fn bind_checked_body_call_source_spans(
                 checked_state.state_symbol, checked_state.machine_symbol,
             ))]);
         };
-        let mut call_sites_by_statement =
-            std::collections::HashMap::<usize, Vec<crate::semantic::calls::CallSite<'_>>>::new();
+        let mut call_sites_by_statement = std::collections::HashMap::<
+            usize,
+            (
+                Vec<crate::semantic::calls::CallSite<'_>>,
+                dispatch_subjects::StatementDispatchCalls,
+            ),
+        >::new();
+        let statements = program.statement_table.statements(state.statement_nodes);
         let control = &mut flow.control;
         for checked_call in control.calls.span_mut_or_empty(checked_state.calls) {
-            let call_sites = call_sites_by_statement
+            let (call_sites, dispatch_calls) = call_sites_by_statement
                 .entry(checked_call.statement_index)
                 .or_insert_with(|| {
-                    collect_call_sites_in_statement(
-                        program,
-                        machine,
-                        state,
-                        checked_call.statement_index,
+                    (
+                        collect_call_sites_in_statement(
+                            program,
+                            machine,
+                            state,
+                            checked_call.statement_index,
+                        ),
+                        dispatch_subjects::statement_dispatch_calls(
+                            program,
+                            statements,
+                            checked_call.statement_index,
+                        ),
                     )
                 });
             let Some(call_site) = call_sites.get(checked_call.call_ordinal).copied() else {
@@ -139,6 +152,8 @@ pub(crate) fn bind_checked_body_call_source_spans(
             checked_call.authored_closing_invocation =
                 matches!(call_site, CallSite::TransitionNamed { .. })
                     && closing_invocation(program, state, checked_call.statement_index);
+            checked_call.authored_dispatch_role =
+                dispatch_calls.role(checked_call.authored_expression);
             checked_call.authored_site = site;
             checked_call.authored_target = target;
             checked_call.authored_arguments = control

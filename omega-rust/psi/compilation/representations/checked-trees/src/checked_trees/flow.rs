@@ -45,7 +45,7 @@ pub use self::terminal::{
     CheckedByteSequenceStoreDestination, CheckedByteSequenceStorePlan, CheckedByteSequenceValue,
     CheckedByteSequenceValuePlan, CheckedByteSequenceWritePlan, CheckedCallScalarArgument,
     CheckedClaimFreeAffineStructuralReturnMachinePlan, CheckedClosedSumCaseOutcomePlan,
-    CheckedClosedSumCasePlan, CheckedClosedSumPayloadTransferPlan,
+    CheckedClosedSumCasePlan, CheckedClosedSumPayloadTransferPlan, CheckedClosedSumSubjectKind,
     CheckedComposedUnitControlMachinePlan, CheckedComposedUnitControlStatePlan,
     CheckedComposedUnitControlTerminatorPlan, CheckedConditionalReturnArm,
     CheckedControlResultPlan, CheckedElementViewWritePlan, CheckedFusedServiceErasureReceipt,
@@ -105,9 +105,9 @@ pub use borrow_lifetimes::{
 pub use boundaries::FlowBoundaryEdgeFact;
 pub use contexts::{FlowConstraintKind, FlowConstraintRef, FlowSemanticContextRef};
 pub use control::{
-    FlowCallFact, FlowCallResult, FlowCallSite, FlowExitFact, FlowExitParameterOrigin,
-    FlowOperatorInvocationFact, FlowStateFact, FlowStateOutgoingFact, FlowStatementFact,
-    RetiredFlowCall,
+    FlowCallDispatchRole, FlowCallFact, FlowCallResult, FlowCallSite, FlowExitFact,
+    FlowExitParameterOrigin, FlowOperatorInvocationFact, FlowStateFact, FlowStateOutgoingFact,
+    FlowStatementFact, RetiredFlowCall,
 };
 pub use dynamic_scalar_calls::{
     CheckedDynamicBinding, CheckedDynamicBindingKind, CheckedDynamicDescriptorTransferEdge,

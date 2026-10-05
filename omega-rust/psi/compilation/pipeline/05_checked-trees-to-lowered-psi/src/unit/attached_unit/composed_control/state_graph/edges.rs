@@ -14,7 +14,7 @@ use super::{
 };
 use checked_trees::expression::ExpressionNode;
 use checked_trees::statement::{
-    StatementNode, TableTransition, TransitionExit, TransitionGuardNode, TransitionTargetNode,
+    StatementNode, TableTransition, TransitionExit, TransitionTargetNode,
 };
 
 pub(in crate::unit::attached_unit::composed_control) fn successors(
@@ -490,188 +490,11 @@ pub(super) fn validate_bindings(
             validate_projected_loan_source(checked, source, state, *expression, subject)?;
             continue;
         }
-        if let checked_trees::CheckedStructuralControlTransferSourcePlan::CasePayload {
-            subject,
-            field_identity,
-            ..
-        } = &transfer.source
+        // A case payload transfer names its subject, case and field in the
+        // plan; the edge emitter copies that field from the selected case.
+        if let checked_trees::CheckedStructuralControlTransferSourcePlan::CasePayload { .. } =
+            &transfer.source
         {
-            // The edge's case test selects this case; the declared payload
-            // field feeds the target's owned custody with its own type and
-            // multiplicity, and the authored operand is the case-qualified
-            // member of that field on the very subject the guard tests.
-            let TransitionGuardNode::When(guard) = transition.guard else {
-                return unsupported("Unit graph case-payload edge lacks a case test");
-            };
-            let Some((tested, variant_symbol)) = super::cases::case_test(checked, guard) else {
-                return unsupported("Unit graph case-payload guard lost its case test");
-            };
-            let Some((_, variant)) = checked.data_definitions().iter().find_map(|data| {
-                checked.data_members(data).iter().find_map(|member| {
-                    let checked_trees::data::DataMember::Variant(variant) = member else {
-                        return None;
-                    };
-                    (variant.symbol == variant_symbol).then_some((data, variant))
-                })
-            }) else {
-                return unsupported("Unit graph case-payload case is missing");
-            };
-            let Some(field) = checked
-                .data_payload_fields(variant)
-                .iter()
-                .find(|field| field.path_identity() == *field_identity)
-            else {
-                return unsupported("Unit graph case-payload field is missing");
-            };
-            // Resolve the same declared root whether the case arrived as a
-            // parameter or was returned by an earlier operation. Result
-            // identity alone is not evidence: rejoin its authored local and
-            // establishment custody before reading its payload.
-            let (root_symbol, mut reference, root_identity) = match subject.source {
-                checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
-                    parameter_index,
-                } => {
-                    let retained = state
-                        .structural_parameters
-                        .get(parameter_index as usize)
-                        .ok_or(LoweringError::Unsupported(
-                            "Unit graph case-payload subject missing",
-                        ))?;
-                    let parameter = source_parameters.get(retained.position as usize).ok_or(
-                        LoweringError::Unsupported("Unit graph case-payload parameter missing"),
-                    )?;
-                    (
-                        parameter.symbol,
-                        parameter.type_reference,
-                        retained.type_identity.as_str(),
-                    )
-                }
-                checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-                    binding_ordinal,
-                } => {
-                    let result = state
-                        .operations
-                        .iter()
-                        .filter_map(result_custody::result)
-                        .find(|result| result.binding_ordinal == binding_ordinal)
-                        .ok_or(LoweringError::Unsupported(
-                            "Unit graph case-payload result missing",
-                        ))?;
-                    let Some(StatementNode::LocalData(local)) = checked
-                        .statement_table
-                        .statements(source.statement_nodes)
-                        .get(result.statement_index as usize)
-                    else {
-                        return unsupported("Unit graph case-payload result local missing");
-                    };
-                    if local.is_mutable {
-                        return unsupported("Unit graph case-payload result local is mutable");
-                    }
-                    (
-                        local.symbol,
-                        local.type_reference,
-                        result.type_identity.as_str(),
-                    )
-                }
-                _ => return unsupported("Unit graph case-payload subject unsupported"),
-            };
-            let mut tested_root = tested;
-            let mut tested_fields = Vec::new();
-            while let ExpressionNode::Member(member) =
-                checked.expression_table.expression(tested_root)
-            {
-                if member.case_variant.is_some() {
-                    return unsupported(
-                        "Unit graph case-payload subject has an unproven case projection",
-                    );
-                }
-                tested_fields.push(member);
-                tested_root = member.receiver;
-            }
-            let Some(mut owner) = nominal_owner(checked, reference) else {
-                return unsupported("Unit graph case-payload subject is not nominal");
-            };
-            for (position, (segment, tested_field)) in subject
-                .path
-                .iter()
-                .zip(tested_fields.iter().rev())
-                .enumerate()
-            {
-                let checked_trees::CheckedUnitStructuralPathSegment::Field(identity) = segment
-                else {
-                    return unsupported("Unit graph case-payload path is not a member walk");
-                };
-                let Some(member) = checked.data_members(owner).iter().find_map(|member| {
-                    let checked_trees::data::DataMember::Field(field) = member else {
-                        return None;
-                    };
-                    // A typed `self` field is a receiver-view symbol; the
-                    // attached owner's field is resolved by its member name.
-                    ((field.symbol == tested_field.member_symbol
-                        || (position == 0
-                            && root_symbol == plan.machine
-                            && field.name == tested_field.member))
-                        && field
-                            .identity
-                            .map(|position| format!("#{position}"))
-                            .unwrap_or_else(|| field.name.as_str().to_owned())
-                            == *identity)
-                        .then_some(field)
-                }) else {
-                    return unsupported("Unit graph case-payload path field is missing");
-                };
-                reference = member.type_reference;
-                let Some(next) = nominal_owner(checked, reference) else {
-                    return unsupported("Unit graph case-payload path is not nominal");
-                };
-                owner = next;
-            }
-            // The recorded identity uses the checked parameter's canonical
-            // spelling for a bare subject — attached `self` names the
-            // machine's nominal type in the typed table — and the peeled
-            // leaf's normalized identity under a member projection.
-            let replayed_identity = if subject.path.is_empty() {
-                root_identity.to_owned()
-            } else {
-                while let checked_trees::types::TypeReferenceNode::Constrained {
-                    base_type, ..
-                }
-                | checked_trees::types::TypeReferenceNode::Reference {
-                    referee: base_type,
-                    ..
-                } = checked.type_reference_table.type_reference(reference)
-                {
-                    reference = *base_type;
-                }
-                checked.normalized_type_identity(reference).into_string()
-            };
-            if replayed_identity != subject.type_identity
-                || !checked.data_members(owner).iter().any(|member| {
-                    matches!(
-                        member,
-                        checked_trees::data::DataMember::Variant(variant)
-                            if variant.symbol == variant_symbol
-                    )
-                })
-            {
-                return unsupported("Unit graph case-payload subject is not the tested sum");
-            }
-            let argument_position = target.position as usize;
-            let expression = arguments
-                .get(argument_position)
-                .ok_or(LoweringError::Unsupported(
-                    "Unit graph case-payload argument missing",
-                ))?;
-            match checked.expression_table.expression(*expression) {
-                ExpressionNode::Member(member)
-                    if member.member == field.name
-                        && member.case_variant.as_ref().map(|v| v.as_str())
-                            == Some(variant.name.as_str())
-                        && checked
-                            .expression_table
-                            .expressions_structurally_equal(tested, member.receiver) => {}
-                _ => return unsupported("Unit graph case-payload argument lost its binding"),
-            }
             continue;
         }
         if matches!(
@@ -1141,45 +964,4 @@ fn validate_projected_loan_source(
         expression,
     )?;
     Ok(())
-}
-
-/// The data declaration a member path walks from its root type: borrows and
-/// constraint ascriptions peel away to the owned data shape, and `Self`
-/// resolves to the enclosing machine's attached data.
-fn nominal_owner(
-    checked: &CheckedTrees,
-    mut reference: checked_trees::types::TypeReferenceHandle,
-) -> Option<&checked_trees::data::DataDefinition> {
-    loop {
-        match checked.type_reference_table.type_reference(reference) {
-            checked_trees::types::TypeReferenceNode::Reference { referee, .. } => {
-                reference = *referee;
-            }
-            checked_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
-                reference = *base_type;
-            }
-            checked_trees::types::TypeReferenceNode::Named { symbol, .. } => {
-                if let Some(data) = checked
-                    .data_definitions()
-                    .iter()
-                    .find(|data| data.symbol == *symbol)
-                {
-                    return Some(data);
-                }
-                // `Self` resolves to the enclosing machine's
-                // attachment, not the data declaration itself.
-                return checked
-                    .machines()
-                    .iter()
-                    .find(|machine| machine.symbol == *symbol)
-                    .and_then(|machine| {
-                        checked
-                            .data_definitions()
-                            .iter()
-                            .find(|data| data.symbol == machine.attached_data_symbol)
-                    });
-            }
-            _ => return None,
-        }
-    }
 }

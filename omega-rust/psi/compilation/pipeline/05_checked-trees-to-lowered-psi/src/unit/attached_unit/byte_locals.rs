@@ -34,11 +34,6 @@ pub(crate) fn validate(
             return unsupported("literal return is not the authored completion");
         }
         _ => {
-            crate::expression_preparation::source_custody::guarded_exits::completion_expression(
-                checked,
-                authored,
-                result.statement_index as usize,
-            )?;
             // A completion literal is either an owned bounded carrier or a
             // shared byte view — the view's literal rides image storage just
             // like a `let s: &[u8] = "ab";` local does.

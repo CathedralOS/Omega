@@ -32,7 +32,8 @@ pub(super) fn prepare<'a>(
     operations: &OperationBuffer,
     next_value: &mut u64,
 ) -> Result<Option<PreparedCases<'a>>, LoweringError> {
-    let CheckedComposedUnitControlTerminatorPlan::ClosedSum { subject, cases } = &state.terminator
+    let CheckedComposedUnitControlTerminatorPlan::ClosedSum { subject, cases, .. } =
+        &state.terminator
     else {
         return Ok(None);
     };

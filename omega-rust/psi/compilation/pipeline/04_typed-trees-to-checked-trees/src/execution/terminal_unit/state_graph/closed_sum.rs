@@ -623,7 +623,14 @@ pub(super) fn build(
     if found != (needs_discard && matches!(dispatch, DispatchSubject::Place(_))) {
         return None;
     }
-    Some(CheckedComposedUnitControlTerminatorPlan::ClosedSum { subject, cases })
+    Some(CheckedComposedUnitControlTerminatorPlan::ClosedSum {
+        subject,
+        subject_kind: match dispatch {
+            DispatchSubject::Place(_) => checked_trees::CheckedClosedSumSubjectKind::Place,
+            DispatchSubject::Computed(_) => checked_trees::CheckedClosedSumSubjectKind::Computed,
+        },
+        cases,
+    })
 }
 
 /// The sum a closed dispatch inspects.

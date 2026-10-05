@@ -54,6 +54,9 @@ pub struct FlowCallFact {
     /// selected (not static-parameter) target. A linear operation roster may
     /// sequence exactly this invocation; a guarded arm's runs in its arm.
     pub authored_closing_invocation: bool,
+    /// The part this occurrence plays in a closed-case dispatch whose subject
+    /// is a call.
+    pub authored_dispatch_role: FlowCallDispatchRole,
     pub receiver_symbol: SymbolHandle,
     pub target_symbol: SymbolHandle,
     pub has_receiver: bool,
@@ -106,6 +109,25 @@ pub enum FlowCallResult {
     Discarded,
     /// The whole initializer of an immutable local, which names the result.
     ImmutableLocal,
+}
+
+/// The part one [`FlowCallFact`] plays in a closed-case dispatch over a
+/// computed subject. The parser copies the dispatch's call into every arm's
+/// guard and payload read; the language evaluates it once, at the first arm
+/// (wiki/spec/language/expressions.md, "Transition dispatch").
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum FlowCallDispatchRole {
+    /// A call outside any copy of a computed dispatch subject, including a
+    /// call inside the evaluated subject itself.
+    #[default]
+    Ordinary,
+    /// The computed subject's one evaluation, at the dispatch's first arm.
+    SubjectEvaluation,
+    /// A copy of the subject in a guard or payload read, or a call inside
+    /// such a copy. It keeps the ordinal the checker numbers it with but
+    /// reads the saved result: nothing runs and its arguments do not run
+    /// again.
+    SavedSubjectRead,
 }
 
 /// Coordinate of a [`FlowCallFact`] whose authored call selected execution

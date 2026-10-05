@@ -3,8 +3,6 @@ use super::super::super::super::CheckedComposedUnitControlTerminatorPlan;
 use super::super::super::{CheckedUnitEffectOperationPlan, Multiplicity, unsupported};
 use super::super::{CheckedTrees, LoweringError};
 use super::{CheckedComposedUnitControlMachinePlan, CheckedComposedUnitControlStatePlan, edges};
-pub(super) use crate::expression_preparation::source_custody::dispatch_subjects::case_test;
-use crate::expression_preparation::source_custody::dispatch_subjects::repeats_subject;
 use checked_trees::data::DataMember;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use checked_trees::statement::{StatementNode, TransitionGuardNode};
@@ -21,36 +19,40 @@ fn root(
             && checked.expression_table.name_path_members(path.members).len() == 1)
 }
 
-/// The sum a Unit case dispatch reads, reconstructed from source.
+/// The sum a Unit case dispatch reads.
 #[derive(Clone, Copy)]
 enum CaseSubject {
     /// A parameter or an earlier immutable local, named by every arm.
     Place(symbols::SymbolHandle),
     /// The dispatch's one authored call, evaluated once at the first arm's
-    /// statement. Every arm's guard subject and payload receiver is a parser
-    /// copy of it: the same call and arguments carrying the same authored
-    /// selection occurrence.
-    Computed(ExpressionHandle),
+    /// statement; every other copy of it reads that one result.
+    Computed,
 }
 
 impl CaseSubject {
     fn place(self) -> Option<symbols::SymbolHandle> {
         match self {
             Self::Place(symbol) => Some(symbol),
-            Self::Computed(_) => None,
+            Self::Computed => None,
         }
     }
 }
 
-/// The computed subject a case dispatch's result binding holds: the call
-/// planned at the first arm's own statement, whose authored source is that
-/// arm's guard subject. `None` when the binding is not that call.
-pub(super) fn computed_subject<'plan>(
-    checked: &CheckedTrees,
-    source: &checked_trees::state::State,
-    state: &'plan CheckedComposedUnitControlStatePlan,
+/// The call whose result a computed case dispatch holds: the call planned for
+/// the dispatch subject's binding. `None` when the dispatch inspects a place.
+pub(super) fn computed_subject(
+    state: &CheckedComposedUnitControlStatePlan,
     binding_ordinal: u32,
-) -> Result<Option<(ExpressionHandle, &'plan checked_trees::CheckedUnitCallPlan)>, LoweringError> {
+) -> Result<Option<&checked_trees::CheckedUnitCallPlan>, LoweringError> {
+    if !matches!(
+        state.terminator,
+        CheckedComposedUnitControlTerminatorPlan::ClosedSum {
+            subject_kind: checked_trees::CheckedClosedSumSubjectKind::Computed,
+            ..
+        }
+    ) {
+        return Ok(None);
+    }
     let mut calls = state.operations.iter().filter_map(|operation| {
         let call = operation.call()?;
         (call.structural_result()?.binding_ordinal == binding_ordinal).then_some(call)
@@ -61,41 +63,12 @@ pub(super) fn computed_subject<'plan>(
     if calls.next().is_some() {
         return unsupported("Unit case subject call is duplicated");
     }
-    let Some(result) = call.structural_result() else {
-        return Ok(None);
-    };
-    let statements = checked.statement_table.statements(source.statement_nodes);
-    if !matches!(
-        statements.get(result.statement_index as usize),
-        Some(StatementNode::Transition(_))
-    ) {
-        return Ok(None);
+    // As for a named structural result, this composed dispatch does not
+    // settle boundary claim transfers.
+    if call.is_boundary() && !call.claim_transfers().is_empty() {
+        return unsupported("Unit case subject call transfers boundary claims");
     }
-    let subject =
-        crate::expression_preparation::source_custody::dispatch_subjects::evaluated_case_subject(
-            checked,
-            statements,
-            result.statement_index as usize,
-        )
-        .ok_or(LoweringError::Unsupported(
-            "Unit case subject call has no computed case test",
-        ))?;
-    let located = crate::call_sites::locate(checked, state.state, call.coordinate)?;
-    // The subject's placement does not change call authority: body replay
-    // validates its exact boundary target, receiver, buffers and occurrence
-    // through the ordinary call admission. As for a named structural result,
-    // this composed dispatch does not settle boundary claim transfers.
-    if (call.is_boundary() && !call.claim_transfers().is_empty())
-        || call.coordinate.statement_index != result.statement_index
-        || call.coordinate.call_ordinal != 0
-        || located.source_site != Some(checked_trees::NominalMachineUseSite::Expression(subject))
-        || statements[..result.statement_index as usize]
-            .iter()
-            .any(|statement| matches!(statement, StatementNode::Transition(_)))
-    {
-        return unsupported("Unit case subject call is not the dispatch's first authored subject");
-    }
-    Ok(Some((subject, call)))
+    Ok(Some(call))
 }
 
 fn result_source<'a>(
@@ -138,16 +111,14 @@ fn result_source<'a>(
         }
         checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
             binding_ordinal,
-        } if let Some((subject_expression, call)) =
-            computed_subject(checked, source, state, binding_ordinal)? =>
-        {
+        } if let Some(call) = computed_subject(state, binding_ordinal)? => {
             if call.structural_result().is_none() {
                 return unsupported("Unit case subject call lost its result");
             }
             let signature =
                 crate::declarations::target_signature(checked, machine, call.target.state)?;
             (
-                CaseSubject::Computed(subject_expression),
+                CaseSubject::Computed,
                 signature.return_type,
                 language_semantics::PermissionProvenance::Unknown,
             )
@@ -357,7 +328,8 @@ pub(super) fn validate(
     tail: &[StatementNode],
     ordinal: usize,
 ) -> Result<(), LoweringError> {
-    let CheckedComposedUnitControlTerminatorPlan::ClosedSum { subject, cases } = &state.terminator
+    let CheckedComposedUnitControlTerminatorPlan::ClosedSum { subject, cases, .. } =
+        &state.terminator
     else {
         return unsupported("Unit case terminator missing");
     };
@@ -491,7 +463,6 @@ pub(super) fn validate(
         }
         _ => None,
     };
-    let mut subject_reads = Vec::new();
     let declared = checked.data_members(declaration);
     let mut previous_case_order = None;
     let mutable_reference_result =
@@ -575,55 +546,20 @@ pub(super) fn validate(
         let StatementNode::Transition(transition) = statement else {
             return unsupported("Unit case tail contains an effect");
         };
-        let (tested_subject, variant) = match transition.guard {
-            TransitionGuardNode::When(guard) => {
-                let (tested, variant_symbol) = case_test(checked, guard).ok_or(
-                    LoweringError::Unsupported("Unit case guard lost its source identity"),
-                )?;
-                let variant = declared
-                    .iter()
-                    .find_map(|member| match member {
-                        DataMember::Variant(variant) if variant.symbol == variant_symbol => {
-                            Some(variant)
-                        }
-                        _ => None,
-                    })
-                    .ok_or(LoweringError::Unsupported(
-                        "Unit case guard names another sum",
-                    ))?;
-                (Some(tested), variant)
-            }
-            TransitionGuardNode::Always if source_offset + 1 == tail.len() => {
-                let variant = declared
-                    .iter()
-                    .find_map(|member| match member {
-                        DataMember::Variant(variant)
-                            if variant.path_identity() == case.case_identity =>
-                        {
-                            Some(variant)
-                        }
-                        _ => None,
-                    })
-                    .ok_or(LoweringError::Unsupported(
-                        "Unit case fallback names absent case",
-                    ))?;
-                if tail[..source_offset]
-                    .iter()
-                    .any(|statement| match statement {
-                        StatementNode::Transition(transition) => match transition.guard {
-                            TransitionGuardNode::When(guard) => case_test(checked, guard)
-                                .is_some_and(|(_, selected)| selected == variant.symbol),
-                            _ => true,
-                        },
-                        _ => true,
-                    })
-                {
-                    return unsupported("Unit case fallback overlaps an earlier case");
+        let variant = declared
+            .iter()
+            .find_map(|member| match member {
+                DataMember::Variant(variant) if variant.path_identity() == case.case_identity => {
+                    Some(variant)
                 }
-                (None, variant)
-            }
+                _ => None,
+            })
+            .ok_or(LoweringError::Unsupported("Unit case names an absent case"))?;
+        match transition.guard {
+            TransitionGuardNode::When(_) => {}
+            TransitionGuardNode::Always if source_offset + 1 == tail.len() => {}
             _ => return unsupported("Unit case guard is not an exact case test"),
-        };
+        }
         let declaration_position = declared.iter().position(|member| {
             matches!(member, DataMember::Variant(candidate) if candidate.symbol == variant.symbol)
         }).ok_or(LoweringError::Unsupported("Unit case declaration position missing"))?;
@@ -632,9 +568,6 @@ pub(super) fn validate(
             return unsupported("Unit case roster no longer follows authored dispatch order");
         }
         previous_case_order = Some(order);
-        if let Some(tested) = tested_subject {
-            subject_reads.push(tested);
-        }
         if let checked_trees::CheckedClosedSumCaseOutcomePlan::Return(
             checked_trees::CheckedConditionalReturnArm::Call {
                 operands,
@@ -652,40 +585,6 @@ pub(super) fn validate(
                 operands,
                 operation,
             )?;
-            if let CaseSubject::Computed(subject) = dispatch_subject {
-                let checked_trees::statement::TransitionTargetNode::Named { arguments, .. } =
-                    checked.statement_table.transition_target(transition.target)
-                else {
-                    return unsupported("terminal payload call lost its authored arguments");
-                };
-                let mut pending = checked
-                    .statement_table
-                    .expression_handles(*arguments)
-                    .to_vec();
-                let mut visited = Vec::new();
-                while let Some(expression) = pending.pop() {
-                    if !checked.expression_table.expression_is_valid(expression)
-                        || visited.contains(&expression)
-                    {
-                        continue;
-                    }
-                    visited.push(expression);
-                    if let ExpressionNode::Member(member) =
-                        checked.expression_table.expression(expression)
-                        && repeats_subject(checked, subject, member.receiver)
-                    {
-                        subject_reads.push(member.receiver);
-                        // This receiver observes the saved result. Traversing
-                        // its call operands would count a second evaluation.
-                        continue;
-                    }
-                    validation::expression_traversal::children(
-                        &checked.typed,
-                        checked.expression_table.expression(expression),
-                        |child| pending.push(child),
-                    );
-                }
-            }
             super::result_custody::local_discards(checked, owner, source, state, None)?;
             continue;
         }
@@ -756,18 +655,11 @@ pub(super) fn validate(
                 .ok_or(LoweringError::Unsupported(
                     "Unit case payload argument position invalid",
                 ))?;
-            let argument = arguments
+            arguments
                 .get(argument_position)
                 .ok_or(LoweringError::Unsupported(
                     "Unit case payload source missing",
                 ))?;
-            // A computed subject's payload is read through the parser's
-            // case-qualified member of a subject copy.
-            if let ExpressionNode::Member(member) = checked.expression_table.expression(*argument)
-                && let CaseSubject::Computed(_) = dispatch_subject
-            {
-                subject_reads.push(member.receiver);
-            }
         }
         edges::validate_bindings(
             checked,
@@ -788,40 +680,6 @@ pub(super) fn validate(
             .any(|case| case.statement_ordinal() as usize == ordinal + offset)
     }) {
         return unsupported("Unit case omitted an authored arm");
-    }
-    if let CaseSubject::Computed(subject) = dispatch_subject {
-        // Every flow row that copies the subject at the dispatch is read from
-        // its one evaluation: the subject itself, a guard's subject, or a
-        // transferred payload's receiver. Any other copy would be a second
-        // evaluation the dispatch cannot account for.
-        let mut flow_states = checked
-            .facts
-            .flow
-            .control
-            .states
-            .iter()
-            .filter(|(_, flow)| {
-                flow.machine_symbol == plan.machine && flow.state_symbol == state.state
-            });
-        let (Some((_, flow)), None) = (flow_states.next(), flow_states.next()) else {
-            return unsupported("Unit case computed subject has no exact flow state");
-        };
-        if checked
-            .facts
-            .flow
-            .control
-            .calls
-            .span_or_empty(flow.calls)
-            .iter()
-            .filter(|call| call.statement_index >= ordinal)
-            .filter(|call| repeats_subject(checked, subject, call.authored_expression))
-            .any(|call| {
-                call.authored_expression != subject
-                    && !subject_reads.contains(&call.authored_expression)
-            })
-        {
-            return unsupported("Unit case computed subject is evaluated outside its dispatch");
-        }
     }
     Ok(())
 }

@@ -736,21 +736,11 @@ impl Evaluation {
                 }
             }
             CheckedScalarStateTerminator::Guarded { arms, fallback } => {
-                crate::expression_preparation::source_custody::guarded_exits::validate(
+                let arms = crate::unit::attached_unit::scalar_completion::control::returning_exits(
                     checked,
-                    state,
                     *arms,
                     fallback.as_ref(),
                 )?;
-                let arms = checked
-                    .facts
-                    .flow
-                    .terminal_scalar_graphs
-                    .guarded_exits
-                    .span(*arms)
-                    .ok_or(LoweringError::Unsupported(
-                        "ordered scalar guard roster is stale",
-                    ))?;
                 let mut dispatches = Vec::with_capacity(arms.len());
                 for guard in arms.iter() {
                     dispatches.push(self.payload_case_dispatch(

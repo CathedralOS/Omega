@@ -8,15 +8,15 @@
 //! What remains:
 //!
 //! - `parameter_storage`, `borrowed_parameter_custody`, `primitive_references`,
-//!   `structural_places`, `dispatch_subjects` and `view_ranges` answer storage,
-//!   borrow, place and dispatch questions from the authored source.
+//!   `structural_places` and `view_ranges` answer storage, borrow and place
+//!   questions from the authored source.
 //! - Some children still refuse shapes stage 05 cannot lower. Those refusals
 //!   stay until the route items admit the shapes; the validators that only
 //!   re-confirmed a plan row against its source are gone.
 
-use super::{CheckedScalarExpressionRole, CheckedTrees, LoweringError, PrimitiveType, unsupported};
+use super::{CheckedTrees, LoweringError, PrimitiveType, unsupported};
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
-use checked_trees::statement::{StatementNode, TransitionGuardNode};
+use checked_trees::statement::StatementNode;
 
 // Reads, storage and borrows: the authored binding, parameter, place or
 // record field a scalar read names, the current state's mutable entry
@@ -24,7 +24,6 @@ use checked_trees::statement::{StatementNode, TransitionGuardNode};
 pub(crate) mod borrow_occurrences;
 mod parameters;
 pub(crate) mod primitive_references;
-mod storage_reads;
 pub(crate) mod structural_places;
 
 // Calls and selected comparisons: computed invocations, the checked flow
@@ -42,13 +41,6 @@ pub(crate) mod enum_equality;
 pub(crate) mod structural;
 pub(crate) mod value_correspondence;
 pub(crate) mod view_ranges;
-
-// Control: successor rosters, ordered guarded exits, complementary guard
-// pairs, and the subject a closed-case dispatch tests.
-pub(crate) mod dispatch_subjects;
-pub(crate) mod guard_complement;
-pub(crate) mod guarded_exits;
-pub(crate) mod successors;
 
 pub(crate) use parameters::{borrowed_parameter_custody, parameter_storage};
 

@@ -1,8 +1,8 @@
-//! Reconstruct the authored tail independently of the producer's completion.
-//! Prefix coverage and selected return roles prevent a plausible Boolean value
-//! from authorizing swapped arms, omitted statements, or a different return.
+//! The returning tail of a scalar completion. Stage 04 plans the tail's
+//! exits; this reads the statement prefix they begin after and refuses an
+//! exit roster the completion has no route for, such as an ordered arm that
+//! transfers or crashes instead of returning.
 use super::{CheckedTrees, LoweringError, StatementNode, unsupported};
-use checked_trees::statement::{TransitionExit, TransitionGuardNode};
 use checked_trees::{CheckedScalarBranchDestination, CheckedScalarStateTerminator};
 
 /// Completion is independent of how a body establishes its prefix values.
@@ -44,10 +44,10 @@ fn validate_signature_and_exits(
     validate_exits(checked, state_symbol, control)
 }
 
-/// Rejoin one state's value-only exit roster with its complete authored tail
-/// and return the prefix length the roster begins after. Shared by the
-/// ordinary single-state completion above and a state graph's `ReturnScalar`
-/// states, which own their own signature checks.
+/// Read one state's value-only exit roster and return the prefix length the
+/// roster begins after. Shared by the ordinary single-state completion above
+/// and a state graph's `ReturnScalar` states, which own their own signature
+/// checks.
 pub(crate) fn validate_exits(
     checked: &CheckedTrees,
     state_symbol: symbols::SymbolHandle,
@@ -58,12 +58,7 @@ pub(crate) fn validate_exits(
             unconditional(checked, state_symbol, *statement_ordinal)?
         }
         CheckedScalarStateTerminator::Guarded { arms, fallback } => {
-            crate::expression_preparation::source_custody::guarded_exits::validate(
-                checked,
-                state_symbol,
-                *arms,
-                fallback.as_ref(),
-            )?
+            returning_exits(checked, *arms, fallback.as_ref())?[0].guard_statement_ordinal as usize
         }
         CheckedScalarStateTerminator::Conditional { .. } => {
             conditional(checked, state_symbol, control)?
@@ -71,6 +66,45 @@ pub(crate) fn validate_exits(
         _ => return unsupported("ordered scalar completion requires a returning tail"),
     };
     Ok(prefix)
+}
+
+/// The ordered guarded exits of a returning scalar tail, as stage 04 planned
+/// them. Every arm and the fallback return a value; an ordered roster that
+/// transfers or crashes has no route through the scalar completion.
+pub(crate) fn returning_exits<'checked>(
+    checked: &'checked CheckedTrees,
+    arms: arena::HandleSpan<checked_trees::CheckedScalarGuardedExit>,
+    fallback: Option<&CheckedScalarBranchDestination>,
+) -> Result<&'checked [checked_trees::CheckedScalarGuardedExit], LoweringError> {
+    let arms = checked
+        .facts
+        .flow
+        .terminal_scalar_graphs
+        .guarded_exits
+        .span(arms)
+        .ok_or(LoweringError::Unsupported(
+            "ordered scalar guard roster is stale",
+        ))?;
+    if arms.is_empty() {
+        return unsupported("ordered scalar guard roster is empty");
+    }
+    if arms
+        .iter()
+        .map(|arm| &arm.destination)
+        .chain(fallback)
+        .any(|destination| {
+            !matches!(
+                destination,
+                CheckedScalarBranchDestination::Return {
+                    is_continuation: false,
+                    ..
+                }
+            )
+        })
+    {
+        return unsupported("ordered scalar exit transfers or crashes instead of returning");
+    }
+    Ok(arms)
 }
 
 fn unconditional(
@@ -111,33 +145,12 @@ fn conditional(
     let tail = statements.get(prefix..).ok_or(LoweringError::Unsupported(
         "ordered scalar completion has an absent guard statement",
     ))?;
-    let Some(StatementNode::Transition(guard)) = tail.first() else {
+    let Some(StatementNode::Transition(_)) = tail.first() else {
         return unsupported("ordered scalar completion has no authored guard");
     };
-    let CheckedScalarBranchDestination::Return {
-        is_continuation, ..
-    } = when_false
-    else {
+    let CheckedScalarBranchDestination::Return { .. } = when_false else {
         return unsupported("ordered scalar completion must retain a returning false arm");
     };
-    // A guarded fallback must be the guard's resolved complement.
-    if let [
-        StatementNode::Transition(_),
-        StatementNode::Transition(fallback),
-        ..,
-    ] = tail
-        && !*is_continuation
-        && !guard.continuation.is_valid()
-        && !fallback.continuation.is_valid()
-        && fallback.exit == TransitionExit::Ordinary
-        && fallback.guard != TransitionGuardNode::Always
-    {
-        crate::expression_preparation::source_custody::guard_complement::complementary(
-            checked,
-            state_symbol,
-            *guard_statement_ordinal,
-        )?;
-    }
     for destination in [when_true, when_false] {
         let CheckedScalarBranchDestination::Return { .. } = destination else {
             return unsupported("ordered scalar completion cannot replace an authored transfer");

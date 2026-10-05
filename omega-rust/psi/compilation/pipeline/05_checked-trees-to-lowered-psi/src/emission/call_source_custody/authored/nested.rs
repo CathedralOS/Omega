@@ -5,7 +5,6 @@ use super::{
     unsupported,
 };
 use crate::declarations::target_signature;
-use crate::expression_preparation::source_custody::dispatch_subjects;
 use checked_trees::statement::{TransitionGuardNode, TransitionTargetHandle, TransitionTargetNode};
 
 /// Postorder execution position while retaining the original preorder identity.
@@ -77,11 +76,6 @@ fn authored_execution(
         ))?;
     let mut pending = Vec::new();
     let mut next_ordinal = 0_u32;
-    // A closed-case dispatch over a computed subject evaluates its call once,
-    // at the first arm. Every other copy of that call in the dispatch is a
-    // read of the one result: it keeps the ordinal the checker numbers it
-    // with, but it is no call occurrence and its arguments do not run again.
-    let mut dispatch_subject = ExpressionHandle::invalid();
     let (statement_root, outer_expression) = match statement {
         StatementNode::Call(call) => {
             validate_static_receiver(
@@ -162,19 +156,11 @@ fn authored_execution(
             let mut seeds = Vec::new();
             let mut outer = ExpressionHandle::invalid();
             if let TransitionGuardNode::When(guard) = transition.guard {
-                if let Some(subject) = dispatch_subjects::computed_case_subject(checked, guard) {
-                    dispatch_subject = subject;
-                    if dispatch_subjects::evaluated_case_subject(
-                        checked,
-                        statements,
-                        statement_index as usize,
-                    ) == Some(subject)
-                    {
-                        outer = subject;
-                    }
-                } else {
-                    outer = guard;
-                }
+                // A closed-case dispatch over a computed subject evaluates
+                // its call once, at the first arm: that call is the outer
+                // evaluation of the first arm's statement.
+                outer = evaluated_dispatch_subject(checked, caller_state, statement_index)
+                    .unwrap_or(guard);
                 seeds.push(Walk::Enter(guard, true));
             }
             for target in [transition.target, transition.continuation] {
@@ -217,10 +203,6 @@ fn authored_execution(
     };
     let table = &checked.expression_table;
     let mut active = Vec::new();
-    // Descendants of a saved-subject copy retain authored call coordinates,
-    // but none is another evaluation. The depth ends this reservation at the
-    // copied subtree's exit, before independently authored sibling operands.
-    let mut saved_subject_depth = None;
     let mut calls = Vec::new();
     let mut order = Vec::new();
     let mut selection_depth = 0_usize;
@@ -236,9 +218,6 @@ fn authored_execution(
             }
             Walk::Enter(expression, direct_argument) => (expression, direct_argument),
             Walk::Exit(ordinal) => {
-                if saved_subject_depth == Some(active.len()) {
-                    saved_subject_depth = None;
-                }
                 active.pop();
                 if let Some(ordinal) = ordinal {
                     order.push((ordinal, selection_depth == 0));
@@ -282,16 +261,26 @@ fn authored_execution(
         active.push(expression);
         let mut children = Vec::new();
         let mut selected_children = Vec::new();
+        // Every other copy of a computed dispatch subject, and every call
+        // inside such a copy, reads the one saved result. Stage 04 marks its
+        // flow row: it keeps the ordinal the checker numbers it with, but it
+        // is no call occurrence and its arguments do not run again.
+        let saved_read = matches!(table.expression(expression), ExpressionNode::Call(_))
+            && checked
+                .facts
+                .flow
+                .control
+                .call_at(
+                    caller_state,
+                    statement_index as usize,
+                    next_ordinal as usize,
+                )
+                .is_some_and(|call| {
+                    call.authored_dispatch_role
+                        == checked_trees::FlowCallDispatchRole::SavedSubjectRead
+                });
         let ordinal = match table.expression(expression) {
-            ExpressionNode::Call(call)
-                if saved_subject_depth.is_some()
-                    || (dispatch_subjects::repeats_subject(
-                        checked,
-                        dispatch_subject,
-                        expression,
-                    ) && !(next_ordinal == 0 && expression == outer_expression)) =>
-            {
-                saved_subject_depth.get_or_insert(active.len());
+            ExpressionNode::Call(call) if saved_read => {
                 let arguments = table.expression_handles(call.arguments);
                 if arguments.len() != call.arguments.count() as usize {
                     return unsupported("saved subject call has an invalid argument span");
@@ -554,6 +543,30 @@ pub(in crate::emission::call_source_custody) fn validate_static_receiver(
         return Ok(());
     }
     unsupported("nested call root receiver is not its exact static namespace")
+}
+
+/// The computed case subject statement `statement_index` evaluates, as the
+/// flow row stage 04 marked as that subject's one evaluation.
+fn evaluated_dispatch_subject(
+    checked: &CheckedTrees,
+    state: SymbolHandle,
+    statement_index: u32,
+) -> Option<ExpressionHandle> {
+    let control = &checked.facts.flow.control;
+    let (_, flow) = control
+        .states
+        .iter()
+        .find(|(_, candidate)| candidate.state_symbol == state)?;
+    control
+        .calls
+        .span_or_empty(flow.calls)
+        .iter()
+        .find(|call| {
+            call.statement_index == statement_index as usize
+                && call.authored_dispatch_role
+                    == checked_trees::FlowCallDispatchRole::SubjectEvaluation
+        })
+        .map(|call| call.authored_expression)
 }
 
 /// One step of the authored occurrence walk.

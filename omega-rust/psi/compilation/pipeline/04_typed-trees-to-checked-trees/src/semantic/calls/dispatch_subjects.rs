@@ -65,3 +65,78 @@ pub(crate) fn evaluated_case_subject(
     }))
     .then_some(subject)
 }
+
+/// The dispatch roles of the calls one transition statement spells: the
+/// computed subject it evaluates when it is the dispatch's first arm, and
+/// every call that reads the saved result instead of running, which is each
+/// copy of the subject in its guard or arm and each call inside such a copy.
+#[derive(Default)]
+pub(crate) struct StatementDispatchCalls {
+    pub(crate) evaluation: ExpressionHandle,
+    pub(crate) saved_reads: Vec<ExpressionHandle>,
+}
+
+impl StatementDispatchCalls {
+    /// The role of the call expression `expression` in this statement.
+    pub(crate) fn role(&self, expression: ExpressionHandle) -> checked_trees::FlowCallDispatchRole {
+        if !expression.is_valid() {
+            checked_trees::FlowCallDispatchRole::Ordinary
+        } else if expression == self.evaluation {
+            checked_trees::FlowCallDispatchRole::SubjectEvaluation
+        } else if self.saved_reads.contains(&expression) {
+            checked_trees::FlowCallDispatchRole::SavedSubjectRead
+        } else {
+            checked_trees::FlowCallDispatchRole::Ordinary
+        }
+    }
+}
+
+/// Classify the calls statement `index` spells against the computed case
+/// subject its guard tests. A statement whose guard tests no computed subject
+/// spells only ordinary calls.
+pub(crate) fn statement_dispatch_calls(
+    program: &TypedTrees,
+    statements: &[StatementNode],
+    index: usize,
+) -> StatementDispatchCalls {
+    let mut calls = StatementDispatchCalls::default();
+    let Some(statement @ StatementNode::Transition(transition)) = statements.get(index) else {
+        return calls;
+    };
+    let TransitionGuardNode::When(guard) = transition.guard else {
+        return calls;
+    };
+    let Some(subject) = computed_case_subject(program, guard) else {
+        return calls;
+    };
+    if evaluated_case_subject(program, statements, index) == Some(subject) {
+        calls.evaluation = subject;
+    }
+    let table = &program.expression_table;
+    let mut pending = program
+        .statement_table
+        .expression_roots(statement)
+        .into_iter()
+        .map(|(_, root)| (root, false))
+        .collect::<Vec<_>>();
+    let mut visited = Vec::new();
+    while let Some((expression, inside_copy)) = pending.pop() {
+        if !table.expression_is_valid(expression) || visited.contains(&(expression, inside_copy)) {
+            continue;
+        }
+        visited.push((expression, inside_copy));
+        let node = table.expression(expression);
+        let copy = inside_copy
+            || (expression != calls.evaluation && repeats_subject(program, subject, expression));
+        if copy
+            && matches!(node, ExpressionNode::Call(_))
+            && !calls.saved_reads.contains(&expression)
+        {
+            calls.saved_reads.push(expression);
+        }
+        validation::expression_traversal::children(program, node, |child| {
+            pending.push((child, copy));
+        });
+    }
+    calls
+}
