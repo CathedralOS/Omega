@@ -1860,18 +1860,11 @@ crash and native exit behavior.
     declared float ranges nor dominating guards). Unverified:
     `float/float_to_int_exact_proofs_exit` executes at 78 on macOS ARM64 but
     its Linux/Windows rows record rejection; rerun there.
-  - **Stage 05 storage-read custody.** Unverified whether still red:
-    `samples/cli/basics/temperature_convert`, `samples/cli/arithmetic/vector_distance` and
-    `samples/cli/arithmetic/sensor_min_max` stopped at stage 05's storage-read
-    check ("scalar read differs from its authored binding or mutable place"),
-    which is deleted; rerun them to find the next frontier. Two
-    reductions: a state doing `self.console.write_line("start"); self.celsius = 20.0;
-    self.fahrenheit = self.celsius * 1.8 + 32.0;` whose successor guards on
-    `self.fahrenheit`, and `self.nums[0] = 20.5; self.lo = self.nums[0];` in one
-    state. `samples/gui/{window_demo,windowed_calculator}` stopped at a borrowed
-    byte-array element argument and `samples/gui/window_app` at a structural field
-    store destination parameter. Float field/index store admission already
-    exists in `.../04_typed-trees-to-checked-trees/src/execution/terminal_unit/structural_scalar_store/value.rs`.
+  - **GUI sample stores.** `samples/gui/{window_demo,windowed_calculator}`
+    stopped at a borrowed byte-array element argument and
+    `samples/gui/window_app` at a structural field store destination
+    parameter; rerun them on Windows now that stage 05's storage-read check is
+    deleted.
   - **Specialized providers.** Retain the exact closed requirement, provider
     instance, static tuple and application occurrence through selected-plan
     settlement into native realization
