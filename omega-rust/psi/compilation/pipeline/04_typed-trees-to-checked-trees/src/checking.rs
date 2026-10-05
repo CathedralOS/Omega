@@ -4,13 +4,16 @@
 //! `lower_typed_trees` is the one entrance; a `CheckingRequest` names the
 //! package checkpoint (preliminary or settled) and carries source admission
 //! evidence. Only the test-only crash-inspection mode omits crash admission.
+//!
+//! Every request checks its program afresh. An exact-input memo once served
+//! repeated checks of an equal program; only package review's passes ever
+//! hit it, so it was deleted rather than kept as a second path to a
+//! judgment.
 
 pub(crate) mod call_acknowledgements;
 mod default_domain_zero;
 mod deferred_constants;
-mod exact_input_memo;
 mod opaque_property_receipts;
-pub use exact_input_memo::{RepeatedCheckRetention, retain_repeated_checks};
 pub(crate) mod program_validation;
 
 use crate::checking::program_validation::prepare_typed_program;
@@ -23,8 +26,8 @@ use checked_trees::CheckedTrees;
 /// Standalone programs and package builds
 /// share it: ordinary package selections stay strict while unresolved
 /// compiler-owned toolchain selections remain TCB input. A package build supplies
-/// its declaration authority, which this stage checks before returning either
-/// a fresh or memoized result. `preliminary()` is the pre-settlement checkpoint: unresolved
+/// its declaration authority, which this stage checks before returning the
+/// result. `preliminary()` is the pre-settlement checkpoint: unresolved
 /// selections are retained only for compiler-owned toolchain source, pending
 /// opaque-copy evidence and deferred const array lengths/range endpoints are
 /// tolerated; supplied package authority still rejects unresolved ordinary-package
@@ -35,7 +38,9 @@ use checked_trees::CheckedTrees;
 /// capability assertions, or provider-selection policy.
 #[derive(Clone, Copy)]
 pub struct CheckingRequest<'a> {
-    mode: CheckingMode,
+    /// The pre-settlement checkpoint: deferred constants and pending opaque
+    /// `[copy]` claims are tolerated.
+    admits_pending_inputs: bool,
     asm_authority: Option<validation::AsmAuthorityAdmission>,
     opaque_property_receipts: &'a [validation::OpaqueDataPropertyReceipt],
     declaration_authority: Option<&'a dyn validation::DeclarationSelectionAuthority>,
@@ -43,9 +48,9 @@ pub struct CheckingRequest<'a> {
 }
 
 impl<'a> CheckingRequest<'a> {
-    const fn with_mode(mode: CheckingMode) -> Self {
+    const fn at_checkpoint(admits_pending_inputs: bool) -> Self {
         Self {
-            mode,
+            admits_pending_inputs,
             asm_authority: None,
             opaque_property_receipts: &[],
             declaration_authority: None,
@@ -55,12 +60,12 @@ impl<'a> CheckingRequest<'a> {
 
     /// The final package checkpoint without invocation-owned admission evidence.
     pub const fn settled() -> Self {
-        Self::with_mode(CheckingMode::Settled)
+        Self::at_checkpoint(false)
     }
 
     /// The pre-settlement package checkpoint.
     pub const fn preliminary() -> Self {
-        Self::with_mode(CheckingMode::Preliminary)
+        Self::at_checkpoint(true)
     }
 
     /// Request privileged-instruction admission under the evaluated build.
@@ -135,9 +140,8 @@ pub fn lower_typed_trees(
         &program,
         request.wire_compatibility_demands,
     )?;
-    // Input completeness belongs to this stage, including when an otherwise
-    // equal preliminary result could serve this request from the memo.
-    if request.mode != CheckingMode::Preliminary {
+    // Input completeness belongs to this stage.
+    if !request.admits_pending_inputs {
         deferred_constants::require_evaluated_constants(&program)?;
     }
     if let Some(authority) = request.asm_authority {
@@ -148,21 +152,9 @@ pub fn lower_typed_trees(
     let opaque_property_receipts =
         opaque_property_receipts::for_source_instances(&program, request.opaque_property_receipts);
     let request = request.with_opaque_property_receipts(&opaque_property_receipts);
-    let key = exact_input_memo::RequestKey {
-        mode: request.mode,
-        opaque_property_receipts: request.opaque_property_receipts.to_vec(),
-    };
-    let shared_judgment = exact_input_memo::checked(program, key, |program| {
-        lower_typed_trees_uncached(program, &request)
-    });
-    // The memo hands back a share of the one judgment it holds. This caller
-    // owns what it returns, so it takes custody here: the share is the only
-    // one outstanding when the memo retained nothing, and the copy happens
-    // once at this boundary otherwise.
-    let checked = std::sync::Arc::unwrap_or_clone(shared_judgment)?;
-    // Package authority is invocation-owned, not part of the cached language
-    // judgment. Always admit the returned selections under the current caller's
-    // authority, including when an identical typed program hits the memo.
+    let checked = check_program(program, &request)?;
+    // Package authority is invocation-owned, not part of the language
+    // judgment: admit the returned selections under the caller's authority.
     if let Some(authority) = request.declaration_authority {
         let mut sibling_occurrences = crate::target_sibling_selection_occurrences(&checked);
         sibling_occurrences.extend(crate::build_program::descriptor_selection_occurrences(
@@ -177,15 +169,13 @@ pub fn lower_typed_trees(
     Ok(checked)
 }
 
-/// The check itself, over a program the exact-input memo may also be
-/// retaining. Custody is taken at the first mutation below: a program nothing
-/// retains is checked in place, and a retained one is copied exactly once.
-fn lower_typed_trees_uncached(
-    program: std::sync::Arc<typed_trees::TypedTrees>,
+/// The check itself, over a program `lower_typed_trees` has found complete.
+fn check_program(
+    mut program: typed_trees::TypedTrees,
     request: &CheckingRequest<'_>,
 ) -> Result<CheckedTrees, Vec<diagnostics::Diagnostic>> {
     let CheckingRequest {
-        mode,
+        admits_pending_inputs,
         opaque_property_receipts,
         declaration_authority: _,
         asm_authority: _,
@@ -201,7 +191,6 @@ fn lower_typed_trees_uncached(
     // concrete machine here. Validation permits unused template bodies but the
     // generic-value-call fence still rejects any emitted concrete caller whose
     // callee remains generic (an incomplete specialization).
-    let mut program = std::sync::Arc::unwrap_or_clone(program);
     // Projected statement receivers retain their lexical root before their
     // field endpoint is known. Resolve both call forms before specialization
     // and effect inference, not only when finalizing authored selections.
@@ -313,11 +302,8 @@ fn lower_typed_trees_uncached(
     // closes before authored-selection finalization rewrites call targets.
     let frozen_program_scope = validation::enter_frozen_program_scope(&program);
     crate::monomorphization::validate_selected_attached_method_bounds(&program)?;
-    let mut validated = prepare_typed_program(
-        &program,
-        opaque_property_receipts,
-        mode.allows_pending_opaque_copy(),
-    )?;
+    let mut validated =
+        prepare_typed_program(&program, opaque_property_receipts, admits_pending_inputs)?;
     // Caller-visible mutation summaries depend only on the immutable typed
     // program and the borrow facts assembled once here. Fact construction, the
     // direct-borrow resource closures, and the independent check replay all
@@ -387,21 +373,6 @@ fn lower_typed_trees_uncached(
     let checked = CheckedTrees::with_roots(program, facts);
     validation::validate_boundary_calls(&checked)?;
     Ok(checked)
-}
-
-/// These are distinct checking checkpoints, not freely combinable permissions.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum CheckingMode {
-    /// The pre-settlement package checkpoint.
-    Preliminary,
-    /// The final package checkpoint after provider settlement.
-    Settled,
-}
-
-impl CheckingMode {
-    fn allows_pending_opaque_copy(self) -> bool {
-        matches!(self, Self::Preliminary)
-    }
 }
 
 /// Bind exact PDI3 operation/algebra authority and refresh every enclosing

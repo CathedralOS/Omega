@@ -61,8 +61,8 @@ mod product_pruning;
 pub use build_program::{project_build_program, project_selected_program};
 
 pub use checking::{
-    CheckingRequest, RepeatedCheckRetention, lower_typed_trees, normalize_open_index_identities,
-    retain_repeated_checks, specialize_static_machine_calls,
+    CheckingRequest, lower_typed_trees, normalize_open_index_identities,
+    specialize_static_machine_calls,
 };
 pub use checks::derive_contract_entailment_exit_membership_discharges;
 

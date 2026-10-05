@@ -1925,18 +1925,6 @@ the validation `src/` (written `omega-rust/psi/compilation/checking/src/`) unles
   generic-value-call fence and call-contract diagnostics are unchanged; corpus
   `--filter generics,operators,traits/` unchanged.
 
-- **ONE-CHECKING-MODE.** (new-scope) `CheckingMode` Preliminary and Settled
-  differ only in tolerating pending opaque `[copy]` claims and deferred
-  constants (`omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checking.rs`).
-  `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checking/exact_input_memo.rs` exists because the same
-  program is checked at both checkpoints and by package-review passes; its
-  preliminary-to-settled patching and executed-check counters serve only
-  package review. Replace the mode with an opaque-copy parameter and delete
-  the memo unless a measured compile-time admission probe still needs it
-  (record the measurement in the commit).
-  Acceptance: one checking entry; the memo's review-only counters are gone;
-  `omega --check` time on `samples/cli/basics/cli_mvp` does not regress.
-
 - **CHECK-ONCE-ACROSS-TARGETS.** (new-scope) The driver re-checks the whole
   program for each selected target
   (`omega-rust/omega/compilation/driver/src/checked/checking/execution_settlement.rs`
@@ -2059,20 +2047,6 @@ before starting; paths drift. Each item lands alone with the cited corpus
 slice unchanged (check plus `--native` where the code is backend-visible).
 Re-checking stays allowed at trust boundaries; these items remove repetition
 of a check the same flow already performed, not the check itself.
-
-- **CHECK-MEMO-PROGRAM-CLONES.** (new-scope) Stage 04's exact-input memo
-  (`omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checking/exact_input_memo.rs`)
-  still materializes one whole `CheckedTrees` copy
-  (`Result::clone(&entry.result)`) when a settled request is served a
-  preliminary judgment: the served judgment carries the settled program's
-  `boundary_calling_plans`, while the retained preliminary judgment keeps the
-  identities its own checkpoint stamped. Removing the copy needs that masked
-  field to leave `CheckedTrees.typed` (a `checked-trees` representation
-  change); moving the masking rule into `lower_typed_trees` instead would
-  split the memo's contract across two files. Acceptance: the masked field no
-  longer travels inside the retained judgment, and memo hit/miss counts over
-  corpus `--filter providers/` (`OMEGA_CORPUS_JOBS=1 OMEGA_LOWER_MEMO=1`;
-  parallel jobs make the counts order-dependent) match the parent commit.
 
 - **CHECKED-LEDGER-VERIFY-ONCE.** (new-scope) Stage 05's
   `omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/machine_lowering/checked_ledger.rs::verify`
@@ -2403,6 +2377,22 @@ lands alone with its corpus slice unchanged and no fallback path.
   `project_checked_package_review` and the ledger module are gone; review
   command output for the package corpus is unchanged apart from removed
   legacy-only rows, which are listed in the commit.
+
+- **REVIEW-BOUND-PASS-RECHECKS.** (new-scope) Package review's bound pass
+  (`omega-rust/omega/packages/package-manager/src/review/candidate/compilation.rs`)
+  recompiles every occurrence whose inputs the discovered semantic bindings
+  touch and checks typed programs the discovery pass already checked; the
+  exact-input memo used to serve those repeats and is gone. On macOS ARM64
+  (debug build), `OMEGA_REVIEW_TIMINGS=1 omega update --project <copy of
+  samples/cli/basics/cli_mvp> --target macos_arm64 --offline` reports
+  `occurrences=2 compiled=2 settled_checks=4` for both the discovery and the
+  bound pass (`carried=0`), and the update takes 280 s where the memo made it
+  157 s. Bindings choose providers after the language judgment; let the bound
+  pass keep an occurrence's checked trees when the bindings leave its typed
+  program unchanged and redo only the binding-dependent settlement.
+  Acceptance: the bound pass reports `settled_checks=0` for an occurrence
+  whose typed program is unchanged, and review output for that command is
+  unchanged.
 
 - **REVIEW-CACHE-PLAIN-DECODE.** (new-scope) Depends on
   **REVIEW-SINGLE-PROJECTION**.
