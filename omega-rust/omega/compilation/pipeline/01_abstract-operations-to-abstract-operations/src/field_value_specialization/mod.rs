@@ -20,11 +20,16 @@
 //! A `Case` then `Field` pair descends an `EstablishCase` the same way into
 //! the payload child it stores whole, for exactly the case it establishes —
 //! the structural-case establishment `Wrap { inner: Inner { .. } }` proves
-//! `source.Wrap.inner` reads. Case-payload copy: the place a `Case
-//! { payload }` arm binding mints is a `StructuralLeafCopy` of its source
-//! at a case-qualified projection; it holds exactly the source's contents
-//! there, so the projection prefixes the remaining path and the source's
-//! own chain decides the proof. Ordinary-projection copies decline.
+//! `source.Wrap.inner` reads. Leaf copy: the place a `Case
+//! { payload }` arm binding or an ordinary field projection mints is a
+//! `StructuralLeafCopy` of its source at that projection; it holds exactly
+//! the source's contents there, so the projection prefixes the remaining
+//! path and the source's own chain decides the proof. Case-qualified
+//! projections carry verifier handles directly; an ordinary projection
+//! first resolves each spelled field identity to the reached roster's
+//! verifier handle — a name absent from the roster, a non-structural field
+//! carrier, and every segment with no canonical step leave the copy
+//! uncrossed.
 //! Bound establishment: a `StructuralPlaceKind::BlockParameter` place holds
 //! no producer of its own, but when every incoming edge binds it to the
 //! same place through a whole `Owned`/`SharedBorrow` argument and nothing

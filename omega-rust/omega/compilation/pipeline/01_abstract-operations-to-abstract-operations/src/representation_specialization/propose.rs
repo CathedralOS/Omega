@@ -7,10 +7,11 @@
 //! structural children stored by an `EstablishRecord`, through `Case` then
 //! `Field` descents into the payload child an `EstablishCase` stores whole
 //! for exactly the case it establishes, through the uniform block-parameter
-//! binding every incoming edge spells whole, or through a case-payload
-//! `StructuralLeafCopy` whose canonical projection prefixes the path still
-//! to resolve beneath its source — proves the selected case at its
-//! position permanently. An
+//! binding every incoming edge spells whole, or through a
+//! `StructuralLeafCopy` whose projection — case-qualified steps directly,
+//! ordinary field identities resolved to their roster handles — prefixes
+//! the path still to resolve beneath its source — proves the selected case
+//! at its position permanently. An
 //! `EstablishZeroedStructural` establishment selects each admissible sum's
 //! first declared case at every position of its storage: the verifier
 //! admits it only on zero-constructible shapes, so the remaining `Field`,

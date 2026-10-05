@@ -11,8 +11,9 @@ use super::{
     FieldValueResolution, FieldValueRow, FoldedFieldValue, NodeLocation, O, OperationId, PlaceId,
     PsiOptimizationFunction, PsiOptimizationUnit, ScalarType, StructuralPlaceKind,
 };
-use crate::representation_specialization::admission::{bound_place, declared_structural_type};
-use abstract_operations::StructuralCopyPath;
+use crate::representation_specialization::admission::{
+    bound_place, declared_structural_type, leaf_copy_projection,
+};
 use optimization_unit::{
     ForwardedFieldValue, OptimizationBlock, OptimizationNode, ValueDefinition, ValueDefinitionSite,
 };
@@ -516,7 +517,11 @@ enum EstablishmentScalar {
 /// non-operation-result place, and every other producer leave the nested
 /// position unproven. A place with no producer of its own — a block
 /// parameter — crosses only into the one place every incoming edge binds
-/// it to whole when nothing rewrites or mutably re-lends it. The caller
+/// it to whole when nothing rewrites or mutably re-lends it; a
+/// `StructuralLeafCopy` result crosses into its source with the copy's
+/// projection — canonical steps directly, ordinary field identities
+/// resolved to their roster handles — prefixed to the path still to
+/// resolve. The caller
 /// decides what an initializer proves — a literal fold when it resolves to
 /// a same-function constant, a use substitution when it does not.
 fn establishment_scalar(
@@ -529,8 +534,9 @@ fn establishment_scalar(
     let mut place = evidence.declaration.id;
     let mut producer = evidence.root_producer;
     let mut declared = evidence.root_type;
-    // Owned because a case-payload copy prepends its own projection to the
-    // path still to resolve beneath its source.
+    // Owned because a leaf copy prepends its own projection — canonical
+    // steps directly, ordinary field identities resolved to roster handles
+    // — to the path still to resolve beneath its source.
     let mut segments = path.to_vec();
     let mut visiting = BTreeSet::from([place]);
     loop {
@@ -636,23 +642,26 @@ fn establishment_scalar(
                 segments.drain(..1);
             }
             (RootProducer::None, _) => {
-                // A case-payload copy — the place a `Case { payload }` arm
-                // binding mints — holds exactly its source's contents at the
-                // copied projection: the copy is fresh storage of an
+                // A leaf copy — the case-payload place a `Case { payload }`
+                // arm binding mints, or an ordinary projection's fresh leaf
+                // — holds exactly its source's contents at the copied
+                // projection: the copy is fresh storage of an
                 // `Unrestricted` or owned non-reference leaf, and the source
                 // resolves only through establishments and uniform bindings
                 // nothing rewrites. The copy's projection therefore prefixes
-                // the path still to resolve beneath its source, and the
-                // source's own chain decides the proof; a source that
-                // establishes a different case declines at the `Case` step.
-                if let Some((source, copied)) = case_payload_copy(function, place) {
+                // the path still to resolve beneath its source — canonical
+                // steps directly, ordinary field identities after resolving
+                // each to its roster's verifier handle — and the source's
+                // own chain decides the proof; a source that establishes a
+                // different case declines at the `Case` step.
+                if let Some((source, copied)) = leaf_copy_projection(unit, function, place) {
                     let declaration = function
                         .structural_places
                         .iter()
                         .find(|declaration| declaration.id == source)?;
                     let source_type = declared_structural_type(function, declaration)?;
                     let mut position = Position::Type(source_type);
-                    for segment in copied {
+                    for segment in &copied {
                         position = position.descend(unit, segment)?;
                     }
                     if !matches!(position, Position::Type(landed) if Some(landed) == declared) {
@@ -941,41 +950,6 @@ fn case_structural_child(
                     && argument.access == terminal_psi::StructuralAccess::Owned =>
             {
                 Some(argument.place)
-            }
-            _ => None,
-        })
-}
-
-/// The source place and case-qualified projection of the
-/// `StructuralLeafCopy` that produces `place`, or `None` when `place` is not
-/// that copy's operation result or the copy's projection is ordinary.
-/// Ordinary copies decline: their field steps name identities rather than
-/// the verifier field handles this family's canonical paths carry, so
-/// crossing one needs its own identity-to-handle resolution first.
-fn case_payload_copy(
-    function: &PsiOptimizationFunction,
-    place: PlaceId,
-) -> Option<(PlaceId, &[CanonicalStructuralPathSegment])> {
-    let StructuralPlaceKind::OperationResult { producer, .. } = function
-        .structural_places
-        .iter()
-        .find(|declaration| declaration.id == place)?
-        .kind
-    else {
-        return None;
-    };
-    function
-        .blocks
-        .iter()
-        .flat_map(|block| &block.nodes)
-        .find_map(|node| match &node.operation {
-            O::StructuralLeafCopy {
-                psi_operation,
-                result,
-                source,
-                path: StructuralCopyPath::Case(path),
-            } if *psi_operation == producer && result.place == place => {
-                Some((*source, path.as_slice()))
             }
             _ => None,
         })

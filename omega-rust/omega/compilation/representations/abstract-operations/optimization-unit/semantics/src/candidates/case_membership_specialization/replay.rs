@@ -6,8 +6,9 @@
 //! through `Field` descents across owned, complete structural children
 //! under an `EstablishRecord` or through `Case` then `Field` descents into
 //! the payload child an `EstablishCase` stores whole, a chain reached
-//! through a uniform block-parameter binding or a case-payload
-//! `StructuralLeafCopy` whose canonical projection prefixes the path still
+//! through a uniform block-parameter binding or a `StructuralLeafCopy`
+//! whose projection — case-qualified steps directly, ordinary field
+//! identities resolved to roster handles — prefixes the path still
 //! to resolve, an `EstablishZeroedStructural` producer
 //! whose all-zero storage selects the first declared case at every
 //! position of a zero-constructible shape, or a declared closed
@@ -19,6 +20,7 @@
 
 use crate::candidates::state_specialization::cyclic_machines;
 use crate::candidates::structural_bindings::bound_place;
+use crate::candidates::structural_copies::{canonicalize_ordinary_path, leaf_copy_source};
 use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite, validate_psi_optimization_unit};
 use abstract_operations::AbstractOperation as O;
 use abstract_operations::StructuralCopyPath;
@@ -141,10 +143,11 @@ fn establishment_producer(
 
 /// One unresolved path segment inside `established_case_at`: either a
 /// name-spelled segment of the observation's own path or a verifier-handle
-/// `CanonicalStructuralPathSegment` a case-payload `StructuralLeafCopy`
-/// spliced in from its case-qualified projection. The observation's own
-/// path never spells a `Case` step — `StructuralPathSegment` has none — so
-/// a case-qualified descent appears only under a copy crossing.
+/// `CanonicalStructuralPathSegment` a `StructuralLeafCopy` spliced in from
+/// its projection — a case-qualified path directly, an ordinary path after
+/// its field identities resolve to roster handles. The observation's own
+/// path never spells a `Case` step, so a case-qualified descent appears
+/// only under a copy crossing.
 #[derive(Debug, Clone, Copy)]
 enum PathStep<'a> {
     Ordinary(&'a StructuralPathSegment),
@@ -161,8 +164,9 @@ enum PathStep<'a> {
 /// stores whole for exactly the case it establishes, and a block parameter
 /// — which holds no producer of its own — crosses only into the one place
 /// every incoming edge binds it to whole when nothing rewrites or mutably
-/// re-lends it. A case-payload `StructuralLeafCopy` result crosses into
-/// its source with the copy's canonical projection prefixed to the path
+/// re-lends it. A `StructuralLeafCopy` result crosses into its source with
+/// the copy's projection — canonical steps directly, ordinary field
+/// identities resolved to their roster handles — prefixed to the path
 /// still to resolve. `FixedIndex`, `RuntimeIndex`, `FixedByteRange`, and
 /// `Referent` segments never cross a record or variant establishment: an
 /// `EstablishScalarArray` element is not a placed child. A zeroed
@@ -179,8 +183,9 @@ fn established_case_at(
     let mut place = declaration.id;
     let mut producer = establishment_producer(function, declaration);
     let mut declared = declared_structural_type(function, declaration);
-    // Owned because a case-payload copy prepends its own canonical
-    // projection to the path still to resolve beneath its source.
+    // Owned because a leaf copy prepends its own canonical projection —
+    // case-qualified steps directly, ordinary field identities resolved to
+    // roster handles — to the path still to resolve beneath its source.
     let mut segments: Vec<PathStep> = path.iter().map(PathStep::Ordinary).collect();
     let mut visiting = BTreeSet::from([place]);
     loop {
@@ -285,28 +290,36 @@ fn established_case_at(
                 segments.drain(..1);
             }
             (Establishment::None, _) => {
-                // A case-payload copy — the place a `Case { payload }` arm
-                // binding mints — holds exactly its source's contents at
-                // the copied projection: the copy is fresh storage of an
+                // A leaf copy — the case-payload place a `Case { payload }`
+                // arm binding mints, or an ordinary projection's fresh leaf
+                // — holds exactly its source's contents at the copied
+                // projection: the copy is fresh storage of an
                 // `Unrestricted` or owned non-reference leaf, and the
                 // source resolves only through establishments and uniform
                 // bindings nothing rewrites. The copy's canonical
                 // projection therefore prefixes the path still to resolve
                 // beneath its source, and the source's own chain decides
                 // the proof; a source that establishes a different case
-                // declines at the `Case` step. Ordinary copies still
-                // decline: their field steps are identity strings rather
-                // than the verifier field handles canonical steps carry,
-                // so crossing one needs its own identity-to-handle
-                // resolution first.
-                if let Some((source, copied)) = case_payload_copy(function, place) {
+                // declines at the `Case` step. Ordinary projections spell
+                // field identities, so the crossing first resolves each
+                // name to its roster's verifier handle; a name absent from
+                // the reached roster, a non-structural field carrier, and
+                // every segment with no canonical step leave the copy
+                // uncrossed.
+                if let Some((source, spelled)) = leaf_copy_source(function, place) {
                     let source_declaration = function
                         .structural_places
                         .iter()
                         .find(|candidate| candidate.id == source)?;
                     let source_type = declared_structural_type(function, source_declaration)?;
+                    let copied = match spelled {
+                        StructuralCopyPath::Case(path) => path.clone(),
+                        StructuralCopyPath::Ordinary(path) => {
+                            canonicalize_ordinary_path(unit, source_type, path)?
+                        }
+                    };
                     let mut position = Position::Type(source_type);
-                    for segment in copied {
+                    for segment in &copied {
                         position = position.descend(unit, PathStep::Canonical(*segment))?;
                     }
                     if !matches!(position, Position::Type(landed) if Some(landed) == declared) {
@@ -548,41 +561,6 @@ fn case_structural_child(
         })
 }
 
-/// The source place and case-qualified projection of the
-/// `StructuralLeafCopy` that produces `place`, or `None` when `place` is
-/// not that copy's operation result or the copy's projection is ordinary.
-/// Ordinary copies decline: their field steps name identities rather than
-/// the verifier field handles canonical steps carry, so crossing one needs
-/// its own identity-to-handle resolution first.
-fn case_payload_copy(
-    function: &PsiOptimizationFunction,
-    place: PlaceId,
-) -> Option<(PlaceId, &[CanonicalStructuralPathSegment])> {
-    let StructuralPlaceKind::OperationResult { producer, .. } = function
-        .structural_places
-        .iter()
-        .find(|declaration| declaration.id == place)?
-        .kind
-    else {
-        return None;
-    };
-    function
-        .blocks
-        .iter()
-        .flat_map(|block| &block.nodes)
-        .find_map(|node| match &node.operation {
-            O::StructuralLeafCopy {
-                psi_operation,
-                result,
-                source,
-                path: StructuralCopyPath::Case(path),
-            } if *psi_operation == producer && result.place == place => {
-                Some((*source, path.as_slice()))
-            }
-            _ => None,
-        })
-}
-
 /// The declared structural type of one rostered place, or `None` when the
 /// place kind carries no resolvable type in this function.
 fn declared_structural_type(
@@ -748,8 +726,9 @@ fn roster_sole_case(
 /// observing the evidence's place into a Boolean result, whose verdict the
 /// unit proves — the place's root basis at an empty path, the establishment
 /// a non-empty path resolves to through stored-whole children, `EstablishCase`
-/// payload children, uniform block-parameter bindings, and case-payload
-/// copies, or the sole-case roster at the resolved nested position. `None`
+/// payload children, uniform block-parameter bindings, and leaf copies
+/// across canonical or resolved ordinary projections, or the sole-case
+/// roster at the resolved nested position. `None`
 /// for every other node.
 fn admit_membership_node(
     unit: &PsiOptimizationUnit,
@@ -776,7 +755,8 @@ fn admit_membership_node(
     // place's own producer, and at any depth a `Field` descent into a
     // stored-whole child or a `Case` then `Field` descent into an
     // `EstablishCase` payload, each possibly reached through the place's
-    // uniform block-parameter binding or a case-payload copy. Failing an
+    // uniform block-parameter binding or a `StructuralLeafCopy` whose
+    // projection the walk prefixes. Failing an
     // establishment, the sole-case roster at the resolved end type proves
     // the verdict without custody evidence.
     let (proven_case, producer) =
@@ -828,8 +808,9 @@ fn plan_memberships(
 /// membership's own custody identity and result value, checked against the
 /// claimed basis — an establishment producer must be the `EstablishCase`
 /// the row's path resolves to through stored-whole children, `EstablishCase`
-/// payload children, uniform block-parameter bindings, and case-payload
-/// copies, while a roster row must resolve to exactly the claimed case.
+/// payload children, uniform block-parameter bindings, and leaf copies
+/// across canonical or resolved ordinary projections, while a roster row
+/// must resolve to exactly the claimed case.
 fn folded_node(
     row: &FoldedCaseMembershipRow,
     unit: &PsiOptimizationUnit,
@@ -867,7 +848,7 @@ fn folded_node(
         // The claimed producer must be the `EstablishCase` the
         // establishment chain under `row.source` resolves `path` to — the
         // observed place's own producer at an empty path, the operation a
-        // uniform block-parameter binding or case-payload copy forwards
+        // uniform block-parameter binding or leaf copy forwards
         // to, a stored-whole record child's producer at a nested `Field`
         // position, or an `EstablishCase` payload child's producer at a
         // `Case` then `Field` position.

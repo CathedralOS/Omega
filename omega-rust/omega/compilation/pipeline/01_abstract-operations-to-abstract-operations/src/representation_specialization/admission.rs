@@ -83,7 +83,8 @@ pub(super) fn admit_membership_node(
     // place's own producer, and at any depth a `Field` descent into a
     // stored-whole child or a `Case` then `Field` descent into an
     // `EstablishCase` payload, each possibly reached through the place's
-    // uniform block-parameter binding or a case-payload copy. Failing an
+    // uniform block-parameter binding or a `StructuralLeafCopy` whose
+    // projection the walk prefixes. Failing an
     // establishment, the sole-case roster at the resolved end type proves
     // the verdict without custody evidence.
     let (proven_case, producer) =
@@ -179,10 +180,11 @@ fn establishment_producer(
 
 /// One unresolved path segment inside `established_case_at`: either a
 /// name-spelled segment of the observation's own path or a verifier-handle
-/// `CanonicalStructuralPathSegment` a case-payload `StructuralLeafCopy`
-/// spliced in from its case-qualified projection. The observation's own
-/// path never spells a `Case` step — `StructuralPathSegment` has none — so
-/// a case-qualified descent appears only under a copy crossing.
+/// `CanonicalStructuralPathSegment` a `StructuralLeafCopy` spliced in from
+/// its projection — a case-qualified path directly, an ordinary path after
+/// its field identities resolve to roster handles. The observation's own
+/// path never spells a `Case` step, so a case-qualified descent appears
+/// only under a copy crossing.
 #[derive(Debug, Clone, Copy)]
 enum PathStep<'a> {
     Ordinary(&'a StructuralPathSegment),
@@ -199,8 +201,9 @@ enum PathStep<'a> {
 /// stores whole for exactly the case it establishes, and a block parameter
 /// — which holds no producer of its own — crosses only into the one place
 /// every incoming edge binds it to whole when nothing rewrites or mutably
-/// re-lends it. A case-payload `StructuralLeafCopy` result crosses into
-/// its source with the copy's canonical projection prefixed to the path
+/// re-lends it. A `StructuralLeafCopy` result crosses into its source with
+/// the copy's projection — canonical steps directly, ordinary field
+/// identities resolved to their roster handles — prefixed to the path
 /// still to resolve. `FixedIndex`, `RuntimeIndex`, `FixedByteRange`, and
 /// `Referent` segments never cross a record or variant establishment: an
 /// `EstablishScalarArray` element is not a placed child. A zeroed
@@ -217,8 +220,9 @@ fn established_case_at(
     let mut place = declaration.id;
     let mut producer = establishment_producer(function, declaration);
     let mut declared = declared_structural_type(function, declaration);
-    // Owned because a case-payload copy prepends its own canonical
-    // projection to the path still to resolve beneath its source.
+    // Owned because a leaf copy prepends its own canonical projection —
+    // case-qualified steps directly, ordinary field identities resolved to
+    // roster handles — to the path still to resolve beneath its source.
     let mut segments: Vec<PathStep> = path.iter().map(PathStep::Ordinary).collect();
     let mut visiting = BTreeSet::from([place]);
     loop {
@@ -323,28 +327,30 @@ fn established_case_at(
                 segments.drain(..1);
             }
             (Establishment::None, _) => {
-                // A case-payload copy — the place a `Case { payload }` arm
-                // binding mints — holds exactly its source's contents at
-                // the copied projection: the copy is fresh storage of an
+                // A leaf copy — the case-payload place a `Case { payload }`
+                // arm binding mints, or an ordinary projection's fresh leaf
+                // — holds exactly its source's contents at the copied
+                // projection: the copy is fresh storage of an
                 // `Unrestricted` or owned non-reference leaf, and the
                 // source resolves only through establishments and uniform
                 // bindings nothing rewrites. The copy's canonical
                 // projection therefore prefixes the path still to resolve
                 // beneath its source, and the source's own chain decides
                 // the proof; a source that establishes a different case
-                // declines at the `Case` step. Ordinary copies still
-                // decline: their field steps are identity strings rather
-                // than the verifier field handles canonical steps carry,
-                // so crossing one needs its own identity-to-handle
-                // resolution first.
-                if let Some((source, copied)) = case_payload_copy(function, place) {
+                // declines at the `Case` step. Ordinary projections spell
+                // field identities, so the crossing first resolves each
+                // name to its roster's verifier handle; a name absent from
+                // the reached roster, a non-structural field carrier, and
+                // every segment with no canonical step leave the copy
+                // uncrossed.
+                if let Some((source, copied)) = leaf_copy_projection(unit, function, place) {
                     let source_declaration = function
                         .structural_places
                         .iter()
                         .find(|candidate| candidate.id == source)?;
                     let source_type = declared_structural_type(function, source_declaration)?;
                     let mut position = Position::Type(source_type);
-                    for segment in copied {
+                    for segment in &copied {
                         position = position.descend(unit, PathStep::Canonical(*segment))?;
                     }
                     if !matches!(position, Position::Type(landed) if Some(landed) == declared) {
@@ -584,16 +590,23 @@ fn case_structural_child(
         })
 }
 
-/// The source place and case-qualified projection of the
-/// `StructuralLeafCopy` that produces `place`, or `None` when `place` is
-/// not that copy's operation result or the copy's projection is ordinary.
-/// Ordinary copies decline: their field steps name identities rather than
-/// the verifier field handles canonical steps carry, so crossing one needs
-/// its own identity-to-handle resolution first.
-fn case_payload_copy(
+/// The source place and canonical projection of the `StructuralLeafCopy`
+/// that produces `place`, or `None` when `place` is not that copy's
+/// operation result or the copy's projection cannot be spelled in the
+/// canonical vocabulary. A `Case` projection already carries verifier
+/// handles. An `Ordinary` projection spells source-level field identities,
+/// so each `Field` step resolves against the reached `Record`/`Mixed`
+/// roster to the field's verifier `StructuralFieldId` — the same name,
+/// non-erased membership, and `Structural` carrier the unit's own leaf-copy
+/// path resolution admits — and each `FixedIndex` keeps its in-bounds array
+/// step. A name absent from the roster, a non-structural field carrier, and
+/// every segment with no canonical step — `Case`, `RuntimeIndex`,
+/// `Referent`, `FixedByteRange` — leave the copy uncrossed.
+pub(crate) fn leaf_copy_projection(
+    unit: &PsiOptimizationUnit,
     function: &PsiOptimizationFunction,
     place: PlaceId,
-) -> Option<(PlaceId, &[CanonicalStructuralPathSegment])> {
+) -> Option<(PlaceId, Vec<CanonicalStructuralPathSegment>)> {
     let StructuralPlaceKind::OperationResult { producer, .. } = function
         .structural_places
         .iter()
@@ -602,7 +615,7 @@ fn case_payload_copy(
     else {
         return None;
     };
-    function
+    let (source, path) = function
         .blocks
         .iter()
         .flat_map(|block| &block.nodes)
@@ -611,12 +624,68 @@ fn case_payload_copy(
                 psi_operation,
                 result,
                 source,
-                path: StructuralCopyPath::Case(path),
-            } if *psi_operation == producer && result.place == place => {
-                Some((*source, path.as_slice()))
-            }
+                path,
+            } if *psi_operation == producer && result.place == place => Some((*source, path)),
             _ => None,
-        })
+        })?;
+    match path {
+        StructuralCopyPath::Case(path) => Some((source, path.clone())),
+        StructuralCopyPath::Ordinary(path) => {
+            let source_declaration = function
+                .structural_places
+                .iter()
+                .find(|declaration| declaration.id == source)?;
+            let source_type = declared_structural_type(function, source_declaration)?;
+            canonicalize_ordinary_path(unit, source_type, path).map(|canonical| (source, canonical))
+        }
+    }
+}
+
+/// The verifier-handle spelling of one ordinary leaf-copy projection
+/// beneath `root`: a `Field` step resolves its source-level identity to the
+/// reached `Record`/`Mixed` common-field roster's `StructuralFieldId`,
+/// keeping only a `Structural` carrier — a scalar, byte-sequence, or erased
+/// leaf mints a carrier this walk cannot follow into stored contents — and
+/// a `FixedIndex` step keeps its element descent inside an in-bounds fixed
+/// array. `None` when the roster lacks the name, the index leaves a fixed
+/// array, or the segment has no canonical step.
+fn canonicalize_ordinary_path(
+    unit: &PsiOptimizationUnit,
+    mut current: StructuralTypeId,
+    path: &[StructuralPathSegment],
+) -> Option<Vec<CanonicalStructuralPathSegment>> {
+    let mut canonical = Vec::with_capacity(path.len());
+    for segment in path {
+        match segment {
+            StructuralPathSegment::Field(identity) => {
+                let fields = match shape(unit, current)? {
+                    StructuralTypeShape::Record { fields }
+                    | StructuralTypeShape::Mixed { fields, .. } => fields,
+                    _ => return None,
+                };
+                let field = fields
+                    .iter()
+                    .find(|field| field.identity == *identity && !field.relevance.is_erased())?;
+                let StructuralFieldType::Structural(next) = field.field_type else {
+                    return None;
+                };
+                canonical.push(CanonicalStructuralPathSegment::Field(field.id));
+                current = next;
+            }
+            StructuralPathSegment::FixedIndex(index) => match shape(unit, current)? {
+                StructuralTypeShape::FixedArray { element, length } if index < length => {
+                    canonical.push(CanonicalStructuralPathSegment::FixedIndex(*index));
+                    current = *element;
+                }
+                _ => return None,
+            },
+            StructuralPathSegment::Case(_)
+            | StructuralPathSegment::RuntimeIndex { .. }
+            | StructuralPathSegment::Referent
+            | StructuralPathSegment::FixedByteRange { .. } => return None,
+        }
+    }
+    Some(canonical)
 }
 
 /// The one place `place` is bound to by every incoming edge when `place` is

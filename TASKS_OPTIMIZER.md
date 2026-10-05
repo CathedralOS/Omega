@@ -261,14 +261,25 @@ rewrites and promotion are not prerequisites for the first useful compiler.
   and `omega-rust/omega/compilation/pipeline/01_abstract-operations-to-abstract-operations/src/field_value_specialization/`.
   - Covered today: proven membership, constant fields, nonconstant
     initializer forwarding, stored-whole child descent, uniform block
-    bindings, zeroed establishments, `EstablishCase` payload copies and
-    membership across case-payload copies.
-  - Remaining: membership across ordinary-path copies (needs a
-    field-name-to-id mapping first); call-produced children
+    bindings, zeroed establishments, `EstablishCase` payload copies, and
+    membership/constant-field reads across ordinary-path
+    `StructuralLeafCopy` results — source-level field identities resolve to
+    the reached roster's `StructuralFieldId`, with `Case`, `RuntimeIndex`,
+    `Referent` and `FixedByteRange` segments and non-structural carriers
+    still declining.
+  - Remaining: call-produced children
     (INTERPROCEDURAL-SUMMARIES). Type-path descent is not proof of stored
     contents. Runtime-index `StructuralCaseMembership` cannot reach stage 01
     from current source; bounded indexed reads stop at Psi stage 05's
     authored-binding check.
+  - Corpus proof is blocked on routing: the pass executes in post-Terminal
+    stage 01, but native realization receives only
+    `project_post_terminal()` selections, which strip Psi-phase names, so
+    no product route drives the pass and a rollback pair's `module:`
+    comparison at the Terminal artifact cannot observe its rewrites.
+    Until that projection owns the deferred Psi names, the fixture
+    `pass/optimizer/ordinary_copy_membership_selected` pins the authored
+    selection and machine shape without a `module:differs` guard.
   - Borrowed restoration windows (`MoveStructuralField`/`StoreStructuralField`)
     need the exact open/restore custody; a new window family needs its
     upstream operation contract first. Keep cyclic components frozen.

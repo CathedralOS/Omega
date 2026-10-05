@@ -9,8 +9,11 @@
 //! when the record stores the field as an owned, complete structural child
 //! whose declared type is exactly the field's declared carrier — a block
 //! parameter crosses through the one place every incoming edge binds it to
-//! whole. An `EstablishZeroedStructural` producer fixes every scalar leaf
-//! of the position at literal zero — the verifier admits it only on
+//! whole, and a `StructuralLeafCopy` result crosses into its source with
+//! the copy's projection — canonical steps directly, ordinary field
+//! identities resolved to their roster handles — prefixed to the path
+//! still to resolve. An `EstablishZeroedStructural` producer fixes every
+//! scalar leaf of the position at literal zero — the verifier admits it only on
 //! zero-constructible shapes, so the remaining canonical path descends the
 //! declared type alone without a child place to cross. An initializer that
 //! is a same-function constant folds the read to a literal; a nonconstant

@@ -30,6 +30,7 @@ pub(crate) mod rewrite_accounting;
 pub(crate) mod sparse_conditional_constant_propagation;
 pub(crate) mod state_specialization;
 mod structural_bindings;
+mod structural_copies;
 
 use case_membership_specialization::validate_case_membership_specialization_candidate;
 use control_flow_cleanup::{

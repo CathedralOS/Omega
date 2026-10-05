@@ -8,9 +8,10 @@
 //! operation result, the establishment a uniform whole
 //! `Owned`/`SharedBorrow` block-parameter binding forwards to when every
 //! incoming edge names the same place and nothing rewrites or mutably
-//! re-lends it, the source establishment a case-payload
-//! `StructuralLeafCopy` forwards to when its canonical projection prefixes
-//! the path still to resolve, or a stored-whole child's producer when a
+//! re-lends it, the source establishment a `StructuralLeafCopy` forwards
+//! to when its projection — case-qualified steps directly, ordinary field
+//! identities resolved to their roster handles — prefixes the path still
+//! to resolve, or a stored-whole child's producer when a
 //! `Field` path descends an `EstablishRecord` field or a `Case` then
 //! `Field` pair descends the payload an `EstablishCase` stores whole for
 //! exactly the case it establishes, each carried by one owned, complete
