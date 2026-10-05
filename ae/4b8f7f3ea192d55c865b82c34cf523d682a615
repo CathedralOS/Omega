@@ -1,0 +1,4 @@
+owner: z1
+provenance: re-probe at a32d1a54af: twins crossed legs — windows_x64 rejected 343582ms compile / x86_baseline rejected 356690ms native at new FloatNativeProvider::satisfies intrinsic wall (8 diags each); other twin still timeout at 360s cap
+ticket: 3cca6d503f4c415d86fed6229a43020a
+published_utc: 2026-10-05T23:21:54.447204+00:00
