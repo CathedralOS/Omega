@@ -1,0 +1,4 @@
+owner: z1
+provenance: re-probe at 98ac0f8c4d: twins rejected->timeout both legs (upstream-documented proof-reconstruction hang, darwin corroborates) + native mint computed_comparison_literal_landing exit:0
+ticket: 777f848431ae4998a0629d19d73bee88
+published_utc: 2026-10-05T22:04:48.309736+00:00
