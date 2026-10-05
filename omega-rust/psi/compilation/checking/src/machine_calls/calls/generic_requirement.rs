@@ -30,7 +30,6 @@ pub(super) fn validate_requirement_call_arguments(
         arguments,
         requirement.signature.name.as_str(),
         parameters,
-        None,
         writable_roots,
         false,
         &[],

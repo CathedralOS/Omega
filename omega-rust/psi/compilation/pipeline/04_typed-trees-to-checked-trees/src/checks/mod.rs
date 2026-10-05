@@ -6,7 +6,7 @@
 //! `checking::lower_typed_trees` prepares the lowering-consumed borrow
 //! resources, then enters the checks once over the constructed fact tables.
 //!
-//! `check_checked_facts_recording_with_crash_admission` runs every check and
+//! `check_checked_facts_recording_with_mutation_summaries` runs every check and
 //! collects all diagnostics instead of stopping at the first failure. It
 //! first builds the call frame resolver and the incoming guard index
 //! (`ranges::incoming_guards`) that several checks share, then runs:
@@ -18,8 +18,8 @@
 //!    guarantees, arrival requirements and domain field writes;
 //! 4. `multiplicity` checks linear obligations;
 //! 5. `crashes` checks crash exit edge isolation and operator invocation
-//!    custody, infers path-conditioned guard coverage, and, when crash
-//!    admission is enforced, checks published ceiling coverage;
+//!    custody, infers path-conditioned guard coverage, and checks published
+//!    ceiling coverage;
 //! 6. `content` infers identity-preserving reshuffles and composes partition
 //!    wrappers, then checks retained content custody;
 //! 7. `carry` rejects a call that may suspend while a suspension-forbidden
@@ -87,24 +87,6 @@ pub(crate) fn check_checked_facts_recording_with_mutation_summaries(
     guard_index: &IncomingGuardIndexCache,
     proven_machine_contracts: &[(SymbolHandle, Vec<typed_trees::expression::ExpressionHandle>)],
 ) -> Result<(), Vec<Diagnostic>> {
-    check_checked_facts_recording_with_crash_admission(
-        program,
-        facts,
-        true,
-        mutation_summaries,
-        guard_index,
-        proven_machine_contracts,
-    )
-}
-
-fn check_checked_facts_recording_with_crash_admission(
-    program: &typed_trees::TypedTrees,
-    facts: &mut checked_trees::CheckFacts,
-    enforce_crash_admission: bool,
-    mutation_summaries: &crate::flow::StateMutationSummaryCache,
-    guard_index: &IncomingGuardIndexCache,
-    proven_machine_contracts: &[(SymbolHandle, Vec<typed_trees::expression::ExpressionHandle>)],
-) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
     let call_frames = validation::CallFrameResolver::new(program);
     let incoming_guards = guard_index.index(program, call_frames.as_ref());
@@ -155,10 +137,7 @@ fn check_checked_facts_recording_with_crash_admission(
         diagnostics.append(&mut operator_crash_diagnostics);
     }
     crashes::infer_path_conditioned_guard_coverage(program, facts, incoming_guards);
-    if enforce_crash_admission
-        && let Err(mut crash_diagnostics) =
-            crashes::check_published_ceiling_coverage(program, facts)
-    {
+    if let Err(mut crash_diagnostics) = crashes::check_published_ceiling_coverage(program, facts) {
         diagnostics.append(&mut crash_diagnostics);
     }
 
@@ -202,7 +181,4 @@ fn check_checked_facts_recording_with_crash_admission(
     }
 }
 
-pub use contracts::{
-    derive_contract_entailment_exit_membership_discharges,
-    recheck_contract_entailment_exit_membership_discharge,
-};
+pub use contracts::derive_contract_entailment_exit_membership_discharges;

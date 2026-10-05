@@ -20,22 +20,17 @@
 //! This file validates quotient formations and extracts correspondences.
 //! `formation_collection.rs` collects validated formations and rejects
 //! operation requests, `equivalence_selection.rs` validates equivalence
-//! selections and exact relation applications, `legacy_candidates.rs`
-//! recognizes legacy quotient call candidates and `carrier_fence.rs`,
+//! selections and exact relation applications, and `carrier_fence.rs`,
 //! `relation_plan.rs` and `terminal_bridge.rs` carry the fence, plan and
 //! bridge; `tests.rs` holds the quotient tests.
 
 mod carrier_fence;
 mod equivalence_selection;
 mod formation_collection;
-mod legacy_candidates;
 mod relation_plan;
 mod terminal_bridge;
 
 pub(crate) use equivalence_selection::exact_relation_application_matches;
-pub(crate) use legacy_candidates::{
-    legacy_attached_quotient_call_candidate, legacy_quotient_call_candidate,
-};
 
 use diagnostics::Diagnostic;
 use std::collections::HashSet;

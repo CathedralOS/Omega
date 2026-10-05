@@ -2047,32 +2047,6 @@ the validation `src/` (written `omega-rust/psi/compilation/checking/src/`) unles
   construction. Depends on those two items. Acceptance: one plan builder
   produces scalar and Unit computations; native corpus unchanged.
 
-- **CHECKER-REVIEW-EXPORTS-DELETED.** (new-scope) Delete checker code that
-  only package review or nothing uses:
-  - `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/exit_membership.rs` (its only caller is
-    `omega-rust/omega/packages/review-evidence/src/capture/contracts/stand_downs.rs`),
-    `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/facts/review_sources.rs`, `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/facts/canonical_encoding.rs`, the byte
-    `callable_shape` and substitutable-contract identities in
-    `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/facts/contract_plan_facts.rs` and `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/facts/crash_plan_facts.rs`, and
-    the review-only exports of `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/package_review.rs` (keep
-    `derive_pre_flow_value_origins`, `infer_machine_termination_summary` and
-    `typed_build_provider_selection` for compile-time callers);
-  - `recheck_contract_entailment_exit_membership_discharge`,
-    `recheck_contract_entailment_assumption_discharge`,
-    `prune_target_siblings_typed`, `validate_specialized_program`,
-    `validate_specialized_program_deferring_quotient_requests`,
-    `build_open_invariant_crash_sites`, `slice_tail_strictly_decreases`,
-    `validate_static_machine_selections`, `bind_checked_atomic_resident_access`
-    (`omega-rust/psi/compilation/checking/src/value_custody/placed_views/checked_atomic_resident.rs`) and
-    `omega-rust/psi/compilation/checking/src/proof_contracts/quotients/legacy_candidates.rs`;
-  - the dead `enforce_crash_admission` parameter (always `true`), the
-    single-arm `match mode` and the per-machine check for the retired
-    `terminates by upper - lower` spelling in `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/termination.rs`.
-
-  Update the review-evidence callers in the same commit (they go with
-  **REVIEW-SINGLE-PROJECTION**). Grep each name again first. Acceptance: none
-  of the names remain; workspace build and the check corpus unchanged.
-
 ## Data-flow defects
 
 Each item removes one verified copy, rescan or repeated validation in the
@@ -2410,7 +2384,18 @@ lands alone with its corpus slice unchanged and no fallback path.
   Keep the policy projection: it feeds lock rows and review documents. In one
   commit, delete the legacy projection, the self-validation calls, the
   discharge re-check and the ledger, and re-base `whole_review_commitment` and
-  the review cache on the policy projection. Acceptance:
+  the review cache on the policy projection. Then delete what only these
+  consumers read in
+  `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/`:
+  `checks/contracts/exit_membership.rs` (caller
+  `src/capture/contracts/stand_downs.rs`),
+  `recheck_contract_entailment_assumption_discharge`,
+  `facts/canonical_encoding.rs`, the byte `callable_shape` and
+  substitutable-contract identities in `facts/contract_plan_facts.rs` and
+  `facts/crash_plan_facts.rs`, and the review-only exports of
+  `package_review.rs` (keep `derive_pre_flow_value_origins`,
+  `infer_machine_termination_summary` and `typed_build_provider_selection`
+  for compile-time callers). Acceptance:
   `project_checked_package_review` and the ledger module are gone; review
   command output for the package corpus is unchanged apart from removed
   legacy-only rows, which are listed in the commit.

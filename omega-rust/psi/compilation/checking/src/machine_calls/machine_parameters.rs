@@ -252,12 +252,6 @@ fn validate_static_machine_arguments_with_facts(
     }
 }
 
-/// Run MP2b admission as a standalone pre-specialization gate. MP4 consumes
-/// the static argument syntax, so its refinement proof must happen first.
-pub fn validate_static_machine_selections(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
-    validate_static_machine_selections_with_facts(program).map(|_| ())
-}
-
 pub fn validate_static_machine_selections_with_facts(
     program: &TypedTrees,
 ) -> Result<ValidatedStaticMachineSelections, Vec<Diagnostic>> {

@@ -9,35 +9,6 @@ use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::signature::StateParameter;
 use typed_trees::types::{PrimitiveType, TypeReferenceNode};
 
-/// A taken nonempty-slice guard makes its exact parameter's `start..` tail
-/// strictly shorter whenever `start` is provably positive and the guard proves
-/// `parameter.len >= start`.
-///
-/// Both bounds route through the shared immutable-integer-bound normalization
-/// into an ordering key: an exact literal, or one immutable binding's value
-/// identity (an immutable parameter leaf, or an immutable local whose
-/// initializer stays symbolic) shifted by a compile-time constant under Exact
-/// arithmetic. Two bounds naming the same symbol order by their offsets, so
-/// `items[i + 1..]` admits under `items.len > i` (proving `len >= i + 1`) or
-/// `items.len >= i + 1`. A symbolic bound also orders against a literal start
-/// through its declared floor -- `len >= step` proves `len >= 2` when
-/// `step: u64 [2..=8]` floors at 2. The `start >= 1` obligation uses the same
-/// floor evidence: `i + 1` is positive for any unsigned `i`, while `step`
-/// needs a declared range flooring at 1. Mutable, ambiguous, cross-symbol, and
-/// literal-over-symbol orderings stay unknown rather than guessing a value
-/// from spelling: `literal >= symbol` would need the symbol's ceiling, which a
-/// plain `u64` does not have inside i64. A `0..` tail is the whole slice and
-/// never decreases. The caller owns guard dominance and binding stability;
-/// this predicate does not establish either from matching expression text.
-pub fn slice_tail_strictly_decreases(
-    program: &TypedTrees,
-    guard: ExpressionHandle,
-    argument: ExpressionHandle,
-    parameter: &StateParameter,
-) -> bool {
-    slice_tail_strictly_decreases_with_bound_lookup(program, guard, argument, parameter, &mut None)
-}
-
 /// `slice_tail_strictly_decreases` with the bound index supplied by the
 /// caller: the lookup scans the whole program once, and a termination pass
 /// probes this predicate per guarded self-call, so each pass fills the cell

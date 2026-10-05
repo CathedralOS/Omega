@@ -3,7 +3,7 @@
 //! known at that statement.
 //!
 //! `check_indexed_accesses` is the entry;
-//! `checks::check_checked_facts_recording_with_crash_admission` calls it after
+//! `checks::check_checked_facts_recording_with_mutation_summaries` calls it after
 //! the operator check and passes the incoming guard index it built from
 //! `incoming_guards`. It reads the fixed-array field lengths once (`arrays`),
 //! then for each machine prepares one `facts::RangeCallContext` per state and

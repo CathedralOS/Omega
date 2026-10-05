@@ -106,40 +106,6 @@ pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
     .map(|_| ())
 }
 
-/// Validate the concrete graph after generic contracts were checked before
-/// specialization. Only those already-checked universal entailments are skipped;
-/// all other checks run on this exact graph, including opaque property admission.
-pub fn validate_specialized_program(
-    program: &TypedTrees,
-    opaque_properties: OpaquePropertyValidation<'_>,
-) -> Result<ProgramValidation, Vec<Diagnostic>> {
-    validate(
-        program,
-        GenericContracts::Prevalidated,
-        opaque_properties,
-        QuotientRequestAdmission::AtValidation,
-        EffectAdmission::Complete,
-    )
-}
-
-/// [`validate_specialized_program`] for the checked stage, which judges
-/// sealed quotient requests itself through
-/// [`crate::admit_checked_quotient_requests`] once its termination facts
-/// exist. Everything else, including quotient formation checking, runs here
-/// unchanged; only the request rejection is deferred.
-pub fn validate_specialized_program_deferring_quotient_requests(
-    program: &TypedTrees,
-    opaque_properties: OpaquePropertyValidation<'_>,
-) -> Result<ProgramValidation, Vec<Diagnostic>> {
-    validate(
-        program,
-        GenericContracts::Prevalidated,
-        opaque_properties,
-        QuotientRequestAdmission::AfterCheckedFacts,
-        EffectAdmission::Complete,
-    )
-}
-
 /// Prepare formation and source-flow inputs before ownership selects implicit
 /// execution dependencies. This is not final effect admission.
 pub fn prepare_specialized_program(

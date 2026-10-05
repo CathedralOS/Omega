@@ -562,3 +562,16 @@ pub(crate) fn base_data_symbol(
         _ => None,
     }
 }
+
+/// The quotient declaration a type names, or `None` when the type's base
+/// declaration is not a quotient.
+pub(crate) fn quotient_for_type(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> Option<&typed_trees::data::DataDefinition> {
+    let symbol = base_data_symbol(program, type_reference)?;
+    program
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.symbol == symbol && definition.quotient.is_some())
+}

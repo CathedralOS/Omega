@@ -64,10 +64,7 @@ pub use checking::{
     CheckingRequest, RepeatedCheckRetention, lower_typed_trees, normalize_open_index_identities,
     retain_repeated_checks, specialize_static_machine_calls,
 };
-pub use checks::{
-    derive_contract_entailment_exit_membership_discharges,
-    recheck_contract_entailment_exit_membership_discharge,
-};
+pub use checks::derive_contract_entailment_exit_membership_discharges;
 
 pub use package_review::{
     derive_authored_machine_crash_buckets, derive_authored_signature_crash_buckets,
@@ -87,8 +84,8 @@ pub use package_review::{
 pub use product_pruning::{
     CheckedTreeProductPruning, CheckedTreeProductPruningOutcome, CheckedTreeProductRoots,
     CheckedTreeProductRootsError, CheckedTreeProductSelection, CheckedTreeProductSelectionIdentity,
-    prune_checked_tree_product, prune_target_siblings, prune_target_siblings_typed,
-    select_checked_tree_product, target_sibling_selection_occurrences,
+    prune_checked_tree_product, prune_target_siblings, select_checked_tree_product,
+    target_sibling_selection_occurrences,
 };
 
 /// Build inputs to Psi's instruction-authority check. The checking entrance

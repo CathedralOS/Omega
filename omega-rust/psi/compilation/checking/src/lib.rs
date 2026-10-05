@@ -131,9 +131,7 @@ pub use crate::machine_calls::calls::{
     generic_bound_value_call_requirement, operand_call_plans,
     state_reference_parameter_binding_is_stable,
 };
-pub use crate::proof_contracts::slice_ranking::{
-    slice_tail_strictly_decreases, slice_tail_strictly_decreases_with_bound_lookup,
-};
+pub use crate::proof_contracts::slice_ranking::slice_tail_strictly_decreases_with_bound_lookup;
 pub use crate::value_custody::cleanup::{
     nominal_cleanup_owner, validate_reserved_cleanup_selections,
 };
@@ -179,8 +177,7 @@ pub use machine_calls::machine_parameters::{
     ValidatedNominalMachineUse, ValidatedNominalMachineUseSite,
     ValidatedRequirementCallMachineSelection, ValidatedRequirementCallSpecialization,
     ValidatedRequirementCallTypeBinding, ValidatedStaticMachineSelections,
-    closed_static_call_type_bindings, validate_static_machine_selections,
-    validate_static_machine_selections_with_facts,
+    closed_static_call_type_bindings, validate_static_machine_selections_with_facts,
 };
 pub use machine_calls::machine_specialization_identity::{
     machine_specialization_matches_template_identity,
@@ -191,8 +188,8 @@ pub use machine_calls::result_overloads::{
     bind_float_conversion_casts, resolve_named_result_overloads,
 };
 pub use proof_contracts::default_domains::{
-    OpenInvariantCrashSite, build_open_invariant_crash_sites, data_float_predicate,
-    data_predicates_admit_zero, standing_facts_prove_requirement,
+    OpenInvariantCrashSite, data_float_predicate, data_predicates_admit_zero,
+    standing_facts_prove_requirement,
 };
 pub use proof_contracts::float_projection_bindings::semantic_operations::exact_toolchain_float_semantic_contract;
 pub use proof_contracts::float_projection_bindings::semantic_values::exact_toolchain_float_format_const;
@@ -248,7 +245,6 @@ pub use value_custody::literals::{
 };
 pub use value_custody::placed_views::{
     CheckedAtomicResidentAccess, CheckedAtomicResidentAccessRejection,
-    bind_checked_atomic_resident_access,
 };
 pub use value_custody::places::{assignment_value_type, declared_place_type_raw};
 pub use value_custody::places::{
@@ -357,8 +353,7 @@ pub use program_validation::{
     admit_prepared_program_effects, checked_operator_contract_snapshot,
     collect_contract_entailment_stand_downs, prepare_specialized_program,
     proven_machine_contract_expressions, validate_checked_operator_realization_contract,
-    validate_generic_machine_contract_entailment, validate_program, validate_specialized_program,
-    validate_specialized_program_deferring_quotient_requests,
+    validate_generic_machine_contract_entailment, validate_program,
 };
 
 pub use proof_contracts::scalar_boundary_guarantees::derive_scalar_boundary_guarantees;

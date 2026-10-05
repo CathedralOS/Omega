@@ -444,7 +444,6 @@ fn validate_expression_call_bounds(
             &arguments,
             call.target.as_str(),
             parameters,
-            None,
             writable_roots,
             primitive_float_operator_retains_argument_policy(program, operator.symbol),
             &[],
@@ -661,21 +660,6 @@ fn validate_expression_call_bounds(
                 return;
             }
         }
-    }
-
-    if let Some(receiver_type_reference) = receiver_type_reference
-        && let Some(candidate) =
-            crate::proof_contracts::quotients::legacy_attached_quotient_call_candidate(
-                program,
-                receiver_type_reference,
-                call.target.as_str(),
-            )
-    {
-        diagnostics.push(Diagnostic::error(format!(
-            "cannot implicitly lift attached representative operation `{}` onto quotient `{}`; use `Quotient::lift<F, Respect>` or `Quotient::define<F, Respect>` with one exact named conformance",
-            candidate.operation.name, candidate.quotient.name,
-        )));
-        return;
     }
 
     // Attached calls retain their selected state. Rejoin that declaration with

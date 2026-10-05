@@ -145,7 +145,6 @@ pub(super) fn validate_resolved_call_arguments(
         arguments,
         target,
         program.state_parameters(entry),
-        Some(entry),
         writable_roots,
         primitive_float_operator_retains_argument_policy(program, callee.symbol),
         &[],

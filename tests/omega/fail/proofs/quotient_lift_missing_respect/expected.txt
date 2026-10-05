@@ -1,1 +1,1 @@
-cannot implicitly lift representative operation
+expects the `Representative` data type but got `EquivalenceClass`

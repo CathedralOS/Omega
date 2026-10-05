@@ -21,7 +21,6 @@ mod placement_custody;
 mod plan_replay;
 pub use checked_atomic_resident::{
     CheckedAtomicResidentAccess, CheckedAtomicResidentAccessRejection,
-    bind_checked_atomic_resident_access,
 };
 
 pub(crate) fn validate_plans(program: &TypedTrees, diagnostics: &mut Vec<Diagnostic>) {

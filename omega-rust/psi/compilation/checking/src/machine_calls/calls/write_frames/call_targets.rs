@@ -13,7 +13,6 @@ use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
-use typed_trees::statement::TableCall;
 use typed_trees::types::TypeReferenceHandle;
 
 /// Formal types supply context only for newly admitted computed values. An
@@ -121,34 +120,4 @@ pub(crate) fn machine_state_by_symbol(
         .iter()
         .find(|state| state.symbol == symbol)
         .map(|state| (machine, state))
-}
-
-/// An explicitly discarded result cannot redirect a returned-place relation
-/// only when the resolved internal callee is an ordinary nongeneric body and
-/// its declared result is a concrete primitive. The parent complete-frame
-/// check remains responsible for proving every side write. Boundary, generic,
-/// reference-bearing, aggregate, and unresolved calls fail closed.
-pub(super) fn discarded_primitive_internal_call_is_relationally_neutral(
-    program: &TypedTrees,
-    call: &TableCall,
-    symbols: &TopLevelSymbols<'_>,
-) -> bool {
-    let Some((callee_machine, callee_state)) = machine_state_by_symbol(program, call.target_symbol)
-        .or_else(|| {
-            call.receiver
-                .is_empty()
-                .then(|| free_machine_entry_state(program, symbols, call.target.as_str()))
-                .flatten()
-        })
-    else {
-        return false;
-    };
-    call.receiver.is_empty() != callee_machine.attached_data.is_some()
-        && callee_machine.supply_mode == language_semantics::MachineSupplyMode::CheckedBody
-        && callee_machine.lifetime_parameters.is_empty()
-        && program.machine_type_parameters(callee_machine).is_empty()
-        && call.machine_arguments.is_empty()
-        && program
-            .primitive_type_reference(callee_state.return_type)
-            .is_some()
 }

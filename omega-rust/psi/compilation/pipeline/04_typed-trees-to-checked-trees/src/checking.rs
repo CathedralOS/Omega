@@ -362,17 +362,13 @@ fn lower_typed_trees_uncached(
         &facts.contract_plans,
     )?;
 
-    match mode {
-        CheckingMode::Preliminary | CheckingMode::Settled => {
-            checks::check_checked_facts_recording_with_mutation_summaries(
-                &program,
-                &mut facts,
-                &mutation_summaries,
-                &incoming_guard_index,
-                &proven_machine_contracts,
-            )?;
-        }
-    }
+    checks::check_checked_facts_recording_with_mutation_summaries(
+        &program,
+        &mut facts,
+        &mutation_summaries,
+        &incoming_guard_index,
+        &proven_machine_contracts,
+    )?;
     checks::validate_selected_cleanup_guarantees(&program, &facts)?;
     crate::facts::refresh_realized_contract_envelopes(&mut facts);
 

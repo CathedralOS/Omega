@@ -326,8 +326,7 @@ impl RankingOrder {
 ///   * a slice parameter decreases by its length.
 ///
 /// (The two-subject bounded distance `terminates by (index, limit)` is inferred
-/// upstream in [`RankingOrder::resolve`]; the retired use-site subtraction
-/// `terminates by upper - lower` is rejected before inference runs.)
+/// upstream in [`RankingOrder::resolve`].)
 ///
 /// Anything else (an unrecognized expression, or a value whose type offers no
 /// obvious interpretation) is reported as ambiguous so the caller can require

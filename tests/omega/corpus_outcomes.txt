@@ -1375,7 +1375,6 @@ fail/termination/stale_state_rank_premise_rejected rejected 184ms expected @68fb
 	machine call cycle: `Main::count`, `Main::next` -- a write, call, or alias invalidates the entry-relative ranking; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
 fail/termination/stored_reference_endpoint_reseat rejected 744ms expected @2d8ed253669f
 	terminating machine walk: cannot prove rank range `0..=indirect.target.remaining` for the rank produced by the selected view
-fail/termination/subtraction_spelling_retired rejected 192ms expected @c08960bee2b1+wt
 	the use-site subtraction `terminates by limit - index` on machine Main::walk is retired: spell the ranking as `terminates by (index, limit) -> Nat::BoundedDistance` (the tuple lists the ranked subjects, bound in order to the view's (lower, upper) parameters)
 fail/termination/unproved_state_rank_arrival_rejected rejected 345ms expected @68fba6a896c8+wt
 	cannot prove requires contract for call hold from Main::count: remaining > 0 && remaining <= 9 (needs fact `pending > 0 && pending <= 9` here; establish it before the call via a prior contract guarantee, domain membership, or guard)

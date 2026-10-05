@@ -9,12 +9,10 @@ use super::isolation::{
     struct_literal_type_is_caller_isolated, type_is_caller_isolated_local,
 };
 use super::{
-    ExpressionHandle, ExpressionNode, Machine, MachineSymbols, ParameterRelativeFrameOrigin,
-    StateParameter, SymbolHandle, TopLevelSymbols, TypeReferenceHandle, TypeReferenceNode,
+    ExpressionHandle, ExpressionNode, TopLevelSymbols, TypeReferenceHandle, TypeReferenceNode,
     TypedTrees, expression_is_effectful_for_transparent_result, free_machine_entry_state,
-    machine_state_by_symbol, parameter_relative_expression_preserves_transparent_result,
+    machine_state_by_symbol,
 };
-use crate::machine_calls::calls::write_frames::FrameInference;
 
 #[derive(Clone, Copy)]
 pub(super) enum CallResultRequirement {
@@ -28,7 +26,6 @@ pub(super) enum ValuePosition {
     /// eligible integer carrier. Index typing and bounds remain separate.
     IndexOperand,
     CallArgument(TypeReferenceHandle),
-    TypedRoot(TypeReferenceHandle),
     AggregateElement(TypeReferenceHandle),
     ComputedOperand(CallResultRequirement),
     MemberReceiver(CallResultRequirement),
@@ -44,7 +41,6 @@ impl ValuePosition {
             | Self::IndexCollection(requirement) => requirement,
             Self::IndexOperand
             | Self::CallArgument(_)
-            | Self::TypedRoot(_)
             | Self::AggregateElement(_)
             | Self::ProjectedArrayElement => CallResultRequirement::NonReference,
         }
@@ -53,7 +49,7 @@ impl ValuePosition {
     fn computed_operand_requirement(self, program: &TypedTrees) -> Option<CallResultRequirement> {
         match self {
             Self::IndexOperand => Some(CallResultRequirement::CallerIsolated),
-            Self::CallArgument(expected_type) | Self::TypedRoot(expected_type) => program
+            Self::CallArgument(expected_type) => program
                 .primitive_type_reference(expected_type)
                 .map(|_| CallResultRequirement::CallerIsolated),
             Self::AggregateElement(expected_type) => program
@@ -65,68 +61,6 @@ impl ValuePosition {
 }
 
 pub(super) type PendingValue = (ExpressionHandle, ValuePosition);
-
-/// Check every eagerly evaluated child of the finite value expression.
-/// Primitive computations and concrete aggregates compose without numeric
-/// nesting limits. This is origin-preservation evidence, not a replacement for
-/// expression typing or collection of the calls' published may-write paths.
-#[allow(clippy::too_many_arguments)]
-pub(super) fn value_expression_preserves_transparent_result(
-    program: &TypedTrees,
-    current_machine: &Machine,
-    expression: ExpressionHandle,
-    expected_type: Option<TypeReferenceHandle>,
-    symbols: &TopLevelSymbols<'_>,
-    inference: &mut FrameInference,
-    parameters: &[StateParameter],
-    aliases: &[(String, SymbolHandle, Vec<ParameterRelativeFrameOrigin>)],
-) -> bool {
-    let mut pending = vec![(
-        expression,
-        ValuePosition::TypedRoot(expected_type.unwrap_or_default()),
-    )];
-    while let Some((expression, position)) = pending.pop() {
-        // Pure children are neutral after their container's shape is checked.
-        // A pure root must still be classified: a reference alias replacement
-        // belongs to the parent's origin-rebinding analysis, not this relation.
-        if !matches!(position, ValuePosition::TypedRoot(_))
-            && !expression_is_effectful_for_transparent_result(program, expression)
-        {
-            continue;
-        }
-        match program.expression_table.expression(expression) {
-            ExpressionNode::Call(_) => {
-                if !value_call_result_is_admitted(program, expression, position, symbols) {
-                    return false;
-                }
-                let mut diagnostics = Vec::new();
-                let machine_symbols =
-                    MachineSymbols::build(program, current_machine, &mut diagnostics);
-                if !diagnostics.is_empty()
-                    || !parameter_relative_expression_preserves_transparent_result(
-                        program,
-                        current_machine,
-                        expression,
-                        ValuePosition::CallArgument(TypeReferenceHandle::invalid()),
-                        &machine_symbols,
-                        symbols,
-                        inference,
-                        parameters,
-                        aliases,
-                    )
-                {
-                    return false;
-                }
-            }
-            _ => {
-                if !push_value_children(program, expression, position, &mut pending) {
-                    return false;
-                }
-            }
-        }
-    }
-    true
-}
 
 /// Expand value structure without resolving calls. Both callers enqueue the
 /// returned children on their own worklist, so alternating calls and computed
@@ -155,7 +89,7 @@ pub(super) fn push_value_children(
         }
         ExpressionNode::StructLiteral(literal) => {
             match position {
-                ValuePosition::TypedRoot(_) | ValuePosition::MemberReceiver(_) => {}
+                ValuePosition::MemberReceiver(_) => {}
                 ValuePosition::CallArgument(expected_type)
                 | ValuePosition::AggregateElement(expected_type)
                     if struct_literal_matches_expected_type(program, literal, expected_type) => {}
@@ -187,7 +121,6 @@ pub(super) fn push_value_children(
             let elements = program.expression_table.expression_handles(*elements);
             let element_position = match position {
                 ValuePosition::CallArgument(expected_type)
-                | ValuePosition::TypedRoot(expected_type)
                 | ValuePosition::AggregateElement(expected_type) => {
                     let Some(element_type) =
                         typed_array_element_type(program, expected_type, elements.len())

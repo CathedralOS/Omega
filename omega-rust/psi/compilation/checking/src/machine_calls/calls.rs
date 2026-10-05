@@ -469,7 +469,6 @@ pub(crate) fn validate_call_arguments_handles(
         arguments,
         target_name,
         parameters,
-        callee_state,
         writable_roots,
         retains_primitive_float_policy,
         &[],
@@ -565,7 +564,6 @@ pub(crate) fn validate_call_arguments_with_environments(
     arguments: &[ExpressionHandle],
     target_name: &str,
     parameters: &[StateParameter],
-    callee_state: Option<&State>,
     writable_roots: &WritableRoots<'_, '_>,
     retains_primitive_float_policy: bool,
     argument_environments: &[ValueEnvironment],
@@ -579,7 +577,6 @@ pub(crate) fn validate_call_arguments_with_environments(
         arguments,
         target_name,
         parameters,
-        callee_state,
         writable_roots,
         retains_primitive_float_policy,
         argument_environments,
@@ -600,7 +597,6 @@ fn validate_call_arguments_with_type_correspondence(
     arguments: &[ExpressionHandle],
     target_name: &str,
     parameters: &[StateParameter],
-    callee_state: Option<&State>,
     writable_roots: &WritableRoots<'_, '_>,
     retains_primitive_float_policy: bool,
     argument_environments: &[ValueEnvironment],
@@ -616,25 +612,6 @@ fn validate_call_arguments_with_type_correspondence(
         diagnostics,
     ) {
         return;
-    }
-
-    let quotient_lift = callee_state.and_then(|state| {
-        let argument_types = arguments
-            .iter()
-            .map(|argument| declared_place_type(program, current_machine, current_state, *argument))
-            .collect::<Vec<_>>();
-        crate::proof_contracts::quotients::legacy_quotient_call_candidate(
-            program,
-            None,
-            &argument_types,
-            state,
-        )
-    });
-    if let Some(lift) = &quotient_lift {
-        diagnostics.push(Diagnostic::error(format!(
-            "cannot implicitly lift representative operation `{}` onto quotient `{}`; use `Quotient::lift<F, Respect>` or `Quotient::define<F, Respect>` with one exact named conformance",
-            lift.operation.name, lift.quotient.name,
-        )));
     }
 
     for (argument_index, (argument, parameter)) in arguments
@@ -786,18 +763,16 @@ fn validate_call_arguments_with_type_correspondence(
         // Reject when both parameter and argument resolve to concrete data types
         // that differ (every non-data form is skipped, so no false positive on
         // trait/generic parameters or computed arguments).
-        if quotient_lift.is_none() {
-            report_data_type_conflict(
-                program,
-                current_machine,
-                current_state,
-                *argument,
-                parameter.type_reference,
-                &slot_context,
-                "argument",
-                diagnostics,
-            );
-        }
+        report_data_type_conflict(
+            program,
+            current_machine,
+            current_state,
+            *argument,
+            parameter.type_reference,
+            &slot_context,
+            "argument",
+            diagnostics,
+        );
         // Scalar-vs-data shape guard: `take_struct(5)` (a scalar for a struct param)
         // or `take_int(self.struct)` (a struct for a scalar param). Unlike the
         // array/scalar check below, this is SAFE at the argument position -- it fires
@@ -943,25 +918,6 @@ fn validate_value_call_argument_classes(
             diagnostics,
         );
     }
-    let argument_types = arguments
-        .iter()
-        .map(|argument| {
-            declared_place_type(program, current_machine, Some(current_state), *argument)
-        })
-        .collect::<Vec<_>>();
-    let quotient_lift = crate::proof_contracts::quotients::legacy_quotient_call_candidate(
-        program,
-        None,
-        &argument_types,
-        callee_state,
-    );
-    if let Some(lift) = &quotient_lift {
-        diagnostics.push(Diagnostic::error(format!(
-            "cannot implicitly lift representative operation `{}` onto quotient `{}`; use `Quotient::lift<F, Respect>` or `Quotient::define<F, Respect>` with one exact named conformance",
-            lift.operation.name, lift.quotient.name,
-        )));
-    }
-
     let retains_primitive_float_policy =
         primitive_float_operator_retains_argument_policy(program, callee_machine.symbol);
     for (argument, parameter) in arguments.iter().zip(
@@ -1057,18 +1013,16 @@ fn validate_value_call_argument_classes(
         // Nominal guard (value-position complement): `let r = self.take_foo(&self.bar)`
         // with a `&Foo` parameter is silently accepted -- the same wrong-data-type
         // hole the statement/transition path has.
-        if quotient_lift.is_none() {
-            report_data_type_conflict(
-                program,
-                current_machine,
-                Some(current_state),
-                *argument,
-                parameter.type_reference,
-                &slot_context,
-                "argument",
-                diagnostics,
-            );
-        }
+        report_data_type_conflict(
+            program,
+            current_machine,
+            Some(current_state),
+            *argument,
+            parameter.type_reference,
+            &slot_context,
+            "argument",
+            diagnostics,
+        );
         // Scalar-vs-data shape guard -- safe at the argument position (see the twin
         // call in `validate_call_arguments_handles`): fires only on scalar-vs-DATA
         // crossings, which `&buffer`/`addr`/text args never are.

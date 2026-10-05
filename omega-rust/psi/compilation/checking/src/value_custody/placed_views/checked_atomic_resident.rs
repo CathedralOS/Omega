@@ -99,40 +99,6 @@ impl<'view, 'extent> CheckedAtomicResidentAccessRejection<'view, 'extent> {
     }
 }
 
-/// Join one independently replayed checked observing-result contract to an
-/// already-specialized Atomic request carrying exact resident custody.
-///
-/// `view_symbol` and `field_symbol` are compiler-internal semantic identities,
-/// never source names. Rejection returns `access` unchanged and performs no
-/// Atomic attempt.
-pub fn bind_checked_atomic_resident_access<'checked, 'view, 'extent>(
-    program: &'checked TypedTrees,
-    view_symbol: SymbolHandle,
-    field_symbol: SymbolHandle,
-    access: AtomicPrimitiveAccessRequest<'view, 'extent>,
-) -> Result<
-    CheckedAtomicResidentAccess<'checked, 'view, 'extent>,
-    CheckedAtomicResidentAccessRejection<'view, 'extent>,
-> {
-    let replayed = match replay_binding(program, view_symbol, field_symbol, &access) {
-        Ok(replayed) => replayed,
-        Err(diagnostics) => {
-            return Err(CheckedAtomicResidentAccessRejection {
-                access,
-                diagnostics,
-            });
-        }
-    };
-    Ok(CheckedAtomicResidentAccess {
-        program,
-        view_symbol,
-        field_symbol,
-        contract: replayed.contract,
-        result: replayed.result,
-        access,
-    })
-}
-
 fn replay_binding<'checked>(
     program: &'checked TypedTrees,
     view_symbol: SymbolHandle,

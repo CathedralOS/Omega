@@ -43,7 +43,6 @@ pub(super) fn validate_machine_parameter_arguments(
         arguments,
         signature.name.as_str(),
         &explicit,
-        None,
         writable_roots,
         false,
         &[],

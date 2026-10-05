@@ -104,19 +104,3 @@ pub(super) fn expression_reborrows_transparent_alias_binding(
         | ExpressionNode::ZeroValue(_) => false,
     }
 }
-
-pub(super) fn parameter_relative_alias_position(
-    program: &TypedTrees,
-    expression: ExpressionHandle,
-    aliases: &[(String, SymbolHandle, Vec<ParameterRelativeFrameOrigin>)],
-) -> Option<usize> {
-    let place = frame_place_path(program, expression)?;
-    let (_, suffix) = split_place_root(&place.path);
-    if !suffix.is_empty() {
-        return None;
-    }
-    let root_symbol = frame_place_root_symbol(program, expression);
-    aliases.iter().position(|(_, symbol, _)| {
-        root_symbol.is_some_and(|root| root.is_valid() && symbol.is_valid() && root == *symbol)
-    })
-}

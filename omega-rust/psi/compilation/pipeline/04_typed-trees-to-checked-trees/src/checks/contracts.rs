@@ -3,7 +3,7 @@
 //! field must be proved from the checked facts at that point.
 //!
 //! Two entries, both called by
-//! `checks::check_checked_facts_recording_with_crash_admission`:
+//! `checks::check_checked_facts_recording_with_mutation_summaries`:
 //! `bind_call_evidence_arguments` runs first among the checks and binds the
 //! evidence arguments of contract expressions and calls into the proof facts
 //! (`evidence`); `check_flow_call_contracts` runs after the borrow check.
@@ -40,10 +40,7 @@ mod dynamic_erased_lane;
 mod evidence;
 mod exit_membership;
 mod exits;
-pub use exit_membership::{
-    derive_contract_entailment_exit_membership_discharges,
-    recheck_contract_entailment_exit_membership_discharge,
-};
+pub use exit_membership::derive_contract_entailment_exit_membership_discharges;
 
 mod nominal_inputs;
 mod writes;

@@ -39,27 +39,6 @@ pub fn derive_contract_entailment_exit_membership_discharges(
         .collect()
 }
 
-/// Re-enumerate all exits against authoritative checked facts. The caller must
-/// establish their custody; matching attacker-supplied facts is insufficient.
-pub fn recheck_contract_entailment_exit_membership_discharge(
-    program: &TypedTrees,
-    facts: &CheckFacts,
-    certificate: &CheckedContractEntailmentExitMembershipDischarge,
-) -> Result<(), &'static str> {
-    let reconstructed = derive_contract_entailment_exit_membership_discharges(program, facts)
-        .into_iter()
-        .find(|candidate| {
-            candidate.machine_symbol() == certificate.machine_symbol()
-                && candidate.contract_position() == certificate.contract_position()
-                && candidate.fact_position() == certificate.fact_position()
-        });
-    if reconstructed.as_ref() == Some(certificate) {
-        Ok(())
-    } else {
-        Err("exit membership discharge differs from complete live-exit reconstruction")
-    }
-}
-
 /// A predicate spelled verbatim in the machine's own `requires` closes by
 /// its assumption discharge certificate; exit evidence never doubles it.
 fn assumption_discharged(facts: &CheckFacts, stand_down: &ContractEntailmentStandDown) -> bool {

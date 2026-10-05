@@ -122,23 +122,6 @@ pub(crate) fn validate_default_domain_writes(
     analyze_default_domain_writes(program, diagnostics, &mut Vec::new());
 }
 
-pub fn build_open_invariant_crash_sites(program: &TypedTrees) -> Vec<OpenInvariantCrashSite> {
-    let mut diagnostics = Vec::new();
-    let mut sites = Vec::new();
-    analyze_default_domain_writes(program, &mut diagnostics, &mut sites);
-    sites.sort_by_key(|site| {
-        (
-            site.machine.arena_index(),
-            site.machine.generation(),
-            site.state.arena_index(),
-            site.state.generation(),
-            site.statement_ordinal,
-        )
-    });
-    sites.dedup();
-    sites
-}
-
 fn analyze_default_domain_writes(
     program: &TypedTrees,
     diagnostics: &mut Vec<Diagnostic>,

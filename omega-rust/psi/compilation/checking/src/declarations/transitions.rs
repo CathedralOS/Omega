@@ -157,7 +157,6 @@ pub(crate) fn validate_transition_target_node(
             arguments,
             state.name.as_str(),
             program.state_parameters(state),
-            state,
             writable_roots,
             diagnostics,
         );
@@ -173,7 +172,6 @@ pub(crate) fn validate_transition_target_node(
             arguments,
             signature.name.as_str(),
             program.state_signature_parameters(signature),
-            None,
             writable_roots,
             false,
             argument_environments,
@@ -198,7 +196,6 @@ pub(crate) fn validate_transition_target_node(
             arguments,
             state.name.as_str(),
             program.state_parameters(state),
-            state,
             writable_roots,
             diagnostics,
         );
@@ -220,7 +217,6 @@ pub(crate) fn validate_transition_target_node(
             arguments,
             state.name.as_str(),
             program.state_parameters(state),
-            state,
             writable_roots,
             diagnostics,
         );
@@ -257,7 +253,6 @@ pub(crate) fn validate_transition_target_node(
             arguments,
             &state.name,
             program.state_parameters(state),
-            state,
             writable_roots,
             diagnostics,
         );
@@ -274,7 +269,6 @@ fn validate_transition_arguments_handles(
     arguments: &[ExpressionHandle],
     target_name: &str,
     parameters: &[StateParameter],
-    callee_state: &State,
     writable_roots: &WritableRoots<'_, '_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -286,7 +280,6 @@ fn validate_transition_arguments_handles(
         arguments,
         target_name,
         parameters,
-        Some(callee_state),
         writable_roots,
         false,
         argument_environments,

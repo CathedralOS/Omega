@@ -81,7 +81,7 @@ pub(crate) mod rewrite;
 mod sibling_evidence;
 
 use dependencies::{MachineIndex, collect_machine_edges, interface_retention_set};
-use rewrite::{apply_pruning, apply_typed_pruning};
+use rewrite::apply_pruning;
 
 const PRODUCT_SELECTION_IDENTITY_DOMAIN: &[u8] = b"omega.psi.checked-tree-product-selection.v1\0";
 
@@ -345,33 +345,6 @@ pub fn prune_target_siblings(mut checked: CheckedTrees) -> CheckedTrees {
     apply_pruning(&mut checked, &retained, &pruned, &index);
     retain_live_family_members(&mut checked.typed);
     checked
-}
-
-/// Drop every target sibling from typed trees that will only be checked
-/// provisionally (the preliminary pass before build evaluation): their bodies
-/// are checked once, in the settled pass. Transitional like
-/// `prune_target_siblings`.
-pub fn prune_target_siblings_typed(typed: &mut TypedTrees) {
-    let pruned: HashSet<SymbolHandle> = typed
-        .machines()
-        .iter()
-        .filter(|machine| machine.target.is_some())
-        .map(|machine| machine.symbol)
-        .collect();
-    if pruned.is_empty() {
-        return;
-    }
-    // Declaration admission derives its own occurrence scope from the retained
-    // source/symbol custody, including these pruned bodies. Pruning neither
-    // computes nor returns a second authority scope for the coordinator.
-    let retained: HashSet<SymbolHandle> = typed
-        .machines()
-        .iter()
-        .map(|machine| machine.symbol)
-        .filter(|symbol| !pruned.contains(symbol))
-        .collect();
-    apply_typed_pruning(typed, &retained, &pruned);
-    retain_live_family_members(typed);
 }
 
 /// Keep the target-machine family roster consistent with the pruned machine

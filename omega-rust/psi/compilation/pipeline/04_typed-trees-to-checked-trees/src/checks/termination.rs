@@ -3,10 +3,8 @@
 //! termination summary and plan that checked facts publish for each machine.
 //!
 //! `check_machine_termination_with_call_frames` is the check;
-//! `checks::check_checked_facts_recording_with_crash_admission` runs it last.
-//! It rejects the retired use-site subtraction spelling
-//! `terminates by upper - lower` on every machine. Then, for each machine
-//! that does not use it and whose normalized termination plan publishes
+//! `checks::check_checked_facts_recording_with_mutation_summaries` runs it last.
+//! For each machine whose normalized termination plan publishes
 //! `Terminates` or carries a ranking witness, it:
 //!
 //! 1. skips the machine when it has no local cycle (`graph`) and its witness
@@ -26,8 +24,8 @@
 //! `build_checked_termination_plan_with_summary`, which records the checked
 //! summary and the resolved ranking view in the machine's plan.
 //! `infer_machine_checked_summary` gives the body-local summary alone:
-//! `Terminates` for a checked-body machine that does not use the retired
-//! spelling and either has no local cycle or proves its ranking, and
+//! `Terminates` for a checked-body machine that either has no local cycle or
+//! proves its ranking, and
 //! `NoGuarantee` otherwise. `progress` calls it, and
 //! `package_review::infer_machine_termination_summary` exposes it to
 //! admission sites that run before checked lowering.
@@ -70,18 +68,6 @@ pub(crate) fn check_machine_termination_with_call_frames(
     let mut diagnostics = Vec::new();
     let ranked_call_components = validation::validated_runtime_recursive_components(program);
 
-    // The use-site subtraction spelling `terminates by upper - lower` is retired:
-    // the ranked subjects are spelled as the argumented tuple
-    // `terminates by (lower, upper) -> Nat::BoundedDistance` (the arrow's left
-    // side is uniformly the ranked subjects; the named view receives them as
-    // arguments in order). This fires for every machine carrying the retired
-    // shape, terminating or not, so the old spelling cannot linger inertly.
-    for machine in program.machines() {
-        if let Some(message) = retired_subtraction_message(program, machine) {
-            diagnostics.push(Diagnostic::error(message));
-        }
-    }
-
     for machine in program.machines().iter().filter(|machine| {
         // TPR3 slice 1: the checker gates on the NORMALIZED plan (decision
         // 23) -- a machine claims termination when it authored the public
@@ -94,12 +80,6 @@ pub(crate) fn check_machine_termination_with_call_frames(
             )
         ) || plan.implementation_witness.is_some()
     }) {
-        // A retired-spelling machine already has its directed diagnostic; the
-        // ranking checks below would only stack a misleading "cannot prove".
-        if retired_subtraction_message(program, machine).is_some() {
-            continue;
-        }
-
         let has_local_cycle = graph::machine_has_cycle(program, machine);
         if !has_local_cycle
             && !machine
@@ -217,9 +197,7 @@ pub(crate) fn infer_machine_checked_summary_with_call_frames(
 ) -> language_semantics::TerminationGuarantee {
     use language_semantics::TerminationGuarantee;
 
-    let established = if machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
-        || retired_subtraction_message(program, machine).is_some()
-    {
+    let established = if machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody {
         false
     } else if !graph::machine_has_cycle(program, machine) {
         true
@@ -294,31 +272,4 @@ fn inverted_distance_message(machine: &str, inverted: &ranking::InvertedDistance
          `Nat::BoundedDistance` ranks `(lower, upper)`, which descends as the \
          lower value climbs; write `terminates by {corrected} -> Nat::BoundedDistance`"
     )
-}
-
-/// The retirement diagnostic for the use-site subtraction spelling, or `None`
-/// when the witness subject is not a single top-level subtraction.
-/// The message spells the exact argumented replacement, with the subtraction's
-/// operands reordered into the view's `(lower, upper)` parameter order.
-fn retired_subtraction_message(
-    program: &typed_trees::TypedTrees,
-    machine: &typed_trees::machine::Machine,
-) -> Option<String> {
-    let [subject] = machine
-        .termination_plan
-        .implementation_witness
-        .as_ref()?
-        .subjects
-        .as_slice()
-    else {
-        return None;
-    };
-    let (upper, lower) = subject.split_once(" - ")?;
-    Some(format!(
-        "the use-site subtraction `terminates by {upper} - {lower}` on machine {} is retired: \
-         spell the ranking as `terminates by ({lower}, {upper}) -> Nat::BoundedDistance` \
-         (the tuple lists the ranked subjects, bound in order to the view's \
-         (lower, upper) parameters)",
-        machine_name(program, machine.symbol)
-    ))
 }
