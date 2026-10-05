@@ -15,6 +15,7 @@
 //! means adding accessors, never touching stored literals. This mirrors how
 //! float literals already ride the trees as uninterpreted `SourceText`.
 
+use std::borrow::Cow;
 use std::sync::{Arc, OnceLock};
 
 /// The integer type a constant LANDED at (ch5 "Constants: Two Phases" — the
@@ -123,7 +124,9 @@ impl FloatFormat {
 }
 
 /// A float literal: the canonical SOURCE SPELLING plus an optional format
-/// landing (F2, ch5 two-phase law). The spelling is the exact rational the
+/// landing (F2, ch5 two-phase law). Digit separators are removed once, just as
+/// for integer payloads; every consumer sees the same exact decimal spelling.
+/// The spelling is the exact rational the
 /// author wrote ("unitless until a site requests a type"); each format read
 /// rounds ONCE, correctly, from the decimal spelling through the executable
 /// FloatSemantics engine, so an f32 read NEVER routes through f64 (the
@@ -158,15 +161,24 @@ impl FloatLiteral {
         Self::from_f64(value)
     }
 
-    /// Parse a source spelling (width/`real` suffixes stripped; a width
-    /// suffix lands the format). `None` = not a float spelling.
+    /// Parse a source spelling, removing digit separators and retaining a
+    /// width suffix as the format landing. `None` = not a float spelling.
     pub fn parse(source: &str) -> Option<Self> {
         let (body, landing) = strip_float_literal_suffix(source);
+        // The lexer admits separators in the whole, fractional and exponent
+        // digits. Normalize them at the payload boundary, before both exact
+        // validation and retained reads; rounding through a host float here
+        // would lose the source rational before its requested format lands.
+        let body = if body.contains('_') {
+            Cow::Owned(body.replace('_', ""))
+        } else {
+            Cow::Borrowed(body)
+        };
         // Validate the spelling once; the TEXT stays authoritative (reads
         // re-evaluate it exactly at their requested format).
-        crate::bignum::ExactFloat::from_decimal_str(body)?;
+        crate::bignum::ExactFloat::from_decimal_str(&body)?;
         Some(Self {
-            text: Arc::from(body),
+            text: Arc::from(body.as_ref()),
             landing,
         })
     }

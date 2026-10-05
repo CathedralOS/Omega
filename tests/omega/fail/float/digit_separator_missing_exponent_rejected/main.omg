@@ -1,0 +1,1 @@
+machine main() { let value: f64 = 1.0e_; }

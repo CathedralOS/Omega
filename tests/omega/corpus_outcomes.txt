@@ -821,6 +821,12 @@ fail/expressions/token_bound_machine_duplicate_shape_rejected rejected 28ms expe
 	`Wrapped::plus` binds the fixed operator token `+` already bound by `Wrapped::add` for the same owner and operand shape (Wrapped#140, Wrapped#140); a second spelling needs a distinct operand shape or a separate owner
 fail/expressions/token_bound_machine_foreign_family_rejected rejected 31ms expected @2d8ed253669f
 	`Wrapped::add` binds the fixed operator token `+` but no operand names its semantic home `Wrapped` (u8#7, u8#7); a closed family's direct token bindings belong to the owner of a participating operand
+fail/float/digit_separator_format_mismatch_rejected rejected 3132ms expected @e129ea486356
+	literal `12.5` is suffixed `f32` but lands in a `f64` place -- a width suffix chooses the literal's format at the spelling, so it must agree with the destination's declared type (drop the suffix or fix one side)
+fail/float/digit_separator_missing_exponent_rejected rejected 4ms expected @e129ea486356
+	tests/omega/fail/float/digit_separator_missing_exponent_rejected/main.omg:1:35: invalid float literal
+fail/float/digit_separator_unknown_suffix_rejected rejected 1ms expected @e129ea486356
+	tests/omega/fail/float/digit_separator_unknown_suffix_rejected/main.omg:1:35: unknown float literal suffix
 fail/float/exclusive_float_range_endpoint_rejected rejected 431ms expected @2d8ed253669f
 	cannot prove call argument `1.5` satisfies bounded parameter `value` for `accept` in `Main::main.main`; expected 0..1.5
 fail/float/field_range_conversion_after_invalid_write rejected 262ms expected @c67082a3bcd4+wt
@@ -2234,6 +2240,7 @@ pass/float/named_provider_multiply_then_add_exit checked 4722ms check-target:mac
 pass/float/named_provider_negate_is_nan_exit checked 5868ms check-target:macos_arm64 @2d8ed253669f
 pass/float/nearest_even_binary_arithmetic_exit checked 5916ms check-target:macos_arm64 @2d8ed253669f
 pass/float/nested_float_operator_applications_exit checked 9657ms check-target:macos_arm64 @2d8ed253669f
+pass/float/runtime_float_digit_separators_exit checked 88080ms check-target:macos_arm64 @e129ea486356
 pass/float/runtime_float_integer_conversion_boundaries_exit checked 4633ms check-target:macos_arm64 @2d8ed253669f
 pass/float/runtime_float_to_integer_policy_casts_exit checked 4840ms check-target:macos_arm64 @2d8ed253669f
 pass/float/runtime_named_float_to_integer_conversion_exit checked 6246ms check-target:macos_arm64 @921839635ad

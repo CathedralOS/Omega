@@ -1,0 +1,1 @@
+machine main() { let value: f64 = 1_2.5f32; }
