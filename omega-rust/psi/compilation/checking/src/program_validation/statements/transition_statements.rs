@@ -41,21 +41,16 @@ pub(super) fn validate(
             "machine `{}` state `{state_name}` transition guard",
             machine.name
         );
-        arithmetic_domains::validate_guard_ranges(
+        arithmetic_domains::validate_value_range_retaining_decisions(
             program,
             machine,
             current_state,
             guard,
             value_environment,
+            Some(typed_trees::types::PrimitiveType::Bool),
+            numerics::arithmetic::ArithmeticDomain::Exact,
             &owner,
             diagnostics,
-        );
-        arithmetic_domains::collect_exact_integer_cast_facts(
-            program,
-            machine,
-            current_state,
-            guard,
-            value_environment,
             exact_integer_casts,
         );
     }
@@ -98,50 +93,6 @@ pub(super) fn validate(
         &transition.guard,
         value_environment,
     );
-
-    for target in [transition.target, transition.continuation] {
-        if !target.is_valid() {
-            continue;
-        }
-        match program.statement_table.transition_target(target) {
-            TransitionTargetNode::Named { arguments, .. } => {
-                for (argument_index, argument) in program
-                    .statement_table
-                    .expression_handles(*arguments)
-                    .iter()
-                    .enumerate()
-                {
-                    let argument_environment = transition_values
-                        .for_target(target)
-                        .get(argument_index)
-                        .unwrap_or(&narrowed);
-                    arithmetic_domains::collect_exact_integer_cast_facts(
-                        program,
-                        machine,
-                        current_state,
-                        *argument,
-                        argument_environment,
-                        exact_integer_casts,
-                    );
-                }
-            }
-            TransitionTargetNode::Value(expression) => {
-                let return_environment = transition_values
-                    .for_target(target)
-                    .first()
-                    .unwrap_or(&narrowed);
-                arithmetic_domains::collect_exact_integer_cast_facts(
-                    program,
-                    machine,
-                    current_state,
-                    *expression,
-                    return_environment,
-                    exact_integer_casts,
-                );
-            }
-            TransitionTargetNode::Terminal => {}
-        }
-    }
 
     // Fall-through complement: an exit-if-true transition (valid
     // target, no `_` arm) leaves the guard REFUTED for every later
@@ -255,6 +206,7 @@ pub(super) fn validate(
                         machine.name
                     ),
                     diagnostics,
+                    exact_integer_casts,
                 );
             }
         }
@@ -277,7 +229,7 @@ pub(super) fn validate(
                     .for_target(target)
                     .get(argument_index)
                     .unwrap_or(&narrowed);
-                arithmetic_domains::validate_arithmetic_domains(
+                arithmetic_domains::validate_value_range_retaining_decisions(
                     program,
                     machine,
                     current_state,
@@ -290,6 +242,7 @@ pub(super) fn validate(
                         machine.name
                     ),
                     diagnostics,
+                    exact_integer_casts,
                 );
             }
         }

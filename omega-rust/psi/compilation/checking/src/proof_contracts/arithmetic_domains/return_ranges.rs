@@ -5,7 +5,7 @@ use crate::proof_contracts::arithmetic_domains::assignments::{
 };
 use crate::proof_contracts::arithmetic_domains::expression_analysis::analyze;
 use crate::proof_contracts::arithmetic_domains::integer_ranges::{
-    primitive_range, validate_anonymous_integer_range, validate_value_range,
+    primitive_range, validate_anonymous_integer_range,
 };
 use crate::proof_contracts::arithmetic_domains::interval::Interval;
 use crate::proof_contracts::arithmetic_domains::range_constraints::range_constraint_interval;
@@ -245,6 +245,7 @@ pub(crate) fn validate_return_value_range(
     environment: &ValueEnvironment,
     owner: &str,
     diagnostics: &mut Vec<Diagnostic>,
+    decisions: &mut Vec<crate::ExactIntegerCastFact>,
 ) {
     let return_primitive = program.primitive_type_reference(state.return_type);
     let return_domain = program.arithmetic_domain_for_type_reference(state.return_type);
@@ -275,7 +276,7 @@ pub(crate) fn validate_return_value_range(
         // fits the type, so the narrowing check adds no rejection here; it is
         // present only for uniformity with the unconstrained branch.
         let before = diagnostics.len();
-        let (interval, source, source_domain) = validate_value_range(
+        let (interval, source, source_domain) = super::validate_value_range_retaining_decisions(
             program,
             machine,
             Some(state),
@@ -285,6 +286,7 @@ pub(crate) fn validate_return_value_range(
             return_domain,
             owner,
             diagnostics,
+            decisions,
         );
         if diagnostics.len() == before {
             let (source, source_domain) = stored_value_carrier(
@@ -315,7 +317,7 @@ pub(crate) fn validate_return_value_range(
     // its source type but not the return type (`-> i8 { _ -> (300) }`) is a silent
     // truncation.
     let before = diagnostics.len();
-    let (interval, source, source_domain) = validate_value_range(
+    let (interval, source, source_domain) = super::validate_value_range_retaining_decisions(
         program,
         machine,
         Some(state),
@@ -325,6 +327,7 @@ pub(crate) fn validate_return_value_range(
         return_domain,
         owner,
         diagnostics,
+        decisions,
     );
     if diagnostics.len() == before {
         let (source, source_domain) = stored_value_carrier(

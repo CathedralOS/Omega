@@ -3500,9 +3500,13 @@ deletions, which its commit lists.
   admission). Remaining work:
   - retain each successful occurrence decision in `CheckFacts` and have stage
     05 consume it without proof search; do not add duplicate provers. Arithmetic
-    expression analysis now returns exact-cast decisions from its branch-local
-    walk; extend that output to the remaining primitive conditions, rather than
-    rebuilding decisions with a separate syntax traversal. Concrete contract
+    checking now retains exact-cast decisions from the original statement
+    walk, including short-circuit and dispatch environments, instead of
+    re-analyzing expressions to collect them. The guarded cast/call witness
+    `arithmetic/runtime_short_circuit_cast_decisions_exit` runs natively and
+    interpreted with exit 70; wrong-path, escaped and mutated-subject facts
+    reject. Extend that output to the remaining primitive conditions, rather
+    than rebuilding decisions with a separate syntax traversal. Concrete contract
     arithmetic uses that same formation walk; abstract declaration contracts
     still have a separate carrier-resolution path to unify;
   - cover nested expressions, compiler-generated semantic-to-storage casts,

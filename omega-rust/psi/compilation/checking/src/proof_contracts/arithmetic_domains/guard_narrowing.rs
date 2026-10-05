@@ -9,9 +9,7 @@ use super::{
     PrimitiveType, ProofFact, SignatureContractKind, State, TypedTrees, ValueEnvironment,
     declared_place_type_raw, literal_i64, ordered_values, place_path, range_constraint_interval,
 };
-use diagnostics::Diagnostic;
 use std::collections::BTreeMap;
-use typed_trees::expression::UnaryOperator;
 
 mod arrivals;
 use crate::proof_contracts::arithmetic_domains::float_arithmetic::{
@@ -304,97 +302,46 @@ fn negate_comparison(operator: BinaryOperator) -> Option<BinaryOperator> {
     })
 }
 
-/// Validate every Exact operation in a transition guard, evaluating it the
-/// way the guard runs: `a && b` analyzes `b` only under the facts `a` being
-/// true establishes, `a || b` under `a` being false, `!a` and a Boolean
-/// equality with a literal analyze their operand, and any other expression
-/// is an ordinary value whose representability the range analysis checks.
-/// So `depth >= 1 && depth - 1 < 16` admits the subtraction its left
-/// conjunct guards, while `a + b == 70` over unconstrained operands owes
-/// the proof a `let` of the same comparison owes.
-pub(crate) fn validate_guard_ranges(
+/// Facts available while evaluating the right operand of a builtin logical
+/// expression. The operator's selected meaning, not its spelling, establishes
+/// short-circuit execution. The returned environment never escapes that operand.
+pub(crate) fn short_circuit_operand_environment(
     program: &TypedTrees,
     machine: &Machine,
     state: Option<&State>,
-    condition: ExpressionHandle,
+    expression: ExpressionHandle,
     environment: &ValueEnvironment,
-    owner: &str,
-    diagnostics: &mut Vec<Diagnostic>,
-) {
-    match program.expression_table.expression(condition) {
-        ExpressionNode::Binary(binary)
-            if matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or) =>
+) -> Option<ValueEnvironment> {
+    let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    if !matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or)
+        || !meaning::has_builtin_binary_expression_meaning(program, machine, state, expression)
+    {
+        return None;
+    }
+    let mut narrowed = environment.clone();
+    narrow_environment_by_condition(
+        program,
+        machine,
+        state,
+        &mut narrowed,
+        binary.left,
+        binary.operator == BinaryOperator::And,
+    );
+    // A condition describes its evaluated snapshot. It cannot re-establish a
+    // bound on storage a nested call may have changed. As for value dispatch,
+    // discard overlapping facts across the expression's may-write footprint;
+    // unknown calls retain only immutable snapshots.
+    if crate::machine_calls::calls::expression_has_calls(program, expression) {
+        match crate::machine_calls::calls::CallFrameResolver::new(program)
+            .and_then(|frames| frames.expression_may_write_paths(machine, expression))
         {
-            validate_guard_ranges(
-                program,
-                machine,
-                state,
-                binary.left,
-                environment,
-                owner,
-                diagnostics,
-            );
-            let mut narrowed = environment.clone();
-            narrow_environment_by_condition(
-                program,
-                machine,
-                state,
-                &mut narrowed,
-                binary.left,
-                binary.operator == BinaryOperator::And,
-            );
-            validate_guard_ranges(
-                program,
-                machine,
-                state,
-                binary.right,
-                &narrowed,
-                owner,
-                diagnostics,
-            );
-        }
-        ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => {
-            validate_guard_ranges(
-                program,
-                machine,
-                state,
-                unary.operand,
-                environment,
-                owner,
-                diagnostics,
-            );
-        }
-        ExpressionNode::Binary(equality)
-            if equality.operator == BinaryOperator::Equal
-                && matches!(
-                    program.expression_table.expression(equality.right),
-                    ExpressionNode::Boolean(_)
-                ) =>
-        {
-            validate_guard_ranges(
-                program,
-                machine,
-                state,
-                equality.left,
-                environment,
-                owner,
-                diagnostics,
-            );
-        }
-        _ => {
-            super::validate_value_range(
-                program,
-                machine,
-                state,
-                condition,
-                environment,
-                Some(typed_trees::types::PrimitiveType::Bool),
-                numerics::arithmetic::ArithmeticDomain::Exact,
-                owner,
-                diagnostics,
-            );
+            Some(writes) => narrowed.invalidate_written_paths(&writes),
+            None => narrowed.invalidate_unknown_writes(program, state),
         }
     }
+    Some(narrowed)
 }
 
 /// A selected transition arm establishes its whole guard, whether authored as

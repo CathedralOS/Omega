@@ -63,7 +63,7 @@ pub(super) fn validate(
     // reconstruction. The destination resets to (None, Exact): an argument's
     // type comes from the callee's parameter, never the statement context.
     for argument in program.statement_table.expression_handles(call.arguments) {
-        arithmetic_domains::validate_arithmetic_domains(
+        arithmetic_domains::validate_value_range_retaining_decisions(
             program,
             machine,
             current_state,
@@ -76,20 +76,6 @@ pub(super) fn validate(
                 machine.name
             ),
             diagnostics,
-        );
-    }
-    // The operands were validated under this statement's flow environment;
-    // retain every accepted exact fixed-integer cast among them before the
-    // call's writes disturb that environment, exactly as an expression-
-    // position call does. Checked lowering replays a call argument such as
-    // `value as u8` from this evidence rather than from ambient trust.
-    for argument in program.statement_table.expression_handles(call.arguments) {
-        arithmetic_domains::collect_exact_integer_cast_facts(
-            program,
-            machine,
-            current_state,
-            *argument,
-            value_environment,
             exact_integer_casts,
         );
     }

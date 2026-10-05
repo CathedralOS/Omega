@@ -200,7 +200,7 @@ pub(super) fn validate<'a, 'p>(
             )
         })
         .unwrap_or_else(|| {
-            arithmetic_domains::validate_value_range(
+            arithmetic_domains::validate_value_range_retaining_decisions(
                 program,
                 machine,
                 current_state,
@@ -210,6 +210,7 @@ pub(super) fn validate<'a, 'p>(
                 assignment_target_domain,
                 &owner,
                 diagnostics,
+                exact_integer_casts,
             )
         });
     // The declared policy is read through the RAW destination (its `in
@@ -299,14 +300,6 @@ pub(super) fn validate<'a, 'p>(
     }
     // Analyze the RHS against pre-store facts, then invalidate every
     // spelling of the storage before recording the new target value.
-    arithmetic_domains::collect_exact_integer_cast_facts(
-        program,
-        machine,
-        current_state,
-        assignment.value,
-        value_environment,
-        exact_integer_casts,
-    );
     if let Some(written) = direct_written {
         value_environment.invalidate_assignment_paths(
             program,

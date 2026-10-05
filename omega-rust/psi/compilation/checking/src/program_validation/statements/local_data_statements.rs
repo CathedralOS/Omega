@@ -188,7 +188,7 @@ pub(super) fn validate(
             diagnostics,
         )
         .unwrap_or_else(|| {
-            arithmetic_domains::validate_value_range(
+            arithmetic_domains::validate_value_range_retaining_decisions(
                 program,
                 machine,
                 current_state,
@@ -198,6 +198,7 @@ pub(super) fn validate(
                 local_target_domain,
                 &owner,
                 diagnostics,
+                exact_integer_casts,
             )
         });
     // Keep the declared carrier check independent of arithmetic failures.
@@ -263,14 +264,6 @@ pub(super) fn validate(
         }
     }
     if local_data.initial_value.is_valid() {
-        arithmetic_domains::collect_exact_integer_cast_facts(
-            program,
-            machine,
-            current_state,
-            local_data.initial_value,
-            value_environment,
-            exact_integer_casts,
-        );
         arithmetic_domains::record_assignment(
             value_environment,
             Some(local_data.name.as_str().to_owned()),

@@ -33,15 +33,21 @@ pub(super) fn validate(
     };
 
     if calls::unit_statement_call_is_supported(program, machine, state, *expression) {
-        // Value-position call validation already checked the callee and
-        // its operands. Retain cast obligations inside those operands;
-        // Unit itself has no scalar return range or landing.
-        arithmetic_domains::collect_exact_integer_cast_facts(
+        // The call signature owns Unit's result. Its evaluated operands still
+        // owe arithmetic formation, whose decisions leave this walk together.
+        arithmetic_domains::validate_value_range_retaining_decisions(
             program,
             machine,
             Some(state),
             *expression,
             value_environment,
+            None,
+            numerics::arithmetic::ArithmeticDomain::Exact,
+            &format!(
+                "machine `{}` state `{state_name}` call operands",
+                machine.name
+            ),
+            diagnostics,
             exact_integer_casts,
         );
         return;
@@ -149,7 +155,7 @@ pub(super) fn validate(
             diagnostics,
         )
         .unwrap_or_else(|| {
-            arithmetic_domains::validate_value_range(
+            arithmetic_domains::validate_value_range_retaining_decisions(
                 program,
                 machine,
                 Some(state),
@@ -159,6 +165,7 @@ pub(super) fn validate(
                 return_domain,
                 &owner,
                 diagnostics,
+                exact_integer_casts,
             )
         });
     // A result retains its carrier even when its arithmetic is invalid.
@@ -197,13 +204,5 @@ pub(super) fn validate(
         return_interval,
         &owner,
         diagnostics,
-    );
-    arithmetic_domains::collect_exact_integer_cast_facts(
-        program,
-        machine,
-        Some(state),
-        *expression,
-        value_environment,
-        exact_integer_casts,
     );
 }

@@ -934,6 +934,14 @@ fn scan_expression_calls_at_position(
                 boundary_operator_applications,
                 diagnostics,
             );
+            let right_environment =
+                crate::proof_contracts::arithmetic_domains::short_circuit_operand_environment(
+                    program,
+                    machine,
+                    Some(state),
+                    expression,
+                    value_environment,
+                );
             scan_expression_calls(
                 program,
                 machine,
@@ -941,7 +949,7 @@ fn scan_expression_calls_at_position(
                 machine_symbols,
                 symbols,
                 writable_roots,
-                value_environment,
+                right_environment.as_ref().unwrap_or(value_environment),
                 binary.right,
                 executes
                     && !matches!(

@@ -39,12 +39,24 @@ pub(super) fn analyze(
     diagnostics: &mut Vec<Diagnostic>,
     exact_integer_casts: &mut Vec<crate::ExactIntegerCastFact>,
 ) -> Analysis {
+    let left = walk.analyze(binary.left, diagnostics, exact_integer_casts);
+    let right_environment = guard_narrowing::short_circuit_operand_environment(
+        walk.program,
+        walk.machine,
+        walk.state,
+        expression,
+        walk.environment,
+    );
+    let right_walk = ExpressionWalk {
+        environment: right_environment.as_ref().unwrap_or(walk.environment),
+        ..*walk
+    };
     let mut operation = Operation {
         walk,
         expression,
         binary: *binary,
-        left: walk.analyze(binary.left, diagnostics, exact_integer_casts),
-        right: walk.analyze(binary.right, diagnostics, exact_integer_casts),
+        left,
+        right: right_walk.analyze(binary.right, diagnostics, exact_integer_casts),
     };
     if !crate::proof_contracts::bound_expression_meaning::has_builtin_binary_expression_meaning(
         walk.program,

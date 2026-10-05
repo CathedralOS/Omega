@@ -69,12 +69,12 @@ pub use guard_narrowing::{
 };
 pub(crate) use guard_narrowing::{
     fall_through_narrowed_environment, guard_narrowed_environment, incoming_guard_environments,
-    requires_value_environment, seed_out_param_ensures, validate_guard_ranges,
+    requires_value_environment, seed_out_param_ensures, short_circuit_operand_environment,
 };
 pub use integer_ranges::integer_widen_is_total;
 pub(crate) use integer_ranges::{
-    collect_exact_integer_cast_facts, integer_bit_width, literal_i64, primitive_range,
-    validate_anonymous_integer_range, validate_value_range,
+    integer_bit_width, literal_i64, primitive_range, validate_anonymous_integer_range,
+    validate_value_range, validate_value_range_retaining_decisions,
 };
 pub(crate) use interval::Interval;
 pub(crate) use invariant_bounds::{

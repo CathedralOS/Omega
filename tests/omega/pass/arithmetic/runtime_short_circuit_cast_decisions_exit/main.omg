@@ -1,0 +1,27 @@
+use omega_language_std::console;
+
+machine identity(value: u8) -> u8 { value }
+
+machine matches(value: u32) -> bool {
+    transition value <= 255u32 && identity(value as u8) == 42u8 {
+        true -> (true)
+        _ -> (false)
+    }
+}
+
+machine outside_or_matches(value: u32) -> bool {
+    value > 255u32 || (value as u8) == 42u8
+}
+
+machine main() reaches Console {
+    let first: bool = matches(42u32);
+    let second: bool = matches(300u32);
+    let third: bool = outside_or_matches(300u32);
+    let fourth: bool = outside_or_matches(1u32);
+    transition first && !second && third && !fourth {
+        true -> good()
+        _ -> bad()
+    }
+    state good() { Console::exit_process(70); }
+    state bad() { Console::exit_process(71); }
+}

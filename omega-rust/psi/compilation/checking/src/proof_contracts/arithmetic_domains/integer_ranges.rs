@@ -1,4 +1,8 @@
 //! Integer literal, cast and primitive range fitting.
+//!
+//! Statement checking retains cast decisions with its value-range result.
+//! Queries may discard those decisions, but lowering never reconstructs them
+//! by re-running an expression under a different destination or branch scope.
 
 use crate::proof_contracts::arithmetic_domains::expression_analysis::analyze;
 use crate::proof_contracts::arithmetic_domains::interval::Interval;
@@ -151,9 +155,40 @@ pub(crate) fn validate_value_range(
     owner: &str,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> (Interval, Option<PrimitiveType>, Option<ArithmeticDomain>) {
+    validate_value_range_retaining_decisions(
+        program,
+        machine,
+        state,
+        expression,
+        environment,
+        target_primitive,
+        target_domain,
+        owner,
+        diagnostics,
+        &mut Vec::new(),
+    )
+}
+
+/// Return occurrence decisions from the same check that supplies the value's
+/// range. Re-analyzing the expression later can lose its destination and its
+/// branch-local premises, even if the surrounding statement has not changed.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn validate_value_range_retaining_decisions(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: Option<&State>,
+    expression: ExpressionHandle,
+    environment: &ValueEnvironment,
+    target_primitive: Option<PrimitiveType>,
+    target_domain: ArithmeticDomain,
+    owner: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+    decisions: &mut Vec<crate::ExactIntegerCastFact>,
+) -> (Interval, Option<PrimitiveType>, Option<ArithmeticDomain>) {
     if !expression.is_valid() {
         return (Interval::UNBOUNDED, None, None);
     }
+    let first_diagnostic = diagnostics.len();
     let analysis = analyze(
         program,
         machine,
@@ -164,39 +199,18 @@ pub(crate) fn validate_value_range(
         target_domain,
         owner,
         diagnostics,
-    )
-    .value;
-    (analysis.interval, analysis.primitive, analysis.domain)
-}
-
-/// Retain the decisions from the arithmetic walk, including each dispatch arm's
-/// narrowed environment. There is no separate cast traversal or range proof.
-pub(crate) fn collect_exact_integer_cast_facts(
-    program: &TypedTrees,
-    machine: &Machine,
-    state: Option<&State>,
-    expression: ExpressionHandle,
-    environment: &ValueEnvironment,
-    facts: &mut Vec<crate::ExactIntegerCastFact>,
-) {
-    if !expression.is_valid() {
-        return;
-    }
-    let mut diagnostics = Vec::new();
-    let checked = analyze(
-        program,
-        machine,
-        state,
-        expression,
-        environment,
-        None,
-        ArithmeticDomain::Exact,
-        "checked arithmetic decisions",
-        &mut diagnostics,
     );
-    if !diagnostics.iter().any(Diagnostic::is_error) {
-        facts.extend(checked.exact_integer_casts);
+    if !diagnostics[first_diagnostic..]
+        .iter()
+        .any(Diagnostic::is_error)
+    {
+        decisions.extend(analysis.exact_integer_casts);
     }
+    (
+        analysis.value.interval,
+        analysis.value.primitive,
+        analysis.value.domain,
+    )
 }
 
 /// The interval of an anonymous literal (D14). A literal that fits i64 is a
