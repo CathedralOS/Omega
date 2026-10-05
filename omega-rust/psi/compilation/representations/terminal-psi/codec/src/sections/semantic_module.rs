@@ -2,9 +2,15 @@
 //! the order `module_wire` writes them, the byte cursors in `wire`, canonical
 //! ordering rules, the structural-place encoders several sections share, and
 //! the representation-foundation checks that run before any byte is written.
-//! `encode_module` and `decode_module` sequence canonical ordering, representation
-//! validation, and wire encoding here. Identity derives from those exact canonical
+//! `encode_module` and `decode_module` sequence canonical ordering, foundation
+//! checks and wire encoding here. Identity derives from those exact canonical
 //! bytes. These checks establish representation shape, not proof admission.
+//!
+//! Only decoding runs the full `validate_module_representation`: decoded bytes
+//! may come from outside this compile. Encoding serves the compile's own
+//! module, which fingerprinting and identity encode again several times per
+//! publication; re-validating it there repeated a whole-module walk on fresh
+//! output (omega-rust/pipeline.md, "Verification placement").
 
 pub(crate) mod block_wire;
 pub(crate) mod canonical_order;
@@ -66,7 +72,6 @@ pub fn encode_module(module: &TerminalModule) -> Result<Vec<u8>, CodecError> {
     scalar_qualification_wire::validate(&module.scalar_qualifications)?;
     validate_canonical_order(module)?;
     validate_structural_foundation(module)?;
-    validate_module_representation(module).map_err(CodecError::InvalidModule)?;
     encode_raw(module)
 }
 

@@ -133,18 +133,17 @@ helper that passes does not close an item.
     (`established_on_every_path`) is quadratic in block count. Deriving the
     predecessor index once was tried and gave no measurable gain; do not
     retry it as the fix.
-    (b) whole-module validation repeats several times per publish:
-    `encode_module` in
-    `omega-rust/psi/compilation/representations/terminal-psi/codec/src/sections/semantic_module.rs`
-    validates before encoding, and `semantic_fingerprint` and
-    `terminal_psi_identity` call it. Stage 01's
+    (b) whole-module validation repeated several times per publish.
+    `encode_module` (which `semantic_fingerprint` and `terminal_psi_identity`
+    call) no longer runs `validate_module_representation`. Stage 01's
     `omega-rust/omega/compilation/pipeline/01_abstract-operations-to-abstract-operations/src/validation/projection/initial_ledger.rs`
     and `.../validation/context/mod.rs` (`ranked_cycles/replay.rs`,
     `context_projection.rs`) each re-derive identity from the same module.
     Under the PCC-removal and trust-ceremony rulings this repetition is
     in-process self-validation and is removed, not preserved:
-    **OMEGA-READS-TERMINAL-UNVERIFIED** deletes validation on encode, and
-    **TERMINAL-VERIFIER-DELETED** deletes (a). Start here.
+    **OMEGA-READS-TERMINAL-UNVERIFIED** removes the remaining verifier
+    passes, and **TERMINAL-VERIFIER-DELETED** deletes (a). Rerun the sample
+    gate first to measure what the encode change bought.
     (c) `omega-rust/psi/compilation/proof/admission/src/mathematical_core/certificate.rs`
     starts one 256 MiB-stack thread per certificate admission. Operation
     certificates go away with **PCC-CERTIFICATES-DELETED**; a persistent
@@ -3611,8 +3610,9 @@ deletions, which its commit lists.
     (`omega-rust/omega/compilation/backend/artifacts/component-description/`);
   - `omega-rust/psi/compilation/representations/terminal-psi/fuel/certification/`,
     which computes fixed-fuel bounds from `TerminalModule`;
-  - `validate_module_representation` on codec encode and decode
-    (`omega-rust/psi/compilation/representations/terminal-psi/codec/src/sections/semantic_module.rs`).
+  - `validate_module_representation` on codec decode
+    (`omega-rust/psi/compilation/representations/terminal-psi/codec/src/sections/semantic_module.rs`;
+    encode no longer runs it).
 
   Re-source the optimizer's facts:
   - `AcceptedObligationFact`
