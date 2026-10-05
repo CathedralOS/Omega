@@ -781,26 +781,22 @@ pub(super) fn structural_parameter_field_path(
             {
                 return None;
             }
-            let name_symbol = name.symbol.is_valid().then_some(name.symbol).or_else(|| {
+            // A parameter owns its place root by symbol. Resolution retains
+            // that symbol on the name itself or on one of its path members,
+            // so a path whose every member symbol is invalid roots at no
+            // authored parameter and resolves nothing here.
+            let root = name.symbol.is_valid().then_some(name.symbol).or_else(|| {
                 program
                     .expression_table
                     .name_path_member_symbols(name.member_symbols)
                     .iter()
                     .copied()
                     .find(|symbol| symbol.is_valid())
-            });
-            let name_text = program
-                .expression_table
-                .name_path_members(name.members)
-                .last();
+            })?;
             parameters
                 .iter()
                 .position(|parameter| {
-                    if let Some(symbol) = name_symbol {
-                        parameter.symbol == symbol
-                    } else {
-                        name_text.is_some_and(|name| parameter.name == *name)
-                    }
+                    crate::execution::terminal_unit::types::parameter_is_root(parameter, root)
                 })
                 .and_then(|position| u32::try_from(position).ok())
         }
