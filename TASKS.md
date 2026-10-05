@@ -2352,10 +2352,13 @@ crash and native exit behavior.
   fixture whose offset has no bound at all.
 
 - **MACOS-NATIVE-LOST-SUCCESSES.** (new-scope)
-  `tests/omega/corpus_native_macos_arm64.txt` carries 16 rows with a
+  `tests/omega/corpus_native_macos_arm64.txt` carries rows with a
   `regressed-from:` token: a success this host recorded and no longer reaches.
-  They were invisible until the golden could say so -- sixteen claimed `built`
-  and twelve of those claimed an authored exit. Revalidate each recorded loss
+  **Do not restate the count here -- it moved 21, 18, 17, 16, 15 in one day and
+  this paragraph was stale after every one.** Read it from
+  `python3 tools/corpus_scoreboard.py`, which prints the live roster and names
+  each row with the outcome it lost. The rows were invisible until the golden
+  could say so, and most claimed `built` with an authored exit. Revalidate each recorded loss
   against current main before assigning a repair. Two lost a running program with an authored exit
   (`pass/text/local_bounded_text_case_result_loan_exit` and
   `pass/text/local_bounded_text_scalar_loan_exit`, now `incomplete` at the
