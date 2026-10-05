@@ -127,10 +127,11 @@ fn transfers(
                 missing: "reference release consumes an unavailable carrier",
             });
         }
-        if let Some(result) = operation.result.structural()
-            && births.iter().any(|(place, _)| *place == result.place)
-        {
-            let Some(position) = position(result.place) else {
+        // The owning planner retains births for both returned carriers and
+        // in-place local establishment. Do not rediscover only one producer
+        // family from the operation's result shape here.
+        for (place, _) in births.iter().filter(|(_, birth)| *birth == operation.id) {
+            let Some(position) = position(*place) else {
                 return unsupported("scalar graph carrier birth is absent from its managed roster");
             };
             transfers.push(Transfer::Birth { position });

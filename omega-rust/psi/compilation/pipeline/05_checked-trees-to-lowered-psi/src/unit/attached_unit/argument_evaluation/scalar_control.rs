@@ -22,10 +22,9 @@ struct PayloadCaseDispatchArm {
     selected: semantic_vocabulary::StructuralCaseId,
     cases: Vec<semantic_vocabulary::StructuralCaseId>,
     payloads: Vec<(semantic_vocabulary::StructuralFieldId, QualifiedScalarType)>,
-    /// The arm continuation's completion arguments: the source parameters
-    /// followed by the arm's result expression with every bound payload read
-    /// substituted to its parameter slot.
-    arguments: Vec<LoweredDirectExpression>,
+    /// The selected arm's value after substituting direct scalar payloads.
+    /// It still needs ordinary evaluation, including selective Boolean control.
+    value: LoweredDirectExpression,
 }
 
 /// One arm destination's target state index: the computation or pure
@@ -122,12 +121,11 @@ fn payload_case_dispatch_terminator(
 
 impl Evaluation {
     /// A whole-root case-membership guard whose arm returns through the
-    /// case's scalar payloads lowers as a dispatch: the selected edge binds
-    /// the payload fields as block parameters and the arm continues from
-    /// parameters only, so the payload reads never replay outside the case's
-    /// dominance. Arms outside this shape — nested-path memberships,
-    /// computed guards, computation-rooted returns, non-scalar payload
-    /// reads — keep the ordinary guarded-exit lowering.
+    /// case's payloads lowers as a dispatch. Direct scalar payloads bind as
+    /// block parameters; deeper observations retain their original structural
+    /// root and projection under the selected edge's case dominance. Nested
+    /// memberships, computed guards and computation-rooted returns keep the
+    /// ordinary guarded-exit lowering.
     #[allow(clippy::too_many_arguments)]
     fn payload_case_dispatch(
         &self,
@@ -268,9 +266,9 @@ impl Evaluation {
     }
 
     /// The shared tail of case-dispatch admission: the arm's return
-    /// expression must observe `case` of `source`, every bound payload read
-    /// must substitute onto a scalar payload slot, and the result type must
-    /// match.
+    /// expression must observe `case` of `source` and match its result type.
+    /// Direct scalar payload reads use dispatched slots; nested structural
+    /// projections remain observations of the selected source.
     #[allow(clippy::too_many_arguments)]
     fn payload_dispatch_arm(
         &self,
@@ -333,25 +331,55 @@ impl Evaluation {
         }
         let substituted =
             crate::emission::case_payload_dispatch::substitute_direct(expression, &bound);
-        // Every deferred case read must land on a bound scalar payload slot;
-        // a read into a non-scalar payload keeps the ordinary lowering so it
-        // declines at its own gate rather than here.
-        if crate::emission::case_payload_dispatch::direct_case_reads(
-            std::slice::from_ref(&substituted),
-            source,
-            case,
-        ) {
-            return Ok(None);
-        }
-        let mut arguments = crate::scalar_graph::scalar_computations::parameters(source_types);
-        arguments.push(substituted);
+        // The selected edge establishes case knowledge for the original
+        // place, not just its scalar slots. Nested payload observations keep
+        // their canonical paths and execute only in this continuation.
         Ok(Some(PayloadCaseDispatchArm {
             source,
             selected: case,
             cases: cases.iter().map(|declared| declared.id).collect(),
             payloads,
-            arguments,
+            value: substituted,
         }))
+    }
+
+    /// Evaluate the selected arm in its complete input namespace, then shed
+    /// dispatch-only payload slots before joining the common scalar result.
+    /// The direct evaluator stages selective expressions as ordinary control;
+    /// a jump argument cannot stand in for that evaluation.
+    fn payload_arm_target(
+        &self,
+        expansion: &mut crate::scalar_graph::scalar_computations::Expansion<'_>,
+        source_types: &[QualifiedScalarType],
+        dispatch: &PayloadCaseDispatchArm,
+    ) -> Result<usize, LoweringError> {
+        let mut input_types = source_types.to_vec();
+        input_types.extend(dispatch.payloads.iter().map(|(_, value_type)| *value_type));
+        let result_type = dispatch.value.value_type(&input_types)?;
+        let mut parameter_types = input_types.clone();
+        parameter_types.push(result_type);
+        let mut arguments = crate::scalar_graph::scalar_computations::parameters(source_types);
+        arguments.push(LoweredDirectExpression::Parameter {
+            position: input_types.len(),
+            scalar_type: result_type.scalar_type,
+        });
+        let completion = expansion.push(LoweredScalarBranchState {
+            structural_parameters: Vec::new(),
+            structural_effects: Vec::new(),
+            parameter_types,
+            erased_formal_types: Vec::new(),
+            erased_proof_formals: Vec::new(),
+            bindings: Vec::new(),
+            terminator: LoweredScalarBranchTerminator::Jump {
+                trivial_affine_discards: Vec::new(),
+                structural_arguments: Vec::new(),
+                target: 0,
+                arguments,
+                erased_arguments: Vec::new(),
+                erased_proof_arguments: self.proof_formal_forwarding(),
+            },
+        });
+        expansion.direct_value(&input_types, completion, dispatch.value.clone())
     }
 
     /// Every arm dispatched on the same root, so one total split routes
@@ -381,24 +409,7 @@ impl Evaluation {
         }
         let mut armed = Vec::with_capacity(dispatches.len());
         for dispatch in dispatches {
-            let mut parameter_types = source_types.to_vec();
-            parameter_types.extend(dispatch.payloads.iter().map(|(_, value_type)| *value_type));
-            let target = expansion.push(LoweredScalarBranchState {
-                structural_parameters: Vec::new(),
-                structural_effects: Vec::new(),
-                parameter_types,
-                erased_formal_types: Vec::new(),
-                erased_proof_formals: Vec::new(),
-                bindings: Vec::new(),
-                terminator: LoweredScalarBranchTerminator::Jump {
-                    trivial_affine_discards: Vec::new(),
-                    structural_arguments: Vec::new(),
-                    target: 0,
-                    arguments: dispatch.arguments.clone(),
-                    erased_arguments: Vec::new(),
-                    erased_proof_arguments: self.proof_formal_forwarding(),
-                },
-            });
+            let target = self.payload_arm_target(expansion, source_types, &dispatch)?;
             let mut arguments = crate::scalar_graph::scalar_computations::parameters(source_types);
             arguments.extend(dispatch.payloads.iter().enumerate().map(
                 |(index, (_, value_type))| LoweredDirectExpression::Parameter {
@@ -615,25 +626,8 @@ impl Evaluation {
                         )?
                     }
                     (Some(dispatch), _) => {
-                        let mut parameter_types = source_types.clone();
-                        parameter_types
-                            .extend(dispatch.payloads.iter().map(|(_, value_type)| *value_type));
-                        let true_target = expansion.push(LoweredScalarBranchState {
-                            structural_parameters: Vec::new(),
-                            structural_effects: Vec::new(),
-                            parameter_types,
-                            erased_formal_types: Vec::new(),
-                            erased_proof_formals: Vec::new(),
-                            bindings: Vec::new(),
-                            terminator: LoweredScalarBranchTerminator::Jump {
-                                trivial_affine_discards: Vec::new(),
-                                structural_arguments: Vec::new(),
-                                target: 0,
-                                arguments: dispatch.arguments.clone(),
-                                erased_arguments: Vec::new(),
-                                erased_proof_arguments: self.proof_formal_forwarding(),
-                            },
-                        });
+                        let true_target =
+                            self.payload_arm_target(&mut expansion, &source_types, &dispatch)?;
                         let false_target = push_arm_target(
                             &mut expansion,
                             checked,
@@ -656,25 +650,8 @@ impl Evaluation {
                         // on the case the arm observes, with every
                         // non-selected edge continuing into the guard's
                         // true continuation.
-                        let mut parameter_types = source_types.clone();
-                        parameter_types
-                            .extend(dispatch.payloads.iter().map(|(_, value_type)| *value_type));
-                        let selected_target = expansion.push(LoweredScalarBranchState {
-                            structural_parameters: Vec::new(),
-                            structural_effects: Vec::new(),
-                            parameter_types,
-                            erased_formal_types: Vec::new(),
-                            erased_proof_formals: Vec::new(),
-                            bindings: Vec::new(),
-                            terminator: LoweredScalarBranchTerminator::Jump {
-                                trivial_affine_discards: Vec::new(),
-                                structural_arguments: Vec::new(),
-                                target: 0,
-                                arguments: dispatch.arguments.clone(),
-                                erased_arguments: Vec::new(),
-                                erased_proof_arguments: self.proof_formal_forwarding(),
-                            },
-                        });
+                        let selected_target =
+                            self.payload_arm_target(&mut expansion, &source_types, &dispatch)?;
                         let other_target = push_arm_target(
                             &mut expansion,
                             checked,
@@ -777,30 +754,7 @@ impl Evaluation {
                     for (guard, dispatch) in arms.iter().zip(dispatches) {
                         let target = match &dispatch {
                             Some(dispatch) => {
-                                let mut parameter_types = source_types.clone();
-                                parameter_types.extend(
-                                    dispatch.payloads.iter().map(|(_, value_type)| *value_type),
-                                );
-                                // The continuation's declared parameters are the
-                                // source values followed by the case's scalar
-                                // payloads; the dispatch's selected edge binds them
-                                // positionally.
-                                expansion.push(LoweredScalarBranchState {
-                                    structural_parameters: Vec::new(),
-                                    structural_effects: Vec::new(),
-                                    parameter_types,
-                                    erased_formal_types: Vec::new(),
-                                    erased_proof_formals: Vec::new(),
-                                    bindings: Vec::new(),
-                                    terminator: LoweredScalarBranchTerminator::Jump {
-                                        trivial_affine_discards: Vec::new(),
-                                        structural_arguments: Vec::new(),
-                                        target: 0,
-                                        arguments: dispatch.arguments.clone(),
-                                        erased_arguments: Vec::new(),
-                                        erased_proof_arguments: self.proof_formal_forwarding(),
-                                    },
-                                })
+                                self.payload_arm_target(&mut expansion, &source_types, dispatch)?
                             }
                             None => push_arm_target(
                                 &mut expansion,

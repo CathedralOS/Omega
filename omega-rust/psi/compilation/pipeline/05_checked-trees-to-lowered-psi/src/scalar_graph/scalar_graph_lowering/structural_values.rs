@@ -4,8 +4,8 @@
 //! determine establishment, never a separate caller-specific evaluation path.
 //! Construction is independent of its destination: a local publishes the
 //! completed root, while an expression consumer observes and retires it.
-//! Nested owned records
-//! transfer into their parent, while a root survives through selected arguments.
+//! Nested owned aggregates transfer into their parent, while a root survives
+//! through selected arguments.
 //! Whole local initializers bind fresh block homes: unrestricted values copy,
 //! affine values move. Retire a moved source name only once construction finishes.
 //! Final live locals rebind in declaration order at the selected cleanup edge;
@@ -111,7 +111,7 @@ enum Step {
         result_type: QualifiedScalarType,
         prefix: Vec<QualifiedScalarType>,
     },
-    Record {
+    Aggregate {
         construction: Construction,
         prefix: Vec<QualifiedScalarType>,
     },
@@ -132,7 +132,14 @@ pub(crate) struct Construction {
     place: PlaceId,
     structural_type: StructuralTypeId,
     multiplicity: StructuralMultiplicity,
+    kind: AggregateKind,
     fields: Vec<(StructuralFieldId, Field)>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum AggregateKind {
+    Record,
+    Case(semantic_vocabulary::StructuralCaseId),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -143,6 +150,10 @@ enum Field {
         bounded: bool,
     },
     Structural(PlaceId),
+    Zero {
+        scalar_type: ScalarType,
+        bounded: bool,
+    },
 }
 
 pub(super) fn prepare(
@@ -511,18 +522,17 @@ impl Preparation<'_> {
             });
             return Ok(place);
         }
-        let StructuralTypeShape::Record {
-            fields: declared_fields,
-        } = &declaration.shape
-        else {
-            return unsupported("scalar record has a nonrecord structural declaration");
-        };
-        let CheckedStructuralValueKind::Record {
-            data_symbol,
-            fields,
-        } = node.kind
-        else {
-            return unsupported("scalar structural construction requires record value custody");
+        let (data_symbol, fields) = match node.kind {
+            CheckedStructuralValueKind::Record {
+                data_symbol,
+                fields,
+            }
+            | CheckedStructuralValueKind::StructuralCase {
+                data_symbol,
+                fields,
+                ..
+            } => (data_symbol, fields),
+            _ => return unsupported("structural construction requires aggregate value custody"),
         };
         let owner = self
             .checked
@@ -530,39 +540,99 @@ impl Preparation<'_> {
             .iter()
             .find(|owner| owner.symbol == data_symbol)
             .ok_or(LoweringError::Unsupported(
-                "scalar record declaration is absent",
+                "aggregate declaration is absent",
             ))?;
-        let fields = plans
-            .record_fields
-            .span(fields)
-            .ok_or(LoweringError::Unsupported(
-                "scalar record field span is stale",
-            ))?;
-        let mut initialized = Vec::new();
-        for (ordinal, field) in fields.iter().enumerate() {
-            let authored = self
+        // Field identities are declaration-local: common members and case
+        // payloads have separate namespaces. Join each roster to its source
+        // symbols before scheduling operands, then share one evaluation path.
+        let (kind, common, payload) = match (&node.kind, &declaration.shape) {
+            (CheckedStructuralValueKind::Record { .. }, StructuralTypeShape::Record { fields }) => {
+                (AggregateKind::Record, fields.as_slice(), None)
+            }
+            (CheckedStructuralValueKind::StructuralCase { case, .. }, shape) => {
+                let (common, cases) = match shape {
+                    StructuralTypeShape::Sum { cases } => (&[][..], cases),
+                    StructuralTypeShape::Mixed { fields, cases } => (fields.as_slice(), cases),
+                    _ => return unsupported("case construction has a non-sum shape"),
+                };
+                let variant = self
+                    .checked
+                    .data_members(owner)
+                    .iter()
+                    .find_map(|member| match member {
+                        checked_trees::data::DataMember::Variant(variant)
+                            if variant.symbol == *case =>
+                        {
+                            Some(variant)
+                        }
+                        _ => None,
+                    })
+                    .ok_or(LoweringError::Unsupported(
+                        "aggregate selected a foreign case",
+                    ))?;
+                let selected = cases
+                    .iter()
+                    .find(|candidate| candidate.identity == variant.path_identity())
+                    .ok_or(LoweringError::Unsupported(
+                        "aggregate case declaration is absent",
+                    ))?;
+                (
+                    AggregateKind::Case(selected.id),
+                    common,
+                    Some((variant, selected)),
+                )
+            }
+            _ => return unsupported("aggregate changed its structural shape"),
+        };
+        let mut declared_fields = Vec::new();
+        for target in common {
+            let source = self
                 .checked
                 .data_members(owner)
                 .iter()
                 .find_map(|member| match member {
-                    checked_trees::data::DataMember::Field(candidate)
-                        if candidate.symbol == field.field =>
+                    checked_trees::data::DataMember::Field(field)
+                        if field.path_identity() == target.identity =>
                     {
-                        Some(candidate)
+                        Some(field)
                     }
                     _ => None,
                 })
                 .ok_or(LoweringError::Unsupported(
-                    "scalar record field belongs to another declaration",
+                    "aggregate common field declaration is absent",
                 ))?;
-            let identity = authored.path_identity();
+            declared_fields.push((
+                source.symbol,
+                target,
+                matches!(kind, AggregateKind::Case(_)),
+            ));
+        }
+        if let Some((variant, selected)) = payload {
+            for target in &selected.fields {
+                let source = self
+                    .checked
+                    .data_payload_fields(variant)
+                    .iter()
+                    .find(|field| field.path_identity() == target.identity)
+                    .ok_or(LoweringError::Unsupported(
+                        "aggregate payload field declaration is absent",
+                    ))?;
+                declared_fields.push((source.symbol, target, false));
+            }
+        }
+        let fields = plans
+            .record_fields
+            .span(fields)
+            .ok_or(LoweringError::Unsupported("aggregate field span is stale"))?;
+        let mut initialized = Vec::new();
+        for (ordinal, field) in fields.iter().enumerate() {
             let position = declared_fields
                 .iter()
-                .position(|field| field.identity == identity)
+                .position(|(symbol, _, _)| *symbol == field.field)
                 .ok_or(LoweringError::Unsupported(
-                    "scalar record field is absent from its structural declaration",
+                    "aggregate field is absent from its structural declaration",
                 ))?;
-            let target = &declared_fields[position];
+            let (_, target, _) = declared_fields[position];
             // Source custody replays every semantic initializer. Erased fields
             // keep their declaration identity but produce no executable operand,
             // storage or cleanup, including for nested initializer values.
@@ -581,11 +651,23 @@ impl Preparation<'_> {
                         self.bindings,
                         &self.prefix,
                     )?;
-                    let role = CheckedScalarExpressionRole::RecordField {
-                        expression: node.expression,
-                        field_ordinal: u32::try_from(ordinal).map_err(|_| {
-                            LoweringError::Unsupported("record field ordinal exceeds u32")
-                        })?,
+                    if target.field_type.scalar_type() != Some(result_type.scalar_type) {
+                        return unsupported("aggregate operand changed its scalar carrier");
+                    }
+                    let field_ordinal = u32::try_from(ordinal).map_err(|_| {
+                        LoweringError::Unsupported("aggregate field ordinal exceeds u32")
+                    })?;
+                    let role = match kind {
+                        AggregateKind::Record => CheckedScalarExpressionRole::RecordField {
+                            expression: node.expression,
+                            field_ordinal,
+                        },
+                        AggregateKind::Case(_) => {
+                            CheckedScalarExpressionRole::StructuralValueField {
+                                expression: node.expression,
+                                field_ordinal,
+                            }
+                        }
                     };
                     let value_position = self.prefix.len();
                     self.steps.push(Step::Scalar {
@@ -621,6 +703,37 @@ impl Preparation<'_> {
             };
             initialized.push((position, (target.id, field_value)));
         }
+        // Case literals default unnamed common scalar fields only after all
+        // authored operands. The same declaration-owned range obligation still
+        // applies to that zero; no structural child or payload is invented.
+        for (position, (_, target, defaults_to_zero)) in declared_fields.iter().enumerate() {
+            if !defaults_to_zero
+                || target.relevance.is_erased()
+                || initialized
+                    .iter()
+                    .any(|(initialized, _)| *initialized == position)
+            {
+                continue;
+            }
+            let scalar_type = target
+                .field_type
+                .scalar_type()
+                .ok_or(LoweringError::Unsupported(
+                    "an unnamed common field has no scalar zero",
+                ))?;
+            initialized.push((
+                position,
+                (
+                    target.id,
+                    Field::Zero {
+                        scalar_type,
+                        bounded: terminal_semantics::scalar_field_requires_evidence(
+                            &target.field_type,
+                        ),
+                    },
+                ),
+            ));
+        }
         initialized.sort_by_key(|(position, _)| *position);
         if !initialized
             .iter()
@@ -628,24 +741,25 @@ impl Preparation<'_> {
             .eq(declared_fields
                 .iter()
                 .enumerate()
-                .filter(|(_, field)| !field.relevance.is_erased())
+                .filter(|(_, (_, field, _))| !field.relevance.is_erased())
                 .map(|(position, _)| position))
         {
-            return unsupported("scalar record did not initialize its exact field roster");
+            return unsupported("aggregate did not initialize its exact field roster");
         }
         let multiplicity = match self.checked.type_multiplicity(reference) {
             Multiplicity::Unrestricted => StructuralMultiplicity::Unrestricted,
             Multiplicity::Affine => StructuralMultiplicity::Affine,
             Multiplicity::Linear => {
-                return unsupported("scalar record construction cannot establish linear authority");
+                return unsupported("aggregate construction cannot establish linear authority");
             }
         };
         let place = self.reserved.place(value)?;
-        self.steps.push(Step::Record {
+        self.steps.push(Step::Aggregate {
             construction: Construction {
                 place,
                 structural_type: declaration.id,
                 multiplicity,
+                kind,
                 fields: initialized.into_iter().map(|(_, field)| field).collect(),
             },
             prefix: self.prefix.clone(),
@@ -709,7 +823,7 @@ impl PreparedValue {
                 | Step::Argument { prefix, .. }
                 | Step::Value { prefix, .. }
                 | Step::Scalar { prefix, .. }
-                | Step::Record { prefix, .. }
+                | Step::Aggregate { prefix, .. }
                 | Step::Establish { prefix, .. }
                 | Step::Zeroed { prefix, .. }
                 | Step::Bind { prefix, .. } => prefix,
@@ -822,7 +936,7 @@ impl PreparedValue {
                         trivial_affine_discards: Vec::new(),
                     },
                 }),
-                Step::Record {
+                Step::Aggregate {
                     construction,
                     prefix,
                 } => computations.push(LoweredScalarBranchState {
@@ -831,7 +945,7 @@ impl PreparedValue {
                     erased_formal_types: Vec::new(),
                     erased_proof_formals: Vec::new(),
                     bindings: Vec::new(),
-                    structural_effects: vec![LoweredScalarEffect::EstablishRecord(construction)],
+                    structural_effects: vec![LoweredScalarEffect::EstablishAggregate(construction)],
                     terminator: LoweredScalarBranchTerminator::Jump {
                         target,
                         arguments: computations::parameters(&prefix),
@@ -875,6 +989,7 @@ impl PreparedValue {
 pub(crate) fn emit(
     construction: &Construction,
     values: &[ValueDeclaration],
+    next_value: &mut u64,
     operations: &mut OperationBuffer,
     calls: &mut CallEmissionContext<'_>,
 ) -> Result<(), LoweringError> {
@@ -903,19 +1018,54 @@ pub(crate) fn emit(
                     access: StructuralAccess::Owned,
                 })
             }
+            Field::Zero {
+                scalar_type,
+                bounded,
+            } => {
+                let value = crate::emission::operation_emission::expressions::emit_scalar_leaf(
+                    crate::unit::attached_unit::structural_values::record::zero_constant(
+                        *scalar_type,
+                    ),
+                    *scalar_type,
+                    next_value,
+                    operations,
+                );
+                terminal_psi::RecordFieldValue::Scalar {
+                    value,
+                    range_obligation: if *bounded {
+                        Some(calls.allocate_requirement()?)
+                    } else {
+                        None
+                    },
+                }
+            }
         };
         fields.push(terminal_psi::RecordFieldInitializer {
             field: *field,
             value,
         });
     }
-    crate::unit::attached_unit::structural_values::record::emit_completed(
-        construction.place,
-        construction.structural_type,
-        construction.multiplicity,
-        fields,
-        operations,
-    );
+    match construction.kind {
+        AggregateKind::Record => {
+            crate::unit::attached_unit::structural_values::record::emit_completed(
+                construction.place,
+                construction.structural_type,
+                construction.multiplicity,
+                fields,
+                operations,
+            )
+        }
+        AggregateKind::Case(case) => {
+            crate::unit::attached_unit::structural_values::structural_case::emit_completed(
+                construction.place,
+                construction.structural_type,
+                construction.multiplicity,
+                case,
+                fields,
+                operations,
+            )
+        }
+    };
     Ok(())
 }
 

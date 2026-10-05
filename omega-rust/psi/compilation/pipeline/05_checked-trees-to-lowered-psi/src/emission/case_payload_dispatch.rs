@@ -11,8 +11,10 @@
 //! short-circuit decision `m in Msg::Move && m.Move.dx == 30`; this planner
 //! walks that decision and turns each root case test with an empty path into a
 //! dispatch whose selected successor binds the case's scalar payload fields.
-//! Deferred reads below that successor become those parameters; any other
-//! payload read has no dominating case knowledge and is refused.
+//! Direct scalar reads below that successor become those parameters. Nested
+//! structural payload observations retain their checked carrier-copy source,
+//! including the selecting root and case. They execute below the same selected
+//! edge; preparing a copy source does not itself establish case knowledge.
 //!
 //! The dispatch neither consumes nor copies the root: every unselected case
 //! takes the test's false outcome, so the decision's meaning is the original
@@ -72,6 +74,7 @@ pub(crate) fn plan<'a>(
         namespace,
         next_value,
         outcome_reads_payloads,
+        &[],
     )?;
     let established = established_on_true(&decision, namespace).unwrap_or_default();
     Ok(PlannedGuard {
@@ -86,10 +89,11 @@ fn plan_decision<'a>(
     namespace: &mut Vec<ValueDeclaration>,
     next_value: &mut u64,
     outcome_reads_payloads: bool,
+    established_cases: &[(PlaceId, StructuralCaseId)],
 ) -> Result<LoweredBooleanDecision, LoweringError> {
     match decision {
         LoweredBooleanDecision::Value(expression) => {
-            if boolean_reads_case_payload(&expression) {
+            if boolean_reads_unestablished_case_payload(&expression, established_cases) {
                 return unsupported("case payload observation requires an established case");
             }
             Ok(LoweredBooleanDecision::Value(expression))
@@ -99,7 +103,7 @@ fn plan_decision<'a>(
             when_true,
             when_false,
         } => {
-            if boolean_reads_case_payload(&condition) {
+            if boolean_reads_unestablished_case_payload(&condition, established_cases) {
                 return unsupported("case payload observation requires an established case");
             }
             let LoweredBooleanReturnExpression::StructuralCaseMembership { source, path, case } =
@@ -113,6 +117,7 @@ fn plan_decision<'a>(
                         namespace,
                         next_value,
                         outcome_reads_payloads,
+                        established_cases,
                     )?),
                     when_false: Box::new(plan_decision(
                         *when_false,
@@ -120,6 +125,7 @@ fn plan_decision<'a>(
                         namespace,
                         next_value,
                         outcome_reads_payloads,
+                        established_cases,
                     )?),
                 });
             };
@@ -142,6 +148,7 @@ fn plan_decision<'a>(
                         namespace,
                         next_value,
                         outcome_reads_payloads,
+                        established_cases,
                     )?),
                     when_false: Box::new(plan_decision(
                         *when_false,
@@ -149,6 +156,7 @@ fn plan_decision<'a>(
                         namespace,
                         next_value,
                         outcome_reads_payloads,
+                        established_cases,
                     )?),
                     condition,
                 });
@@ -197,6 +205,11 @@ fn plan_decision<'a>(
                 })
                 .collect::<Vec<_>>();
             let when_true = substitute_decision(*when_true, &bound);
+            // Scalar fields become parameters; structural payload carriers
+            // remain deferred checked copies. Both are authorized only below
+            // this selected edge, including when the case has no scalar slots.
+            let mut selected_cases = established_cases.to_vec();
+            selected_cases.push((source, selected));
             Ok(LoweredBooleanDecision::CaseDispatch {
                 dispatch: CaseDispatch {
                     source,
@@ -210,6 +223,7 @@ fn plan_decision<'a>(
                     namespace,
                     next_value,
                     outcome_reads_payloads,
+                    &selected_cases,
                 )?),
                 when_false: Box::new(plan_decision(
                     *when_false,
@@ -217,6 +231,7 @@ fn plan_decision<'a>(
                     namespace,
                     next_value,
                     outcome_reads_payloads,
+                    established_cases,
                 )?),
             })
         }
@@ -604,25 +619,35 @@ pub(crate) fn substitute_direct(
     }
 }
 
+/// Retain the selecting origin even when emission first copies a payload
+/// carrier. The copy needs the same dominating case edge as a direct read;
+/// preparing its source is not evidence that the case is active.
+fn collect_source_case_reads(
+    source: &PrimitiveReadSource,
+    path: &[CanonicalStructuralPathSegment],
+    reads: &mut Vec<(PlaceId, Vec<CanonicalStructuralPathSegment>)>,
+) {
+    let origin = source.field_origin(path);
+    if origin
+        .1
+        .iter()
+        .any(|segment| matches!(segment, CanonicalStructuralPathSegment::Case(_)))
+    {
+        reads.push(origin);
+    }
+}
+
 /// Every case-qualified read `(root, path)` still awaiting a dispatch.
-fn case_reads<'e>(
-    expression: &'e LoweredBooleanReturnExpression,
-    reads: &mut Vec<(PlaceId, &'e [CanonicalStructuralPathSegment])>,
+fn case_reads(
+    expression: &LoweredBooleanReturnExpression,
+    reads: &mut Vec<(PlaceId, Vec<CanonicalStructuralPathSegment>)>,
 ) {
     use LoweredBooleanReturnExpression as Boolean;
     match expression {
-        // A prepared case-leaf source emits its own checked copy at the read.
-        // Only a direct field observation still awaits dispatch substitution.
         Boolean::ScalarObservation { operand } => collect_direct_case_reads(operand, reads),
-        Boolean::PrimitiveRead { .. } => {}
+        Boolean::PrimitiveRead { source, .. } => collect_source_case_reads(source, &[], reads),
         Boolean::StructuralField { source, path, .. } => {
-            if let PrimitiveReadSource::Place(source) = source
-                && path
-                    .iter()
-                    .any(|segment| matches!(segment, CanonicalStructuralPathSegment::Case(_)))
-            {
-                reads.push((*source, path));
-            }
+            collect_source_case_reads(source, path, reads);
         }
         Boolean::Not { operand } => case_reads(operand, reads),
         Boolean::Equal { left, right }
@@ -709,10 +734,9 @@ pub(crate) fn direct_case_reads(
     })
 }
 
-/// The distinct cases of `source` a deferred expression list observes through
-/// a bare `[Case]` leading path — exactly the reads `bound_position` can bind.
-/// Reads below a longer path (a record payload's member leaf) do not appear
-/// here; they resolve through `plan_case_payload_leaf`, not a dispatch arm.
+/// The distinct leading cases of `source` observed by deferred expressions.
+/// Both scalar payload slots and copied structural carriers need their
+/// selecting edge; the complete read path stays with the expression.
 pub(crate) fn direct_case_read_cases(
     expressions: &[LoweredDirectExpression],
     source: PlaceId,
@@ -723,7 +747,7 @@ pub(crate) fn direct_case_read_cases(
         collect_direct_case_reads(expression, &mut reads);
         for (root, path) in reads {
             if root == source
-                && let [CanonicalStructuralPathSegment::Case(case)] = path
+                && let Some(CanonicalStructuralPathSegment::Case(case)) = path.first()
             {
                 cases.insert(*case);
             }
@@ -732,9 +756,9 @@ pub(crate) fn direct_case_read_cases(
     cases
 }
 
-fn collect_path_case_reads<'e>(
-    path: &'e [crate::emission::operation_emission::expressions::LoweredElementPathSegment],
-    reads: &mut Vec<(PlaceId, &'e [CanonicalStructuralPathSegment])>,
+fn collect_path_case_reads(
+    path: &[crate::emission::operation_emission::expressions::LoweredElementPathSegment],
+    reads: &mut Vec<(PlaceId, Vec<CanonicalStructuralPathSegment>)>,
 ) {
     for segment in path {
         if let crate::emission::operation_emission::expressions::LoweredElementPathSegment::RuntimeIndex { selector, extent } = segment {
@@ -744,21 +768,15 @@ fn collect_path_case_reads<'e>(
     }
 }
 
-fn collect_direct_case_reads<'e>(
-    expression: &'e LoweredDirectExpression,
-    reads: &mut Vec<(PlaceId, &'e [CanonicalStructuralPathSegment])>,
+fn collect_direct_case_reads(
+    expression: &LoweredDirectExpression,
+    reads: &mut Vec<(PlaceId, Vec<CanonicalStructuralPathSegment>)>,
 ) {
     use LoweredDirectExpression as Direct;
     match expression {
-        Direct::PrimitiveRead { .. } => {}
+        Direct::PrimitiveRead { source, .. } => collect_source_case_reads(source, &[], reads),
         Direct::StructuralField { source, path, .. } => {
-            if let PrimitiveReadSource::Place(source) = source
-                && path
-                    .iter()
-                    .any(|segment| matches!(segment, CanonicalStructuralPathSegment::Case(_)))
-            {
-                reads.push((*source, path));
-            }
+            collect_source_case_reads(source, path, reads);
         }
         Direct::ByteSequenceRead { index, .. } | Direct::ElementViewRead { index, .. } => {
             collect_direct_case_reads(index, reads)
@@ -801,7 +819,10 @@ fn collect_direct_case_reads<'e>(
     }
 }
 
-fn boolean_reads_case_payload(expression: &LoweredBooleanReturnExpression) -> bool {
+fn boolean_reads_unestablished_case_payload(
+    expression: &LoweredBooleanReturnExpression,
+    established_cases: &[(PlaceId, StructuralCaseId)],
+) -> bool {
     let mut reads = Vec::new();
     case_reads(expression, &mut reads);
     // Only a leading `Case` step needs the dispatch: its payload can enter the
@@ -809,9 +830,12 @@ fn boolean_reads_case_payload(expression: &LoweredBooleanReturnExpression) -> bo
     // path-qualified read whose authority the verifier's `case_hops` judges —
     // the dominating membership test that proved it is the same one a guard
     // arm's conjunction carries.
-    reads
-        .iter()
-        .any(|(_, path)| matches!(path.first(), Some(CanonicalStructuralPathSegment::Case(_))))
+    reads.iter().any(|(source, path)| {
+        let Some(CanonicalStructuralPathSegment::Case(case)) = path.first() else {
+            return false;
+        };
+        !established_cases.contains(&(*source, *case))
+    })
 }
 
 /// Whether a still-deferred read below this outcome observes `case` of `source`.

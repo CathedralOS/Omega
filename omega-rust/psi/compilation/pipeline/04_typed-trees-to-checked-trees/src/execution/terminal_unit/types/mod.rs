@@ -6,9 +6,9 @@ use super::{
     CheckedUnitStructuralFieldType, CheckedUnitStructuralParameterPlan,
     CheckedUnitStructuralTypePlan, CheckedUnitStructuralTypeShape, ContractProofFactKind,
     ContractProofFactOwner, DataMember, DataShapeKind, ExpressionNode, Multiplicity,
-    PermissionAccess, PermissionClaimIdentity, PermissionEventKind, PermissionEventSource,
-    PrimitiveType, ProofFact, SemanticDomainId, SignatureContractKind, StateParameter,
-    SymbolHandle, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode, TypedTrees,
+    PermissionAccess, PermissionClaimIdentity, PrimitiveType, ProofFact, SemanticDomainId,
+    SignatureContractKind, StateParameter, SymbolHandle, TypeConstraintNode, TypeReferenceHandle,
+    TypeReferenceNode, TypedTrees,
 };
 use checked_trees::{
     CheckedStructuralPathQualification, CheckedUnitPartialAffineDiscardPlan,

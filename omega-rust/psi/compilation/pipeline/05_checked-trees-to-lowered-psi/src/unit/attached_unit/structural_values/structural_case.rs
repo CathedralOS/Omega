@@ -276,7 +276,7 @@ impl emission::Emission<'_, '_, '_> {
 /// Commit completed, declaration-ordered payload fields under the selected
 /// case tag. Operand evaluation and source custody remain with their shared
 /// scalar/structural semantic owners.
-fn emit_completed(
+pub(crate) fn emit_completed(
     place: PlaceId,
     structural_type: StructuralTypeId,
     multiplicity: StructuralMultiplicity,

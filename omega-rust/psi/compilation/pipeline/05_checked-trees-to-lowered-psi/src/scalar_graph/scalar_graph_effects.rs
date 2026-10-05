@@ -82,9 +82,9 @@ pub(crate) fn emit(
                     },
                 });
             }
-            LoweredScalarEffect::EstablishRecord(record) => {
+            LoweredScalarEffect::EstablishAggregate(aggregate) => {
                 crate::scalar_graph::scalar_graph_lowering::structural_values::emit(
-                    record, values, operations, calls,
+                    aggregate, values, next_value, operations, calls,
                 )?;
             }
             LoweredScalarEffect::EstablishZeroedStructural {

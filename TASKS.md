@@ -506,15 +506,25 @@ defines the complete product bar.
     update, `omega run --both tests/omega/pass/float/computed_comparison_literal_landing_exit/main.omg`
     exits 0 in both engines on macOS ARM64. Its runtime short circuit keeps
     effects selective, and anonymous operands take the computed result's format.
-    Constructed record, scalar-case and primitive-array operands now share
-    the ordinary value schedule inside scalar computations. After package
-    update, `omega run --both tests/omega/pass/operators/runtime_constructed_operand_result_exit/main.omg`
-    exits 0 in both engines on macOS ARM64: mixed arguments and authored
-    field order execute once, short-circuit effects remain selective, and
-    whole affine moves receive path-specific no-code cleanup. Existing named
-    owners retain canonical transfer identity; nested calls retain their own
-    producer schedule. Structural-payload cases, structural arrays and value
-    dispatch still need their full construction schedule on this route.
+    Constructed records, cases (including structural payloads) and
+    primitive-array operands share the ordinary value schedule inside scalar
+    computations. After package update,
+    `omega run --both tests/omega/pass/calls/runtime_constructed_payload_arguments_exit/main.omg`
+    exits 0 in both engines on macOS ARM64: authored field order executes
+    once, short-circuit effects remain selective, and checked affine cleanup
+    follows the selected transfers. The copyable mixed-case counterpart
+    `runtime_constructed_copy_payload_arguments_exit` also exits 0 in both
+    engines, including omitted common-field zero initialization. Selected
+    payload returns use ordinary expression continuations, not raw jump
+    arguments. Preserve `pass/operators/runtime_constructed_operand_result_exit`.
+    Structural arrays and value dispatch still need their full construction
+    schedule. Implicit shared lending of constructed temporaries needs a
+    completed referent, call-scoped loan and owner cleanup; a reference formal
+    must not reinterpret the constructor as a reference carrier. Selected
+    transfers of empty affine locals still stop in stage 04's ordinary call
+    claim-transfer join; its prefix-local producer also assumes exactly one
+    settlement. Runtime-indexed observations below case payloads still reject
+    an unsupported case path before emission.
     Structural values with nominal
     cleanup hooks or reference debt need the ordinary disposal schedule;
     nontrivial cleanup must not become a trivial affine discard.

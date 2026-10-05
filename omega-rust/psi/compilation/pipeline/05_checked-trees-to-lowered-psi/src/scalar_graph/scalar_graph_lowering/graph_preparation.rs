@@ -778,12 +778,10 @@ fn prepare_scalar_graph_machine_with_contract_mode(
 }
 
 /// A union match over a structural operand reaches scalar lowering as a
-/// membership conditional whose selected arm reads bound payload fields.
-/// Deferred payload reads only resolve once the case's payloads bind as
-/// block parameters, so that conditional becomes a structural dispatch: the
-/// selected edge carries the scalar payload fields to a dedicated branch
-/// block and both outcomes stage through continuations, matching
-/// `Terminator::StructuralCase`.
+/// membership conditional whose selected arm observes its payload. Scalar
+/// payloads bind as block parameters; structural carrier reads retain their
+/// checked copy source. Both outcomes evaluate through the emitter's ordinary
+/// conditional-target continuations beneath `Terminator::StructuralCase`.
 fn case_dispatch_terminator(
     source: semantic_vocabulary::PlaceId,
     selected: semantic_vocabulary::StructuralCaseId,
@@ -884,21 +882,19 @@ fn case_dispatch_terminator(
     };
     let when_true_arguments = substitute(when_true_arguments, &bound);
     let when_true_erased_arguments = substitute(when_true_erased_arguments, &bound);
-    // Every deferred case read must land on a bound scalar payload slot; a
-    // read into a non-scalar payload (e.g. a field of a record payload) has
-    // no slot to bind and must decline here rather than leak a deferred
-    // structural-field reference into the emitted module.
-    let has_deferred_read = |arguments: &[LoweredDirectExpression]| {
-        cases.iter().any(|declared| {
-            crate::emission::case_payload_dispatch::direct_case_reads(
-                arguments,
-                source,
-                declared.id,
-            )
-        })
+    // A deferred carrier read needs its selecting edge, not a scalar slot.
+    // The emitter evaluates it with the other arguments after this dispatch.
+    // Reads of another case cannot borrow this edge's authority. Erased
+    // arguments still use their existing scalar-term elaboration contract.
+    let reads_another_case = |arguments: &[LoweredDirectExpression], selected| {
+        crate::emission::case_payload_dispatch::direct_case_read_cases(arguments, source)
+            .iter()
+            .any(|case| *case != selected)
     };
-    if has_deferred_read(&when_true_arguments) || has_deferred_read(&when_true_erased_arguments) {
-        return unsupported("case dispatch cannot bind a non-scalar payload observation");
+    if reads_another_case(&when_true_arguments, selected)
+        || reads_another_case(&when_true_erased_arguments, selected)
+    {
+        return unsupported("case dispatch argument observes a different case");
     }
     // The false outcome's own deferred reads observe the other cases of the
     // same sum — a `transition self` whose else arm returns `self.Right.w`
@@ -915,7 +911,9 @@ fn case_dispatch_terminator(
             source,
         ),
     );
-    false_cases.remove(&selected);
+    if false_cases.contains(&selected) {
+        return unsupported("case dispatch false outcome observes the selected payload");
+    }
     if false_cases.is_empty() {
         return Ok(LoweredScalarBranchTerminator::CaseDispatch {
             source,
@@ -951,8 +949,10 @@ fn case_dispatch_terminator(
         let (arm_payloads, arm_bound) = case_payloads(declared);
         let arm_arguments = substitute(when_false_arguments.clone(), &arm_bound);
         let arm_erased_arguments = substitute(when_false_erased_arguments.clone(), &arm_bound);
-        if has_deferred_read(&arm_arguments) || has_deferred_read(&arm_erased_arguments) {
-            return unsupported("case dispatch cannot bind a non-scalar payload observation");
+        if reads_another_case(&arm_arguments, declared.id)
+            || reads_another_case(&arm_erased_arguments, declared.id)
+        {
+            return unsupported("case dispatch argument observes a different case");
         }
         armed.push(CaseDispatchArm {
             case: declared.id,

@@ -86,7 +86,7 @@ fn emission_order(states: &[LoweredScalarBranchState]) -> Vec<usize> {
         state
             .structural_effects
             .iter()
-            .any(|effect| matches!(effect, LoweredScalarEffect::EstablishRecord(_)))
+            .any(|effect| matches!(effect, LoweredScalarEffect::EstablishAggregate(_)))
     }) {
         return (0..states.len()).collect();
     }

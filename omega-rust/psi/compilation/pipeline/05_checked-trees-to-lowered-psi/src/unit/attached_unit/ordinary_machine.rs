@@ -11,6 +11,11 @@
 //! composed-graph states share. It keeps one method per remaining
 //! ordinary-only kind in `locals` (primitive, reference, array and trivial
 //! affine establishments).
+//!
+//! Checked completion rows authorize no-code parameter disposal; the emitted
+//! ownership frontier chooses its actual edges after scalar control exists.
+//! A selected operand may transfer a parameter on only one branch, so a static
+//! final-return discard cannot also own that parameter's cleanup.
 
 use super::bodies::{UnitBody, UnitPlans};
 use super::catalog::lower_provider_candidate_service_ceiling;
@@ -510,6 +515,23 @@ pub(super) fn emit(
                 "Unit local cleanup ordinal is not dense",
             ))
     });
+    // Preserve the checker's disposal authority, but delegate its scheduling
+    // to the complete operation graph. Entry order is declaration order;
+    // affine_cleanup reverses it for cleanup and reconciles selected transfers.
+    let mut parameter_cleanup = trivial_affine_discards
+        .iter()
+        .map(|parameter_index| {
+            parameters
+                .get(usize::try_from(*parameter_index).map_err(|_| {
+                    LoweringError::Unsupported("Unit affine discard parameter index exceeds usize")
+                })?)
+                .cloned()
+                .ok_or(LoweringError::Unsupported(
+                    "Unit affine discard has an invalid parameter index",
+                ))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    parameter_cleanup.sort_by_key(|parameter| parameter.position);
     // Legacy locals are a leading constructor prefix; operation results
     // therefore die before those locals, and all locals before parameters.
     // Admitting interleaved legacy constructors requires one declaration-
@@ -560,16 +582,6 @@ pub(super) fn emit(
         .into_iter()
         .map(Ok)
         .chain(local_discards)
-        .chain(trivial_affine_discards.iter().map(|parameter_index| {
-            parameters
-                .get(usize::try_from(*parameter_index).map_err(|_| {
-                    LoweringError::Unsupported("Unit affine discard parameter index exceeds usize")
-                })?)
-                .map(|parameter| parameter.place)
-                .ok_or(LoweringError::Unsupported(
-                    "Unit affine discard has an invalid parameter index",
-                ))
-        }))
         .collect::<Result<Vec<_>, _>>()?;
     let block = evaluation.current;
     let mut scalar_return = plan
@@ -783,10 +795,11 @@ pub(super) fn emit(
         },
     });
     evaluation.blocks.sort_by_key(|block| block.id);
-    // Statement cleanup owns entry/local obligations. Complete descriptor
-    // custody after every result has been transferred or returned.
+    // Local/result cleanup retains its established schedule. Parameter cleanup
+    // uses its authenticated completion rows exactly once through the emitted
+    // frontier, after every selected scalar operand and call has run.
     crate::emission::affine_cleanup::complete(
-        &[],
+        &parameter_cleanup,
         parameters,
         evaluation.entry,
         &mut evaluation.blocks,

@@ -113,7 +113,17 @@ fn complete_carriers(
         .iter()
         .flat_map(|block| &block.operations)
         .filter_map(|operation| {
-            let result = operation.result.structural()?;
+            let place = established_place(operation)?;
+            let scheduled_transfer = scheduled.contains(&place)
+                && whole_transfers.contains(&place)
+                && !partial_transfers.contains(&place);
+            let Some(result) = operation.result.structural() else {
+                // An explicit no-code local establishment has a Unit result.
+                // Its scheduled disposal supplies the same eligibility as a
+                // structural result; retain its actual birth for selected
+                // transfers and reverse declaration-order cleanup.
+                return scheduled_transfer.then_some((place, operation.id));
+            };
             if result.multiplicity != StructuralMultiplicity::Affine
                 || !result.claims.is_empty()
                 || !result.qualifications.is_empty()
@@ -126,9 +136,6 @@ fn complete_carriers(
                 .iter()
                 .filter(|declaration| declaration.id == result.structural_type);
             let declaration = declarations.next()?;
-            let scheduled_transfer = scheduled.contains(&result.place)
-                && whole_transfers.contains(&result.place)
-                && !partial_transfers.contains(&result.place);
             let unscheduled_carrier = !scheduled.contains(&result.place)
                 && (matches!(
                     declaration.shape,
@@ -327,12 +334,7 @@ fn complete_carriers(
     let producers = blocks
         .iter()
         .flat_map(|block| &block.operations)
-        .filter_map(|operation| {
-            operation
-                .result
-                .structural()
-                .map(|result| (result.place, operation.id))
-        })
+        .filter_map(|operation| established_place(operation).map(|place| (place, operation.id)))
         .collect::<Vec<_>>();
     let dominators =
         crate::emission::control_flow::block_dominators(Some(entry_position), &successors);
@@ -496,6 +498,24 @@ fn replace_managed_discards(
 ) {
     existing.retain(|place| !managed.contains(place));
     merge_discards(existing, additions, producers, parameter_order);
+}
+
+/// Runtime establishment identity, independent of whether the operation
+/// returns the carrier or establishes a predeclared no-code local in place.
+fn established_place(operation: &terminal_psi::Operation) -> Option<semantic_vocabulary::PlaceId> {
+    operation
+        .result
+        .structural()
+        .map(|result| result.place)
+        .or_else(|| {
+            if let terminal_psi::OperationKind::EstablishTrivialAffineLocal { destination } =
+                &operation.kind
+            {
+                Some(*destination)
+            } else {
+                None
+            }
+        })
 }
 
 fn block_position(blocks: &[Block], target: BlockId) -> Result<usize, LoweringError> {

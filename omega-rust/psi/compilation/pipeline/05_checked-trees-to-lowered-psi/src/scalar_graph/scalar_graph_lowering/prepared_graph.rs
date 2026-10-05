@@ -157,7 +157,7 @@ pub(crate) enum LoweredScalarEffect {
         scalar_type: ScalarType,
         requires_evidence: bool,
     },
-    EstablishRecord(scalar_graph_lowering::structural_values::Construction),
+    EstablishAggregate(scalar_graph_lowering::structural_values::Construction),
     /// A declared-only local's zeroed whole-shape establishment: a fresh home
     /// with no field operands, realized by the dedicated zeroed operation.
     EstablishZeroedStructural {

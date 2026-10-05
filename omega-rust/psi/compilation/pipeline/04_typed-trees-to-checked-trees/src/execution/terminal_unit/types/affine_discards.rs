@@ -126,17 +126,16 @@ pub(in crate::execution::terminal_unit) fn return_unit_affine_discards(
                         && parameter.multiplicity == Multiplicity::Affine
                 })
     });
+    // Each selected exit records its own disposal. Join equal owners through
+    // the permission table's authenticated exit union, which still rejects
+    // duplicate disposal on one exit and differing custody for the same root.
     let events = facts
         .flow
         .ownership
-        .permissions
-        .iter()
-        .filter(|(_, event)| {
-            event.machine_symbol == machine
-                && event.state_symbol == state
-                && event.source == PermissionEventSource::StateExit
-                && event.kind == PermissionEventKind::AffineDrop
-                && event.access == PermissionAccess::Owned
+        .state_exit_cleanup_roots(machine, state)?
+        .into_iter()
+        .filter(|event| {
+            event.access == PermissionAccess::Owned
                 && event.multiplicity == Multiplicity::Affine
                 && event.claim_identity == PermissionClaimIdentity::Unknown
                 && event.provenance == language_semantics::PermissionProvenance::Unknown
@@ -148,7 +147,6 @@ pub(in crate::execution::terminal_unit) fn return_unit_affine_discards(
                     .span_or_empty(event.segments)
                     .is_empty()
         })
-        .map(|(_, event)| event)
         .collect::<Vec<_>>();
     let mut output = Vec::with_capacity(events.len());
     for event in events {
