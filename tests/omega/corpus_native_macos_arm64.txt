@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": "3", "load1_end": 25.53, "load1_start": 27.05, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "2", "load1_end": 35.77, "load1_start": 34.7, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 189ms
 pass/arithmetic/anonymous_rational_integer_landing checked 186ms
 pass/arithmetic/bounded_assignment checked 197ms
@@ -58,9 +58,11 @@ pass/borrow/runtime_method_view_write_after_last_use_exit built 1212ms exit:70 @
 pass/borrow/write_only_composed_forward_exit built 1037ms exit:70 @2bde2a770491
 pass/borrow/write_only_constrained_record_field checked 188ms
 pass/borrow/write_only_whole_scalar_replace checked 204ms
-pass/borrows/borrow_domain_window_write_and_call built 551ms exit:0 @db95cfee9b79
+pass/borrows/borrow_domain_window_write_and_call rejected 17590ms regressed-from:built+exit:0 @d2121d578c46+wt
+	terminal-artifact production failed: Lowering(InvalidTerminalModule(BorrowedDescriptorLoanDisturbed { operation: OperationId(27), place: PlaceId(6) }))
 pass/borrows/borrow_guarded_window_write_and_call built 881ms exit:0 @f6c42bccfedd
-pass/borrows/borrow_returned_window_write_and_call built 631ms exit:0 @db95cfee9b79
+pass/borrows/borrow_returned_window_write_and_call rejected 18211ms regressed-from:built+exit:0 @d2121d578c46+wt
+	terminal-artifact production failed: Lowering(InvalidTerminalModule(BorrowedDescriptorLoanDisturbed { operation: OperationId(28), place: PlaceId(6) }))
 pass/borrows/borrow_stated_index_disequality_mut checked 163ms
 pass/borrows/branch_selected_record_composed_receiver_exit built 1918ms exit:70 @63377f7122bb+wt
 pass/borrows/branch_selected_record_receiver_exit built 1252ms exit:70 @011fd400e8c1+wt
@@ -71,7 +73,8 @@ pass/borrows/indexed_record_field_replacement_exit built 1785ms exit:70 @8d34ee6
 pass/borrows/interleaved_parameter_field_replacement_exit built 1497ms exit:70 @63377f7122bb+wt
 pass/borrows/local_reference_record_transfer_exit built 1613ms exit:70 @82ec69a91ceb+wt
 pass/borrows/loop_descriptor_reformation_exit built 1933ms exit:70 @63377f7122bb+wt
-pass/borrows/mut_loan_local_write_through_exit built 2311ms exit:9 @af9f91f2fb06+wt
+pass/borrows/mut_loan_local_write_through_exit rejected 16454ms regressed-from:built+exit:9 @d2121d578c46+wt
+	terminal-artifact production failed: Lowering(Unsupported("structural argument has no established storage"))
 pass/borrows/mutable_record_loan_read_in_state_arms_exit built 1383ms exit:70 @a9f373809a48+wt
 pass/borrows/nested_reference_crossings_exit built 1082ms exit:70 @21b65913386f+wt
 pass/borrows/nested_reference_leaf_projection_exit built 980ms exit:70 @21b65913386f+wt
@@ -679,7 +682,8 @@ pass/float/runtime_named_fma_sequence_exit built 4765ms exit:70 @8b1dc72a53ca+wt
 pass/float/runtime_named_format_conversion_exit built 1813ms exit:70 @0d9777b52aee+wt
 pass/float/runtime_named_policy_result_exit built 5582ms exit:70 @fa2336e35cbc
 pass/float/runtime_std_is_finite_exit built 1831ms exit:70 @de54b0ba9fed+wt
-pass/float/runtime_total_order_satisfiers_exit built 19983ms exit:70 @7e0a52664189
+pass/float/runtime_total_order_satisfiers_exit rejected 49881ms regressed-from:built+exit:70 @d2121d578c46+wt
+	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "F32::TotalOrder", reason: "scalar callee has no checked executable body", omission: Some("`F32::TotalOrder` has no admitted body (local construction stopped at statement sequence: local data: reference capture, statement 0)") })
 pass/float/scalar_helper_boundary_sequence_exit built 1800ms exit:70 @de54b0ba9fed+wt
 pass/float/state_loop_field_refinement_restoration_exit built 1742ms exit:70 @163770eba39c+wt
 pass/float/x86_fma_plan_association rejected 3185ms @48008365d839
@@ -899,7 +903,8 @@ pass/proofs/runtime_two_state_accumulator_exit built 1153ms exit:70 @ccbf3802c51
 pass/providers/bare_byte_array_boundary_argument built 1411ms exit:0 @bed5f45e9185+wt
 pass/providers/borrowed_service_field_forward_exit built 1142ms exit:70 stdout:match @5745c7562b65
 pass/providers/boundary_scalar_field_store built 591ms exit:70
-pass/providers/checked_boundary_operator_const_application_alternate_exit built 1921ms exit:70 @fb2178def922
+pass/providers/checked_boundary_operator_const_application_alternate_exit rejected 1352ms regressed-from:built+exit:70 @d2121d578c46+wt
+	fixed-array length `[u8; limit()]`: const evaluation of `limit` failed: authored Operator declaration selection occurrence 1922 (`%` in tests/omega/pass/providers/checked_boundary_operator_const_application_alternate_exit/main.omg) remained unresolved after successful checking (CheckedOperator)
 pass/providers/checked_boundary_operator_physical_custody built 1711ms exit:70 @fb2178def922
 pass/providers/checked_boundary_requirement_dispatch_exit built 573ms exit:70
 pass/providers/checked_fixed_operator_dispatch_exit built 620ms exit:70
@@ -952,9 +957,11 @@ pass/recast/runtime_nested_record_byte_store_exit built 975ms exit:70 @2517a050d
 pass/recast/runtime_offset_byte_recast_mutable_write_exit built 1791ms exit:70 @48008365d839
 pass/recast/runtime_recast_record_view_indexed_write_exit built 1576ms exit:70 @3b624377ec31
 pass/recast/runtime_record_array_view_mutable_write_exit built 3951ms exit:70 @06ca7704be0a
-pass/recast/runtime_scalar_parameter_shared_views_exit built 990ms exit:70 @7e0a52664189
+pass/recast/runtime_scalar_parameter_shared_views_exit rejected 12679ms regressed-from:built+exit:70 @d2121d578c46+wt
+	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "read_bits64", reason: "scalar callee has no checked executable body", omission: Some("`read_bits64` has no admitted body (local construction stopped at statement sequence: local data: reference capture, statement 0)") })
 pass/recast/runtime_shared_domain_weakening_recast_exit built 1610ms exit:70 @fb2178def922
-pass/recast/runtime_shared_parameter_view_calls_exit built 670ms exit:0 @cd7399e98041+wt
+pass/recast/runtime_shared_parameter_view_calls_exit rejected 18416ms regressed-from:built+exit:0 @d2121d578c46+wt
+	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "inspect", reason: "scalar callee has no checked executable body", omission: Some("`inspect` has no admitted body (local construction stopped at statement sequence: local data: reference capture, state 0, statement 1)") })
 pass/recast/runtime_shared_record_float_range_weakening_exit built 2419ms exit:70 @f3aa5908ce43
 pass/references/mutable_loan_member_read_initializes_local_exit built 1229ms exit:70 @a1e2cd93d1e7
 pass/references/runtime_shared_ref_param_guard_exit built 583ms exit:1
@@ -1257,7 +1264,8 @@ pass/wire/wire_preserving_decode_relay_exit rejected 2813ms regressed-from:built
 pass/write_only/state_forwarded_scalar_store_exit built 1019ms exit:70 @2bde2a770491
 run/borrows/direct_runtime_index_write built 1114ms exit:9 @48008365d839
 run/borrows/indexed_loan_element_write built 1123ms exit:0 @48008365d839
-run/borrows/local_mut_borrow built 1142ms exit:9 @48008365d839
+run/borrows/local_mut_borrow rejected 9451ms regressed-from:built+exit:9 @d2121d578c46+wt
+	terminal-artifact production failed: Lowering(Unsupported("structural argument has no established storage"))
 run/borrows/mut_record_loan_member_access built 1207ms exit:0 @48008365d839
 run/borrows/probe_shared_len built 1209ms exit:0 @48008365d839
 run/borrows/recast_mut_borrow built 1125ms exit:0 @48008365d839
