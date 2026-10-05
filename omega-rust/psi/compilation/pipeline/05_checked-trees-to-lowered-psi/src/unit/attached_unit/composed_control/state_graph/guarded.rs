@@ -12,7 +12,6 @@ use super::super::super::{
 use super::super::{CheckedTrees, LoweringError, catalogs};
 use super::{CheckedComposedUnitControlMachinePlan, CheckedComposedUnitControlStatePlan};
 use crate::emission::operation_emission::buffer::OperationBuffer;
-use checked_trees::expression::ExpressionNode;
 
 /// One selected structural completion retains the same exact value and ingress
 /// regardless of whether sibling arms invoke a machine or return other values.
@@ -20,7 +19,6 @@ use checked_trees::expression::ExpressionNode;
 pub(super) fn validate_structural_return(
     checked: &CheckedTrees,
     plan: &CheckedComposedUnitControlMachinePlan,
-    source: &checked_trees::state::State,
     state: &CheckedComposedUnitControlStatePlan,
     expression: checked_trees::expression::ExpressionHandle,
     statement_ordinal: u32,
@@ -45,7 +43,7 @@ pub(super) fn validate_structural_return(
             }
         }
         CheckedUnitEffectOperationPlan::EstablishReference { .. } if reference_result => {
-            validate_reference_return(checked, plan, source, state, expression, operation)?;
+            validate_reference_return(plan, state, operation)?;
         }
         _ => return unsupported("ordered return lost its structural producer"),
     }
@@ -69,15 +67,11 @@ pub(super) fn validate_structural_return(
     Ok(())
 }
 
-/// Rejoin a selected reference producer to its authored return expression.
-/// Candidate coverage is machine-wide; this check independently authenticates
-/// the source of this arm even when its candidate receipt is changed with it.
+/// A selected reference producer names an ingress parameter its own state
+/// plan declares.
 pub(super) fn validate_reference_return(
-    checked: &CheckedTrees,
     plan: &CheckedComposedUnitControlMachinePlan,
-    authored: &checked_trees::state::State,
     state: &CheckedComposedUnitControlStatePlan,
-    expression: checked_trees::expression::ExpressionHandle,
     operation: &CheckedUnitEffectOperationPlan,
 ) -> Result<(), LoweringError> {
     let (
@@ -87,7 +81,6 @@ pub(super) fn validate_reference_return(
     else {
         return unsupported("reference return lost its structural producer or signature");
     };
-    reference_source(checked, plan, authored, state, expression)?;
     let checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } =
         &source.source
     else {
@@ -118,231 +111,6 @@ pub(super) fn validate_reference_roster(
 /// projections additionally follow the checked loan ledger. The candidate roster is only a correspondence
 /// receipt: admission must not let a producer and that receipt be forged to a
 /// different, same-typed ingress together.
-fn reference_source(
-    checked: &CheckedTrees,
-    plan: &CheckedComposedUnitControlMachinePlan,
-    authored: &checked_trees::state::State,
-    state: &CheckedComposedUnitControlStatePlan,
-    expression: checked_trees::expression::ExpressionHandle,
-) -> Result<checked_trees::CheckedUnitStructuralArgumentPlan, LoweringError> {
-    let carried_reference = !matches!(
-        checked.expression_table.expression(expression),
-        ExpressionNode::Borrow(_)
-    );
-    if carried_reference
-        || crate::reference_custody::shared_borrow_parts(checked, authored.return_type).is_some()
-    {
-        return validation::reference_result_custody::initializer_source(
-            &checked.typed,
-            authored,
-            expression,
-            authored.return_type,
-        )
-        .ok_or(LoweringError::Unsupported(
-            "reference return has no exact carried ingress source",
-        ));
-    }
-    let machine = checked
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == plan.machine)
-        .ok_or(LoweringError::Unsupported(
-            "ordered reference return lost its machine",
-        ))?;
-    let ExpressionNode::Borrow(borrow) = checked.expression_table.expression(expression) else {
-        return unsupported("ordered reference return lost its authored borrow");
-    };
-    let (referent, access) =
-        crate::reference_custody::mutable_borrow_parts(checked, authored.return_type).ok_or(
-            LoweringError::Unsupported("ordered reference return lost its mutable result type"),
-        )?;
-    if validation::expression_result_type_reference(
-        &checked.typed,
-        machine,
-        authored,
-        borrow.target,
-    )
-    .is_none()
-    {
-        return unsupported("ordered reference return lost its target type");
-    }
-    let (mut path, root) =
-        crate::expression_preparation::source_custody::structural_places::walk_exact_place(
-            checked,
-            machine,
-            authored,
-            borrow.target,
-            true,
-        )?;
-    if !path.iter().all(|segment| {
-        matches!(
-            segment,
-            checked_trees::CheckedUnitStructuralPathSegment::Field(_)
-                | checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(_)
-        )
-    }) {
-        return unsupported("ordered reference return has a non-static target path");
-    }
-    let ExpressionNode::Name(root) = checked.expression_table.expression(root) else {
-        return unsupported("ordered reference return lost its named target root");
-    };
-    if root.head_symbol != root.symbol
-        || checked
-            .expression_table
-            .name_path_members(root.members)
-            .len()
-            != 1
-    {
-        return unsupported("ordered reference return target root is not exact");
-    }
-    let parameters = checked.state_parameters(authored);
-    let ingress_position = |symbol| {
-        parameters
-            .iter()
-            .position(|parameter| parameter.symbol == symbol)
-    };
-    let mut root_symbol = root.symbol;
-    let borrow_state = {
-        let mut states = checked
-            .facts
-            .borrow
-            .states
-            .iter()
-            .map(|(_, candidate)| candidate)
-            .filter(|candidate| {
-                candidate.machine_symbol == machine.symbol
-                    && candidate.state_symbol == authored.symbol
-            });
-        let state = states.next().ok_or(LoweringError::Unsupported(
-            "ordered reference return lost its borrow state",
-        ))?;
-        if states.next().is_some() {
-            return unsupported("ordered reference return has ambiguous borrow states");
-        }
-        state
-    };
-    for _ in 0..8 {
-        if ingress_position(root_symbol).is_some() {
-            break;
-        }
-        // A view over an attached field can publish the field declaration as
-        // its loan root. Rejoin that declaration to self and restore its path
-        // segment before following the authored element suffix. Neither the
-        // candidate result roster nor a same-typed field supplies this identity.
-        let mut attached_fields = checked
-            .data_definitions()
-            .iter()
-            .filter(|data| data.symbol == machine.attached_data_symbol)
-            .flat_map(|data| checked.data_members(data))
-            .filter_map(|member| match member {
-                checked_trees::data::DataMember::Field(field) if field.symbol == root_symbol => {
-                    Some(field)
-                }
-                _ => None,
-            });
-        if let Some(field) = attached_fields.next() {
-            if attached_fields.next().is_some() {
-                return unsupported("ordered reference return has ambiguous attached fields");
-            }
-            path.insert(
-                0,
-                checked_trees::CheckedUnitStructuralPathSegment::Field(field.path_identity()),
-            );
-            root_symbol = machine.symbol;
-            break;
-        }
-        let mut loans = checked.facts.borrow.loans.iter().filter(|(handle, loan)| {
-            checked.facts.borrow.state_owns_loan(borrow_state, *handle)
-                && loan.owner_symbol == root_symbol
-                && loan.kind == checked_trees::BorrowAccessKind::Mutable
-                && checked.facts.borrow.loan_owner_path(loan).is_empty()
-        });
-        let (_, loan) = loans.next().ok_or(LoweringError::Unsupported(
-            "ordered reference return target has no exact parent loan",
-        ))?;
-        if loans.next().is_some() {
-            return unsupported("ordered reference return target has ambiguous parent loans");
-        }
-        let mut parent = checked
-            .facts
-            .borrow
-            .loan_segments(loan)
-            .iter()
-            .map(|segment| guarded_loan_segment(checked, segment))
-            .collect::<Result<Vec<_>, _>>()?;
-        parent.append(&mut path);
-        path = parent;
-        root_symbol = loan.root_symbol;
-    }
-    let position = ingress_position(root_symbol).ok_or(LoweringError::Unsupported(
-        "ordered reference return does not reach an ingress parameter",
-    ))?;
-    let parameter = &parameters[position];
-    if !parameter.is_mutable
-        && crate::reference_custody::mutable_borrow_parts(checked, parameter.type_reference)
-            .is_none()
-    {
-        return unsupported("ordered reference return ingress is not mutable");
-    }
-    let parameter_index = state
-        .structural_parameters
-        .iter()
-        .position(|candidate| candidate.position as usize == position)
-        .and_then(|index| u32::try_from(index).ok())
-        .ok_or(LoweringError::Unsupported(
-            "ordered reference return lost its dense ingress parameter",
-        ))?;
-    Ok(checked_trees::CheckedUnitStructuralArgumentPlan {
-        source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
-            parameter_index,
-        },
-        path,
-        type_identity: checked.normalized_type_identity(referent).into_string(),
-        access,
-    })
-}
-
-fn guarded_loan_segment(
-    checked: &CheckedTrees,
-    segment: &facts::PlaceSegment,
-) -> Result<checked_trees::CheckedUnitStructuralPathSegment, LoweringError> {
-    match segment {
-        facts::PlaceSegment::Field { symbol } => {
-            let mut fields = checked
-                .data_definitions()
-                .iter()
-                .flat_map(|data| checked.data_members(data))
-                .filter_map(|member| match member {
-                    checked_trees::data::DataMember::Field(field) if field.symbol == *symbol => {
-                        Some(field)
-                    }
-                    _ => None,
-                });
-            let field = fields.next().ok_or(LoweringError::Unsupported(
-                "ordered reference return loan lost its field declaration",
-            ))?;
-            if fields.next().is_some() {
-                return unsupported("ordered reference return loan field is ambiguous");
-            }
-            Ok(checked_trees::CheckedUnitStructuralPathSegment::Field(
-                field.path_identity(),
-            ))
-        }
-        facts::PlaceSegment::FixedIndex { index } => {
-            Ok(checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(
-                u64::try_from(*index).map_err(|_| {
-                    LoweringError::Unsupported("ordered reference return index is too large")
-                })?,
-            ))
-        }
-        facts::PlaceSegment::Case { .. }
-        | facts::PlaceSegment::FixedRange { .. }
-        | facts::PlaceSegment::Index { .. } => {
-            unsupported("ordered reference return loan path is not static")
-        }
-    }
-}
-
 #[allow(clippy::too_many_arguments)]
 pub(super) fn emit(
     checked: &CheckedTrees,

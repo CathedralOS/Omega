@@ -145,36 +145,6 @@ pub(super) fn source(
     {
         return unsupported("borrowed operand has unrepresented source constraints");
     }
-    // Reconstruct both the referent type and its address. Each stored shell
-    // crossed here contributes a Referent step; the captured authored place
-    // remains unchanged for borrow-fact replay. Checking type alone would
-    // accept a descriptor address as though it named the backing value.
-    let mut carrier = peeled;
-    let mut projected_path = source.path.clone();
-    while let TypeReferenceNode::Reference {
-        access, referee, ..
-    } = checked.type_reference_table.type_reference(carrier)
-    {
-        if !compatible_access(*access, target_access) {
-            break;
-        }
-        projected_path.push(checked_trees::CheckedUnitStructuralPathSegment::Referent);
-        carrier = validation::peel_declared_constraints(&checked.typed, *referee);
-    }
-    // A primitive-reference local stores its carrier as an ordinary Reference
-    // result. Source replay of the bare name has no field crossings, and its
-    // declaration was peeled once above; this is that one retained root crossing.
-    if let CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } = argument.source
-        && let Some((ordinal, _)) = checked.typed.state_local_declaration(state, symbol)
-        && validation::reference_result_custody::primitive_local_source(
-            &checked.typed,
-            state,
-            ordinal,
-        )
-        .is_some()
-    {
-        projected_path.insert(0, checked_trees::CheckedUnitStructuralPathSegment::Referent);
-    }
     Ok(Source { place: source })
 }
 

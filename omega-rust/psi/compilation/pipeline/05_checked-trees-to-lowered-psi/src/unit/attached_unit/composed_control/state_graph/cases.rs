@@ -460,7 +460,7 @@ pub(super) fn validate(
         else {
             if let (
                 checked_trees::CheckedClosedSumCaseOutcomePlan::Return(arm),
-                checked_trees::statement::TransitionTargetNode::Value(expression),
+                checked_trees::statement::TransitionTargetNode::Value(_),
             ) = (
                 &case.outcome,
                 checked.statement_table.transition_target(transition.target),
@@ -472,14 +472,7 @@ pub(super) fn validate(
                             "Unit case reference return lost its structural producer",
                         );
                     };
-                    super::guarded::validate_reference_return(
-                        checked,
-                        plan,
-                        source,
-                        state,
-                        *expression,
-                        operation,
-                    )?;
+                    super::guarded::validate_reference_return(plan, state, operation)?;
                 }
                 super::result_custody::local_discards(checked, owner, source, state, None)?;
                 continue;

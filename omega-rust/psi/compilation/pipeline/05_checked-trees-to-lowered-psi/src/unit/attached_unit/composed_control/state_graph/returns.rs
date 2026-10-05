@@ -231,33 +231,6 @@ pub(super) fn validate_structural(
     else {
         return unsupported("structural return has no result signature");
     };
-    let statement = checked
-        .statement_table
-        .statements(source.statement_nodes)
-        .get(ordinal)
-        .ok_or(LoweringError::Unsupported(
-            "structural return has no authored completion",
-        ))?;
-    // A returning tail is either the bare expression or an unconditional
-    // `(expression)` transition arm carrying it on the same statement.
-    let expression = match statement {
-        checked_trees::statement::StatementNode::Expression(expression) => expression,
-        checked_trees::statement::StatementNode::Transition(transition)
-            if transition.guard == checked_trees::statement::TransitionGuardNode::Always
-                && transition.exit == checked_trees::statement::TransitionExit::Ordinary
-                && !transition.continuation.is_valid() =>
-        {
-            let checked_trees::statement::TransitionTargetNode::Value(expression) =
-                checked.statement_table.transition_target(transition.target)
-            else {
-                return unsupported("structural return has no authored completion");
-            };
-            expression
-        }
-        _ => {
-            return unsupported("structural return has no authored completion");
-        }
-    };
     match result.source {
         CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal } => {
             let (operation, binding) = state
@@ -335,20 +308,6 @@ pub(super) fn validate_structural(
                 .is_none()
             {
                 return unsupported("structural return source parameter absent");
-            }
-            // Borrowed ingress names referent storage; the returned value is
-            // its affine reference carrier, resolved through exact source
-            // custody.
-            if crate::reference_custody::stored_loan_parts(checked, source.return_type).is_some()
-                && validation::reference_result_custody::initializer_source(
-                    &checked.typed,
-                    source,
-                    *expression,
-                    source.return_type,
-                )
-                .is_none()
-            {
-                return unsupported("reference parameter return lost its exact ingress");
             }
         }
         // A literal-backed `&[u8]` return carries its bytes as the whole

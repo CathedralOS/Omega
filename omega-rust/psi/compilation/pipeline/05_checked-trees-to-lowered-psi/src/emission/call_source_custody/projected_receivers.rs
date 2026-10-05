@@ -75,25 +75,6 @@ pub(crate) fn source(
     )
 }
 
-/// Assignment targets need no terminal Member stamp. A local destination also
-/// needs its statement coordinate, so later declarations cannot supply storage.
-pub(crate) fn store_destination(
-    checked: &CheckedTrees,
-    caller: SymbolHandle,
-    state: SymbolHandle,
-    statement: Option<usize>,
-    expression: ExpressionHandle,
-) -> Result<ReceiverSource, LoweringError> {
-    resolve_source(
-        checked,
-        caller,
-        state,
-        expression,
-        SourceUse::Store,
-        statement.map(|ordinal| (ordinal, false)),
-    )
-}
-
 fn resolve_source(
     checked: &CheckedTrees,
     caller: SymbolHandle,

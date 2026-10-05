@@ -2430,7 +2430,11 @@ check corpus and the native corpus unchanged on the slices it names.
   shapes. Then add a source-scanning guard in stage 05 that lists the few
   files allowed to read `statement_table`, `expression_table`,
   `StatementNode::` or `ExpressionNode::`; today there are 766 such
-  references across 73 files. Acceptance: both modules are gone, the guard
+  references across 73 files. The same guard refuses any stage 05 reference to
+  `validation::reference_result_custody`, which no longer has one: the last 5
+  were deleted rather than recorded, because classifying every site by what
+  stage 05 did with the answer found 4 pure refusal guards and 1 computation
+  whose result was never read. Acceptance: both modules are gone, the guard
   passes, and the full check corpus and the native corpus are unchanged.
 
 - **STAGE05-PLAN-REVALIDATION-DELETED.** (new-scope) Depends on
@@ -2911,8 +2915,7 @@ about 253k lines) plus the `validation` crate it calls
 in [Trust ceremony](#trust-ceremony), [PCC removal](#pcc-removal) and
 [Lowering simplification](#lowering-simplification) apply here. Related items
 already filed elsewhere: **LOWERING-READS-CHECKED-TYPES**,
-**LOWERING-READS-CHECKED-BORROW-CUSTODY**, **TYPED-FROZEN-BEFORE-CHECKING**
-and **CHECKING-FROZEN-PROGRAM-CONTEXT**.
+**TYPED-FROZEN-BEFORE-CHECKING** and **CHECKING-FROZEN-PROGRAM-CONTEXT**.
 
 Each item lands in one commit, deletes what it replaces, and keeps every
 check-corpus verdict and diagnostic family unchanged unless the item says
@@ -3038,8 +3041,6 @@ the validation `src/` (written `omega-rust/psi/compilation/checking/src/`) unles
   delete the hashing; record what stage 00 reads in checked trees or Terminal
   Psi. Acceptance: those modules hold no replay; no Omega crate references
   `checked.typed`; corpus unchanged.
-  (**LOWERING-READS-CHECKED-BORROW-CUSTODY** already covers the
-  `reference_result_custody` recompute in stage 05.)
 - **LOWERING-GATES-OUT-OF-CHECKER.** (new-scope) The checker carries lowering
   capability gates and per-shape query variants:
   - 16 `*_supported` functions (for example
@@ -3235,73 +3236,6 @@ of a check the same flow already performed, not the check itself.
   that table in one commit. Acceptance: stage 05 non-test sources call none of
   the three functions (stage 05 source-scanning guard); check and native
   corpus unchanged.
-
-- **LOWERING-READS-CHECKED-BORROW-CUSTODY.** (new-scope)
-  `CheckFacts::reference_custody` records one `ReferenceCustodyRow` per type
-  reference, and stage 05 reads it at the 34 sites keyed by a type reference
-  alone (`001397f340a`). The item's original premise was wrong in a way worth
-  keeping: none of these functions recomputes a checking *analysis* — checking
-  and lowering call the same pure functions over the frozen `TypedTrees`. The
-  query could not simply move to its data's owner because the family pulls in
-  `value_custody/storage_contents.rs`, whose own content classification is now
-  recorded beside it, and because the return types live in `checked-trees`,
-  which `typed-trees` cannot depend on. So a recorded row is right here even
-  though the query is pure.
-
-  `CheckFacts::state_reference_custody` records one `StateReferenceCustodyRow`
-  per declared state, dense by the state symbol's arena index, and stage 05
-  reads it at the 7 sites keyed by a state alone (`e1ca328f3ce`). **The plan
-  roster this item predicted was not needed**: every stage-05 reader of
-  `returned_reference_sources`, `source_parameter` and `source_leaf` consumes
-  presence only (`.is_none()` in a refusal guard), and `tail_return_expression`
-  returns one ZII handle, so a copy row is the whole answer. Recording the
-  roster would have been facts with no reader -- the ground on which
-  `001397f340a` declined to record `local_owes_record_loans`. Check what the
-  readers consume before choosing a row shape. Population walks `machines()` by
-  `machine_states()`, the structure `state_declaration` already resolves a
-  symbol through (and which refuses a symbol naming two states).
-
-  **15 sites remain, and the surface splits 6/6/3, not 6/6** -- this item twice
-  stated the count wrong. 6 are keyed by a `Handle<BorrowLoanFact>` that the
-  query also filters against a machine and state (`release_boundary` 4,
-  `release_statement` 2), where a row must record the pair it was computed for
-  or a mismatched pair reads a boundary the recompute denies. 6 are keyed by a
-  state and an expression (`initializer_source` 3,
-  `borrowed_initializer_source`, `mutable_return_source`, `record_argument`),
-  and `record_argument` additionally takes a
-  `CheckedUnitStructuralResultBindingPlan` that stage 05 holds, so nothing
-  checking can enumerate keys it until that query is decomposed. 3 are keyed by
-  a state **and a local ordinal** (`primitive_local_source`), which a
-  state-alone row does not close.
-
-  **This item now conflicts with a newer owner ruling, and that must be settled
-  before the next family is recorded.** 4 of the 7 sites just converted were
-  pure refusal guards, otherwise unused. `03710d6b5d9` cites the owner ruling
-  of 2026-10-04 under [Lowering simplification](#lowering-simplification), and
-  **STAGE05-SOURCE-REREAD-DELETED** says "the validators that only re-confirmed
-  a row against its source are deleted". Converting a guard-only site to a
-  recorded-fact read *preserves* the re-checking that ruling removes, so those
-  4 rows may be short-lived and the remaining families may want deletion rather
-  than rows. Classify each remaining site as guard-only or value-consuming
-  first, and record only the value-consuming ones.
-
-  Cost named rather than guessed: the classification pass is a second
-  whole-program walk, and unlike the type-reference walk it is not uniformly
-  cheap -- `returned_reference_sources` iterates every transition of every
-  state and recurses through callees comparing normalized type identities. If
-  it needs narrowing, the early-out belongs **inside that query**, where the
-  row and the recompute cannot drift; hand-deriving a narrower predicate in the
-  builder is a recurring defect class here.
-
-  Population must not depend on checking's traversal: `001397f340a` walks the
-  whole type-reference table after monomorphization and authored-selection
-  finalization, so no visited-call hole is possible, and the table is
-  append-only so no index goes stale. Before deleting a recompute, prove
-  equivalence with a differential probe that reads the row and recomputes
-  beside it over the full corpus — that is the only evidence these crates have,
-  since they carry zero Rust tests after `55a502d211b`. Acceptance: stage 05
-  non-test sources do not name `reference_result_custody` (same source-scanning
-  guard); corpus `--filter borrows,references/` check and native unchanged.
 
 - **IMAGE-SELF-REPLAY-DELETED.** (new-scope) Direct image emission, the
   fragment and container stages and `NativeArtifact::from_emitted_parts`

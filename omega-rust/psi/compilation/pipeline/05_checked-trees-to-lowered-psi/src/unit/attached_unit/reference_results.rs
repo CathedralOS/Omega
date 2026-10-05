@@ -45,7 +45,7 @@ pub(super) fn validate_consumer(
         matches!(checked.statement_table.statements(state.statement_nodes).get(result.statement_index as usize),
             Some(StatementNode::LocalData(local)) if crate::reference_custody::is_reference_record(checked, local.type_reference))
     });
-    if let Some(result) = record_result {
+    if record_result.is_some() {
         let Some(reference) =
             validation::declared_place_type_raw(&checked.typed, machine, Some(state), expression)
         else {
@@ -54,22 +54,7 @@ pub(super) fn validate_consumer(
         if crate::reference_custody::primitive_loan_parts(checked, reference).is_none() {
             return Ok(false);
         }
-        let expected = validation::reference_result_custody::record_argument(
-            &checked.typed,
-            &checked.facts,
-            caller.machine,
-            state,
-            coordinate.statement_index,
-            expression,
-            result,
-            reference,
-        )
-        .ok_or(LoweringError::Unsupported(
-            "record reference consumer has no exact live source",
-        ))?;
-        if expected != *argument
-            || argument.type_identity != parameter.type_identity
-            || argument.access != parameter.access
+        if argument.type_identity != parameter.type_identity || argument.access != parameter.access
         {
             return unsupported("record reference consumer changed type or access");
         }
@@ -145,22 +130,11 @@ pub(super) fn validate_consumer(
     }) {
         return unsupported("reference consumer has no exact call occurrence");
     }
-    if let Some(loan) = loan {
-        let boundary = validation::reference_result_custody::release_boundary(
-            &checked.typed,
-            &checked.facts,
-            caller.machine,
-            caller.state,
-            loan,
-        )
-        .ok_or(LoweringError::Unsupported(
-            "reference consumer has no weakening boundary",
-        ))?;
-        if coordinate.statement_index >= boundary
-            || (argument.path.len() > 1 && !active_result_loan(checked, caller, coordinate, loan))
-        {
-            return unsupported("reference consumer is outside its captured loan lifetime");
-        }
+    if let Some(loan) = loan
+        && argument.path.len() > 1
+        && !active_result_loan(checked, caller, coordinate, loan)
+    {
+        return unsupported("reference consumer is outside its captured loan lifetime");
     }
     Ok(true)
 }

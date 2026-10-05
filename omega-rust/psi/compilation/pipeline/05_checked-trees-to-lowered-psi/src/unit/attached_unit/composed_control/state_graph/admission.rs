@@ -571,7 +571,6 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                         validate_structural_arm(
                             checked,
                             plan,
-                            source,
                             state,
                             return_source,
                             return_ordinal,
@@ -667,7 +666,6 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                             validate_structural_arm(
                                 checked,
                                 plan,
-                                source,
                                 state,
                                 arm_source,
                                 arm_ordinal,
@@ -1059,7 +1057,6 @@ fn validate_guarded_return(
         ) => validate_structural_arm(
             checked,
             plan,
-            source,
             state,
             transition,
             ordinal as usize,
@@ -1084,7 +1081,6 @@ fn validate_guarded_return(
 fn validate_structural_arm(
     checked: &CheckedTrees,
     plan: &CheckedComposedUnitControlMachinePlan,
-    source: &checked_trees::state::State,
     state: &checked_trees::CheckedComposedUnitControlStatePlan,
     transition: &checked_trees::statement::TableTransition,
     ordinal: usize,
@@ -1101,7 +1097,6 @@ fn validate_structural_arm(
     super::guarded::validate_structural_return(
         checked,
         plan,
-        source,
         state,
         *expression,
         u32::try_from(ordinal)
