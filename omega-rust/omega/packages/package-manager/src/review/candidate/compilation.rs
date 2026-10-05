@@ -1,4 +1,4 @@
-//! Candidate review workflow: select bindings, compile, then retain the requested product.
+//! Candidate review workflow: select bindings, then compile.
 //!
 //! All products share discovery and final checking. Each pass owns a disposable
 //! sponsored session; package_pass owns dependency-order compilation and projection.
@@ -10,7 +10,7 @@ mod policy;
 use super::semantic_bindings::{candidate_semantic_binding_inputs, semantic_bindings_by_consumer};
 use super::{
     CompileResolvedPackageReviewsError, CompilerIssuedPackageReviewSet,
-    ConsumerScopedSemanticBindingReviewInput, ReviewedPackageProductionCandidate,
+    ConsumerScopedSemanticBindingReviewInput,
 };
 use crate::build_session::PackageBuildSession;
 use crate::resolution::graph::ExactTargetPackageSourceClosure;
@@ -90,76 +90,14 @@ pub fn compile_resolved_package_reviews_reusing(
     bindings: SemanticBindingReview<'_>,
     preparation: &mut CandidateSourcePreparation,
 ) -> Result<CompilerIssuedPackageReviewSet, CompileResolvedPackageReviewsError> {
-    compile_candidate(candidate, bindings, None, preparation).map(|compiled| compiled.reviews)
+    compile_candidate(candidate, bindings, preparation).map(|compiled| compiled.reviews)
 }
 
-/// Retain the application root from the same final pass that produced its reviews.
-/// This checked product grants no native authority.
-/// A supplied snapshot selects only the root activation's inputs and required
-/// outputs in every review pass; dependencies keep their own package inventories.
-pub fn compile_resolved_package_candidate_for_production(
-    target_closure: &ExactTargetPackageSourceClosure<'_>,
-    build_root: &Path,
-    bindings: SemanticBindingReview<'_>,
-    root_build_snapshot: Option<&build_evaluation::BuildSnapshotRequest>,
-) -> Result<ReviewedPackageProductionCandidate, CompileResolvedPackageReviewsError> {
-    production_candidate_reusing(
-        CandidateCompilation {
-            root_build_snapshot,
-            ..CandidateCompilation::new(target_closure, build_root)
-        },
-        bindings,
-        &mut CandidateSourcePreparation::for_closure(target_closure.source_closure()),
-    )
-}
-
-/// The production route retaining source preparation in the caller's store.
-/// An operation that compiles several exact targets of one resolved closure
-/// shares the store, so each package's binding-independent parse frontier is
-/// built once while custody admission, Build admission, and checking still
-/// run per target context.
-pub(crate) fn production_candidate_reusing(
-    candidate: CandidateCompilation<'_, '_>,
-    bindings: SemanticBindingReview<'_>,
-    preparation: &mut CandidateSourcePreparation,
-) -> Result<ReviewedPackageProductionCandidate, CompileResolvedPackageReviewsError> {
-    let target_closure = candidate.target_closure;
-    let closure = target_closure.source_closure();
-    let root = closure.graph().root().clone();
-    if closure.root_role() != package_compilation::BuildDeclarationKind::Application {
-        return Err(
-            CompileResolvedPackageReviewsError::InvalidProductionRootRole {
-                package: root,
-                role: closure.root_role(),
-            },
-        );
-    }
-    let root_path = closure
-        .source_root(&root)
-        .expect("validated source closure retains its root custody")
-        .join("main.omg");
-    let compiled = compile_candidate(candidate, bindings, Some(&root_path), preparation)?;
-    let checked_root = compiled.checked_root.ok_or_else(|| {
-        CompileResolvedPackageReviewsError::IdentityMismatch {
-            package: root.clone(),
-        }
-    })?;
-    Ok(ReviewedPackageProductionCandidate {
-        reviews: compiled.reviews,
-        root,
-        root_path,
-        root_role: closure.root_role(),
-        target_profile: target_closure.target_profile(),
-        checked_root,
-    })
-}
-
-/// The one candidate route every review, production and check entry runs;
+/// The one candidate route every review and check entry runs;
 /// see [`CandidateCompilation`] for what the request carries.
 fn compile_candidate(
     candidate: CandidateCompilation<'_, '_>,
     bindings: SemanticBindingReview<'_>,
-    retained_root_entry: Option<&Path>,
     preparation: &mut CandidateSourcePreparation,
 ) -> Result<CompiledPackageReviews, CompileResolvedPackageReviewsError> {
     let CandidateCompilation {
@@ -188,7 +126,6 @@ fn compile_candidate(
                 target_closure,
                 build_root,
                 inputs,
-                retained_root_entry,
                 root_build_snapshot,
                 restricted_build_checkpoint,
                 TargetEntryDiscovery::Disabled,
@@ -214,7 +151,6 @@ fn compile_candidate(
                 target_closure,
                 build_root,
                 &[],
-                retained_root_entry,
                 root_build_snapshot,
                 restricted_build_checkpoint,
                 TargetEntryDiscovery::Dependencies,
@@ -252,7 +188,6 @@ fn compile_candidate(
             target_closure,
             build_root,
             &discovered,
-            retained_root_entry,
             root_build_snapshot,
             restricted_build_checkpoint,
             TargetEntryDiscovery::Disabled,
@@ -301,7 +236,6 @@ fn compile_pass(
     target_closure: &ExactTargetPackageSourceClosure<'_>,
     build_root: &Path,
     bindings: &[ConsumerScopedSemanticBindingReviewInput],
-    retained_root_entry: Option<&Path>,
     root_build_snapshot: Option<&build_evaluation::BuildSnapshotRequest>,
     restricted_build_checkpoint: Option<&RestrictedBuildCheckpoint>,
     discovery: TargetEntryDiscovery,
@@ -335,30 +269,11 @@ fn compile_pass(
         session.filesystem_sponsor(),
         session.evaluation_sponsor(),
         &bindings,
-        retained_root_entry,
         root_build_snapshot,
         restricted_build_checkpoint,
         discovery,
         prior,
         preparation,
     );
-    let compiled = session.dispose(result)?;
-    if retained_root_entry.is_some() {
-        let root = closure.graph().root();
-        let checked = compiled.checked_root.as_ref().ok_or_else(|| {
-            CompileResolvedPackageReviewsError::IdentityMismatch {
-                package: root.clone(),
-            }
-        })?;
-        let subject = checked.sources().package_subject();
-        if subject.map(|subject| subject.root()) != Some(root.identity())
-            || subject.map(|subject| subject.root_role()) != Some(closure.root_role())
-            || checked.execution().selected_target_profile != Some(target_closure.target_profile())
-        {
-            return Err(CompileResolvedPackageReviewsError::IdentityMismatch {
-                package: root.clone(),
-            });
-        }
-    }
-    Ok(compiled)
+    session.dispose(result)
 }

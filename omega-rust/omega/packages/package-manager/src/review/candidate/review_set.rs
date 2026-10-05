@@ -9,7 +9,6 @@ use package_evidence::ledger::{
 };
 use package_evidence::record::{CheckedPackageReviewProjection, PackageReviewCanonicalRow};
 use package_source::ImmutableSourceResolution;
-use std::path::PathBuf;
 
 use super::semantic_bindings::SemanticBindingReviewCandidate;
 
@@ -157,24 +156,6 @@ pub struct CompilerIssuedPackageReviewSet {
     pub(super) reviews: Vec<CompilerIssuedPackageReview>,
 }
 
-/// One frozen package-review result together with the exact checked root that
-/// produced its final policy-bearing rows.
-///
-/// This carrier is deliberately non-clonable. It is not accepted evidence, a
-/// package instance, or publication authority; admission may inspect the
-/// review set before consuming the checked root into unpublished production.
-#[derive(Debug)]
-pub struct ReviewedPackageProductionCandidate {
-    pub(super) reviews: CompilerIssuedPackageReviewSet,
-    pub(super) root: PackageKey,
-    pub(super) root_path: PathBuf,
-    pub(super) root_role: package_compilation::BuildDeclarationKind,
-    pub(super) target_profile: target::TargetProfile,
-    // The large checked product moves through review/session coordination by
-    // ownership, without reserving its full inline storage in every call frame.
-    pub(super) checked_root: Box<compiler::CheckedCompilation>,
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PackageSourceVerificationPhase {
     BeforeCompilation,
@@ -211,37 +192,5 @@ impl CompilerIssuedPackageReviewSet {
         self.reviews
             .iter()
             .find(|review| review.key() == key && review.checked_context().purpose() == purpose)
-    }
-}
-
-impl ReviewedPackageProductionCandidate {
-    pub const fn reviews(&self) -> &CompilerIssuedPackageReviewSet {
-        &self.reviews
-    }
-
-    pub const fn root(&self) -> &PackageKey {
-        &self.root
-    }
-
-    pub const fn root_role(&self) -> package_compilation::BuildDeclarationKind {
-        self.root_role
-    }
-
-    pub const fn target_profile(&self) -> target::TargetProfile {
-        self.target_profile
-    }
-
-    pub(crate) const fn checked_root(&self) -> &compiler::CheckedCompilation {
-        &self.checked_root
-    }
-
-    pub(crate) fn into_production_parts(
-        self,
-    ) -> (
-        CompilerIssuedPackageReviewSet,
-        PathBuf,
-        compiler::CheckedCompilation,
-    ) {
-        (self.reviews, self.root_path, *self.checked_root)
     }
 }

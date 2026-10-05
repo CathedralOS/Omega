@@ -20,7 +20,6 @@ compiler = { path = "../../compilation/driver" }
 compilation-products = { path = "../../compilation/products" }
 component-description = { path = "../../compilation/backend/artifacts/component-description" }
 effects = { path = "../../compilation/backend/plans/provider-evidence" }
-image-emission = { path = "../../compilation/backend/images/image-emission" }
 native-artifact = { path = "../../compilation/backend/artifacts/native-artifact" }
 package-evidence = { path = "../review-evidence" }
 package-source = { path = "../source-acquisition" }

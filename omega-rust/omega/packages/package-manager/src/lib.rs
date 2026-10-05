@@ -6,7 +6,6 @@
 //! Start with [`package_manager`] for command dispatch, review and publication.
 //! [`operations`] also exposes compiler preparation and read-only inspection.
 
-pub mod admission;
 mod build_session;
 pub mod declarations;
 pub mod lock;

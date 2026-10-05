@@ -2935,12 +2935,11 @@ of a check the same flow already performed, not the check itself.
   `omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/machine_lowering/checked_ledger.rs::verify`
   runs once per `lower_machine` call, so once per entry and callback artifact
   over the same whole-program ledger; it should run once per `CheckedTrees`.
-  Do not hoist the call into `lower_machine`'s callers: four sites construct a
+  Do not hoist the call into `lower_machine`'s callers: three sites construct a
   `TerminalProductionRequest`
   (`omega-rust/omega/compilation/driver/src/terminal/terminal_artifact.rs`,
   `omega-rust/omega/compilation/driver/src/terminal/native_proposal/mod.rs`,
-  `omega-rust/omega/compilation/products/src/checked_compilation/terminal.rs`,
-  `omega-rust/omega/packages/package-manager/src/admission/terminal_authority.rs`),
+  `omega-rust/omega/compilation/products/src/checked_compilation/terminal.rs`),
   and hoisting turns a guaranteed invariant into an obligation each must
   remember. Verify the ledger where the `CheckedTrees` is frozen, so it holds
   by construction before any artifact is produced; land with
@@ -3239,8 +3238,7 @@ lands alone with its corpus slice unchanged and no fallback path.
     (`omega-rust/omega/packages/compilation-inputs/src/build_execution/observation_identity.rs`,
     `omega-rust/omega/packages/compilation-inputs/src/production_subject.rs`,
     `omega-rust/omega/compilation/products/src/checked_compilation/production_subject.rs`,
-    `validate_accepted_terminal_production_subject`, the admitted-checkpoint
-    symbol check in
+    the admitted-checkpoint symbol check in
     `omega-rust/omega/compilation/build-evaluation/src/build_evaluation.rs`);
   - `omega-rust/omega/compilation/build-evaluation/src/completed_pure_build.rs`
     logical charges;
@@ -3293,10 +3291,9 @@ lands alone with its corpus slice unchanged and no fallback path.
   - `src/ledger/results/reconstruction.rs` re-checks discharge certificates
     the same compile produced
     (`recheck_contract_entailment_assumption_discharge`);
-  - the obligation ledger serves only the
-    `omega-rust/omega/packages/package-manager/src/review/reconstruction/root_policy.rs`
-    `validate_open_obligation_rows` bijection against the rows it was built
-    from.
+  - the obligation ledger and its results have no consumer: the
+    package-manager `review/reconstruction/` bijection that read them is
+    deleted.
 
   Keep the policy projection: it feeds lock rows and review documents. In one
   commit, delete the legacy projection, the self-validation calls, the
@@ -3344,25 +3341,6 @@ lands alone with its corpus slice unchanged and no fallback path.
   dependency to Terminal (`publish_checked_component`) just to store a cache
   description. Acceptance: no re-encode or re-derive on a cache hit; corpus
   `--filter packages` is unchanged.
-
-- **NATIVE-ADMISSION-EVIDENCE-DELETED.** (new-scope) Ordinary compilation now
-  consumes accepted package inputs without repeating review. Delete what is
-  left of the native-path evidence chain in
-  `omega-rust/omega/packages/package-manager/src/` in one commit:
-  - `review/reconstruction/`: its question bytes and fingerprint have no
-    reader; `recover` and `matches_resolved_and_reviews` have no non-test
-    caller; `validate_ledger_source_closure` re-derives a closure the compile
-    supplied;
-  - `admission/evidence/assembly.rs` `AcceptedOrdinaryPackageEvidence`, whose
-    `artifact`, `results`, `semantic_bindings` and `obligation_schema` fields
-    have no reader;
-  - `admission/terminal_authority.rs`'s production-subject checks;
-  - `lock/validation.rs::policy_source_membership`.
-
-  `accepted_terminal_authority_permission_policy` reads the lock's terminal
-  permission rows directly. Acceptance: native compile of the package corpus
-  is unchanged, and an accepted-lock compile whose permission rows are removed
-  fails.
 
 - **ADMISSIONS-FILE-DELETED.** (new-scope) Delete the `omega.admissions`
   file and the `trust-ledger` crate. Owner ruling 2026-10-03: `omega.lock` is

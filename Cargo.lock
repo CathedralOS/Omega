@@ -1338,7 +1338,6 @@ dependencies = [
  "diagnostics",
  "effects",
  "flow-effects",
- "image-emission",
  "language-semantics",
  "native-artifact",
  "optimization-core",

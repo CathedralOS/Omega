@@ -55,7 +55,6 @@ use crate::build_session::PreparedPackageSource;
 
 pub(super) struct CompiledPackageReviews {
     pub(super) reviews: CompilerIssuedPackageReviewSet,
-    pub(super) checked_root: Option<Box<compiler::CheckedCompilation>>,
     /// Every occurrence's compile under the exact inputs it consumed, in
     /// occurrence order. A following pass over the same closure and roster
     /// carries an occurrence forward — check, build evaluation, and review —
@@ -187,7 +186,6 @@ pub(super) fn compile_dependency_closure(
         (PackageKey, DependencyPurpose),
         Vec<AcceptedSemanticBinding>,
     >,
-    retained_root_entry: Option<&Path>,
     root_build_snapshot: Option<&build_evaluation::BuildSnapshotRequest>,
     // A consuming compile supplies the accepted target's restricted-request
     // checkpoint so each occurrence's projected requests join its granted
@@ -236,7 +234,6 @@ pub(super) fn compile_dependency_closure(
         filesystem_sponsor,
         evaluation_sponsor,
         semantic_bindings_by_consumer,
-        retained_root_entry,
         root_build_snapshot,
         restricted_build_checkpoint,
         discovery,
@@ -245,7 +242,6 @@ pub(super) fn compile_dependency_closure(
         dependency_inputs,
         reviews: Vec::with_capacity(roster.occurrence_count()),
         review_positions: vec![[None::<usize>; 2]; closure.graph().packages().len()],
-        checked_root: None,
         component_candidates: BTreeMap::new(),
         retained_obligation_ledger_total: 0,
         occurrences: Vec::new(),
@@ -319,7 +315,6 @@ struct ClosurePass<'pass> {
     evaluation_sponsor: &'pass BuildEvaluationSponsor,
     semantic_bindings_by_consumer:
         &'pass BTreeMap<(PackageKey, DependencyPurpose), Vec<AcceptedSemanticBinding>>,
-    retained_root_entry: Option<&'pass Path>,
     root_build_snapshot: Option<&'pass build_evaluation::BuildSnapshotRequest>,
     restricted_build_checkpoint: Option<&'pass RestrictedBuildCheckpoint>,
     discovery: TargetEntryDiscovery,
@@ -331,7 +326,6 @@ struct ClosurePass<'pass> {
     reviews: Vec<CompilerIssuedPackageReview>,
     /// Index into `reviews` of each package position's review, by purpose slot.
     review_positions: Vec<[Option<usize>; 2]>,
-    checked_root: Option<Box<compiler::CheckedCompilation>>,
     /// Each dependency's own checked compilation is retained as a component
     /// candidate: a later consumer's `Independent` selection can only settle
     /// against the description published from that compilation, and the
@@ -529,17 +523,10 @@ impl ClosurePass<'_> {
         // Package review checks authored build-only packages through the compiler's
         // existing build entrance. Explicit application/check entries below retain
         // their own source requirement; no source or product exports are invented.
-        let default_entry = if main_entry.is_file() {
+        let entry = if main_entry.is_file() {
             main_entry
         } else {
             custody.snapshot_root().join("build.omg")
-        };
-        let entry = if key == closure.graph().root() {
-            self.retained_root_entry
-                .map(Path::to_path_buf)
-                .unwrap_or(default_entry)
-        } else {
-            default_entry
         };
         // Every package build activation runs against a captured immutable
         // snapshot of its own sealed source custody, never the live custody
@@ -758,19 +745,7 @@ impl ClosurePass<'_> {
         let review_position = self.reviews.len();
         self.review_positions[position][purpose_slot(purpose)] = Some(review_position);
         self.reviews.push(review);
-        if key == closure.graph().root() {
-            if self.retained_root_entry.is_some() {
-                let OccurrenceCompile::Checked(checked) = &compile else {
-                    return Err(CompileResolvedPackageReviewsError::Projection {
-                        package: key.clone(),
-                        diagnostics: vec![Diagnostic::error(
-                            "the graph root's checked compilation is never persisted to the review cache",
-                        )],
-                    });
-                };
-                self.checked_root = Some(Box::new(checked.clone()));
-            }
-        } else {
+        if key != closure.graph().root() {
             self.component_candidates
                 .insert((key.identity(), purpose), compile.clone());
         }
@@ -1153,11 +1128,7 @@ impl ClosurePass<'_> {
             review: review_position,
             checked: OccurrenceCompile::Checked(checked.clone()),
         });
-        if key == closure.graph().root() {
-            if self.retained_root_entry.is_some() {
-                self.checked_root = Some(Box::new(checked));
-            }
-        } else {
+        if key != closure.graph().root() {
             self.component_candidates.insert(
                 (key.identity(), purpose),
                 OccurrenceCompile::Checked(checked),
@@ -1173,7 +1144,6 @@ impl ClosurePass<'_> {
             reviews: CompilerIssuedPackageReviewSet {
                 reviews: self.reviews,
             },
-            checked_root: self.checked_root,
             occurrences: self.occurrences,
             carried: self.carried_occurrences,
         })

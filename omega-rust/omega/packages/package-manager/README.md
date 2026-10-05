@@ -28,12 +28,10 @@ package-manager/
 │   ├── package_manager.rs command lifecycle and dispatch
 │   ├── package_manager/   edit planning, review files, proposal recovery
 │   ├── operations/        compiler preparation, inspection, publication
-│   ├── admission/         separate compiler/native handoff checks
 │   ├── declarations/      checked package declarations from build.omg
 │   ├── resolution/        exact source selection and dependency closure
 │   ├── lock/              persistent source-scoped project policy
 │   └── review/            compile, compare, audit, and decide
-└── tests/                 manager integration tests
 ```
 
 `package_manager.rs` owns command orchestration and composes `operations`.
@@ -162,14 +160,9 @@ artifact validation is not a claim of successful publication.
 `declarations` reads the statically checked package declarations in
 `build.omg`; Omega has no second package manifest. `resolution` binds those
 declarations to immutable sources and reconciles one exact closure. `review`
-turns that closure into compiler-issued facts and root-owned decisions. Its
-legacy `reconstruction/root_policy.rs` gate rederives fresh obligations from exact
-checked occurrences and requires canonical-row bijections for open accepted
-claims, dangerous authorities, external executable supplies, and Terminal
-permissions. Those rows and the normalized policy comparison come from the same
-fresh compiler reviews in its explicit evidence workflow, not ordinary accepted
-compilation; there is no parallel initial-conflict comparison or
-second approval decision. Source contract validity belongs to Psi's call and
+turns that closure into compiler-issued facts and root-owned decisions; there
+is no parallel initial-conflict comparison or second approval decision. Source
+contract validity belongs to Psi's call and
 normal-exit checks, including a return through a tail call. The legacy review
 ledger retains arithmetic-engine stand-downs and its supported discharge rows;
 those are not a second source-validity gate. A different checked proof route,
@@ -177,18 +170,11 @@ such as a transparent proposition, can establish an arithmetic-engine
 stand-down. Locally rechecked assumption discharges retain their original
 package owners and checked contexts. The result remains review and policy state.
 
-`admission` retains the legacy explicit evidence route, which rechecks live
-source custody, obligation reconstruction, and accepted policy before producing
-in-memory evidence. Ordinary accepted compilation does not require fresh
-package-review evidence from this route. That evidence retains exact
-compiler-consumed semantic bindings scoped to their
-consuming package occurrence. Build-host permissions never project into the
-product's native authority, even when both roles use the same target.
-Changed requirements need ordinary project review; stale
-source evidence and unproved contracts still reject.
-It has no codec, `omega.lock` mutation route, or transaction
-authority. Its promotion layer is current implementation, not a requirement to
-add `PackageInstance` certification before implementing install/update.
+Ordinary accepted compilation consumes accepted package inputs without
+repeating review: the driver reads the lock's Terminal permission rows
+directly. Build-host permissions never project into the product's native
+authority, even when both roles use the same target. Changed requirements need
+ordinary project review.
 
 A receiving-policy verdict
 belongs to explicit artifact admission, not ordinary package/native production.
@@ -264,14 +250,6 @@ the candidate, but only the current product root carries them into policy;
 dependency/build-host uses strip them even on a cache hit. Nomination does not
 read rendered callable or provider review rows. Ordinary accepted compilation
 consumes the resulting retained bindings and does not repeat nomination or review.
-
-The legacy review-bearing production operation uses
-`compile_resolved_package_candidate_for_production`. Its non-clonable result
-exposes the same final review rows while retaining the exact checked
-application root that produced them. Its admission route consumes that root directly
-into unpublished Terminal/native production after fresh evidence comparison;
-it does not rerun `build.omg` or recover generated source from staging. This
-explicit evidence route is not the ordinary accepted native compile entrance.
 
 Install and update belong in `package_manager.rs`, with accepted baselines and decisions
 recorded directly. Their command flow does not extend the promotion layer or
