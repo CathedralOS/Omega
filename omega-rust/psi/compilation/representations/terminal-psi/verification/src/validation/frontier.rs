@@ -830,17 +830,6 @@ fn validate_return_cleanup_actions(
             }
         }
     };
-    if std::env::var_os("OMEGA_DEBUG_REFERENCE_RETIREMENT").is_some() {
-        eprintln!(
-            "retirement return machine={:?} block={:?} actions={:?} owned={:?} partial={:?} references={:?}",
-            machine.id,
-            block,
-            actions,
-            frontier.owned_places,
-            frontier.partial_custody_paths,
-            frontier.references
-        );
-    }
     let mut frontier = frontier.clone();
     forget_empty_partial_storage(module, machine, &mut frontier);
     let mut actions = actions.iter();

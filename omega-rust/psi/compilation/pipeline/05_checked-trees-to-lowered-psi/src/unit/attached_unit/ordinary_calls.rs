@@ -6,8 +6,7 @@ use super::super::{
 };
 use super::bodies::UnitPlans;
 use super::parameters::{
-    StructuralResultCustody, emitted_claim_transfers, mint_element_view_length_observations,
-    mint_runtime_index_selectors,
+    emitted_claim_transfers, mint_element_view_length_observations, mint_runtime_index_selectors,
 };
 use super::{
     CheckedTrees, CheckedUnitEffectOperationPlan, ClaimTransfer, LoweringError, Multiplicity,
@@ -16,7 +15,7 @@ use super::{
     allocate_dense, argument_evaluation, lookup_claim_id, lookup_type_id,
     lower_checked_crash_route_buckets, lower_structural_arguments,
     lower_structural_crash_route_buckets, lower_structural_path, place_id, primitive_locals,
-    unsupported, validate_transfer_shape,
+    unsupported,
 };
 use crate::direct_calls::{DirectCall, DirectCallResult};
 use crate::emission::operation_emission::buffer::{OperationBuffer, SourceCallCoordinate};
@@ -85,6 +84,7 @@ pub(super) fn prepare(
     local_places: &[StructuralPlaceDeclaration],
     structural_result_places: &[(Option<StructuralPlaceDeclaration>, bool)],
     primitive_local_places: &[primitive_locals::PrimitiveLocal],
+    structural_locals: &[crate::expression_preparation::bindings::StructuralLocalBinding],
     type_ids: &[(String, StructuralTypeId)],
     structural_types: &[StructuralTypeDeclaration],
     call_byte_places: &[PlaceId],
@@ -177,27 +177,6 @@ pub(super) fn prepare(
         next_value,
         operations,
     )?;
-    let completed_results = &operations.structural_values;
-    validate_transfer_shape(
-        structural_arguments,
-        claim_transfers,
-        parameters,
-        local_places,
-        structural_result_places,
-        checked_target.structural_parameters,
-        type_ids,
-        structural_types,
-        // Every entry claim requires its checked transfer row.
-        &checked_target
-            .entry_claims
-            .iter()
-            .map(|claim| claim.parameter_index)
-            .collect::<Vec<_>>(),
-        primitive_local_places,
-        Some(StructuralResultCustody {
-            results: completed_results,
-        }),
-    )?;
     let claim_transfers = emitted_claim_transfers(claim_transfers, claim_bindings)?;
     let terminal_arguments = lower_structural_arguments(
         structural_arguments,
@@ -208,6 +187,7 @@ pub(super) fn prepare(
         completed_results,
         call_byte_places,
         primitive_local_places,
+        structural_locals,
         Some(caller_scalar_values),
         &mut selector_values,
         Some(calls),

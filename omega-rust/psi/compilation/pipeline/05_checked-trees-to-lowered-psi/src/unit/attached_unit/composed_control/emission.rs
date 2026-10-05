@@ -332,18 +332,6 @@ pub(super) fn emit_call_operations(
             _ => return unsupported("composed call schedule disagrees with its argument group"),
         };
         let operation = &planned_operations[operation_index];
-        if std::env::var_os("OMEGA_DEBUG_REFERENCE_RETIREMENT").is_some()
-            && matches!(
-                operation,
-                CheckedUnitEffectOperationPlan::ReleaseReference { .. }
-                    | CheckedUnitEffectOperationPlan::ContinuationCleanup { .. }
-            )
-        {
-            eprintln!(
-                "retirement composed plan state={:?} operation={:?}",
-                state.state, operation
-            );
-        }
         if matches!(
             operation,
             CheckedUnitEffectOperationPlan::ReleaseReference {
@@ -439,7 +427,6 @@ pub(super) fn emit_call_operations(
             caller: CallerCustody {
                 erased_scalar_parameters: erased_parameters,
                 erased_proof_parameters: &state.erased_proof_parameters,
-                entry_claims: &state.entry_claims,
                 claims: ClaimBindings::Fixed(claim_bindings),
                 local_places: &[],
             },

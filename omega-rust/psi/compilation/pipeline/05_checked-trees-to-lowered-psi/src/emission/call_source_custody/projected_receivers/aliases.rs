@@ -720,7 +720,6 @@ fn call_result_source(
             root_symbol: local.symbol,
             segments: Vec::new(),
         },
-        alias_bridges: Vec::new(),
     }))
 }
 

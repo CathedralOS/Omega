@@ -9,10 +9,7 @@
 //! through `publish_result` (the dense roster with its local binding, or the
 //! composed catalog and operation-buffer registry).
 
-use super::super::parameters::{
-    self, StructuralResultCustody, emitted_claim_transfers, lower_structural_arguments,
-    validate_transfer_shape,
-};
+use super::super::parameters::{self, emitted_claim_transfers, lower_structural_arguments};
 use super::super::{
     argument_evaluation, bodies::UnitBody, ordinary_calls, signatures, structural_calls,
     structural_values,
@@ -364,6 +361,7 @@ impl OperationFrame<'_, '_> {
             self.caller.local_places,
             &earlier,
             self.primitive_locals,
+            &self.evaluation.structural_locals,
             self.type_ids,
             self.structural_types.declarations(),
             inputs.byte_places,
@@ -441,6 +439,7 @@ impl OperationFrame<'_, '_> {
             self.type_ids,
             self.calls.machine_ids,
             &earlier,
+            &self.evaluation.structural_locals,
             self.next_place,
             self.operations,
             Some(self.values),
@@ -571,7 +570,6 @@ impl OperationFrame<'_, '_> {
                     caller: super::CallerCustody {
                         erased_scalar_parameters: caller.erased_scalar_parameters,
                         erased_proof_parameters: caller.erased_proof_parameters,
-                        entry_claims: caller.entry_claims,
                         local_places: caller.local_places,
                         claims: match &mut caller.claims {
                             super::ClaimBindings::Fixed(bindings) => {
@@ -863,26 +861,6 @@ impl OperationFrame<'_, '_> {
                 self.next_value,
                 self.operations,
             )?;
-            validate_transfer_shape(
-                structural_arguments,
-                claim_transfers,
-                self.parameters,
-                self.caller.local_places,
-                &earlier,
-                target.structural_parameters(),
-                self.type_ids,
-                self.structural_types.declarations(),
-                // Every entry claim requires its checked transfer row.
-                &target
-                    .entry_claims()
-                    .iter()
-                    .map(|claim| claim.parameter_index)
-                    .collect::<Vec<_>>(),
-                self.primitive_locals,
-                Some(StructuralResultCustody {
-                    results: &self.operations.structural_values,
-                }),
-            )?;
             (
                 lower_structural_arguments(
                     structural_arguments,
@@ -893,6 +871,7 @@ impl OperationFrame<'_, '_> {
                     &self.operations.structural_values,
                     inputs.byte_places,
                     self.primitive_locals,
+                    &self.evaluation.structural_locals,
                     Some(self.values),
                     &mut selector_values,
                     Some(&mut *self.calls),

@@ -7,7 +7,7 @@ use super::super::{
     TerminalMachine, TerminalMachineResult, Terminator, ValueDeclaration, allocate_dense, claim_id,
     edge_id, lookup_claim_id, lower_checked_crash_route_buckets,
     lower_installation_machine_service_ceiling, lower_structural_arguments, lower_structural_path,
-    mint_runtime_index_selectors, validate_transfer_shape, value_id,
+    mint_runtime_index_selectors, value_id,
 };
 use super::{
     CheckedBoundaryScalarReturnMachinePlan, CheckedTrees, LoweringError, ServiceId, ServiceReachId,
@@ -129,36 +129,6 @@ pub(crate) fn emit_boundary_scalar_return(
         });
         claim_bindings.push((claim.claim_identity, id));
     }
-    let expected_claim_arguments = structural_arguments
-        .iter()
-        .enumerate()
-        .flat_map(|(argument_index, argument)| {
-            plan.entry_claims
-                .iter()
-                .filter(move |claim| {
-                    Some(claim.parameter_index) == argument.source_parameter_index()
-                        && (argument.path.is_empty() || claim.path == argument.path)
-                })
-                .map(move |_| {
-                    u32::try_from(argument_index).map_err(|_| {
-                        LoweringError::Unsupported("boundary argument index exceeds u32")
-                    })
-                })
-        })
-        .collect::<Result<Vec<_>, LoweringError>>()?;
-    validate_transfer_shape(
-        structural_arguments,
-        completion_receipts,
-        &parameters,
-        &[],
-        &[],
-        &boundary.structural_parameters,
-        type_ids,
-        structural_types,
-        &expected_claim_arguments,
-        &[],
-        None,
-    )?;
     if scalar_arguments.len() != boundary_scalar_parameters.len() {
         return unsupported(
             "result-bearing boundary scalar argument count disagrees with its declaration",

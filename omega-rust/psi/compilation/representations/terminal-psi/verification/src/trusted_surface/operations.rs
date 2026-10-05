@@ -209,9 +209,14 @@ static OP_ESTABLISH_REFERENCE: TrustedSurfaceEntry = entry(
 );
 static OP_RELEASE_REFERENCE: TrustedSurfaceEntry = entry(
     "operation:release-reference",
-    "a validated established reference released by this operation",
-    "the reference-release observation ending the reference's validity",
-    EFFECT_DEPS,
+    "one unique live reference descriptor at the exact source place and finite owned field/index path, or at the bare carrier for an empty path; projected release authenticates an affine owned root, rejects claims and nominal-cleanup ancestors, and cannot end a parent before its live child or dispose descriptor storage that remains borrowed",
+    "the reference-release observation retains the exact carrier path and ends only that descriptor's validity; projected retirement records the absent leaf in partial custody, retaining disjoint initialized siblings and their independent loans; whole-root reuse and overlap remain forbidden, and any remaining structural disposal obligation requires its exact ordered residual cleanup; descriptor release opens no borrowed-storage repair obligation, does not dispose referent storage, and restores no old value facts",
+    &[
+        "fact:structural-effect-observation",
+        "formation:operation-validation",
+        "formation:references",
+        "formation:frontier",
+    ],
     &[VOCAB, TS_ROWS, TS_SE, OP_FACTS, VAL_OPS, VAL_REFERENCES],
 );
 static OP_ESTABLISH_PRIMITIVE_LOCAL: TrustedSurfaceEntry = entry(

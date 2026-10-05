@@ -5,7 +5,7 @@ use crate::lowering_error::unsupported;
 use checked_trees::CheckedTrees;
 use checked_trees::CheckedUnitStructuralPathSegment;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
-use checked_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+use checked_trees::types::TypeReferenceNode;
 use symbols::SymbolHandle;
 
 pub(crate) mod aliases;
@@ -19,11 +19,6 @@ pub(crate) struct ReceiverSource {
     /// Authored carrier and capture remain distinct from normalized self paths.
     owner: SymbolHandle,
     captured_place: checked_trees::CapturedPlace,
-    /// An erased alias (`let v = &mut place[...] as &mut T`) folds the view's
-    /// declared type into the path without a segment. Each entry names the
-    /// final-path position where that alias's declared referee takes over
-    /// from the captured prefix's own type.
-    alias_bridges: Vec<(usize, TypeReferenceHandle)>,
 }
 
 impl ReceiverSource {
@@ -31,12 +26,6 @@ impl ReceiverSource {
     /// use the normalized parameter root and typed field path.
     pub(crate) fn captured_place(&self) -> &checked_trees::CapturedPlace {
         &self.captured_place
-    }
-
-    /// Positions where a folded alias's declared referee replaces the type
-    /// the captured prefix replay selected.
-    pub(crate) fn alias_bridges(&self) -> &[(usize, TypeReferenceHandle)] {
-        &self.alias_bridges
     }
 }
 
@@ -120,7 +109,6 @@ fn resolve_source(
     let mut cursor = expression;
     let mut path = Vec::new();
     let mut visited = Vec::new();
-    let mut alias_bridges = Vec::new();
     let mut captured_segments = Vec::new();
     let owner;
     let captured_root;
@@ -505,15 +493,6 @@ fn resolve_source(
                         formation,
                     )?
                 {
-                    let alias_prefix = alias.path.len();
-                    alias_bridges.extend(alias.alias_bridges);
-                    if let Some((_, local)) = checked.state_local_declaration(state, name.symbol) {
-                        let declared =
-                            validation::reference_shell(&checked.typed, local.type_reference)
-                                .map(|shell| shell.referee)
-                                .unwrap_or(local.type_reference);
-                        alias_bridges.push((alias_prefix, declared));
-                    }
                     path.extend(alias.path.into_iter().rev());
                     captured_root = alias.captured_place.root_symbol;
                     captured_segments.extend(alias.captured_place.segments.into_iter().rev());
@@ -548,7 +527,6 @@ fn resolve_source(
             root_symbol: captured_root,
             segments: captured_segments,
         },
-        alias_bridges,
     })
 }
 

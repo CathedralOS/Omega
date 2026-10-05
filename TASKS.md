@@ -1754,32 +1754,27 @@ crash and native exit behavior.
     `expression_preparation/bindings/` and
     `scalar_graph/scalar_computations/fields.rs`. Reuse the shared source-place
     and view-narrowing operations; do not add local-specific call or range routes.
-  - State: scalar reads through stored record references retain every pointer
-    crossing and the final field's declared bounds. Mutable and shared records,
-    nested reference holders, and arrays inside records execute with the same
-    observation operation. Captured record loans retain their original index
-    even after the selector is mutated. On macOS arm64, `omega run --both
-    tests/omega/pass/borrows/runtime_reference_record_direct_payload_restoration_exit/main.omg`
-    reads the bounded value and Boolean, preserves the scalar sibling, restores
-    backing to 81, and exits 70 in both engines. Whole-owner cleanup waits for
-    the actual retirement of holders borrowing its storage and retires children
-    first. Stage 05 consumes checked field identities and paths without
-    reconstructing the authored field operation.
-    Remaining: retire an individual stored reference while a disjoint scalar
-    sibling remains live. In `runtime_reference_record_call_payload_restoration_exit`,
-    moving `main.cell.value = 81` before `let stamp = message.stamp` passes source
-    borrowing but rejects at Terminal `InvalidReferenceCustody` (`operation
-    accesses suspended referent`). Whole-owner disposal must wait for the stamp;
-    descriptor retirement must instead update the projected ownership frontier
-    and leave exact residual cleanup. Existing `MoveStructuralField` opens a
-    storage-repair obligation and cannot stand in for descriptor retirement.
-    Next acceptance is exit 70 with that earlier backing write, preserving
-    shared cohorts, child loans and projected-transfer controls. Whole-owner
-    scheduling also needs explicit retirement correspondence for holders consumed
-    by calls or partial transfers; it currently conservatively retains their
-    backing until exit. Terminal and Abstract whole-owner cleanup must reject
-    live loans of the owner's storage as well as children of its carried
-    references; native reference replay already enforces that distinction.
+  - State: stored descriptors can retire at an exact field or fixed-array
+    path while disjoint scalar siblings remain initialized. Release records
+    partial ownership and exact residual cleanup without opening borrowed-storage
+    repair debt. On 2026-10-05 macOS arm64, `omega run --both
+    tests/omega/pass/borrows/runtime_stored_reference_leaf_call_retirement_exit/main.omg`
+    reads the borrowed payload, restores backing to 81 before reading the stamp,
+    and exits 70 in both engines through ordinary package preparation. Shared
+    cohorts, child retirement, constructor transfers and branch cleanup retain
+    their independent source rejection and runtime controls.
+    Remaining: follow a descriptor's actual receiving holder when deciding
+    whether its parent can retire. In
+    `runtime_stored_reference_child_constructor_retirement_exit`, a shared child
+    moves into another record; the interpreter exits 70, but Terminal rejects
+    the early backing write as access to a suspended referent. The checked
+    constructor transport must connect the original child to the receiving
+    leaf's actual retirement, including projected transfers and branch joins.
+    The extended `runtime_callee_integer_at_fitting_write_exit` also exposes
+    missing established storage at an ordinary helper call with an owned local
+    argument. Lower calls and reference formation through the same published
+    storage bindings; do not reconstruct local initializers or add source-shape
+    gates. Both composition cases must reach their authored native results.
   - Constraints: shared loans cannot gain mutation authority by widening the
     exclusive `receiver_aliases` match. Keep the local symbol as the loan
     subject and compose its captured projection at use; substituting the root

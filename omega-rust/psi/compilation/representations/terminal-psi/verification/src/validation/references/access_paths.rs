@@ -150,12 +150,6 @@ pub(super) fn access_reference_custody(
         )
     };
     let invalid_live = || {
-        if std::env::var_os("OMEGA_DEBUG_REFERENCE_RETIREMENT").is_some() {
-            eprintln!(
-                "retirement invalid reference access machine={:?} argument={:?} live={:?}",
-                machine.id, argument, live
-            );
-        }
         invalid(
             machine,
             "reference access descriptor is absent, ambiguous or suspended",

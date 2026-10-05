@@ -269,13 +269,6 @@ pub(super) fn validate(
                 "primitive store return signature lost its authored exclusive custody",
             );
         }
-        crate::emission::primitive_store::validate_assignment(
-            checked,
-            plan.state,
-            0,
-            destination,
-            &[],
-        )?;
     }
     if checked
         .facts

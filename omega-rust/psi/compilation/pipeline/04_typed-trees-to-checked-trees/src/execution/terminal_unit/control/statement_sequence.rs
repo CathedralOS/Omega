@@ -1396,25 +1396,6 @@ fn append_reference_releases(
             let boundary = super::super::reference_results::release_boundary(
                 program, facts, machine, state, loan,
             )?;
-            if std::env::var_os("OMEGA_DEBUG_REFERENCE_RETIREMENT").is_some() {
-                eprintln!(
-                    "retirement schedule state={:?} current={} boundary={} transitions={:?}",
-                    state,
-                    statement_index,
-                    boundary,
-                    program
-                        .statement_table
-                        .statements(authored_state.statement_nodes)
-                        .iter()
-                        .enumerate()
-                        .filter_map(|(index, statement)| matches!(
-                            statement,
-                            StatementNode::Transition(_)
-                        )
-                        .then_some(index))
-                        .collect::<Vec<_>>()
-                );
-            }
             let retirement = reference_retirement::Retirement {
                 program,
                 facts,

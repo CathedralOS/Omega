@@ -7,7 +7,7 @@
 use checked_trees::types::PrimitiveType;
 use checked_trees::{
     CheckedBooleanExpression, CheckedScalarExpression, CheckedScalarExpressionRole, CheckedTrees,
-    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment,
+    CheckedUnitStructuralPathSegment,
 };
 use semantic_vocabulary::{
     PlaceId, ScalarType, StructuralFieldId, StructuralPlaceKind, StructuralTypeId, ValueId,

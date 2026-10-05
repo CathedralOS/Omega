@@ -247,6 +247,7 @@ pub enum CheckedUnitEffectOperationPlan {
     /// before committing the write.
     WriteOnlyPrimitiveStore {
         statement_index: u32,
+        value_role: crate::CheckedScalarExpressionRole,
         destination: crate::CheckedStoreRoot,
         path: Vec<CheckedUnitStructuralPathSegment>,
         value: crate::CheckedCallScalarArgument,

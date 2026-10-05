@@ -15,9 +15,6 @@ impl MachineEmission<'_> {
         &mut self,
         operation: &CheckedUnitEffectOperationPlan,
     ) -> Result<Option<OperationKind>, LoweringError> {
-        if std::env::var_os("OMEGA_DEBUG_REFERENCE_RETIREMENT").is_some() {
-            eprintln!("retirement ordinary plan operation={:?}", operation);
-        }
         let CheckedUnitEffectOperationPlan::ReleaseReference {
             binding_ordinal,
             path,

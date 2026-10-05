@@ -110,20 +110,3 @@ pub(crate) fn returns_complete_reference_origins(
 ) -> bool {
     state_custody(checked, state).returns_complete_reference_origins
 }
-
-/// Whether this state's authored tail names one ingress parameter directly.
-pub(crate) fn tail_names_source_parameter(
-    checked: &CheckedTrees,
-    state: &checked_trees::state::State,
-) -> bool {
-    state_custody(checked, state).tail_names_source_parameter
-}
-
-/// Whether this state's authored tail selects one declared leaf of an owned
-/// record formal instead.
-pub(crate) fn tail_selects_source_leaf(
-    checked: &CheckedTrees,
-    state: &checked_trees::state::State,
-) -> bool {
-    state_custody(checked, state).tail_selects_source_leaf
-}

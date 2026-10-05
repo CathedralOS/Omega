@@ -1354,39 +1354,47 @@ fn write_destination(
     })
 }
 
-pub(super) fn scalar_store_place(
+/// Join a store to its declared root and exact target operation. Descriptor
+/// establishment, construction and call results all use the same store; the
+/// producing operation's spelling cannot change its publication contract.
+fn scalar_store_place(
     function: &AbstractFunction,
     operation: &AbstractOperation,
     target: &TargetFunction,
 ) -> Option<semantic_vocabulary::PlaceId> {
     let AbstractOperation::StructuralScalarFieldStore {
-        destination, path, ..
+        psi_operation,
+        destination,
+        path,
+        field,
+        value,
+        ..
     } = operation
     else {
         return None;
     };
-    if !matches!(
-        path.first(),
-        Some(terminal_psi::StructuralPathSegment::Referent)
-    ) {
-        return Some(destination.place());
-    }
-    let abstract_operations::StructuralScalarStoreDestination::OwnedResult { producer, result } =
-        destination
-    else {
+    let place = destination.place();
+    if !retained_field_root(function, target, place) {
         return None;
-    };
-    if !function.operations.iter().any(|operation| matches!(operation,
-        AbstractOperation::CallStructural { psi_operation, result: AbstractStructuralCallResult::Structural { result: actual, .. }, .. }
-        if psi_operation == producer && actual == result)) { return None; }
-    write_destination(
-        function,
-        target,
-        destination.place(),
-        path,
-        AccessPurpose::Field,
-    )
-    .map(|destination| destination.place)
+    }
+    let mut stores = target
+        .graph
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .filter(|operation| {
+            matches!(operation,
+                TargetUnitOperation::StructuralScalarFieldStore {
+                    psi_operation: retained, destination: retained_destination,
+                    path: retained_path, field: retained_field, source, indices, ..
+                } if retained == psi_operation && retained_destination == destination
+                    && retained_path == path && retained_field == field
+                    && source.source_value() == value.value
+                    && source.scalar_type() == value.scalar_type
+                    && retained_selectors(path, indices)
+            )
+        });
+    (stores.next().is_some() && stores.next().is_none()).then_some(place)
 }
 
 fn pointer_read_before(

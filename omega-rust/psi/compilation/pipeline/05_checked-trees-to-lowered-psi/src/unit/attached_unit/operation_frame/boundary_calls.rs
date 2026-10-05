@@ -1,18 +1,13 @@
 //! Calls out through a boundary machine: the Unit, scalar and structural
-//! boundary call shapes share one claim and transfer validation.
+//! boundary call shapes share the checked completion receipts.
 //!
-//! A boundary owns no entry-claim roster, so each call pairs the caller's
-//! claims on its parameter arguments, and the completed claim frontier of each
-//! result argument, with one receipt apiece (`expected_claim_arguments`).
 //! Every boundary call shape is admitted once, by `admission/calls.rs`, for an
 //! ordinary body and a composed state alike, and emits here the same way.
 
 use super::super::argument_evaluation;
 use super::super::call_closure::unique_unit_boundary;
 use super::super::lower_structural_path;
-use super::super::parameters::{
-    self, StructuralResultCustody, lower_structural_arguments, validate_transfer_shape,
-};
+use super::super::parameters::{self, lower_structural_arguments};
 use super::calls::CallInputs;
 use super::{BoundaryParameters, OperationFrame, StructuralResults};
 use crate::emission::operation_emission::boundary_calls::result_policy::{
@@ -233,7 +228,6 @@ impl OperationFrame<'_, '_> {
         // A boundary call's claim transfers are its completion receipts.
         let completion_receipts = call.claim_transfers();
         let target = unique_unit_boundary(self.callees.plans, target_machine)?;
-        let expected_claim_arguments = self.expected_claim_arguments(structural_arguments)?;
         let earlier =
             self.results
                 .earlier(structural_arguments, self.operations, self.evaluation)?;
@@ -244,23 +238,6 @@ impl OperationFrame<'_, '_> {
             self.structural_types.declarations(),
             self.next_value,
             self.operations,
-        )?;
-        validate_transfer_shape(
-            structural_arguments,
-            completion_receipts,
-            self.parameters,
-            &[],
-            &earlier,
-            &target.structural_parameters,
-            self.type_ids,
-            self.structural_types.declarations(),
-            &expected_claim_arguments,
-            self.primitive_locals,
-            // Boundary targets declare no entry claims, so the moved
-            // frontier is checked against the producer's own claim set.
-            Some(StructuralResultCustody {
-                results: &self.operations.structural_values,
-            }),
         )?;
         let BoundaryParameters {
             id: boundary,
@@ -307,6 +284,7 @@ impl OperationFrame<'_, '_> {
             &self.operations.structural_values,
             inputs.byte_places,
             self.primitive_locals,
+            &self.evaluation.structural_locals,
             Some(self.values),
             &mut selector_values,
             Some(&mut *self.calls),
@@ -335,47 +313,6 @@ impl OperationFrame<'_, '_> {
             completion_receipts,
             requirement_obligations,
         })
-    }
-
-    /// Boundary declarations own no entry-claim roster, so the expected
-    /// transfer shape pairs each caller entry claim sourced from a parameter
-    /// with one receipt per claim in a moved result's completed frontier.
-    fn expected_claim_arguments(
-        &self,
-        structural_arguments: &[checked_trees::CheckedUnitStructuralArgumentPlan],
-    ) -> Result<Vec<u32>, LoweringError> {
-        structural_arguments
-            .iter()
-            .enumerate()
-            .flat_map(|(argument_index, argument)| {
-                let count = self
-                    .caller
-                    .entry_claims
-                    .iter()
-                    .filter(|claim| {
-                        argument.byte_sequence_literal().is_none()
-                            && Some(claim.parameter_index) == argument.source_parameter_index()
-                            && (argument.path.is_empty() || claim.path == argument.path)
-                    })
-                    .count()
-                    + argument
-                        .source_structural_result_binding_ordinal()
-                        .map(|binding_ordinal| {
-                            self.operations
-                                .structural_values
-                                .iter()
-                                .filter(|(ordinal, _)| *ordinal == binding_ordinal)
-                                .map(|(_, result)| result.claims().len())
-                                .sum::<usize>()
-                        })
-                        .unwrap_or(0);
-                (0..count).map(move |_| {
-                    u32::try_from(argument_index).map_err(|_| {
-                        LoweringError::Unsupported("boundary argument index exceeds u32")
-                    })
-                })
-            })
-            .collect()
     }
 
     /// The caller-local claim occurrences a completed boundary result holds:

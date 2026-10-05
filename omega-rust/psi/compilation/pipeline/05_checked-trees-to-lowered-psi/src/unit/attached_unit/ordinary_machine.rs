@@ -781,18 +781,15 @@ pub(super) fn emit(
         },
     });
     evaluation.blocks.sort_by_key(|block| block.id);
-    if structural_return.is_none() {
-        // Statement cleanup owns entry/local obligations. Complete only the
-        // remaining descriptor carriers on the final scalar or Unit graph,
-        // using the same custody owner as composed and scalar-graph emission.
-        crate::emission::affine_cleanup::complete(
-            &[],
-            parameters,
-            evaluation.entry,
-            &mut evaluation.blocks,
-            structural_types,
-        )?;
-    }
+    // Statement cleanup owns entry/local obligations. Complete descriptor
+    // custody after every result has been transferred or returned.
+    crate::emission::affine_cleanup::complete(
+        &[],
+        parameters,
+        evaluation.entry,
+        &mut evaluation.blocks,
+        structural_types,
+    )?;
     crate::scalar_graph::scalar_computations::literals::retain_declarations(
         &evaluation.literals,
         evaluation.blocks.iter().flat_map(|block| &block.operations),
@@ -1422,7 +1419,6 @@ impl<'a> MachineEmission<'a> {
             caller: CallerCustody {
                 erased_scalar_parameters: &self.signature.erased_scalar_parameters,
                 erased_proof_parameters: &self.signature.erased_proof_parameters,
-                entry_claims: &plan.entry_claims,
                 claims: ClaimBindings::Growable {
                     bindings: &mut self.claim_bindings,
                     next_claim: &mut self.next_claim,

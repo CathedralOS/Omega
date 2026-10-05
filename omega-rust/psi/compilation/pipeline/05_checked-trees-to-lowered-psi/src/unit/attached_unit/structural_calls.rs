@@ -11,7 +11,7 @@ use super::{
     ValueDeclaration, allocate_dense, argument_evaluation, lookup_machine_id, lookup_type_id,
     lower_structural_arguments, mint_element_view_length_observations,
     mint_runtime_index_selectors, place_id, retain_exact_flow_call, terminal_scalar_type,
-    unsupported, validate_transfer_shape,
+    unsupported,
 };
 use crate::direct_calls::{DirectCall, DirectCallResult};
 use crate::emission::operation_emission::buffer::{OperationBuffer, SourceCallCoordinate};
@@ -223,6 +223,7 @@ pub(super) fn emit(
     type_ids: &[(String, StructuralTypeId)],
     machine_ids: &[(symbols::SymbolHandle, MachineId)],
     earlier_results: &[(Option<StructuralPlaceDeclaration>, bool)],
+    structural_locals: &[crate::expression_preparation::bindings::StructuralLocalBinding],
     next_place: &mut u64,
     operations: &mut OperationBuffer,
     caller_scalar_values: Option<&[ValueDeclaration]>,
@@ -242,19 +243,6 @@ pub(super) fn emit(
     let target_state = &call.target.state;
     let structural_arguments = &call.structural_arguments;
     let target = target(checked, *target_machine, *target_state)?;
-    validate_transfer_shape(
-        structural_arguments,
-        &[],
-        parameters,
-        &[],
-        earlier_results,
-        std::slice::from_ref(&target.structural_parameter),
-        type_ids,
-        structural_types,
-        &[],
-        &[],
-        None,
-    )?;
     let scalar_types = target
         .scalar_parameters
         .iter()
@@ -305,6 +293,7 @@ pub(super) fn emit(
         &operations.structural_values,
         &[],
         &[],
+        structural_locals,
         caller_scalar_values,
         &mut selector_values,
         calls,

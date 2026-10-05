@@ -1409,37 +1409,6 @@ pub fn local_record_loans(
     let mut output = Vec::new();
     for origin in sources {
         let source = &origin.value;
-        // The leaf's loaned home is either a formal ingress position or an
-        // earlier local's own storage — `borrowed_initializer_source` mints
-        // `StructuralLocal` for the local-rooted form (`Indirect { target:
-        // &mut owner }`), and the ledger records the same root symbol on
-        // either arm. The root's declared type feeds the expected segment
-        // replay the same way on both arms.
-        let (root_symbol, root_type) = match source.source.source {
-            checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
-                parameter_index,
-            } => {
-                let parameter = program
-                    .state_parameters(state)
-                    .iter()
-                    .filter(|parameter| {
-                        !parameter.is_const
-                            && program
-                                .primitive_type_reference(parameter.type_reference)
-                                .is_none()
-                    })
-                    .nth(parameter_index as usize)?;
-                (parameter.symbol, parameter.type_reference)
-            }
-            checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } => {
-                let (ordinal, referent) = program.state_local_declaration(state, symbol)?;
-                if ordinal >= statement_index as usize {
-                    return None;
-                }
-                (symbol, referent.type_reference)
-            }
-            _ => return None,
-        };
         // Both sides resolve through the declared aggregate. Owner paths use
         // symbols/ordinals while result paths use declaration identities; the
         // same typed projection walk authenticates fields and fixed slots.
@@ -1469,12 +1438,9 @@ pub fn local_record_loans(
             CheckedStructuralAccess::WriteOnlyBorrow => checked_trees::BorrowAccessKind::WriteOnly,
             CheckedStructuralAccess::Owned => return None,
         };
-        let expected_segments = loan_place_segments(program, root_type, &source.source.path)?;
         if matching.next().is_some()
             || loan.statement_index != statement_index as usize
-            || loan.root_symbol != root_symbol
             || loan.kind != expected_kind
-            || facts.borrow.loan_segments(loan) != expected_segments.as_slice()
         {
             return None;
         }
@@ -1489,8 +1455,44 @@ pub fn local_record_loans(
             {
                 return None;
             }
-        } else if loan.source_owner_symbol.is_valid() {
-            return None;
+        } else {
+            // Direct captures establish backing geometry. A transferred carrier
+            // already has that geometry in its exact supplying loan above;
+            // its capture may cross a descriptor rather than spell that backing.
+            let (root_symbol, root_type) = match source.source.source {
+                checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                    parameter_index,
+                } => {
+                    let parameter = program
+                        .state_parameters(state)
+                        .iter()
+                        .filter(|parameter| {
+                            !parameter.is_const
+                                && program
+                                    .primitive_type_reference(parameter.type_reference)
+                                    .is_none()
+                        })
+                        .nth(parameter_index as usize)?;
+                    (parameter.symbol, parameter.type_reference)
+                }
+                checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
+                    symbol,
+                } => {
+                    let (ordinal, referent) = program.state_local_declaration(state, symbol)?;
+                    if ordinal >= statement_index as usize {
+                        return None;
+                    }
+                    (symbol, referent.type_reference)
+                }
+                _ => return None,
+            };
+            let expected_segments = loan_place_segments(program, root_type, &source.source.path)?;
+            if loan.source_owner_symbol.is_valid()
+                || loan.root_symbol != root_symbol
+                || facts.borrow.loan_segments(loan) != expected_segments.as_slice()
+            {
+                return None;
+            }
         }
         let mut activations = facts
             .flow
@@ -1517,9 +1519,8 @@ pub fn local_record_loans(
 /// parameter's declared type, spelled in the ownership vocabulary the
 /// ledger records. Field hops resolve through the nominal owner exactly as
 /// the owner-path walk does; literal fixed-array hops keep their ordinal.
-/// Runtime-indexed, case and referent hops have no initializer-side
-/// producer (`borrowed_initializer_source` admits Field and FixedIndex
-/// hops only), so anything else declines the source.
+/// Runtime-indexed, case and referent hops are not direct backing geometry.
+/// Transfers through a stored descriptor use its captured loan instead.
 pub fn loan_place_segments(
     program: &TypedTrees,
     root: TypeReferenceHandle,
@@ -1589,9 +1590,8 @@ fn construction_source_loan(
         .state_local_declaration(state, source.holder)
         .filter(|&(ordinal, _)| ordinal < statement_index as usize)?;
     let prior = if stored_loan_parts(program, prior_local.type_reference).is_some() {
-        // A bare reference has one empty owner path. Its authored initializer
-        // already rejoined the exact backing in construction_sources_with_calls;
-        // the ledger must retain that same loan, not a same-typed substitute.
+        // A bare reference has one empty owner path. Join its exact formation
+        // occurrence; its captured backing may cross another stored descriptor.
         if !source.holder_path.is_empty() {
             return None;
         }

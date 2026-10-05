@@ -123,7 +123,6 @@ pub(crate) use parameters::{
     lower_installation_machine_service_ceiling, lower_published_service_ceiling,
     lower_structural_arguments, lower_unit_parameters, mint_element_view_length_observations,
     mint_runtime_index_selectors, statement_receiver_path, structural_carrier_type,
-    validate_transfer_shape,
 };
 pub(crate) use provider_attachments::lower_provider_attachment_places;
 use providers::{ProviderBody, checked_unit_provider_candidates};

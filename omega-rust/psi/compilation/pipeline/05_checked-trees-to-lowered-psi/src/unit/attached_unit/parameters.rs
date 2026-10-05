@@ -2,26 +2,27 @@
 //! closures.
 
 use super::super::{
-    BTreeSet, ByteSequenceCarrier, CheckedUnitStructuralPathSegment, ClaimId,
-    PermissionClaimIdentity, ServiceId, ServiceReachId, ServiceReachInterface, ServiceReachPlan,
-    StructuralAccess, StructuralArgument, StructuralParameterDeclaration,
-    StructuralTypeDeclaration,
+    BTreeSet, CheckedUnitStructuralPathSegment, ClaimId, PermissionClaimIdentity, ServiceId,
+    ServiceReachId, ServiceReachInterface, ServiceReachPlan, StructuralAccess, StructuralArgument,
+    StructuralParameterDeclaration, StructuralTypeDeclaration,
 };
 use super::{
     CheckedBoundaryMachinePlan, CheckedTrees, ClaimTransfer, LoweringError, Multiplicity, PlaceId,
-    ScalarType, ServiceReachSummary, StructuralMultiplicity, StructuralPlaceDeclaration,
-    StructuralPlaceKind, StructuralTypeId, StructuralTypeShape, ValueDeclaration, allocate_dense,
-    lookup_claim_id, lookup_service_id, lookup_type_id, place_id, require_valid_service_row,
-    terminal_scalar_type, unsupported,
+    ScalarType, ServiceReachSummary, StructuralPlaceDeclaration, StructuralPlaceKind,
+    StructuralTypeId, StructuralTypeShape, ValueDeclaration, allocate_dense, lookup_claim_id,
+    lookup_service_id, lookup_type_id, place_id, require_valid_service_row, terminal_scalar_type,
+    unsupported,
 };
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::emission::operation_emission::expressions::{
     LoweredDirectExpression, emit_direct_expression,
 };
-use crate::expression_preparation::bindings::StructuralScalarFieldBinding;
 use crate::expression_preparation::bindings::structural_paths::{
     lower_structural_path, lower_typed_argument_path, terminal_access,
+};
+use crate::expression_preparation::bindings::{
+    StructuralLocalBinding, StructuralScalarFieldBinding,
 };
 use crate::terminal_identities::{StructuralDomainBinding, lookup_domain_id_for_carrier};
 use semantic_vocabulary::ValueId;
@@ -606,295 +607,6 @@ pub(crate) fn lower_installation_machine_service_ceiling(
     )
 }
 
-/// The operation-owned result frontier, in the current source state's binding
-/// namespace. Declaration-only callers cannot admit claim-bearing results.
-pub(crate) struct StructuralResultCustody<'a> {
-    pub results: &'a [(
-        u32,
-        crate::emission::operation_emission::buffer::StructuralBinding,
-    )],
-}
-
-pub(crate) fn validate_transfer_shape(
-    arguments: &[checked_trees::CheckedUnitStructuralArgumentPlan],
-    transfers: &[checked_trees::CheckedUnitClaimTransferPlan],
-    caller_parameters: &[StructuralParameterDeclaration],
-    caller_trivial_affine_locals: &[StructuralPlaceDeclaration],
-    caller_structural_results: &[(Option<StructuralPlaceDeclaration>, bool)],
-    target_parameters: &[checked_trees::CheckedUnitStructuralParameterPlan],
-    type_ids: &[(String, StructuralTypeId)],
-    structural_types: &[StructuralTypeDeclaration],
-    expected_claim_arguments: &[u32],
-    primitive_locals: &[super::primitive_locals::PrimitiveLocal],
-    result_custody: Option<StructuralResultCustody<'_>>,
-) -> Result<(), LoweringError> {
-    if arguments.len() != target_parameters.len() {
-        return unsupported(
-            "Unit call structural argument arity does not match its checked target",
-        );
-    }
-    for (argument, target) in arguments.iter().zip(target_parameters) {
-        if let checked_trees::CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { symbol } =
-            argument.source
-        {
-            let local = super::primitive_locals::find(primitive_locals, symbol)?;
-            let expected_type = lookup_type_id(type_ids, &argument.type_identity)?;
-            if !argument.path.is_empty()
-                || argument.type_identity != target.type_identity
-                || !matches!(local.declaration.kind, StructuralPlaceKind::OperationResult { structural_type, .. }
-                    if structural_type == expected_type)
-                || argument.access == checked_trees::CheckedStructuralAccess::Owned
-                || argument.access != target.access
-                || target.multiplicity != Multiplicity::Unrestricted
-                || !target.qualifications.is_empty()
-                || target.fused_service_erasure.is_some()
-                || !matches!(structural_types.iter().find(|declaration| declaration.id == expected_type).map(|declaration| &declaration.shape),
-                    Some(StructuralTypeShape::PrimitiveScalar(scalar_type)) if *scalar_type == local.scalar_type)
-            {
-                return unsupported("primitive local borrow has invalid target custody");
-            }
-            continue;
-        }
-        let range = super::byte_subslices::range(argument);
-        if argument.byte_sequence_literal().is_some() || range.is_some() {
-            // A literal may construct a fresh bounded owner. A range instead
-            // lends its exact backing with the requested borrowing access;
-            // descriptor custody cannot manufacture owned storage. Source and
-            // storage replay retain the formal and collection projection, and
-            // Terminal independently checks access and qualifications.
-            let access_allowed = if range.is_some() {
-                matches!(
-                    argument.access,
-                    checked_trees::CheckedStructuralAccess::SharedBorrow
-                        | checked_trees::CheckedStructuralAccess::MutableBorrow
-                )
-            } else {
-                matches!(
-                    argument.access,
-                    checked_trees::CheckedStructuralAccess::SharedBorrow
-                        | checked_trees::CheckedStructuralAccess::Owned
-                )
-            };
-            if (!argument.path.is_empty() && range.is_none())
-                || argument.type_identity != target.type_identity
-                || !access_allowed
-                || argument.access != target.access
-                || target.multiplicity != Multiplicity::Unrestricted
-            {
-                return unsupported("byte-sequence argument has invalid checked custody");
-            }
-            lookup_type_id(type_ids, &argument.type_identity)?;
-            continue;
-        }
-        if let Some(declaration_ordinal) = argument.source_local_declaration_ordinal() {
-            let source = caller_trivial_affine_locals
-                .get(usize::try_from(declaration_ordinal).map_err(|_| {
-                    LoweringError::Unsupported("Unit local argument ordinal exceeds usize")
-                })?)
-                .ok_or(LoweringError::Unsupported(
-                    "Unit local argument has an invalid declaration ordinal",
-                ))?;
-            let StructuralPlaceKind::TrivialAffineLocal {
-                declaration_ordinal: source_ordinal,
-                structural_type,
-                ..
-            } = source.kind
-            else {
-                return unsupported("Unit local argument does not name a trivial affine local");
-            };
-            if source_ordinal != declaration_ordinal
-                || !argument.path.is_empty()
-                || argument.type_identity != target.type_identity
-                || structural_type != lookup_type_id(type_ids, &argument.type_identity)?
-                || argument.access != checked_trees::CheckedStructuralAccess::Owned
-                || target.access != checked_trees::CheckedStructuralAccess::Owned
-                || target.multiplicity != Multiplicity::Affine
-                || !target.qualifications.is_empty()
-            {
-                return unsupported("Unit local argument has invalid checked custody");
-            }
-            continue;
-        }
-        if let Some(binding_ordinal) = argument.source_structural_result_binding_ordinal() {
-            // A projected owned alias transfers one owned child and preserves
-            // its siblings. Its leaf identity and owned custody are what this
-            // row validates; the claim it consumes is the one the root already
-            // published at the alias path, and the emitted frontier records
-            // the hole at the consuming operation.
-            if let Some(projected_alias) = result_custody
-                .as_ref()
-                .and_then(|custody| projected_alias(custody.results, binding_ordinal))
-            {
-                if argument.type_identity != target.type_identity
-                    || !argument.path.is_empty()
-                    || argument.access != checked_trees::CheckedStructuralAccess::Owned
-                    || target.access != checked_trees::CheckedStructuralAccess::Owned
-                    || projected_alias.structural_type
-                        != lookup_type_id(type_ids, &argument.type_identity)?
-                    || target.fused_service_erasure.is_some()
-                {
-                    return unsupported("projected alias argument has invalid checked custody");
-                }
-                continue;
-            }
-            let source =
-                structural_result_source(caller_structural_results, binding_ordinal, argument)?;
-            if let StructuralPlaceKind::ByteSequenceLiteral { .. } = source.kind {
-                continue;
-            }
-            let structural_type = match source.kind {
-                StructuralPlaceKind::OperationResult {
-                    structural_type, ..
-                } => structural_type,
-                StructuralPlaceKind::BlockParameter { .. } => {
-                    let custody = result_custody.as_ref().ok_or(LoweringError::Unsupported(
-                        "completed arrival argument has no retained custody",
-                    ))?;
-                    let (_, binding) = custody
-                        .results
-                        .iter()
-                        .find(|(ordinal, _)| *ordinal == binding_ordinal)
-                        .ok_or(LoweringError::Unsupported(
-                            "completed arrival argument lost its binding",
-                        ))?;
-                    binding.structural_type()
-                }
-                _ => return unsupported("Unit structural result source has no completed storage"),
-            };
-            if target.multiplicity == Multiplicity::Linear {
-                let custody = result_custody.as_ref().ok_or(LoweringError::Unsupported(
-                    "linear result argument has no completed operation custody",
-                ))?;
-                let (_, result) = custody
-                    .results
-                    .iter()
-                    .find(|(ordinal, _)| *ordinal == binding_ordinal)
-                    .ok_or(LoweringError::Unsupported(
-                        "linear result argument has no exact completed binding",
-                    ))?;
-                result.operation_result()?;
-                continue;
-            }
-            if argument.access != checked_trees::CheckedStructuralAccess::Owned {
-                // Source replay already rejoins this live result to its producer
-                // and captured loan. Its owned home supplies the same projection
-                // operation as a parameter; this row grants no new loan or claim.
-                let storage = StructuralParameterDeclaration {
-                    place: source.id,
-                    position: target.position,
-                    structural_type,
-                    access: StructuralAccess::Owned,
-                    multiplicity: StructuralMultiplicity::Unrestricted,
-                    qualifications: Vec::new(),
-                    projected_qualifications: Vec::new(),
-                };
-                validate_borrowed_argument(&storage, argument, target, type_ids, structural_types)?;
-            } else {
-                // Ownership transports a value, whereas a loan leaves its home
-                // in the caller. Keep the whole-value copy/affine distinction
-                // and the linear claim frontier above independent of projection.
-                let unrestricted_whole = argument.path.is_empty()
-                    && target.multiplicity == Multiplicity::Unrestricted
-                    && structural_types.iter().any(|declaration| {
-                        declaration.id == structural_type
-                            && match declaration.shape {
-                                StructuralTypeShape::FixedArray { .. }
-                                | StructuralTypeShape::Record { .. }
-                                | StructuralTypeShape::Sum { .. } => true,
-                                StructuralTypeShape::ByteSequence(
-                                    ByteSequenceCarrier::BoundedOwned { .. },
-                                ) => target.projected_qualifications.is_empty(),
-                                _ => false,
-                            }
-                    });
-                if argument.type_identity != target.type_identity
-                    || (argument.path.is_empty()
-                        && structural_type != lookup_type_id(type_ids, &argument.type_identity)?)
-                    || target.access != argument.access
-                    || target.multiplicity
-                        != if unrestricted_whole {
-                            Multiplicity::Unrestricted
-                        } else {
-                            Multiplicity::Affine
-                        }
-                    || target.fused_service_erasure.is_some()
-                {
-                    return unsupported("owned result argument has invalid checked custody");
-                }
-            }
-            if transfers.iter().any(|transfer| {
-                arguments
-                    .get(transfer.argument_index as usize)
-                    .is_some_and(|argument| {
-                        argument.source_structural_result_binding_ordinal() == Some(binding_ordinal)
-                    })
-            }) {
-                return unsupported("borrowed or affine result argument cannot transfer a claim");
-            }
-            continue;
-        }
-        let source_parameter_index =
-            argument
-                .source_parameter_index()
-                .ok_or(LoweringError::Unsupported(
-                    "Unit structural argument is neither a parameter nor a supported literal",
-                ))?;
-        let source = caller_parameters
-            .get(usize::try_from(source_parameter_index).map_err(|_| {
-                LoweringError::Unsupported("Unit structural argument index exceeds usize")
-            })?)
-            .ok_or(LoweringError::Unsupported(
-                "Unit structural argument has an invalid caller parameter index",
-            ))?;
-        if argument.access != checked_trees::CheckedStructuralAccess::Owned {
-            validate_borrowed_argument(source, argument, target, type_ids, structural_types)?;
-            continue;
-        }
-        if argument.type_identity != target.type_identity
-            || (argument.path.is_empty()
-                && source.structural_type != lookup_type_id(type_ids, &argument.type_identity)?)
-        {
-            return unsupported("Unit structural argument type identity is inconsistent");
-        }
-        let source_access = match source.access {
-            StructuralAccess::Owned => checked_trees::CheckedStructuralAccess::Owned,
-            StructuralAccess::SharedBorrow => checked_trees::CheckedStructuralAccess::SharedBorrow,
-            StructuralAccess::MutableBorrow => {
-                checked_trees::CheckedStructuralAccess::MutableBorrow
-            }
-            StructuralAccess::WriteOnlyBorrow => {
-                checked_trees::CheckedStructuralAccess::WriteOnlyBorrow
-            }
-        };
-        // An exclusive borrow supplies an owned presentation only for a
-        // projected member: the move surrenders the referent's subtree and
-        // leaves the hole the ownership frontier tracks. The whole borrow
-        // itself is still a loan — it cannot be moved out owned.
-        if argument.access != target.access
-            || (!checked_access_can_supply(source_access, argument.access)
-                && !(source_access == checked_trees::CheckedStructuralAccess::MutableBorrow
-                    && argument.access == checked_trees::CheckedStructuralAccess::Owned
-                    && !argument.path.is_empty()))
-        {
-            return unsupported("Unit structural argument access is inconsistent");
-        }
-    }
-    let actual = transfers
-        .iter()
-        .map(|transfer| transfer.argument_index)
-        .collect::<Vec<_>>();
-    if actual != expected_claim_arguments
-        || actual.iter().any(|index| {
-            usize::try_from(*index)
-                .ok()
-                .is_none_or(|index| index >= arguments.len())
-        })
-    {
-        return unsupported("Unit claim transfer does not exactly match target entry custody");
-    }
-    Ok(())
-}
-
 /// Resolve every checked transfer through the caller's exact claim table.
 pub(crate) fn emitted_claim_transfers(
     transfers: &[checked_trees::CheckedUnitClaimTransferPlan],
@@ -919,124 +631,6 @@ pub(crate) fn emitted_claim_transfers(
 /// reference or view crossing. This checks presentation, not establishment, live-loan
 /// authority, runtime bounds, or qualification implication; those retain their
 /// independent source and Terminal replay.
-fn validate_borrowed_argument(
-    source: &StructuralParameterDeclaration,
-    argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
-    target: &checked_trees::CheckedUnitStructuralParameterPlan,
-    type_ids: &[(String, StructuralTypeId)],
-    structural_types: &[StructuralTypeDeclaration],
-) -> Result<(), LoweringError> {
-    use crate::expression_preparation::bindings::structural_paths::{
-        PreparedArgumentTip, prepare_argument_projection,
-    };
-    let access = terminal_access(argument.access);
-    let projection =
-        prepare_argument_projection(&argument.path, source.structural_type, structural_types)?;
-    if projection
-        .crossed_accesses
-        .iter()
-        .any(|reference| !structural_access_can_supply(*reference, access))
-    {
-        return unsupported("borrowed argument amplifies a reference or view crossing's access");
-    }
-    let target_type = lookup_type_id(type_ids, &target.type_identity)?;
-    let mut declarations = structural_types
-        .iter()
-        .filter(|declaration| declaration.id == target_type);
-    let expected = declarations.next().ok_or(LoweringError::Unsupported(
-        "borrowed argument lost its target type",
-    ))?;
-    if declarations.next().is_some() {
-        return unsupported("borrowed argument target type is ambiguous");
-    }
-    // Program-level parameter custody and service-forwarding replay already
-    // authenticate the receipt and exact authored actual before lowering. A
-    // borrowed Binding still uses this ordinary loan geometry: erased storage
-    // is neither a reason to reject it nor permission to relabel another type.
-    if target.fused_service_erasure.is_some()
-        && expected.shape != StructuralTypeShape::FusedServiceBinding
-    {
-        return unsupported("borrowed service receipt requires its Fused binding carrier");
-    }
-    let exact = match &projection.tip {
-        PreparedArgumentTip::Declaration(declaration) => declaration.id == expected.id,
-        PreparedArgumentTip::Inline(field) => {
-            field.canonical_leaf_shape().as_ref() == Some(&expected.shape)
-        }
-        PreparedArgumentTip::ByteElement => matches!(expected.shape,
-            StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer))
-                if integer == semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 8).expect("u8")),
-        PreparedArgumentTip::ByteWindow => false,
-    };
-    if exact {
-        return Ok(());
-    }
-    // Inline byte storage has no standalone leaf identity. Its carrier is
-    // presented in place, preserving the enclosing home and field predicates;
-    // it must never be treated as an owned copy of a descriptor. Independent
-    // source/Terminal replay checks those predicates against the formal.
-    if let (PreparedArgumentTip::Inline(field), StructuralTypeShape::ByteSequence(expected)) =
-        (&projection.tip, &expected.shape)
-        && let Some(carrier) = field.byte_sequence_carrier()
-        && target.projected_qualifications.is_empty()
-    {
-        let compatible = match (carrier, *expected) {
-            (
-                ByteSequenceCarrier::BoundedOwned { capacity },
-                ByteSequenceCarrier::BoundedOwned { capacity: expected },
-            ) => capacity == expected,
-            (
-                ByteSequenceCarrier::BoundedOwned { .. },
-                ByteSequenceCarrier::BorrowedView { access: embedded },
-            ) => {
-                matches!(
-                    access,
-                    StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
-                ) && embedded.is_none_or(|embedded| structural_access_can_supply(embedded, access))
-            }
-            (
-                ByteSequenceCarrier::BorrowedView {
-                    access: Some(StructuralAccess::SharedBorrow),
-                },
-                ByteSequenceCarrier::BorrowedView {
-                    access: None | Some(StructuralAccess::SharedBorrow),
-                },
-            ) => access == StructuralAccess::SharedBorrow,
-            _ => false,
-        };
-        if compatible {
-            return Ok(());
-        }
-    }
-    // Adapting an array or byte owner to a view is a carrier operation, not
-    // type equality. It keeps the original place and complete backing path.
-    let element_view = matches!((&projection.tip, &expected.shape),
-        (PreparedArgumentTip::Declaration(declaration), StructuralTypeShape::ElementView { element: expected_element })
-            if matches!(declaration.shape, StructuralTypeShape::FixedArray { element, length }
-                if length > 0 && element == *expected_element))
-        && matches!(
-            access,
-            StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
-        )
-        && target.qualifications.is_empty()
-        && target.projected_qualifications.is_empty();
-    // A shared view of a bounded owner carries its live length and existing
-    // predicates. Source/Terminal qualification replay proves the formal's
-    // requirements; representation compatibility does not establish them.
-    let shared_owner_view = matches!((&projection.tip, &expected.shape),
-        (PreparedArgumentTip::Declaration(declaration), StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView { access: None | Some(StructuralAccess::SharedBorrow) }))
-            if matches!(declaration.shape, StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned { .. })))
-        && access == StructuralAccess::SharedBorrow
-        && target.projected_qualifications.is_empty();
-    if element_view
-        || shared_owner_view
-        || byte_view_transfer(source, argument, target, type_ids, structural_types)
-    {
-        return Ok(());
-    }
-    unsupported("borrowed argument presentation differs from its selected storage")
-}
-
 fn structural_access_can_supply(source: StructuralAccess, presented: StructuralAccess) -> bool {
     match source {
         StructuralAccess::Owned => true,
@@ -1049,70 +643,6 @@ fn structural_access_can_supply(source: StructuralAccess, presented: StructuralA
         ),
         StructuralAccess::WriteOnlyBorrow => presented == StructuralAccess::WriteOnlyBorrow,
     }
-}
-
-fn byte_view_transfer(
-    source: &StructuralParameterDeclaration,
-    argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
-    target: &checked_trees::CheckedUnitStructuralParameterPlan,
-    type_ids: &[(String, StructuralTypeId)],
-    structural_types: &[StructuralTypeDeclaration],
-) -> bool {
-    if argument.access != target.access
-        || target.multiplicity != Multiplicity::Unrestricted
-        || !target.qualifications.is_empty()
-        || !target.projected_qualifications.is_empty()
-    {
-        return false;
-    }
-    let access = match target.access {
-        checked_trees::CheckedStructuralAccess::SharedBorrow => StructuralAccess::SharedBorrow,
-        checked_trees::CheckedStructuralAccess::MutableBorrow => StructuralAccess::MutableBorrow,
-        _ => return false,
-    };
-    let Ok(structural_type) = lookup_type_id(type_ids, &target.type_identity) else {
-        return false;
-    };
-    let expected = StructuralParameterDeclaration {
-        place: source.place,
-        position: target.position,
-        structural_type,
-        multiplicity: StructuralMultiplicity::Unrestricted,
-        access,
-        qualifications: Vec::new(),
-        projected_qualifications: Vec::new(),
-    };
-    let argument = StructuralArgument {
-        place: source.place,
-        path: match lower_structural_path(&argument.path) {
-            Ok(path) => path,
-            Err(_) => return false,
-        },
-        access,
-    };
-    terminal_semantics::fixed_byte_array_window(
-        structural_types.iter(),
-        source,
-        &argument,
-        &expected,
-    )
-    .is_some()
-        // The bounded carrier keeps its runtime length and owned backing;
-        // presenting a shared view does not create a fixed-size window.
-        || terminal_semantics::shared_boundary_buffer_capacity(
-            structural_types.iter(),
-            source.structural_type,
-            &argument,
-            &expected,
-        )
-        .is_some()
-}
-
-fn checked_access_can_supply(
-    source: checked_trees::CheckedStructuralAccess,
-    presented: checked_trees::CheckedStructuralAccess,
-) -> bool {
-    structural_access_can_supply(terminal_access(source), terminal_access(presented))
 }
 
 pub(crate) fn literal_argument_places(
@@ -1282,6 +812,7 @@ pub(crate) fn lower_structural_arguments(
     )],
     byte_argument_places: &[PlaceId],
     primitive_locals: &[super::primitive_locals::PrimitiveLocal],
+    structural_locals: &[StructuralLocalBinding],
     caller_scalar_values: Option<&[ValueDeclaration]>,
     selector_values: &mut dyn Iterator<Item = ValueId>,
     mut calls: Option<&mut CallEmissionContext<'_>>,
@@ -1290,6 +821,34 @@ pub(crate) fn lower_structural_arguments(
     arguments
         .iter()
         .map(|argument| {
+            if let Some(root) = argument.structural_storage_root() {
+                let mut bindings = structural_locals.iter().filter(|binding| binding.root == root);
+                let binding = bindings.next().ok_or(LoweringError::Unsupported(
+                    "structural argument has no established storage",
+                ))?;
+                let access = terminal_access(argument.access);
+                if bindings.next().is_some()
+                    || !structural_access_can_supply(binding.argument.access, access)
+                {
+                    return unsupported("structural argument changes its established storage custody");
+                }
+                // A published local may own a projected subtree without a
+                // separate place. Continue from its retained path and type.
+                let mut path = binding.argument.path.clone();
+                path.extend(lower_typed_argument_path(
+                    &argument.path,
+                    binding.structural_type,
+                    structural_types,
+                    caller_scalar_values,
+                    &mut *selector_values,
+                    calls.as_deref_mut(),
+                )?);
+                return Ok(StructuralArgument {
+                    place: binding.argument.place,
+                    path,
+                    access,
+                });
+            }
             if let checked_trees::CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { symbol } = argument.source {
                 let local = super::primitive_locals::find(primitive_locals, symbol)?;
                 if !argument.path.is_empty() { return unsupported("primitive local borrow has a projection"); }
@@ -1353,8 +912,8 @@ pub(crate) fn lower_structural_arguments(
                     StructuralPlaceKind::OperationResult { structural_type, .. }
                     | StructuralPlaceKind::ByteSequenceLiteral { structural_type, .. } => structural_type,
                     StructuralPlaceKind::BlockParameter { .. } => {
-                        // Transfer-shape replay already joined the exact completed
-                        // arrival. A whole move needs no projected type lookup.
+                        // A completed block arrival owns its published whole value.
+                        // Projected arrival typing is handled by its storage binding.
                         return Ok(StructuralArgument {
                             place: source.id,
                             path: Vec::new(),

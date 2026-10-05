@@ -27,16 +27,6 @@ pub(super) fn apply_operation(
         machines,
         ..
     } = *walk;
-    if std::env::var_os("OMEGA_DEBUG_REFERENCE_RETIREMENT").is_some() {
-        eprintln!(
-            "retirement machine={:?} operation={:?} kind={:?} partial={:?} references={:?}",
-            machine.id,
-            operation.id,
-            operation.kind,
-            frontier.partial_custody_paths,
-            frontier.references
-        );
-    }
     super::validate_partial_storage_access(module, machine, operation, frontier)?;
     if let OperationKind::ReleaseReference { source, path } = &operation.kind
         && !path.is_empty()

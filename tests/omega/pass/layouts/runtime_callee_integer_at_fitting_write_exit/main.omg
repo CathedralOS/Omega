@@ -59,6 +59,20 @@ machine forward(dst: &mut i64, value: i64) { set(dst, value); }
 
 machine set_sentinel(main: &mut Main) { main.bytes[1] = 85; }
 
+// A narrow layout elsewhere does not narrow ordinary owned storage. Both the
+// scalar-only prefix and the aggregate prefix retain their lent local roots.
+machine write_owned_scalar() -> i64 {
+    let mut value: i64 = 0;
+    set(&mut value, 128);
+    value
+}
+
+machine write_owned_record() -> i64 {
+    let mut value: PortableByte = PortableByte { value: 0 };
+    forward(&mut value.value, 256);
+    value.value
+}
+
 machine Main::main(main: &mut Main) crashes Trap {
     // A completed reborrow preserves the origin of the next ordinary store.
     set_sentinel(&mut main);
@@ -67,7 +81,9 @@ machine Main::main(main: &mut Main) crashes Trap {
     let leaf: &mut i64 = &mut view.value.value;
     set(leaf, -128);
     forward(leaf, 127);
-    transition main.bytes[0] == 127 && main.bytes[1] == 85 {
+    let scalar: i64 = write_owned_scalar();
+    let record: i64 = write_owned_record();
+    transition main.bytes[0] == 127 && main.bytes[1] == 85 && scalar == 128 && record == 256 {
         true -> done()
         _ -> bad()
     }

@@ -24,7 +24,6 @@ pub fn build_function_fragment_object_artifact_with_private_functions(
     private_functions: &[machine_code::CompilerPrivateMachineCodeFunction],
 ) -> Result<ObjectArtifact, Error> {
     let source = replay.as_ref();
-    source::admit(source)?;
     let text = source.source().text_section();
     let fragments = source::fragments(source);
     let mut object = ObjectPlan::with_capacity(text.target, 1, text.functions.len());

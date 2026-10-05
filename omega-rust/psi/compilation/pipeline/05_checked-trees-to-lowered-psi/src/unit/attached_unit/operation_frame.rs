@@ -167,10 +167,6 @@ pub(super) struct CallerCustody<'f> {
     pub(super) erased_scalar_parameters: &'f [ValueDeclaration],
     /// The caller's erased proof-only roster; `Formal` actuals resolve in it.
     pub(super) erased_proof_parameters: &'f [checked_trees::CheckedErasedProofParameterPlan],
-    /// The claims the emitting body (ordinary) or state (composed) holds on
-    /// entry. A boundary call expects one receipt per claim its parameter
-    /// arguments carry.
-    pub(super) entry_claims: &'f [checked_trees::CheckedUnitEntryClaimPlan],
     pub(super) claims: ClaimBindings<'f>,
     /// The ordinary machine's trivial affine locals; a composed state has none.
     pub(super) local_places: &'f [StructuralPlaceDeclaration],
@@ -649,10 +645,17 @@ impl OperationFrame<'_, '_> {
             } => self.port_write(service_reach, *port, *value),
             CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
                 statement_index,
+                value_role,
                 destination,
                 path,
                 value,
-            } => self.write_only_primitive_store(*statement_index, destination, path, value),
+            } => self.write_only_primitive_store(
+                *statement_index,
+                *value_role,
+                destination,
+                path,
+                value,
+            ),
             CheckedUnitEffectOperationPlan::RepresentationViewStore(write) => {
                 self.representation_view_store(write)
             }
@@ -800,15 +803,9 @@ impl OperationFrame<'_, '_> {
         else {
             return unsupported("reference establishment produced no structural result");
         };
-        let (_, authored) = crate::declarations::state_declaration(self.checked, self.state)?;
-        let local = matches!(
-            self.checked
-                .statement_table
-                .statements(authored.statement_nodes)
-                .get(result.statement_index as usize),
-            Some(checked_trees::statement::StatementNode::LocalData(_))
-        );
-        self.results.push(declaration, local);
+        // Descriptor cleanup follows its emitted transfers and releases. A
+        // source local alone does not imply the original holder survives.
+        self.results.push(declaration, false);
         self.evaluation.establish_structural_binding(
             self.checked,
             self.state,
@@ -895,9 +892,6 @@ impl OperationFrame<'_, '_> {
         &mut self,
         operation: &CheckedUnitEffectOperationPlan,
     ) -> Result<(), LoweringError> {
-        if std::env::var_os("OMEGA_DEBUG_REFERENCE_RETIREMENT").is_some() {
-            eprintln!("retirement operation frame plan operation={:?}", operation);
-        }
         let CheckedUnitEffectOperationPlan::ReleaseReference {
             binding_ordinal,
             path,
@@ -967,6 +961,7 @@ impl OperationFrame<'_, '_> {
     fn write_only_primitive_store(
         &mut self,
         statement_index: u32,
+        role: CheckedScalarExpressionRole,
         destination: &checked_trees::CheckedStoreRoot,
         path: &[checked_trees::CheckedUnitStructuralPathSegment],
         value: &checked_trees::CheckedCallScalarArgument,
@@ -990,16 +985,6 @@ impl OperationFrame<'_, '_> {
             // Capture the destination before evaluating the RHS, just as for
             // field stores. A recast loan never invents another owned home.
             let destination = self.prepare_loaned_byte_store(statement_index, &loan)?;
-            // Source custody expands the loan to its captured prefix before
-            // matching the assignment's value role, independently of layout.
-            let mut authored_path = loan.path.clone();
-            authored_path.extend_from_slice(path);
-            let role = crate::emission::primitive_store::value_role(
-                self.checked,
-                self.state,
-                statement_index,
-                &authored_path,
-            )?;
             let value = self.evaluation.source_value(
                 self.checked,
                 self.machine,
@@ -1109,12 +1094,6 @@ impl OperationFrame<'_, '_> {
                 }
             }
         };
-        let role = crate::emission::primitive_store::value_role(
-            self.checked,
-            self.state,
-            statement_index,
-            path,
-        )?;
         let kind = crate::emission::primitive_store::emit_assignment(
             self.checked,
             self.machine,

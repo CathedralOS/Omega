@@ -565,13 +565,18 @@ pub(super) fn is_scalar_case_place_value(
 /// access needs where moving or case-fan-out cannot apply; anything affine
 /// still needs move semantics.
 fn copied_place_type(program: &TypedTrees, expected: TypeReferenceHandle) -> bool {
+    // Stored loan descriptors carry affine custody even when source-level
+    // shared access is unrestricted. Transfer their existing Place/Projection;
+    // copying the descriptor as a referent would mint a different loan.
+    if validation::reference_result_custody::stored_loan_parts(program, expected).is_some() {
+        return false;
+    }
     // A stored `&'a [T]` view leaf copies the view value out of the carrier
     // the same way an `Unrestricted` named leaf does — the referent's loan
     // stays exactly where the field's `&` put it. Its bare `Slice` rung
     // unwraps to `Affine`, so the shared-borrow view's own multiplicity is
     // what decides admission.
-    if (crate::execution::terminal_unit::types::borrowed_slice_view(program, expected)
-        || crate::execution::terminal_unit::types::borrowed_named_view(program, expected))
+    if crate::execution::terminal_unit::types::borrowed_slice_view(program, expected)
         && program.type_multiplicity(expected) == language_semantics::Multiplicity::Unrestricted
     {
         return true;

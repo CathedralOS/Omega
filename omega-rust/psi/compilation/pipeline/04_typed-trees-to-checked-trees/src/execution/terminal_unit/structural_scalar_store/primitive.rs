@@ -114,6 +114,7 @@ pub(super) fn store_at(
     )?;
     Some(CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
         statement_index,
+        value_role: CheckedScalarExpressionRole::AssignmentValue,
         destination: destination.root.destination(),
         path: projection.path,
         value,
@@ -254,6 +255,10 @@ pub(super) fn array_literal_stores(
             );
             Some(CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
                 statement_index,
+                value_role: CheckedScalarExpressionRole::ArrayElement {
+                    source: checked_trees::CheckedArrayConstructionSource::Statement,
+                    element_ordinal: u32::try_from(ordinal).ok()?,
+                },
                 destination,
                 path: element_path,
                 value,
