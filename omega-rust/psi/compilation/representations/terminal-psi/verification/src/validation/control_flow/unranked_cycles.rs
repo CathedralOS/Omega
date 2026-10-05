@@ -54,9 +54,10 @@ pub(super) fn ineligibility(
         !plain_owned(parameter)
             && !(parameter.access == StructuralAccess::Owned
                 && claim_roots.contains(&parameter.place))
-            // A shared bounded-owner loan freezes its referent: every loop
-            // arrival observes the same live length and byte predicates.
-            && !block_views::shared_bounded_owner_loan(module, parameter)
+            // A byte owner's declared predicates remain obligations of every
+            // write and call. Cyclic use needs the same loan contract as an
+            // acyclic state edge, not a shared-only frozen-content exception.
+            && !block_views::bounded_owner_loan(module, parameter)
             && (parameter.multiplicity != StructuralMultiplicity::Unrestricted
                 || !parameter.qualifications.is_empty()
                 || !parameter.projected_qualifications.is_empty()

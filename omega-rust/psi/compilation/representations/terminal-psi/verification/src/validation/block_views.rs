@@ -178,16 +178,18 @@ pub(super) fn validate_declarations(
     Ok(())
 }
 
-/// A shared loan of a bounded byte owner (`&[u8; N] in Utf8`) whose every
-/// qualification is a plain byte predicate of that exact carrier. The loan
-/// freezes its referent, so those predicates hold for as long as the block
-/// holds the loan; the owner's live length is its own, never the capacity.
-pub(super) fn shared_bounded_owner_loan(
+/// A bounded-owner loan whose qualifications are primitive byte invariants.
+/// Shared access freezes the backing; mutable access requires each store and
+/// forwarded call to preserve those invariants. Neither access supplies a
+/// frozen length or entry-content fact across a write or control-flow cycle.
+pub(super) fn bounded_owner_loan(
     module: &TerminalModule,
     declaration: &StructuralParameterDeclaration,
 ) -> bool {
-    declaration.access == StructuralAccess::SharedBorrow
-        && bounded_owner_parameter(module, declaration)
+    matches!(
+        declaration.access,
+        StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+    ) && bounded_owner_parameter(module, declaration)
 }
 
 /// A shared borrowed byte view (`&[u8] in Utf8`) whose every qualification is

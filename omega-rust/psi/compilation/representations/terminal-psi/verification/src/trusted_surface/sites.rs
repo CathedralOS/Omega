@@ -1169,7 +1169,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/block_views.rs",
-        sha256: Some("196fd17bcec2acc9ce640719089531f22bd452d6735dbc1e6a2915d7f7ee5bd6"),
+        sha256: Some("1396b613749046eef9406cc36e1d21cd0fe4818c60ff63fe5c0c76b6f0c081bf"),
         inventory_machinery: false,
     },
     ImplementationSite {
@@ -1289,7 +1289,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/control_flow/unranked_cycles.rs",
-        sha256: Some("209655272a6e1e2e51406eb604b9b6473644276d53464fd2268ad9910adcac9e"),
+        sha256: Some("b36b3c35feb524ab2cc7f35bd71d02f9eeda9b2f0bcc68d9524be542906daf0a"),
         inventory_machinery: false,
     },
     ImplementationSite {

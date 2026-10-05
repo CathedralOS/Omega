@@ -8,11 +8,14 @@ machine main() {
 
 machine corrupt(bytes: &mut [u8; 8] in Ascii) -> bool {
     transition bytes.len > 0 {
-        true -> write(bytes)
+        true -> write(bytes, true)
         _ -> false
     }
-    state write(bytes: &mut [u8; 8] in Ascii) -> bool {
+    state write(bytes: &mut [u8; 8] in Ascii, repeat: bool) -> bool {
         bytes[0] = 255;
-        transition { _ -> true }
+        transition repeat {
+            true -> write(bytes, false)
+            _ -> true
+        }
     }
 }

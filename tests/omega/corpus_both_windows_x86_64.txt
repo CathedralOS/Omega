@@ -38,7 +38,7 @@ pass/recast/runtime_scalar_parameter_shared_views_exit built 5934ms exit:70 inte
 pass/relevance/runtime_static_proof_namespace_exit built 7745ms exit:0 interpreter-exit:0 interpreter:agrees @0c9d1b8dd763+wt
 pass/structural/runtime_enum_equality_exit built 7520ms exit:70 interpreter-exit:70 interpreter:agrees @5b40b0f7256d
 pass/termination/runtime_receiver_byte_slice_recursion_exit built 5769ms exit:70 interpreter-exit:70 interpreter:agrees @506354b3cca3+wt
-pass/text/borrowed_bounded_byte_indexed_write_exit built 7379ms exit:70 interpreter-exit:70 interpreter:agrees @f845b4bcdf12+wt
+pass/text/borrowed_bounded_byte_indexed_write_exit built 4380ms exit:70 interpreter-exit:70 interpreter:agrees @3f1c7fec72ed+wt
 pass/text/local_bounded_byte_indexed_write_exit built 4386ms exit:70 interpreter-exit:70 interpreter:agrees @e399918ecace+wt
 pass/text/mutable_bounded_byte_state_exit built 4316ms exit:70 interpreter-exit:70 interpreter:agrees @e399918ecace+wt
 pass/text/state_parameter_byte_replacement_exit built 4416ms exit:70 interpreter-exit:70 interpreter:agrees @e399918ecace+wt

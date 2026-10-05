@@ -6,12 +6,15 @@ domain [u8; 8]::Ascii(bytes) requires ascii_only(bytes);
 
 machine replace(at: u64, bytes: &mut [u8; 8] in Ascii, value: u8) -> bool {
     transition at < bytes.len && value < 128 {
-        true -> write(at, bytes, value)
+        true -> write(at, bytes, value, true)
         _ -> false
     }
-    state write(at: u64, bytes: &mut [u8; 8] in Ascii, value: u8) -> bool {
+    state write(at: u64, bytes: &mut [u8; 8] in Ascii, value: u8, repeat: bool) -> bool {
         bytes[at] = value;
-        transition { _ -> true }
+        transition repeat {
+            true -> write(at, bytes, value, false)
+            _ -> true
+        }
     }
 }
 
