@@ -186,7 +186,6 @@ fn contents(
         for review in reviews.reviews_for(package.key()) {
             checked_context(output, "fresh", review.checked_context())?;
             policy::render(output, "fresh-policy", review.policy(), source, verbose)?;
-            policy::observations(output, review.projection(), source)?;
             build_snapshot(output, review.build_observation_summary(), verbose)?;
         }
     }

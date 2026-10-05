@@ -1,8 +1,8 @@
 use super::rejected;
 use crate::capture::PackageReviewInput;
+use crate::capture::project_checked_conformance_policy;
 use crate::capture::semantics::declarations::nominal_identity;
 use crate::capture::semantics::types::signature_type_identity;
-use crate::project_checked_conformance_policy;
 use crate::record::{
     PackagePolicyCallbackInlineField, PackagePolicyCallbackLayout,
     PackagePolicyCallbackLayoutApplication,

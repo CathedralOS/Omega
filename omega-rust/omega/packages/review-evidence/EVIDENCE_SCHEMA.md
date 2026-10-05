@@ -1,21 +1,20 @@
 # Omega Package Evidence Schema
 
-The canonical review schema is version 138 and row schema version 96. This file
-records the closed vocabulary whose details would otherwise obscure the
-crate's architectural entrance. Proof-interface sections follow the
-[contract/bundle direction](../../../../wiki/spec/proofs/contracts.md)
-and require encoding migration; they are not a claim that replacement proof
-rows already exist in version 138. The source/codec changes and exact-version
-rejection controls belong to `PROOF-CONTRACT-MIGRATION`.
+This file records the closed policy vocabulary whose details would otherwise
+obscure the crate's architectural entrance. The whole-package review
+projection, its canonical review rows, canonical-row recovery envelope, and
+obligation ledger were removed; package review now consumes only the policy
+baseline and its components. Mentions below of "review" versions describe the
+retired encoding and do not bind current bytes. Proof-interface sections follow
+the [contract/bundle direction](../../../../wiki/spec/proofs/contracts.md); the
+source/codec changes and exact-version rejection controls belong to
+`PROOF-CONTRACT-MIGRATION`.
 
 This describes the current encoding and support limits, not a
 requirement to certify installation. The ratified lock records pins, the graph,
 compact compiler-derived risk acceptance, and decisions, trusting whoever
-lands it. Existing root-admission tags and ledger replay remain documented
-implementation while redundant promotion machinery is simplified; no sealed
-`PackageInstance` or certificate proving lock acceptance is required. Proof
-certificates below answer actual compiler proof questions. Compiler proof/reach
-checks and native artifact validation remain independent of installation.
+lands it. Compiler proof/reach checks and native artifact validation remain
+independent of installation.
 
 The separate external-supply policy component uses
 `OMEGA-EXTERNAL-SUPPLY-POLICY` version 4, bounded to 4 MiB. It preserves the
@@ -94,9 +93,8 @@ policy binary/text recovery. Private issuer catalogs retain the same identity
 payload without publishing the issuer as ordinary consumer API. Their source
 occurrences remain publicly exposed authorization metadata; ordinary package
 ownership, dependency and declaration-access checks still apply.
-Recovery validates inert structure and canonical encoding. Existing ordinary
-ledger validation compares supplied rows with a fresh checked-source projection;
-a decoded issuer identity is not authority to establish a qualification.
+Recovery validates inert structure and canonical encoding; a decoded issuer
+identity is not authority to establish a qualification.
 The added kind versions the review, review rows and complete policy baseline;
 recovery-envelope and text-grammar framing remain unchanged.
 
@@ -157,13 +155,6 @@ sizing and emission, and semantic depth 128. Per-row ceilings are 1 MiB of key,
 these bounds. The row table and key/binary/text output are measured and charged
 before allocation; usage permits one aggregate budget across both compared
 graphs. Allocator overhead and the already borrowed typed policy are excluded.
-
-The ordinary obligation-semantics schema is version 7. Its result
-vocabulary explicitly leaves bodyless accepted claims, dangerous authorities,
-external executable supplies, and exact terminal-authority permissions open
-for root admission, and compiler-retained contract-entailment stand-downs open
-for later discharge. The outer ledger encoding remains version 2; no new
-persistence authority is introduced.
 
 ## Current capture support
 
@@ -411,19 +402,7 @@ shape roots during materialization rather than guessing from equal layouts.
 Representation changes recommend audit; they do not assert native verification.
 See the [representation contract](../../../../wiki/spec/build/opaque_representations.md).
 
-### Proof obligations and non-executable quotient rows
-
-A contract-entailment stand-down binds callable and contract/fact coordinates,
-complete machine-contract commitment, projected goal, and closed reason. Equal
-goals at distinct positions remain distinct. It stays open for later discharge
-and cannot be accepted by root policy.
-
-Its separate discharge row binds the original obligation, exact callable and
-coordinates, strong contract, ordered kernel assumptions, canonical goal, and
-deterministic selected assumption. Fresh capture and ledger replay reconstruct
-the semantic question and invoke the kernel. Missing, stale, reordered, or
-changed evidence rejects or leaves the obligation open; the stand-down remains
-visible. Neither row certifies a lock or grants execution.
+### Non-executable quotient rows
 
 The non-executable quotient entrance reruns the transactional extractor, checks
 exact batch equality, and selects a nonempty requested-package subset of public

@@ -6,8 +6,7 @@ use crate::capture::semantics::declarations::{
     nominal_identity, policy_provider_requirement_identity,
 };
 use crate::record::{
-    PackagePolicyBoundaryApplicationRealization, PackagePolicyBoundaryApplications,
-    PackagePolicyBoundaryRealization, PackagePolicySelectedProviders,
+    PackagePolicyBoundaryApplicationRealization, PackagePolicyBoundaryRealization,
     PackageReviewBoundaryApplicationRealization, PackageReviewOperatorCoordinate,
 };
 use diagnostics::Diagnostic;
@@ -16,7 +15,6 @@ use semantic_vocabulary::PackageKeyIdentity;
 pub(super) fn project(
     compilation: &PackageReviewInput<'_>,
     package: PackageKeyIdentity,
-    providers: &PackagePolicySelectedProviders,
     original_indices: &[usize],
 ) -> Result<Vec<PackagePolicyBoundaryApplicationRealization>, Vec<Diagnostic>> {
     let checked =
@@ -25,7 +23,7 @@ pub(super) fn project(
             package,
         )?;
     let mut rows = Vec::new();
-    for checked in checked.rows {
+    for checked in checked {
         let matches = compilation
             .custody
             .execution()
@@ -152,14 +150,7 @@ pub(super) fn project(
             ));
         }
     }
-    let result = PackagePolicyBoundaryApplications {
-        demands: Vec::new(),
-        realizations: rows,
-    };
-    result
-        .validate_canonical_structure(package, providers.target(), providers)
-        .map_err(rejected)?;
-    Ok(result.realizations)
+    Ok(rows)
 }
 
 /// The policy coordinate of a top-level boundary requirement: its nominal

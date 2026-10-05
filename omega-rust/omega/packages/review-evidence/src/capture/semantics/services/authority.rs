@@ -1,5 +1,5 @@
 //! Source-owned service and progress declarations, never display-name lookup.
-use crate::PackageReviewInput;
+use crate::capture::PackageReviewInput;
 use crate::capture::nominal_identity;
 use crate::capture::semantics::services::rejected;
 use diagnostics::Diagnostic;

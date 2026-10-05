@@ -11,10 +11,8 @@
 //! resolver lane that already carries the checked-source index.
 //!
 //! A record never replays a checked verdict by name: on a lookup hit the
-//! retained rows decode strictly, the projection is recovered from its
-//! canonical review bytes and is required to re-encode to them byte-for-byte,
-//! the policy baseline and obligation ledger round-trip through their own
-//! canonical codecs, and the carried source-consumption commitment is
+//! policy baseline round-trips through its canonical codec, and the carried
+//! source-consumption commitment is
 //! re-derived over the stored consumed units plus the live inputs before the
 //! occurrence counts. Corruption, staleness, truncation and foreign records
 //! are misses, never trusted rows — the worst outcome is a fresh compile.
@@ -47,14 +45,7 @@ use package_compilation::{
     AcceptedSemanticBinding, ConsumedSourceUnit, IndependentComponentDescription,
     PackageGeneratedSourceBundle, PackageSourceConsumptionCommitment,
 };
-use package_evidence::encoding::{
-    PackagePolicyRecoveryLimits, decode_package_review_canonical_row,
-    encode_package_review_canonical_row, recover_package_review_projection,
-};
-use package_evidence::ledger::{
-    decode_ordinary_package_obligation_ledger, encode_ordinary_package_obligation_ledger,
-    ordinary_package_obligation_results_from_projection,
-};
+use package_evidence::encoding::PackagePolicyRecoveryLimits;
 use package_evidence::record::PackagePolicyBaseline;
 use package_source::ImmutableSourceResolution;
 use record_codec::{decode_record, encode_record};
@@ -64,7 +55,6 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use super::review_set::CompilerIssuedPackageReview;
-use super::rows::RetainedReviewRows;
 use super::semantic_bindings::SemanticBindingReviewCandidate;
 use crate::declarations::{DependencyPurpose, PackageKey};
 
@@ -121,13 +111,9 @@ pub(crate) struct CachedCompiledReview {
     semantic_bindings: Vec<AcceptedSemanticBinding>,
     semantic_binding_candidates: Vec<SemanticBindingReviewCandidate>,
     generated_source_bundle: PackageGeneratedSourceBundle,
-    canonical_review_bytes: Vec<u8>,
-    canonical_row_bytes: Vec<Vec<u8>>,
     policy_bytes: Vec<u8>,
-    obligation_ledger_bytes_payload: Vec<u8>,
     facts: CachedOccurrenceFacts,
     policy_canonical_bytes: u64,
-    obligation_ledger_bytes: u64,
 }
 
 impl CachedCompiledReview {
@@ -148,38 +134,13 @@ impl CachedCompiledReview {
         {
             return None;
         }
-        let canonical_rows = self
-            .canonical_row_bytes
-            .iter()
-            .map(|bytes| {
-                decode_package_review_canonical_row(bytes)
-                    .ok()
-                    .map(|decoded| decoded.into_row())
-            })
-            .collect::<Option<Vec<_>>>()?;
         let limits = PackagePolicyRecoveryLimits::default();
-        let projection = recover_package_review_projection(
-            &self.canonical_review_bytes,
-            &canonical_rows,
-            limits,
-        )
-        .ok()?;
         let policy = PackagePolicyBaseline::recover_canonical(&self.policy_bytes, limits).ok()?;
         if policy.canonical_bytes().ok()?.as_slice() != self.policy_bytes.as_slice() {
             return None;
         }
-        let obligations =
-            decode_ordinary_package_obligation_ledger(&self.obligation_ledger_bytes_payload)
-                .ok()?;
-        if encode_ordinary_package_obligation_ledger(&obligations)
-            .ok()?
-            .as_slice()
-            != self.obligation_ledger_bytes_payload.as_slice()
-        {
-            return None;
-        }
-        let obligation_results =
-            ordinary_package_obligation_results_from_projection(&obligations, &projection).ok()?;
+        let (policy_rows, policy_commitment) =
+            super::review_set::policy_rows_and_commitment(&policy).ok()?;
         let review = CompilerIssuedPackageReview {
             key: key.clone(),
             resolution: resolution.clone(),
@@ -191,22 +152,15 @@ impl CachedCompiledReview {
             semantic_bindings: self.semantic_bindings,
             semantic_binding_candidates: self.semantic_binding_candidates,
             generated_source_bundle: self.generated_source_bundle,
-            projection,
             policy,
-            canonical_review_bytes: self.canonical_review_bytes,
-            canonical_rows: RetainedReviewRows(canonical_rows),
-            obligations,
-            obligation_results,
+            policy_rows,
+            policy_commitment,
         };
         Some((review, self.facts))
     }
 
     pub(crate) fn policy_canonical_bytes(&self) -> Option<usize> {
         usize::try_from(self.policy_canonical_bytes).ok()
-    }
-
-    pub(crate) fn obligation_ledger_bytes(&self) -> Option<usize> {
-        usize::try_from(self.obligation_ledger_bytes).ok()
     }
 }
 
@@ -314,16 +268,8 @@ pub(crate) fn record_compiled_review(
     consumed_units: Vec<ConsumedSourceUnit>,
     component_description: Option<IndependentComponentDescription>,
     policy_canonical_bytes: usize,
-    obligation_ledger_bytes: usize,
 ) -> Option<CachedCompiledReview> {
-    let canonical_row_bytes = review
-        .canonical_rows()
-        .iter()
-        .map(|row| encode_package_review_canonical_row(row).ok())
-        .collect::<Option<Vec<_>>>()?;
     let policy_bytes = review.policy().canonical_bytes().ok()?;
-    let obligation_ledger_bytes_payload =
-        encode_ordinary_package_obligation_ledger(review.obligations()).ok()?;
     Some(CachedCompiledReview {
         package_identity: review.key().identity(),
         name: review.key().name().as_str().to_owned(),
@@ -339,10 +285,7 @@ pub(crate) fn record_compiled_review(
         semantic_bindings: review.semantic_bindings().to_vec(),
         semantic_binding_candidates: review.semantic_binding_candidates().to_vec(),
         generated_source_bundle: review.generated_source_bundle().clone(),
-        canonical_review_bytes: review.canonical_review_bytes().to_vec(),
-        canonical_row_bytes,
         policy_bytes,
-        obligation_ledger_bytes_payload,
         facts: CachedOccurrenceFacts {
             tolerated_unsettled_service_fields: checked
                 .execution()
@@ -358,6 +301,5 @@ pub(crate) fn record_compiled_review(
             .ok()?,
         },
         policy_canonical_bytes: u64::try_from(policy_canonical_bytes).ok()?,
-        obligation_ledger_bytes: u64::try_from(obligation_ledger_bytes).ok()?,
     })
 }

@@ -7,15 +7,6 @@ use crate::record::{
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 
-pub(crate) fn project_termination(
-    compilation: &PackageReviewInput<'_>,
-    guarantee: &language_semantics::TerminationGuarantee,
-) -> Result<PackageReviewTermination, Vec<Diagnostic>> {
-    project_termination_with_subject(compilation, guarantee, |root| {
-        nominal_identity(compilation, root).map(PackageReviewProgressSubject::Declaration)
-    })
-}
-
 pub(crate) fn project_trait_requirement_termination(
     compilation: &PackageReviewInput<'_>,
     requirement: &typed_trees::signature::StateSignature,

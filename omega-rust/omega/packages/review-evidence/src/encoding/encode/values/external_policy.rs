@@ -39,9 +39,6 @@ pub(in crate::encoding::encode) fn policy(
     encoder: &mut Encoder,
     supply: &PackagePolicyExternalExecutableSupply,
 ) -> Result<(), PackageReviewEncodingError> {
-    supply
-        .validate_canonical_structure()
-        .map_err(PackageReviewEncodingError::new)?;
     validated_value(encoder, supply)
 }
 

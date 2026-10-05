@@ -64,21 +64,20 @@ pub use checking::{
     CheckingRequest, lower_typed_trees, normalize_open_index_identities,
     specialize_static_machine_calls,
 };
-pub use checks::derive_contract_entailment_exit_membership_discharges;
 
 pub use package_review::{
     derive_authored_machine_crash_buckets, derive_authored_signature_crash_buckets,
-    derive_checked_body_call_source_spans, derive_checked_collection_view_intrinsic,
+    derive_checked_collection_view_intrinsic,
     derive_checked_contract_expression_evidence_instantiation,
     derive_checked_contract_expression_evidence_parameters, derive_checked_nominal_call_target,
     derive_checked_operator_crash_contracts, derive_checked_operator_realization_contracts,
     derive_checked_semantic_dependencies, derive_pre_flow_operator_selections,
     derive_pre_flow_value_origins, infer_checked_crash_causes, infer_checked_machine_crash_causes,
     infer_machine_termination_summary, late_bound_member_declaration_from_exact_owner,
-    resolve_checked_builtin_float_operator_requirement, typed_build_declaration_operand,
-    typed_build_declaration_selection, typed_build_operation, typed_build_provider_selection,
-    typed_operator_authored_selection_candidates, typed_operator_has_no_authored_selection,
-    typed_product_provider_selection_operand, typed_provider_selection_expressions,
+    typed_build_declaration_operand, typed_build_declaration_selection, typed_build_operation,
+    typed_build_provider_selection, typed_operator_authored_selection_candidates,
+    typed_operator_has_no_authored_selection, typed_product_provider_selection_operand,
+    typed_provider_selection_expressions,
 };
 
 pub use product_pruning::{
@@ -94,11 +93,6 @@ pub use ::validation::{AsmAuthorityAdmission, data_requires_establishment};
 pub use conformance::conformance_applications::close_conformance_application;
 pub use monomorphization::{
     generic_machine_template_commitment, generic_machine_template_report_fingerprint,
-};
-
-pub use proof::{
-    CheckedContractEntailmentAssumptionDischargeRecheckError,
-    recheck_contract_entailment_assumption_discharge,
 };
 
 // The unit tests allocate heavily across nextest's parallel processes;

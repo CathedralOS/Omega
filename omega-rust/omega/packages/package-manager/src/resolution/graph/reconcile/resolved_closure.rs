@@ -215,9 +215,4 @@ impl ResolvedPackageSourceClosure {
         }
         DependencyRequestPaths::new(self, Some(target))?.path(target)
     }
-
-    /// Prepare once when explaining several packages in this closure.
-    pub(crate) fn dependency_paths(&self) -> Option<DependencyRequestPaths<'_>> {
-        DependencyRequestPaths::new(self, None)
-    }
 }

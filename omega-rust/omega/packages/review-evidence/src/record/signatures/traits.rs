@@ -64,67 +64,7 @@ pub struct PackageReviewTraitRequirement {
     pub(crate) termination: PackageReviewTermination,
 }
 
-impl PackageReviewTraitRequirement {
-    pub const fn identity(&self) -> &PackageReviewNominalIdentity {
-        &self.identity
-    }
-
-    pub const fn spelling(&self) -> Option<language_core::OperatorSpelling> {
-        self.spelling
-    }
-
-    pub const fn has_default_realization(&self) -> bool {
-        self.has_default_realization
-    }
-
-    pub const fn lifetime_parameter_count(&self) -> usize {
-        self.lifetime_parameter_count
-    }
-
-    pub fn type_parameters(&self) -> &[PackageReviewTypeParameter] {
-        &self.type_parameters
-    }
-
-    pub fn parameters(&self) -> &[PackageReviewTraitRequirementParameter] {
-        &self.parameters
-    }
-
-    pub const fn return_type(&self) -> &PackageReviewTypeIdentity {
-        &self.return_type
-    }
-
-    pub fn contracts(&self) -> &[PackageReviewCallableContract] {
-        &self.contracts
-    }
-
-    pub fn published_crash(&self) -> &[PackageReviewCrashRoute] {
-        &self.published_crash
-    }
-
-    pub fn service_reach(&self) -> &[PackageReviewNominalIdentity] {
-        &self.service_reach
-    }
-
-    pub const fn service_reach_is_installation_bound(&self) -> bool {
-        self.service_reach_is_installation_bound
-    }
-
-    pub fn synchronous_invocations(&self) -> &[PackageReviewSynchronousInvocation] {
-        &self.synchronous_invocations
-    }
-
-    pub const fn suspends(&self) -> bool {
-        self.suspends
-    }
-
-    pub const fn blocks(&self) -> bool {
-        self.blocks
-    }
-
-    pub const fn termination(&self) -> &PackageReviewTermination {
-        &self.termination
-    }
-}
+impl PackageReviewTraitRequirement {}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackageReviewTraitShape {
@@ -162,54 +102,6 @@ pub struct PackageReviewConformanceShape {
     pub(crate) interface: PackageReviewEvidenceInterface,
 }
 
-impl PackageReviewConformanceShape {
-    pub const fn identity(&self) -> &PackageReviewNominalIdentity {
-        &self.identity
-    }
+impl PackageReviewConformanceShape {}
 
-    pub const fn lifetime_parameter_count(&self) -> usize {
-        self.lifetime_parameter_count
-    }
-
-    pub fn type_parameters(&self) -> &[PackageReviewTypeParameter] {
-        &self.type_parameters
-    }
-
-    pub const fn subject(&self) -> &PackageReviewConformanceSubject {
-        &self.subject
-    }
-
-    pub const fn interface(&self) -> &PackageReviewEvidenceInterface {
-        &self.interface
-    }
-}
-
-impl PackageReviewTraitShape {
-    pub const fn identity(&self) -> &PackageReviewNominalIdentity {
-        &self.identity
-    }
-
-    pub const fn is_boundary(&self) -> bool {
-        self.is_boundary
-    }
-
-    pub const fn lifetime_parameter_count(&self) -> usize {
-        self.lifetime_parameter_count
-    }
-
-    pub fn type_parameters(&self) -> &[PackageReviewTypeParameter] {
-        &self.type_parameters
-    }
-
-    pub fn conformance_bounds(&self) -> &[PackageReviewConformanceBound] {
-        &self.conformance_bounds
-    }
-
-    pub fn parents(&self) -> &[PackageReviewTraitParent] {
-        &self.parents
-    }
-
-    pub fn requirements(&self) -> &[PackageReviewTraitRequirement] {
-        &self.requirements
-    }
-}
+impl PackageReviewTraitShape {}

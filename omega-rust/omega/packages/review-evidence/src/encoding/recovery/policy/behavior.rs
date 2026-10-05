@@ -1,11 +1,5 @@
-use super::expressions::expression;
 use super::{Error, identity::nominal, reader::Reader};
 use crate::record::PackageReviewSynchronousInvocation;
-use crate::record::{
-    PackageReviewCrashCause, PackageReviewCrashPredicate, PackageReviewCrashRoute,
-    PackageReviewCrashRouteGuard, PackageReviewProgressPremise, PackageReviewProgressSubject,
-    PackageReviewTermination,
-};
 
 pub(in crate::encoding::recovery) fn synchronous_invocation(
     reader: &mut Reader<'_>,
@@ -14,53 +8,5 @@ pub(in crate::encoding::recovery) fn synchronous_invocation(
         0 => PackageReviewSynchronousInvocation::Parameter(reader.u32()?),
         1 => PackageReviewSynchronousInvocation::Service(nominal(reader)?),
         _ => return Err(Error::InvalidTag),
-    })
-}
-
-pub(in crate::encoding::recovery) fn termination(
-    reader: &mut Reader<'_>,
-) -> Result<PackageReviewTermination, Error> {
-    Ok(match reader.byte()? {
-        0 => PackageReviewTermination::NoGuarantee,
-        1 => PackageReviewTermination::Terminates {
-            premises: reader.sequence(1, |reader| {
-                let profile = nominal(reader)?;
-                let subject = match reader.byte()? {
-                    0 => PackageReviewProgressSubject::Declaration(nominal(reader)?),
-                    2 => PackageReviewProgressSubject::Parameter(reader.u32()?),
-                    _ => return Err(Error::InvalidTag),
-                };
-                Ok(PackageReviewProgressPremise {
-                    profile,
-                    subject,
-                    projections: reader.sequence(41, nominal)?,
-                })
-            })?,
-        },
-        _ => return Err(Error::InvalidTag),
-    })
-}
-
-pub(in crate::encoding::recovery) fn crash_route(
-    reader: &mut Reader<'_>,
-) -> Result<PackageReviewCrashRoute, Error> {
-    let cause = match reader.byte()? {
-        0 => PackageReviewCrashCause::Trap,
-        1 => PackageReviewCrashCause::Abort,
-        _ => return Err(Error::InvalidTag),
-    };
-    let alternative_guards = reader.sequence(1, |reader| {
-        Ok(match reader.byte()? {
-            0 => PackageReviewCrashRouteGuard::Truth,
-            1 => PackageReviewCrashRouteGuard::Predicate(PackageReviewCrashPredicate {
-                canonical_bytes: reader.bytes()?,
-            }),
-            2 => PackageReviewCrashRouteGuard::Expression(expression(reader)?),
-            _ => return Err(Error::InvalidTag),
-        })
-    })?;
-    Ok(PackageReviewCrashRoute {
-        cause,
-        alternative_guards,
     })
 }

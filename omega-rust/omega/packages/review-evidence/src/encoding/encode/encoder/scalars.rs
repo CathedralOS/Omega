@@ -57,20 +57,6 @@ impl Encoder<'_> {
         self.append(&value.to_le_bytes());
     }
 
-    pub(crate) fn i128(&mut self, value: i128) {
-        if let Some(text) = &mut self.text {
-            text.number("i128", value);
-        }
-        self.append(&value.to_le_bytes());
-    }
-
-    pub(crate) fn u128(&mut self, value: u128) {
-        if let Some(text) = &mut self.text {
-            text.number("u128", value);
-        }
-        self.append(&value.to_le_bytes());
-    }
-
     pub(crate) fn usize(&mut self, value: usize) -> Result<(), PackageReviewEncodingError> {
         self.u64(u64::try_from(value).map_err(|_| {
             PackageReviewEncodingError::new(

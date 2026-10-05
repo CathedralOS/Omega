@@ -1,16 +1,13 @@
-use super::super::declarations::{
-    encode_data_properties, encode_type_identity, encode_type_parameter,
-};
+use super::super::declarations::{encode_data_properties, encode_type_identity};
 use super::super::encoder::Encoder;
 use crate::encoding::PackageReviewEncodingError;
 use crate::record::{
     PackageReviewConstShape, PackageReviewEvidenceInterface, PackageReviewOperatorCoordinate,
-    PackageReviewOperatorShape, PackageReviewPropositionBinder, PackageReviewPropositionBinderKind,
+    PackageReviewPropositionBinder, PackageReviewPropositionBinderKind,
     PackageReviewPropositionShape, PackageReviewPublicPropositionBody,
 };
 
-use super::contracts::{encode_callable_contract, encode_contract_fact};
-use super::crashes::encode_crash_route;
+use super::contracts::encode_contract_fact;
 use super::identity::encode_nominal;
 
 pub(crate) fn encode_proposition_shape(
@@ -74,60 +71,6 @@ pub(crate) fn encode_operator_coordinate(
     })?;
     encoder.field("result_dispatch", |encoder| {
         encoder.string(&coordinate.result_dispatch)
-    })
-}
-
-pub(crate) fn encode_operator_shape(
-    encoder: &mut Encoder,
-    shape: &PackageReviewOperatorShape,
-) -> Result<(), PackageReviewEncodingError> {
-    encoder.field("coordinate", |encoder| {
-        encode_operator_coordinate(encoder, &shape.coordinate)
-    })?;
-    encoder.field("is_boundary", |encoder| {
-        encoder.boolean(shape.is_boundary);
-        Ok(())
-    })?;
-    encoder.field("spelling", |encoder| {
-        encoder.option(shape.spelling.as_ref(), |encoder, spelling| {
-            encoder.tag(
-                operator_spelling_name(*spelling),
-                operator_spelling_tag(*spelling),
-            );
-            Ok(())
-        })
-    })?;
-    encoder.field("lifetime_parameter_count", |encoder| {
-        encoder.usize(shape.lifetime_parameter_count)
-    })?;
-    encoder.field("type_parameters", |encoder| {
-        encoder.sequence(&shape.type_parameters, encode_type_parameter)
-    })?;
-    encoder.field("parameters", |encoder| {
-        encoder.sequence(&shape.parameters, |encoder, parameter| {
-            encoder.field("name", |encoder| encoder.string(&parameter.name))?;
-            encoder.field("type_identity", |encoder| {
-                encode_type_identity(encoder, &parameter.type_identity)
-            })?;
-            encoder.field("is_const", |encoder| {
-                encoder.boolean(parameter.is_const);
-                Ok(())
-            })?;
-            encoder.field("is_mutable", |encoder| {
-                encoder.boolean(parameter.is_mutable);
-                Ok(())
-            })?;
-            Ok(())
-        })
-    })?;
-    encoder.field("return_type", |encoder| {
-        encode_type_identity(encoder, &shape.return_type)
-    })?;
-    encoder.field("contracts", |encoder| {
-        encoder.sequence(&shape.contracts, encode_callable_contract)
-    })?;
-    encoder.field("published_crash", |encoder| {
-        encoder.sequence(&shape.published_crash, encode_crash_route)
     })
 }
 

@@ -27,7 +27,6 @@ pub use semantic_policy::{
 pub(crate) mod package;
 mod policy_rows;
 mod public_policy;
-mod quotients;
 mod representation;
 mod restricted_build;
 mod rows;
@@ -36,7 +35,6 @@ pub use policy_rows::{
     PackagePolicyRowUsage,
 };
 mod signatures;
-mod terminal_authority;
 pub(in crate::record) use public_policy::validation;
 pub use public_policy::{
     PackagePolicyConformanceShape, PackagePolicyDataShape, PackagePolicyDomainShape,
@@ -46,19 +44,17 @@ pub use public_policy::{
 };
 
 pub use authority::{
-    PackageReviewBooleanExpression, PackageReviewCapabilityFlow, PackageReviewCrash,
-    PackageReviewCrashCall, PackageReviewCrashCause, PackageReviewCrashInterface,
-    PackageReviewCrashOperatorSite, PackageReviewCrashPredicate, PackageReviewCrashRoute,
-    PackageReviewCrashRouteGuard, PackageReviewCrashSite, PackageReviewDangerousAuthority,
-    PackageReviewDangerousAuthorityClass, PackageReviewDangerousAuthoritySlack,
-    PackageReviewIeeeFloatComparisonKind, PackageReviewInstallationReach,
-    PackageReviewIntegerBinaryKind, PackageReviewIntegerComparisonKind,
-    PackageReviewIntegerLiteral, PackageReviewIntegerLiteralLanding, PackageReviewIntegerRange,
-    PackageReviewMutation, PackageReviewPermissionClaim, PackageReviewPermissionSource,
-    PackageReviewPrimitiveType, PackageReviewProgressPremise, PackageReviewProgressSubject,
-    PackageReviewRuntimeIndex, PackageReviewScalarExpression,
-    PackageReviewStructuralParameterField, PackageReviewStructuralPredicatePathSegment,
-    PackageReviewTermination, PackageReviewWriteFrameCompleteness,
+    PackageReviewBooleanExpression, PackageReviewCrashCause, PackageReviewCrashInterface,
+    PackageReviewCrashPredicate, PackageReviewCrashRoute, PackageReviewCrashRouteGuard,
+    PackageReviewDangerousAuthority, PackageReviewDangerousAuthorityClass,
+    PackageReviewDangerousAuthoritySlack, PackageReviewIeeeFloatComparisonKind,
+    PackageReviewInstallationReach, PackageReviewIntegerBinaryKind,
+    PackageReviewIntegerComparisonKind, PackageReviewIntegerLiteral,
+    PackageReviewIntegerLiteralLanding, PackageReviewIntegerRange, PackageReviewPrimitiveType,
+    PackageReviewProgressPremise, PackageReviewProgressSubject, PackageReviewRuntimeIndex,
+    PackageReviewScalarExpression, PackageReviewStructuralParameterField,
+    PackageReviewStructuralPredicatePathSegment, PackageReviewTermination,
+    PackageReviewWriteFrameCompleteness,
 };
 pub use calling::{
     PackagePolicyCallbackBinder, PackagePolicyCallbackDemand, PackagePolicyCallbackDestination,
@@ -79,16 +75,12 @@ pub use contracts::{
     PackageReviewByteSequencePredicate, PackageReviewCallableContract, PackageReviewCallableRole,
     PackageReviewCallableSupply, PackageReviewCastForm, PackageReviewCollectionViewOperation,
     PackageReviewConstShape, PackageReviewConstructorField, PackageReviewContractBinaryOperator,
-    PackageReviewContractCallTarget, PackageReviewContractEntailmentAssumptionDischarge,
-    PackageReviewContractEntailmentCoveredExit,
-    PackageReviewContractEntailmentExitMembershipDischarge,
-    PackageReviewContractEntailmentOpenObligation, PackageReviewContractEntailmentOpenReason,
-    PackageReviewContractEvidenceArgument, PackageReviewContractEvidenceTerm,
-    PackageReviewContractExpression, PackageReviewContractFact, PackageReviewContractKind,
-    PackageReviewContractOperatorMeaning, PackageReviewContractStaticArgument,
-    PackageReviewContractUnaryOperator, PackageReviewEvidenceInterface,
-    PackageReviewEvidenceRequirement, PackageReviewFloatLiteral, PackageReviewOperatorCoordinate,
-    PackageReviewOperatorRealization, PackageReviewOperatorShape,
+    PackageReviewContractCallTarget, PackageReviewContractEvidenceArgument,
+    PackageReviewContractEvidenceTerm, PackageReviewContractExpression, PackageReviewContractFact,
+    PackageReviewContractKind, PackageReviewContractOperatorMeaning,
+    PackageReviewContractStaticArgument, PackageReviewContractUnaryOperator,
+    PackageReviewEvidenceInterface, PackageReviewEvidenceRequirement, PackageReviewFloatLiteral,
+    PackageReviewOperatorCoordinate, PackageReviewOperatorRealization, PackageReviewOperatorShape,
     PackageReviewPropositionApplication, PackageReviewPropositionBinder,
     PackageReviewPropositionBinderArgument, PackageReviewPropositionBinderArgumentKind,
     PackageReviewPropositionBinderKind, PackageReviewPropositionBinderValue,
@@ -107,16 +99,12 @@ pub use domains::{
     PackageReviewDomainSemanticRole, PackageReviewDomainShape,
 };
 pub use identity::{
-    PackageReviewNominalIdentity, PackageReviewNominalOwner, PackageReviewSemanticDependency,
+    PackageReviewNominalIdentity, PackageReviewNominalOwner,
     PackageReviewSemanticDependencyExposure, PackageReviewSemanticDependencyKind,
     PackageReviewToolchainSourceIdentity,
 };
 pub use package::{
-    CheckedPackageBoundaryApplicationDemandReview,
-    CheckedPackageBoundaryApplicationRealizationReview, CheckedPackageCallableReview,
-    CheckedPackageProviderFamilyCoordinateReview, CheckedPackageProviderFamilyReview,
-    CheckedPackageProviderReview, CheckedPackageProviderRowIdentity,
-    CheckedPackageReviewProjection, PackagePolicyBoundaryApplicationDemand,
+    CheckedPackageBoundaryApplicationRealizationReview, PackagePolicyBoundaryApplicationDemand,
     PackagePolicyBoundaryApplicationRealization, PackagePolicyBoundaryApplications,
     PackagePolicyBoundaryRealization, PackagePolicyCallable, PackagePolicyCallableConformance,
     PackagePolicyCallableRole, PackagePolicyCallables, PackagePolicyProviderBinding,
@@ -128,17 +116,14 @@ pub use package::{
     PackagePolicyTerminalPermission, PackagePolicyTerminalPermissions,
     PackagePolicyTerminalService, PackageReviewBoundaryApplication,
     PackageReviewBoundaryApplicationArgument, PackageReviewBoundaryApplicationRealization,
-    PackageReviewBoundaryApplicationRealizationRole, PackageReviewCheckedServiceReach,
-    PackageReviewCompilerIntrinsicExecution, PackageReviewProviderFamilyCoverage,
-    PackageReviewProviderGrantSelectorKind, PackageReviewProviderSelectionAuthority,
-    PackageReviewSelectedInstallationReach, PackageReviewSelectedProviderGrant,
+    PackageReviewCheckedServiceReach, PackageReviewCompilerIntrinsicExecution,
+    PackageReviewProviderFamilyCoverage, PackageReviewProviderGrantSelectorKind,
+    PackageReviewProviderSelectionAuthority, PackageReviewSelectedInstallationReach,
     PackageReviewSymbolicBoundaryApplicationArgument,
 };
-pub use quotients::NonExecutableQuotientPackageReview;
 pub use representation::{
-    PackagePolicyRepresentation, PackagePolicyRepresentationAgreementError,
-    PackagePolicyRepresentationAvailability, PackagePolicyRepresentationDemand,
-    PackagePolicyRepresentationProducerInstance, PackagePolicyRepresentationSelection,
+    PackagePolicyRepresentation, PackagePolicyRepresentationAvailability,
+    PackagePolicyRepresentationDemand, PackagePolicyRepresentationSelection,
     PackageReviewBoundaryCallingPolicy, PackageReviewBoundaryShape,
     PackageReviewBoundaryShapeClass, PackageReviewBoundaryShapeField,
     PackageReviewBoundaryShapeGraph, PackageReviewBoundaryValueClass,
@@ -150,8 +135,7 @@ pub use representation::{
     PackageReviewOpaqueRepresentationMovementRole, PackageReviewOpaqueRepresentationOccurrence,
     PackageReviewOpaqueRepresentationPathElement, PackageReviewRepresentationArchitecture,
     PackageReviewRepresentationObjectFormat, PackageReviewRepresentationTarget,
-    PackageReviewRepresentationTargetProfile, PackageReviewRepresentationTcb,
-    PackageReviewRepresentationTcbKind, PackageReviewSystemVEightbyteClass,
+    PackageReviewRepresentationTargetProfile, PackageReviewSystemVEightbyteClass,
 };
 pub use restricted_build::{
     PackagePolicyEvaluationSponsorLimits, PackagePolicyFilesystemSponsorLimits,
@@ -160,20 +144,16 @@ pub use restricted_build::{
     PackagePolicyRestrictedBuildRequest,
 };
 pub use rows::{
-    PackageReviewCanonicalRow, PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk,
-    PackageReviewCanonicalRowSource, PackageReviewSourceLocation, PackageReviewSourceLocationOwner,
-    PackageReviewSourceLocationRole, PackageReviewSyntheticSourceKind,
+    PackageReviewSourceLocation, PackageReviewSourceLocationOwner, PackageReviewSourceLocationRole,
 };
 pub use signatures::{
     PackagePolicyEvaluatedBindingProducer, PackagePolicyExternalBinding,
     PackagePolicyExternalCallableSignature, PackagePolicyExternalExecutableSupply,
-    PackagePolicyExternalRequirement, PackageReviewCallableConformance,
-    PackageReviewCallableParameter, PackageReviewConformanceBound, PackageReviewConformanceShape,
-    PackageReviewConformanceSubject, PackageReviewEvaluatedBindingUsage,
-    PackageReviewEvaluatedImport, PackageReviewEvaluatedSyscall, PackageReviewExternalBinding,
-    PackageReviewExternalCallableParameter, PackageReviewExternalCallableSignature,
-    PackageReviewExternalExecutableSupply, PackageReviewExternalRequirement,
-    PackageReviewExternalStaticParameter, PackageReviewForeignLocator,
+    PackagePolicyExternalRequirement, PackageReviewCallableParameter,
+    PackageReviewConformanceBound, PackageReviewConformanceShape, PackageReviewConformanceSubject,
+    PackageReviewEvaluatedBindingUsage, PackageReviewEvaluatedImport,
+    PackageReviewEvaluatedSyscall, PackageReviewExternalBinding,
+    PackageReviewExternalCallableParameter, PackageReviewForeignLocator,
     PackageReviewMachineParameterContract, PackageReviewMachineParameterSignature,
     PackageReviewMachineParameterValue, PackageReviewPropositionParameterSignature,
     PackageReviewPropositionParameterValue, PackageReviewRequirementRealization,
@@ -181,4 +161,3 @@ pub use signatures::{
     PackageReviewTraitRequirementParameter, PackageReviewTraitShape, PackageReviewTypeIdentity,
     PackageReviewTypeParameter, PackageReviewTypeParameterKind,
 };
-pub use terminal_authority::PackageReviewTerminalAuthorityPermission;

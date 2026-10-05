@@ -1,5 +1,5 @@
 //! Report coordinates are only a checked join to the complete calling value.
-use crate::PackageReviewInput;
+use crate::capture::PackageReviewInput;
 use crate::capture::semantics::services::rejected;
 use crate::record::PackagePolicyCallingPlan;
 use diagnostics::Diagnostic;

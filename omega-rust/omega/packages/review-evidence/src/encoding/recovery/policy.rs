@@ -27,8 +27,6 @@ pub(in crate::encoding::recovery) mod structural_expressions;
 pub(in crate::encoding::recovery) mod terminal_permissions;
 pub(in crate::encoding::recovery) mod text;
 
-pub use text::PackagePolicyTextRecoveryLimits;
-
 use PackagePolicyRecoveryError as Error;
 pub use policy_recovery_accounting::{
     PackagePolicyRecoveryError, PackagePolicyRecoveryLimits, PackagePolicyRecoveryUsage,

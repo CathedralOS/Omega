@@ -204,39 +204,6 @@ fn project_type_parameters_inner(
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn project_machine_parameter_contract(
-    compilation: &PackageReviewInput<'_>,
-    parameter_symbol: SymbolHandle,
-    contract: &typed_trees::data::MachineParameterContract,
-    declaration_kind: &str,
-    declaration_path: &str,
-    outer_binders: &[(SymbolHandle, String)],
-    nested_ordinal_offset: usize,
-    outer_lifetime_binders: &[typed_trees::name::Identifier],
-    depth: usize,
-) -> Result<PackageReviewMachineParameterContract, Vec<Diagnostic>> {
-    project_machine_parameter_contract_inner(
-        &compilation.typed,
-        compilation,
-        parameter_symbol,
-        contract,
-        declaration_kind,
-        declaration_path,
-        outer_binders,
-        nested_ordinal_offset,
-        outer_lifetime_binders,
-        depth,
-        Projection {
-            public_nominals: true,
-            policy_crash_guards: false,
-            selection_exposure: AuthoredDeclarationSelectionExposure::PublicInterface,
-            substitutions: &[],
-            contract_scopes: None,
-        },
-    )
-}
-
-#[allow(clippy::too_many_arguments)]
 fn project_machine_parameter_contract_inner(
     typed: &typed_trees::TypedTrees,
     compilation: &PackageReviewInput<'_>,

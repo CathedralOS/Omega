@@ -2,22 +2,14 @@
 
 //! Compiler-issued package review evidence.
 //!
-//! The crate root is intentionally only the public entrance: stable review
-//! vocabulary lives in [`record`], compiler-to-review conversion in
-//! [`capture`], canonical persistence/recovery in [`encoding`], and local
-//! reconstruction questions in [`ledger`]. This is a review surface,
-//! not accepted package admission evidence.
+//! The crate root is intentionally only the public entrance: stable policy
+//! vocabulary lives in [`record`], compiler-to-policy conversion in
+//! [`capture`], and canonical persistence/recovery in [`encoding`]. This is a
+//! review surface, not accepted package admission evidence.
 
 mod capture;
 pub mod encoding;
-pub mod ledger;
 pub mod record;
 pub use encoding::PACKAGE_CALLABLE_POLICY_VERSION;
 
-pub use capture::{
-    PackageReviewInput, project_checked_boundary_application_policy,
-    project_checked_callable_policy, project_checked_calling_policy,
-    project_checked_conformance_policy, project_checked_external_supply_policy,
-    project_checked_package_policy, project_checked_package_review,
-    project_checked_representation_policy, project_checked_selected_provider_policy,
-    project_checked_terminal_permission_policy, };
+pub use capture::{project_checked_package_policy, project_checked_terminal_permission_policy};

@@ -1,47 +1,9 @@
 use super::super::PackageReviewEncodingError;
 use super::super::encoder::Encoder;
-use super::super::values::declarations::encode_evidence_interface;
 use super::super::values::expressions::encode_contract_static_argument;
 use super::super::values::identity::encode_nominal;
-use super::data::{encode_type_identity, encode_type_parameter};
-use crate::record::{
-    PackageReviewConformanceBound, PackageReviewConformanceShape, PackageReviewConformanceSubject,
-};
-
-pub(crate) fn encode_conformance_shape(
-    encoder: &mut Encoder,
-    shape: &PackageReviewConformanceShape,
-) -> Result<(), PackageReviewEncodingError> {
-    encoder.field("identity", |encoder| {
-        encode_nominal(encoder, &shape.identity)
-    })?;
-    encoder.field("lifetime_parameter_count", |encoder| {
-        encoder.usize(shape.lifetime_parameter_count)
-    })?;
-    encoder.field("type_parameters", |encoder| {
-        encoder.sequence(&shape.type_parameters, encode_type_parameter)
-    })?;
-    encoder.field("subject", |encoder| {
-        match &shape.subject {
-            PackageReviewConformanceSubject::Subjectless => encoder.tag("subjectless", 0),
-            PackageReviewConformanceSubject::TypeParameter(ordinal) => {
-                encoder.tag("type_parameter", 1);
-                encoder.field("value", |encoder| {
-                    encoder.u32(*ordinal);
-                    Ok(())
-                })?;
-            }
-            PackageReviewConformanceSubject::Nominal(identity) => {
-                encoder.tag("nominal", 2);
-                encoder.field("identity", |encoder| encode_nominal(encoder, identity))?;
-            }
-        };
-        Ok(())
-    })?;
-    encoder.field("interface", |encoder| {
-        encode_evidence_interface(encoder, &shape.interface)
-    })
-}
+use super::data::encode_type_identity;
+use crate::record::PackageReviewConformanceBound;
 
 pub(crate) fn encode_conformance_bound(
     encoder: &mut Encoder,

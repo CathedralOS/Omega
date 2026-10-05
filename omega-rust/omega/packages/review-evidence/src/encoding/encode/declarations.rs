@@ -19,35 +19,29 @@ pub(crate) use dependency_trust::{
     calling_policy_tag, encode_machine_register, encode_value_placement,
 };
 
-pub(crate) use conformances::{encode_conformance_bound, encode_conformance_shape};
+pub(crate) use conformances::encode_conformance_bound;
 #[allow(
     unused_imports,
     reason = "retain every established declaration encoder entry point"
 )]
 pub(crate) use data::{
-    encode_data_field, encode_data_member, encode_data_properties, encode_data_shape,
-    encode_machine_parameter_contract, encode_machine_parameter_signature, encode_optional_u64,
-    encode_relevance, encode_type_identity, encode_type_parameter,
+    encode_data_field, encode_data_member, encode_data_properties, encode_optional_u64,
+    encode_relevance, encode_type_identity,
 };
 #[allow(
     unused_imports,
     reason = "retain every established declaration encoder entry point"
 )]
 pub(crate) use dependency_trust::{
-    encode_dangerous_authority, encode_dangerous_authority_slack, encode_representation_tcb,
-    encode_representation_tcb_key, encode_semantic_dependency, encode_semantic_dependency_key,
-    encode_terminal_authority_permission, encode_terminal_authority_permission_key,
-    semantic_dependency_kind_tag,
+    encode_dangerous_authority, encode_dangerous_authority_slack, semantic_dependency_kind_tag,
 };
 #[allow(
     unused_imports,
     reason = "retain every established declaration encoder entry point"
 )]
-pub(crate) use domains::{
-    encode_domain_alias_atom, encode_domain_establishment_route, encode_domain_shape,
-};
+pub(crate) use domains::{encode_domain_alias_atom, encode_domain_establishment_route};
 #[allow(
     unused_imports,
     reason = "retain every established declaration encoder entry point"
 )]
-pub(crate) use traits::{encode_trait_parent, encode_trait_requirement, encode_trait_shape};
+pub(crate) use traits::encode_trait_parent;

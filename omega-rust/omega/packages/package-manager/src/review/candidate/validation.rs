@@ -7,34 +7,6 @@ use crate::resolution::source::PackageSourceCustody;
 use crate::review::CompilerIssuedPackageReviewSet;
 use package_source::ImmutableSourceResolution;
 
-/// A compiler review set validated independently of source custody.
-///
-/// This remains review-only state. In particular, successful validation does
-/// not make the rows accepted evidence or a persistable lock baseline.
-pub(crate) struct ValidatedReviewOnlySet<'review, R> {
-    reviews_by_key: Vec<&'review R>,
-}
-
-impl<'review, R> ValidatedReviewOnlySet<'review, R> {
-    pub(crate) fn into_reviews_by_key(self) -> Vec<&'review R> {
-        self.reviews_by_key
-    }
-}
-
-/// A complete exact-key join between resolver custody and compiler reviews.
-///
-/// Construction proves only the invariants checked in this module. It does not
-/// seal compiler/toolchain provenance or construct a `PackageInstance`.
-pub(crate) struct ValidatedReviewOnlyClosure<'review, R> {
-    reviews_by_key: Vec<&'review R>,
-}
-
-impl<'review, R> ValidatedReviewOnlyClosure<'review, R> {
-    pub(crate) fn into_reviews_by_key(self) -> Vec<&'review R> {
-        self.reviews_by_key
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum ReviewOnlySetValidationError {
     DuplicateReview {
@@ -59,22 +31,22 @@ pub(crate) enum ReviewOnlyClosureValidationError {
     AllocationFailed,
 }
 
+/// Validate a compiler review set independently of source custody. Success
+/// does not make the rows accepted evidence or a persistable lock baseline.
 pub(crate) fn validate_review_only_records<R: PackageReviewEvidence>(
     reviews: &[R],
-) -> Result<ValidatedReviewOnlySet<'_, R>, ReviewOnlySetValidationError> {
-    let reviews_by_key = validate_review_records(reviews)?;
-    Ok(ValidatedReviewOnlySet { reviews_by_key })
+) -> Result<(), ReviewOnlySetValidationError> {
+    validate_review_records(reviews).map(drop)
 }
 
-pub(crate) fn validate_review_only_closure<'review>(
+/// Validate the exact-key join between resolver custody and compiler reviews.
+/// This does not seal compiler/toolchain provenance or construct a
+/// `PackageInstance`.
+pub(crate) fn validate_review_only_closure(
     sources: &ResolvedPackageSourceClosure,
-    reviews: &'review CompilerIssuedPackageReviewSet,
-) -> Result<
-    ValidatedReviewOnlyClosure<'review, crate::review::CompilerIssuedPackageReview>,
-    ReviewOnlyClosureValidationError,
-> {
-    let reviews_by_key = validate_review_closure_records(sources.custodies(), reviews.reviews())?;
-    Ok(ValidatedReviewOnlyClosure { reviews_by_key })
+    reviews: &CompilerIssuedPackageReviewSet,
+) -> Result<(), ReviewOnlyClosureValidationError> {
+    validate_review_closure_records(sources.custodies(), reviews.reviews())
 }
 
 trait SourceRecord {
@@ -158,10 +130,10 @@ fn validate_review_records<R: ReviewRecord>(
     Ok(reviews_by_key)
 }
 
-fn validate_review_closure_records<'review, S: SourceRecord, R: ReviewRecord>(
+fn validate_review_closure_records<S: SourceRecord, R: ReviewRecord>(
     sources: &[S],
-    reviews: &'review [R],
-) -> Result<Vec<&'review R>, ReviewOnlyClosureValidationError> {
+    reviews: &[R],
+) -> Result<(), ReviewOnlyClosureValidationError> {
     let reviews_by_key =
         validate_review_records(reviews).map_err(ReviewOnlyClosureValidationError::ReviewSet)?;
     let mut sources_by_key = Vec::new();
@@ -197,5 +169,5 @@ fn validate_review_closure_records<'review, S: SourceRecord, R: ReviewRecord>(
         }
     }
 
-    Ok(reviews_by_key)
+    Ok(())
 }

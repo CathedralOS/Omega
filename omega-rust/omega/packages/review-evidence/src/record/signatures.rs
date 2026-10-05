@@ -9,8 +9,8 @@ mod signature_vocabulary;
 mod traits;
 
 pub use callables::{
-    PackageReviewCallableConformance, PackageReviewCallableParameter,
-    PackageReviewRequirementRealization, PackageReviewTraitRequirementParameter,
+    PackageReviewCallableParameter, PackageReviewRequirementRealization,
+    PackageReviewTraitRequirementParameter,
 };
 pub use external_policy::{
     PackagePolicyEvaluatedBindingProducer, PackagePolicyExternalBinding,
@@ -20,9 +20,7 @@ pub use external_policy::{
 pub use external_supply::{
     PackageReviewEvaluatedBindingUsage, PackageReviewEvaluatedImport,
     PackageReviewEvaluatedSyscall, PackageReviewExternalBinding,
-    PackageReviewExternalCallableParameter, PackageReviewExternalCallableSignature,
-    PackageReviewExternalExecutableSupply, PackageReviewExternalRequirement,
-    PackageReviewExternalStaticParameter, PackageReviewForeignLocator,
+    PackageReviewExternalCallableParameter, PackageReviewForeignLocator,
 };
 pub use signature_vocabulary::{
     PackageReviewConformanceBound, PackageReviewMachineParameterContract,

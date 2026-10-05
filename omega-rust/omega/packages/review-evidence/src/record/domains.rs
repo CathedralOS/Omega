@@ -110,44 +110,4 @@ pub struct PackageReviewDomainShape {
     pub(crate) establishment_routes: Vec<PackageReviewDomainEstablishmentRoute>,
 }
 
-impl PackageReviewDomainShape {
-    pub const fn identity(&self) -> &PackageReviewNominalIdentity {
-        &self.identity
-    }
-
-    pub fn type_parameters(&self) -> &[PackageReviewTypeParameter] {
-        &self.type_parameters
-    }
-
-    pub const fn target_type(&self) -> &PackageReviewTypeIdentity {
-        &self.target_type
-    }
-
-    pub fn index_arguments(&self) -> &[PackageReviewTypeIdentity] {
-        &self.index_arguments
-    }
-
-    pub const fn predicate_body(&self) -> language_semantics::DomainPredicateBody {
-        self.predicate_body
-    }
-
-    pub fn predicate_facts(&self) -> &[PackageReviewContractFact] {
-        &self.predicate_facts
-    }
-
-    pub fn alias_expansion(&self) -> Option<&[PackageReviewDomainAliasAtom]> {
-        self.alias_expansion.as_deref()
-    }
-
-    pub const fn classification(&self) -> Option<PackageReviewDomainClassification> {
-        self.classification
-    }
-
-    pub fn semantic_roles(&self) -> &[PackageReviewDomainSemanticRole] {
-        &self.semantic_roles
-    }
-
-    pub fn establishment_routes(&self) -> &[PackageReviewDomainEstablishmentRoute] {
-        &self.establishment_routes
-    }
-}
+impl PackageReviewDomainShape {}

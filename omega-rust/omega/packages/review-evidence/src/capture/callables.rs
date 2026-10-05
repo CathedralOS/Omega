@@ -10,12 +10,5 @@ pub use external_policy::project_checked_external_supply_policy;
 mod policy;
 mod policy_parameters;
 mod reach_dependency;
-mod review;
 mod surface;
 pub use policy::project_checked_callable_policy;
-mod signatures;
-
-pub(super) use review::{
-    project_callable, project_contract_entailment_open_contract,
-    project_private_external_executable_supply,
-};

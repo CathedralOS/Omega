@@ -339,7 +339,6 @@ pub(super) fn project(
                     execution,
                 },
             },
-            location,
         )?;
     }
     Ok(())

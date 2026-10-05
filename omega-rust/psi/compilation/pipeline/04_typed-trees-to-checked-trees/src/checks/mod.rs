@@ -180,5 +180,3 @@ pub(crate) fn check_checked_facts_recording_with_mutation_summaries(
         Err(diagnostics)
     }
 }
-
-pub use contracts::derive_contract_entailment_exit_membership_discharges;

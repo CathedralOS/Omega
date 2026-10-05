@@ -3372,43 +3372,17 @@ of a check the same flow already performed, not the check itself.
   build requests scoped filesystem execution performs no host effect; corpus
   `--filter build` is unchanged.
 
-- **REVIEW-SINGLE-PROJECTION.** (new-scope) `review-evidence`
-  (`omega-rust/omega/packages/review-evidence/`) projects every
-  `CheckedCompilation` twice and then validates itself:
-  - two projections: the legacy `project_checked_package_review` and
-    `project_checked_package_policy`, both covering callables, dangerous
-    authority, providers and terminal permissions;
-  - `src/capture/package/validation.rs::validate_review_compilation`
-    re-derives operator-realization contracts and entailment stand-downs and
-    compares;
-  - `validate_canonical_structure` runs after each component capture and
-    again inside every encoder;
-  - `src/capture/providers/policy/replay.rs::validate` replays the plans;
-  - `src/ledger/results/reconstruction.rs` re-checks discharge certificates
-    the same compile produced
-    (`recheck_contract_entailment_assumption_discharge`);
-  - the obligation ledger and its results have no consumer: the
-    package-manager `review/reconstruction/` bijection that read them is
-    deleted.
-
-  Keep the policy projection: it feeds lock rows and review documents. In one
-  commit, delete the legacy projection, the self-validation calls, the
-  discharge re-check and the ledger, and re-base `whole_review_commitment` and
-  the review cache on the policy projection. Then delete what only these
-  consumers read in
-  `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/`:
-  `checks/contracts/exit_membership.rs` (caller
-  `src/capture/contracts/stand_downs.rs`),
-  `recheck_contract_entailment_assumption_discharge`,
-  `facts/canonical_encoding.rs`, the byte `callable_shape` and
-  substitutable-contract identities in `facts/contract_plan_facts.rs` and
-  `facts/crash_plan_facts.rs`, and the review-only exports of
-  `package_review.rs` (keep `derive_pre_flow_value_origins`,
-  `infer_machine_termination_summary` and `typed_build_provider_selection`
-  for compile-time callers). Acceptance:
-  `project_checked_package_review` and the ledger module are gone; review
-  command output for the package corpus is unchanged apart from removed
-  legacy-only rows, which are listed in the commit.
+- **CONTRACT-IDENTITY-STRUCTURAL.** (split-of:REVIEW-SINGLE-PROJECTION)
+  Checked contract identities are still built from hand-rolled byte strings:
+  `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/facts/canonical_encoding.rs`
+  (`encode_contract_set_canonical`, `encode_type_spelling`) and the
+  `callable_shape` byte vectors in `facts/contract_plan_facts.rs` and
+  `facts/crash_plan_facts.rs` feed `checked_trees::contract_identity`, whose
+  commitments reach package policy rows as `realization_contract_commitment`.
+  Derive the identity from the checked contract structure and delete the byte
+  encoders. Acceptance: `canonical_encoding.rs` and every `callable_shape`
+  vector are gone; corpus `--filter packages` and `--filter contracts` are
+  unchanged.
 
 - **REVIEW-BOUND-PASS-RECHECKS.** (new-scope) Package review's bound pass
   (`omega-rust/omega/packages/package-manager/src/review/candidate/compilation.rs`)
@@ -3426,12 +3400,10 @@ of a check the same flow already performed, not the check itself.
   whose typed program is unchanged, and review output for that command is
   unchanged.
 
-- **REVIEW-CACHE-PLAIN-DECODE.** (new-scope) Depends on
-  **REVIEW-SINGLE-PROJECTION**.
+- **REVIEW-CACHE-PLAIN-DECODE.** (new-scope)
   `omega-rust/omega/packages/package-manager/src/review/candidate/review_cache.rs::into_review_and_facts`
-  decodes every row, recovers the projection, `recover_canonical`s the policy,
-  requires byte-identical re-encoding, re-encodes the ledger, and re-derives
-  the source-consumption commitment. The SHA-256 trailer already rejects
+  `recover_canonical`s the policy, requires byte-identical re-encoding, and
+  re-derives the policy rows and commitment. The SHA-256 trailer already rejects
   corruption, and a writer to the local cache could equally write the lock.
   Decode once, with no re-encode comparison. Stop lowering each fresh
   dependency to Terminal (`publish_checked_component`) just to store a cache

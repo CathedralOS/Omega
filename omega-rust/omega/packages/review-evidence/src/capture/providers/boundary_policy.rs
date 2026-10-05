@@ -17,14 +17,11 @@ pub fn project_checked_boundary_application_policy<'a>(
     package: PackageKeyIdentity,
 ) -> Result<PackagePolicyBoundaryApplications, Vec<Diagnostic>> {
     let compilation = &input.into();
-    let (providers, indices) = super::policy::project_with_indices(compilation, target, package)?;
+    let (_providers, indices) = super::policy::project_with_indices(compilation, target, package)?;
     let policy = PackagePolicyBoundaryApplications {
         demands: demands::project(compilation, package)?,
-        realizations: realizations::project(compilation, package, &providers, &indices)?,
+        realizations: realizations::project(compilation, package, &indices)?,
     };
-    policy
-        .validate_canonical_structure(package, target, &providers)
-        .map_err(rejected)?;
     Ok(policy)
 }
 

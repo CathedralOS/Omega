@@ -7,8 +7,6 @@ use crate::capture::semantics::declarations::{
 use crate::capture::semantics::signatures::parameters::project_type_parameters;
 use crate::capture::semantics::types::review_type_identity_with_binders;
 use crate::capture::source::ProjectedReviewRow;
-use crate::capture::source::contracts::project_required_proof_fact_source_locations;
-use crate::capture::source::parameters::collect_type_parameter_source_locations;
 use crate::record::{
     PackageReviewDomainClassification, PackageReviewDomainSemanticRole, PackageReviewDomainShape,
     PackageReviewNominalIdentity,
@@ -77,16 +75,6 @@ pub(crate) fn project_public_domains(
                 establishment_routes,
             },
             declaration: definition.symbol,
-            nested_source_locations: {
-                let mut locations = Vec::new();
-                collect_type_parameter_source_locations(compilation, parameters, &mut locations)?;
-                locations.extend(project_required_proof_fact_source_locations(
-                    compilation,
-                    definition.facts,
-                    "public domain predicate",
-                )?);
-                locations
-            },
         });
     }
     rows.sort_by(|left, right| left.row.identity.cmp(&right.row.identity));

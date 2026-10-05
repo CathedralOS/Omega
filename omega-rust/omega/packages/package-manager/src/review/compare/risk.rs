@@ -1,22 +1,31 @@
 //! Highest changed-row risk used by review triage.
 
 use crate::review::candidate::PackageReviewEvidence;
-use package_evidence::record::{
-    PackageReviewCanonicalRow, PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk,
-};
+use package_evidence::record::{PackagePolicyRow, PackagePolicyRowKind};
 use std::cmp::Ordering;
 
-/// Highest policy risk among changed canonical rows. A whole-review change
-/// not represented by rows fails closed as opaque blocking here; the explicit
-/// comparator reports the stronger structural error.
+/// Risk of one changed policy row, ordered from least to most severe.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) enum ChangedRowRisk {
+    /// The change needs no decision but an audit is recommended.
+    AuditRecommended,
+    /// The change needs an explicit decision.
+    Blocking,
+}
+
+/// Highest risk among the policy rows that differ between baseline and
+/// candidate, or `None` when no row requiring a decision or recommending an
+/// audit changed. A policy change that shows up in no row fails closed as
+/// blocking.
 pub(crate) fn changed_review_risk(
     baseline: &impl PackageReviewEvidence,
     candidate: &impl PackageReviewEvidence,
-) -> Option<PackageReviewCanonicalRowRisk> {
-    let baseline_rows = baseline.canonical_rows();
-    let candidate_rows = candidate.canonical_rows();
+) -> Option<ChangedRowRisk> {
+    let baseline_rows = baseline.policy_rows();
+    let candidate_rows = candidate.policy_rows();
     let mut baseline_index = 0usize;
     let mut candidate_index = 0usize;
+    let mut row_changed = false;
     let mut changed = None;
     while baseline_index < baseline_rows.len() || candidate_index < candidate_rows.len() {
         let baseline_row = baseline_rows.get(baseline_index);
@@ -46,38 +55,31 @@ pub(crate) fn changed_review_risk(
         {
             continue;
         }
-        let row_risk = merge_risk(
-            baseline_row.map(PackageReviewCanonicalRow::risk),
-            candidate_row.map(PackageReviewCanonicalRow::risk),
-        );
-        changed = Some(merge_risk(changed, Some(row_risk)));
+        row_changed = true;
+        let row_risk = [baseline_row, candidate_row]
+            .into_iter()
+            .flatten()
+            .filter_map(row_risk)
+            .max();
+        changed = changed.max(row_risk);
     }
-    if changed.is_none()
-        && baseline.whole_review_commitment() != candidate.whole_review_commitment()
-    {
-        Some(PackageReviewCanonicalRowRisk::OpaqueBlocking)
+    if !row_changed && baseline.policy_commitment() != candidate.policy_commitment() {
+        Some(ChangedRowRisk::Blocking)
     } else {
         changed
     }
 }
 
-fn row_coordinate(row: &PackageReviewCanonicalRow) -> (PackageReviewCanonicalRowKind, &[u8]) {
-    (row.kind(), row.key_bytes())
+fn row_risk(row: &PackagePolicyRow) -> Option<ChangedRowRisk> {
+    if row.update_requires_decision() {
+        Some(ChangedRowRisk::Blocking)
+    } else if row.audit_recommended_on_change() {
+        Some(ChangedRowRisk::AuditRecommended)
+    } else {
+        None
+    }
 }
 
-fn merge_risk(
-    baseline: Option<PackageReviewCanonicalRowRisk>,
-    candidate: Option<PackageReviewCanonicalRowRisk>,
-) -> PackageReviewCanonicalRowRisk {
-    if baseline == Some(PackageReviewCanonicalRowRisk::OpaqueBlocking)
-        || candidate == Some(PackageReviewCanonicalRowRisk::OpaqueBlocking)
-    {
-        PackageReviewCanonicalRowRisk::OpaqueBlocking
-    } else if baseline == Some(PackageReviewCanonicalRowRisk::Blocking)
-        || candidate == Some(PackageReviewCanonicalRowRisk::Blocking)
-    {
-        PackageReviewCanonicalRowRisk::Blocking
-    } else {
-        PackageReviewCanonicalRowRisk::AuditRecommended
-    }
+fn row_coordinate(row: &PackagePolicyRow) -> (PackagePolicyRowKind, &[u8]) {
+    (row.kind(), row.key_bytes())
 }

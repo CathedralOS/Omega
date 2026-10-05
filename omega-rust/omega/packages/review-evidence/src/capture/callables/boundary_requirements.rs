@@ -4,18 +4,9 @@
 //! provider: selected-provider policy independently replays that decision.
 
 use super::super::semantics::declarations::top_level_requirement_identity;
-use super::super::semantics::signatures::parameters::project_type_parameters;
-use super::external_supply::{
-    external_binding_matches_provider_binding, project_external_executable_supply_with_source,
-};
-use super::signatures::project_external_callable_signature;
+use super::external_supply::external_binding_matches_provider_binding;
 use crate::capture::PackageReviewInput;
-use crate::capture::source::ProjectedReviewRow;
-use crate::record::{
-    PackageReviewConformanceBound, PackageReviewExternalBinding,
-    PackageReviewExternalCallableSignature, PackageReviewExternalExecutableSupply,
-    PackageReviewExternalRequirement, PackageReviewNominalIdentity,
-};
+use crate::record::{PackageReviewConformanceBound, PackageReviewExternalBinding};
 use diagnostics::Diagnostic;
 
 pub(super) fn project_checked_requirement_realization(
@@ -51,92 +42,6 @@ pub(super) fn project_checked_requirement_realization(
             .as_ref()
             .map(|alias| alias.as_str().to_owned()),
     })
-}
-
-pub(super) fn project_top_level_requirement_external_supply(
-    compilation: &PackageReviewInput<'_>,
-    machine: &typed_trees::machine::Machine,
-    conformance: &typed_trees::machine::TraitConformance,
-    requirement: &typed_trees::machine::Machine,
-    callable_identity: &PackageReviewNominalIdentity,
-    signature: &PackageReviewExternalCallableSignature,
-    binding: &PackageReviewExternalBinding,
-) -> Result<ProjectedReviewRow<PackageReviewExternalExecutableSupply>, Vec<Diagnostic>> {
-    if conformance.symbol != requirement.symbol
-        || conformance.requirement_symbol != requirement.symbol
-    {
-        return Err(vec![Diagnostic::error(format!(
-            "reviewed callable `{}` top-level requirement realization `{}` drifted from its retained exact overload",
-            machine.name, requirement.name
-        ))]);
-    }
-    // Review retains every boundary requirement, including private ones.
-    // Visibility controls source access, not whether its trust is audited.
-    let requirement_parameters = compilation.machine_type_parameters(requirement);
-    validation::revalidate_top_level_requirement_realization(
-        &compilation.typed,
-        machine,
-        requirement,
-        conformance,
-    )?;
-    // A compiler-intrinsic leaf is reviewable exactly where the intrinsic
-    // catalog keys on the requirement: a public nongeneric receiver-free
-    // top-level requirement has the same requirement view a named boundary
-    // operator has, and the selected-provider row projects its closed
-    // execution through that view.
-    if matches!(binding, PackageReviewExternalBinding::CompilerIntrinsic)
-        && provider_planning::IntrinsicRequirement::from_requirement(
-            &compilation.typed,
-            requirement,
-        )
-        .is_none()
-    {
-        return Err(vec![Diagnostic::error(format!(
-            "reviewed callable `{}` realizes top-level requirement `{}` through a compiler intrinsic whose closed execution is not yet represented by package review",
-            machine.name, requirement.name
-        ))]);
-    }
-    validate_selected_top_level_requirement_external_supply(
-        compilation,
-        machine,
-        requirement,
-        binding,
-    )?;
-    let (requirement_binders, _) = project_type_parameters(
-        compilation,
-        requirement_parameters,
-        "top-level requirement",
-        requirement.name.as_str(),
-        &requirement.lifetime_parameters,
-    )?;
-    let requirement_signature =
-        project_external_callable_signature(compilation, requirement, &requirement_binders)?;
-    if !provider_conformance_bounds_refine(
-        requirement_signature.conformance_bounds(),
-        signature.conformance_bounds(),
-    ) {
-        return Err(vec![Diagnostic::error(format!(
-            "reviewed callable `{}` realizes top-level requirement `{}` while demanding a conformance bound not guaranteed by the requirement",
-            machine.name, requirement.name
-        ))]);
-    }
-    project_external_executable_supply_with_source(
-        machine,
-        conformance,
-        PackageReviewExternalExecutableSupply {
-            callable: callable_identity.clone(),
-            signature: signature.clone(),
-            requirement: PackageReviewExternalRequirement::TopLevelRequirement {
-                identity: top_level_requirement_identity(compilation, requirement)?,
-                signature: requirement_signature,
-                alias: conformance
-                    .alias
-                    .as_ref()
-                    .map(|alias| alias.as_str().to_owned()),
-            },
-            binding: binding.clone(),
-        },
-    )
 }
 
 pub(super) fn provider_conformance_bounds_refine(

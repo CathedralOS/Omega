@@ -6,7 +6,6 @@ mod writer;
 pub(in crate::encoding) use framing::{HEADER, MAXIMUM_MARKUP_DEPTH, label};
 pub(in crate::encoding) use writer::Writer;
 
-pub const PACKAGE_POLICY_TEXT_VERSION: u16 = 1;
 pub(in crate::encoding) const MAXIMUM_TEXT_BYTES: usize = 32 * 1024 * 1024;
 
 impl PackagePolicyBaseline {
@@ -22,8 +21,6 @@ impl PackagePolicyBaseline {
     pub fn canonical_text_with_element_count(
         &self,
     ) -> Result<(String, usize), PackageReviewEncodingError> {
-        self.validate_canonical_structure()
-            .map_err(PackageReviewEncodingError::new)?;
         render_with_element_count(self, Writer::new(MAXIMUM_TEXT_BYTES, None))
     }
 }

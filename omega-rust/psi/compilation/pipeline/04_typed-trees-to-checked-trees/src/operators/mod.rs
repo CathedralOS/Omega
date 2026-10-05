@@ -693,18 +693,6 @@ fn builtin_float_operator_use_fact(
     })
 }
 
-pub(crate) fn resolve_builtin_float_operator_requirement(
-    program: &TypedTrees,
-    expression: ExpressionHandle,
-    origin: CheckedValueOrigin,
-) -> Option<SymbolHandle> {
-    let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
-        return None;
-    };
-    builtin_float_operator_selection(program, expression, origin, call)
-        .map(|(operator, _)| operator)
-}
-
 /// The requirement one `min`/`max`/`sqrt` shorthand selects: the visible
 /// tokenless `F32::`/`F64::` boundary operator of that name, or, when core
 /// spells it as a top-level `boundary requirement`, that requirement machine.

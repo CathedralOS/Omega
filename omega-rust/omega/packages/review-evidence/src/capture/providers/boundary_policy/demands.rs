@@ -13,10 +13,6 @@ pub(super) fn project(
     compilation: &PackageReviewInput<'_>,
     package: PackageKeyIdentity,
 ) -> Result<Vec<PackagePolicyBoundaryApplicationDemand>, Vec<Diagnostic>> {
-    // Reuse the complete authored-use, binder-category and source-owner joins.
-    // Iterate the original exact handles afterward: the legacy display-nominal
-    // row may deduplicate two overloads with the same authored machine name.
-    super::super::symbolic_demands::project_boundary_application_demands(compilation, package)?;
     let mut rows = Vec::new();
     for demand in &compilation.facts.operators.symbolic_boundary_applications {
         let machine = compilation

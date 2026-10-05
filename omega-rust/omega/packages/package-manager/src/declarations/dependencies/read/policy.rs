@@ -6,7 +6,6 @@ use syntax_trees::expression::{ExpressionHandle, ExpressionNode};
 use syntax_trees::item::{CapabilityMember, ConformanceBody, ConformanceMember, Item};
 use syntax_trees::statement::{StatementHandle, StatementNode};
 
-
 pub(super) fn reject_authored_toolchain_vocabulary(
     syntax_trees: &SyntaxTrees,
 ) -> Result<(), DependencyProjectionError> {

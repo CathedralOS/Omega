@@ -3,8 +3,8 @@ use crate::capture::semantics::declarations::{
     is_product_scope_instance, nominal_identity, reviewed_package_owns,
 };
 use crate::capture::semantics::types::review_type_identity_with_binders;
-use crate::capture::source::{ProjectedNestedSourceLocation, ProjectedReviewRow};
-use crate::record::{PackageReviewConstShape, PackageReviewSourceLocationRole};
+use crate::capture::source::ProjectedReviewRow;
+use crate::record::PackageReviewConstShape;
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
 
@@ -50,10 +50,6 @@ pub(crate) fn project_public_consts(
                 canonical_value_encoding,
             },
             declaration: declaration.symbol,
-            nested_source_locations: vec![ProjectedNestedSourceLocation {
-                source_span: declaration.initializer_source_span,
-                role: PackageReviewSourceLocationRole::ConstInitializer,
-            }],
         });
     }
     rows.sort_by(|left, right| left.row.identity.cmp(&right.row.identity));

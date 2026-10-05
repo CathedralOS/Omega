@@ -7,11 +7,5 @@ pub(in crate::encoding::recovery) mod values;
 
 pub(in crate::encoding::recovery) use data::data_member;
 pub(in crate::encoding::recovery) use domains::{alias_atom, establishment_route};
-pub(in crate::encoding::recovery) use traits::conformance_shape;
 pub(in crate::encoding::recovery) use traits::trait_parent;
 pub(in crate::encoding::recovery) use values::{const_shape, operator_spelling, proposition_shape};
-
-pub(in crate::encoding::recovery) use data::data_shape;
-pub(in crate::encoding::recovery) use domains::domain_shape;
-pub(in crate::encoding::recovery) use traits::trait_shape;
-pub(in crate::encoding::recovery) use values::operator_shape;

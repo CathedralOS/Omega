@@ -102,7 +102,6 @@ pub fn project_checked_representation_policy<'a>(
         selected_availability,
         demands,
     };
-    policy.validate_canonical_structure().map_err(rejected)?;
     Ok(policy)
 }
 

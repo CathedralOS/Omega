@@ -111,20 +111,6 @@ pub fn typed_operator_authored_selection_candidates(
     authored_selections::typed_operator_authored_selection_candidates(program, expression)
 }
 
-/// Independently rederive the exact visible boundary requirement selected by
-/// one normalized `min`, `max`, or `sqrt` builtin call: the tokenless
-/// `F32::`/`F64::` boundary operator, or the top-level `boundary requirement`
-/// machine when core spells the slot that way. This compiler-private seam
-/// lets selected execution reject drift without trusting the checked fact it
-/// is validating.
-pub fn resolve_checked_builtin_float_operator_requirement(
-    program: &typed_trees::TypedTrees,
-    expression: typed_trees::expression::ExpressionHandle,
-    origin: checked_trees::CheckedValueOrigin,
-) -> Option<symbols::SymbolHandle> {
-    operators::resolve_builtin_float_operator_requirement(program, expression, origin)
-}
-
 /// Derive declaration-level operator selections on the current typed graph.
 /// This reuses the checked value-origin traversal, but performs no flow proof
 /// or whole-program validation. Consumers must reject unresolved selections;
@@ -290,17 +276,4 @@ pub fn infer_machine_termination_summary(
     Some(checks::termination::infer_machine_checked_summary(
         program, machine,
     ))
-}
-
-/// Read the exact authored source span retained when checked call identity was
-/// still joined to its typed owner. Compiler-generated calls contribute no
-/// authored location.
-///
-/// This is a compiler-internal package-review seam, not a public IR contract.
-pub fn derive_checked_body_call_source_spans(
-    program: &typed_trees::TypedTrees,
-    facts: &checked_trees::CheckFacts,
-    machine_symbol: symbols::SymbolHandle,
-) -> Result<Vec<source::SourceSpan>, Vec<diagnostics::Diagnostic>> {
-    facts::review_sources::derive_checked_body_call_source_spans(program, facts, machine_symbol)
 }

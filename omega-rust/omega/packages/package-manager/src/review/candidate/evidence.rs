@@ -2,11 +2,11 @@
 
 use crate::declarations::PackageKey;
 use crate::review::CompilerIssuedPackageReview;
-use package_evidence::record::PackageReviewCanonicalRow;
+use package_evidence::record::PackagePolicyRow;
 use package_source::ImmutableSourceResolution;
 
+use super::build_observation_commitment;
 use super::rows::ReviewOnlySourceConsumptionCommitment;
-use super::{build_observation_commitment, whole_review_commitment};
 
 /// The package-manager-facing view of compiler review facts used by comparison
 /// and source-triage operations.
@@ -20,10 +20,8 @@ pub(crate) trait PackageReviewEvidence {
     fn target_name(&self) -> &str;
     fn source_consumption_commitment(&self) -> ReviewOnlySourceConsumptionCommitment;
     fn build_observation_commitment(&self) -> Option<[u8; 32]>;
-    fn whole_review_commitment(&self) -> [u8; 32];
-    // Borrow the issued rows: row bytes are not admission authority, and a
-    // second owned representation would not establish any additional check.
-    fn canonical_rows(&self) -> &[PackageReviewCanonicalRow];
+    fn policy_commitment(&self) -> [u8; 32];
+    fn policy_rows(&self) -> &[PackagePolicyRow];
 }
 
 impl PackageReviewEvidence for CompilerIssuedPackageReview {
@@ -36,11 +34,11 @@ impl PackageReviewEvidence for CompilerIssuedPackageReview {
     }
 
     fn projection_identity_matches(&self) -> bool {
-        self.projection().package() == self.key().identity()
+        self.policy().package() == self.key().identity()
     }
 
     fn target_name(&self) -> &str {
-        self.projection().target().target_name()
+        self.policy().target().target_name()
     }
 
     fn source_consumption_commitment(&self) -> ReviewOnlySourceConsumptionCommitment {
@@ -52,11 +50,11 @@ impl PackageReviewEvidence for CompilerIssuedPackageReview {
             .map(build_observation_commitment)
     }
 
-    fn whole_review_commitment(&self) -> [u8; 32] {
-        whole_review_commitment(self.canonical_review_bytes())
+    fn policy_commitment(&self) -> [u8; 32] {
+        CompilerIssuedPackageReview::policy_commitment(self)
     }
 
-    fn canonical_rows(&self) -> &[PackageReviewCanonicalRow] {
-        CompilerIssuedPackageReview::canonical_rows(self)
+    fn policy_rows(&self) -> &[PackagePolicyRow] {
+        CompilerIssuedPackageReview::policy_rows(self)
     }
 }

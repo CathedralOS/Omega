@@ -7,8 +7,7 @@ audit occurred.
 Capture consumes the immutable `CheckedCompilation` product directly from
 `compilation-products`. Production review has no dependency on the compiler
 coordinator or Build evaluator; compiler execution is a test-only dependency for
-constructing fixtures. Source and selection custody still undergo independent
-reconstruction before review rows are issued.
+constructing fixtures.
 
 Start at [`src/lib.rs`](src/lib.rs), then follow the question you are asking:
 
@@ -17,16 +16,12 @@ src/
 ├── lib.rs       public entrance
 ├── record/      what stable package-review facts exist
 ├── capture/     how checked compiler state produces those facts
-├── encoding/    how facts are canonically encoded and recovered
-└── ledger/      how rows and supported open results are reconstructed locally
+└── encoding/    how facts are canonically encoded and recovered
 ```
 
 The ratified package workflow uses compiler-derived reachability, unsafe API,
 and assumption facts for review. The lock records pins, the graph, accepted
-baselines, and decisions; the project trusts whoever lands it. The existing
-ledger and manager promotion machinery described here is not a requirement
-for certified lock acceptance and is to be simplified where it duplicates
-compiler checks. Compiler proof/reach and native artifact checks retain their
+baselines, and decisions; the project trusts whoever lands it. Compiler proof/reach and native artifact checks retain their
 independent roles. The [review specification](../../../../wiki/spec/packages/review.md)
 owns those distinctions; [capture joins](capture.md) maps their compiler inputs
 and explanatory source roles.
@@ -36,7 +31,7 @@ and explanatory source roles.
 `record/` is the source-handle-free review vocabulary. Begin with
 `record.rs`; its children group package identity, public signatures and
 contracts, authority and behavior, representation commitments, complete
-package records, and canonical rows. It does not inspect compiler state or
+package records, and policy rows. It does not inspect compiler state or
 encode persistence bytes.
 
 The representation projection records package-owned opaque data as `Unbound`
@@ -60,7 +55,7 @@ certified `PackageInstance` or lock-promotion stage.
 ## Capture
 
 `capture/` is the only compiler-facing branch. Begin with `capture.rs`,
-then follow `package/` for whole-package assembly, `api/` for public
+then follow `package_policy.rs` for whole-package assembly, `api/` for public
 declarations, `callables/` for machines and realizations, `providers/` for
 selection, `behavior/` for operational facts, `contracts/` for checked facts,
 `semantics/` for typed identity, or `source/` for authored custody. Capture may
@@ -71,40 +66,15 @@ and routes value forms, operator forms, calls, and members into named semantic
 leaves. Its siblings own the narrower checked-resolution joins reused by that
 descent.
 
-`capture/providers/symbolic_demands.rs` retains the first producer-side D29
-exchange form: an authored named boundary use in a public generic callable
-whose operator type binders map directly to callable type binders. The row is
-package-qualified and blocking, but intentionally carries no provider,
-realization, coverage, Terminal, native, admission, or audit claim. Foreign
-specialization and final closed substitution remain downstream composition
-work.
-
-The producer rechecks the public callable owner, exact operator declaration,
-nonempty telescope, and direct type-binder ordinal/symbol correspondence.
-Private callables do not export rows; nested symbolic types, const/lifetime/
-machine binders, fixed-token uses, and statement uses are outside this bounded
-producer. [Boundary application controls](tests/boundary_application_policy.rs)
-pin the receipt-free projection. Checked supplied substitutions must not be
-reported as the complete reachable demand set; the
-[application contract](../../../../wiki/spec/terminal-psi/boundary_calls.md#operator-applications-and-physical-children)
-keeps that obligation distinct from coverage and admission.
-
-## Encoding and ledger
+## Encoding
 
 The [normalized policy baseline contract](POLICY_BASELINE.md) describes the
 receipt-free components retained in the lock. Detailed encoding belongs here;
 it does not add an audit or certification workflow to installation.
 
 `encoding/` owns canonical framing and bounded recovery. It consumes only
-stable records and does not inspect compiler IR. `ledger/` owns the distinct
-local reconstruction question: recovered producer rows remain inert until the
-selected local compiler reconstructs the complete row set and requires exact
-equality.
-
-Fresh manager review uses `ledger::reconstruct_package_review`: one checked
-compilation produces its projection, canonical rows, ledger, and results
-together. Result lanes borrow the ledger's sorted kind ranges; discharge
-certificates are still rejoined and rechecked.
+stable records and does not inspect compiler IR. Capture and encoding trust
+the compilation they read; only recovery of stored bytes validates structure.
 
 `project_checked_external_supply_policy` captures an exact checked machine's
 external executable supplies, retaining
@@ -122,8 +92,7 @@ selected-provider binding and the external-supply binding) is rejected by name
 and never reassigned, so the component versions stay unchanged while every
 value the current toolchain can produce keeps its exact bytes;
 caller ceilings can lower the hard byte, aggregate-element, owned-storage, and
-nesting limits. The existing full-review encoding and validators are unchanged.
-This component is not an accepted-lock record or an acceptance decision.
+nesting limits. This component is not an accepted-lock record or an acceptance decision.
 
 `project_checked_representation_policy` captures complete representation policy
 for one package in the checked closure. It keeps opaque declarations, full
@@ -139,13 +108,11 @@ The `OMEGA-REPRESENTATION-POLICY` version-4 encoding embeds full calling and
 conformance meanings under one recovery budget. It checks exact ownership,
 producer/selection associations, and complete opaque-use coverage within each
 retained calling application. This is inert policy, not reconstructed native
-evidence or an accepted lock. The older representation-TCB review rows and
-their replay-bearing encoding remain unchanged.
+evidence or an accepted lock.
 
 `project_checked_selected_provider_policy` captures the selected closure owned
-by one exact checked root activation and target. It independently validates
-typed schema/realization associations and reharvests authored selections and
-grants. Its service signatures retain structured type ownership and static
+by one exact checked root activation and target. It projects typed
+schema/realization associations, authored selections, and grants. Its service signatures retain structured type ownership and static
 contracts even without a physical calling plan. With a calling plan, the exact
 selected schema application and declaring requirement rejoin the complete
 calling component. Service reach, direct invocations, progress-profile subjects,
@@ -167,8 +134,8 @@ The `OMEGA-SELECTED-PROVIDER-POLICY` version-4 component places grants inside
 their complete normalized plan and links atomic family coordinates by canonical
 plan index. Recovery checks complete family coverage and typed structural
 associations under one shared resource budget. Generic declaration families
-remain distinct from actual D29 demands and realization evidence. Neither this
-component nor the existing review encoding is an acceptance decision;
+remain distinct from actual D29 demands and realization evidence. This
+component is not an acceptance decision;
 lock recovery and transactions remain separate work.
 
 `project_checked_terminal_permission_policy` retains supplied permissions
@@ -181,8 +148,7 @@ class set is distinct from no permission. The bounded
 `OMEGA-TERMINAL-PERMISSION-POLICY` version-4 component shares the service codec
 and one recovery budget with nested contracts and calling applications.
 
-Legacy review and policy capture share exact accepted-service and inherited
-requirement joins. Existing accepted schema digests remain compiler matching
+Existing accepted schema digests remain compiler matching
 inputs, not baseline payload. In particular, UEFI's semantic-only accepted
 schema still omits its separately owned calling receipts. Retaining the checked
 calling context in the baseline neither changes that permission key nor grants
@@ -221,12 +187,10 @@ state coordinates. Caller-local capability flows and the exact reachable-machine
 flow union are separate; private helper names and unreachable helper authority
 do not enter either policy identity.
 
-Capture rejoins the retained checked owners and authored declarations before
-normalization. Recovery restores typed records with one shared budget for nested
+Recovery restores typed records with one shared budget for nested
 signatures and expressions, checks scope and structural associations, and
 requires exact canonical re-encoding. Neither operation recovers proof or crash
-derivation tables, grants authority, or certifies an assumption. The existing
-review encoding is unchanged.
+derivation tables, grants authority, or certifies an assumption.
 
 `project_checked_package_policy` composes `PackagePolicyBaseline` for one exact
 checked root package and target. Its version-4 `OMEGA-PACKAGE-POLICY` envelope
@@ -255,8 +219,7 @@ cross-component associations, then exact re-encoding. It needs no old checkout.
 This is not a lock or a policy decision: the manager's
 [lock format](../package-manager/src/lock/README.md) joins it to source pins, the graph,
 and historical decisions. Source locations, proof certificates,
-stand-down/discharge records and replay receipts are excluded. Fresh compiler
-stand-down and discharge validation remains independently required at admission.
+stand-down/discharge records and replay receipts are excluded.
 
 `PackagePolicyBaseline::canonical_text()` presents the same complete traversal
 as named fields, explicit optional values and ordered sequences, decimal scalars,
@@ -294,8 +257,7 @@ recovery nor comparison requires compiling old source.
 Projection bounds the complete row table, retained key/binary/text buffers,
 aggregate structural traversal, and nesting. It measures output before reserving
 storage and reports usage so a manager can share ceilings across both complete
-graphs. Sizing and emission both consume the structural budget. Existing whole
-policy binary/text formats and legacy compiler-review rows remain unchanged.
+graphs. Sizing and emission both consume the structural budget.
 Changing a field name, variant label, order, escape, or container cannot preserve
 an accepted text record merely by retaining its binary scalars.
 
@@ -328,30 +290,9 @@ One lowerable node, depth, and requested-unescape-storage budget spans both
 identity grammars. Returned plain usage lets enclosing locks debit subsequent
 baselines instead of resetting their aggregate resources.
 
-The supported result lanes do not pretend to prove a bodyless accepted claim,
-grant dangerous authority, validate externally supplied executable code, or
-exercise or admit a terminal-authority permission. `ledger/results.rs` rejoins
-each typed compiler fact to its canonical row and assigns `OpenRootAdmission`,
-`OpenLaterDischarge`, or one concrete `Discharged` result. The first discharge
-class matches an exact compiler-owned assumption certificate to the reviewed
-callable, contract/fact coordinates, and strong contract commitment, then
-independently reconstructs and checks it through the proof kernel. Missing,
-unsupported, malformed, duplicated, or nonjoining certificates leave the
-obligation open or reject. The manager may propagate remaining open obligations
-to a consuming root, but root policy cannot admit a later-discharge obligation.
+The crate root exports `project_checked_package_policy` and
+`project_checked_terminal_permission_policy`. The manager owns comparison and
+policy; the entrance admits no package or executable operation.
 
-The source-handle-free discharge now has its own canonically encoded review
-row beside the still-blocking stand-down row. Fresh capture and ordinary-ledger
-replay independently recheck its exact semantic/kernel question before the
-local result closes that obligation. These checks concern an actual compiler
-proof question, not certification of lock acceptance. Neither row
-is a root-policy decision or package-admission authority.
-
-The crate root exports `project_checked_package_review` for ordinary checked
-review. The manager owns comparison and policy; the entrance admits no package
-or executable operation.
-
-The canonical review schema is version 138, row schema version 96, and
-canonical-row recovery envelope version 23. Exact vocabulary and revision
-notes live in
+Exact component vocabulary and revision notes live in
 [`EVIDENCE_SCHEMA.md`](EVIDENCE_SCHEMA.md).

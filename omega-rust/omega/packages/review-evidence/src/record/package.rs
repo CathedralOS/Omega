@@ -15,18 +15,15 @@ pub use callable_policy::{
 };
 #[allow(clippy::module_inception)]
 // This file groups record modules; `package` holds the package record itself.
-mod package;
 mod provider_policy;
 mod providers;
-mod source;
 mod terminal_permissions;
 
 pub use terminal_permissions::{
     PackagePolicyTerminalPermission, PackagePolicyTerminalPermissions, PackagePolicyTerminalService,
 };
 
-pub use callables::{CheckedPackageCallableReview, PackageReviewCheckedServiceReach};
-pub use package::CheckedPackageReviewProjection;
+pub use callables::PackageReviewCheckedServiceReach;
 pub use provider_policy::{
     PackagePolicyProviderBinding, PackagePolicyProviderEvaluatedSyscall,
     PackagePolicyProviderFamily, PackagePolicyProviderFamilyCoordinate, PackagePolicyProviderPlan,
@@ -35,15 +32,9 @@ pub use provider_policy::{
     PackagePolicyServiceProgressRoute, PackagePolicyServiceSignature,
 };
 pub use providers::{
-    CheckedPackageBoundaryApplicationDemandReview,
-    CheckedPackageBoundaryApplicationRealizationReview,
-    CheckedPackageProviderFamilyCoordinateReview, CheckedPackageProviderFamilyReview,
-    CheckedPackageProviderReview, CheckedPackageProviderRowIdentity,
-    PackageReviewBoundaryApplication, PackageReviewBoundaryApplicationArgument,
-    PackageReviewBoundaryApplicationRealization, PackageReviewBoundaryApplicationRealizationRole,
+    CheckedPackageBoundaryApplicationRealizationReview, PackageReviewBoundaryApplication,
+    PackageReviewBoundaryApplicationArgument, PackageReviewBoundaryApplicationRealization,
     PackageReviewCompilerIntrinsicExecution, PackageReviewProviderFamilyCoverage,
     PackageReviewProviderGrantSelectorKind, PackageReviewProviderSelectionAuthority,
-    PackageReviewSelectedInstallationReach, PackageReviewSelectedProviderGrant,
-    PackageReviewSymbolicBoundaryApplicationArgument,
+    PackageReviewSelectedInstallationReach, PackageReviewSymbolicBoundaryApplicationArgument,
 };
-pub(crate) use source::PackageReviewCanonicalRowSources;

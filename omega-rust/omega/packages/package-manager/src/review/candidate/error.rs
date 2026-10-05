@@ -96,10 +96,6 @@ pub enum CompileResolvedPackageReviewsError {
         package: PackageKey,
         role: BuildDeclarationKind,
     },
-    RetainedObligationLedgerBudget {
-        package: PackageKey,
-        maximum_bytes: usize,
-    },
     RetainedPolicyCanonicalBudget {
         package: PackageKey,
         maximum_bytes: usize,
@@ -242,14 +238,6 @@ impl fmt::Display for CompileResolvedPackageReviewsError {
             Self::InvalidProductionRootRole { package, role } => write!(
                 formatter,
                 "reviewed native production requires application root `{}`; found {role:?}",
-                package.name().as_str()
-            ),
-            Self::RetainedObligationLedgerBudget {
-                package,
-                maximum_bytes,
-            } => write!(
-                formatter,
-                "retained ordinary obligation ledgers exceeded the {maximum_bytes}-byte review-session ceiling while compiling package `{}`",
                 package.name().as_str()
             ),
             Self::RetainedPolicyCanonicalBudget {

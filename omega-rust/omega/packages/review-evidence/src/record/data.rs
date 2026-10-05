@@ -88,44 +88,4 @@ pub struct PackageReviewDataShape {
     pub(crate) members: Vec<PackageReviewDataMember>,
 }
 
-impl PackageReviewDataShape {
-    pub const fn identity(&self) -> &PackageReviewNominalIdentity {
-        &self.identity
-    }
-
-    pub const fn kind(&self) -> &PackageReviewDataKind {
-        &self.kind
-    }
-
-    pub const fn supply(&self) -> language_semantics::DataSupplyMode {
-        self.supply
-    }
-
-    pub const fn lifetime_parameter_count(&self) -> usize {
-        self.lifetime_parameter_count
-    }
-
-    pub fn type_parameters(&self) -> &[PackageReviewTypeParameter] {
-        &self.type_parameters
-    }
-
-    pub const fn properties(&self) -> PackageReviewDataProperties {
-        self.properties
-    }
-
-    pub const fn zero_gated(&self) -> bool {
-        self.zero_gated
-    }
-
-    pub fn invariants(&self) -> &[PackageReviewContractFact] {
-        &self.invariants
-    }
-
-    pub fn retired_identities(&self) -> &[u64] {
-        &self.retired_identities
-    }
-
-    pub fn members(&self) -> &[PackageReviewDataMember] {
-        &self.members
-    }
-}
+impl PackageReviewDataShape {}

@@ -1,25 +1,18 @@
-//! Canonical exact association ordering for legacy and policy projections.
+//! Canonical exact association ordering for callable policy rows.
 
-use crate::capture::source::ProjectedReviewRow;
-use crate::record::{
-    PackagePolicyCallableConformance, PackageReviewCallableConformance,
-    PackageReviewExternalExecutableSupply, PackageReviewOperatorRealization,
-};
+use crate::record::{PackagePolicyCallableConformance, PackageReviewOperatorRealization};
 use diagnostics::Diagnostic;
 
 pub(super) fn finish(
     subject: &str,
-    projected: &mut [PackageReviewCallableConformance],
+    conformances: &mut [PackagePolicyCallableConformance],
     operator_realizations: &mut [PackageReviewOperatorRealization],
     requirement_realizations: &mut [crate::record::PackageReviewRequirementRealization],
-    external_executable_supply: &mut [ProjectedReviewRow<PackageReviewExternalExecutableSupply>],
-    policy: Option<&mut Vec<PackagePolicyCallableConformance>>,
 ) -> Result<(), Vec<Diagnostic>> {
-    projected.sort();
-    if policy.is_none() && projected.windows(2).any(|rows| rows[0] == rows[1]) {
+    conformances.sort();
+    if conformances.windows(2).any(|rows| rows[0] == rows[1]) {
         return Err(vec![Diagnostic::error(format!(
-            "reviewed callable `{}` contains a duplicate exact trait realization",
-            subject
+            "reviewed callable {subject} repeats an exact policy conformance application"
         ))]);
     }
     operator_realizations.sort();
@@ -28,8 +21,7 @@ pub(super) fn finish(
         .any(|rows| rows[0] == rows[1])
     {
         return Err(vec![Diagnostic::error(format!(
-            "reviewed callable `{}` contains a duplicate exact operator realization",
-            subject
+            "reviewed callable `{subject}` contains a duplicate exact operator realization"
         ))]);
     }
     requirement_realizations.sort();
@@ -40,24 +32,6 @@ pub(super) fn finish(
         return Err(vec![Diagnostic::error(format!(
             "reviewed callable `{subject}` contains a duplicate exact top-level requirement realization"
         ))]);
-    }
-    external_executable_supply.sort_by(|left, right| left.row.cmp(&right.row));
-    if external_executable_supply
-        .windows(2)
-        .any(|rows| rows[0].row == rows[1].row)
-    {
-        return Err(vec![Diagnostic::error(format!(
-            "reviewed external callable `{}` contains duplicate executable-supply identity",
-            subject
-        ))]);
-    }
-    if let Some(policy) = policy {
-        policy.sort();
-        if policy.windows(2).any(|rows| rows[0] == rows[1]) {
-            return Err(vec![Diagnostic::error(format!(
-                "reviewed callable {subject} repeats an exact policy conformance application"
-            ))]);
-        }
     }
     Ok(())
 }

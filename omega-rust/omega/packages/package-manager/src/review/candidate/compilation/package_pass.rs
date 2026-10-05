@@ -18,17 +18,12 @@ use crate::build_session::{
 };
 use compilation_products::CheckedCompileRequest;
 
-use super::super::rows::RetainedReviewRows;
 use super::super::semantic_bindings::{
     SemanticBindingReviewCandidate, candidate_hosted_exit_bindings, candidate_service_bindings,
     candidate_target_entry_binding,
 };
 use super::super::{
     CompileResolvedPackageReviewsError, CompilerIssuedPackageReview, CompilerIssuedPackageReviewSet,
-};
-use super::ledger::{
-    MAXIMUM_RETAINED_ORDINARY_LEDGER_BYTES, reserve_retained_obligation_ledger_bytes,
-    retained_obligation_ledger_bytes,
 };
 use crate::declarations::DependencyPurpose;
 use crate::declarations::PackageKey;
@@ -45,7 +40,6 @@ use diagnostics::Diagnostic;
 use package_compilation::{
     AcceptedSemanticBinding, PackageCompilationInputError, PackageCompilationInputs,
 };
-use package_evidence::ledger::{ReconstructedPackageReview, reconstruct_package_review};
 use package_evidence::record::PackagePolicyRowKind;
 use std::collections::BTreeMap;
 use std::path::Path;
@@ -88,9 +82,6 @@ pub(super) struct RetainedOccurrenceCompile {
     /// Canonical-policy bytes this occurrence's review added to the running
     /// retained-policy total.
     pub(super) policy_canonical_bytes: usize,
-    /// Retained-obligation bytes this occurrence's review added to the
-    /// running ledger total.
-    pub(super) obligation_ledger_bytes: usize,
     /// Index of this occurrence's review inside the pass's review vector.
     pub(super) review: usize,
     /// The checked compilation itself — shared storage with the component
@@ -243,7 +234,6 @@ pub(super) fn compile_dependency_closure(
         reviews: Vec::with_capacity(roster.occurrence_count()),
         review_positions: vec![[None::<usize>; 2]; closure.graph().packages().len()],
         component_candidates: BTreeMap::new(),
-        retained_obligation_ledger_total: 0,
         occurrences: Vec::new(),
         carried_occurrences: 0,
         retained_policy_canonical_total: 0,
@@ -334,7 +324,6 @@ struct ClosurePass<'pass> {
     /// independent consumer.
     component_candidates:
         BTreeMap<(semantic_vocabulary::PackageKeyIdentity, DependencyPurpose), OccurrenceCompile>,
-    retained_obligation_ledger_total: usize,
     occurrences: Vec<RetainedOccurrenceCompile>,
     /// Occurrences carried forward instead of compiled.
     carried_occurrences: usize,
@@ -649,7 +638,6 @@ impl ClosurePass<'_> {
                     occurrence.checked.clone(),
                     review,
                     occurrence.policy_canonical_bytes,
-                    occurrence.obligation_ledger_bytes,
                 )
             })
             .or_else(|| {
@@ -668,35 +656,14 @@ impl ClosurePass<'_> {
                     build_snapshot,
                 )?)?;
                 let policy_canonical_bytes = record.policy_canonical_bytes()?;
-                let obligation_ledger_bytes = record.obligation_ledger_bytes()?;
                 let (review, facts) = record.into_review_and_facts(key, custody.resolution())?;
-                // A persisted entailment discharge replays inert: recovery
-                // keeps its obligation open by design, so a record carrying
-                // one can never stand in for the fresh compile that closed it.
-                if !review
-                    .projection()
-                    .contract_entailment_exit_membership_discharges()
-                    .is_empty()
-                    || !review
-                        .projection()
-                        .contract_entailment_assumption_discharges()
-                        .is_empty()
-                {
-                    return None;
-                }
                 let occurrence = OccurrenceCompile::Cached(Box::new(facts));
                 if occurrence.tolerated_unsettled_service_fields() {
                     return None;
                 }
-                Some((
-                    occurrence,
-                    review,
-                    policy_canonical_bytes,
-                    obligation_ledger_bytes,
-                ))
+                Some((occurrence, review, policy_canonical_bytes))
             });
-        let Some((compile, review, policy_canonical_bytes, obligation_ledger_bytes)) = carried
-        else {
+        let Some((compile, review, policy_canonical_bytes)) = carried else {
             return Ok(false);
         };
         compile
@@ -715,16 +682,6 @@ impl ClosurePass<'_> {
                         maximum_bytes: super::policy::MAXIMUM_RETAINED_POLICY_CANONICAL_BYTES,
                     }
                 })?;
-        self.retained_obligation_ledger_total = reserve_retained_obligation_ledger_bytes(
-            self.retained_obligation_ledger_total,
-            obligation_ledger_bytes,
-        )
-        .ok_or_else(|| {
-            CompileResolvedPackageReviewsError::RetainedObligationLedgerBudget {
-                package: key.clone(),
-                maximum_bytes: MAXIMUM_RETAINED_ORDINARY_LEDGER_BYTES,
-            }
-        })?;
         reject_ungranted_restricted_requests(
             self.restricted_build_checkpoint,
             closure,
@@ -756,7 +713,6 @@ impl ClosurePass<'_> {
             inputs: unanswered_inputs.clone(),
             build_snapshot: build_snapshot.clone(),
             policy_canonical_bytes,
-            obligation_ledger_bytes,
             review: review_position,
             checked: compile,
         });
@@ -984,22 +940,6 @@ impl ClosurePass<'_> {
                 package: key.clone(),
             });
         }
-        let ReconstructedPackageReview {
-            projection,
-            canonical_rows,
-            ledger: obligations,
-            results: obligation_results,
-        } = reconstruct_package_review(&checked).map_err(|diagnostics| {
-            CompileResolvedPackageReviewsError::Projection {
-                package: key.clone(),
-                diagnostics,
-            }
-        })?;
-        if projection.package() != key.identity() {
-            return Err(CompileResolvedPackageReviewsError::IdentityMismatch {
-                package: key.clone(),
-            });
-        }
         let (policy, policy_total) = super::policy::project(
             &checked,
             key,
@@ -1022,29 +962,13 @@ impl ClosurePass<'_> {
                     .map(|candidate| (purpose, candidate)),
             );
         }
-        let canonical_review_bytes = projection.canonical_review_bytes().map_err(|error| {
-            CompileResolvedPackageReviewsError::Encoding {
-                package: key.clone(),
-                error,
-            }
-        })?;
-        let obligations_bytes =
-            retained_obligation_ledger_bytes(&obligations).ok_or_else(|| {
-                CompileResolvedPackageReviewsError::RetainedObligationLedgerBudget {
+        let (policy_rows, policy_commitment) =
+            super::super::review_set::policy_rows_and_commitment(&policy).map_err(|error| {
+                CompileResolvedPackageReviewsError::Encoding {
                     package: key.clone(),
-                    maximum_bytes: MAXIMUM_RETAINED_ORDINARY_LEDGER_BYTES,
+                    error,
                 }
             })?;
-        self.retained_obligation_ledger_total = reserve_retained_obligation_ledger_bytes(
-            self.retained_obligation_ledger_total,
-            obligations_bytes,
-        )
-        .ok_or_else(|| {
-            CompileResolvedPackageReviewsError::RetainedObligationLedgerBudget {
-                package: key.clone(),
-                maximum_bytes: MAXIMUM_RETAINED_ORDINARY_LEDGER_BYTES,
-            }
-        })?;
         let review = CompilerIssuedPackageReview {
             key: key.clone(),
             resolution: custody.resolution().clone(),
@@ -1056,12 +980,9 @@ impl ClosurePass<'_> {
             semantic_bindings,
             semantic_binding_candidates,
             generated_source_bundle: generated_source_bundle.clone(),
-            projection,
             policy,
-            canonical_review_bytes,
-            canonical_rows: RetainedReviewRows(canonical_rows),
-            obligations,
-            obligation_results,
+            policy_rows,
+            policy_commitment,
         };
         reject_ungranted_restricted_requests(
             self.restricted_build_checkpoint,
@@ -1076,19 +997,8 @@ impl ClosurePass<'_> {
         // component descriptions, so an occurrence that required the
         // publication retry never matches an unanswered-inputs lookup —
         // the same shape the in-session carry takes.
-        // A review carrying entailment discharges never replays faithfully:
-        // recovery keeps their obligations open, so the record cannot
-        // represent this compile's closed results.
         if key != closure.graph().root()
             && !checked.execution().tolerated_unsettled_service_fields()
-            && review
-                .projection()
-                .contract_entailment_exit_membership_discharges()
-                .is_empty()
-            && review
-                .projection()
-                .contract_entailment_assumption_discharges()
-                .is_empty()
             && let Some(directory) = custody.compiled_review_cache_dir()
             && let Some(cache) = super::super::review_cache::CompiledReviewCache::open(directory)
             && let Some(subject) = checked.sources().package_subject()
@@ -1101,7 +1011,6 @@ impl ClosurePass<'_> {
                 subject.consumed_units().to_vec(),
                 component_description,
                 policy_canonical_bytes,
-                obligations_bytes,
             ) && let Some(cache_key) = super::super::review_cache::compiled_review_key(
                 key.identity(),
                 purpose,
@@ -1124,7 +1033,6 @@ impl ClosurePass<'_> {
             inputs: occurrence_inputs,
             build_snapshot,
             policy_canonical_bytes,
-            obligation_ledger_bytes: obligations_bytes,
             review: review_position,
             checked: OccurrenceCompile::Checked(checked.clone()),
         });

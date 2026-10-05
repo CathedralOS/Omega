@@ -25,8 +25,6 @@ impl PackagePolicyBaseline {
         contains: impl FnMut(PackageKeyIdentity) -> bool,
         limits: PackagePolicyMembershipLimits,
     ) -> Result<PackagePolicyMembershipUsage, PackagePolicyMembershipError> {
-        self.validate_canonical_structure()
-            .map_err(|_| PackagePolicyMembershipError::InvalidPolicy)?;
         let mut visitor = visitor::Visitor::new(contains, limits);
         let mut encoder = super::encoder::Encoder::policy_membership(&mut visitor);
         let result = super::baseline::framed_policy(&mut encoder, self);

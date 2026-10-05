@@ -68,31 +68,3 @@ pub enum PackageReviewSemanticDependencyKind {
     AutomaticCleanup,
     AutomaticCleanupMachine,
 }
-
-/// One exact declaration whose semantics are carried by a reviewed package's
-/// machine without granting that machine authored source authority.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct PackageReviewSemanticDependency {
-    pub(crate) consumer: PackageReviewNominalIdentity,
-    pub(crate) dependency: PackageReviewNominalIdentity,
-    pub(crate) exposure: PackageReviewSemanticDependencyExposure,
-    pub(crate) kind: PackageReviewSemanticDependencyKind,
-}
-
-impl PackageReviewSemanticDependency {
-    pub const fn consumer(&self) -> &PackageReviewNominalIdentity {
-        &self.consumer
-    }
-
-    pub const fn dependency(&self) -> &PackageReviewNominalIdentity {
-        &self.dependency
-    }
-
-    pub const fn exposure(&self) -> PackageReviewSemanticDependencyExposure {
-        self.exposure
-    }
-
-    pub const fn kind(&self) -> PackageReviewSemanticDependencyKind {
-        self.kind
-    }
-}

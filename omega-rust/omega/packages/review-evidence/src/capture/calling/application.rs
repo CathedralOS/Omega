@@ -103,7 +103,6 @@ pub fn project_checked_calling_policy<'a>(
         opaque_uses,
         physical: PackagePolicyPhysicalCallingContract::from_validated_plan(&validated),
     };
-    policy.validate_canonical_structure().map_err(rejected)?;
     Ok(policy)
 }
 

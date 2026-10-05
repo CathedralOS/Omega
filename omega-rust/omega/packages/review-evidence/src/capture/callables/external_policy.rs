@@ -52,7 +52,6 @@ pub fn project_checked_external_supply_policy<'a>(
         requirement,
         binding: PackagePolicyExternalBinding::from(&binding),
     };
-    row.validate_canonical_structure().map_err(rejected)?;
     Ok(vec![row])
 }
 

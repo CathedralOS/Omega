@@ -7,10 +7,9 @@ use crate::capture::contracts::propositions::evidence::project_evidence_interfac
 use crate::capture::semantics::declarations::{
     is_product_scope_instance, nominal_identity, reviewed_package_owns,
 };
-use crate::capture::source::{ProjectedNestedSourceLocation, ProjectedReviewRow};
+use crate::capture::source::ProjectedReviewRow;
 use crate::record::{
     PackageReviewContractFact, PackageReviewPropositionShape, PackageReviewPublicPropositionBody,
-    PackageReviewSourceLocationRole,
 };
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
@@ -31,30 +30,6 @@ pub(crate) fn project_public_propositions(
             continue;
         }
         let (binders, parameter_types) = project_proposition_signature(compilation, declaration)?;
-        let nested_source_locations = match (
-            &declaration.body,
-            declaration.transparent_formula_source_span,
-        ) {
-            (PropositionBody::Transparent { .. }, Some(source_span)) => {
-                vec![ProjectedNestedSourceLocation {
-                    source_span,
-                    role: PackageReviewSourceLocationRole::PropositionFormula,
-                }]
-            }
-            (PropositionBody::Primitive | PropositionBody::Witness { .. }, None) => Vec::new(),
-            (PropositionBody::Transparent { .. }, None) => {
-                return Err(vec![Diagnostic::error(format!(
-                    "public transparent proposition `{}` has no exact formula source custody",
-                    identity.path
-                ))]);
-            }
-            (PropositionBody::Primitive | PropositionBody::Witness { .. }, Some(_)) => {
-                return Err(vec![Diagnostic::error(format!(
-                    "public non-transparent proposition `{}` retains contradictory formula source custody",
-                    identity.path
-                ))]);
-            }
-        };
         let body = match &declaration.body {
             PropositionBody::Primitive | PropositionBody::Witness { .. } => {
                 let matching = compilation
@@ -157,7 +132,6 @@ pub(crate) fn project_public_propositions(
                 body,
             },
             declaration: declaration.symbol,
-            nested_source_locations,
         });
     }
     rows.sort_by(|left, right| left.row.identity.cmp(&right.row.identity));

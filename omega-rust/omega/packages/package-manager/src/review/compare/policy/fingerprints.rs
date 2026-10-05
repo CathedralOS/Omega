@@ -7,10 +7,7 @@ use crate::declarations::PackageKey;
 use crate::lock::PackageLockTarget;
 use crate::lock::{PackageAcceptanceRow, PackageCheckedContext};
 use crate::resolution::graph::CanonicalSourceClosureSubject;
-use crate::review::{
-    CompilerIssuedPackageReview,
-    candidate::{build_observation_commitment, whole_review_commitment},
-};
+use crate::review::{CompilerIssuedPackageReview, candidate::build_observation_commitment};
 use package_evidence::record::PACKAGE_POLICY_ROW_VERSION;
 use sha2::{Digest, Sha256};
 
@@ -49,10 +46,7 @@ pub(super) fn package_context(
     row_set(hash, rows);
     if let Some(candidate) = candidate {
         field(hash, &candidate.source_consumption_commitment().digest());
-        field(
-            hash,
-            &whole_review_commitment(candidate.canonical_review_bytes()),
-        );
+        field(hash, &candidate.policy_commitment());
         field(hash, candidate.selected_build_machine_identity().as_bytes());
         hash.update([u8::from(candidate.build_observation_summary().is_some())]);
         if let Some(summary) = candidate.build_observation_summary() {

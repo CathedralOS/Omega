@@ -4,7 +4,6 @@ use language_semantics::declaration_selection::{
     AuthoredDeclarationSelectionOccurrenceId as OccurrenceId,
 };
 use source::SourceSpan;
-use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 
 use crate::lookup::{
@@ -172,50 +171,6 @@ pub(crate) fn bind_checked_body_call_source_spans(
         }
     }
     Ok(())
-}
-
-pub(crate) fn derive_checked_body_call_source_spans(
-    _program: &TypedTrees,
-    facts: &checked_trees::CheckFacts,
-    machine_symbol: SymbolHandle,
-) -> Result<Vec<SourceSpan>, Vec<Diagnostic>> {
-    let mut spans = Vec::new();
-    for (_, checked_state) in facts
-        .flow
-        .control
-        .states
-        .iter()
-        .filter(|(_, state)| state.machine_symbol == machine_symbol)
-    {
-        for checked_call in facts.flow.control.calls.span_or_empty(checked_state.calls) {
-            if !checked_call.authored_source_custody_valid {
-                return Err(vec![Diagnostic::error(format!(
-                    "checked body call {} in statement {} has invalid retained source custody",
-                    checked_call.call_ordinal, checked_call.statement_index,
-                ))]);
-            }
-            match (
-                checked_call.operational_acknowledgement.origin,
-                checked_call.authored_source_span.and_then(nonempty_span),
-            ) {
-                (
-                    language_semantics::CallOperationalAcknowledgementOrigin::Source,
-                    Some(source_span),
-                ) => spans.push(source_span),
-                (
-                    language_semantics::CallOperationalAcknowledgementOrigin::CompilerSynthesized,
-                    None,
-                ) => {}
-                _ => {
-                    return Err(vec![Diagnostic::error(format!(
-                        "checked body call {} in statement {} has contradictory retained source custody",
-                        checked_call.call_ordinal, checked_call.statement_index,
-                    ))]);
-                }
-            }
-        }
-    }
-    Ok(spans)
 }
 
 fn validate_checked_call_join(

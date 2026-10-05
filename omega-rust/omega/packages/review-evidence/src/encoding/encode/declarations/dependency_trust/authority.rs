@@ -2,77 +2,8 @@ use crate::encoding::encode::values::identity::encode_nominal;
 use crate::encoding::{PackageReviewEncodingError, encode::encoder::Encoder};
 use crate::record::{
     PackageReviewDangerousAuthority, PackageReviewDangerousAuthorityClass,
-    PackageReviewDangerousAuthoritySlack, PackageReviewSemanticDependency,
-    PackageReviewSemanticDependencyExposure, PackageReviewSemanticDependencyKind,
-    PackageReviewTerminalAuthorityPermission,
+    PackageReviewDangerousAuthoritySlack, PackageReviewSemanticDependencyKind,
 };
-
-pub(crate) fn encode_terminal_authority_permission_key(
-    encoder: &mut Encoder,
-    permission: &PackageReviewTerminalAuthorityPermission,
-) -> Result<(), PackageReviewEncodingError> {
-    encode_nominal(encoder, permission.service())?;
-    encoder.fixed_bytes(permission.service_schema().as_bytes());
-    encoder.string(permission.requirement_identity())
-}
-
-pub(crate) fn encode_terminal_authority_permission(
-    encoder: &mut Encoder,
-    permission: &PackageReviewTerminalAuthorityPermission,
-) -> Result<(), PackageReviewEncodingError> {
-    encode_terminal_authority_permission_key(encoder, permission)?;
-    encoder.sequence(permission.permitted().classes(), |encoder, class| {
-        encoder.byte(class.canonical_tag());
-        Ok(())
-    })
-}
-
-pub(crate) fn encode_semantic_dependency_key(
-    encoder: &mut Encoder,
-    dependency: &PackageReviewSemanticDependency,
-) -> Result<(), PackageReviewEncodingError> {
-    encoder.field("consumer", |encoder| {
-        encode_nominal(encoder, &dependency.consumer)
-    })?;
-    encoder.field("dependency", |encoder| {
-        encode_nominal(encoder, &dependency.dependency)
-    })?;
-    encoder.field("kind", |encoder| {
-        let name = match dependency.kind {
-            PackageReviewSemanticDependencyKind::NominalIdentity => "nominal_identity",
-            PackageReviewSemanticDependencyKind::Layout => "layout",
-            PackageReviewSemanticDependencyKind::OwnershipBehavior => "ownership_behavior",
-            PackageReviewSemanticDependencyKind::AutomaticCleanup => "automatic_cleanup",
-            PackageReviewSemanticDependencyKind::AutomaticCleanupMachine => {
-                "automatic_cleanup_machine"
-            }
-        };
-        encoder.tag(name, semantic_dependency_kind_tag(dependency.kind));
-        Ok(())
-    })?;
-    Ok(())
-}
-
-pub(crate) fn encode_semantic_dependency(
-    encoder: &mut Encoder,
-    dependency: &PackageReviewSemanticDependency,
-) -> Result<(), PackageReviewEncodingError> {
-    encoder.field("dependency", |encoder| {
-        encode_semantic_dependency_key(encoder, dependency)
-    })?;
-    encoder.field("exposure", |encoder| {
-        match dependency.exposure {
-            PackageReviewSemanticDependencyExposure::PrivateImplementation => {
-                encoder.tag("private_implementation", 0)
-            }
-            PackageReviewSemanticDependencyExposure::PublicInterface => {
-                encoder.tag("public_interface", 1)
-            }
-        };
-        Ok(())
-    })?;
-    Ok(())
-}
 
 pub(crate) const fn semantic_dependency_kind_tag(kind: PackageReviewSemanticDependencyKind) -> u8 {
     match kind {

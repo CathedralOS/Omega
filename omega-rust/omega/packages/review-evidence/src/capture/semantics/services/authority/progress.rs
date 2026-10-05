@@ -1,6 +1,6 @@
 //! Exact progress-profile subjects and owner-authored establishment routes.
 use super::Diagnostic;
-use crate::PackageReviewInput;
+use crate::capture::PackageReviewInput;
 use crate::capture::nominal_identity;
 use crate::capture::semantics::declarations::trait_requirement_identity_from_symbols;
 use crate::capture::semantics::services::rejected;

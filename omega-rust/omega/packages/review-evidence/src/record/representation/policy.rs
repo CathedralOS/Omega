@@ -3,10 +3,6 @@
 mod agreement;
 mod validation;
 
-pub use agreement::{
-    PackagePolicyRepresentationAgreementError, PackagePolicyRepresentationProducerInstance,
-};
-
 use crate::record::{
     PackagePolicyCallingPlan, PackagePolicyClosedConformanceApplication,
     PackagePolicyConformanceShape, PackageReviewNominalIdentity, PackageReviewNominalOwner,

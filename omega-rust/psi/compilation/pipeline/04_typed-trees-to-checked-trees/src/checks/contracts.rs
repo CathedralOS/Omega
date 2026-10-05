@@ -38,9 +38,7 @@ pub(crate) mod calls;
 pub(crate) mod contextual_cleanup;
 mod dynamic_erased_lane;
 mod evidence;
-mod exit_membership;
 mod exits;
-pub use exit_membership::derive_contract_entailment_exit_membership_discharges;
 
 mod nominal_inputs;
 mod writes;

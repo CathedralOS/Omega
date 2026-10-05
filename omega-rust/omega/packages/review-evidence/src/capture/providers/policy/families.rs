@@ -1,6 +1,5 @@
-//! Project families after `policy::replay::validate` has independently rejoined
-//! their complete typed rosters, declaration symbols, static telescopes and
-//! selected plans. Retain each plan's exact schema kind here: a machine token
+//! Project selected provider families. Retain each plan's exact schema kind
+//! here: a machine token
 //! binding is a signature view, not a legacy operator declaration whose identity
 //! this projection may reconstruct instead.
 

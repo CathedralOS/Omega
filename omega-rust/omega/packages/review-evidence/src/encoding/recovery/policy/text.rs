@@ -34,7 +34,6 @@ impl Default for PackagePolicyTextRecoveryLimits {
 }
 
 impl PackagePolicyBaseline {
-
     /// Recover the same inert meaning and report all charged storage and typed
     /// elements so an enclosing document can lower its next child's ceilings.
     /// Storage includes the requested reconstructed-binary reserve, typed data,

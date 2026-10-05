@@ -7,20 +7,15 @@ use super::super::behavior::{
 use super::super::contracts::facts::{callable_contract_exposure, project_callable_contracts};
 use super::super::semantics::conformances::project_conformance_bounds;
 use super::super::semantics::facts::exactly_one;
-use super::super::semantics::signatures::parameters::project_type_parameters;
 use super::super::semantics::types::review_signature_type_identity_with_binders;
 use super::conformances::project_callable_conformances;
-use super::signatures::project_external_callable_signature;
 use crate::capture::PackageReviewInput;
-use crate::capture::source::ProjectedReviewRow;
 use crate::record::{
     PackagePolicyCallableConformance, PackagePolicyExternalRequirement, PackagePolicyTypeParameter,
-    PackageReviewCallableConformance, PackageReviewCallableContract,
-    PackageReviewCallableParameter, PackageReviewCallableRole, PackageReviewCallableSupply,
-    PackageReviewCheckedServiceReach, PackageReviewConformanceBound,
-    PackageReviewExternalExecutableSupply, PackageReviewInstallationReach,
-    PackageReviewNominalIdentity, PackageReviewOperatorRealization,
-    PackageReviewSynchronousInvocation, PackageReviewTypeIdentity, PackageReviewTypeParameter,
+    PackageReviewCallableContract, PackageReviewCallableParameter, PackageReviewCallableRole,
+    PackageReviewCallableSupply, PackageReviewCheckedServiceReach, PackageReviewConformanceBound,
+    PackageReviewInstallationReach, PackageReviewNominalIdentity, PackageReviewOperatorRealization,
+    PackageReviewSynchronousInvocation, PackageReviewTypeIdentity,
 };
 use diagnostics::Diagnostic;
 use language_semantics::MachineSupplyMode;
@@ -31,12 +26,10 @@ pub(super) struct CallableSurface {
     pub(super) supply: PackageReviewCallableSupply,
     pub(super) spelling: Option<language_core::OperatorSpelling>,
     pub(super) lifetime_parameter_count: usize,
-    pub(super) type_parameters: Vec<PackageReviewTypeParameter>,
     pub(super) policy_type_parameters: Vec<PackagePolicyTypeParameter>,
     pub(super) conformance_bounds: Vec<PackageReviewConformanceBound>,
     pub(super) parameters: Vec<PackageReviewCallableParameter>,
     pub(super) return_type: PackageReviewTypeIdentity,
-    pub(super) conformances: Vec<PackageReviewCallableConformance>,
     pub(super) policy_conformances: Vec<PackagePolicyCallableConformance>,
     pub(super) operator_realizations: Vec<PackageReviewOperatorRealization>,
     pub(super) requirement_realizations: Vec<crate::record::PackageReviewRequirementRealization>,
@@ -62,7 +55,6 @@ pub(super) struct CallableSurface {
 
 pub(super) struct ProjectedSurface<'a> {
     pub surface: CallableSurface,
-    pub external_executable_supply: Vec<ProjectedReviewRow<PackageReviewExternalExecutableSupply>>,
     pub entry: &'a typed_trees::state::State,
     pub realized: &'a checked_trees::RealizedMachineContractEnvelope,
     pub binders: Vec<(SymbolHandle, String)>,
@@ -73,7 +65,6 @@ pub(super) fn project<'a>(
     machine: &typed_trees::machine::Machine,
     role: PackageReviewCallableRole,
     identity: PackageReviewNominalIdentity,
-    policy_mode: bool,
 ) -> Result<ProjectedSurface<'a>, Vec<Diagnostic>> {
     let subject = identity.path.as_str();
     let Some(entry) = compilation.machine_states(machine).first() else {
@@ -82,30 +73,16 @@ pub(super) fn project<'a>(
         ))]);
     };
     let machine_type_parameters = compilation.machine_type_parameters(machine);
-    if policy_mode {
-        crate::capture::source::invocations::validate_machine_invocations(compilation, machine)?;
-        crate::capture::source::suspension::validate_machine_operational(compilation, machine)?;
-    }
+    crate::capture::source::invocations::validate_machine_invocations(compilation, machine)?;
+    crate::capture::source::suspension::validate_machine_operational(compilation, machine)?;
     let publishes_interface = callable_contract_exposure(machine)
         == language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface;
-    let (binders, type_parameters, policy_type_parameters) = if policy_mode {
-        let (binders, parameters) = super::policy_parameters::type_parameters(
-            compilation,
-            machine,
-            subject,
-            publishes_interface,
-        )?;
-        (binders, Vec::new(), parameters)
-    } else {
-        let (binders, parameters) = project_type_parameters(
-            compilation,
-            machine_type_parameters,
-            "callable",
-            subject,
-            &machine.lifetime_parameters,
-        )?;
-        (binders, parameters, Vec::new())
-    };
+    let (binders, policy_type_parameters) = super::policy_parameters::type_parameters(
+        compilation,
+        machine,
+        subject,
+        publishes_interface,
+    )?;
     let conformance_bounds = project_conformance_bounds(
         compilation,
         &machine.conformance_bounds,
@@ -138,47 +115,28 @@ pub(super) fn project<'a>(
         &binders,
         &machine.lifetime_parameters,
     )?;
-    let external_signature = (!policy_mode
-        && matches!(
-            machine.supply_mode,
-            MachineSupplyMode::ExternalRealization { .. }
-        ))
-    .then(|| project_external_callable_signature(compilation, machine, &binders))
-    .transpose()?;
-    let mut policy_conformances = Vec::new();
-    let (conformances, operator_realizations, requirement_realizations, external_executable_supply) =
-        if policy_mode
-            && matches!(
-                machine.supply_mode,
-                MachineSupplyMode::ExternalRealization { .. }
-            )
-        {
-            let supplies =
-                super::project_checked_external_supply_policy(compilation, machine.symbol)?;
-            let mut operators = Vec::new();
-            for supply in supplies {
-                match supply.requirement {
-                    PackagePolicyExternalRequirement::Trait(conformance) => {
-                        policy_conformances.push(conformance);
-                    }
-                    PackagePolicyExternalRequirement::Operator { coordinate, alias } => {
-                        operators.push(PackageReviewOperatorRealization { coordinate, alias });
-                    }
-                    PackagePolicyExternalRequirement::TopLevelRequirement { .. } => {}
+    let (policy_conformances, operator_realizations, requirement_realizations) = if matches!(
+        machine.supply_mode,
+        MachineSupplyMode::ExternalRealization { .. }
+    ) {
+        let supplies = super::project_checked_external_supply_policy(compilation, machine.symbol)?;
+        let mut conformances = Vec::new();
+        let mut operators = Vec::new();
+        for supply in supplies {
+            match supply.requirement {
+                PackagePolicyExternalRequirement::Trait(conformance) => {
+                    conformances.push(conformance);
                 }
+                PackagePolicyExternalRequirement::Operator { coordinate, alias } => {
+                    operators.push(PackageReviewOperatorRealization { coordinate, alias });
+                }
+                PackagePolicyExternalRequirement::TopLevelRequirement { .. } => {}
             }
-            (Vec::new(), operators, Vec::new(), Vec::new())
-        } else {
-            project_callable_conformances(
-                compilation,
-                machine,
-                &identity,
-                &binders,
-                external_signature.as_ref(),
-                true,
-                policy_mode.then_some(&mut policy_conformances),
-            )?
-        };
+        }
+        (conformances, operators, Vec::new())
+    } else {
+        project_callable_conformances(compilation, machine, &binders, true)?
+    };
     let contracts = project_callable_contracts(compilation, machine, entry, &binders)?;
     let service_reach = exactly_one(
         compilation
@@ -369,12 +327,10 @@ pub(super) fn project<'a>(
             // declaration-owned part of its public signature.
             spelling: machine.spelling,
             lifetime_parameter_count: machine.lifetime_parameters.len(),
-            type_parameters,
             policy_type_parameters,
             conformance_bounds,
             parameters,
             return_type,
-            conformances,
             policy_conformances,
             operator_realizations,
             requirement_realizations,
@@ -397,7 +353,6 @@ pub(super) fn project<'a>(
                 language_semantics::BlockingInterface::InternalInferred => None,
             },
         },
-        external_executable_supply,
         binders,
         entry,
         realized,

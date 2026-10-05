@@ -128,15 +128,12 @@ pub fn compare_locked_package_policies(
                 package: review.key().clone(),
             });
         }
-        if review.projection().package() != review.key().identity()
-            || review.policy().package() != review.key().identity()
-        {
+        if review.policy().package() != review.key().identity() {
             return Err(LockedPolicyComparisonError::PackageIdentityMismatch {
                 package: review.key().clone(),
             });
         }
         if context.target() != occurrence.context().target()
-            || review.projection().target() != context.target()
             || review.policy().target() != context.target()
         {
             return Err(LockedPolicyComparisonError::TargetMismatch {

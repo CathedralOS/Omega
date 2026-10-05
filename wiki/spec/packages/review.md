@@ -183,8 +183,7 @@ assumption, never an invalid proof.
 Recheck acquired content and candidate/project identity before publication.
 Build-generated source belongs to the checked candidate and remains in custody
 through its use. Compiler transcripts, replay records, and certificate caches
-are not ordinary lock acceptance. Existing ledger wrappers do not mandate an
-additional lock-certification or package-promotion workflow.
+are not ordinary lock acceptance.
 
 Unproved source contracts reject in Psi checking, before any package review or
 policy decision. Every normal return, including a tail call to another
@@ -193,24 +192,9 @@ assumptions; project policy cannot make an invalid proof valid.
 
 An arithmetic entailment engine's stand-down is not a final checking verdict:
 the ordinary checker can prove the guarantee through another route, including
-transparent propositions and explicitly assigned proof evidence. The legacy
-review ledger retains these engine-local questions and a narrower discharge
-encoding; it must not reject a checked program merely because that encoding
-does not describe the proof route that succeeded. A postcondition the
-entailment engine stands down on may carry
-checked exit evidence when the live facts at every normal exit prove it: a
-membership's exact subject and domain application, or a scalar predicate such
-as a bound on post-state storage. A scalar predicate is proved from the entry
-contexts or by evaluating the exit's exact return and live place values;
-assumption, entailment and header routes supply no exit evidence. A
-postcondition with an assumption discharge certificate keeps that discharge
-and gains no exit row. The compiler derives the complete exit roster; an empty
-or selected subset supplies no discharge. This evidence rejoins the original
-obligation, callable contract commitment and checked source custody. The open
-question and its discharge remain separate canonical rows. Recovering those
-rows alone does not establish the claim: fresh source reconstruction must
-reproduce the exit evidence before the legacy ledger records that discharge.
-Neither that ledger nor its rendering is an input to source contract checking.
+transparent propositions and explicitly assigned proof evidence. Package review
+does not re-ask those engine-local questions; source contract checking owns
+them.
 
 Reports separate mechanical checking from admissions and from
 producer/signature/audit metadata. A signature records custody, not review quality;

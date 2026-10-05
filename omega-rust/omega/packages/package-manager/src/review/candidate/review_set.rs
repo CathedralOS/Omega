@@ -1,13 +1,9 @@
-use super::rows::RetainedReviewRows;
 use crate::declarations::PackageKey;
 use build_evaluation::{BuildEvaluationUsage, BuildObservationSummary, RestrictedBuildRequest};
 use package_compilation::{
     AcceptedSemanticBinding, PackageGeneratedSourceBundle, PackageSourceConsumptionCommitment,
 };
-use package_evidence::ledger::{
-    OrdinaryPackageObligationLedger, OrdinaryPackageObligationResultSet,
-};
-use package_evidence::record::{CheckedPackageReviewProjection, PackageReviewCanonicalRow};
+use package_evidence::record::{PackagePolicyBaseline, PackagePolicyRow};
 use package_source::ImmutableSourceResolution;
 
 use super::semantic_bindings::SemanticBindingReviewCandidate;
@@ -33,12 +29,11 @@ pub struct CompilerIssuedPackageReview {
     pub(super) semantic_bindings: Vec<AcceptedSemanticBinding>,
     pub(super) semantic_binding_candidates: Vec<SemanticBindingReviewCandidate>,
     pub(super) generated_source_bundle: PackageGeneratedSourceBundle,
-    pub(super) projection: CheckedPackageReviewProjection,
-    pub(super) policy: package_evidence::record::PackagePolicyBaseline,
-    pub(super) canonical_review_bytes: Vec<u8>,
-    pub(super) canonical_rows: RetainedReviewRows,
-    pub(super) obligations: OrdinaryPackageObligationLedger,
-    pub(super) obligation_results: OrdinaryPackageObligationResultSet,
+    pub(super) policy: PackagePolicyBaseline,
+    /// The policy's complete canonical rows, derived once from `policy`.
+    pub(super) policy_rows: Vec<PackagePolicyRow>,
+    /// SHA-256 over the policy's canonical bytes.
+    pub(super) policy_commitment: [u8; 32],
 }
 
 impl CompilerIssuedPackageReview {
@@ -113,38 +108,33 @@ impl CompilerIssuedPackageReview {
         &self.generated_source_bundle
     }
 
-    pub fn projection(&self) -> &CheckedPackageReviewProjection {
-        &self.projection
-    }
-
     /// Complete normalized comparison meaning from this same checked package,
     /// target, and consumed source. This is not an accepted lock or a new
-    /// authorization; legacy comparison and obligation evidence remain separate.
-    pub const fn policy(&self) -> &package_evidence::record::PackagePolicyBaseline {
+    /// authorization.
+    pub const fn policy(&self) -> &PackagePolicyBaseline {
         &self.policy
     }
 
-    pub fn canonical_review_bytes(&self) -> &[u8] {
-        &self.canonical_review_bytes
+    pub fn policy_rows(&self) -> &[PackagePolicyRow] {
+        &self.policy_rows
     }
 
-    pub fn canonical_rows(&self) -> &[PackageReviewCanonicalRow] {
-        &self.canonical_rows.0
+    pub const fn policy_commitment(&self) -> [u8; 32] {
+        self.policy_commitment
     }
+}
 
-    /// Exact schema-bound replay question reconstructed from this package's
-    /// checked source. It remains compiler-issued review material, not a
-    /// discharge result, admission decision, package instance, or lock row.
-    pub const fn obligations(&self) -> &OrdinaryPackageObligationLedger {
-        &self.obligations
-    }
-
-    /// Locally reconstructed result for the supported ordinary obligation
-    /// lanes. Accepted claims, dangerous authorities, and external executable
-    /// supplies remain explicitly open; this is not admission.
-    pub const fn obligation_results(&self) -> &OrdinaryPackageObligationResultSet {
-        &self.obligation_results
-    }
+/// Derive a review's canonical policy rows and commitment once, at
+/// construction. Fails when the policy exceeds the row budget.
+pub(super) fn policy_rows_and_commitment(
+    policy: &PackagePolicyBaseline,
+) -> Result<(Vec<PackagePolicyRow>, [u8; 32]), package_evidence::encoding::PackageReviewEncodingError>
+{
+    use sha2::{Digest, Sha256};
+    let (rows, _) = policy
+        .canonical_rows_with_limits(package_evidence::record::PackagePolicyRowLimits::default())?;
+    let commitment = Sha256::digest(policy.canonical_bytes()?).into();
+    Ok((rows, commitment))
 }
 
 /// Complete review-only compiler output for one resolved source closure.

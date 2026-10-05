@@ -2,10 +2,9 @@
 
 use super::{CanonicalSourceClosureSubject, Name, Output};
 use package_evidence::record::{
-    CheckedPackageReviewProjection, PackagePolicyBaseline, PackagePolicyCallable,
-    PackagePolicyRepresentation, PackagePolicySelectedProviders, PackagePolicyServiceMethod,
-    PackageReviewCallableContract, PackageReviewNominalIdentity,
-    PackageReviewSynchronousInvocation,
+    PackagePolicyBaseline, PackagePolicyCallable, PackagePolicyRepresentation,
+    PackagePolicySelectedProviders, PackagePolicyServiceMethod, PackageReviewCallableContract,
+    PackageReviewNominalIdentity, PackageReviewSynchronousInvocation,
 };
 use std::fmt::{self, Write};
 
@@ -320,37 +319,6 @@ impl Names<'_> {
 fn contracts(output: &mut Output, contracts: &[PackageReviewCallableContract]) -> fmt::Result {
     for contract in contracts {
         writeln!(output, "    contract {contract:?}")?;
-    }
-    Ok(())
-}
-
-pub(super) fn observations(
-    output: &mut Output,
-    projection: &CheckedPackageReviewProjection,
-    source: &CanonicalSourceClosureSubject,
-) -> fmt::Result {
-    let names = Names(source);
-    for obligation in projection.contract_entailment_open_obligations() {
-        writeln!(
-            output,
-            "  open-obligation {} reason {:?} goal {:?}",
-            names.name(obligation.callable()),
-            obligation.reason(),
-            obligation.goal()
-        )?;
-    }
-    for discharge in projection.contract_entailment_assumption_discharges() {
-        writeln!(output, "  assumption-discharge {discharge:?}")?;
-    }
-    for discharge in projection.contract_entailment_exit_membership_discharges() {
-        writeln!(
-            output,
-            "  checked-exit-membership-discharge {} contract {} fact {}: {} normal exits",
-            names.name(discharge.obligation().callable()),
-            discharge.obligation().contract_position(),
-            discharge.obligation().fact_position(),
-            discharge.covered_exits().len(),
-        )?;
     }
     Ok(())
 }

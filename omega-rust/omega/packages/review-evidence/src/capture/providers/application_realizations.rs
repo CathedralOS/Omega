@@ -14,26 +14,19 @@ use crate::capture::PackageReviewInput;
 use crate::record::{
     CheckedPackageBoundaryApplicationRealizationReview, PackageReviewBoundaryApplication,
     PackageReviewBoundaryApplicationArgument, PackageReviewBoundaryApplicationRealization,
-    PackageReviewCanonicalRowSource, PackageReviewSourceLocation, PackageReviewSourceLocationOwner,
-    PackageReviewSourceLocationRole,
+    PackageReviewSourceLocationOwner, PackageReviewSourceLocationRole,
 };
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
 
-pub(crate) struct ProjectedBoundaryApplicationRealizations {
-    pub(crate) rows: Vec<CheckedPackageBoundaryApplicationRealizationReview>,
-    pub(crate) sources: Vec<PackageReviewCanonicalRowSource>,
-}
-
 pub(super) struct StagedRealization {
     row: CheckedPackageBoundaryApplicationRealizationReview,
-    locations: Vec<PackageReviewSourceLocation>,
 }
 
 pub(crate) fn project_boundary_application_realizations(
     compilation: &PackageReviewInput<'_>,
     package: PackageKeyIdentity,
-) -> Result<ProjectedBoundaryApplicationRealizations, Vec<Diagnostic>> {
+) -> Result<Vec<CheckedPackageBoundaryApplicationRealizationReview>, Vec<Diagnostic>> {
     let derived = selected_dispatch::derive_checked_nongeneric_operator_application_realizations(
         compilation,
         &compilation.custody.execution().selected_provider_plan_facts,
@@ -101,7 +94,7 @@ pub(crate) fn project_boundary_application_realizations(
                 "boundary application realization lost a strong plan or contract commitment",
             )]);
         }
-        stage_realization(&mut staged, row, location)?;
+        stage_realization(&mut staged, row)?;
     }
 
     project_specialized_checked_body_applications(compilation, package, &mut staged)?;
@@ -109,17 +102,10 @@ pub(crate) fn project_boundary_application_realizations(
     compiler_intrinsics::project(compilation, package, &mut staged)?;
 
     staged.sort_by(|left, right| application_key(&left.row).cmp(&application_key(&right.row)));
-    let mut rows = Vec::with_capacity(staged.len());
-    let mut sources = Vec::with_capacity(staged.len());
-    for mut realization in staged {
-        realization.locations.sort();
-        realization.locations.dedup();
-        rows.push(realization.row);
-        sources.push(PackageReviewCanonicalRowSource::authored(
-            realization.locations,
-        ));
-    }
-    Ok(ProjectedBoundaryApplicationRealizations { rows, sources })
+    Ok(staged
+        .into_iter()
+        .map(|realization| realization.row)
+        .collect())
 }
 
 fn project_specialized_checked_body_applications(
@@ -218,7 +204,7 @@ fn project_specialized_checked_body_applications(
                 "specialized boundary application lost a strong plan, specialization, or contract commitment",
             )]);
         }
-        stage_realization(staged, row, location)?;
+        stage_realization(staged, row)?;
     }
     Ok(())
 }
@@ -361,7 +347,6 @@ fn expression_is_owned_by_package(
 pub(super) fn stage_realization(
     staged: &mut Vec<StagedRealization>,
     row: CheckedPackageBoundaryApplicationRealizationReview,
-    location: PackageReviewSourceLocation,
 ) -> Result<(), Vec<Diagnostic>> {
     if let Some(existing) = staged
         .iter_mut()
@@ -373,12 +358,8 @@ pub(super) fn stage_realization(
                 row.requirement_identity,
             ))]);
         }
-        existing.locations.push(location);
     } else {
-        staged.push(StagedRealization {
-            row,
-            locations: vec![location],
-        });
+        staged.push(StagedRealization { row });
     }
     Ok(())
 }

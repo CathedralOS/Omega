@@ -22,10 +22,6 @@ mod proof_output_calls;
 mod proposition_vocabulary;
 
 pub(crate) use contract_entailment::build_contract_entailment_assumption_discharges;
-pub use contract_entailment::{
-    CheckedContractEntailmentAssumptionDischargeRecheckError,
-    recheck_contract_entailment_assumption_discharge,
-};
 pub(crate) use contracts::contract_target_from_state_symbol;
 pub(crate) use contracts::machine_parameter_evidence_signatures;
 pub(crate) use evidence_forwarding::{

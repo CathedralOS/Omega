@@ -2,13 +2,10 @@
 
 use crate::declarations::PackageKey;
 use crate::review::candidate::PackageReviewEvidence;
-use crate::review::compare::changed_review_risk;
+use crate::review::compare::{ChangedRowRisk, changed_review_risk};
 use crate::review::timings;
 use crate::review::{CompilerIssuedPackageReview, CompilerIssuedPackageReviewSet};
-use package_evidence::record::{
-    PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk,
-    PackageReviewDangerousAuthorityClass,
-};
+use package_evidence::record::{PackagePolicyRowKind, PackageReviewDangerousAuthorityClass};
 use std::collections::{BTreeMap, BTreeSet};
 
 use super::render::{self, TriageRenderError};
@@ -295,19 +292,16 @@ fn decide_update<B: PackageReviewEvidence>(
         }
         (Some(baseline), Some(candidate)) => {
             let mut disposition = PackageTriageDisposition::NoReviewBlocker;
-            if baseline.whole_review_commitment()
-                != PackageReviewEvidence::whole_review_commitment(candidate)
-            {
+            if baseline.policy_commitment() != PackageReviewEvidence::policy_commitment(candidate) {
                 reasons.push(PackageTriageReason::CapabilityOrApiChanged);
                 disposition = match changed_review_risk(baseline, candidate) {
-                    Some(PackageReviewCanonicalRowRisk::AuditRecommended) => {
+                    Some(ChangedRowRisk::Blocking) => {
+                        PackageTriageDisposition::BlockedCapabilityChange
+                    }
+                    Some(ChangedRowRisk::AuditRecommended) => {
                         PackageTriageDisposition::NoReviewBlockerWithAuditRecommended
                     }
-                    Some(
-                        PackageReviewCanonicalRowRisk::Blocking
-                        | PackageReviewCanonicalRowRisk::OpaqueBlocking,
-                    )
-                    | None => PackageTriageDisposition::BlockedCapabilityChange,
+                    None => PackageTriageDisposition::NoReviewBlocker,
                 };
             }
             if baseline.resolution() != candidate.resolution()
@@ -328,11 +322,7 @@ fn decide_update<B: PackageReviewEvidence>(
                 disposition =
                     disposition.max(PackageTriageDisposition::NoReviewBlockerWithAuditRecommended);
             }
-            let representation_changed = row_family_changed(
-                baseline,
-                candidate,
-                PackageReviewCanonicalRowKind::RepresentationTcb,
-            );
+            let representation_changed = row_family_changed(baseline, candidate, is_representation);
             if append_candidate_audit_reasons(candidate, representation_changed, &mut reasons) {
                 disposition =
                     disposition.max(PackageTriageDisposition::NoReviewBlockerWithAuditRecommended);
@@ -366,19 +356,29 @@ fn decide_update<B: PackageReviewEvidence>(
     }
 }
 
+fn is_representation(kind: PackagePolicyRowKind) -> bool {
+    matches!(
+        kind,
+        PackagePolicyRowKind::RepresentationDeclaration
+            | PackagePolicyRowKind::RepresentationAvailability
+            | PackagePolicyRowKind::RepresentationSelection
+            | PackagePolicyRowKind::RepresentationDemand
+    )
+}
+
 fn row_family_changed(
     baseline: &impl PackageReviewEvidence,
     candidate: &impl PackageReviewEvidence,
-    kind: PackageReviewCanonicalRowKind,
+    family: fn(PackagePolicyRowKind) -> bool,
 ) -> bool {
     let mut baseline_rows = baseline
-        .canonical_rows()
+        .policy_rows()
         .iter()
-        .filter(|row| row.kind() == kind);
+        .filter(|row| family(row.kind()));
     let mut candidate_rows = candidate
-        .canonical_rows()
+        .policy_rows()
         .iter()
-        .filter(|row| row.kind() == kind);
+        .filter(|row| family(row.kind()));
     loop {
         match (baseline_rows.next(), candidate_rows.next()) {
             (Some(left), Some(right)) if left.canonical_bytes() == right.canonical_bytes() => {}
@@ -388,26 +388,24 @@ fn row_family_changed(
     }
 }
 
+fn has_decision_row(candidate: &CompilerIssuedPackageReview, kind: PackagePolicyRowKind) -> bool {
+    candidate
+        .policy_rows()
+        .iter()
+        .any(|row| row.kind() == kind && row.initial_requires_decision())
+}
+
 fn append_candidate_blocking_reasons(
     candidate: &CompilerIssuedPackageReview,
     reasons: &mut Vec<PackageTriageReason>,
 ) -> bool {
-    let accepted_claim = candidate
-        .canonical_rows()
-        .iter()
-        .any(|row| row.kind() == PackageReviewCanonicalRowKind::AcceptedClaim);
-    let dangerous_authority = candidate
-        .canonical_rows()
-        .iter()
-        .any(|row| row.kind() == PackageReviewCanonicalRowKind::DangerousAuthority);
-    let external_executable_supply = candidate
-        .canonical_rows()
-        .iter()
-        .any(|row| row.kind() == PackageReviewCanonicalRowKind::ExternalExecutableSupply);
-    let terminal_authority_permission = candidate
-        .canonical_rows()
-        .iter()
-        .any(|row| row.kind() == PackageReviewCanonicalRowKind::TerminalAuthorityPermission);
+    let accepted_claim = has_decision_row(candidate, PackagePolicyRowKind::Callable);
+    let dangerous_authority =
+        has_decision_row(candidate, PackagePolicyRowKind::DangerousCapability);
+    let external_executable_supply =
+        has_decision_row(candidate, PackagePolicyRowKind::ExternalSupply);
+    let terminal_authority_permission =
+        has_decision_row(candidate, PackagePolicyRowKind::TerminalPermission);
     if accepted_claim {
         reasons.push(PackageTriageReason::AcceptedClaimRequiresResolution);
     }
@@ -429,14 +427,19 @@ fn append_candidate_audit_reasons(
     reasons: &mut Vec<PackageTriageReason>,
 ) -> bool {
     let mut recommend = false;
-    if representation_changed && !candidate.projection().representation_tcb().is_empty() {
+    if representation_changed
+        && candidate
+            .policy_rows()
+            .iter()
+            .any(|row| is_representation(row.kind()))
+    {
         reasons.push(PackageTriageReason::RepresentationTcbIntroducedOrChanged);
         recommend = true;
     }
     if candidate
-        .canonical_rows()
+        .policy_rows()
         .iter()
-        .any(|row| row.kind() == PackageReviewCanonicalRowKind::ExternalExecutableSupply)
+        .any(|row| row.kind() == PackagePolicyRowKind::ExternalSupply)
     {
         if !reasons.contains(&PackageTriageReason::ExternalExecutableSupplyRequiresResolution) {
             reasons.push(PackageTriageReason::ExternalExecutableSupplyRequiresResolution);
@@ -444,8 +447,8 @@ fn append_candidate_audit_reasons(
         recommend = true;
     }
     for class in candidate
-        .projection()
-        .dangerous_authorities()
+        .policy()
+        .dangerous_capabilities()
         .iter()
         .map(|authority| authority.class())
         .collect::<BTreeSet<_>>()
@@ -454,8 +457,8 @@ fn append_candidate_audit_reasons(
         recommend = true;
     }
     for class in candidate
-        .projection()
-        .dangerous_authority_slack()
+        .policy()
+        .slack_uses()
         .iter()
         .map(|slack| slack.class())
         .collect::<BTreeSet<_>>()

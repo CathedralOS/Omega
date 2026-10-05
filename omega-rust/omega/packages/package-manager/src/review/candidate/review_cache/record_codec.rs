@@ -30,7 +30,7 @@ use sha2::{Digest, Sha256};
 const RECORD_MAGIC: &[u8; 8] = b"OMGCREV\x01";
 // Hosted binding nominations now belong to the checked candidate roster,
 // rather than being rediscovered from cached provider review rows.
-const RECORD_VERSION: u16 = 4;
+const RECORD_VERSION: u16 = 5;
 const RECORD_SEQUENCES_LIMIT: u64 = 1 << 20;
 
 fn cursor_bool(cursor: &mut ObservationCursor<'_>) -> Option<bool> {
@@ -663,13 +663,7 @@ pub(super) fn encode_record(review: &CachedCompiledReview, out: &mut Vec<u8>) {
         encode_candidate(candidate, out);
     }
     encode_generated_source_bundle(&review.generated_source_bundle, out);
-    push_framed(out, &review.canonical_review_bytes);
-    out.extend_from_slice(&(review.canonical_row_bytes.len() as u64).to_le_bytes());
-    for row in &review.canonical_row_bytes {
-        push_framed(out, row);
-    }
     push_framed(out, &review.policy_bytes);
-    push_framed(out, &review.obligation_ledger_bytes_payload);
     out.push(u8::from(review.facts.tolerated_unsettled_service_fields));
     out.extend_from_slice(&(review.facts.consumed_units.len() as u64).to_le_bytes());
     for unit in &review.facts.consumed_units {
@@ -687,7 +681,6 @@ pub(super) fn encode_record(review: &CachedCompiledReview, out: &mut Vec<u8>) {
         encode_candidate,
     );
     out.extend_from_slice(&review.policy_canonical_bytes.to_le_bytes());
-    out.extend_from_slice(&review.obligation_ledger_bytes.to_le_bytes());
 }
 
 pub(super) fn decode_record(bytes: &[u8]) -> Option<CachedCompiledReview> {
@@ -735,10 +728,7 @@ pub(super) fn decode_record(bytes: &[u8]) -> Option<CachedCompiledReview> {
     let semantic_bindings = cursor_vec(&mut cursor, recover_binding)?;
     let semantic_binding_candidates = cursor_vec(&mut cursor, recover_candidate)?;
     let generated_source_bundle = recover_generated_source_bundle(&mut cursor)?;
-    let canonical_review_bytes = cursor.framed()?.to_vec();
-    let canonical_row_bytes = cursor_vec(&mut cursor, |cursor| Some(cursor.framed()?.to_vec()))?;
     let policy_bytes = cursor.framed()?.to_vec();
-    let obligation_ledger_bytes_payload = cursor.framed()?.to_vec();
     let tolerated_unsettled_service_fields = cursor_bool(&mut cursor)?;
     let consumed_units = cursor_vec(&mut cursor, recover_consumed_unit)?;
     let source_consumption_commitment =
@@ -746,7 +736,6 @@ pub(super) fn decode_record(bytes: &[u8]) -> Option<CachedCompiledReview> {
     let component_description = recover_optional(&mut cursor, recover_component_description)?;
     let target_entry_candidate = recover_optional(&mut cursor, recover_candidate)?;
     let policy_canonical_bytes = cursor.u64()?;
-    let obligation_ledger_bytes = cursor.u64()?;
     if !cursor.exhausted() {
         return None;
     }
@@ -765,10 +754,7 @@ pub(super) fn decode_record(bytes: &[u8]) -> Option<CachedCompiledReview> {
         semantic_bindings,
         semantic_binding_candidates,
         generated_source_bundle,
-        canonical_review_bytes,
-        canonical_row_bytes,
         policy_bytes,
-        obligation_ledger_bytes_payload,
         facts: CachedOccurrenceFacts {
             tolerated_unsettled_service_fields,
             consumed_units,
@@ -777,6 +763,5 @@ pub(super) fn decode_record(bytes: &[u8]) -> Option<CachedCompiledReview> {
             target_entry_candidate,
         },
         policy_canonical_bytes,
-        obligation_ledger_bytes,
     })
 }

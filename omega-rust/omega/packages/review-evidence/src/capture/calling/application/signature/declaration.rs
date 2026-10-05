@@ -4,7 +4,7 @@
 //! namespace from each requirement's own static parameters. Checked expression
 //! handles and declarations remain unchanged; only temporary type references
 //! and scope-normalized signature copies are allocated.
-use crate::PackageReviewInput;
+use crate::capture::PackageReviewInput;
 use crate::capture::calling::application::rejected;
 use crate::capture::calling::application::signature::CallingSignatureProjection;
 use crate::capture::calling::application::signature::count;

@@ -10,8 +10,7 @@ use typed_trees::types::PrimitiveType;
 use validation::{ContractEntailmentStandDown, ContractEntailmentStandDownReason};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum CheckedContractEntailmentAssumptionDischargeRecheckError {
-    StandDownMissing,
+pub(crate) enum ContractEntailmentDischargeError {
     MachineMissing,
     MachineIsNotCheckedBody,
     ContractCoordinateMissing,
@@ -22,8 +21,6 @@ pub enum CheckedContractEntailmentAssumptionDischargeRecheckError {
     ContractPlanMissing,
     ZeroContractCommitment,
     CoordinateOverflow,
-    UnsupportedSource,
-    CertificateMismatch,
     InvalidCertificate(&'static str),
     InvalidContext(semantic_vocabulary::PropositionError),
     KernelRejected(proof_admission::ProofError),
@@ -67,77 +64,43 @@ pub(crate) fn build_contract_entailment_assumption_discharges(
     Ok(certificates)
 }
 
-/// Independently rebuild and check one checked-IR assumption discharge from
-/// the retained typed program and its strong machine-contract plan.
-pub fn recheck_contract_entailment_assumption_discharge(
-    program: &TypedTrees,
-    contracts: &MachineContractPlans,
-    certificate: &CheckedContractEntailmentAssumptionDischarge,
-) -> Result<(), CheckedContractEntailmentAssumptionDischargeRecheckError> {
-    let stand_down = validation::collect_contract_entailment_stand_downs(program)
-        .into_iter()
-        .find(|stand_down| {
-            stand_down.reason == ContractEntailmentStandDownReason::UnrecognizedInductiveBody
-                && stand_down.machine_symbol == certificate.machine_symbol()
-                && u32::try_from(stand_down.contract_index).ok()
-                    == Some(certificate.contract_position())
-                && u32::try_from(stand_down.fact_index).ok() == Some(certificate.fact_position())
-        })
-        .ok_or(CheckedContractEntailmentAssumptionDischargeRecheckError::StandDownMissing)?;
-    let reconstructed = reconstruct_discharge(program, contracts, stand_down)?
-        .ok_or(CheckedContractEntailmentAssumptionDischargeRecheckError::UnsupportedSource)?;
-    if &reconstructed.certificate != certificate {
-        return Err(CheckedContractEntailmentAssumptionDischargeRecheckError::CertificateMismatch);
-    }
-    accept_reconstructed(&reconstructed)
-}
-
 fn reconstruct_discharge(
     program: &TypedTrees,
     contracts: &MachineContractPlans,
     stand_down: ContractEntailmentStandDown,
-) -> Result<Option<ReconstructedDischarge>, CheckedContractEntailmentAssumptionDischargeRecheckError>
-{
+) -> Result<Option<ReconstructedDischarge>, ContractEntailmentDischargeError> {
     let machine = crate::lookup::machine_by_symbol(program, stand_down.machine_symbol)
-        .ok_or(CheckedContractEntailmentAssumptionDischargeRecheckError::MachineMissing)?;
+        .ok_or(ContractEntailmentDischargeError::MachineMissing)?;
     if machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody {
-        return Err(
-            CheckedContractEntailmentAssumptionDischargeRecheckError::MachineIsNotCheckedBody,
-        );
+        return Err(ContractEntailmentDischargeError::MachineIsNotCheckedBody);
     }
     let contract = program
         .machine_contracts(machine)
         .get(stand_down.contract_index)
-        .ok_or(
-            CheckedContractEntailmentAssumptionDischargeRecheckError::ContractCoordinateMissing,
-        )?;
+        .ok_or(ContractEntailmentDischargeError::ContractCoordinateMissing)?;
     if contract.kind != SignatureContractKind::Ensures {
-        return Err(
-            CheckedContractEntailmentAssumptionDischargeRecheckError::ContractIsNotPlainEnsures,
-        );
+        return Err(ContractEntailmentDischargeError::ContractIsNotPlainEnsures);
     }
     let fact = program
         .proof_facts
         .span_or_empty(contract.facts)
         .get(stand_down.fact_index)
-        .ok_or(CheckedContractEntailmentAssumptionDischargeRecheckError::FactCoordinateMissing)?;
+        .ok_or(ContractEntailmentDischargeError::FactCoordinateMissing)?;
     let typed_trees::domain::ProofFact::Expression(goal_expression) = fact else {
-        return Err(
-            CheckedContractEntailmentAssumptionDischargeRecheckError::FactIsNotPlainExpression,
-        );
+        return Err(ContractEntailmentDischargeError::FactIsNotPlainExpression);
     };
 
     let entry = program
         .machine_states(machine)
         .first()
-        .ok_or(CheckedContractEntailmentAssumptionDischargeRecheckError::EntryStateMissing)?;
+        .ok_or(ContractEntailmentDischargeError::EntryStateMissing)?;
     let parameters = parameter_bindings(program, entry)?;
     let context = PropositionContext::from_value_types(
         parameters
             .iter()
             .map(|parameter| (parameter.value, parameter.scalar_type)),
     )
-    .map_err(CheckedContractEntailmentAssumptionDischargeRecheckError::InvalidContext)?;
+    .map_err(ContractEntailmentDischargeError::InvalidContext)?;
     let Some(goal) = lower_proposition(program, *goal_expression, &parameters) else {
         return Ok(None);
     };
@@ -161,24 +124,18 @@ fn reconstruct_discharge(
     else {
         return Ok(None);
     };
-    let selected_assumption_position =
-        u32::try_from(selected_assumption_position).map_err(|_| {
-            CheckedContractEntailmentAssumptionDischargeRecheckError::CoordinateOverflow
-        })?;
-    let contract_position = u32::try_from(stand_down.contract_index).map_err(|_| {
-        CheckedContractEntailmentAssumptionDischargeRecheckError::CoordinateOverflow
-    })?;
-    let fact_position = u32::try_from(stand_down.fact_index).map_err(|_| {
-        CheckedContractEntailmentAssumptionDischargeRecheckError::CoordinateOverflow
-    })?;
+    let selected_assumption_position = u32::try_from(selected_assumption_position)
+        .map_err(|_| ContractEntailmentDischargeError::CoordinateOverflow)?;
+    let contract_position = u32::try_from(stand_down.contract_index)
+        .map_err(|_| ContractEntailmentDischargeError::CoordinateOverflow)?;
+    let fact_position = u32::try_from(stand_down.fact_index)
+        .map_err(|_| ContractEntailmentDischargeError::CoordinateOverflow)?;
     let machine_contract_commitment = contracts
         .for_machine(machine.symbol)
-        .ok_or(CheckedContractEntailmentAssumptionDischargeRecheckError::ContractPlanMissing)?
+        .ok_or(ContractEntailmentDischargeError::ContractPlanMissing)?
         .commitment;
     if machine_contract_commitment.is_zero() {
-        return Err(
-            CheckedContractEntailmentAssumptionDischargeRecheckError::ZeroContractCommitment,
-        );
+        return Err(ContractEntailmentDischargeError::ZeroContractCommitment);
     }
     let certificate = CheckedContractEntailmentAssumptionDischarge::new(
         machine.symbol,
@@ -189,7 +146,7 @@ fn reconstruct_discharge(
         goal,
         selected_assumption_position,
     )
-    .map_err(CheckedContractEntailmentAssumptionDischargeRecheckError::InvalidCertificate)?;
+    .map_err(ContractEntailmentDischargeError::InvalidCertificate)?;
     Ok(Some(ReconstructedDischarge {
         certificate,
         context,
@@ -202,14 +159,12 @@ fn selected_assumption_position(assumptions: &[Proposition], goal: &Proposition)
 
 fn accept_reconstructed(
     reconstructed: &ReconstructedDischarge,
-) -> Result<(), CheckedContractEntailmentAssumptionDischargeRecheckError> {
+) -> Result<(), ContractEntailmentDischargeError> {
     let proof = proof_admission::ProofNode {
         conclusion: reconstructed.certificate.goal().clone(),
         rule: proof_admission::ProofRule::Assumption {
             index: usize::try_from(reconstructed.certificate.selected_assumption_position())
-                .map_err(|_| {
-                    CheckedContractEntailmentAssumptionDischargeRecheckError::CoordinateOverflow
-                })?,
+                .map_err(|_| ContractEntailmentDischargeError::CoordinateOverflow)?,
         },
     };
     proof_admission::accept_certificate(
@@ -220,13 +175,13 @@ fn accept_reconstructed(
         &proof,
     )
     .map(|_| ())
-    .map_err(CheckedContractEntailmentAssumptionDischargeRecheckError::KernelRejected)
+    .map_err(ContractEntailmentDischargeError::KernelRejected)
 }
 
 fn parameter_bindings(
     program: &TypedTrees,
     entry: &typed_trees::state::State,
-) -> Result<Vec<ParameterBinding>, CheckedContractEntailmentAssumptionDischargeRecheckError> {
+) -> Result<Vec<ParameterBinding>, ContractEntailmentDischargeError> {
     let mut bindings = Vec::new();
     for (position, parameter) in program.state_parameters(entry).iter().enumerate() {
         if parameter.is_mutable {
@@ -241,9 +196,9 @@ fn parameter_bindings(
         let raw = u64::try_from(position)
             .ok()
             .and_then(|position| position.checked_add(1))
-            .ok_or(CheckedContractEntailmentAssumptionDischargeRecheckError::CoordinateOverflow)?;
-        let value = ValueId::new(raw)
-            .ok_or(CheckedContractEntailmentAssumptionDischargeRecheckError::CoordinateOverflow)?;
+            .ok_or(ContractEntailmentDischargeError::CoordinateOverflow)?;
+        let value =
+            ValueId::new(raw).ok_or(ContractEntailmentDischargeError::CoordinateOverflow)?;
         bindings.push(ParameterBinding {
             symbol: parameter.symbol,
             value,

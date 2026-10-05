@@ -61,7 +61,6 @@ pub fn project_checked_package_policy<'a>(
         boundary_applications,
         restricted_build_requests: restricted_build::project(compilation),
     };
-    policy.validate_canonical_structure().map_err(rejected)?;
     Ok(policy)
 }
 

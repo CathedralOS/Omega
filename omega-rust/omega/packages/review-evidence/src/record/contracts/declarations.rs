@@ -26,43 +26,7 @@ pub struct PackageReviewOperatorShape {
     pub(crate) published_crash: Vec<PackageReviewCrashRoute>,
 }
 
-impl PackageReviewOperatorShape {
-    pub const fn coordinate(&self) -> &PackageReviewOperatorCoordinate {
-        &self.coordinate
-    }
-
-    pub const fn is_boundary(&self) -> bool {
-        self.is_boundary
-    }
-
-    pub const fn spelling(&self) -> Option<language_core::OperatorSpelling> {
-        self.spelling
-    }
-
-    pub const fn lifetime_parameter_count(&self) -> usize {
-        self.lifetime_parameter_count
-    }
-
-    pub fn type_parameters(&self) -> &[PackageReviewTypeParameter] {
-        &self.type_parameters
-    }
-
-    pub fn parameters(&self) -> &[PackageReviewCallableParameter] {
-        &self.parameters
-    }
-
-    pub const fn return_type(&self) -> &PackageReviewTypeIdentity {
-        &self.return_type
-    }
-
-    pub fn contracts(&self) -> &[PackageReviewCallableContract] {
-        &self.contracts
-    }
-
-    pub fn published_crash(&self) -> &[PackageReviewCrashRoute] {
-        &self.published_crash
-    }
-}
+impl PackageReviewOperatorShape {}
 
 impl PackageReviewConstShape {
     pub const fn identity(&self) -> &PackageReviewNominalIdentity {

@@ -2,9 +2,7 @@
 
 mod bindings;
 mod families;
-mod replay;
 mod rows;
-mod toolchain_settled;
 
 use crate::capture::PackageReviewInput;
 use crate::capture::providers::selection::validate_selected_provider_declaration_owner;
@@ -40,7 +38,6 @@ pub(super) fn project_with_indices(
     package: PackageKeyIdentity,
 ) -> Result<(PackagePolicySelectedProviders, Vec<usize>), Vec<Diagnostic>> {
     let selected_execution = compilation.custody.execution();
-    replay::validate(compilation, target, package)?;
     let mut plans = selected_execution
         .selected_provider_provenance
         .as_slice()
@@ -80,7 +77,6 @@ pub(super) fn project_with_indices(
         plans: plans.into_iter().map(|(_, plan)| plan).collect(),
         families,
     };
-    policy.validate_canonical_structure().map_err(rejected)?;
     Ok((policy, original_indices))
 }
 
@@ -93,8 +89,7 @@ fn project_plan(
     let plan = &retained.plan;
     // A toolchain-settled plan (e.g. the canonical `FilesystemHost` mint)
     // names no authored provider type and deliberately covers only the
-    // leaves the toolchain can bind honestly; its settled identity was
-    // already validated by the replay above.
+    // leaves the toolchain can bind honestly.
     let toolchain_settled = selected_execution
         .selected_provider_plan_facts
         .is_toolchain_settled(plan);

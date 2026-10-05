@@ -3,7 +3,6 @@
 //! All products share discovery and final checking. Each pass owns a disposable
 //! sponsored session; package_pass owns dependency-order compilation and projection.
 
-mod ledger;
 mod package_pass;
 mod policy;
 

@@ -14,19 +14,11 @@ use super::super::semantics::signatures::parameters::{
 };
 use super::super::semantics::types::lifetimes::lifetime_binder_ordinal;
 use super::super::semantics::types::review_signature_type_identity_with_binders;
-use super::super::source::contracts::project_contract_source_locations;
-use super::super::source::invocations::project_signature_invocation_source_locations;
-use super::super::source::locations::project_nested_declaration_source_location;
-use super::super::source::parameters::{
-    collect_callable_parameter_source_locations, collect_type_parameter_source_locations,
-};
-use super::super::source::service_reach::project_signature_service_reach_source_locations;
-use super::super::source::suspension::project_signature_operational_source_locations;
 use crate::capture::PackageReviewInput;
-use crate::capture::source::{ProjectedNestedSourceLocation, ProjectedReviewRow};
+use crate::capture::source::ProjectedReviewRow;
 use crate::record::{
-    PackageReviewSourceLocationRole, PackageReviewTraitCompositionKind, PackageReviewTraitParent,
-    PackageReviewTraitRequirement, PackageReviewTraitRequirementParameter, PackageReviewTraitShape,
+    PackageReviewTraitCompositionKind, PackageReviewTraitParent, PackageReviewTraitRequirement,
+    PackageReviewTraitRequirementParameter, PackageReviewTraitShape,
 };
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
@@ -88,55 +80,6 @@ pub(crate) fn project_public_traits(
                 )
             })
             .collect::<Result<Vec<_>, _>>()?;
-        let mut nested_source_locations = Vec::new();
-        collect_type_parameter_source_locations(
-            compilation,
-            parameters,
-            &mut nested_source_locations,
-        )?;
-        nested_source_locations.extend(compilation.trait_requirements(definition).iter().map(
-            |parent| ProjectedNestedSourceLocation {
-                source_span: parent.source_span,
-                role: PackageReviewSourceLocationRole::TraitParent,
-            },
-        ));
-        for requirement in compilation.trait_machine_signatures(definition) {
-            nested_source_locations.push(project_nested_declaration_source_location(
-                compilation,
-                requirement.symbol,
-                PackageReviewSourceLocationRole::TraitRequirement,
-                "public trait requirement",
-            )?);
-            collect_callable_parameter_source_locations(
-                compilation,
-                compilation.state_signature_parameters(requirement),
-                "public trait requirement parameter",
-                &mut nested_source_locations,
-            )?;
-            nested_source_locations.extend(project_contract_source_locations(
-                compilation,
-                compilation.state_signature_contracts(requirement),
-            )?);
-            nested_source_locations.extend(project_signature_invocation_source_locations(
-                compilation,
-                requirement,
-            )?);
-            nested_source_locations.extend(project_signature_service_reach_source_locations(
-                compilation,
-                definition.symbol,
-                requirement,
-            )?);
-            nested_source_locations.extend(project_signature_operational_source_locations(
-                compilation,
-                definition.symbol,
-                requirement,
-            )?);
-            collect_type_parameter_source_locations(
-                compilation,
-                compilation.state_signature_type_parameters(requirement),
-                &mut nested_source_locations,
-            )?;
-        }
         rows.push(ProjectedReviewRow {
             row: PackageReviewTraitShape {
                 identity,
@@ -148,7 +91,6 @@ pub(crate) fn project_public_traits(
                 requirements,
             },
             declaration: definition.symbol,
-            nested_source_locations,
         });
     }
     rows.sort_by(|left, right| left.row.identity.cmp(&right.row.identity));

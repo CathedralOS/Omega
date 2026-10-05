@@ -4,7 +4,6 @@ use super::super::semantics::declarations::{
 };
 use super::super::semantics::signatures::parameters::project_type_parameters;
 use super::super::semantics::types::review_signature_type_identity_with_binders;
-use super::super::source::parameters::collect_type_parameter_source_locations;
 use crate::capture::PackageReviewInput;
 use crate::capture::source::ProjectedReviewRow;
 use crate::record::{
@@ -237,11 +236,6 @@ pub(crate) fn project_public_conformances(
                 interface,
             },
             declaration: conformance.symbol,
-            nested_source_locations: {
-                let mut locations = Vec::new();
-                collect_type_parameter_source_locations(compilation, parameters, &mut locations)?;
-                locations
-            },
         });
     }
     projected.sort_by(|left, right| left.row.identity.cmp(&right.row.identity));

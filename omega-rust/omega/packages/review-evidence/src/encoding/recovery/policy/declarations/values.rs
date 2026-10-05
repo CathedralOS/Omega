@@ -4,11 +4,6 @@ use super::super::{
     identity::{nominal, type_identity},
     reader::Reader,
 };
-use super::super::{
-    behavior::crash_route, contracts::callable_contract, identity::operator_coordinate,
-    signatures::type_parameter,
-};
-use crate::record::{PackageReviewCallableParameter, PackageReviewOperatorShape};
 use crate::record::{
     PackageReviewConstShape, PackageReviewPropositionShape, PackageReviewPublicPropositionBody,
 };
@@ -36,29 +31,6 @@ pub(in crate::encoding::recovery) fn const_shape(
         identity: nominal(reader)?,
         declared_type: type_identity(reader)?,
         canonical_value_encoding: reader.string()?,
-    })
-}
-
-pub(in crate::encoding::recovery) fn operator_shape(
-    reader: &mut Reader<'_>,
-) -> Result<PackageReviewOperatorShape, Error> {
-    Ok(PackageReviewOperatorShape {
-        coordinate: operator_coordinate(reader)?,
-        is_boundary: reader.boolean()?,
-        spelling: reader.option(operator_spelling)?,
-        lifetime_parameter_count: reader.usize()?,
-        type_parameters: reader.sequence(3, type_parameter)?,
-        parameters: reader.sequence(18, |reader| {
-            Ok(PackageReviewCallableParameter {
-                name: reader.string()?,
-                type_identity: type_identity(reader)?,
-                is_const: reader.boolean()?,
-                is_mutable: reader.boolean()?,
-            })
-        })?,
-        return_type: type_identity(reader)?,
-        contracts: reader.sequence(4, callable_contract)?,
-        published_crash: reader.sequence(9, crash_route)?,
     })
 }
 

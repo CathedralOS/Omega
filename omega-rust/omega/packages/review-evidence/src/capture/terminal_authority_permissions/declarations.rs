@@ -19,7 +19,6 @@ pub(super) struct ResolvedService<'a> {
 
 pub(super) struct ResolvedPermission<'a> {
     pub supplied: &'a ServiceTerminalAuthorityPermission,
-    pub requirement_symbol: SymbolHandle,
     pub requirement: PackageReviewNominalIdentity,
 }
 
@@ -106,7 +105,6 @@ pub(super) fn resolve_services<'a>(
             let requirement_symbol = **requirement_symbol;
             permissions.push(ResolvedPermission {
                 supplied,
-                requirement_symbol,
                 requirement: provider_requirement_identity(
                     compilation,
                     ProviderSchemaDeclaration::BoundaryTrait(symbol),

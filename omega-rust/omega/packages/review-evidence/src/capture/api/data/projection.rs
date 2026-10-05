@@ -12,12 +12,9 @@ use crate::capture::semantics::types::{
     project_data_field, project_data_properties, review_signature_type_identity_with_binders,
 };
 use crate::capture::source::ProjectedReviewRow;
-use crate::capture::source::contracts::project_required_proof_fact_source_locations;
-use crate::capture::source::locations::project_nested_declaration_source_location;
-use crate::capture::source::parameters::collect_type_parameter_source_locations;
 use crate::record::{
     PackageReviewContractFact, PackageReviewDataKind, PackageReviewDataMember,
-    PackageReviewDataShape, PackageReviewNominalIdentity, PackageReviewSourceLocationRole,
+    PackageReviewDataShape, PackageReviewNominalIdentity,
 };
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
@@ -252,44 +249,6 @@ pub(crate) fn project_public_data(
                 members,
             },
             declaration: definition.symbol,
-            nested_source_locations: {
-                let mut locations = Vec::new();
-                collect_type_parameter_source_locations(compilation, parameters, &mut locations)?;
-                for member in compilation.data_members(definition) {
-                    match member {
-                        typed_trees::data::DataMember::Field(field) => {
-                            locations.push(project_nested_declaration_source_location(
-                                compilation,
-                                field.symbol,
-                                PackageReviewSourceLocationRole::DataMember,
-                                "public data field",
-                            )?);
-                        }
-                        typed_trees::data::DataMember::Variant(variant) => {
-                            locations.push(project_nested_declaration_source_location(
-                                compilation,
-                                variant.symbol,
-                                PackageReviewSourceLocationRole::DataMember,
-                                "public data case",
-                            )?);
-                            for field in compilation.data_payload_fields(variant) {
-                                locations.push(project_nested_declaration_source_location(
-                                    compilation,
-                                    field.symbol,
-                                    PackageReviewSourceLocationRole::DataMember,
-                                    "public data case payload field",
-                                )?);
-                            }
-                        }
-                    }
-                }
-                locations.extend(project_required_proof_fact_source_locations(
-                    compilation,
-                    definition.where_facts,
-                    "public data invariant",
-                )?);
-                locations
-            },
         });
     }
     rows.sort_by(|left, right| left.row.identity.cmp(&right.row.identity));

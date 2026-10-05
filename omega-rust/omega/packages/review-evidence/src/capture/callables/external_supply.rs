@@ -1,34 +1,10 @@
 use crate::capture::PackageReviewInput;
 use crate::capture::semantics::declarations::nominal_identity;
-use crate::capture::source::{ProjectedNestedSourceLocation, ProjectedReviewRow};
 use crate::record::{
     PackageReviewEvaluatedBindingUsage, PackageReviewEvaluatedImport,
-    PackageReviewEvaluatedSyscall, PackageReviewExternalBinding,
-    PackageReviewExternalExecutableSupply, PackageReviewForeignLocator,
-    PackageReviewSourceLocationRole,
+    PackageReviewEvaluatedSyscall, PackageReviewExternalBinding, PackageReviewForeignLocator,
 };
 use diagnostics::Diagnostic;
-
-pub(super) fn project_external_executable_supply_with_source(
-    machine: &typed_trees::machine::Machine,
-    conformance: &typed_trees::machine::TraitConformance,
-    row: PackageReviewExternalExecutableSupply,
-) -> Result<ProjectedReviewRow<PackageReviewExternalExecutableSupply>, Vec<Diagnostic>> {
-    let Some(source_span) = conformance.external_binding_source_span else {
-        return Err(vec![Diagnostic::error(format!(
-            "reviewed external callable `{}` has no exact authored `via` custody",
-            machine.name
-        ))]);
-    };
-    Ok(ProjectedReviewRow {
-        row,
-        declaration: machine.symbol,
-        nested_source_locations: vec![ProjectedNestedSourceLocation {
-            source_span,
-            role: PackageReviewSourceLocationRole::ExternalBinding,
-        }],
-    })
-}
 
 pub(super) fn project_evaluated_binding(
     compilation: &PackageReviewInput<'_>,

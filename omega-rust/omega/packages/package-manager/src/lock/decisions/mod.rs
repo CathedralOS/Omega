@@ -1,6 +1,5 @@
 //! Source-scoped historical decisions and their bounded text representation.
 
-mod capture;
 mod policy;
 mod text;
 

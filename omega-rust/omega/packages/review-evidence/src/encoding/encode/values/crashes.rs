@@ -10,10 +10,8 @@ mod scalar;
 pub(crate) use boolean::encode_boolean_expression;
 pub(crate) use scalar::encode_scalar_expression;
 
-mod replay;
 mod vocabulary;
 
-pub(crate) use replay::{encode_crash, encode_crash_route};
 use vocabulary::{arithmetic_domain_name, primitive_type_name};
 pub(crate) use vocabulary::{encode_primitive_type, integer_binary_tag, integer_comparison_tag};
 

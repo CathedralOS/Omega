@@ -1,5 +1,5 @@
 //! Typed source signatures are retained even without a selected calling plan.
-use crate::PackageReviewInput;
+use crate::capture::PackageReviewInput;
 use crate::capture::semantics::services::calling;
 use crate::capture::semantics::services::rejected;
 use crate::capture::semantics::signatures::policy::project_type_parameters;

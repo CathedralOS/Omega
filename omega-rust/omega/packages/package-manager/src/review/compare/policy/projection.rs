@@ -63,11 +63,8 @@ pub(super) fn candidate<'a>(
         .first()
         .and_then(|review| review.checked_context().build_execution_profile());
     for review in &reviews {
-        budget.context(review.canonical_review_bytes().len())?;
         budget.context(review.selected_build_machine_identity().len())?;
-        if review.projection().package() != review.key().identity()
-            || review.policy().package() != review.key().identity()
-        {
+        if review.policy().package() != review.key().identity() {
             return Err(Error::CandidateReview {
                 package: Some(Box::new(review.key().clone())),
                 reason: "normalized policy owner differs",
@@ -85,9 +82,7 @@ pub(super) fn candidate<'a>(
         } else {
             execution_profile
         };
-        if Some(context.target()) != expected_target
-            || review.projection().target() != context.target()
-            || review.policy().target() != context.target()
+        if Some(context.target()) != expected_target || review.policy().target() != context.target()
         {
             return Err(Error::TargetMismatch);
         }

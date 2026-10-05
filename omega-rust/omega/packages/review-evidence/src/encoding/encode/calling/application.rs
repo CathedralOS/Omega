@@ -12,8 +12,6 @@ impl PackagePolicyCallingPlan {
     /// Complete normalized calling-policy bytes. Native/compiler identities,
     /// realization receipts, and acceptance decisions do not enter this record.
     pub fn canonical_bytes(&self) -> Result<Vec<u8>, PackageReviewEncodingError> {
-        self.validate_canonical_structure()
-            .map_err(PackageReviewEncodingError::new)?;
         let mut encoder = Encoder::policy_bounded(4 * 1024 * 1024);
         encoder.fixed_bytes(CALLING_POLICY_MAGIC);
         encoder.u16(PACKAGE_CALLING_POLICY_VERSION);

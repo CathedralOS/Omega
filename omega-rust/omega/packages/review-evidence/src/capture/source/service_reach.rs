@@ -1,20 +1,10 @@
 use crate::capture::PackageReviewInput;
 use crate::capture::semantics::facts::exactly_one;
-use crate::capture::source::ProjectedNestedSourceLocation;
 use crate::capture::source::locations::canonical_source_span_location;
 use crate::record::PackageReviewSourceLocationRole;
 use diagnostics::Diagnostic;
 use flow_effects::ServiceReachInferencePlan;
 use symbols::SymbolHandle;
-
-pub(crate) fn project_machine_service_reach_source_locations(
-    compilation: &PackageReviewInput<'_>,
-    machine: &typed_trees::machine::Machine,
-    inferred: &ServiceReachInferencePlan,
-) -> Result<Vec<ProjectedNestedSourceLocation>, Vec<Diagnostic>> {
-    checked_machine_service_reach(compilation, machine, inferred)
-        .map(authored_service_reach_locations)
-}
 
 /// Rejoin authored targets and checked ceilings without constructing location rows.
 pub(crate) fn validate_machine_service_reach(
@@ -105,82 +95,6 @@ fn checked_machine_service_reach<'a>(
     }
 
     Ok(authored)
-}
-
-pub(crate) fn project_signature_service_reach_source_locations(
-    compilation: &PackageReviewInput<'_>,
-    owner: SymbolHandle,
-    signature: &typed_trees::signature::StateSignature,
-) -> Result<Vec<ProjectedNestedSourceLocation>, Vec<Diagnostic>> {
-    let authored = exact_authored_service_reach_row(
-        compilation,
-        signature.symbol,
-        signature.name.as_str(),
-        signature.service_reach_is_installation_bound,
-    )?;
-    let declared = derive_declared_service_reach(
-        compilation,
-        authored,
-        &validation::declared_signature_invocations(compilation, signature),
-        compilation.state_signature_parameters(signature),
-        signature.name.as_str(),
-    )?;
-    if compilation
-        .service_reach_rows
-        .services(signature.service_reach_row)
-        != declared
-    {
-        return Err(vec![Diagnostic::error(format!(
-            "reviewed signature `{}` authored reaches/invokes targets do not equal its exact normalized service-reach row (row {:?} = {:?}, declared {:?})",
-            signature.name,
-            signature.service_reach_row,
-            compilation
-                .service_reach_rows
-                .services(signature.service_reach_row),
-            declared,
-        ))]);
-    }
-
-    let checked = exactly_one(
-        compilation
-            .facts
-            .contract_plans
-            .crash_capsules
-            .iter()
-            .filter(|capsule| {
-                capsule.target_machine() == owner && capsule.target_state() == signature.symbol
-            }),
-        signature.name.as_str(),
-        "signature contract capsule",
-    )?;
-    let mut checked_published = checked.published_service_reach().to_vec();
-    checked_published.sort();
-    checked_published.dedup();
-    let mut declared_names = declared
-        .iter()
-        .map(|service| {
-            compilation
-                .service_reaches
-                .definition(*service)
-                .map(|definition| definition.name.clone())
-                .ok_or_else(|| {
-                    vec![Diagnostic::error(format!(
-                        "reviewed signature `{}` has a normalized service outside its exact declaration table",
-                        signature.name,
-                    ))]
-                })
-        })
-        .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
-    declared_names.sort();
-    declared_names.dedup();
-    if checked_published != declared_names {
-        return Err(vec![Diagnostic::error(format!(
-            "reviewed signature `{}` authored service-reach custody does not equal its exact checked contract capsule",
-            signature.name,
-        ))]);
-    }
-
-    Ok(authored_service_reach_locations(authored))
 }
 
 fn exact_authored_service_reach_row<'a>(
@@ -288,32 +202,4 @@ fn derive_declared_service_reach(
     closure.sort_by_key(|service| service.0);
     closure.dedup();
     Ok(closure)
-}
-
-fn authored_service_reach_locations(
-    authored: Option<&typed_trees::signature::AuthoredServiceReachRow>,
-) -> Vec<ProjectedNestedSourceLocation> {
-    let Some(authored) = authored else {
-        return Vec::new();
-    };
-    if authored.targets.is_empty() {
-        authored
-            .keyword_source_spans
-            .iter()
-            .copied()
-            .map(|source_span| ProjectedNestedSourceLocation {
-                source_span,
-                role: PackageReviewSourceLocationRole::ServiceReach,
-            })
-            .collect()
-    } else {
-        authored
-            .targets
-            .iter()
-            .map(|target| ProjectedNestedSourceLocation {
-                source_span: target.source_span,
-                role: PackageReviewSourceLocationRole::ServiceReach,
-            })
-            .collect()
-    }
 }

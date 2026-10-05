@@ -88,7 +88,7 @@ pub fn project_checked_callable_policy<'a>(
             machine,
             &service_reaches,
         )?;
-        let projected = surface::project(compilation, machine, review_role, identity, true)?;
+        let projected = surface::project(compilation, machine, review_role, identity)?;
         let capability_flows = behavior::capability_flows(compilation, projected.realized)?;
         let reachable_capability_flows =
             behavior::reachable_capability_flows(compilation, projected.realized)?;
@@ -181,7 +181,6 @@ pub fn project_checked_callable_policy<'a>(
         target,
         callables,
     };
-    policy.validate_canonical_structure().map_err(rejected)?;
     Ok(policy)
 }
 

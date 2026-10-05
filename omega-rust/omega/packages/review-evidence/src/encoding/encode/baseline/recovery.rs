@@ -8,8 +8,6 @@ impl PackagePolicyBaseline {
         &self,
         expected_length: usize,
     ) -> Result<Vec<u8>, PackageReviewEncodingError> {
-        self.validate_canonical_structure()
-            .map_err(PackageReviewEncodingError::new)?;
         let mut encoder = Encoder::policy_preallocated(expected_length)?;
         framed_policy(&mut encoder, self)?;
         let bytes = encoder.finish()?;

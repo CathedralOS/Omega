@@ -86,6 +86,5 @@ pub fn project_checked_terminal_permission_policy<'a>(
         target,
         services: projected,
     };
-    policy.validate_canonical_structure().map_err(rejected)?;
     Ok(policy)
 }

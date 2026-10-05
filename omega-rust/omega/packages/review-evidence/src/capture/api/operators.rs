@@ -8,10 +8,6 @@ use crate::capture::semantics::declarations::{
 use crate::capture::semantics::signatures::parameters::project_type_parameters;
 use crate::capture::semantics::types::review_signature_type_identity_with_binders;
 use crate::capture::source::ProjectedReviewRow;
-use crate::capture::source::contracts::project_contract_source_locations;
-use crate::capture::source::parameters::{
-    collect_callable_parameter_source_locations, collect_type_parameter_source_locations,
-};
 use crate::record::{
     PackageReviewCallableParameter, PackageReviewCrashRoute, PackageReviewCrashRouteGuard,
     PackageReviewOperatorCoordinate, PackageReviewOperatorShape,
@@ -135,21 +131,6 @@ pub(crate) fn project_public_operators(
         };
         let published_crash =
             project_operator_crash_routes(compilation, checked_crash, &context, &binders)?;
-        let mut nested_source_locations = project_contract_source_locations(
-            compilation,
-            compilation.operator_contracts(declaration),
-        )?;
-        collect_callable_parameter_source_locations(
-            compilation,
-            compilation.operator_parameters(declaration),
-            "public operator parameter",
-            &mut nested_source_locations,
-        )?;
-        collect_type_parameter_source_locations(
-            compilation,
-            declaration_type_parameters,
-            &mut nested_source_locations,
-        )?;
         rows.push(ProjectedReviewRow {
             row: PackageReviewOperatorShape {
                 coordinate,
@@ -168,7 +149,6 @@ pub(crate) fn project_public_operators(
                 published_crash,
             },
             declaration: declaration.symbol,
-            nested_source_locations,
         });
     }
     rows.sort_by(|left, right| left.row.coordinate.cmp(&right.row.coordinate));

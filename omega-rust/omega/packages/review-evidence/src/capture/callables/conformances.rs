@@ -4,167 +4,34 @@ use super::super::semantics::types::review_signature_type_identity_with_binders;
 use super::boundary_operators::{
     validate_fixed_token_checked_adapter_dispatch_shape,
     validate_selected_boundary_operator_checked_adapter,
-    validate_selected_boundary_operator_external_supply,
 };
-use super::boundary_requirements::{
-    project_checked_requirement_realization, project_top_level_requirement_external_supply,
-};
-use super::external_supply::{
-    project_evaluated_binding, project_external_binding,
-    project_external_executable_supply_with_source,
-};
+use super::boundary_requirements::project_checked_requirement_realization;
 use crate::capture::PackageReviewInput;
-use crate::capture::source::ProjectedReviewRow;
-use crate::record::{
-    PackageReviewCallableConformance, PackageReviewExternalBinding,
-    PackageReviewExternalCallableSignature, PackageReviewExternalExecutableSupply,
-    PackageReviewExternalRequirement, PackageReviewNominalIdentity,
-    PackageReviewOperatorRealization,
-};
+use crate::record::{PackagePolicyCallableConformance, PackageReviewOperatorRealization};
 use diagnostics::Diagnostic;
 use language_semantics::MachineSupplyMode;
 use symbols::SymbolHandle;
 
-enum ExpectedExternalCarrier {
-    Legacy(language_semantics::ExternalBindingId),
-    Evaluated,
-}
-
+/// Project the trait, operator and top-level requirement realizations of one
+/// non-external callable. External callables are projected by
+/// `project_checked_external_supply_policy`.
 pub(super) fn project_callable_conformances(
     compilation: &PackageReviewInput<'_>,
     machine: &typed_trees::machine::Machine,
-    callable_identity: &PackageReviewNominalIdentity,
     binders: &[(SymbolHandle, String)],
-    external_callable_signature: Option<&PackageReviewExternalCallableSignature>,
     require_public_trait: bool,
-    mut policy: Option<&mut Vec<crate::record::PackagePolicyCallableConformance>>,
 ) -> Result<
     (
-        Vec<PackageReviewCallableConformance>,
+        Vec<PackagePolicyCallableConformance>,
         Vec<PackageReviewOperatorRealization>,
         Vec<crate::record::PackageReviewRequirementRealization>,
-        Vec<ProjectedReviewRow<PackageReviewExternalExecutableSupply>>,
     ),
     Vec<Diagnostic>,
 > {
-    let expected_external = match machine.supply_mode {
-        MachineSupplyMode::ExternalRealization { binding, mechanism } => {
-            if machine.body_is_present {
-                return Err(vec![Diagnostic::error(format!(
-                    "reviewed external callable `{}` retains an implementation body",
-                    machine.name
-                ))]);
-            }
-            let conformances = compilation.machine_trait_conformances(machine);
-            if conformances.len() != 1 {
-                return Err(vec![Diagnostic::error(format!(
-                    "reviewed external callable `{}` has {} conformance applications; expected exactly one",
-                    machine.name,
-                    conformances.len()
-                ))]);
-            }
-            let conformance = &conformances[0];
-            let (carrier, projected_binding) = match (binding, mechanism) {
-                (Some(binding), Some(mechanism))
-                    if conformance.external_binding == Some(binding)
-                        && !conformance.via_expression.is_valid() =>
-                {
-                    let Some(identity) = compilation.external_bindings.identity(binding) else {
-                        return Err(vec![Diagnostic::error(format!(
-                            "reviewed external callable `{}` has no exact binding-table identity",
-                            machine.name
-                        ))]);
-                    };
-                    if identity.mechanism() != mechanism {
-                        return Err(vec![Diagnostic::error(format!(
-                            "reviewed external callable `{}` has a supply mechanism inconsistent with its exact binding identity",
-                            machine.name
-                        ))]);
-                    }
-                    (
-                        ExpectedExternalCarrier::Legacy(binding),
-                        project_external_binding(compilation, machine, identity)?,
-                    )
-                }
-                (None, None)
-                    if conformance.external_binding.is_none()
-                        && conformance.via_expression.is_valid() =>
-                {
-                    let Some(row) = compilation
-                        .custody
-                        .providers()
-                        .evaluated_via_bindings
-                        .exact(
-                            machine.symbol,
-                            conformance.symbol,
-                            conformance.requirement_symbol,
-                        )
-                    else {
-                        return Err(vec![Diagnostic::error(format!(
-                            "reviewed external callable `{}` has no exact evaluated `via` row",
-                            machine.name
-                        ))]);
-                    };
-                    if row.via_expression() != conformance.via_expression {
-                        return Err(vec![Diagnostic::error(format!(
-                            "reviewed external callable `{}` evaluated `via` expression was substituted",
-                            machine.name
-                        ))]);
-                    }
-                    (
-                        ExpectedExternalCarrier::Evaluated,
-                        project_evaluated_binding(compilation, row)?,
-                    )
-                }
-                _ => {
-                    return Err(vec![Diagnostic::error(format!(
-                        "reviewed external callable `{}` has mixed or incomplete legacy/evaluated supply",
-                        machine.name
-                    ))]);
-                }
-            };
-            let Some(signature) = external_callable_signature else {
-                return Err(vec![Diagnostic::error(format!(
-                    "reviewed external callable `{}` has no self-contained executable-supply signature",
-                    machine.name
-                ))]);
-            };
-            Some((carrier, projected_binding, signature))
-        }
-        MachineSupplyMode::CheckedBody
-        | MachineSupplyMode::Requirement
-        | MachineSupplyMode::TopLevelRequirement
-        | MachineSupplyMode::Boundary
-        | MachineSupplyMode::AdmissionClaim => None,
-    };
-    let mut projected = Vec::new();
+    let mut policy = Vec::new();
     let mut operator_realizations = Vec::new();
     let mut requirement_realizations = Vec::new();
-    let mut external_executable_supply = Vec::new();
     for conformance in compilation.machine_trait_conformances(machine) {
-        let carrier_is_exact = match expected_external.as_ref().map(|expected| &expected.0) {
-            None => {
-                conformance.external_binding.is_none()
-                    && !conformance.via_expression.is_valid()
-                    && conformance.external_binding_source_span.is_none()
-            }
-            Some(ExpectedExternalCarrier::Legacy(expected)) => {
-                conformance.external_binding == Some(*expected)
-                    && !conformance.via_expression.is_valid()
-                    && conformance.external_binding_source_span.is_some()
-            }
-            Some(ExpectedExternalCarrier::Evaluated) => {
-                conformance.external_binding.is_none()
-                    && conformance.via_expression.is_valid()
-                    && conformance.external_binding_source_span.is_some()
-            }
-        };
-        if !carrier_is_exact {
-            return Err(vec![Diagnostic::error(format!(
-                "reviewed callable `{}` conformance disagrees with its exact checked, legacy, or evaluated supply carrier",
-                machine.name
-            ))]);
-        }
         let trait_definition = compilation
             .traits()
             .iter()
@@ -183,26 +50,11 @@ pub(super) fn project_callable_conformances(
                 machine,
                 conformance,
             ) {
-                if expected_external.is_none() {
-                    requirement_realizations.push(project_checked_requirement_realization(
-                        compilation,
-                        machine,
-                        conformance,
-                        requirement,
-                    )?);
-                    continue;
-                }
-                let Some((_, binding, signature)) = expected_external.as_ref() else {
-                    unreachable!("external supply was checked above")
-                };
-                external_executable_supply.push(project_top_level_requirement_external_supply(
+                requirement_realizations.push(project_checked_requirement_realization(
                     compilation,
                     machine,
                     conformance,
                     requirement,
-                    callable_identity,
-                    signature,
-                    binding,
                 )?);
                 continue;
             }
@@ -216,14 +68,7 @@ pub(super) fn project_callable_conformances(
                     machine.name, conformance.name, requirement_name
                 ))]);
             }
-            let external_operator = expected_external.is_some();
-            let operator = if external_operator {
-                typed_trees::operator::resolve_satisfied_boundary_operator_for_conformance(
-                    &compilation.typed,
-                    machine,
-                    conformance,
-                )
-            } else {
+            let operator =
                 typed_trees::operator::resolve_satisfied_checked_operator_for_conformance(
                     &compilation.typed,
                     machine,
@@ -237,19 +82,11 @@ pub(super) fn project_callable_conformances(
                         requirement_name.as_str(),
                     )
                     .map(|(operator, _)| operator)
-                })
-            };
+                });
             let Some(operator) = operator else {
                 return Err(vec![Diagnostic::error(format!(
-                    "reviewed callable `{}` realization `{}::{}` resolves to neither one exact trait requirement nor one exact {}operator",
-                    machine.name,
-                    conformance.name,
-                    requirement_name,
-                    if external_operator {
-                        "boundary "
-                    } else {
-                        "checked "
-                    }
+                    "reviewed callable `{}` realization `{}::{}` resolves to neither one exact trait requirement nor one exact checked operator",
+                    machine.name, conformance.name, requirement_name
                 ))]);
             };
             if operator.symbol != conformance.requirement_symbol {
@@ -258,81 +95,11 @@ pub(super) fn project_callable_conformances(
                     machine.name, conformance.name, requirement_name
                 ))]);
             }
-            if !operator.is_public && (external_operator || require_public_trait) {
+            if !operator.is_public && require_public_trait {
                 return Err(vec![Diagnostic::error(format!(
                     "reviewed callable `{}` realizes non-public operator `{}::{}` whose complete contract is absent from package review",
                     machine.name, conformance.name, requirement_name
                 ))]);
-            }
-            if external_operator {
-                let Some((_, binding, signature)) = expected_external.as_ref() else {
-                    return Err(vec![Diagnostic::error(format!(
-                        "reviewed callable `{}` realizes boundary operator `{}::{}` through an external binding without exact external supply",
-                        machine.name, conformance.name, requirement_name
-                    ))]);
-                };
-                // Review asks only the float lane: a fixed-token integer
-                // comparison that selected dispatch closes is still rejected
-                // here. See `IntrinsicRequirement::closed_float_execution`.
-                if operator.spelling.is_some()
-                    && (!matches!(binding, PackageReviewExternalBinding::CompilerIntrinsic)
-                        || provider_planning::IntrinsicRequirement::from_operator(
-                            &compilation.typed,
-                            operator,
-                        )
-                        .and_then(|requirement| {
-                            requirement.closed_float_execution(&compilation.typed)
-                        })
-                        .is_none())
-                {
-                    return Err(vec![Diagnostic::error(format!(
-                        "reviewed callable `{}` realizes fixed-token boundary operator `{}::{}` without one exact closed compiler-intrinsic execution",
-                        machine.name, conformance.name, requirement_name
-                    ))]);
-                }
-                if !operator.lifetime_parameters.is_empty()
-                    || !compilation.operator_type_parameters(operator).is_empty()
-                    || !machine.lifetime_parameters.is_empty()
-                    || !machine.type_parameters.is_empty()
-                {
-                    return Err(vec![Diagnostic::error(format!(
-                        "reviewed callable `{}` realizes generic or lifetime-parameterized boundary operator `{}::{}` through external supply not yet represented by package review",
-                        machine.name, conformance.name, requirement_name
-                    ))]);
-                }
-                validate_selected_boundary_operator_external_supply(
-                    compilation,
-                    machine,
-                    operator,
-                    binding,
-                )?;
-                let coordinate = project_operator_coordinate(compilation, operator)?;
-                if require_public_trait {
-                    operator_realizations.push(PackageReviewOperatorRealization {
-                        coordinate: coordinate.clone(),
-                        alias: conformance
-                            .alias
-                            .as_ref()
-                            .map(|alias| alias.as_str().to_owned()),
-                    });
-                }
-                external_executable_supply.push(project_external_executable_supply_with_source(
-                    machine,
-                    conformance,
-                    PackageReviewExternalExecutableSupply {
-                        callable: callable_identity.clone(),
-                        signature: (*signature).clone(),
-                        requirement: PackageReviewExternalRequirement::Operator {
-                            coordinate,
-                            alias: conformance
-                                .alias
-                                .as_ref()
-                                .map(|alias| alias.as_str().to_owned()),
-                        },
-                        binding: binding.clone(),
-                    },
-                )?);
-                continue;
             }
             if !matches!(machine.supply_mode, MachineSupplyMode::CheckedBody)
                 || !machine.body_is_present
@@ -460,7 +227,7 @@ pub(super) fn project_callable_conformances(
                 machine.name, trait_definition.name, requirement_name
             ))]);
         }
-        let row = PackageReviewCallableConformance {
+        policy.push(PackagePolicyCallableConformance {
             trait_identity: nominal_identity(compilation, trait_definition.symbol)?,
             requirement_identity: trait_requirement_identity(
                 compilation,
@@ -471,6 +238,7 @@ pub(super) fn project_callable_conformances(
                 typed_trees::machine::normalize_requirement_lifetime_partition(
                     &conformance.trait_lifetime_arguments,
                 ),
+            trait_lifetime_arguments: conformance.trait_lifetime_arguments.clone(),
             arguments: compilation
                 .type_reference_table
                 .type_reference_handles(conformance.arguments)
@@ -488,49 +256,13 @@ pub(super) fn project_callable_conformances(
                 .alias
                 .as_ref()
                 .map(|alias| alias.as_str().to_owned()),
-        };
-        if let Some((_, binding, signature)) = expected_external.as_ref() {
-            external_executable_supply.push(project_external_executable_supply_with_source(
-                machine,
-                conformance,
-                PackageReviewExternalExecutableSupply {
-                    callable: callable_identity.clone(),
-                    signature: (*signature).clone(),
-                    requirement: PackageReviewExternalRequirement::Trait(row.clone()),
-                    binding: binding.clone(),
-                },
-            )?);
-        }
-        if let Some(policy) = &mut policy {
-            policy.push(crate::record::PackagePolicyCallableConformance {
-                trait_identity: row.trait_identity.clone(),
-                requirement_identity: row.requirement_identity.clone(),
-                requirement_lifetime_partition: row.requirement_lifetime_partition.clone(),
-                trait_lifetime_arguments: conformance.trait_lifetime_arguments.clone(),
-                arguments: row.arguments.clone(),
-                alias: row.alias.clone(),
-            });
-        }
-        projected.push(row);
-    }
-    if expected_external.is_some() && external_executable_supply.is_empty() {
-        return Err(vec![Diagnostic::error(format!(
-            "reviewed external callable `{}` has no exact conformance application",
-            machine.name
-        ))]);
+        });
     }
     super::conformance_order::finish(
         machine.name.as_str(),
-        &mut projected,
+        &mut policy,
         &mut operator_realizations,
         &mut requirement_realizations,
-        &mut external_executable_supply,
-        policy,
     )?;
-    Ok((
-        projected,
-        operator_realizations,
-        requirement_realizations,
-        external_executable_supply,
-    ))
+    Ok((policy, operator_realizations, requirement_realizations))
 }

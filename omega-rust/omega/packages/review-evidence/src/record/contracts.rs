@@ -6,7 +6,6 @@ mod callable_contracts;
 mod declarations;
 mod expressions;
 mod propositions;
-mod stand_downs;
 
 pub use callable_contracts::{
     PackageReviewCallableContract, PackageReviewContractFact, PackageReviewResultCaseIdentity,
@@ -31,9 +30,4 @@ pub use propositions::{
     PackageReviewPropositionBinderKind, PackageReviewPropositionBinderValue,
     PackageReviewPropositionEvidence, PackageReviewPropositionParameterApplication,
     PackageReviewPropositionShape, PackageReviewPublicPropositionBody,
-};
-pub use stand_downs::{
-    PackageReviewContractEntailmentAssumptionDischarge, PackageReviewContractEntailmentCoveredExit,
-    PackageReviewContractEntailmentExitMembershipDischarge,
-    PackageReviewContractEntailmentOpenObligation, PackageReviewContractEntailmentOpenReason,
 };

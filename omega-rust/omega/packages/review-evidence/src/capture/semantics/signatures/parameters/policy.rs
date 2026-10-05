@@ -1,6 +1,6 @@
 //! Policy signature projection with an explicit containing static telescope.
 use super::Projection;
-use crate::PackageReviewInput;
+use crate::capture::PackageReviewInput;
 use crate::capture::semantics::signatures::parameters::CallingContractScope;
 use crate::capture::semantics::signatures::parameters::project_type_parameters_inner;
 use crate::record::PackageReviewTypeParameter;
