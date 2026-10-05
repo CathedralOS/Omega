@@ -2508,6 +2508,23 @@ crash and native exit behavior.
   build or execution gate, preserving its authored exit/output oracles.
   Host and implementation dependencies remain open; a missing result cannot
   be blessed by changing a golden.
+  **Cross-host staleness, measured.** The repairs landing here are host-neutral
+  but only this host's golden gets re-recorded, so the other hosts' rows drift.
+  `corpus_native_linux_x86_64.txt` still carries `rejected` for
+  `pass/text/local_bounded_text_case_result_loan_exit` and `incomplete` for
+  `pass/text/local_bounded_text_scalar_loan_exit`, both of which `8eef3900552`
+  repaired and which measure `built` at `exit:70` here. They are very likely
+  stale, and **a Linux host must measure them rather than have them edited
+  blind** -- a row re-recorded from the wrong host is worse than a stale one.
+  `corpus_scoreboard.py --cross-golden` only compares the check golden against
+  this host's native golden, so it cannot see this class.
+
+  Note also that `incomplete` is not a resource signal here:
+  `ProofSearchDeclines::unproved_obligation_error` maps any capacity decline in
+  one finalization onto the unproved obligation and its own comment calls that
+  deliberately coarse, so an `incomplete` row can name a budget while the
+  obligation is simply unprovable. Raising the provision is never the repair.
+
 
 - **NATIVE-GOLDEN-LINUX-BOUND-UNMEASURED.**
   (split-of:NATIVE-GOLDEN-CANNOT-RECORD-A-REGRESSION)
