@@ -1529,9 +1529,11 @@ pass/borrow/runtime_write_only_record_array_argument_exit checked 1544ms check-t
 pass/borrow/write_only_composed_forward_exit checked 1023ms check-target:macos_arm64 @2bde2a770491
 pass/borrow/write_only_constrained_record_field checked 305ms @2d8ed253669f
 pass/borrow/write_only_whole_scalar_replace checked 293ms @2d8ed253669f
-pass/borrows/borrow_domain_window_write_and_call checked 292ms check-target:macos_arm64 @2d8ed253669f
+pass/borrows/borrow_domain_window_write_and_call rejected 3891ms check-target:macos_arm64 @835baa6033e
+	terminal-artifact production failed: Lowering(InvalidTerminalModule(BorrowedDescriptorLoanDisturbed { operation: OperationId(27), place: PlaceId(6) }))
 pass/borrows/borrow_guarded_window_write_and_call checked 286ms check-target:macos_arm64 @2d8ed253669f
-pass/borrows/borrow_returned_window_write_and_call checked 313ms check-target:macos_arm64 @2d8ed253669f
+pass/borrows/borrow_returned_window_write_and_call rejected 4278ms check-target:macos_arm64 @835baa6033e
+	terminal-artifact production failed: Lowering(InvalidTerminalModule(BorrowedDescriptorLoanDisturbed { operation: OperationId(28), place: PlaceId(6) }))
 pass/borrows/borrow_stated_index_disequality_mut checked 278ms @2d8ed253669f
 pass/borrows/branch_selected_record_composed_receiver_exit checked 1837ms check-target:macos_arm64 @63377f7122bb+wt
 pass/borrows/branch_selected_record_receiver_exit checked 1333ms check-target:macos_arm64 @011fd400e8c1+wt
@@ -1542,7 +1544,8 @@ pass/borrows/indexed_record_field_replacement_exit checked 1447ms check-target:m
 pass/borrows/interleaved_parameter_field_replacement_exit checked 1370ms check-target:macos_arm64 @63377f7122bb+wt
 pass/borrows/local_reference_record_transfer_exit checked 1259ms check-target:macos_arm64 @82ec69a91ceb+wt
 pass/borrows/loop_descriptor_reformation_exit checked 1879ms check-target:macos_arm64 @63377f7122bb+wt
-pass/borrows/mut_loan_local_write_through_exit checked 2028ms check-target:macos_arm64 @af9f91f2fb06+wt
+pass/borrows/mut_loan_local_write_through_exit rejected 2963ms check-target:macos_arm64 @835baa6033e
+	terminal-artifact production failed: Lowering(Unsupported("structural argument has no established storage"))
 pass/borrows/mutable_record_loan_read_in_state_arms_exit checked 1231ms check-target:macos_arm64 @a9f373809a48+wt
 pass/borrows/nested_reference_crossings_exit checked 817ms check-target:macos_arm64 @21b65913386f+wt
 pass/borrows/nested_reference_leaf_projection_exit checked 1385ms check-target:macos_arm64 @51b4aa0b5a70+wt
@@ -2154,44 +2157,44 @@ pass/expressions/scalar_match_boundary_composition_exit checked 5240ms check-tar
 pass/filesystem/cross_linux_value_syscalls checked 17448ms @2d8ed253669f
 pass/filesystem/dir_walk_wrappers_exit rejected 21752ms check-target:macos_arm64 @c5fe05658cec+wt
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Filesystem::create_dir_all`), which was itself omitted at an unavailable callee (`Filesystem::mkall_walk`), which was itself omitted at local construction at `state graph: state signature: parameter custody shape: qualified non-linear parameter` (state 0)
-pass/filesystem/native_canonicalize rejected 2072ms check-target:macos_arm64 @ee58ca66336
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(FilesystemHost::canonicalize),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,ref\\(constrained\\(slice\\(named\\(name\\(u8\\)\\)\\)\\,declared-domain\\(name\\(package:0202020202020202020202020202020202020202020202020202020202020202:product::[u8]::Path\\)\\)\\)\\)\\)\\,parameter\\(mutable\\(yes\\)\\,const\\(no\\)\\,ref-mut\\(slice\\(named\\(name\\(u8\\)\\)\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
+pass/filesystem/native_canonicalize rejected 1980ms check-target:macos_arm64 @835baa6033e
+	selected ProgramEntry Binding field `Main::fs` requires a selected Fused provider for boundary `FilesystemHost`
 pass/filesystem/native_close rejected 9568ms check-target:macos_arm64 @a730a3a70c28+wt
 	selected ProgramEntry Binding field `Main::fs` requires a selected Fused provider for boundary `FilesystemHost`
 pass/filesystem/native_crud rejected 2422ms check-target:macos_arm64 @835baa6033e
 	selected ProgramEntry Binding field `Main::fs` requires a selected Fused provider for boundary `FilesystemHost`
-pass/filesystem/native_errno rejected 2043ms check-target:macos_arm64 @ee58ca66336
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(FilesystemHost::errno),parameters(),result-dispatch())` resolves to 0 selected provider rows
-pass/filesystem/native_filetype rejected 2857ms check-target:macos_arm64 @ee58ca66336
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(FilesystemHost::create),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,ref\\(constrained\\(slice\\(named\\(name\\(u8\\)\\)\\)\\,declared-domain\\(name\\(package:0202020202020202020202020202020202020202020202020202020202020202:product::[u8]::Path\\)\\)\\)\\)\\)\\,parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
-pass/filesystem/native_fs_workflow rejected 3184ms check-target:macos_arm64 @ee58ca66336
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(FilesystemHost::create),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,ref\\(constrained\\(slice\\(named\\(name\\(u8\\)\\)\\)\\,declared-domain\\(name\\(package:0202020202020202020202020202020202020202020202020202020202020202:product::[u8]::Path\\)\\)\\)\\)\\)\\,parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
-pass/filesystem/native_metadata_blocks rejected 19008ms check-target:macos_arm64 @ee58ca66336
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(FilesystemHost::create),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,ref\\(constrained\\(slice\\(named\\(name\\(u8\\)\\)\\)\\,declared-domain\\(name\\(package:0202020202020202020202020202020202020202020202020202020202020202:product::[u8]::Path\\)\\)\\)\\)\\)\\,parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
-pass/filesystem/native_metadata_ctime_dev rejected 42895ms check-target:macos_arm64 @ee58ca66336
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(FilesystemHost::create),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,ref\\(constrained\\(slice\\(named\\(name\\(u8\\)\\)\\)\\,declared-domain\\(name\\(package:0202020202020202020202020202020202020202020202020202020202020202:product::[u8]::Path\\)\\)\\)\\)\\)\\,parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
+pass/filesystem/native_errno rejected 2000ms check-target:macos_arm64 @835baa6033e
+	selected ProgramEntry Binding field `Main::fs` requires a selected Fused provider for boundary `FilesystemHost`
+pass/filesystem/native_filetype rejected 2595ms check-target:macos_arm64 @835baa6033e
+	selected ProgramEntry Binding field `Main::fs` requires a selected Fused provider for boundary `FilesystemHost`
+pass/filesystem/native_fs_workflow rejected 2611ms check-target:macos_arm64 @835baa6033e
+	selected ProgramEntry Binding field `Main::fs` requires a selected Fused provider for boundary `FilesystemHost`
+pass/filesystem/native_metadata_blocks rejected 2635ms check-target:macos_arm64 @835baa6033e
+	selected ProgramEntry Binding field `Main::fs` requires a selected Fused provider for boundary `FilesystemHost`
+pass/filesystem/native_metadata_ctime_dev rejected 2733ms check-target:macos_arm64 @835baa6033e
+	selected ProgramEntry Binding field `Main::fs` requires a selected Fused provider for boundary `FilesystemHost`
 pass/filesystem/native_metadata_ino rejected 3058ms check-target:macos_arm64 @835baa6033e
 	selected ProgramEntry Binding field `Main::fs` requires a selected Fused provider for boundary `FilesystemHost`
-pass/filesystem/native_metadata_nlink rejected 3365ms check-target:macos_arm64 @ee58ca66336
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(FilesystemHost::create),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,ref\\(constrained\\(slice\\(named\\(name\\(u8\\)\\)\\)\\,declared-domain\\(name\\(package:0202020202020202020202020202020202020202020202020202020202020202:product::[u8]::Path\\)\\)\\)\\)\\)\\,parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
-pass/filesystem/native_read_dir_iter rejected 2673ms check-target:macos_arm64 @ee58ca66336
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(FilesystemHost::create),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,ref\\(constrained\\(slice\\(named\\(name\\(u8\\)\\)\\)\\,declared-domain\\(name\\(package:0202020202020202020202020202020202020202020202020202020202020202:product::[u8]::Path\\)\\)\\)\\)\\)\\,parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
-pass/filesystem/native_wrapper_write_all_result rejected 38406ms check-target:macos_arm64 @ee58ca66336
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(FilesystemHost::open_create),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,ref\\(constrained\\(slice\\(named\\(name\\(u8\\)\\)\\)\\,declared-domain\\(name\\(package:0202020202020202020202020202020202020202020202020202020202020202:product::[u8]::Path\\)\\)\\)\\)\\)\\,parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)\\,parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
-pass/filesystem/runtime_local_host_result_dispatch_exit rejected 2510ms check-target:macos_arm64 @ee58ca66336
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(FilesystemHost::open),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,ref\\(constrained\\(slice\\(named\\(name\\(u8\\)\\)\\)\\,declared-domain\\(name\\(package:0202020202020202020202020202020202020202020202020202020202020202:product::[u8]::Path\\)\\)\\)\\)\\)\\,parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
+pass/filesystem/native_metadata_nlink rejected 2596ms check-target:macos_arm64 @835baa6033e
+	selected ProgramEntry Binding field `Main::fs` requires a selected Fused provider for boundary `FilesystemHost`
+pass/filesystem/native_read_dir_iter rejected 2379ms check-target:macos_arm64 @835baa6033e
+	selected ProgramEntry Binding field `Main::fs` requires a selected Fused provider for boundary `FilesystemHost`
+pass/filesystem/native_wrapper_write_all_result rejected 30462ms check-target:macos_arm64 @835baa6033e
+	selected ProgramEntry Binding field `Main::fs::host` requires a selected Fused provider for boundary `FilesystemHost`
+pass/filesystem/runtime_local_host_result_dispatch_exit rejected 2339ms check-target:macos_arm64 @835baa6033e
+	selected ProgramEntry Binding field `Main::host` requires a selected Fused provider for boundary `FilesystemHost`
 pass/filesystem/windows_canonicalize_exit rejected 40044ms check-target:windows_x86_64 @3243c9001d4
 	selected ProgramEntry Binding field `Main::fs::host` requires a selected Fused provider for boundary `FilesystemHost`
 pass/filesystem/windows_raw_breadth_exit rejected 2340ms check-target:windows_x86_64 @c47f8652484
 	selected ProgramEntry Binding field `Main::raw` requires a selected Fused provider for boundary `FilesystemHost`
 pass/filesystem/windows_set_file_time_exit rejected 2454ms check-target:windows_x86_64 @c47f8652484
 	selected ProgramEntry Binding field `Main::fs` requires a selected Fused provider for boundary `FilesystemHost`
-pass/filesystem/windows_wrapper_results_exit rejected 40949ms check-target:macos_arm64 @ee58ca66336
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(FilesystemHost::create_dir),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,ref\\(constrained\\(slice\\(named\\(name\\(u8\\)\\)\\)\\,declared-domain\\(name\\(package:0202020202020202020202020202020202020202020202020202020202020202:product::[u8]::Path\\)\\)\\)\\)\\)\\,parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
+pass/filesystem/windows_wrapper_results_exit rejected 31494ms check-target:macos_arm64 @835baa6033e
+	selected ProgramEntry Binding field `Main::fs::host` requires a selected Fused provider for boundary `FilesystemHost`
 pass/filesystem/wrapper_lock_metadata_exit rejected 46769ms check-target:macos_arm64 @6ba9c43af35
 	selected ProgramEntry Binding field `Main::fs::host` requires a selected Fused provider for boundary `FilesystemHost`
-pass/filesystem/wrapper_open_with_exit rejected 33598ms check-target:macos_arm64 @95e4e5c52dc
-	terminal-artifact production failed: Lowering(InvalidTerminalModule(PrimitiveSnapshotReconstructionLimitExceeded(MachineId(14))))
+pass/filesystem/wrapper_open_with_exit rejected 31196ms check-target:macos_arm64 @835baa6033e
+	selected ProgramEntry Binding field `Main::fs::host` requires a selected Fused provider for boundary `FilesystemHost`
 pass/float/build_runtime_semantics_twins_windows_x64 rejected 15232ms check-target:windows_x86_64 @c5d32a00863
 	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "windows_x86_64_baseline_float_twin_code", reason: "scalar callee has no checked executable body", omission: Some("`windows_x86_64_baseline_float_twin_code` has no admitted body (local construction stopped at outer calls: unconsumed nested call in a local initializer, state 0, statement 31)") })
 pass/float/build_runtime_semantics_twins_x86_baseline rejected 19264ms check-target:linux_x86_64 @c5d32a00863
@@ -2234,7 +2237,8 @@ pass/float/runtime_named_fma_sequence_exit checked 16819ms check-target:macos_ar
 pass/float/runtime_named_format_conversion_exit checked 6217ms check-target:macos_arm64 @2d8ed253669f
 pass/float/runtime_named_policy_result_exit checked 5484ms check-target:macos_arm64 @fa2336e35cbc
 pass/float/runtime_std_is_finite_exit checked 5045ms check-target:macos_arm64 @2d8ed253669f
-pass/float/runtime_total_order_satisfiers_exit checked 73060ms check-target:macos_arm64 @3284f31163c
+pass/float/runtime_total_order_satisfiers_exit rejected 7708ms check-target:macos_arm64 @835baa6033e
+	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "F32::TotalOrder", reason: "scalar callee has no checked executable body", omission: Some("`F32::TotalOrder` has no admitted body (local construction stopped at statement sequence: local data: reference capture, statement 0)") })
 pass/float/scalar_helper_boundary_sequence_exit checked 4671ms check-target:macos_arm64 @2d8ed253669f
 pass/float/state_loop_field_refinement_restoration_exit checked 1625ms check-target:macos_arm64 @163770eba39c
 pass/float/x86_fma_plan_association rejected 7718ms check-target:linux_x86_64 @95e4e5c52dc
@@ -2295,8 +2299,8 @@ pass/layouts/placed_view_source_access_compile checked 1502ms @2d8ed253669f
 pass/layouts/private_callback_slot_demand_compile rejected 53ms @c47f8652484
 	plan-laid value type `Spread<ForeignRecord>`: declaration `WndClassWindowProcedureSlot` has non-hermetic source origin `User`
 pass/layouts/private_callback_slot_untaken_compile checked 444ms @2d8ed253669f
-pass/layouts/runtime_callee_integer_at_fitting_write_exit rejected 2294ms check-target:macos_arm64 @bb72b3c36cfc
-	terminal-artifact production failed: Lowering(Unsupported("Unit structural argument is neither a parameter nor a supported literal"))
+pass/layouts/runtime_callee_integer_at_fitting_write_exit rejected 3318ms check-target:macos_arm64 @835baa6033e
+	terminal-artifact production failed: Lowering(Unsupported("structural argument has no established storage"))
 pass/layouts/runtime_callee_owned_local_origins_exit checked 1411ms check-target:macos_arm64 @9660dd146223
 pass/layouts/runtime_plan_laid_compact_bits_exit checked 1390ms check-target:macos_arm64 @2d8ed253669f
 pass/layouts/runtime_plan_laid_erased_field_exit checked 832ms check-target:macos_arm64 @d9d22369cd7b+wt
@@ -2539,9 +2543,11 @@ pass/recast/runtime_nested_record_byte_store_exit checked 1232ms check-target:ma
 pass/recast/runtime_offset_byte_recast_mutable_write_exit checked 1800ms check-target:macos_arm64 @a3bac00e54bb+wt
 pass/recast/runtime_recast_record_view_indexed_write_exit checked 1653ms check-target:macos_arm64 @3b624377ec31
 pass/recast/runtime_record_array_view_mutable_write_exit checked 3863ms check-target:macos_arm64 @def08a434d7a+wt
-pass/recast/runtime_scalar_parameter_shared_views_exit checked 2961ms check-target:macos_arm64 @9782e38b64ab+wt
+pass/recast/runtime_scalar_parameter_shared_views_exit rejected 2331ms check-target:macos_arm64 @835baa6033e
+	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "read_bits64", reason: "scalar callee has no checked executable body", omission: Some("`read_bits64` has no admitted body (local construction stopped at statement sequence: local data: reference capture, statement 0)") })
 pass/recast/runtime_shared_domain_weakening_recast_exit checked 1008ms check-target:macos_arm64 @a3bac00e54bb+wt
-pass/recast/runtime_shared_parameter_view_calls_exit checked 538ms check-target:macos_arm64 @cd7399e98041+wt
+pass/recast/runtime_shared_parameter_view_calls_exit rejected 3441ms check-target:macos_arm64 @835baa6033e
+	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "inspect", reason: "scalar callee has no checked executable body", omission: Some("`inspect` has no admitted body (local construction stopped at statement sequence: local data: reference capture, state 0, statement 1)") })
 pass/recast/runtime_shared_record_float_range_weakening_exit checked 3023ms check-target:macos_arm64 @a3bac00e54bb+wt
 pass/references/mutable_loan_member_read_initializes_local_exit checked 928ms check-target:macos_arm64 @a1e2cd93d1e7
 pass/references/runtime_shared_ref_param_guard_exit checked 1322ms check-target:macos_arm64 @2d8ed253669f
@@ -2859,7 +2865,8 @@ pass/wire/wire_preserving_decode_relay_exit rejected 3286ms check-target:macos_a
 pass/write_only/state_forwarded_scalar_store_exit checked 999ms check-target:macos_arm64 @2bde2a770491
 run/borrows/direct_runtime_index_write checked 2883ms check-target:macos_arm64 @2d8ed253669f
 run/borrows/indexed_loan_element_write checked 748ms check-target:macos_arm64 @ca8c127c90c5
-run/borrows/local_mut_borrow checked 2688ms check-target:macos_arm64 @2d8ed253669f
+run/borrows/local_mut_borrow rejected 2263ms check-target:macos_arm64 @835baa6033e
+	terminal-artifact production failed: Lowering(Unsupported("structural argument has no established storage"))
 run/borrows/mut_record_loan_member_access checked 2773ms check-target:macos_arm64 @2d8ed253669f
 run/borrows/probe_shared_len checked 2879ms check-target:macos_arm64 @2d8ed253669f
 run/borrows/recast_mut_borrow checked 889ms check-target:macos_arm64 @a3bac00e54bb+wt
