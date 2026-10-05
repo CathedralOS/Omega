@@ -338,13 +338,10 @@ pub(super) fn check(
                 }
             }
         }
+        // Check the complete exit roster, including the empty roster of a
+        // function whose closed control-flow graph never reaches an exit.
         require(
-            returns.next().is_none()
-                && process_exits.next().is_none()
-                && crashes.next().is_none()
-                && (!claimed.returns.is_empty()
-                    || !claimed.process_exits.is_empty()
-                    || !claimed.crashes.is_empty()),
+            returns.next().is_none() && process_exits.next().is_none() && crashes.next().is_none(),
         )?;
         if function_frame.is_some() && modified != allowed {
             return Err(WholeFunctionExitContractError::FramePreservationMismatch(

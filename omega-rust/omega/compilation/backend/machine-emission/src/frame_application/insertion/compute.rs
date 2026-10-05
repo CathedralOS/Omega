@@ -111,19 +111,6 @@ fn apply_function(
     let epilogue_len =
         u64::try_from(epilogue.len()).map_err(|_| FrameApplicationError::OffsetOverflow)?;
     let return_sites = validate_and_collect_returns(function)?;
-    if return_sites.is_empty()
-        && !function.blocks.iter().any(|block| {
-            block.instructions.last().is_some_and(|row| {
-                matches!(
-                    row.control,
-                    FunctionFragmentControlProvenance::HostedExitProcess { .. }
-                        | FunctionFragmentControlProvenance::Crash { .. }
-                )
-            })
-        })
-    {
-        return Err(FrameApplicationError::MissingFinalReturn(function.machine));
-    }
 
     let mut bytes = Vec::with_capacity(
         prologue

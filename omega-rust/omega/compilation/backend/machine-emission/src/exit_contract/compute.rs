@@ -489,11 +489,9 @@ pub(super) fn compute_inner<S: ValidatedSelectedAnalysis>(
                 }
             }
         }
-        if returns.is_empty() && process_exits.is_empty() && crashes.is_empty() {
-            return Err(WholeFunctionExitContractError::MissingReturn(
-                function.machine,
-            ));
-        }
+        // A closed control cycle may have no exits. The source's result shape
+        // constrains a return when reached; it is not a termination promise.
+        // Every selected block still contributes its checked terminator above.
         if function_frame.is_some() && modified_callee_saved != allowed_callee_saved {
             return Err(WholeFunctionExitContractError::FramePreservationMismatch(
                 function.machine,

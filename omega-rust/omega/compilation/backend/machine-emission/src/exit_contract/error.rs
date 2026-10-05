@@ -31,7 +31,6 @@ pub enum WholeFunctionExitContractError {
     NonReturnStackEffect(SelectedInstructionId),
     NonReturnMemoryEffect(SelectedInstructionId),
     NonReturnControlEffect(SelectedInstructionId),
-    MissingReturn(MachineId),
     ReturnOperandMismatch(SelectedInstructionId),
     ReturnEncodingMismatch(SelectedInstructionId),
     ReturnEffectsMismatch(SelectedInstructionId),

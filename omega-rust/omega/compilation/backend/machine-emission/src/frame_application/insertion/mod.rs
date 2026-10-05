@@ -8,6 +8,11 @@
 //! `validation_branch`) for retained-artifact readers and tests. Source-fragment and target-protocol admission belong to the
 //! frame-application stage above; successful byte insertion alone is not
 //! publication or execution authority.
+//!
+//! A function with a closed control cycle still receives its prologue but has
+//! no return sites at which to insert an epilogue. Requiring an exit here would
+//! impose termination on source machines that make no such promise. The same
+//! insertion and branch reflow apply to empty and nonempty return rosters.
 
 mod compute;
 mod error;

@@ -1,0 +1,16 @@
+// A Unit result promises the shape of a return, not that a return occurs.
+machine wait_forever() {
+    transition { _ -> waiting() }
+    state waiting() { transition { _ -> waiting() } }
+}
+
+data Main { wait: bool; }
+
+machine Main::run(context: &mut Main) {
+    transition context.wait {
+        true -> wait()
+        _ -> finish()
+    }
+    state wait() { wait_forever(); }
+    state finish() {}
+}
