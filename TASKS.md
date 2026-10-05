@@ -2352,13 +2352,12 @@ crash and native exit behavior.
   fixture whose offset has no bound at all.
 
 - **MACOS-NATIVE-LOST-SUCCESSES.** (new-scope)
-  `tests/omega/corpus_native_macos_arm64.txt` carries 17 rows with a
+  `tests/omega/corpus_native_macos_arm64.txt` carries 16 rows with a
   `regressed-from:` token: a success this host recorded and no longer reaches.
   They were invisible until the golden could say so -- sixteen claimed `built`
   and twelve of those claimed an authored exit. Revalidate each recorded loss
-  against current main before assigning a repair. Three lost a running program with an authored exit
-  (`pass/text/local_bounded_text_case_result_loan_exit`,
-  `pass/wire/wire_preserving_decode_relay_exit` at `exit:70`, and
+  against current main before assigning a repair. Two lost a running program with an authored exit
+  (`pass/text/local_bounded_text_case_result_loan_exit` and
   `pass/text/local_bounded_text_scalar_loan_exit`, now `incomplete` at the
   proof-search provision); one lost `exit:0`
   (`pass/providers/specialized_mixed_structural_result_operator_hosted_native`
@@ -2653,13 +2652,11 @@ check corpus and the native corpus unchanged on the slices it names.
 
   | phase | fixture | refusing site |
   | --- | --- | --- |
-  | `call operation: projected operand support` | `pass/build/uefi_os_handoff_invocation` | `terminal_unit/calls/call_operations.rs:433` — neither `ordinary_projected_call_is_supported` nor `projected_reference_record_operands_supported` admits the operands |
   | `call operation: linear structural result` | `pass/core/content_conservation_contract` | `call_operations.rs:486` — design-blocked, see the conservation note below |
   | `structural field store: destination parameter` | `pass/text/runtime_local_struct_string_field_concat_exit`, `pass/text/runtime_string_stored_suffix_exit` | `structural_scalar_store/destination.rs:165` — `out_line` is a `let mut out_line: &[u8] in Utf8;`, so the parameter lane finds no destination, `borrowed_view_local_root` refuses the `mut` local and `owned_local_root` refuses a reference shell. The green sibling `runtime_bounded_carrier_alias_concat_exit` uses an owned `[u8; 16] in Utf8` carrier; a `&[u8]` destination has no storage for the concatenation, so this likely needs an owned carrier or a compiler-managed temporary, not a widened recognizer |
   | `structural field store: target place` | `pass/traits/runtime_local_named_dyn_pass_through_exit` | `destination.rs:119`, inside `rejoin_loan_local` — `erased = &main.selected as &dyn Item::Primary` reseats a `let mut` reference local, and `&x as &T` is `CastForm::RecastShared`, so the rejoin peels to the `Borrow` and then refuses on `local.is_mutable`. A reseat is not a write *through* the loan; the helper conflates "cannot rejoin" with "unsupported". Note that returning the place unchanged only moves the phase — no lane plans a `&dyn` reseat yet |
   | `call operation: structural arguments: alias and identity` | `pass/traits/runtime_dyn_two_impl_dispatch_exit` | `terminal_unit/calls/structural_arguments.rs:161` |
   | `call operation: target state` | `pass/traits/runtime_local_named_dyn_devirtualized_exit` | `call_operations.rs:203` — `Shape::code` is a non-boundary trait signature, so `find_machine_head`/`find_state_with_machine` both miss it and the dyn route in `terminal_unit/dynamic_scalar_calls/` did not claim the call first |
-  | `state graph: terminator: conditional successors: edge cleanup: no state plan` | `pass/wire/wire_preserving_decode_relay_exit` | `state_graph/mod.rs:1939`, `SuccessorGuard::EdgeCleanupStatePlan` — `cleanups.for_state(machine, state)` is `None` |
 
   `fail/build/placed_view_program_entry_input` also carries an omission phase
   (`an unavailable scalar target (\`inspect\`)`) but is a `fail` fixture and is
@@ -2674,6 +2671,35 @@ check corpus and the native corpus unchanged on the slices it names.
   records this as owed via
   `ContentPartitionCompositionFact::source_derivation_depth`. Do not widen that
   recognizer; it is the conservation check.
+  **Two rows are closed, and the map's premise for one of them was wrong.**
+  `pass/wire/wire_preserving_decode_relay_exit` reaches `checked` and runs
+  natively at `exit:70` (`d29042bbc65`). The refusing site was never
+  `state_graph/mod.rs:1939` -- that is the consumer -- but `terminal_cleanup.rs`'s
+  `build_state_plan`, whose per-edge projected-move branch recognized exactly one
+  source shape and discarded the whole state plan on `None`. The trigger was a
+  `.len` read on a borrowed-slice field in a transition guard: an intrinsic member
+  resolves no data-member symbol, so the canonical place ends in
+  `PlaceSegment::Field { symbol: invalid }`, no type projects through it, and
+  `expression_requires_ownership`'s `unwrap_or(true)` recorded the metadata read
+  as an owned move of the whole place.
+
+  `pass/build/uefi_os_handoff_invocation` keeps its omission closed and stays red
+  (`31acaf783d0`). **Neither named predicate was refusing its operands; neither
+  was ever consulted.** Both admitting branches of
+  `ordinary_projected_call_is_supported` and the whole of
+  `projected_reference_record_operands_supported` sit behind
+  `supply_mode == MachineSupplyMode::CheckedBody`, and the callee
+  `UefiOsHandoffLegs::acquire` is a bodied `boundary machine`. Four consumers had
+  each re-derived that judgment, and the same narrowing marked the adapter
+  `Unsupported` in terminal-machine selection, failing its callers' closure
+  lowering. `Machine::supplies_checked_body` now states it once, at 9 call sites.
+  What the fixture needs now is a closed native catalog identity for the
+  `UefiOsHandoffTermination::firmware_return` and `::transfer` boundaries --
+  backend work, not a stage-04 omission.
+
+  One correction carried forward to every remaining row: **a phase string names
+  the consumer, not the decision.** Probe the `?` exits.
+
 
 - **TRANSPARENT-RECORD-RESULT-CARRIES-MEMBER-CLAIMS.** (split-of:PROJECTED-OWNED-LET-CONTINUATION)
   `pass/ownership/linear_transparent_record_frontier` now lowers both
