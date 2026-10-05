@@ -2049,6 +2049,50 @@ crash and native exit behavior.
   configurations itself (the CLI builds `TargetCompileConfiguration`s in
   `omega-rust/omega/application/cli/src/compilation/mod.rs` today).
 
+- **GUI-CANARY-HAS-NO-PROVIDER.** (new-scope)
+  `tests/omega/pass/host/runtime_gui_window_lifecycle_exit` and
+  `runtime_gui_foreground_window_exit` each declare their own
+  `pub boundary trait Gui` over four user32 operations (`window_create`,
+  `msg_peek`, `is_window`, `window_destroy`) and declare **no satisfier at
+  all** -- `grep "satisfies Gui::"` finds zero rows repository-wide. Both
+  reject with "selected ProgramEntry Binding field `Main::gui` requires a
+  selected Fused provider for boundary `Gui`". They are the only two members of
+  that diagnostic's cluster that are not `FilesystemHost` (19 of the 21 are).
+
+  **Why they appear to work anyway, and why that is the real finding.** The
+  checked interpreter dispatches these on the **bare operation name**:
+  `interpreter/evaluator.rs:300` documents "the virtual window system:
+  `window_create` mints opaque non-zero handle" and
+  `evaluator/execution/expressions_and_value_calls.rs:1087,1136` matches the
+  string `"window_create"`. So the interpreted leg satisfies the trait without
+  any provider while terminal production demands a Fused one. That is the same
+  bare-name-fallback class as the dead `BuildOutput` facet family repaired by
+  `d37ea22ec59`, and it is why nothing caught the missing provider: a fixture
+  can read as working interpreted while the route that would ship it has no
+  provider.
+
+  **The template is `pass/capabilities/windows_provides_import_exit`**, which is
+  green: it declares `pub boundary trait Beeper`, a
+  `windows_x86_64 machine beeper_binding() -> ForeignBinding<10, 3, 0>`
+  returning `ForeignBinding::DllImport { import: DllImport::PeByName { library,
+  export } }`, and `machine beeper_abs(...) satisfies Beeper::beep via
+  beeper_binding();`. Every green fixture that declares its own boundary trait
+  declares its satisfier in the same fixture; the two Gui fixtures are the
+  exception.
+
+  **Measured, so the next lane does not repeat it:** restricting
+  `Build::bind` to `windows_x86_64` alone does **not** fix them -- the Fused
+  demand applies to the declared target, not only the realization host, so the
+  template is green because it has a provider rather than because Windows is
+  not the host. A provider is required. That said the four-target bind is also
+  wrong on its own terms: a user32 trait cannot be deployable on Linux or
+  macOS, and the template binds Windows only.
+
+  Acceptance: both fixtures declare a `windows_x86_64` user32 provider in the
+  fixture, bind only `windows_x86_64`, and reach `checked`; their authored exit
+  70 is verifiable only on a Windows host, so a macOS lane states that leg as
+  unverified rather than claiming it.
+
 - **COMPILE-REPORT-PRODUCTS.** (new-scope) Product admission is part of
   report construction in
   `omega-rust/omega/compilation/products/src/compilation_products.rs`, and
