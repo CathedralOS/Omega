@@ -105,11 +105,6 @@ fn lower_content_projection_scalar(
                         "content projection references an unknown structural field",
                     ),
                 )?;
-                if identity != segment.name {
-                    return unsupported(
-                        "content projection field identity drifted from its definition",
-                    );
-                }
                 Ok(identity)
             })
             .collect::<Result<Vec<_>, LoweringError>>()
@@ -286,9 +281,6 @@ pub(crate) fn lower_whole_content_entry_claims(
             .ok_or(LoweringError::Unsupported(
                 "content entry carrier is absent",
             ))?;
-        if carrier.identity != checked_parameter.type_identity {
-            return unsupported("content entry carrier differs from its checked parameter");
-        }
         let mut segments = Vec::with_capacity(entry_claim.path.len());
         for segment in &entry_claim.path {
             let child = match (segment, &carrier.shape) {

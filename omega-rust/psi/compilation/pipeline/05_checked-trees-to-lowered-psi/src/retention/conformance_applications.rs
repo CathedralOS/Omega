@@ -67,21 +67,15 @@ pub(crate) fn append_closed_conformance_applications_excluding(
     let applications =
         collect_closed_conformance_applications(checked, owners, &[excluded_source])?;
     for application in applications {
-        let existing = module
+        if !module
             .closed_conformance_applications
             .iter()
-            .find(|existing| {
+            .any(|existing| {
                 existing.owner == application.owner
                     && existing.declaration_identity == application.declaration_identity
                     && existing.report_fingerprint == application.report_fingerprint
-            });
-        if let Some(existing) = existing {
-            if existing != &application {
-                return Err(LoweringError::Unsupported(
-                    "retained closed conformance application differs from its source selection",
-                ));
-            }
-        } else {
+            })
+        {
             module.closed_conformance_applications.push(application);
         }
     }

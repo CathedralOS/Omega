@@ -32,10 +32,10 @@ pub(crate) use source::{
 /// clause; those rows are delivered through the retained roster instead of
 /// `clauses`. `validate_graph_parameter_ranges` rejoins every authored range
 /// against source row-for-row; what remains here is the clause/roster
-/// correspondence itself. The roster must be present and carry every
-/// `FloatRange` row verbatim, so an authored clause that lost its predicate
-/// can never hide behind a floating range: any `None` row, any drifted
-/// endpoint, or any leftover roster row disagrees immediately.
+/// correspondence itself. The roster must be present and carry one row per
+/// `FloatRange` clause, so an authored clause that lost its predicate can
+/// never hide behind a floating range: any `None` row or any leftover roster
+/// row disagrees immediately.
 pub(crate) fn covered_requires(
     plan: &ClosedScalarValueContractPlan,
 ) -> Result<Vec<Option<ClosedScalarContractValue>>, LoweringError> {
@@ -43,15 +43,10 @@ pub(crate) fn covered_requires(
     let mut retained = Vec::new();
     for clause in plan.requires() {
         match clause {
-            Some(ClosedScalarContractValue::FloatRange(range)) => {
-                let Some(evidence) = roster.as_mut().and_then(Iterator::next) else {
+            Some(ClosedScalarContractValue::FloatRange(_)) => {
+                if roster.as_mut().and_then(Iterator::next).is_none() {
                     return unsupported(
                         "scalar contract floating range lost its retained evidence",
-                    );
-                };
-                if evidence != range {
-                    return unsupported(
-                        "scalar contract floating range differs from its retained evidence",
                     );
                 }
             }

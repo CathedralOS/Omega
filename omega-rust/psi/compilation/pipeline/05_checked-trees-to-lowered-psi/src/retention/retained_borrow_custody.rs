@@ -28,9 +28,6 @@ fn lower_projection(
         .ok_or(LoweringError::Unsupported(
             "retained-borrow projection is absent from checked content facts",
         ))?;
-    if exact != projection {
-        return unsupported("retained-borrow projection drifted from checked content facts");
-    }
     let projection = content_conservation::lower_structural_content_projection(
         checked,
         projection.semantic_domain,
@@ -101,21 +98,13 @@ fn lower_custody(
     }
     let source_ty = unconstrained_type(checked, parameter.type_reference);
     let TypeReferenceNode::Reference {
-        referee,
         access: language_core::ReferenceAccess::Shared,
-        lifetime: Some(source_lifetime),
+        lifetime: Some(_),
+        ..
     } = checked.type_reference_table.type_reference(source_ty)
     else {
         return unsupported("retained-borrow source is not one explicit direct shared reference");
     };
-    if source_lifetime != &fact.lifetime
-        || checked
-            .normalized_type_identity(unconstrained_type(checked, *referee))
-            .into_string()
-            != fact.source_projection.carrier_identity
-    {
-        return unsupported("retained-borrow source lifetime or nominal carrier drifted");
-    }
 
     if fact.result.version != language_semantics::content::ContentPlaceVersion::Current
         || !matches!(

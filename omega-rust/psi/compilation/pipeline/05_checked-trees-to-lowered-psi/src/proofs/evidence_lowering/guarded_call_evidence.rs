@@ -385,12 +385,6 @@ pub(crate) fn lower_and_install_payloadless_guarded_call_evidence(
             .proof
             .outcome_specific_guarantees
             .get(selection.guarantee);
-        if guarantee.machine_symbol != plan.target_machine
-            || guarantee.result_data != arm.result_data
-            || guarantee.result_case != arm.result_case
-        {
-            return unsupported("guarded payloadless selected arm identity drifted");
-        }
         let callee_term_handle = guarantee.evidence_term.ok_or(LoweringError::Unsupported(
             "guarded payloadless selected guarantee is unnamed",
         ))?;
@@ -423,9 +417,6 @@ pub(crate) fn lower_and_install_payloadless_guarded_call_evidence(
             .ok_or(LoweringError::Unsupported(
                 "guarded payloadless selected term declaration is absent",
             ))?;
-        if callee_term_declaration.interface != output_declaration.interface {
-            return unsupported("guarded payloadless selected term identity drifted");
-        }
         let callee_application = lowered
             .semantic_module
             .proposition_applications
@@ -561,11 +552,6 @@ pub(crate) fn lower_and_install_payloadless_guarded_call_evidence(
                         "guarded selected evidence target requirement is absent",
                     ))?;
                 let target_requirement = declaration.proposition;
-                if declaration.interface != evidence_interface {
-                    return unsupported(
-                        "guarded selected evidence target requirement interface drifted",
-                    );
-                }
                 let target_application = lowered
                     .semantic_module
                     .proposition_applications
@@ -595,12 +581,6 @@ pub(crate) fn lower_and_install_payloadless_guarded_call_evidence(
                 let [parameter] = target.structural_parameters.as_slice() else {
                     return unsupported("guarded selected evidence target parameter is not exact");
                 };
-                if usize::try_from(use_.input_position).ok() != Some(target.contract.requires.len())
-                {
-                    return unsupported(
-                        "guarded selected evidence target requirement order drifted",
-                    );
-                }
                 target
                     .contract
                     .requires

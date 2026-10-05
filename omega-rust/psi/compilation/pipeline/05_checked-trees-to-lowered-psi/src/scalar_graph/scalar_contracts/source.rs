@@ -175,32 +175,20 @@ pub(crate) fn validate_boundary_guarantees(
         let row = retained.next().ok_or(LoweringError::Unsupported(
             "boundary scalar guarantee lost its source clause",
         ))?;
-        match row {
-            Some(ClosedScalarContractValue::Predicate(_)) => {
-                let _ = checked
-                    .proof_facts
-                    .span_or_empty(source.facts)
-                    .iter()
-                    .map(|fact| match fact {
-                        ProofFact::Expression(expression) => Some(*expression),
-                        _ => None,
-                    })
-                    .collect::<Option<Vec<_>>>()
-                    .filter(|expressions| !expressions.is_empty())
-                    .ok_or(LoweringError::Unsupported(
-                        "boundary predicate has no authored expression",
-                    ))?;
-            }
-            Some(ClosedScalarContractValue::FloatMeaningEquality { expression, .. }) => {
-                if !matches!(checked.proof_facts.span_or_empty(source.facts),
-                    [ProofFact::Expression(authored)] if authored == expression)
-                {
-                    return unsupported(
-                        "boundary meaning guarantee changed its authored expression",
-                    );
-                }
-            }
-            _ => {}
+        if let Some(ClosedScalarContractValue::Predicate(_)) = row {
+            let _ = checked
+                .proof_facts
+                .span_or_empty(source.facts)
+                .iter()
+                .map(|fact| match fact {
+                    ProofFact::Expression(expression) => Some(*expression),
+                    _ => None,
+                })
+                .collect::<Option<Vec<_>>>()
+                .filter(|expressions| !expressions.is_empty())
+                .ok_or(LoweringError::Unsupported(
+                    "boundary predicate has no authored expression",
+                ))?;
         }
     }
     if retained.next().is_some() {

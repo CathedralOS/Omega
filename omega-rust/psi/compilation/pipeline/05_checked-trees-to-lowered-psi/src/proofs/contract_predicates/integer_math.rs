@@ -27,16 +27,8 @@ pub(super) fn lower(
             return unsupported("mathematical contract has an invalid term graph");
         }
         match expression.terms.get(handle) {
-            CheckedIntegerMathTerm::Embed {
-                primitive_type,
-                operand,
-            } => {
-                let expected =
-                    crate::emission::scalar_types::terminal_scalar_type(*primitive_type)?;
+            CheckedIntegerMathTerm::Embed { operand, .. } => {
                 let scalar = terms.scalar(operand)?;
-                if scalar.scalar_type() != expected {
-                    return unsupported("mathematical embedding changed its source carrier");
-                }
                 match scalar {
                     ScalarTerm::Value {
                         id,

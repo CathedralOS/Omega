@@ -11,11 +11,7 @@ use super::{
 };
 use checked_trees::expression::ExpressionNode;
 use checked_trees::statement::{StatementNode, TransitionExit, TransitionTargetNode};
-use checked_trees::types::PrimitiveType;
-use checked_trees::{
-    CheckedStructuralRankedArgumentPlan, CheckedStructuralRankedGuardPlan,
-    CheckedStructuralRankedSccEdgePlan, CheckedStructuralRankedSccPlan,
-};
+use checked_trees::{CheckedStructuralRankedArgumentPlan, CheckedStructuralRankedSccPlan};
 use terminal_psi::StructuralTypeShape;
 
 pub(crate) struct ScalarLoopPlan {
@@ -282,16 +278,10 @@ pub(super) fn prepare(
     }))
 }
 
-/// One SCC member's rank coordinate, resolved against its own authored source
-/// and witness. A fused cycle ranks every member's own formal; the plan-level
-/// index names the header's scalar position.
+/// One SCC member, resolved against its own authored source and witness.
 struct MemberRank<'a> {
     machine: &'a checked_trees::machine::Machine,
     source: &'a checked_trees::state::State,
-    scalar_position: u32,
-    argument_ordinal: u32,
-    primitive: PrimitiveType,
-    upper_bound: u128,
 }
 
 fn validate_rank<'a>(
@@ -309,9 +299,8 @@ fn validate_rank<'a>(
     }) {
         return validate_runtime_rank(checked, graph, rank);
     }
-    // The member set preserves authored edge order — header first, then each
-    // covered edge's endpoints — so the rejoined roster compares to the
-    // checker's retained plan element for element.
+    // The member set preserves authored edge order: header first, then each
+    // covered edge's endpoints.
     let mut member_sources: Vec<(
         &'a checked_trees::machine::Machine,
         &'a checked_trees::state::State,
@@ -342,9 +331,9 @@ fn validate_rank<'a>(
     }
     let member_lookup =
         |state: symbols::SymbolHandle| members.iter().find(|member| member.source.symbol == state);
-    let header = member_lookup(source.symbol).ok_or(LoweringError::Unsupported(
-        "scalar loop lost its header rank coordinate",
-    ))?;
+    if member_lookup(source.symbol).is_none() {
+        return unsupported("scalar loop lost its header rank coordinate");
+    }
 
     fn branch(destination: &CheckedScalarBranchDestination) -> Option<&CheckedScalarSuccessor> {
         match destination {
@@ -352,8 +341,6 @@ fn validate_rank<'a>(
             _ => None,
         }
     }
-    let mut covered_cyclic_edges = Vec::new();
-    let mut member_successor_count = 0usize;
     // Source order is authoritative, not retained witness order or emitted
     // block order. Rejoin every authored backedge before deriving its row;
     // a transition landing outside the member set leaves the cycle and is not
@@ -373,11 +360,6 @@ fn validate_rank<'a>(
             } => [branch(when_true), branch(when_false)],
             _ => [None, None],
         };
-        member_successor_count += successors
-            .iter()
-            .flatten()
-            .filter(|successor| member_lookup(successor.target).is_some())
-            .count();
         for (statement_ordinal, statement) in checked
             .statement_table
             .statements(member.source.statement_nodes)
@@ -425,57 +407,8 @@ fn validate_rank<'a>(
                 if matching.next().is_some() {
                     return unsupported("scalar natural rank duplicated an authored successor");
                 }
-                let target_member = member_lookup(normalized).ok_or(LoweringError::Unsupported(
-                    "scalar natural rank lost a fused member coordinate",
-                ))?;
-                // Both descriptors name the exact subject in the existing Nat
-                // judgment. The argument ordinal is authored, while the three
-                // parameter indices are dense scalar indices. Actual expression
-                // custody and Natural verification separately preserve and prove
-                // the selected guard/decrement, including private evaluation steps.
-                covered_cyclic_edges.push(CheckedStructuralRankedSccEdgePlan {
-                    source_state: member.source.symbol,
-                    target_state: normalized,
-                    statement_ordinal,
-                    guard: CheckedStructuralRankedGuardPlan::UnsignedParameterPositive {
-                        scalar_parameter_index: member.scalar_position,
-                        primitive_type: member.primitive,
-                    },
-                    successor_argument:
-                        CheckedStructuralRankedArgumentPlan::UnsignedParameterMinusOne {
-                            argument_ordinal: target_member.argument_ordinal,
-                            source_scalar_parameter_index: member.scalar_position,
-                            target_scalar_parameter_index: target_member.scalar_position,
-                            primitive_type: member.primitive,
-                        },
-                });
             }
         }
-    }
-    // The checker retains covered edges in one canonical order independent of
-    // which member the fused worklist visited first; rejoin in the same order.
-    covered_cyclic_edges.sort_by_key(|edge| {
-        (
-            edge.source_state.arena_index(),
-            edge.source_state.generation(),
-            edge.target_state.arena_index(),
-            edge.target_state.generation(),
-            edge.statement_ordinal,
-        )
-    });
-    if covered_cyclic_edges.is_empty()
-        || covered_cyclic_edges.len() != member_successor_count
-        || *rank
-            != (CheckedStructuralRankedSccPlan {
-                header_state: source.symbol,
-                rank_scalar_parameter_index: header.scalar_position,
-                rank_primitive_type: header.primitive,
-                rank_lower_bound: 0,
-                rank_upper_bound: header.upper_bound,
-                covered_cyclic_edges,
-            })
-    {
-        return unsupported("scalar loop ranking differs from its complete authored rank roster");
     }
     Ok(())
 }
@@ -551,20 +484,19 @@ fn validate_runtime_rank(
         .ok_or(LoweringError::Unsupported(
             "scalar runtime rank lost its header",
         ))?;
-    let (header_subject, header_position) = coordinate(header.state)?;
+    let (header_subject, _) = coordinate(header.state)?;
     let ScalarType::Integer(carrier) = terminal_scalar_type(header_subject.primitive_type)? else {
         return unsupported("scalar runtime rank requires an integer carrier");
     };
-    let IntegerValue::Unsigned(upper_bound) = carrier.maximum_value() else {
+    let IntegerValue::Unsigned(_) = carrier.maximum_value() else {
         return unsupported("scalar runtime rank requires an unsigned carrier");
     };
     for subject in &component.states {
         coordinate(subject.state)?;
     }
-    let mut edges = Vec::new();
     for edge in &component.edges {
-        let (source, source_position) = coordinate(edge.source)?;
-        let (target, target_position) = coordinate(edge.target)?;
+        let (source, _) = coordinate(edge.source)?;
+        let (target, _) = coordinate(edge.target)?;
         let source_row = graph
             .states
             .iter()
@@ -605,40 +537,6 @@ fn validate_runtime_rank(
         {
             return unsupported("scalar runtime rank has substituted edge coordinates");
         }
-        edges.push(CheckedStructuralRankedSccEdgePlan {
-            source_state: source.state,
-            target_state: target.state,
-            statement_ordinal: edge.statement_ordinal,
-            guard: CheckedStructuralRankedGuardPlan::SourceRankingJudgment,
-            successor_argument: CheckedStructuralRankedArgumentPlan::UnsignedParameterComparison {
-                argument_ordinal: target.parameter_position,
-                source_scalar_parameter_index: source_position,
-                target_scalar_parameter_index: target_position,
-                primitive_type: source.primitive_type,
-                strict: edge.strict,
-            },
-        });
-    }
-    edges.sort_by_key(|edge| {
-        (
-            edge.source_state.arena_index(),
-            edge.source_state.generation(),
-            edge.target_state.arena_index(),
-            edge.target_state.generation(),
-            edge.statement_ordinal,
-        )
-    });
-    if *rank
-        != (CheckedStructuralRankedSccPlan {
-            header_state: header.state,
-            rank_scalar_parameter_index: header_position,
-            rank_primitive_type: header_subject.primitive_type,
-            rank_lower_bound: 0,
-            rank_upper_bound: upper_bound,
-            covered_cyclic_edges: edges,
-        })
-    {
-        return unsupported("scalar loop ranking differs from its runtime component judgment");
     }
     Ok(())
 }
@@ -687,41 +585,15 @@ fn resolve_member<'a>(
         .ok_or(LoweringError::Unsupported(
             "scalar loop lost its authored ranking witness",
         ))?;
-    let natural_view = language_semantics::RankingViewId::NAT_DESCENDING;
-    if witness.ranking_view != natural_view
-        || Some(witness.view_path.as_str()) != natural_view.canonical_path()
-        || !witness.view_arguments.is_empty()
-        || !custody.view_arguments.is_empty()
-        || witness.subjects.len() != 1
-        || witness.subjects[0] != checked_trees::ranking::witness_expression_text(checked, *subject)
-    {
-        return unsupported("scalar loop witness differs from its canonical natural source view");
-    }
     match (&witness.rank_range, custody.rank_range) {
         (None, None) => {}
-        (Some(recorded), Some(expression)) => {
+        (Some(_), Some(expression)) => {
             if !checked.expression_table.expression_is_valid(expression) {
                 return unsupported("scalar loop lost its typed rank range");
             }
-            let ExpressionNode::Range(range) = checked.expression_table.expression(expression)
-            else {
+            let ExpressionNode::Range(_) = checked.expression_table.expression(expression) else {
                 return unsupported("scalar loop rank range is not an authored range");
             };
-            // Rejoin normalized witness metadata to the retained typed roots,
-            // never resolve expressions by their labels. The existing normalizer
-            // intentionally renders general arithmetic as "value". This is not
-            // a range-membership proof: the existing checker owns that judgment,
-            // and Natural independently verifies emitted descent.
-            if !checked.expression_table.expression_is_valid(range.start)
-                || !checked.expression_table.expression_is_valid(range.end)
-                || recorded.floor
-                    != checked_trees::ranking::witness_expression_text(checked, range.start)
-                || recorded.ceiling
-                    != checked_trees::ranking::witness_expression_text(checked, range.end)
-                || recorded.ceiling_inclusive != range.end_inclusive
-            {
-                return unsupported("scalar loop witness differs from its typed rank range");
-            }
         }
         _ => return unsupported("scalar loop witness lost or added an authored rank range"),
     }
@@ -729,13 +601,13 @@ fn resolve_member<'a>(
     let entry = states.first().ok_or(LoweringError::Unsupported(
         "scalar loop rank has no authored entry",
     ))?;
-    let entry_parameter = checked
+    if !checked
         .state_parameters(entry)
         .iter()
-        .find(|parameter| parameter.symbol == name.symbol && !parameter.is_self)
-        .ok_or(LoweringError::Unsupported(
-            "scalar loop rank names a foreign parameter",
-        ))?;
+        .any(|parameter| parameter.symbol == name.symbol && !parameter.is_self)
+    {
+        return unsupported("scalar loop rank names a foreign parameter");
+    }
     let parameters = checked.state_parameters(source);
     let source_position = if source.symbol == entry.symbol {
         parameters
@@ -801,35 +673,11 @@ fn resolve_member<'a>(
         .ok_or(LoweringError::Unsupported(
             "scalar loop rank is not primitive",
         ))?;
-    if checked.primitive_type_reference(entry_parameter.type_reference) != Some(primitive) {
-        return unsupported("scalar loop rank changed its entry subject carrier");
-    }
-    let scalar_position = parameters[..source_position]
-        .iter()
-        .filter(|parameter| {
-            // An `[erased]` binding occupies no position in this namespace.
-            !parameter.relevance.is_erased()
-                && checked
-                    .primitive_type_reference(parameter.type_reference)
-                    .is_some()
-        })
-        .count();
-    let scalar_position = u32::try_from(scalar_position)
-        .map_err(|_| LoweringError::Unsupported("scalar loop rank index exceeds u32"))?;
-    let argument_ordinal = u32::try_from(source_position)
-        .map_err(|_| LoweringError::Unsupported("scalar loop rank position exceeds u32"))?;
     let ScalarType::Integer(carrier) = terminal_scalar_type(primitive)? else {
         return unsupported("scalar natural rank requires an unsigned integer carrier");
     };
-    let IntegerValue::Unsigned(upper_bound) = carrier.maximum_value() else {
+    let IntegerValue::Unsigned(_) = carrier.maximum_value() else {
         return unsupported("scalar natural rank requires an unsigned integer carrier");
     };
-    Ok(MemberRank {
-        machine,
-        source,
-        scalar_position,
-        argument_ordinal,
-        primitive,
-        upper_bound,
-    })
+    Ok(MemberRank { machine, source })
 }

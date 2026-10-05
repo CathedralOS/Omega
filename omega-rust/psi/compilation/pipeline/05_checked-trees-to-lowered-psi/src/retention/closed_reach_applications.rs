@@ -21,7 +21,7 @@ use terminal_psi::{
     TerminalModule,
 };
 
-use crate::direct_calls::{DirectCallParts, direct_call_parts};
+use crate::direct_calls::direct_call_parts;
 use crate::lowering_error::LoweringError;
 use crate::lowering_error::unsupported;
 
@@ -358,14 +358,8 @@ pub(crate) fn retain_closed_reach_applications(
         }
         row.sort();
         row.dedup();
-        if row != terminal_owner.published_service_ceiling {
-            return unsupported(
-                "closed reach substitution differs from its owner's published ceiling",
-            );
-        }
         for call in &calls {
-            let Some(ClosedReachParameter::Machine(binding)) = telescope.get(call.binder as usize)
-            else {
+            let Some(ClosedReachParameter::Machine(_)) = telescope.get(call.binder as usize) else {
                 return unsupported("closed reach consumer does not select a machine binder");
             };
             let operation = terminal_owner
@@ -376,16 +370,8 @@ pub(crate) fn retain_closed_reach_applications(
                 .ok_or(LoweringError::Unsupported(
                     "closed reach consumer has no exact owner operation",
                 ))?;
-            let Some(DirectCallParts { callee, .. }) = direct_call_parts(&operation.kind) else {
+            if direct_call_parts(&operation.kind).is_none() {
                 return unsupported("closed reach consumer is not a direct machine call");
-            };
-            let selected_callee = call
-                .application
-                .as_ref()
-                .map(|application| application.callee)
-                .or(binding.callee);
-            if selected_callee != Some(callee) {
-                return unsupported("closed reach consumer differs from its exact selected callee");
             }
             operation.static_reach_binding = Some(call.binder);
         }

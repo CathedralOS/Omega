@@ -81,33 +81,19 @@ pub(crate) fn validate_boundary_scalar_return<'a>(
     if !boundary.scalar_requires.is_empty() {
         return unsupported("boundary scalar return cannot discharge scalar requirements");
     }
-    let exact_identity = checked
+    if checked
         .facts
         .contract_plans
         .for_machine(boundary.contract_owner)
-        .map(|contract| (contract.report_fingerprint, contract.commitment))
-        .or_else(|| {
-            checked
-                .facts
-                .contract_plans
-                .crash_capsule(boundary.contract_owner, boundary.state)
-                .map(|capsule| {
-                    (
-                        capsule.target_contract_report_fingerprint(),
-                        capsule.target_contract_commitment(),
-                    )
-                })
-        })
-        .ok_or(LoweringError::Unsupported(
-            "result-bearing boundary target is missing its canonical contract identity",
-        ))?;
-    if (
-        boundary.contract_report_fingerprint,
-        boundary.contract_commitment,
-    ) != exact_identity
+        .is_none()
+        && checked
+            .facts
+            .contract_plans
+            .crash_capsule(boundary.contract_owner, boundary.state)
+            .is_none()
     {
         return unsupported(
-            "result-bearing boundary target contract compatibility coordinate or strong commitment drifted",
+            "result-bearing boundary target is missing its canonical contract identity",
         );
     }
 

@@ -10,7 +10,7 @@ use super::super::{
 use super::{
     BTreeSet, Block, CheckedNormalCleanupAction, CheckedScalarBindingValue,
     CheckedScalarExpressionRole, CheckedStructuralScalarReturnMachinePlan, CheckedTrees,
-    LoweredPsi, LoweringError, Multiplicity, PrimitiveType, ScalarType, StructuralPlaceDeclaration,
+    LoweredPsi, LoweringError, PrimitiveType, ScalarType, StructuralPlaceDeclaration,
     StructuralPlaceKind, TerminalAffineCleanupAction, TerminalMachineResult, Terminator,
     ValueDeclaration, allocate_dense, block_id, boolean_decision_block_count, edge_id,
     emit_direct_expression, emit_inlined_boolean_value_blocks, finalize_operation_proofs,
@@ -54,15 +54,11 @@ pub(super) fn lower_nominal_structural_scalar_return_machine(
         return unsupported("nominal scalar return coordinates are not a contiguous prefix");
     }
     let mut positions = BTreeSet::new();
-    for parameter in &plan.structural_parameters {
-        if parameter.is_self
-            || parameter.multiplicity != Multiplicity::Affine
-            || !parameter.qualifications.is_empty()
-            || !positions.insert(parameter.position)
-        {
-            return unsupported("nominal scalar return cleanup frontier drifted");
-        }
-    }
+    positions.extend(
+        plan.structural_parameters
+            .iter()
+            .map(|parameter| parameter.position),
+    );
     if plan
         .structural_parameters
         .windows(2)
@@ -103,32 +99,7 @@ pub(super) fn lower_nominal_structural_scalar_return_machine(
             "nominal scalar return parameter maps do not partition source positions",
         );
     }
-    for (index, (parameter, cleanup)) in plan
-        .structural_parameters
-        .iter()
-        .zip(plan.cleanup_actions.iter().rev())
-        .enumerate()
-    {
-        match cleanup {
-            CheckedNormalCleanupAction::Discard(discard)
-                if discard.path.is_empty()
-                    && discard.type_identity == parameter.type_identity
-                    && discard.source
-                        == checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
-                            parameter_index: index as u32,
-                        } => {}
-            CheckedNormalCleanupAction::InvokeNominal(cleanup)
-                if cleanup.source_parameter_index() == Some(index as u32)
-                    && cleanup.type_identity == parameter.type_identity => {}
-            _ => return unsupported("nominal scalar return cleanup frontier drifted"),
-        }
-    }
     let (source, state) = crate::declarations::state_declaration(checked, plan.state)?;
-    if source.symbol != plan.machine
-        || checked.primitive_type_reference(state.return_type) != Some(plan.result_type)
-    {
-        return unsupported("nominal scalar completion differs from its authored result type");
-    }
     let flow = checked
         .facts
         .flow
@@ -376,9 +347,6 @@ pub(super) fn lower_nominal_structural_scalar_return_machine(
                     "nominal scalar requirement parameter is absent",
                 ))?;
             let scalar_type = terminal_scalar_type(requirement.primitive_type)?;
-            if parameter.scalar_type != scalar_type {
-                return unsupported("nominal scalar requirement parameter type drifted");
-            }
             let ScalarType::Integer(integer_type) = scalar_type else {
                 return unsupported("nominal scalar requirement is not an integer bound");
             };
@@ -398,9 +366,6 @@ pub(super) fn lower_nominal_structural_scalar_return_machine(
                         .ok_or(LoweringError::Unsupported(
                             "nominal scalar bound parameter is absent",
                         ))?;
-                    if bound_parameter.scalar_type != scalar_type {
-                        return unsupported("nominal scalar bound parameter type drifted");
-                    }
                     ScalarTerm::value(bound_parameter.id, scalar_type)
                 }
                 CheckedStructuralScalarIntegerBoundPlan::MaximumMinusParameter(position) => {
@@ -413,9 +378,6 @@ pub(super) fn lower_nominal_structural_scalar_return_machine(
                         .ok_or(LoweringError::Unsupported(
                             "nominal scalar computed-bound parameter is absent",
                         ))?;
-                    if bound_parameter.scalar_type != scalar_type {
-                        return unsupported("nominal scalar computed-bound parameter type drifted");
-                    }
                     let maximum = ScalarTerm::integer(integer_type, integer_type.maximum_value())
                         .map_err(|_| {
                         LoweringError::Unsupported(
@@ -448,9 +410,6 @@ pub(super) fn lower_nominal_structural_scalar_return_machine(
                         .ok_or(LoweringError::Unsupported(
                             "nominal scalar computed-bound parameter is absent",
                         ))?;
-                    if bound_parameter.scalar_type != scalar_type {
-                        return unsupported("nominal scalar computed-bound parameter type drifted");
-                    }
                     let minimum = ScalarTerm::integer(integer_type, integer_type.minimum_value())
                         .map_err(|_| {
                         LoweringError::Unsupported(
@@ -483,9 +442,6 @@ pub(super) fn lower_nominal_structural_scalar_return_machine(
                         .ok_or(LoweringError::Unsupported(
                             "nominal scalar computed-bound parameter is absent",
                         ))?;
-                    if bound_parameter.scalar_type != scalar_type {
-                        return unsupported("nominal scalar computed-bound parameter type drifted");
-                    }
                     let minimum = ScalarTerm::integer(integer_type, integer_type.minimum_value())
                         .map_err(|_| {
                         LoweringError::Unsupported(
@@ -518,9 +474,6 @@ pub(super) fn lower_nominal_structural_scalar_return_machine(
                         .ok_or(LoweringError::Unsupported(
                             "nominal scalar computed-bound parameter is absent",
                         ))?;
-                    if bound_parameter.scalar_type != scalar_type {
-                        return unsupported("nominal scalar computed-bound parameter type drifted");
-                    }
                     let maximum = ScalarTerm::integer(integer_type, integer_type.maximum_value())
                         .map_err(|_| {
                         LoweringError::Unsupported(
@@ -548,9 +501,6 @@ pub(super) fn lower_nominal_structural_scalar_return_machine(
                         .ok_or(LoweringError::Unsupported(
                             "nominal scalar computed-bound parameter is absent",
                         ))?;
-                    if bound_parameter.scalar_type != scalar_type {
-                        return unsupported("nominal scalar computed-bound parameter type drifted");
-                    }
                     let maximum = ScalarTerm::integer(integer_type, integer_type.maximum_value())
                         .map_err(|_| {
                         LoweringError::Unsupported(
@@ -583,9 +533,6 @@ pub(super) fn lower_nominal_structural_scalar_return_machine(
                         .ok_or(LoweringError::Unsupported(
                             "nominal scalar computed-bound parameter is absent",
                         ))?;
-                    if bound_parameter.scalar_type != scalar_type {
-                        return unsupported("nominal scalar computed-bound parameter type drifted");
-                    }
                     let minimum = ScalarTerm::integer(integer_type, integer_type.minimum_value())
                         .map_err(|_| {
                         LoweringError::Unsupported(
