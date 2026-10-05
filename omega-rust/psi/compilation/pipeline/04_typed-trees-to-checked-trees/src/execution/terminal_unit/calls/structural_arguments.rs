@@ -38,7 +38,6 @@ pub(crate) fn structural_call_arguments(
     target_machine: &typed_trees::machine::Machine,
     target_state: &typed_trees::state::State,
     call_site: &crate::semantic::calls::CallSite<'_>,
-    _receiver_symbol: SymbolHandle,
     statement_index: usize,
     allow_field_path_projection: bool,
     caller_structural_results: &[(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)],
@@ -682,15 +681,14 @@ fn reborrow_restored_shared_cohort_observation_alias_target(
 }
 
 /// The `(root, segments)` spelling the borrow facts record for one authored
-/// place. An attached-data field is its own borrow root, so `self.line` is
-/// recorded as `line` with no segments; every other place is already spelled
+/// place. An attached-data field is its own borrow root, so a place rooted at
+/// the attached machine with a leading field segment is recorded as that
+/// field with the remaining segments; every other place is already spelled
 /// the way it was authored.
-fn borrow_access_spelling<'place>(
-    _program: &TypedTrees,
+fn borrow_access_spelling(
     machine: SymbolHandle,
-    _state: SymbolHandle,
-    place: &'place crate::flow::CanonicalPlace,
-) -> Option<(SymbolHandle, &'place [facts::PlaceSegment])> {
+    place: &crate::flow::CanonicalPlace,
+) -> Option<(SymbolHandle, &[facts::PlaceSegment])> {
     let facts::PlaceRoot::Symbol(root) = place.root else {
         return None;
     };
@@ -782,10 +780,10 @@ pub(crate) fn exact_structural_borrow_access(
         return Some(CheckedStructuralAccess::Owned);
     }
     // The borrow model roots an attached-data field at the field's own symbol,
-    // while an authored `self.field` argument roots at `self`. Re-express the
-    // place in the borrow spelling before matching, under the same self test
-    // `canonical_place_type_reference` applies to types.
-    let (root_symbol, segments) = borrow_access_spelling(program, machine, state, place)?;
+    // while a place reaching that field through the attached machine roots at
+    // the machine. Re-express the machine-rooted place in the borrow spelling
+    // before matching.
+    let (root_symbol, segments) = borrow_access_spelling(machine, place)?;
     let borrow_state = borrow
         .states
         .iter()

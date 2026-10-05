@@ -39,7 +39,7 @@ pub(crate) fn build_structural_return_machine(
     }
     let binders = machine_binders(program, machine);
     let (attachment_type_identity, structural_parameters) =
-        structural_signature(program, shapes, machine, state, &binders, false)?;
+        structural_signature(program, shapes, state, &binders)?;
     // The body holds only these locals and a returned name, so no call can
     // take a local's transfer: each one settles by its exit drop.
     let trivial_affine_locals = build_unit_trivial_affine_locals(

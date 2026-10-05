@@ -110,7 +110,7 @@ pub(crate) fn build_partial_affine_unit_cleanup_machine(
 
     let binders = machine_binders(program, machine);
     let (attachment_type_identity, structural_parameters) =
-        partial_affine_structural_signature(program, shapes, machine, state, &binders)?;
+        partial_affine_structural_signature(program, shapes, state, &binders)?;
     let anonymous_binding = anonymous::binding(program, facts, shapes, machine, state);
     let result_root = result_local || anonymous_binding.is_some();
     if structural_parameters.len() > 1

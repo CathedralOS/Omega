@@ -160,16 +160,10 @@ pub(crate) fn build_payloadless_guarded_call_return_machine(
 
     let binders = machine_binders(program, machine);
     let (attachment_type_identity, structural_parameters) =
-        structural_signature(program, shapes, machine, state, &binders, false)?;
+        structural_signature(program, shapes, state, &binders)?;
     let target_binders = machine_binders(program, target_machine);
-    let (target_attachment_type_identity, target_structural_parameters) = structural_signature(
-        program,
-        shapes,
-        target_machine,
-        target_state,
-        &target_binders,
-        false,
-    )?;
+    let (target_attachment_type_identity, target_structural_parameters) =
+        structural_signature(program, shapes, target_state, &target_binders)?;
     if !structural_parameters.is_empty()
         || !target_structural_parameters.is_empty()
         || attachment_type_identity != target_attachment_type_identity

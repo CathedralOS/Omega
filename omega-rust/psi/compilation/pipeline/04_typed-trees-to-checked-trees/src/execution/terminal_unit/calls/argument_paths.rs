@@ -394,14 +394,21 @@ fn projected_argument_path_impl(
                     ));
                     continue;
                 }
-                let machine = runtime_index_machine?;
+                // The runtime-selector route is admitted only in a machine
+                // context: `projected_argument_path` passes `None` and refuses a
+                // runtime index outright, while the borrowed and observed routes
+                // admit one. The context's symbol itself is no longer read — a
+                // parameter- or field-rooted selector roots at the parameter it
+                // names, since static machines replaced the receiver — so this
+                // tests the argument's presence and nothing else. Removing the
+                // test would admit runtime selectors on the argument route.
+                runtime_index_machine?;
                 let runtime_index =
                     runtime_index_parameter_position(program, state_symbol, *expression)
                         .map(|position| checked_trees::CheckedRuntimeIndex::Parameter { position })
                         .or_else(|| {
                             runtime_index_field_selector(
                                 program,
-                                machine,
                                 state_symbol,
                                 statement_index,
                                 *expression,
@@ -494,7 +501,6 @@ fn projected_argument_path_impl(
 /// coordinate Terminal re-proves against the container's extent.
 pub(crate) fn borrowed_index_segment(
     program: &TypedTrees,
-    machine: SymbolHandle,
     state: SymbolHandle,
     statement_index: usize,
     expression: typed_trees::expression::ExpressionHandle,
@@ -506,9 +512,7 @@ pub(crate) fn borrowed_index_segment(
     }
     let runtime_index = runtime_index_parameter_position(program, state, expression)
         .map(|position| checked_trees::CheckedRuntimeIndex::Parameter { position })
-        .or_else(|| {
-            runtime_index_field_selector(program, machine, state, statement_index, expression)
-        })?;
+        .or_else(|| runtime_index_field_selector(program, state, statement_index, expression))?;
     Some(CheckedUnitStructuralPathSegment::RuntimeIndex(
         runtime_index,
     ))
@@ -596,16 +600,17 @@ fn runtime_index_parameter_position(
 
 /// The checked coordinate for a runtime-index selector spelled as a field
 /// read below one structural entry parameter of the calling state —
-/// `self.count` in `self.scan_results[self.count]`. A field selector's value
-/// is storage, not an operand: the place must be a pure record-field chain
-/// rooted at an entry parameter (a `self` root counts by the machine
-/// identity), and its leaf must be an integer primitive — the same integer
-/// rule the parameter selector enforces. Terminal emits the read and
-/// re-proves `0 <= value < extent` from the facts holding before the call;
-/// admission here only resolves the selector's subject.
+/// `scan.count` in `scan.results[scan.count]`. A field selector's value is
+/// storage, not an operand: the place must be a pure record-field chain
+/// rooted at an entry parameter, and its leaf must be an integer primitive —
+/// the same integer rule the parameter selector enforces. The owning machine
+/// is no longer consulted: with static machines a selector roots at the
+/// parameter it names, so the parameter roster answers the question alone.
+/// Terminal emits the read and re-proves `0 <= value < extent` from the facts
+/// holding before the call; admission here only resolves the selector's
+/// subject.
 fn runtime_index_field_selector(
     program: &TypedTrees,
-    _machine: SymbolHandle,
     state_symbol: SymbolHandle,
     statement_index: usize,
     expression: typed_trees::expression::ExpressionHandle,
@@ -1301,7 +1306,7 @@ pub(crate) fn ordinary_projected_call_is_supported(
                 }
             }
 
-            let expected_root = facts::PlaceRoot::Symbol((parameter).symbol);
+            let expected_root = facts::PlaceRoot::Symbol(parameter.symbol);
             let matching = facts
                 .flow
                 .ownership
@@ -1339,7 +1344,7 @@ pub(crate) fn target_contract_mentions_projected_parameter(
     target_state: &typed_trees::state::State,
     parameter: &StateParameter,
 ) -> bool {
-    let expected_root = (parameter).symbol;
+    let expected_root = parameter.symbol;
     let runtime_arithmetic_requires_are_terminal = facts
         .contract_plans
         .for_machine(target_machine.symbol)

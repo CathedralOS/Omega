@@ -290,7 +290,6 @@ pub(in crate::execution::terminal_unit) fn uses_receiver_storage(
             let (root, _) =
                 crate::execution::terminal_unit::borrowed_windows::resolve_storage_place(
                     program,
-                    machine,
                     state,
                     statements,
                     index,

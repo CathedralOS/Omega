@@ -10,7 +10,6 @@ use crate::execution::terminal_unit::{
 
 pub(super) fn fused_service_arguments_match(
     program: &TypedTrees,
-    _caller_machine: &typed_trees::machine::Machine,
     caller_state: &typed_trees::state::State,
     caller_parameters: &[CheckedUnitStructuralParameterPlan],
     target_state: &typed_trees::state::State,

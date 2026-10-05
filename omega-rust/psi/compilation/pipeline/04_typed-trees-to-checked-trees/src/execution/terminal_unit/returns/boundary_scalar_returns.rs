@@ -36,7 +36,6 @@ fn boundary_scalar_contracts_supported(
         }
         let structural = checked_structural_signature_contract_supported(
             program,
-            machine,
             state,
             structural_parameters,
             contract,
@@ -76,7 +75,6 @@ fn boundary_scalar_contracts_supported(
             contract.binding.is_none() && (matches!(contract.kind, SignatureContractKind::Crashes { .. })
                 || checked_structural_signature_contract_supported(
                     program,
-                    machine,
                     state,
                     structural_parameters,
                     contract,
@@ -108,8 +106,7 @@ pub(crate) fn build_boundary_scalar_return_machine(
         if carries_scalar_parameter {
             structural_scalar_signature(program, shapes, machine, state, &binders, false)?
         } else {
-            let (attachment, structural) =
-                structural_signature(program, shapes, machine, state, &binders, false)?;
+            let (attachment, structural) = structural_signature(program, shapes, state, &binders)?;
             (attachment, structural, Vec::new())
         };
     if !boundary_scalar_contracts_supported(program, facts, machine, state, &structural_parameters)

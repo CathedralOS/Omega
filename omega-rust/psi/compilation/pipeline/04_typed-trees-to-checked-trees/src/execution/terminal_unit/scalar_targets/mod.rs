@@ -335,7 +335,7 @@ pub(super) fn available_target(
         let mut shapes = ShapeCollector::new(program);
         let binders = machine_binders(program, machine);
         let signature = if plan.scalar_parameters.is_empty() {
-            structural_signature(program, &mut shapes, machine, state, &binders, false)
+            structural_signature(program, &mut shapes, state, &binders)
                 .map(|(attachment, structural)| (attachment, structural, Vec::new()))
         } else {
             structural_scalar_signature(program, &mut shapes, machine, state, &binders, false)

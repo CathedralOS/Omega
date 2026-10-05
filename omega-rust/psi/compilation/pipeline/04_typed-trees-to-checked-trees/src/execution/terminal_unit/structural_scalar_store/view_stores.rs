@@ -74,7 +74,6 @@ pub(super) fn plan(
             let mut path = byte_field(program, destination, carriers)?;
             let segment = borrowed_index_segment(
                 program,
-                machine.symbol,
                 state.symbol,
                 usize::try_from(statement_index).ok()?,
                 *expression,

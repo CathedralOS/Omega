@@ -81,7 +81,6 @@ pub(in crate::execution::terminal_unit) fn window_place_admitting(
     };
     let (root, segments) = resolve_storage_place(
         program,
-        machine,
         state,
         statements,
         statement_index,
@@ -156,7 +155,6 @@ pub(in crate::execution::terminal_unit) fn window_place_admitting(
 /// windows key on the resolved storage place, not the access route.
 pub(in crate::execution::terminal_unit) fn resolve_storage_place(
     program: &TypedTrees,
-    _machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     statements: &[StatementNode],
     statement_index: usize,

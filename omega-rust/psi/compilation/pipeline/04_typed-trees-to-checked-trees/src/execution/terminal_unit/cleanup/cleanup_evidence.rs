@@ -68,7 +68,7 @@ pub(crate) fn has_exact_root_affine_discard(
         facts,
         machine,
         state,
-        (parameter).symbol,
+        parameter.symbol,
         language_semantics::PermissionProvenance::Unknown,
     )
 }
@@ -139,7 +139,7 @@ pub(super) fn has_exact_root_nominal_disposition(
     {
         return false;
     }
-    let root = facts::PlaceRoot::Symbol((parameter).symbol);
+    let root = facts::PlaceRoot::Symbol(parameter.symbol);
     let mut matching = facts
         .flow
         .ownership

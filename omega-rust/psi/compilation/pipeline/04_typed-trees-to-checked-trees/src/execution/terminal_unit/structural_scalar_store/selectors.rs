@@ -135,7 +135,6 @@ impl TargetSelectors {
                     }
                     if let Some(segment) = super::super::calls::borrowed_index_segment(
                         program,
-                        machine.symbol,
                         state.symbol,
                         loan.statement_index,
                         *expression,

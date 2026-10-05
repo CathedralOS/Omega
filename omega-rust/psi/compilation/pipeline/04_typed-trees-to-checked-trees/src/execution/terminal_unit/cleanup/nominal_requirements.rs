@@ -78,7 +78,6 @@ pub(crate) fn nominal_scalar_caller_requirements(
         }
         scalar_requirements.push(direct_integer_requirement(
             program,
-            caller_machine.symbol,
             caller_state,
             source_parameters,
             scalar_parameters,
@@ -140,7 +139,6 @@ pub(crate) fn nominal_cleanup_caller_boolean_requirements(
 
 pub(crate) fn direct_integer_requirement(
     program: &TypedTrees,
-    _machine: SymbolHandle,
     state: &typed_trees::state::State,
     source_parameters: &[StateParameter],
     scalar_parameters: &[CheckedStructuralScalarParameterPlan],

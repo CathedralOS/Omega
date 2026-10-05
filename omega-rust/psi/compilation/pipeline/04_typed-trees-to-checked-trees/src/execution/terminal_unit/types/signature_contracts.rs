@@ -5,14 +5,12 @@ use super::*;
 
 pub(in crate::execution::terminal_unit) fn checked_state_contracts_supported(
     program: &TypedTrees,
-    machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     structural_parameters: &[CheckedUnitStructuralParameterPlan],
 ) -> bool {
     program.state_contracts(state).iter().all(|contract| {
         checked_structural_signature_contract_supported(
             program,
-            machine,
             state,
             structural_parameters,
             contract,
@@ -22,7 +20,6 @@ pub(in crate::execution::terminal_unit) fn checked_state_contracts_supported(
 
 pub(in crate::execution::terminal_unit) fn checked_structural_signature_contract_supported(
     program: &TypedTrees,
-    _machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     structural_parameters: &[CheckedUnitStructuralParameterPlan],
     contract: &typed_trees::signature::SignatureContract,

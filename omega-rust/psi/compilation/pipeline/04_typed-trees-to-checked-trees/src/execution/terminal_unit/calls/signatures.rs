@@ -38,21 +38,11 @@ enum AttachmentStorage {
 pub(crate) fn structural_signature(
     program: &TypedTrees,
     shapes: &mut ShapeCollector<'_>,
-    machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     binders: &[(SymbolHandle, String)],
-    retain_reference_self: bool,
 ) -> Option<(Option<String>, Vec<CheckedUnitStructuralParameterPlan>)> {
-    let (attachment, structural, scalar) = structural_signature_with_partial_affine(
-        program,
-        shapes,
-        machine,
-        state,
-        binders,
-        false,
-        false,
-        retain_reference_self,
-    )?;
+    let (attachment, structural, scalar) =
+        structural_signature_with_partial_affine(program, shapes, state, binders, false, false)?;
     scalar.is_empty().then_some((attachment, structural))
 }
 
@@ -75,30 +65,25 @@ fn scalar_parameter_signature(
 pub(crate) fn partial_affine_structural_signature(
     program: &TypedTrees,
     shapes: &mut ShapeCollector<'_>,
-    machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     binders: &[(SymbolHandle, String)],
 ) -> Option<(Option<String>, Vec<CheckedUnitStructuralParameterPlan>)> {
-    let (attachment, structural, scalar) = structural_signature_with_partial_affine(
-        program, shapes, machine, state, binders, true, false, false,
-    )?;
+    let (attachment, structural, scalar) =
+        structural_signature_with_partial_affine(program, shapes, state, binders, true, false)?;
     scalar.is_empty().then_some((attachment, structural))
 }
 
-/// `retain_reference_self` keeps a borrowed `self` as structural parameter 0
-/// with the reference's access, so a body can root `self.field` arguments at
-/// it. Without it a borrowed attachment stays ambient and only its
-/// provider-specialized fields have places. A qualified machine without a
-/// receiver keeps its qualified admission but retains no attachment.
+/// The authored parameters of one state as a structural plan, with the
+/// scalar formals separated out. A qualified machine contributes no implicit
+/// receiver parameter, so the roster is exactly the authored telescope and the
+/// plan needs no attachment slot of its own.
 fn structural_signature_with_partial_affine(
     program: &TypedTrees,
     shapes: &mut ShapeCollector<'_>,
-    _machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     binders: &[(SymbolHandle, String)],
     allow_partial_affine: bool,
     allow_scalar_parameters: bool,
-    _retain_reference_self: bool,
 ) -> Option<(
     Option<String>,
     Vec<CheckedUnitStructuralParameterPlan>,
@@ -339,7 +324,13 @@ fn structural_scalar_signature_with_storage(
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     binders: &[(SymbolHandle, String)],
-    retain_reference_self: bool,
+    // No parameter producer reads this any more: a qualified machine
+    // contributes no implicit receiver to retain. It still travels because
+    // `state_graph::build_traced_with` carries a per-state `retained_self`
+    // roster into this signature, and its two-attempt retry exists to vary
+    // exactly this argument. Retiring the flag has to retire that retry and
+    // `retained_receivers` with it, which is a measured change, not a rename.
+    _retain_reference_self: bool,
     storage: AttachmentStorage,
     trace: &LocalConstructionTrace,
 ) -> Option<(
@@ -361,17 +352,8 @@ fn structural_scalar_signature_with_storage(
     } else {
         None
     };
-    let (structural_parameters, scalar_parameters) = scalar_and_structural_parameters(
-        program,
-        shapes,
-        state,
-        binders,
-        attachment
-            .as_ref()
-            .map(|(identity, multiplicity)| (identity.as_str(), *multiplicity)),
-        retain_reference_self,
-        trace,
-    )?;
+    let (structural_parameters, scalar_parameters) =
+        scalar_and_structural_parameters(program, shapes, state, binders, trace)?;
     Some((
         attachment.map(|(identity, _)| identity),
         structural_parameters,
@@ -438,7 +420,7 @@ pub(crate) fn free_structural_scalar_signature_traced(
     if !binders.is_empty() {
         return None;
     }
-    scalar_and_structural_parameters(program, shapes, state, binders, None, false, trace)
+    scalar_and_structural_parameters(program, shapes, state, binders, trace)
 }
 
 fn scalar_and_structural_parameters(
@@ -446,8 +428,6 @@ fn scalar_and_structural_parameters(
     shapes: &mut ShapeCollector<'_>,
     state: &typed_trees::state::State,
     binders: &[(SymbolHandle, String)],
-    _attachment: Option<(&str, Multiplicity)>,
-    _retain_reference_self: bool,
     trace: &LocalConstructionTrace,
 ) -> Option<(
     Vec<CheckedUnitStructuralParameterPlan>,

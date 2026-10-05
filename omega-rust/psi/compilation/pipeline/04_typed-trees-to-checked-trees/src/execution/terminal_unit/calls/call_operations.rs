@@ -333,7 +333,6 @@ pub(in crate::execution) fn build_call_operation(
         target_machine,
         target_state,
         &call_site,
-        call.receiver_symbol,
         call.statement_index,
         allow_field_path_projection,
         caller_structural_results,
@@ -435,7 +434,6 @@ pub(in crate::execution) fn build_call_operation(
         let supported = if carries_routed_service {
             service_forward::fused_service_arguments_match(
                 program,
-                machine,
                 state,
                 caller_parameters,
                 target_state,
