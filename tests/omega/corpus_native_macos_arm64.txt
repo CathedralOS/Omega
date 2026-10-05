@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": null, "load1_end": 16.37, "load1_start": 16.37, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "3", "load1_end": 33.69, "load1_start": 32.56, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 189ms
 pass/arithmetic/anonymous_rational_integer_landing checked 186ms
 pass/arithmetic/bounded_assignment checked 197ms
@@ -890,7 +890,7 @@ pass/proofs/ring_law_conformance built 1166ms exit:70 @bed5f45e9185+wt
 pass/proofs/runtime_byte_predicate_state_contract_exit built 1294ms exit:70 @767b982de12c+wt
 pass/proofs/runtime_decreases_u64_measure_exit built 680ms exit:70
 pass/proofs/runtime_inductive_climbing_sum_exit built 932ms exit:70 @08b483f23366+wt
-pass/proofs/runtime_inductive_gauss_sum_exit built 1830ms exit:70 @b5a937001475+wt
+pass/proofs/runtime_inductive_gauss_sum_exit built 6698ms exit:70 @72a43a5bee12+wt
 pass/proofs/runtime_mutable_ranked_accumulator_exit built 955ms exit:70 @6571128ff286
 pass/proofs/runtime_nat_structural_recursion_exit built 573ms exit:70
 pass/proofs/runtime_ranked_accumulator_early_exit built 578ms exit:70
@@ -919,7 +919,7 @@ pass/providers/local_record_foreign_borrow_exit built 1903ms exit:70 @59d57ace39
 pass/providers/provider_type_target_default_override built 257ms
 pass/providers/runtime_adapter_dispatch_exit built 576ms exit:70
 pass/providers/runtime_boundary_array_construction_exit built 1086ms exit:70 @f250efa457cf+wt
-pass/providers/runtime_boundary_array_forwarding_exit built 1591ms exit:70 @48008365d839
+pass/providers/runtime_boundary_array_forwarding_exit built 6861ms exit:70 @72a43a5bee12+wt
 pass/providers/runtime_boundary_array_result_exit built 1437ms exit:70 @c5756d3f7761+wt
 pass/providers/runtime_boundary_primitive_array_argument_exit built 901ms exit:70
 pass/providers/runtime_foreign_leaf_borrowed_byte_argument_exit built 1199ms exit:70 @a9f373809a48+wt

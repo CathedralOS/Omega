@@ -31,7 +31,8 @@ machine Main::main(main: &mut Main) reaches Console + ArrayReader {
     main.values[1] = 22;
     main.values[2] = 33;
     main.values[3] = 44;
-    Main::forward(main, main.values);
+    let forwarded: [u8; 4] = main.values;
+    Main::forward(main, forwarded);
     transition main.result == 70 && main.values[0] == 11 && main.values[3] == 44 {
         true -> good(main)
         _ -> bad(main)
