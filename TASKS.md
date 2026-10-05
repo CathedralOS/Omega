@@ -2316,15 +2316,23 @@ crash and native exit behavior.
   of health on its own. Giving the native leg a way to record a regression
   honestly -- distinct from pinning it as expected -- is the open work.
 
-  **A second host-dependent row, found by its diagnostic text:**
-  `pass/float/x86_fma_plan_association`'s message names the realization
-  target's object format, and it differs only in that field between the golden
-  (`object_format: Elf`) and a macOS measurement (`object_format: Coff`) --
-  everything else in the diagnostic is byte-identical. That makes it
-  self-identifying in a way `native_close` is not, and it is a second instance
-  rather than a second cause. A row whose diagnostic names a target, an object
-  format or a pointer width is host-dependent by construction, which is a cheap
-  way to spot more of them.
+  **Two more host-dependent rows, both self-identifying, and one of them caught
+  two lanes flipping it.** `pass/float/x86_fma_plan_association`'s message names
+  the realization target's object format and differs from the golden in exactly
+  that field (`Elf` against `Coff`), everything else byte-identical. Its sibling
+  `pass/float/named_provider_fused_multiply_add_exit` names the selected target
+  directly (`selected x86 scalar FMA ProviderPlan
+  `<selected target>::FloatNativeProvider::...` requires explicit AVX+FMA3
+  admission`) -- it measures `checked` on macOS arm64 and `rejected` where an
+  x86 target is realized, so it has been re-pinned in both directions by
+  successive lanes, each correctly reporting what it measured. **Neither should
+  be re-pinned again until the representation carries a host.**
+
+  So the detector is cheap: **a row whose diagnostic names a target, an object
+  format, a pointer width or an ISA feature set is host-dependent by
+  construction.** That is far less work than noticing a diagnostic contradicts a
+  landed change, which is how the first instance surfaced, and it is how these
+  two were found.
 
   Do not simply re-pin either row on Darwin: both are genuinely host-dependent,
   so re-pinning flips a coin the next Linux recorder flips back and erases the
