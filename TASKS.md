@@ -122,29 +122,30 @@ helper that passes does not close an item.
 
 - **STATIC-DUNGEON-NATIVE-BUILD-COST.** (split-of:STATIC-MACHINE-MIGRATION)
   The native build of `samples/cli/games/dungeon_crawler_cli` works but takes
-  most of two hours; the gate's default `--timeout` is 300 s per CLI call.
+  about 40 minutes; the gate's default `--timeout` is 300 s per CLI call.
   - Current state: on macOS ARM64,
     `python3 tools/sample_native_gate.py --cli <debug omega> --jobs 1 --timeout 6600 --filter games/dungeon_crawler_cli`
-    meets the README oracle in 6771 s at 1e1e71dd791 and in 5408 s with
-    c322a3c7d57 (package review is about 10 minutes of each).
-  - Profile: 5-second stack samples every 5 minutes of `omega run`, binary
-    at 38f145e1fda:
-    - Stage 00 `verify_module` holds minutes 0-10: obligation
-      reconstruction, then certificate admission on one 256 MiB-stack
-      thread each (`proof/admission/src/mathematical_core/certificate.rs`).
-      It leaves with **OMEGA-READS-TERMINAL-UNVERIFIED** after
-      **PCC-CERTIFICATES-DELETED**.
-    - Stage 03 legalization holds minutes 10-17: derive, then the
-      `validate_legalized_operations` replay. Both spent that time in
-      `sources::dominates`, which walked the graph afresh per query. The
-      dominator tree is now built once per function; re-measure this phase.
-      The replay is the stage's own checker; taking checkers off the default
-      compile path needs a way for the corpus runner to exercise them first.
-    - Runtime-spill recovery runs from minute 18 for about 396 steps. Each
-      step still hashes the whole liveness, live-range and legality plans
-      (`liveness_identity`, `live_range_identity`,
-      `allocation_legality_identity`). A per-function digest that carried
-      functions reuse would remove that.
+    meets the README oracle. Elapsed time, including about 6 minutes of
+    package review, was 6771 s at 1e1e71dd791, 4091 s at 38f145e1fda and
+    2554 s at 8c2a6e8da58.
+  - Profile at 8c2a6e8da58: 5-second stack samples every 5 minutes of
+    `omega run`.
+    - Stage 00 `verify_module` holds minutes 0-12: the module validation's
+      structural frontier walk, obligation reconstruction, then certificate
+      admission. It leaves with **OMEGA-READS-TERMINAL-UNVERIFIED** after
+      **PCC-CERTIFICATES-DELETED**. Inside the frontier walk,
+      `DescriptorLoans::new` still builds the whole-module `terminal_graph`
+      once per machine.
+    - Runtime-spill recovery holds minutes 13-36, about 396 steps. Each step
+      still hashes the whole liveness and live-range plans
+      (`liveness_identity`, `live_range_identity`). The legality identity
+      already reuses carried functions' digests (e76eaf259a8); doing the same
+      for these two is the next step. Each step also clones the plans' carried
+      rows.
+    - Stage 03 legalization (derive, then the `validate_legalized_operations`
+      replay) no longer shows in the samples. The replay is the stage's own
+      checker; taking checkers off the default compile path needs a way for
+      the corpus runner to exercise them first.
   Acceptance: the sample native gate builds the app within its normal timeout
   and the app meets the oracle in
   [its README](samples/cli/games/dungeon_crawler_cli/README.md#runtime-acceptance).

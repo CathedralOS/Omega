@@ -768,14 +768,6 @@ pub fn reconstruct_stored_effects(
 ) -> Option<Vec<DescriptorStoredEffect>> {
     DescriptorAnalysis::new(types, machines).stored_effects(identity)
 }
-pub fn reconstruct_call_stored_effects(
-    types: &[StructuralTypeDeclaration],
-    machines: &[DescriptorMachine],
-    identity: MachineId,
-    position: DescriptorPosition,
-) -> Option<Vec<DescriptorStoredCallEffect>> {
-    DescriptorAnalysis::new(types, machines).call_stored_effects(identity, position)
-}
 fn result_origin(
     types: &[StructuralTypeDeclaration],
     machine: &DescriptorMachine,
