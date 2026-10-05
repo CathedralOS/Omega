@@ -32,17 +32,14 @@ pub enum StaticArgumentRole {
 #[derive(Clone, Copy)]
 pub enum StaticArgumentCall<'call> {
     Expression(&'call TableCallExpression),
-    Statement(
-        &'call crate::state::State,
-        &'call crate::statement::TableCall,
-    ),
+    Statement(&'call crate::statement::TableCall),
 }
 
 impl StaticArgumentCall<'_> {
     pub fn arguments(&self) -> &[StaticMachineArgument] {
         match self {
             Self::Expression(call) => &call.machine_arguments,
-            Self::Statement(_, call) => &call.machine_arguments,
+            Self::Statement(call) => &call.machine_arguments,
         }
     }
 }
@@ -1073,7 +1070,6 @@ fn visit_conformance(
 fn visit_statement(
     program: &TypedTrees,
     retained: &mut impl TypedReferences,
-    state: &crate::state::State,
     statement: &StatementNode,
 ) {
     if !retained.statement(statement) {
@@ -1096,7 +1092,7 @@ fn visit_statement(
                 visit_symbol(retained, dispatch.realization_machine);
                 visit_symbol(retained, dispatch.realization_state);
             }
-            if retained.call_arguments(program, StaticArgumentCall::Statement(state, call)) {
+            if retained.call_arguments(program, StaticArgumentCall::Statement(call)) {
                 for argument in call.machine_arguments.iter() {
                     visit_static_argument(program, retained, argument);
                 }
@@ -1271,7 +1267,7 @@ pub fn visit_machine(
             visit_proof_facts(program, retained, contract.facts);
         }
         for statement in program.statement_table.statements(state.statement_nodes) {
-            visit_statement(program, retained, state, statement);
+            visit_statement(program, retained, statement);
         }
     }
 }

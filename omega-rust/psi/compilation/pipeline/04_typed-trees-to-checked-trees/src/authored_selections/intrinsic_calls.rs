@@ -1,4 +1,4 @@
-//! Intrinsic call targets and exact build receivers.
+//! Intrinsic call targets.
 
 use checked_trees::CheckFacts;
 use language_semantics::declaration_selection::{
@@ -19,9 +19,7 @@ pub(crate) fn static_argument_role(
 
     let intrinsic = match call {
         StaticArgumentCall::Expression(call) => checked_expression_call_intrinsic(program, call),
-        StaticArgumentCall::Statement(state, call) => {
-            checked_statement_call_intrinsic(program, state, call)
-        }
+        StaticArgumentCall::Statement(call) => checked_statement_call_intrinsic(program, call),
     };
     match intrinsic {
         Some(
@@ -36,57 +34,14 @@ pub(crate) fn static_argument_role(
     }
 }
 
-/// How checking tells a toolchain-owned build operation apart from an
-/// ordinary call which happens to share its spelling.
-///
-/// [`BuildOperation::from_call_target`] owns the spelling; this form owns the
-/// receiver or call shape each spelling still needs before checking records
-/// the operation's intrinsic.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum BuildOperationForm {
-    /// Namespace-qualified operation with an explicit Build argument.
-    StaticBuildArgument,
-    /// Selected on a receiver of one exact build-prelude data type.
-    PreludeDataReceiver(&'static str),
-}
-
-fn build_operation_form(operation: BuildOperation) -> BuildOperationForm {
-    match operation {
-        BuildOperation::ProviderSelection
-        | BuildOperation::ServiceExclusion
-        | BuildOperation::RepresentationSelection
-        | BuildOperation::BoundaryAcceptance
-        | BuildOperation::WireCompatibilityRequest
-        | BuildOperation::AssumedBindingContract => BuildOperationForm::StaticBuildArgument,
-        BuildOperation::IncludedSourceHandoff => {
-            BuildOperationForm::PreludeDataReceiver("BuildOutput")
-        }
-        BuildOperation::LogWriteLine => BuildOperationForm::PreludeDataReceiver("BuildLog"),
-        BuildOperation::OptimizationSelection | BuildOperation::OptimizationReportRequest => {
-            BuildOperationForm::PreludeDataReceiver("Optimizations")
-        }
-    }
-}
-
 pub(crate) fn checked_statement_call_intrinsic(
     program: &TypedTrees,
-    state: &typed_trees::state::State,
     call: &typed_trees::statement::TableCall,
 ) -> Option<AuthoredDeclarationSelectionIntrinsic> {
     use language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic as Intrinsic;
 
     if call.target_symbol.is_valid() {
         return None;
-    }
-    if let Some(operation) = BuildOperation::from_call_target(call.target.as_str())
-        && match build_operation_form(operation) {
-            BuildOperationForm::PreludeDataReceiver(expected_receiver) => {
-                exact_statement_build_member_receiver(program, state, call, expected_receiver)
-            }
-            BuildOperationForm::StaticBuildArgument => false,
-        }
-    {
-        return Some(operation.intrinsic());
     }
     if program.wire_encode_call_schema(call).is_some() {
         return Some(Intrinsic::WireEncode);
@@ -95,7 +50,6 @@ pub(crate) fn checked_statement_call_intrinsic(
         return Some(Intrinsic::WireDecode);
     }
     checked_call_intrinsic(
-        program,
         call.target.as_str(),
         call.target_symbol,
         typed_trees::expression::ExpressionHandle::invalid(),
@@ -147,16 +101,10 @@ pub(crate) fn checked_expression_call_intrinsic(
     {
         return Some(operation.intrinsic());
     }
-    checked_call_intrinsic(
-        program,
-        call.target.as_str(),
-        call.target_symbol,
-        call.receiver,
-    )
+    checked_call_intrinsic(call.target.as_str(), call.target_symbol, call.receiver)
 }
 
 fn checked_call_intrinsic(
-    program: &TypedTrees,
     target: &str,
     target_symbol: SymbolHandle,
     receiver: typed_trees::expression::ExpressionHandle,
@@ -164,20 +112,15 @@ fn checked_call_intrinsic(
     use language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic as Intrinsic;
 
     // A resolved declaration always wins over compiler vocabulary with the
-    // same spelling. Receiver calls likewise cannot select these free-call
-    // intrinsics. This keeps intrinsic recognition from becoming a
-    // source-text fallback for an ordinary package declaration.
-    if target_symbol.is_valid() {
+    // same spelling, and a receiver place selects nothing here: the only
+    // intrinsics left are free calls. Every toolchain Build facet operation
+    // carries its facet as an explicit first parameter of its prelude
+    // declaration, so an authored use resolves that declaration and the
+    // first arm answers it; no build operation is recognized from the shape
+    // of the place it was called on. This keeps intrinsic recognition from
+    // becoming a source-text fallback for an ordinary package declaration.
+    if target_symbol.is_valid() || receiver.is_valid() {
         None
-    } else if receiver.is_valid() {
-        let operation = BuildOperation::from_call_target(target)?;
-        let receiver_selects = match build_operation_form(operation) {
-            BuildOperationForm::PreludeDataReceiver(expected_receiver) => {
-                exact_build_prelude_receiver(program, receiver, expected_receiver)
-            }
-            BuildOperationForm::StaticBuildArgument => false,
-        };
-        receiver_selects.then(|| operation.intrinsic())
     } else if let Some(predicate) =
         language_semantics::byte_predicates::ByteSequencePredicate::from_name(target)
     {
@@ -187,54 +130,6 @@ fn checked_call_intrinsic(
     } else {
         None
     }
-}
-
-fn exact_build_prelude_receiver(
-    program: &TypedTrees,
-    receiver: typed_trees::expression::ExpressionHandle,
-    expected_receiver: &str,
-) -> bool {
-    crate::flow::expression_type_symbol(program, receiver).is_some_and(|type_symbol| {
-        exact_build_prelude_data(program, type_symbol, expected_receiver)
-    })
-}
-
-fn exact_statement_build_member_receiver(
-    program: &TypedTrees,
-    state: &typed_trees::state::State,
-    call: &typed_trees::statement::TableCall,
-    expected_receiver: &str,
-) -> bool {
-    let [root, members @ ..] = program.statement_table.name_path_members(call.receiver) else {
-        return false;
-    };
-    let Some(parameter) = program
-        .state_parameters(state)
-        .iter()
-        .find(|parameter| parameter.name.as_str() == root.as_str())
-    else {
-        return false;
-    };
-    let mut type_symbol = program
-        .type_reference_table
-        .type_symbol(parameter.type_reference);
-    if !exact_build_prelude_data(program, type_symbol, "Build") {
-        return false;
-    }
-    for member in members {
-        let Some(selected) = crate::flow::resolve_member_symbol_from_type_symbol(
-            program,
-            type_symbol,
-            member.as_str(),
-        ) else {
-            return false;
-        };
-        let Some(selected_type) = crate::flow::symbol_type_symbol(program, selected) else {
-            return false;
-        };
-        type_symbol = selected_type;
-    }
-    exact_build_prelude_data(program, type_symbol, expected_receiver)
 }
 
 pub(crate) fn type_reference_names_exact_prelude_data(

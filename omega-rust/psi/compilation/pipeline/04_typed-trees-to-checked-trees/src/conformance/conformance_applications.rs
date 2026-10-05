@@ -44,7 +44,7 @@ pub(crate) fn validate_conformance_applications(
                 if let StatementNode::Call(call) = statement {
                     validate_call_arguments(
                         program,
-                        StaticArgumentCall::Statement(state, call),
+                        StaticArgumentCall::Statement(call),
                         &mut diagnostics,
                     );
                 }

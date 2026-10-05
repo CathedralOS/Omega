@@ -2331,24 +2331,37 @@ crash and native exit behavior.
   in whatever host-dimensioned format replaces the golden.
 
 - **BUILD-FACET-DEAD-SELECTION-RESIDUE.** (split-of:BUILD-FACET-RECEIVER-RESIDUE)
-  The receiver-keyed build-facet census is closed. `BuildLog::write_line` was
-  the last entrypoint selected by receiver place; it now reads its facet from
-  the first explicit operand, and `fail/build/build_log_counterfeit_facet_refused`
-  pins that the call reaches the evaluator at all. Three selection records the
-  census found are dead rather than broken, and none can be removed inside the
-  Psi evaluator alone. `try_provider_selection_statement` is unreachable --
-  stage 02 retains every admitted `select_provider` statement as an expression,
-  and checking refuses the one spelling that would stay a statement with
-  "qualified call `select_provider` has no resolved callable declaration" -- so
-  nothing constructs `ExecutedProviderSelectionSite::Statement`, and deleting
-  that variant reaches `provider-planning/src/provider_declarations.rs` across
-  the firewall. Stage 04's `BuildOperationForm::PreludeDataReceiver` still
-  classifies four operations by receiver and none of the four needs it:
-  `LogWriteLine` and `IncludedSourceHandoff` are selected by resolved prelude
-  identity, and `OptimizationSelection`/`OptimizationReportRequest` have no
-  prelude machine declaration to resolve. Acceptance: no build operation is
-  classified by receiver shape, and no unconstructed executed-selection variant
-  survives.
+  No build operation is classified by receiver shape any more: stage 04's
+  `BuildOperationForm`, both of its receiver predicates, and the `State`
+  payload on `StaticArgumentCall::Statement` that existed only to answer the
+  receiver question are deleted. All four classified operations declare their
+  facet as an explicit first parameter in the build prelude
+  (`BuildLog::write_line`, `BuildOutput::include_source`, and the generated
+  `Optimizations::enable`/`emit_report`), so every authored use resolves that
+  declaration and the resolved-target arm answers it first; Omega harvests the
+  optimization selections from the evaluated `Build.optimizations` counter
+  fields, never from an intrinsic fact.
+
+  What remains is one unconstructed variant,
+  `ExecutedProviderSelectionSite::Statement`, and it is unconstructed for an
+  upstream reason rather than as a property of the published Psi record.
+  Stage 02 retains every non-discarding provider-selection statement as an
+  expression (`lowering/statement/statement_nodes.rs`), and the only statement
+  spelling left, `_ = Build::select_provider<..>(builder)`, is refused at
+  checking with "qualified call `select_provider` has no resolved callable
+  declaration" because `select_provider` is the one operation with no prelude
+  declaration. The expression retention cannot absorb that spelling, because
+  `TableCallExpression` carries no `discards_result` field. The sibling record
+  beside it, `ExecutedBehaviorExclusionSite`, constructs both of its variants
+  -- `Build::exclude_crash(builder, cause);` takes the statement arm -- so the
+  two-variant site is a live shared shape, not provider-only ceremony.
+  `try_provider_selection_statement` stays called unguarded, so any spelling
+  that does reach it works. Acceptance: either `TableCallExpression` carries
+  the discard marker so stage 02 retains that spelling too and the statement
+  arm becomes structurally impossible, or checking admits
+  `_ = Build::select_provider<..>` and the arm becomes constructed. Deleting
+  the arm by itself would bake the upstream gap into the Psi/Omega record
+  contract.
 
 - **CORPUS-BUILD-LOG-STREAM-COLLISION.** (new-scope)
   No corpus fixture can write a build log line. The compiler emits the retained

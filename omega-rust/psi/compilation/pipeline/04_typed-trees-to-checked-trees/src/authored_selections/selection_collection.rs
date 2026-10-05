@@ -334,7 +334,7 @@ pub(crate) fn collect_checked_statement_selections(
                     )
                     .with_source_span(call.source_span));
                 }
-                let resolution_target = checked_statement_call_intrinsic(program, state, call)
+                let resolution_target = checked_statement_call_intrinsic(program, call)
                     .map(CheckedResolutionTarget::Intrinsic)
                     .or_else(|| {
                         crate::flow::resolved_operator_statement_symbol(program, call)
