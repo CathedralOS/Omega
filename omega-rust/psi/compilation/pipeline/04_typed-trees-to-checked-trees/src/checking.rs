@@ -231,6 +231,7 @@ fn check_program(
     let mut static_machine_selections =
         specialize_static_machine_calls_with_selections(&mut program, true)?;
     normalize_open_index_identities(&mut program)?;
+    let mut generated_bodies = false;
     loop {
         let mut materialized = match &provider_templates {
             Some(templates) => crate::monomorphization::specialize_operator_candidates(
@@ -248,9 +249,18 @@ fn check_program(
         if materialized == 0 {
             break;
         }
+        generated_bodies = true;
+        // Generated bodies only add concrete calls; the authored generic
+        // templates stay unchanged, so their contract entailment and the
+        // conformance applications are judged once, after convergence.
         static_machine_selections =
-            specialize_static_machine_calls_with_selections(&mut program, true)?;
+            specialize_generated_static_machine_calls(&mut program)?;
         normalize_open_index_identities(&mut program)?;
+    }
+    if generated_bodies {
+        crate::conformance::conformance_applications::validate_conformance_applications(
+            &program,
+        )?;
     }
     // F2b: unsuffixed float literals at declared f32/f64 destinations land
     // their format on the text carrier HERE, while the tree is still mutable
@@ -418,6 +428,24 @@ pub fn specialize_static_machine_calls(
     program: &mut typed_trees::TypedTrees,
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
     specialize_static_machine_calls_with_selections(program, false).map(|_| ())
+}
+
+/// One iteration of the specialization fixed point over newly generated
+/// bodies: derive the static selections and close them, without re-judging
+/// the authored templates the first pass already judged.
+fn specialize_generated_static_machine_calls(
+    program: &mut typed_trees::TypedTrees,
+) -> Result<::validation::ValidatedStaticMachineSelections, Vec<diagnostics::Diagnostic>> {
+    crate::conformance::conformance_application_lifetimes::resolve_elided_conformance_lifetimes(
+        program,
+    )?;
+    let mut selections = ::validation::validate_static_machine_selections_with_facts(program)?;
+    crate::monomorphization::monomorphize_generic_machine_value_calls_with_selections(
+        program,
+        &mut selections,
+        true,
+    )?;
+    Ok(selections)
 }
 
 pub(crate) fn specialize_static_machine_calls_with_selections(

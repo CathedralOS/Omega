@@ -3234,20 +3234,22 @@ the validation `src/` (written `omega-rust/psi/compilation/checking/src/`) unles
   native restoration results.
 
 - **SPECIALIZATION-LOOP-ONCE.** (new-scope) The specialization fixed point in
-  `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checking.rs` re-runs five whole-program validations
-  (`validate_conformance_applications`,
-  `validate_static_machine_selections_with_facts`,
-  `validate_generic_machine_contract_entailment`, `infer_operational_may`,
-  `validate_static_machine_call_contracts`) before the loop and on every
-  iteration, and repeats `bind_selected_operator_calls` (3 + N runs),
+  `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checking.rs`
+  now judges `validate_generic_machine_contract_entailment` once and
+  `validate_conformance_applications` once before and once after
+  convergence. Each iteration still runs
+  `validate_static_machine_selections_with_facts`, because it derives the
+  selections monomorphization consumes, and `infer_operational_may` inside
+  it. The loop also repeats `bind_selected_operator_calls` (3 + N runs),
   `normalize_open_index_identities` (2 + N), `resolve_projected_receiver_calls`
-  (2) and `land_float_literal_destinations` (2–3). Make the loop specialize
-  and bind only; run each validation, receiver resolution and float landing
-  once after it converges. Coordinate with **TYPED-FROZEN-BEFORE-CHECKING**,
-  which moves the loop to its own stage. Acceptance: each named pass runs once
-  per check except the per-iteration specialize/bind step; the
-  generic-value-call fence and call-contract diagnostics are unchanged; corpus
-  `--filter generics,operators,traits/` unchanged.
+  (2) and `land_float_literal_destinations` (2–3). Split selection derivation
+  from its validation so the loop specializes and binds only, and run each
+  remaining pass once after convergence. Coordinate with
+  **TYPED-FROZEN-BEFORE-CHECKING**, which moves the loop to its own stage.
+  Acceptance: each named pass runs once per check except the per-iteration
+  specialize/bind step; the generic-value-call fence and call-contract
+  diagnostics are unchanged; corpus `--filter generics,operators,traits/`
+  unchanged.
 
 - **CHECK-ONCE-ACROSS-TARGETS.** (new-scope) The driver re-checks the whole
   program for each selected target
