@@ -1996,6 +1996,10 @@ crash and native exit behavior.
   coverage. Keep at their oracles: `providers/{checked_fixed_operator_dispatch,token_machine_family_override,checked_boundary_operator_const_application_alternate}_exit`,
   `providers/{checked_boundary,checked_fixed}_operator_physical_custody`,
   `providers/specialized_mixed_structural_result_operator_hosted_native`,
+  `providers/generic_provider_structural_result_composition_exit` (ordinary
+  helper calls and constructed results across two closed provider instances),
+  `generics/closed_generic_local_field_observation_exit` (nested substituted
+  fields retain their scalar type and arithmetic policy),
   `comptime/provider_boundary_range_endpoint_exit`,
   `providers/selected_const_provider_call_identity_exit` (named, token and
   helper calls retain the authored requirement under one selected provider),

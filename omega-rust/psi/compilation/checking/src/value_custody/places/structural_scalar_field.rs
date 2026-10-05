@@ -6,6 +6,10 @@
 //! nor grants its case membership or ownership. A fresh receiver retains its
 //! unevaluated value occurrence so planning must establish it before observation.
 //! These remain use-site checks, not permissions inferred from field geometry.
+//! Closed generic receivers use their retained specialized declaration at every
+//! projection. Its fields already carry substituted nested types and extents;
+//! reading the template instead would either reject legal observations or lose
+//! the selected instance's scalar type and arithmetic policy.
 
 use language_semantics::Multiplicity;
 use numerics::arithmetic::ArithmeticDomain;
@@ -127,13 +131,7 @@ pub fn structural_scalar_field(
                 continue;
             }
         };
-        let record = crate::program_scope::data_definitions::data_definition_by_symbol(
-            program,
-            program.type_reference_symbol(carrier),
-        )?;
-        if !program.data_type_parameters(record).is_empty() {
-            return None;
-        }
+        let record = program.closed_data_definition(carrier)?;
         let field = selected_member_field(program, record, member, &mut path)?;
         path.push(checked_trees::CheckedUnitStructuralPathSegment::Field(
             field.path_identity(),
@@ -141,10 +139,7 @@ pub fn structural_scalar_field(
         carrier = field.type_reference;
     }
     carrier = readable_projection_carrier(program, carrier, &mut path)?;
-    let record = crate::program_scope::data_definitions::data_definition_by_symbol(
-        program,
-        program.type_reference_symbol(carrier),
-    )?;
+    let record = program.closed_data_definition(carrier)?;
     let field = selected_member_field(program, record, leaf, &mut path)?;
     let primitive_type = realized_scalar_carrier(program, field.type_reference)?;
     if !matches!(
@@ -214,13 +209,22 @@ fn selected_member_field<'program>(
     member: &typed_trees::expression::TableMemberExpression,
     path: &mut Vec<checked_trees::CheckedUnitStructuralPathSegment>,
 ) -> Option<&'program typed_trees::data::DataField> {
-    let field = super::exact_data_member_field(
-        program,
-        record,
-        member.member_symbol,
-        member.member.as_str(),
-        member.case_variant.as_ref().map(|variant| variant.as_str()),
-    )?;
+    let field = if let Some(origin) = record.generic_instance
+        && member.case_variant.is_none()
+    {
+        // Normalization may retain a template field selection. Translate it
+        // only through this receiver's exact instance/member correspondence;
+        // a sibling instance's field cannot be selected by equal spelling.
+        program.closed_data_member_field(origin, member.member_symbol, member.member.as_str())?
+    } else {
+        super::exact_data_member_field(
+            program,
+            record,
+            member.member_symbol,
+            member.member.as_str(),
+            member.case_variant.as_ref().map(|variant| variant.as_str()),
+        )?
+    };
     if field.relevance.is_erased()
         || program.symbols.get(field.symbol).kind != symbols::SymbolKind::Field
     {
@@ -667,20 +671,10 @@ fn structural_source(
     if !crate::linear_claim_frontier(program, carrier).is_empty() {
         return None;
     }
-    let TypeReferenceNode::Named { symbol, .. } =
-        program.type_reference_table.type_reference(carrier)
-    else {
-        return None;
-    };
-    if !symbol.is_valid() || program.symbols.get(*symbol).kind != symbols::SymbolKind::Data {
-        return None;
-    }
-    let mut records = program
-        .data_definitions()
-        .iter()
-        .filter(|record| record.symbol == *symbol);
-    let record = records.next()?;
-    if records.next().is_some() || !program.data_type_parameters(record).is_empty() {
+    let record = program.closed_data_definition(carrier)?;
+    if !record.symbol.is_valid()
+        || program.symbols.get(record.symbol).kind != symbols::SymbolKind::Data
+    {
         return None;
     }
     Some(StructuralSource {

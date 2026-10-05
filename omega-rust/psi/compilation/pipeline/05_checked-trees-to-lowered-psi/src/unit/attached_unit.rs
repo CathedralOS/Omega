@@ -225,8 +225,7 @@ pub(crate) fn lower_unit_closure(
         .iter()
         .map(|machine| CheckedScalarCallee::find_for_unit_call(checked, *machine))
         .collect::<Result<Vec<_>, _>>()?;
-    let realizations =
-        RealizationRoots::collect(plans, &closure, &scalar_closure, &provider_candidate_plans)?;
+    let realizations = RealizationRoots::collect(plans, &closure, &scalar_closure)?;
 
     // Admission: retain every checked body and every boundary the closure
     // calls, then the catalog roots its callees and providers name.
@@ -242,15 +241,6 @@ pub(crate) fn lower_unit_closure(
     let mut additional_type_roots = external
         .as_ref()
         .map_or_else(Vec::new, |roots| roots.structural_type_roots.to_vec());
-    for candidate in provider_candidate_plans
-        .iter()
-        .filter(|candidate| candidate.body == ProviderBody::AffineIdentity)
-    {
-        let plan = providers::affine_candidate(checked, candidate.candidate)?;
-        additional_type_roots.extend(plan.attachment_type_identity.iter().cloned());
-        additional_type_roots.push(plan.structural_parameter.type_identity.clone());
-        additional_type_roots.push(plan.result.type_identity.clone());
-    }
     let mut additional_service_roots = external
         .as_ref()
         .map_or_else(Vec::new, |roots| roots.service_roots.to_vec());
@@ -738,17 +728,8 @@ impl RealizationRoots {
         plans: UnitPlans<'_>,
         closure: &[symbols::SymbolHandle],
         scalar_closure: &[symbols::SymbolHandle],
-        provider_candidate_plans: &[CheckedUnitProviderCandidate],
     ) -> Result<Self, LoweringError> {
         let mut structural_results = Vec::new();
-        for candidate in provider_candidate_plans
-            .iter()
-            .filter(|candidate| candidate.body == ProviderBody::AffineIdentity)
-        {
-            if !structural_results.contains(&candidate.candidate) {
-                structural_results.push(candidate.candidate);
-            }
-        }
         for machine_symbol in closure {
             for operation in UnitBody::find(plans, *machine_symbol)?.operations() {
                 // An ordinary structural call whose target has no Unit body.

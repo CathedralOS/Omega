@@ -4,8 +4,10 @@
 //! calls. A structural result does not imply an identity-return implementation:
 //! a checked graph may construct it after calling helpers or boundary leaves.
 //! Retaining that graph as a closure root preserves those dependencies and its
-//! source replay. The affine identity family keeps its existing separate emitter;
-//! competing body plans must reject rather than choose whichever path succeeds.
+//! source replay. Identity returns use that same body owner, not the legacy
+//! affine-return summary: a summary beside its ordinary body is not a second
+//! implementation. Missing or duplicate ordinary bodies still reject in
+//! `UnitBody::find`; provider signatures and custody are joined separately.
 
 use super::bodies::UnitPlans;
 use super::operation_frame::BoundaryParameters;
@@ -21,64 +23,26 @@ use validation::{TopLevelSymbols, resolve_closed_requirement_application};
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum ProviderBody {
     Callable,
-    AffineIdentity,
     /// A scalar provider emitted exactly as an ordinary scalar call's
     /// callee: its scalar graph, with its contract, rather than a Unit body.
     ScalarCallee,
 }
 
-pub(super) fn affine_candidate(
+/// Report the exact checked provider whose ordinary body is missing, including
+/// the checker-owned omission. Result shape must not hide that source frontier.
+fn callable_candidate<'program>(
     checked: &CheckedTrees,
-    machine: symbols::SymbolHandle,
-) -> Result<&checked_trees::CheckedClaimFreeAffineStructuralReturnMachinePlan, LoweringError> {
-    let mut candidates = checked
-        .facts
-        .flow
-        .terminal_structural_returns
-        .claim_free_affine_machines
-        .iter()
-        .filter(|plan| plan.machine == machine);
-    let candidate = candidates.next().ok_or(LoweringError::Unsupported(
-        "provider candidate has no checked affine identity return plan",
-    ))?;
-    if candidates.next().is_some()
-        || checked
-            .facts
-            .flow
-            .terminal_unit_effects
-            .for_machine(machine)
-            .is_some()
-        || checked
-            .facts
-            .flow
-            .terminal_unit_effects
-            .composed_for_machine(machine)
-            .is_some()
-    {
-        return unsupported("provider candidate has ambiguous terminal body plans");
-    }
-    Ok(candidate)
-}
-
-fn callable_candidate(
-    checked: &CheckedTrees,
-    machine: symbols::SymbolHandle,
-) -> Result<UnitBody<'_>, LoweringError> {
-    let body = UnitBody::find(
-        UnitPlans::published(&checked.facts.flow.terminal_unit_effects),
-        machine,
-    )?;
-    if checked
-        .facts
-        .flow
-        .terminal_structural_returns
-        .claim_free_affine_machines
-        .iter()
-        .any(|plan| plan.machine == machine)
-    {
-        return unsupported("provider candidate has ambiguous terminal body plans");
-    }
-    Ok(body)
+    plans: UnitPlans<'program>,
+    machine: &Machine,
+) -> Result<UnitBody<'program>, LoweringError> {
+    UnitBody::find(plans, machine.symbol).map_err(|error| match error {
+        LoweringError::Unsupported(reason) => LoweringError::InvalidUnitMachinePlan {
+            machine: machine.name.as_str().to_owned(),
+            reason,
+            omission: crate::unit::unit_plan_omission_explanation(checked, machine.symbol),
+        },
+        error => error,
+    })
 }
 
 /// The requirement a boundary call names: a boundary-trait signature, or a
@@ -282,21 +246,7 @@ pub(super) fn checked_unit_provider_candidates(
             }
             let body = match &boundary.result {
                 checked_trees::CheckedBoundaryMachineResultPlan::Unit => {
-                    let candidate = callable_candidate(checked, machine.symbol).map_err(
-                        |error| match error {
-                            LoweringError::Unsupported(reason) => {
-                                LoweringError::InvalidUnitMachinePlan {
-                                    machine: machine.name.as_str().to_owned(),
-                                    reason,
-                                    omission: crate::unit::unit_plan_omission_explanation(
-                                        checked,
-                                        machine.symbol,
-                                    ),
-                                }
-                            }
-                            error => error,
-                        },
-                    )?;
+                    let candidate = callable_candidate(checked, plans, machine)?;
                     if candidate.result()? != checked_trees::CheckedControlResultPlan::Unit {
                         return unsupported(
                             "provider result disagrees with its Unit boundary requirement",
@@ -309,21 +259,13 @@ pub(super) fn checked_unit_provider_candidates(
                     multiplicity,
                     qualifications,
                 } => {
-                    let (body, result) = if plans.for_machine(machine.symbol).is_some()
-                        || plans.composed_for_machine(machine.symbol).is_some()
-                    {
-                        let candidate = callable_candidate(checked, machine.symbol)?;
-                        let checked_trees::CheckedControlResultPlan::Structural(result) =
-                            candidate.result()?
-                        else {
-                            return unsupported(
-                                "provider result disagrees with its structural boundary requirement",
-                            );
-                        };
-                        (ProviderBody::Callable, result)
-                    } else {
-                        let candidate = affine_candidate(checked, machine.symbol)?;
-                        (ProviderBody::AffineIdentity, candidate.result.clone())
+                    let candidate = callable_candidate(checked, plans, machine)?;
+                    let checked_trees::CheckedControlResultPlan::Structural(result) =
+                        candidate.result()?
+                    else {
+                        return unsupported(
+                            "provider result disagrees with its structural boundary requirement",
+                        );
                     };
                     // The requirement's result qualifications and argument
                     // domain requirements are minted on the caller side by the
@@ -346,7 +288,7 @@ pub(super) fn checked_unit_provider_candidates(
                             "provider structural result disagrees with its boundary requirement",
                         );
                     }
-                    body
+                    ProviderBody::Callable
                 }
                 // A scalar requirement is served by an ordinary callable body
                 // returning the same primitive; installation replays the
@@ -357,7 +299,7 @@ pub(super) fn checked_unit_provider_candidates(
                 checked_trees::CheckedBoundaryMachineResultPlan::Scalar(expected) => {
                     match super::CheckedScalarCallee::find_for_unit_call(checked, machine.symbol)? {
                         super::CheckedScalarCallee::Operations(_) => {
-                            let candidate = callable_candidate(checked, machine.symbol)?;
+                            let candidate = callable_candidate(checked, plans, machine)?;
                             if candidate.scalar_result_type() != Some(*expected) {
                                 return unsupported(
                                     "provider result disagrees with its scalar boundary requirement",
