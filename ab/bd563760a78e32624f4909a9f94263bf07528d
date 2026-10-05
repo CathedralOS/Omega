@@ -1,0 +1,4 @@
+owner: Claude / projected-local structural root
+provenance: model=claude-opus-5[1m]; agent=Claude Code subagent; task=UNIT-PLAN-OMISSION-PROJECTED-LOCAL
+ticket: 0a5dbfc717b4437bb8929dc5eb64c804
+published_utc: 2026-10-05T02:30:55.686155+00:00
