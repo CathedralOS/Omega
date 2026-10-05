@@ -348,7 +348,7 @@ fn strip_root_prefix(diagnostic: &str, root: &Path) -> String {
 }
 
 fn unique_build_dir(sequence: usize) -> PathBuf {
-    env::temp_dir().join(format!("omega-corpus-runner-{}-{sequence}", process::id()))
+    sealed_fixture_staging::temporary_session_root().join(format!("build-{sequence}"))
 }
 
 /// The exact optimization rules one fixture asks the release rollback to
@@ -689,7 +689,7 @@ fn execute_fixture(
     fixture_dir: &Path,
     sequence: usize,
 ) -> Vec<String> {
-    let work = env::temp_dir().join(format!("omega-corpus-run-{}-{sequence}", process::id()));
+    let work = sealed_fixture_staging::temporary_session_root().join(format!("run-{sequence}"));
     let _ = fs::remove_dir_all(&work);
     if fs::create_dir_all(&work).is_err() {
         return vec!["exit:unrunnable".to_owned()];
@@ -1183,7 +1183,6 @@ fn run_one_bounded(
         let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             run_one(tier, &base_owned, &main_owned, sequence)
         }));
-        live_owned.fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
         let record = match outcome {
             Ok(record) => record,
             Err(payload) => {
@@ -1198,6 +1197,10 @@ fn run_one_bounded(
                 )
             }
         };
+        // Panic diagnostics sanitize source paths too. Publish completion only
+        // after the last staging access, so exit-time cleanup cannot release
+        // this session's reservation while a detached thread still uses it.
+        live_owned.fetch_sub(1, std::sync::atomic::Ordering::Release);
         let _ = sender.send(record);
     });
     match receiver.recv_timeout(cap) {
@@ -1209,8 +1212,8 @@ fn run_one_bounded(
                     ("timeout", started.elapsed().as_millis())
                 }
                 std::sync::mpsc::RecvTimeoutError::Disconnected => {
-                    // The compile thread panicked inside run_one — it died
-                    // before its own fetch_sub, so decrement here to keep the
+                    // The compile thread died before publishing its record
+                    // and its own fetch_sub, so decrement here to keep the
                     // back-pressure count honest. Distinct status: a crash is
                     // a bug, not a budget overrun.
                     live.fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
@@ -1443,7 +1446,7 @@ fn main() {
         let _ = worker.join();
     }
     let timed_out = timed_out.load(std::sync::atomic::Ordering::Relaxed);
-    let still_live = live.load(std::sync::atomic::Ordering::Relaxed);
+    let still_live = live.load(std::sync::atomic::Ordering::Acquire);
     if timed_out > 0 || still_live > 0 {
         eprintln!(
             "corpus_runner: {timed_out} fixture(s) timed out, \
@@ -1457,9 +1460,10 @@ fn main() {
     for record in records {
         println!("{record}");
     }
-    // Every record is written, so a detached straggler's reads no longer
-    // decide anything and the sealed snapshots it may still hold open can go.
-    sealed_fixture_staging::discard_staged_snapshots();
+    // A live straggler can still remove build paths. Retain the reservation
+    // until it dies with this process, rather than letting a same-PID session
+    // reuse the root while those paths remain live.
+    sealed_fixture_staging::discard_staged_snapshots(still_live);
     // Detached stragglers from timed-out fixtures die with the process here.
     process::exit(0);
 }

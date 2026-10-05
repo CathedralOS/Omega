@@ -32,8 +32,8 @@
 //!   are shared: several corpus runs execute against one checkout at once and
 //!   an editor may hold a file open, so making the working tree read-only for
 //!   the duration of a compile would let one run's restore unseal another
-//!   run's source. The session root carries the process id for the same
-//!   reason.
+//!   run's source. The session root is exclusively created, so even processes
+//!   with the same id in separate PID namespaces cannot share it.
 //!
 //! Dependency rows are deliberately not staged here. A fixture resolves
 //! `Source::Path` locations against its authored project (849 fixtures reach
@@ -45,7 +45,36 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-/// The private per-process directory every staged snapshot lands under.
+/// The exclusively owned root for this process's snapshots and working directories.
+///
+/// Process ids are not unique when separate PID namespaces share a temporary
+/// directory. Creating a candidate atomically, rather than accepting an existing
+/// directory, makes the filesystem establish ownership; occupied candidates are
+/// left untouched, including directories retained after a crashed runner.
+pub fn temporary_session_root() -> &'static Path {
+    static ROOT: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
+    ROOT.get_or_init(|| {
+        let temporary = std::env::temp_dir();
+        for sequence in 0_u64.. {
+            let root = temporary.join(format!(
+                "omega-corpus-session-{}-{sequence}",
+                std::process::id()
+            ));
+            match fs::create_dir(&root) {
+                Ok(()) => return fs::canonicalize(&root).unwrap_or(root),
+                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+                Err(error) => panic!(
+                    "fixture staging session root {} could not be created: {error}",
+                    root.display()
+                ),
+            }
+        }
+        unreachable!("fixture staging session sequence exhausted")
+    })
+    .as_path()
+}
+
+/// The private directory every staged snapshot lands under.
 ///
 /// Canonicalized once: a bound source root is canonicalized by package
 /// construction, and the sanitizer strips this prefix from rendered
@@ -55,11 +84,10 @@ use std::path::{Path, PathBuf};
 pub fn staging_session_root() -> &'static Path {
     static ROOT: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
     ROOT.get_or_init(|| {
-        let root =
-            std::env::temp_dir().join(format!("omega-fixture-source-{}", std::process::id()));
+        let root = temporary_session_root().join("source");
         fs::create_dir_all(&root).unwrap_or_else(|error| {
             panic!(
-                "fixture staging session root {} could not be created: {error}",
+                "fixture source root {} could not be created: {error}",
                 root.display()
             )
         });
@@ -81,11 +109,9 @@ pub fn staging_session_root() -> &'static Path {
 /// out of recorded diagnostics, and a staging path underneath it would be
 /// rewritten into something that reads like a repository-relative path.
 pub fn fresh_staging_build_dir(repository_root: &Path, authored_root: &Path) -> PathBuf {
-    static ROOT: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
-    let root = ROOT.get_or_init(|| {
-        std::env::temp_dir().join(format!("omega-fixture-staging-{}", std::process::id()))
-    });
-    let staging = root.join(relative_fixture_path(repository_root, authored_root));
+    let staging = temporary_session_root()
+        .join("fixture-build")
+        .join(relative_fixture_path(repository_root, authored_root));
     let _ = fs::remove_dir_all(&staging);
     staging
 }
@@ -123,17 +149,18 @@ pub fn stage_sealed_snapshot(repository_root: &Path, authored_root: &Path) -> Pa
     staged
 }
 
-/// Release every snapshot this process staged.
+/// Release this process's snapshots and working directories.
 ///
-/// Called once the last record is emitted, not after each fixture: a compile
-/// that outlived its budget is detached rather than joined, and it may still
-/// be reading the snapshot it was given. Its record is already discarded, so
-/// what it reads no longer matters, but the directory must outlive it.
-pub fn discard_staged_snapshots() {
-    discard_snapshot(staging_session_root());
-    let _ = fs::remove_dir_all(
-        std::env::temp_dir().join(format!("omega-fixture-staging-{}", std::process::id())),
-    );
+/// Called once the last record is emitted, not after each fixture. A detached
+/// compile may still read, write or remove paths beneath this root. Keep its
+/// reservation until the process exits: releasing it early would let another
+/// same-PID session reuse the path before the old compile's cleanup finishes.
+/// The caller's count must cover every remaining staging access, including
+/// diagnostic rendering after a caught compiler panic.
+pub fn discard_staged_snapshots(still_live: usize) {
+    if still_live == 0 {
+        discard_snapshot(temporary_session_root());
+    }
 }
 
 /// Where a fixture sits inside the repository: the path both a snapshot and a
