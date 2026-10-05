@@ -661,45 +661,6 @@ fn canonical_path_components(
         .collect()
 }
 
-#[doc(hidden)]
-pub fn verify_current_files<'source>(
-    sources: impl IntoIterator<Item = &'source SourceFile>,
-    generated_sources: &[(source::SourceId, build_output::PackageGeneratedSource)],
-) -> Result<(), Vec<Diagnostic>> {
-    let mut diagnostics = Vec::new();
-    let generated_by_id = GeneratedSourceOrder::new(generated_sources);
-    for source in sources {
-        if source.origin == SourceOrigin::Toolchain && is_virtual_toolchain_path(&source.path) {
-            continue;
-        }
-        if let Some((_, generated)) = generated_by_id.find(source.source_id) {
-            if source.source.as_bytes() != generated.bytes() {
-                diagnostics.push(Diagnostic::error(format!(
-                    "compiler-retained generated source `{}` drifted from staged-output custody",
-                    source.path.display()
-                )));
-            }
-            continue;
-        }
-        match std::fs::read(&source.path) {
-            Ok(current) if current == source.source.as_bytes() => {}
-            Ok(_) => diagnostics.push(Diagnostic::error(format!(
-                "compiler-consumed source `{}` changed after frontend loading",
-                source.path.display()
-            ))),
-            Err(error) => diagnostics.push(Diagnostic::error(format!(
-                "compiler-consumed source `{}` cannot be re-read: {error}",
-                source.path.display()
-            ))),
-        }
-    }
-    if diagnostics.is_empty() {
-        Ok(())
-    } else {
-        Err(diagnostics)
-    }
-}
-
 /// Exact source-backed toolchain owners retained for compiler source-free
 /// nominal and type identity. `SourceId` is only the compiler-internal join
 /// coordinate; canonical identity contains the collision-resistant digest.

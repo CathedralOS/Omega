@@ -18,15 +18,13 @@ use crate::build_session::{
 };
 use compilation_products::CheckedCompileRequest;
 
-use super::super::custody::verify_selected_source_custody;
 use super::super::rows::RetainedReviewRows;
 use super::super::semantic_bindings::{
     SemanticBindingReviewCandidate, candidate_hosted_exit_bindings, candidate_service_bindings,
     candidate_target_entry_binding,
 };
 use super::super::{
-    CompileResolvedPackageReviewsError, CompilerIssuedPackageReview,
-    CompilerIssuedPackageReviewSet, PackageSourceVerificationPhase,
+    CompileResolvedPackageReviewsError, CompilerIssuedPackageReview, CompilerIssuedPackageReviewSet,
 };
 use super::ledger::{
     MAXIMUM_RETAINED_ORDINARY_LEDGER_BYTES, reserve_retained_obligation_ledger_bytes,
@@ -133,18 +131,18 @@ impl OccurrenceCompile {
         }
     }
 
-    /// The source-consumption re-verification a carried compile owes before
-    /// its review counts. A live `CheckedCompilation` re-reads the physical
-    /// sources it retained; a cached occurrence instead re-derives its
-    /// retained commitment over the stored consumed units plus the live
-    /// inputs — the same content identity, checked without the physical read
-    /// the surrounding custody verification already performs.
+    /// The source-consumption check a carried compile owes before its review
+    /// counts. A persisted occurrence's retained commitment was written by an
+    /// earlier invocation, so re-deriving it over the stored consumed units and
+    /// this invocation's live inputs is what admits the reuse. A live
+    /// `CheckedCompilation` has nothing to establish: this invocation read
+    /// those sources and holds the bytes it checked.
     fn verify_current_source_consumption(
         &self,
         inputs: &PackageCompilationInputs,
     ) -> Result<(), Vec<Diagnostic>> {
         match self {
-            Self::Checked(checked) => checked.verify_current_source_consumption(),
+            Self::Checked(_) => Ok(()),
             Self::Cached(facts) => {
                 let commitment = package_compilation::derive_source_consumption_commitment(
                     &facts.consumed_units,
@@ -257,7 +255,6 @@ pub(super) fn compile_dependency_closure(
     };
     for key in dependency_first_package_order(closure) {
         let scope = PackageCompilationScope::new(closure, &key);
-        verify_selected_source_custody(&scope, PackageSourceVerificationPhase::BeforeCompilation)?;
         let custody = closure
             .custody(&key)
             .expect("validated source closure retains custody for every graph package");
@@ -601,11 +598,11 @@ impl ClosurePass<'_> {
     ) -> Result<bool, CompileResolvedPackageReviewsError> {
         let PackageOccurrence {
             key,
-            scope,
             custody,
             position,
             purpose,
             checked_target,
+            ..
         } = *occurrence;
         let closure = self.closure;
         let execution_profile = self.execution_profile;
@@ -789,7 +786,6 @@ impl ClosurePass<'_> {
             checked: compile,
         });
         self.carried_occurrences += 1;
-        verify_selected_source_custody(scope, PackageSourceVerificationPhase::AfterCompilation)?;
         Ok(true)
     }
 
@@ -808,11 +804,11 @@ impl ClosurePass<'_> {
     > {
         let PackageOccurrence {
             key,
-            scope,
             custody,
             position,
             purpose,
             checked_target,
+            ..
         } = *occurrence;
         let closure = self.closure;
         let execution_profile = self.execution_profile;
@@ -941,7 +937,6 @@ impl ClosurePass<'_> {
             entry_root: entry.to_path_buf(),
             prepared,
         });
-        verify_selected_source_custody(scope, PackageSourceVerificationPhase::AfterCompilation)?;
         Ok((checked, occurrence_inputs))
     }
 
@@ -971,14 +966,6 @@ impl ClosurePass<'_> {
             proposed_entry,
         } = assembled;
         let entry = entry.as_path();
-        checked
-            .verify_current_source_consumption()
-            .map_err(
-                |diagnostics| CompileResolvedPackageReviewsError::SourceConsumptionDrift {
-                    package: key.clone(),
-                    diagnostics,
-                },
-            )?;
         let source_consumption_commitment = checked
             .sources()
             .source_consumption_commitment()

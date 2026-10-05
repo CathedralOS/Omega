@@ -2,7 +2,7 @@
 
 use super::{
     PackageCompilationSubject, PackageSourceConsumptionCommitment,
-    derive_package_compilation_subject, toolchain_source_identities, verify_current_files,
+    derive_package_compilation_subject, toolchain_source_identities,
 };
 use crate::{PackageCompilationInputs, PackageGeneratedSourceBundle};
 use checked_trees::CheckedTrees;
@@ -46,11 +46,6 @@ impl BuildSourceCustody {
             inputs,
             &self.generated_source_custody,
         )?;
-        verify_current_files(
-            program.symbols.source_files(),
-            &self.generated_source_custody,
-        )?;
-        inputs.validate_canonical_source_metadata()?;
         Ok(PackageGeneratedSourceBundle::from_source_consumption(
             subject.root(),
             inputs.compilation_purpose(),
@@ -110,9 +105,9 @@ impl BuildSourceCustody {
     }
 
     /// Preserve the source-admission order: derive the final package subject,
-    /// identify toolchain sources, re-read package files, then revalidate the
-    /// captured root metadata. Standalone checking retains toolchain identities
-    /// but does not acquire package custody or require physical source rereads.
+    /// then identify toolchain sources. Neither step reopens the host: the
+    /// frontend read each consumed file once and this seal commits to those
+    /// bytes, so there is nothing here for a second read to establish.
     pub fn seal(
         self,
         program: &CheckedTrees,
@@ -128,15 +123,6 @@ impl BuildSourceCustody {
             })
             .transpose()?;
         let exact_toolchain_sources = toolchain_source_identities(program.symbols.source_files())?;
-        if package_subject.is_some() {
-            verify_current_files(
-                program.symbols.source_files(),
-                &self.generated_source_custody,
-            )?;
-        }
-        if let Some(inputs) = package_inputs {
-            inputs.validate_canonical_source_metadata()?;
-        }
         Ok(CheckedSourceCustody {
             build: self,
             package_purpose: package_inputs.map(PackageCompilationInputs::compilation_purpose),
@@ -192,18 +178,6 @@ impl CheckedSourceCustody {
 
     pub fn exact_toolchain_sources(&self) -> &[(source::SourceId, [u8; 32])] {
         &self.exact_toolchain_sources
-    }
-
-    /// Re-read ordinary sources against the retained program and compare
-    /// generated sources with staged-output custody, never a physical path.
-    pub fn verify_current_source_consumption(
-        &self,
-        program: &CheckedTrees,
-    ) -> Result<(), Vec<Diagnostic>> {
-        verify_current_files(
-            program.symbols.source_files(),
-            &self.build.generated_source_custody,
-        )
     }
 
     /// Export only the activation's own included sources. The final checked

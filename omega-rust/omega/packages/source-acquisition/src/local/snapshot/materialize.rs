@@ -135,6 +135,11 @@ fn materialize_pending_local_snapshot(
             "staged source does not match the captured local tree",
         ));
     }
+    // The one surviving live-tree comparison. A publication is a durable
+    // artifact later invocations reuse by content identity, so an edit landing
+    // between the capture and this write would leave a snapshot of a tree
+    // state that never finished existing. The staging tree is removed and the
+    // resolution rejects instead.
     verify_live_source_unchanged(expected_live, limits)?;
 
     write_snapshot_file_from_open_root(
@@ -150,21 +155,6 @@ fn materialize_pending_local_snapshot(
         pending.directory()?,
         &pending.root,
     )?;
-    let finalized = capture_local_source_from_open_root(
-        source.clone(),
-        source_directory
-            .try_clone()
-            .map_err(|error| io_error(&source, error))?,
-        limits,
-        SourceTreePolicy::ExactMaterialized,
-    )?
-    .normalized;
-    if !same_source_identity(&finalized, &captured.normalized) {
-        return Err(local_snapshot_invalid(
-            &source,
-            "finalized snapshot does not match the captured local tree",
-        ));
-    }
     // Windows will not rename the retained stage while a descendant directory
     // handle remains open. Verification is complete, so release it before the
     // atomic publication rename.

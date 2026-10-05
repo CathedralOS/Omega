@@ -7,8 +7,13 @@
 //! carries; start at `source_map.rs`, where `SourceMap` resolves them back to
 //! files and positions. Past resolution, source text is diagnostic and debug
 //! payload, never identity.
+//!
+//! `read_accounting.rs` counts how many times the host was read for one source
+//! file's bytes, across every crate that reads them. Loading each consumed file
+//! once is the contract; the counter is how a second read becomes visible.
 
 mod loaded_sources;
+pub mod read_accounting;
 mod source_file;
 mod source_map;
 mod source_text;

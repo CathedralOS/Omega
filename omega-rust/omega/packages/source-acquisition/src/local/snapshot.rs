@@ -55,9 +55,7 @@ pub(crate) fn publish_local_snapshot(
     let entry_lock = CacheEntryLock::acquire_local(&lock_path, LOCAL_SNAPSHOT_LOCK_TIMEOUT)?;
 
     let normalized = if publication.exists() {
-        let normalized = verify_local_snapshot(&publication, &identity, limits)?;
-        verify_live_source_unchanged(&captured.normalized, limits)?;
-        normalized
+        verify_local_snapshot(&publication, &identity, limits)?
     } else {
         materialize_local_snapshot(&snapshots, &publication, &captured, limits)?
     };
@@ -171,10 +169,12 @@ fn publish_local_snapshot_in_retained_collection(
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => false,
             Err(error) => return Err(io_error(&publication, error)),
         };
+        // A publication an earlier invocation left on disk is hashed here,
+        // against the live tree's content identity, because its bytes are not
+        // this invocation's output. A publication this call materializes was
+        // verified as it was written, for the same reason.
         let normalized = if publication_exists {
-            let normalized = verify_local_snapshot(&publication, &identity, limits)?;
-            verify_live_source_unchanged(expected_live, limits)?;
-            normalized
+            verify_local_snapshot(&publication, &identity, limits)?
         } else {
             materialize_local_snapshot_from_open_parent(
                 snapshots.path(),
@@ -220,23 +220,22 @@ fn finalize_local_tree(
     verify_requested_local_root(requested_root, &captured_live_source.root)?;
     verify_local_cache_custody(publication, limits)?;
 
-    let final_snapshot =
-        verify_local_snapshot(publication, &proposed_source.content_identity, limits)?;
-    if final_snapshot.root != expected_snapshot.root
-        || !same_source_identity(&final_snapshot, &expected_snapshot)
-        || !same_source_identity(&final_snapshot, proposed_source)
-    {
+    // The publication was hashed once above, either on reuse or as it was
+    // materialized, and `expected_snapshot` is that result. Hashing it a
+    // second time here would ask the same question of the same bytes in the
+    // same call; what remains is the identity comparison that result owes the
+    // tree the caller proposed.
+    if !same_source_identity(&expected_snapshot, proposed_source) {
         return Err(local_snapshot_invalid(
             publication,
-            "final local snapshot rehash diverged before result issuance",
+            "published local snapshot does not match the proposed source tree",
         ));
     }
 
-    verify_live_source_unchanged(captured_live_source, limits)?;
     verify_local_cache_custody(publication, limits)?;
     verify_outer_custody()?;
     verify_requested_local_root(requested_root, &captured_live_source.root)?;
-    Ok(final_snapshot)
+    Ok(expected_snapshot)
 }
 
 fn issue_local_snapshot(

@@ -101,21 +101,6 @@ impl BuildSourceCaptureRequest {
     }
 }
 
-pub(super) fn validate_current(
-    root: &Path,
-    metadata: &CanonicalFilesystemMetadataIndex,
-) -> Result<(), String> {
-    let observed = capture(root)?;
-    if &observed == metadata {
-        Ok(())
-    } else {
-        Err(
-            "canonical Source metadata or content commitment no longer matches the complete physical root"
-                .to_owned(),
-        )
-    }
-}
-
 #[derive(Debug)]
 struct CapturedPhysicalMetadataRow {
     kind: CanonicalFilesystemMetadataRowKind,
@@ -124,7 +109,6 @@ struct CapturedPhysicalMetadataRow {
 
 pub(super) fn capture(root: &Path) -> Result<CanonicalFilesystemMetadataIndex, String> {
     let (index, _) = metadata_rows(root)?;
-    require_stable_recapture(&index, || metadata_rows(root).map(|(index, _)| index))?;
     Ok(index)
 }
 
@@ -142,28 +126,6 @@ fn metadata_rows(
     )
 }
 
-/// Re-traverse the admitted membership and require the second traversal to
-/// reproduce the committed index exactly. Per-member reads already reject
-/// local drift between inspection and consumption, but a single traversal
-/// still pairs each member's row with whatever tree it happened to meet; a
-/// member created, removed, renamed, retargeted, or edited between the two
-/// traversals produces a different index, so the committed rows cannot
-/// describe two different trees at once.
-fn require_stable_recapture(
-    index: &CanonicalFilesystemMetadataIndex,
-    recapture: impl FnOnce() -> Result<CanonicalFilesystemMetadataIndex, String>,
-) -> Result<(), String> {
-    let revalidated = recapture()?;
-    if &revalidated == index {
-        Ok(())
-    } else {
-        Err(
-            "canonical Source metadata changed during capture; the complete physical root is not stable"
-                .to_owned(),
-        )
-    }
-}
-
 /// Capture one complete compiler-owned immutable build input for this exact
 /// physical source root: every directory, every regular file's exact bytes,
 /// and every inert relative symlink spelling, bound to the same canonical
@@ -171,21 +133,17 @@ fn require_stable_recapture(
 ///
 /// The retained entries and the index's source-content commitment come from
 /// the same traversal, so the retained bytes and granted metadata cannot
-/// disagree. A second metadata-only traversal must reproduce the committed
-/// index before publication: membership, link, and content changes spanning
-/// the traversal reject instead of mixing rows from two different trees.
-/// File reads reject detected identity or content drift; these
-/// checks do not make a mutable host tree atomic. Callers supply sealed
-/// resolver-owned backing and capture before execution; a later replay never
-/// rereads the host to rebuild this input.
+/// disagree. Each member's own read rejects identity or content drift between
+/// its inspection and its consumption; nothing re-traverses the root to
+/// compare the index against itself, because both sides of that comparison
+/// would come from this one call and neither is the tree a later reader meets.
+/// Callers supply sealed resolver-owned backing and capture before execution;
+/// a later replay never rereads the host to rebuild this input.
 pub fn capture_package_source_input(
     source_root: &Path,
 ) -> Result<CapturedBuildSourceInput, String> {
     let canonical_root = crate::package_compilation::canonical_source_root(source_root)?;
     let (index, retained) = capture_rows(canonical_root.clone(), capture_physical_source_row)?;
-    require_stable_recapture(&index, || {
-        metadata_rows(&canonical_root).map(|(index, _)| index)
-    })?;
     CapturedBuildSourceInput::from_capture_rows(index, retained).map_err(|diagnostics| {
         diagnostics
             .iter()
@@ -214,16 +172,6 @@ pub fn capture_scoped_source_input(
     let canonical_root = crate::package_compilation::canonical_source_root(source_root)?;
     let (index, retained) =
         capture_scoped_rows(canonical_root.clone(), request, capture_physical_source_row)?;
-    require_stable_recapture(&index, || {
-        capture_scoped_rows(
-            canonical_root.clone(),
-            request,
-            |path, physical, aggregate| {
-                capture_physical_metadata_row(path, physical, aggregate).map(|row| (row, ()))
-            },
-        )
-        .map(|(index, _)| index)
-    })?;
     let captured: BTreeSet<&[u8]> = retained.iter().map(|(path, _)| path.as_slice()).collect();
     for member in required_members {
         let relative = match member.canonicalize() {

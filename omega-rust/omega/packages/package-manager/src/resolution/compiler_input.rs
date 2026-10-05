@@ -76,7 +76,6 @@ impl<'closure> PackageCompilationScope<'closure> {
             .iter()
             .filter(|custody| reachable.contains(custody.key()))
             .map(|custody| {
-                revalidate_package_source_selection(custody)?;
                 let binding = PackageSourceBinding::new(
                     custody.key().identity(),
                     custody.key().name().as_str(),
@@ -132,16 +131,10 @@ fn binding_with_canonical_source_metadata(
     custody: &crate::resolution::source::PackageSourceCustody,
     binding: PackageSourceBinding,
 ) -> Result<PackageSourceBinding, PackageCompilationInputError> {
-    package_source::local::operations::capture_verified_package_source_snapshot(
-        custody.snapshot_root(),
-        custody.materialization().content(),
-        custody.source_limits(),
-    )
-    .map_err(|error| PackageCompilationInputError::InvalidSourceRoot {
-        identity: custody.key().identity(),
-        path: custody.snapshot_root().to_path_buf(),
-        reason: format!("could not derive canonical build-source metadata: {error}"),
-    })?;
+    // The snapshot root this binds was hashed against this same expected
+    // content digest when the resolver published it, and the capture below
+    // traverses it again to build the index. A third read discarding its own
+    // result establishes nothing either of those two did not.
     let invalid = |reason: String| PackageCompilationInputError::InvalidSourceRoot {
         identity: custody.key().identity(),
         path: custody.snapshot_root().to_path_buf(),
@@ -160,18 +153,6 @@ fn binding_with_canonical_source_metadata(
             .map_err(invalid);
     }
     binding.with_canonical_source_metadata().map_err(invalid)
-}
-
-fn revalidate_package_source_selection(
-    custody: &crate::resolution::source::PackageSourceCustody,
-) -> Result<(), PackageCompilationInputError> {
-    custody.selection_evidence().revalidate().map_err(|error| {
-        PackageCompilationInputError::InvalidSourceRoot {
-            identity: custody.key().identity(),
-            path: custody.snapshot_root().to_path_buf(),
-            reason: format!("could not revalidate package selection evidence: {error}"),
-        }
-    })
 }
 
 /// The compilation closure of one package root.

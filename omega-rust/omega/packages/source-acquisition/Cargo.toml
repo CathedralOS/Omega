@@ -14,6 +14,7 @@ test-fixtures = []
 [dependencies]
 bounded-process = { path = "../../foundation/bounded-process" }
 platform-custody = { path = "../../foundation/platform-custody" }
+source = { path = "../../../psi/foundation/source" }
 resolver-execution = { path = "../resolver-execution" }
 cap-fs-ext = "4.0.3"
 cap-std = "4.0.3"

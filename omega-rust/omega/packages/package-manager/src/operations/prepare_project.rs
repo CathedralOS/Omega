@@ -37,7 +37,6 @@ pub struct LocalProjectPreparationOptions {
 /// section that arms each target's own restricted-request checkpoint.
 pub struct PreparedLocalProject {
     entry_path: PathBuf,
-    package_inputs: PackageCompilationInputs,
     source_closure: ResolvedPackageSourceClosure,
     targets: Vec<PreparedProjectTarget>,
 }
@@ -57,6 +56,10 @@ impl PreparedLocalProject {
     /// inputs deliberately omit dependencies' private build edges; a nested
     /// activation must instead use the review-aware check/production route,
     /// which executes prerequisites and carries their generated source.
+    ///
+    /// The inputs are assembled here rather than during preparation: assembling
+    /// them captures the root's canonical source index, and the review routes
+    /// that every ordinary check and compile takes dropped that work unread.
     pub fn try_into_parts(
         self,
     ) -> Result<(PathBuf, PackageCompilationInputs), PrepareLocalProjectError> {
@@ -71,7 +74,9 @@ impl PreparedLocalProject {
                 package: package.source().key().clone(),
             });
         }
-        Ok((self.entry_path, self.package_inputs))
+        let package_inputs = package_compilation_inputs(&self.source_closure)
+            .map_err(PrepareLocalProjectError::CompilerInputs)?;
+        Ok((self.entry_path, package_inputs))
     }
 
     /// Split for one exact target's review route: the shared entry and source
@@ -408,11 +413,8 @@ fn prepare_local_project_for_targets_in_storage(
         .source_root(closure.graph().root())
         .ok_or(PrepareLocalProjectError::MissingRootCustody)?;
     let prepared_entry = root_snapshot.join(entry_relative);
-    let package_inputs =
-        package_compilation_inputs(&closure).map_err(PrepareLocalProjectError::CompilerInputs)?;
     Ok(Some(PreparedLocalProject {
         entry_path: prepared_entry,
-        package_inputs,
         source_closure: closure,
         targets: prepared_targets,
     }))

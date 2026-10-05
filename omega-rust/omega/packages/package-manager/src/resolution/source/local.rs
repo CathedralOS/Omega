@@ -5,7 +5,6 @@ use super::projection::project_package_build;
 use super::{ResolvePackageSourceError, ResolvedPackageSource};
 use crate::declarations::PackageKey;
 use package_source::local::operations::resolve_local_source_snapshot_in_lane;
-use package_source::local::operations::verify_package_source_snapshot;
 use package_source::local::staging::StagedLocalSnapshot;
 use package_source::storage::RetainedStorageLane;
 use package_source::{
@@ -22,10 +21,12 @@ pub fn bind_staged_external_local_project_source(
     limits: LocalSourceLimits,
     source_context: ExternalSourceContext,
 ) -> Result<ResolvedPackageSource<&StagedLocalSnapshot>, ResolvePackageSourceError> {
-    stage.verify_live_source_unchanged()?;
+    // Binding reads nothing. The stage's snapshot was hashed when it was
+    // published, in this same invocation, and the live tree it came from was
+    // read once to produce it. The live-edit comparison belongs to the
+    // operations that then write the project's declaration files.
     let limits = limits.compiler_bounded();
     let content = SourceContentDigest::derive(stage.normalized().content_identity.as_bytes());
-    verify_package_source_snapshot(stage.snapshot_root(), &content, limits)?;
     let result = (|| {
         let lineage = SourceLineage::ExternalLocal(ExternalLocalLineage::canonicalize(
             stage.canonical_live_root(),
@@ -45,7 +46,6 @@ pub fn bind_staged_external_local_project_source(
             stage,
         ))
     })();
-    stage.verify_live_source_unchanged()?;
     result
 }
 

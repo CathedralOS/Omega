@@ -9,8 +9,10 @@
 //! `source_consumption` records exactly which of it was read, and
 //! `semantic_bindings` carries the optional standard-library bindings.
 //! `BuildSourceCustody::seal` joins the final checked closure to that source
-//! evidence; `CheckedSourceCustody` owns its revalidation and generated-source
-//! export. Neither operation reconstructs package custody in the coordinator.
+//! evidence; `CheckedSourceCustody` owns the generated-source export. Neither
+//! operation reconstructs package custody in the coordinator, and neither
+//! reopens a source file: the frontend read each one once and these records
+//! commit to those bytes.
 //! `compilation_reuse` owns exact source/build input comparisons, not admission
 //! or scheduling; the compiler consumes those keys without re-projecting them.
 //! `source_imports` resolves source frontiers through exact package scopes;
@@ -60,7 +62,7 @@ pub use source_consumption::{
     BuildSourceCustody, CheckedSourceCustody, ConsumedSourceUnit, ConsumedSourceUnitKind,
     PackageCompilationSubject, PackageSourceConsumptionCommitment, derive_consumed_source_units,
     derive_package_compilation_subject, derive_source_consumption_commitment,
-    toolchain_source_identities, toolchain_source_identity_digest, verify_current_files,
+    toolchain_source_identities, toolchain_source_identity_digest,
 };
 pub use source_snapshot::{
     BuildSourceCaptureObligation, BuildSourceCaptureRequest, capture_package_source_input,

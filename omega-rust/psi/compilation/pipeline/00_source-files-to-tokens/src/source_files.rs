@@ -30,6 +30,11 @@ pub fn load_sources(
                 path.display()
             ))]
         })?;
+        source::read_accounting::record_source_file_read(
+            "frontend_load",
+            &path,
+            source.len() as u64,
+        );
 
         loaded.push(LoadedSource {
             source_id: SourceId(first_source_id + source_index),

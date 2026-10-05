@@ -143,7 +143,6 @@ fn resolve_staged_external_local_project(
                     git_acquisitions,
                 )
             });
-    stage.verify_live_source_unchanged().map_err(source_error)?;
     storage.verify_path_identity().map_err(source_error)?;
     result
 }

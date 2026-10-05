@@ -9,7 +9,6 @@ use super::{
     PackageSourceBinding, display_identity,
 };
 use crate::BuildDeclarationKind;
-use crate::source_snapshot;
 use build_declarations::DependencyPurpose;
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
@@ -59,17 +58,6 @@ impl PackageCompilationInputs {
                     continue;
                 }
             };
-            if let Some(metadata) = &package.canonical_source_metadata
-                && let Err(reason) = source_snapshot::validate_current(&canonical_root, metadata)
-            {
-                errors.push(PackageCompilationInputError::InvalidSourceRoot {
-                    identity: package.identity,
-                    path: canonical_root,
-                    reason,
-                });
-                continue;
-            }
-
             if canonical_packages
                 .insert(
                     package.identity,
@@ -237,10 +225,6 @@ impl PackageCompilationInputs {
                 ))),
             }
         }
-        if let Err(mut metadata_diagnostics) = self.validate_canonical_source_metadata() {
-            diagnostics.append(&mut metadata_diagnostics);
-        }
-
         match root_path.canonicalize() {
             Ok(root_file) => {
                 let expected_root = self
@@ -280,23 +264,6 @@ impl PackageCompilationInputs {
         } else {
             Err(diagnostics)
         }
-    }
-
-    #[doc(hidden)]
-    pub fn validate_canonical_source_metadata(&self) -> Result<(), Vec<Diagnostic>> {
-        // Construction permits build-visible metadata only on the current root.
-        let Some(record) = self.source.packages.get(&self.source.root) else {
-            return Ok(());
-        };
-        let Some(metadata) = &record.canonical_source_metadata else {
-            return Ok(());
-        };
-        source_snapshot::validate_current(&record.source_root, metadata).map_err(|reason| {
-            vec![Diagnostic::error(format!(
-                "canonical Source metadata for package {} changed before compiler evidence was issued: {reason}",
-                display_identity(self.source.root)
-            ))]
-        })
     }
 }
 

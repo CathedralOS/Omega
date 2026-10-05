@@ -113,6 +113,11 @@ pub(crate) fn read_capability_file_bounded(
         .metadata()
         .map_err(|error| io_error(display_path, error))?;
     let bytes = read_opened_file_bounded(&mut file, &metadata, display_path, remaining, limit)?;
+    source::read_accounting::record_source_file_read(
+        "tree_capture",
+        display_path,
+        bytes.len() as u64,
+    );
     // Resolve the final name through the retained parent, never the diagnostic
     // path: the parent may have been renamed since acquisition.
     let final_entry = directory

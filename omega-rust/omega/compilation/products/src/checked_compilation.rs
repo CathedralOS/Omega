@@ -152,16 +152,6 @@ impl CheckedCompilation {
         )
     }
 
-    /// Re-read every ordinary physical source path and require it to equal the
-    /// bytes retained by the frontend. Generated sources are instead checked
-    /// against their compiler-retained staged-output custody. Resolver
-    /// orchestration calls this around its own whole-snapshot verification;
-    /// hostile same-user races still require an OS isolation boundary.
-    pub fn verify_current_source_consumption(&self) -> Result<(), Vec<Diagnostic>> {
-        self.sources
-            .verify_current_source_consumption(&self.execution.settled.program)
-    }
-
     /// Retain this package's own explicit generated-source handoffs as one
     /// compiler-issued bundle suitable for a later dependency compilation.
     /// The bundle is not admission and carries no filesystem authority.
