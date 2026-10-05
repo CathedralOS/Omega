@@ -2261,11 +2261,40 @@ crash and native exit behavior.
   be bounded from a macOS host by this method, because a row green here and red
   there leaves no local trace.
 
-  Those same 16 are the mirror-image defect and are worth their own pass: their
-  rows in `tests/omega/corpus_native_macos_arm64.txt` say `rejected` for
-  fixtures that now check, so the NATIVE golden is stale where the check golden
-  is right. Re-recording them costs a native run each (build plus execute), so
-  it is a separate measured sweep rather than a side effect of this item.
+  Those same 16 were the mirror-image defect and are re-pinned at
+  `506354b3cca`: their rows in `corpus_native_macos_arm64.txt` had said
+  `rejected` for fixtures that build, and six of them execute with their
+  authored result, so the native leg had been understating itself by six
+  running programs.
+
+  **The native golden is unreliable in BOTH directions, for different reasons,
+  and only one is fixable.** Running the opposite comparison -- native `built`
+  while the check golden says `rejected` -- finds **8** macOS rows, and all 8
+  are real: the fixture's check leg refuses, so it never reaches native, while
+  the native row still claims an authored exit (six of the eight name one, four
+  of those `exit:70`). Those rows are a native verdict outliving a check-leg
+  regression.
+
+  **They cannot be corrected.** `corpus_gate.py` exits `regressed` and refuses
+  `--record` when an authored exit or stdout oracle fails (documented at
+  `tools/corpus_gate.py:109`), which is right -- recording would pin the
+  regression as the new truth -- but it leaves no honest way to say "this used
+  to build and now does not". The row stays false until the fixture is fixed.
+  The eight are
+  `pass/capabilities/acquires_through_helper_return`,
+  `pass/memory/secondary_processor_canary`,
+  `pass/providers/specialized_mixed_structural_result_operator_hosted_native`,
+  `pass/text/local_bounded_text_{case_result,scalar}_loan_exit`,
+  `pass/text/runtime_number_to_decimal_exit`,
+  `pass/traits/boundary_trait_effects_host_call` and
+  `pass/wire/wire_preserving_decode_relay_exit`.
+
+  **So the reading rule is: never believe a native row without its check row.**
+  A native `built` row for a check-`rejected` fixture is stale by construction,
+  and these eight do not change the red count -- the check golden has them
+  right. What they change is that the native golden cannot be read as evidence
+  of health on its own. Giving the native leg a way to record a regression
+  honestly -- distinct from pinning it as expected -- is the open work.
 
   Do not simply re-pin `native_close` on Darwin: the row is genuinely
   host-dependent, so that flips a coin the next Linux recorder flips back and
