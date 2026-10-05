@@ -24,7 +24,7 @@ use architectural_units::architectural_units;
 pub(crate) use constraints::{derive_early_clobbers, derive_tied_pairs};
 use fragments::{
     after_point, before_point, block_domain, connector, fragments_from_points, fragments_overlap,
-    operand_point, virtual_fragments,
+    operand_point, register_points,
 };
 use function::compute_function;
 

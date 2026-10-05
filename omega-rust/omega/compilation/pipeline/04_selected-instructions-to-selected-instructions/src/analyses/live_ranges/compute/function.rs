@@ -5,7 +5,7 @@ use super::{
 };
 use super::{
     LiveRangeError, architectural_units, block_domain, connector, derive_early_clobbers,
-    derive_tied_pairs, fragments_overlap, operand_point, virtual_fragments,
+    derive_tied_pairs, fragments_from_points, fragments_overlap, operand_point, register_points,
 };
 
 pub(super) fn compute_function(
@@ -24,12 +24,42 @@ pub(super) fn compute_function(
     let copy_affinities = super::copy_affinities::derive(function_index, selected)?;
     let early_clobbers = derive_early_clobbers(function_index, liveness)?;
 
+    // Group the function's operand rows, live points and live edges by
+    // register once; each register's range then reads only its own rows, in
+    // the order a scan of the whole function would have met them.
+    let registers = selected
+        .virtual_registers
+        .iter()
+        .map(|register| register.id)
+        .collect::<BTreeSet<_>>();
+    let points = register_points(function_index, liveness, &registers)?;
+    let mut operand_rows = std::collections::BTreeMap::<_, Vec<_>>::new();
+    for row in &liveness.operand_positions {
+        operand_rows
+            .entry(row.virtual_register)
+            .or_default()
+            .push(row);
+    }
+    let mut edge_rows = std::collections::BTreeMap::<_, Vec<_>>::new();
+    for block in &liveness.blocks {
+        for edge in &block.successors {
+            for register in edge.virtual_live.iter().collect::<BTreeSet<_>>() {
+                edge_rows
+                    .entry(*register)
+                    .or_default()
+                    .push(connector(block.block, edge));
+            }
+        }
+    }
+
     let mut virtual_rows = Vec::with_capacity(selected.virtual_registers.len());
     for register in &selected.virtual_registers {
-        let occurrences = liveness
-            .operand_positions
+        let rows = operand_rows
+            .get(&register.id)
+            .map(Vec::as_slice)
+            .unwrap_or_default();
+        let occurrences = rows
             .iter()
-            .filter(|row| row.virtual_register == register.id)
             .map(|row| {
                 Ok(VirtualOccurrence {
                     position: row.position,
@@ -47,11 +77,7 @@ pub(super) fn compute_function(
                 view,
             });
         }
-        for row in liveness
-            .operand_positions
-            .iter()
-            .filter(|row| row.virtual_register == register.id)
-        {
+        for row in rows {
             if let Some(view) = row.fixed_view {
                 fixed_constraints.push(VirtualFixedConstraint {
                     site: VirtualFixedConstraintSite::Operand {
@@ -65,25 +91,19 @@ pub(super) fn compute_function(
                 });
             }
         }
+        let register_points = points.get(&register.id);
         let fragments = liveness
             .blocks
             .iter()
-            .map(|block| virtual_fragments(function_index, block, register.id))
-            .collect::<Result<Vec<_>, _>>()?
-            .into_iter()
-            .flatten()
-            .collect();
-        let edge_connectors = liveness
-            .blocks
-            .iter()
-            .flat_map(|block| {
-                block
-                    .successors
-                    .iter()
-                    .filter(move |edge| edge.virtual_live.contains(&register.id))
-                    .map(move |edge| connector(block.block, edge))
+            .enumerate()
+            .flat_map(|(index, block)| {
+                register_points
+                    .and_then(|blocks| blocks.get(&index))
+                    .map(|block_points| fragments_from_points(block.block, block_points.clone()))
+                    .unwrap_or_default()
             })
             .collect();
+        let edge_connectors = edge_rows.get(&register.id).cloned().unwrap_or_default();
         virtual_rows.push(VirtualLiveRange {
             virtual_register: register.id,
             class: register.class,

@@ -32,25 +32,63 @@ pub(super) fn block_domain(
     })
 }
 
-pub(super) fn virtual_fragments(
+/// Each selected register's live points, by block position in `liveness`,
+/// gathered in one pass over every instruction's live and access sets. A
+/// register live into or used by an instruction is live just before it; one
+/// live out of or defined by it is live just after. A register's range reads
+/// its own points from this rather than rescanning every instruction's sets.
+pub(super) fn register_points(
     function: usize,
-    block: &BlockLiveness,
-    register: VirtualRegisterId,
-) -> Result<Vec<LiveRangeFragment>, LiveRangeError> {
-    let mut points = BTreeSet::new();
-    for instruction in &block.instructions {
-        if instruction.virtual_live_in.contains(&register)
-            || instruction.virtual_uses.contains(&register)
-        {
-            points.insert(before_point(function, instruction.position)?);
-        }
-        if instruction.virtual_live_out.contains(&register)
-            || instruction.virtual_defs.contains(&register)
-        {
-            points.insert(after_point(function, instruction.position)?);
+    liveness: &selected_instructions::FunctionLiveness,
+    registers: &BTreeSet<VirtualRegisterId>,
+) -> Result<
+    std::collections::BTreeMap<
+        VirtualRegisterId,
+        std::collections::BTreeMap<usize, BTreeSet<LiveRangePoint>>,
+    >,
+    LiveRangeError,
+> {
+    let mut points = std::collections::BTreeMap::<
+        VirtualRegisterId,
+        std::collections::BTreeMap<usize, BTreeSet<LiveRangePoint>>,
+    >::new();
+    for (block_index, block) in liveness.blocks.iter().enumerate() {
+        for instruction in &block.instructions {
+            let sides = [
+                (
+                    &instruction.virtual_live_in,
+                    &instruction.virtual_uses,
+                    before_point
+                        as fn(usize, LivenessPosition) -> Result<LiveRangePoint, LiveRangeError>,
+                ),
+                (
+                    &instruction.virtual_live_out,
+                    &instruction.virtual_defs,
+                    after_point,
+                ),
+            ];
+            for (live, accessed, side_point) in sides {
+                let mut members = live
+                    .iter()
+                    .chain(accessed)
+                    .filter(|register| registers.contains(register))
+                    .peekable();
+                if members.peek().is_none() {
+                    continue;
+                }
+                let point = side_point(function, instruction.position)?;
+                for register in members {
+                    points
+                        .entry(*register)
+                        .or_default()
+                        .entry(block_index)
+                        .or_default()
+                        .insert(point);
+                }
+            }
         }
     }
-    Ok(fragments_from_points(block.block, points))
+    Ok(points)
 }
 
 pub(super) fn fragments_from_points(
