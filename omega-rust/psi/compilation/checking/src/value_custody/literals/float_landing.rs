@@ -28,9 +28,10 @@ pub(super) use numeric_operands::validate_numeric_tree_destination;
 /// Suffix agreement is checked at storage/return sites and by the resolved
 /// call validators. Already-landed (suffixed) literals are untouched: their landing
 /// was chosen at the spelling, and the suffix-vs-destination check owns any
-/// disagreement. Comparisons against a typed named value, including a
-/// proposition parameter, likewise land the opposite literal tree to that
-/// value's format. A callable contract's `result` root uses the exact return
+/// disagreement. Comparisons against a typed result, including a call or
+/// computed operand, likewise land the opposite literal tree to that value's
+/// format in every statement position. Declaration-owned named binders retain
+/// their own scope. A callable contract's `result` root uses the exact return
 /// type of its owning state, operator, or trait requirement. Runs on the
 /// still-mutable typed tree BEFORE validation, so every downstream consumer
 /// sees one stamped tree.
@@ -120,22 +121,20 @@ pub fn land_float_literal_destinations(program: &mut TypedTrees) {
                         | typed_trees::expression::BinaryOperator::GreaterOrEqual
                 ) =>
             {
-                if let ExpressionNode::Name(path) = program.expression_table.expression(binary.left)
-                    && let Some(declared) =
-                        crate::value_custody::expression_types::named_value_type_reference(
-                            program, path,
-                        )
+                // Definition predicates and proposition telescopes need not
+                // belong to an executable state. Their exact named binders
+                // still supply destinations; scoped traversal below also
+                // resolves computed results in bodies and callable contracts.
+                for (typed, anonymous) in [(binary.left, binary.right), (binary.right, binary.left)]
                 {
-                    pairs.push((binary.right, declared));
-                }
-                if let ExpressionNode::Name(path) =
-                    program.expression_table.expression(binary.right)
-                    && let Some(declared) =
-                        crate::value_custody::expression_types::named_value_type_reference(
-                            program, path,
-                        )
-                {
-                    pairs.push((binary.left, declared));
+                    if let ExpressionNode::Name(path) = program.expression_table.expression(typed)
+                        && let Some(declared) =
+                            crate::value_custody::expression_types::named_value_type_reference(
+                                program, path,
+                            )
+                    {
+                        pairs.push((anonymous, declared));
+                    }
                 }
                 anonymous_comparisons.push(handle);
             }
@@ -152,6 +151,8 @@ pub fn land_float_literal_destinations(program: &mut TypedTrees) {
             collect_result_contract_float_pairs(
                 program,
                 program.machine_contracts(machine),
+                machine.symbol,
+                program.state_parameters(entry),
                 entry.return_type,
                 &mut pairs,
             );
@@ -160,10 +161,24 @@ pub fn land_float_literal_destinations(program: &mut TypedTrees) {
             collect_result_contract_float_pairs(
                 program,
                 program.state_contracts(state),
+                state.symbol,
+                program.state_parameters(state),
                 state.return_type,
                 &mut pairs,
             );
             for statement in program.statement_table.statements(state.statement_nodes) {
+                for (_, expression) in program.statement_table.expression_roots(statement) {
+                    collect_comparison_pairs(
+                        program,
+                        expression,
+                        &|operand| {
+                            crate::value_custody::expression_types::expression_result_type_reference(
+                                program, machine, state, operand,
+                            )
+                        },
+                        &mut pairs,
+                    );
+                }
                 match statement {
                     // A machine/state's direct terminal expression delivers
                     // its result without a TransitionTargetNode::Value wrapper.
@@ -190,26 +205,7 @@ pub fn land_float_literal_destinations(program: &mut TypedTrees) {
                             pairs.push((local.initial_value, local.type_reference));
                         }
                     }
-                    // A float COMPARISON in a transition guard adopts the
-                    // PLACE side's format (the operand-derived landing law,
-                    // float flavor): `self.f == 16777216.0 + 1.0` with an f32
-                    // place must fold/evaluate its literal side per-op at f32
-                    // -- unstamped, the tree computed in the anonymous f64
-                    // window and the engines diverged at the f32 precision
-                    // cliff (2^24 + 1.0). Recursive like
-                    // bless_equality_guard_literals: the multi-arm desugar
-                    // wraps the spelled compare as `(subject) == true`, and
-                    // conjunctions nest comparisons under And/Or legs.
-                    // Suffixed literals keep their own landing (stamp-if-none
-                    // in the shared loop below).
                     StatementNode::Transition(transition) => {
-                        if let typed_trees::statement::TransitionGuardNode::When(guard) =
-                            transition.guard
-                        {
-                            collect_guard_float_comparison_pairs(
-                                program, machine, state, guard, &mut pairs,
-                            );
-                        }
                         // A transition ARG adopts the TARGET state's declared
                         // param type (the arg IS a delivery into that
                         // destination -- same law as a `let`): `check(2.0e0 +
@@ -281,6 +277,8 @@ pub fn land_float_literal_destinations(program: &mut TypedTrees) {
         collect_result_contract_float_pairs(
             program,
             program.operator_contracts(operator),
+            operator.symbol,
+            program.operator_parameters(operator),
             operator.return_type,
             &mut pairs,
         );
@@ -291,6 +289,8 @@ pub fn land_float_literal_destinations(program: &mut TypedTrees) {
             collect_result_contract_float_pairs(
                 program,
                 program.state_signature_contracts(signature),
+                signature.symbol,
+                program.state_signature_parameters(signature),
                 signature.return_type,
                 &mut pairs,
             );
@@ -315,52 +315,60 @@ pub fn land_float_literal_destinations(program: &mut TypedTrees) {
 fn collect_result_contract_float_pairs(
     program: &TypedTrees,
     contracts: &[typed_trees::signature::SignatureContract],
+    owner: symbols::SymbolHandle,
+    parameters: &[typed_trees::signature::StateParameter],
     return_type: TypeReferenceHandle,
     pairs: &mut Vec<FloatLandingPair>,
 ) {
-    if !return_type.is_valid() {
-        return;
-    }
     for contract in contracts {
         for fact in program.proof_facts.span_or_empty(contract.facts) {
             let typed_trees::domain::ProofFact::Expression(expression) = fact else {
                 continue;
             };
-            collect_result_comparison_pairs(program, *expression, return_type, pairs, 0);
+            collect_comparison_pairs(
+                program,
+                *expression,
+                &|operand| {
+                    if program.expression_table.names_reserved_result(operand) {
+                        return return_type.is_valid().then_some(return_type);
+                    }
+                    crate::value_custody::expression_types::parameter_expression_result_type_reference(
+                        program, owner, parameters, operand,
+                    )
+                },
+                pairs,
+            );
         }
     }
 }
 
-fn collect_result_comparison_pairs(
+/// A comparison receives values, not source shapes. Its typed operand supplies
+/// the anonymous peer's landing whether it is a place, a call, a cast or a
+/// computed expression. The shared result query retains selected operator
+/// results; inferring a format from an arbitrary descendant would cross a
+/// conversion or impose an operand's type on a user-defined result.
+///
+/// Visit the same expression edges in initializers, fields, guards, arguments
+/// and contracts. This only records destinations: landing below rounds complete
+/// anonymous trees once and never changes an already-landed value.
+fn collect_comparison_pairs(
     program: &TypedTrees,
     expression: ExpressionHandle,
-    return_type: TypeReferenceHandle,
+    result_type: &impl Fn(ExpressionHandle) -> Option<TypeReferenceHandle>,
     pairs: &mut Vec<FloatLandingPair>,
-    depth: usize,
 ) {
-    if !expression.is_valid() || depth >= 256 {
-        return;
-    }
-    let recurse = |child, pairs: &mut Vec<_>| {
-        collect_result_comparison_pairs(program, child, return_type, pairs, depth + 1)
-    };
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Match(dispatch) => {
-            for child in crate::expression_traversal::match_children(program, *dispatch) {
-                recurse(child, pairs);
-            }
+    let mut pending = vec![expression];
+    let mut visited = Vec::new();
+    while let Some(expression) = pending.pop() {
+        if !program.expression_table.expression_is_valid(expression)
+            || visited.contains(&expression)
+        {
+            continue;
         }
-        ExpressionNode::Atomic(atomic) => {
-            recurse(atomic.value, pairs);
-            recurse(atomic.result, pairs);
-        }
-        ExpressionNode::ArrayLiteral(elements) => {
-            for element in program.expression_table.expression_handles(*elements) {
-                recurse(*element, pairs);
-            }
-        }
-        ExpressionNode::Binary(binary) => {
-            if matches!(
+        visited.push(expression);
+        let node = program.expression_table.expression(expression);
+        if let ExpressionNode::Binary(binary) = node
+            && matches!(
                 binary.operator,
                 typed_trees::expression::BinaryOperator::Equal
                     | typed_trees::expression::BinaryOperator::NotEqual
@@ -368,53 +376,15 @@ fn collect_result_comparison_pairs(
                     | typed_trees::expression::BinaryOperator::LessOrEqual
                     | typed_trees::expression::BinaryOperator::Greater
                     | typed_trees::expression::BinaryOperator::GreaterOrEqual
-            ) {
-                if program.expression_table.names_reserved_result(binary.left) {
-                    pairs.push((binary.right, return_type));
+            )
+        {
+            for (typed, anonymous) in [(binary.left, binary.right), (binary.right, binary.left)] {
+                if let Some(declared) = result_type(typed) {
+                    pairs.push((anonymous, declared));
                 }
-                if program.expression_table.names_reserved_result(binary.right) {
-                    pairs.push((binary.left, return_type));
-                }
-            }
-            recurse(binary.left, pairs);
-            recurse(binary.right, pairs);
-        }
-        ExpressionNode::Borrow(borrow) => recurse(borrow.target, pairs),
-        ExpressionNode::Cast(cast) => recurse(cast.value, pairs),
-        ExpressionNode::Call(call) => {
-            if call.receiver.is_valid() {
-                recurse(call.receiver, pairs);
-            }
-            for argument in program.expression_table.expression_handles(call.arguments) {
-                recurse(*argument, pairs);
             }
         }
-        ExpressionNode::Indexed(indexed) => {
-            recurse(indexed.collection, pairs);
-            recurse(indexed.index, pairs);
-        }
-        ExpressionNode::Member(member) => recurse(member.receiver, pairs),
-        ExpressionNode::Range(range) => {
-            if range.start.is_valid() {
-                recurse(range.start, pairs);
-            }
-            if range.end.is_valid() {
-                recurse(range.end, pairs);
-            }
-        }
-        ExpressionNode::StructLiteral(literal) => {
-            for field in program.expression_table.struct_fields(literal.fields) {
-                recurse(field.value, pairs);
-            }
-        }
-        ExpressionNode::Unary(unary) => recurse(unary.operand, pairs),
-        ExpressionNode::Boolean(_)
-        | ExpressionNode::Float(_)
-        | ExpressionNode::UndeterminedNaN(_)
-        | ExpressionNode::Integer(_)
-        | ExpressionNode::Name(_)
-        | ExpressionNode::String(_)
-        | ExpressionNode::ZeroValue(_) => {}
+        crate::expression_traversal::children(program, node, |child| pending.push(child));
     }
 }
 
@@ -596,60 +566,6 @@ fn fold_anonymous_float_comparison(program: &mut TypedTrees, expression: Express
         _ => return,
     };
     *program.expression_table.expression_mut(expression) = ExpressionNode::Boolean(value);
-}
-
-/// Collect (float-literal-tree, place-declared-type) pairs from every
-/// comparison reachable in a guard expression: And/Or legs recurse, and each
-/// Equal/NotEqual/ordering node pairs its literal side with its place side's
-/// declared type (either orientation). The multi-arm desugar wraps the spelled
-/// compare as `(subject) == true`, so comparisons nest inside equality legs --
-/// recurse through comparison legs too, exactly like
-/// bless_equality_guard_literals.
-fn collect_guard_float_comparison_pairs(
-    program: &TypedTrees,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    guard: ExpressionHandle,
-    pairs: &mut Vec<(ExpressionHandle, typed_trees::types::TypeReferenceHandle)>,
-) {
-    if !guard.is_valid() {
-        return;
-    }
-    let ExpressionNode::Binary(binary) = program.expression_table.expression(guard) else {
-        return;
-    };
-    use typed_trees::expression::BinaryOperator;
-    match binary.operator {
-        BinaryOperator::Equal
-        | BinaryOperator::NotEqual
-        | BinaryOperator::Less
-        | BinaryOperator::LessOrEqual
-        | BinaryOperator::Greater
-        | BinaryOperator::GreaterOrEqual => {
-            if let Some(declared) = crate::value_custody::places::declared_place_type_raw(
-                program,
-                machine,
-                Some(state),
-                binary.left,
-            ) {
-                pairs.push((binary.right, declared));
-            } else if let Some(declared) = crate::value_custody::places::declared_place_type_raw(
-                program,
-                machine,
-                Some(state),
-                binary.right,
-            ) {
-                pairs.push((binary.left, declared));
-            }
-            collect_guard_float_comparison_pairs(program, machine, state, binary.left, pairs);
-            collect_guard_float_comparison_pairs(program, machine, state, binary.right, pairs);
-        }
-        BinaryOperator::And | BinaryOperator::Or => {
-            collect_guard_float_comparison_pairs(program, machine, state, binary.left, pairs);
-            collect_guard_float_comparison_pairs(program, machine, state, binary.right, pairs);
-        }
-        _ => {}
-    }
 }
 
 /// Stamp every UNSTAMPED float literal reachable through Mutable/Unary/Binary
