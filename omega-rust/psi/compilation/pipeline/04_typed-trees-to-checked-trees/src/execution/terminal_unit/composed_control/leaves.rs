@@ -78,9 +78,11 @@ pub(super) fn build(
                 return None;
             }
         }
+        // An ordinary callee moves no custody out of this leaf: the same
+        // claim-bearing criterion as the boundary arm above, with no callee
+        // parameter roster to compare against.
         (CheckedUnitCallRoute::Module { .. }, CheckedUnitCallResult::Unit)
-            if structural_parameters.is_empty()
-                && entry_claims.is_empty()
+            if entry_claims.is_empty()
                 && call.structural_arguments.is_empty()
                 && call.claim_transfers().is_empty() => {}
         _ => return None,
@@ -108,6 +110,13 @@ pub(super) fn build(
     })
 }
 
+/// A parameter bearing an owned linear claim is the only kind whose custody
+/// this leaf's boundary call can move. A borrowed parameter — which is how a
+/// machine's data binding reaches every state under named implementations —
+/// establishes no claim and supplies no argument of its own, so it is
+/// custody-neutral here. Reading emptiness off `caller_parameters` instead
+/// made every attached state's data binding look like an unaccounted
+/// transfer.
 fn exact_boundary_custody(
     caller_parameters: &[CheckedUnitStructuralParameterPlan],
     entry_claims: &[CheckedUnitEntryClaimPlan],
@@ -115,14 +124,24 @@ fn exact_boundary_custody(
     receipts: &[CheckedUnitClaimTransferPlan],
     boundary_parameters: &[CheckedUnitStructuralParameterPlan],
 ) -> bool {
-    if caller_parameters.is_empty() {
+    let claimed = caller_parameters
+        .iter()
+        .enumerate()
+        .filter(|(index, _)| {
+            entry_claims
+                .iter()
+                .any(|claim| claim.parameter_index as usize == *index)
+        })
+        .map(|(_, parameter)| parameter)
+        .collect::<Vec<_>>();
+    if claimed.is_empty() {
         return entry_claims.is_empty()
             && arguments.is_empty()
             && receipts.is_empty()
             && boundary_parameters.is_empty();
     }
     matches!(
-        (caller_parameters, entry_claims, arguments, receipts, boundary_parameters),
+        (claimed.as_slice(), entry_claims, arguments, receipts, boundary_parameters),
         ([caller], [claim], [argument], [receipt], [boundary])
             if caller.multiplicity == Multiplicity::Linear
                 && caller.access == CheckedStructuralAccess::Owned

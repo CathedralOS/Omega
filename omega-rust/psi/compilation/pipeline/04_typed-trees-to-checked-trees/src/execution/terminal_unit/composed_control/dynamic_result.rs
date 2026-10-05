@@ -52,6 +52,7 @@ pub(crate) fn build(
         return None;
     }
     let binders = machine_binders(program, machine);
+    let mut rosters = Vec::new();
     let mut attachment = None;
     for state in [entry, when_true_state, when_false_state] {
         if !is_unit(program, state.return_type) || !program.state_contracts(state).is_empty() {
@@ -59,8 +60,7 @@ pub(crate) fn build(
         }
         let (state_attachment, structural, scalar) =
             structural_scalar_signature(program, shapes, machine, state, &binders, false)?;
-        if !structural.is_empty()
-            || !scalar.is_empty()
+        if !scalar.is_empty()
             || !super::topology::only_implicit_data_binding_is_omitted(
                 program,
                 machine,
@@ -74,11 +74,23 @@ pub(crate) fn build(
         {
             return None;
         }
+        let claims = crate::execution::terminal_unit::calls::entry_claims(
+            program,
+            facts,
+            machine.symbol,
+            state.symbol,
+            &structural,
+            program.state_parameters(state),
+        )?;
+        rosters.push((structural, claims));
         attachment = Some(state_attachment);
     }
     // Dynamic dispatch needs an attached caller: only an authored receiver
     // retains that attachment.
-    let attachment = attachment.flatten();
+    let attachment = match attachment.flatten() {
+        Some(identity) => Some(identity),
+        None => Some(shapes.add_attached_application(machine, &binders)?),
+    };
     if attachment.as_deref() != Some(dynamic.caller_attachment_type_identity.as_str()) {
         return None;
     }
@@ -114,16 +126,24 @@ pub(crate) fn build(
         }
         None => Vec::new(),
     };
+    let [
+        (entry_structural, entry_claims),
+        (true_structural, true_claims),
+        (false_structural, false_claims),
+    ] = rosters.as_slice()
+    else {
+        return None;
+    };
     let successors = [
         super::topology::successor(
             program,
             facts,
             machine,
             entry,
-            &[],
-            &[],
-            &[],
-            &[],
+            entry_structural,
+            true_structural,
+            entry_claims,
+            true_claims,
             guard_ordinal,
             when_true,
             when_true_state.symbol,
@@ -134,10 +154,10 @@ pub(crate) fn build(
             facts,
             machine,
             entry,
-            &[],
-            &[],
-            &[],
-            &[],
+            entry_structural,
+            false_structural,
+            entry_claims,
+            false_claims,
             guard_ordinal.checked_add(1)?,
             when_false,
             when_false_state.symbol,
@@ -151,8 +171,8 @@ pub(crate) fn build(
             machine,
             when_true_state,
             boundaries,
-            &[],
-            &[],
+            true_structural,
+            true_claims,
         )?,
         super::leaves::build(
             program,
@@ -160,8 +180,8 @@ pub(crate) fn build(
             machine,
             when_false_state,
             boundaries,
-            &[],
-            &[],
+            false_structural,
+            false_claims,
         )?,
     ];
     if leaves.iter().any(|leaf| {
