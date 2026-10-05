@@ -2278,6 +2278,37 @@ crash and native exit behavior.
   fixture compiles and refuses a nonempty release-rollback overlay without
   publishing partial outputs.
 
+- **DECIMAL-PLACE-DIVISOR-NONZERO.** (split-of:MACOS-NATIVE-LOST-SUCCESSES)
+  `pass/text/runtime_number_to_decimal_exit` lost `built+exit:70` and now
+  rejects with "partial wrapping division in machine `Main::main` state
+  `digit_div` assignment: the divisor must be proven nonzero" (recorded at
+  `@c5d32a00863`; re-measure before diagnosing). The program carries **no proof
+  annotation** on the divisor -- its two `requires` are the `Utf8` domain
+  predicates -- so admitting `main.n / main.place` needs the prover to carry an
+  invariant across states: `place` is 10000 at `itoa_init`, is divided by 10 in
+  `digit_write`, and the loop is bounded by `p < 5`, so `place` runs
+  10000, 1000, 100, 10, 1 and is never 0 where the division happens. That is a
+  relationship between two mutable fields of the same record over a bounded
+  loop, and nothing in the program states it.
+
+  **The explicit-data-parameter migration is NOT the cause, measured.**
+  `b4b130c0012` respelled this fixture from `&mut self` to an explicit
+  `main: &mut Main` threaded through every transition, which looked like the
+  "checks keyed to the self spelling" class. It respelled **eleven** fixtures
+  and **ten are `checked`** -- including `pass/proofs/nested_loop_digit_bytes_keep_utf8_exit`,
+  a proof-heavy nested-loop digit fixture of similar shape. So cross-state fact
+  propagation survived the migration and the cause is specific to this divisor.
+
+  Frontier: decide which of two readings holds before writing any fix, because
+  they want opposite changes. Either the prover once carried this invariant and
+  regressed, in which case find what stopped carrying it; or definedness
+  checking on a wrapping division became correctly stricter and this program was
+  always unproven, in which case the fixture owes an explicit invariant and the
+  earlier `built` row was itself the defect. Bisecting the diagnostic's first
+  appearance against the fixture's unchanged itoa logic settles it.
+  Acceptance: `--filter text/runtime_number_to_decimal_exit` reaches `checked`,
+  then `--native` reaches exit 70.
+
 - **MACOS-NATIVE-LOST-SUCCESSES.** (new-scope)
   `tests/omega/corpus_native_macos_arm64.txt` carries 21 rows with a
   `regressed-from:` token: a success this host recorded and no longer reaches.
