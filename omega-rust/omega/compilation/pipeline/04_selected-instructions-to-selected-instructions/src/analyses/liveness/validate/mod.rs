@@ -15,16 +15,18 @@ pub fn validate_liveness(
     selected: &impl crate::ValidatedSelectedAnalysis,
     plan: LivenessPlan,
 ) -> Result<ValidatedLiveness, LivenessError> {
-    validate_liveness_carrying(selected, plan, &[])
+    validate_liveness_carrying(selected, plan, &[], &[])
 }
 
 /// `validate_liveness`, except that a function marked in `carried` is not
 /// replayed: its rows were copied unchanged from a validated predecessor plan
 /// for an identical selected function, and replay reads only that function.
+/// Its identity digest is that predecessor's, from `previous_digests`.
 pub(crate) fn validate_liveness_carrying(
     selected: &impl crate::ValidatedSelectedAnalysis,
     plan: LivenessPlan,
     carried: &[bool],
+    previous_digests: &[[u8; 32]],
 ) -> Result<ValidatedLiveness, LivenessError> {
     if plan.selected != selected.selected_identity()
         || plan.optimization_unit != selected.optimization_unit_identity()
@@ -47,5 +49,10 @@ pub(crate) fn validate_liveness_carrying(
         let expected = replay_function(function_index, selected_function)?;
         validate_function(function_index, actual, &expected)?;
     }
-    Ok(receipt::admit_validated_liveness(selected, plan))
+    Ok(receipt::admit_validated_liveness(
+        selected,
+        plan,
+        carried,
+        previous_digests,
+    ))
 }

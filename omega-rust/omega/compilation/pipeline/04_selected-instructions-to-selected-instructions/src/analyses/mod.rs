@@ -77,3 +77,22 @@ pub use spill_choice::{
     SpillChoiceError, SpillChoiceValidationReceipt, ValidatedSpillChoices, choose_spill_victims,
     validate_spill_choices,
 };
+
+/// Each function's digest for the receipt identity: a carried function's
+/// comes from its validated predecessor, whose rows it copies; every other
+/// function is hashed afresh.
+pub(crate) fn carried_digests<Function>(
+    functions: &[Function],
+    carried: &[bool],
+    previous_digests: &[[u8; 32]],
+    digest: impl Fn(&Function) -> [u8; 32],
+) -> std::sync::Arc<[[u8; 32]]> {
+    functions
+        .iter()
+        .enumerate()
+        .map(|(index, function)| match previous_digests.get(index) {
+            Some(previous) if carried.get(index) == Some(&true) => *previous,
+            _ => digest(function),
+        })
+        .collect()
+}

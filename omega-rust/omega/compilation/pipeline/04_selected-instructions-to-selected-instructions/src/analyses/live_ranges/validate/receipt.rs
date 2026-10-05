@@ -3,11 +3,14 @@
 use std::collections::BTreeSet;
 
 use crate::LiveRangeValidationReceipt;
-use selected_instructions::{DistinctUseDefTie, LiveRangePlan, live_range_identity};
+use selected_instructions::{DistinctUseDefTie, LiveRangePlan, live_range_identity_from_digests};
 
-pub(super) fn build_receipt(plan: &LiveRangePlan) -> LiveRangeValidationReceipt {
+pub(super) fn build_receipt(
+    plan: &LiveRangePlan,
+    function_digests: &[[u8; 32]],
+) -> LiveRangeValidationReceipt {
     LiveRangeValidationReceipt {
-        identity: live_range_identity(plan),
+        identity: live_range_identity_from_digests(plan, function_digests),
         selected: plan.selected,
         liveness: plan.liveness,
         optimization_unit: plan.optimization_unit,

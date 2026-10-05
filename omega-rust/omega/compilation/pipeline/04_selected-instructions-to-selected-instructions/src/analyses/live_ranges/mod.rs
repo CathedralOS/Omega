@@ -46,7 +46,13 @@ pub fn analyze_live_ranges_reusing(
         selected,
         liveness,
     )?;
-    validate::validate_live_ranges_carrying(selected, liveness, plan, &carried)
+    validate::validate_live_ranges_carrying(
+        selected,
+        liveness,
+        plan,
+        &carried,
+        &previous_ranges.function_digests,
+    )
 }
 
 mod staging;
@@ -154,6 +160,9 @@ impl LiveRangeValidationReceipt {
 pub struct ValidatedLiveRanges {
     pub(crate) plan: std::sync::Arc<LiveRangePlan>,
     pub(crate) receipt: LiveRangeValidationReceipt,
+    /// Each function's share of the receipt identity, kept so a successor
+    /// plan that carries a function over unchanged need not hash it again.
+    pub(crate) function_digests: std::sync::Arc<[[u8; 32]]>,
 }
 
 impl ValidatedLiveRanges {

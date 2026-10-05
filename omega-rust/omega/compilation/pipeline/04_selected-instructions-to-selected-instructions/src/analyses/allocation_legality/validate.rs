@@ -132,15 +132,12 @@ pub(crate) fn validate_allocation_legality_carrying(
             validate_canonical(function_index, actual)?;
         }
     }
-    let function_digests = plan
-        .functions
-        .iter()
-        .enumerate()
-        .map(|(index, function)| match previous_digests.get(index) {
-            Some(digest) if carried.get(index) == Some(&true) => *digest,
-            _ => allocation_legality_function_digest(function),
-        })
-        .collect::<std::sync::Arc<[_]>>();
+    let function_digests = crate::analyses::carried_digests(
+        &plan.functions,
+        carried,
+        previous_digests,
+        allocation_legality_function_digest,
+    );
     let identity = allocation_legality_identity_from_digests(&plan, &function_digests);
     let receipt = AllocationLegalityValidationReceipt {
         identity,

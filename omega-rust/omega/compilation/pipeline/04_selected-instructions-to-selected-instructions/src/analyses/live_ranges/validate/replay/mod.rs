@@ -17,6 +17,7 @@ pub(super) fn replay_live_ranges(
     liveness: &ValidatedLiveness,
     plan: LiveRangePlan,
     carried: &[bool],
+    previous_digests: &[[u8; 32]],
 ) -> Result<ValidatedLiveRanges, LiveRangeError> {
     if plan.selected != selected.selected_identity()
         || liveness.plan().selected != selected.selected_identity()
@@ -52,9 +53,16 @@ pub(super) fn replay_live_ranges(
         comparison::require_function(function_index, actual, &expected)?;
     }
 
-    let receipt = super::receipt::build_receipt(&plan);
+    let function_digests = crate::analyses::carried_digests(
+        &plan.functions,
+        carried,
+        previous_digests,
+        selected_instructions::live_range_function_digest,
+    );
+    let receipt = super::receipt::build_receipt(&plan, &function_digests);
     Ok(ValidatedLiveRanges {
         plan: plan.into(),
         receipt,
+        function_digests,
     })
 }

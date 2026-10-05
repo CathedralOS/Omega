@@ -6,9 +6,31 @@ use crate::{
     ArchitecturalUnitActionKind, LiveRangeIdentity, LiveRangePlan, VirtualFixedConstraintSite,
 };
 
+/// The identity of a complete live-range plan: its roots and the ordered
+/// digests of its functions (`live_range_function_digest`). Hashing per
+/// function lets a producer that carries a function over unchanged carry its
+/// digest too, which runtime-spill recovery does after every rewrite.
 pub fn live_range_identity(plan: &LiveRangePlan) -> LiveRangeIdentity {
+    let digests = plan
+        .functions
+        .iter()
+        .map(live_range_function_digest)
+        .collect::<Vec<_>>();
+    live_range_identity_from_digests(plan, &digests)
+}
+
+/// `live_range_identity` from the digests of `plan.functions`, in order.
+pub fn live_range_identity_from_digests(
+    plan: &LiveRangePlan,
+    digests: &[[u8; 32]],
+) -> LiveRangeIdentity {
+    assert_eq!(
+        digests.len(),
+        plan.functions.len(),
+        "one digest per live-range function"
+    );
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-live-range-fragments.v11\0");
+    bytes.extend_from_slice(b"omega.terminal-live-range-fragments.v12\0");
     bytes.extend_from_slice(&plan.selected.bytes());
     bytes.extend_from_slice(&plan.liveness.bytes());
     bytes.extend_from_slice(&plan.optimization_unit.bytes());
@@ -24,125 +46,131 @@ pub fn live_range_identity(plan: &LiveRangePlan) -> LiveRangeIdentity {
     });
     bytes.extend_from_slice(&(plan.target.pointer_size as u64).to_le_bytes());
     bytes.extend_from_slice(&(plan.target.pointer_alignment as u64).to_le_bytes());
-    for functions in [&plan.functions] {
-        encode_len(&mut bytes, functions.len());
-        for function in functions {
-            bytes.extend_from_slice(&function.machine.get().to_le_bytes());
-            encode_len(&mut bytes, function.block_domains.len());
-            for block in &function.block_domains {
-                bytes.extend_from_slice(&block.block.0.to_le_bytes());
-                bytes.extend_from_slice(&block.source_block.get().to_le_bytes());
-                bytes.extend_from_slice(&block.start.0.to_le_bytes());
-                bytes.extend_from_slice(&block.end.0.to_le_bytes());
-            }
-            encode_len(&mut bytes, function.virtual_registers.len());
-            for register in &function.virtual_registers {
-                bytes.extend_from_slice(&register.virtual_register.0.to_le_bytes());
-                bytes.extend_from_slice(&register.class.0.to_le_bytes());
-                encode_len(&mut bytes, register.occurrences.len());
-                for occurrence in &register.occurrences {
-                    bytes.extend_from_slice(&occurrence.position.0.to_le_bytes());
-                    bytes.extend_from_slice(&occurrence.point.0.to_le_bytes());
-                    bytes.extend_from_slice(&occurrence.instruction.0.to_le_bytes());
-                    bytes.extend_from_slice(&occurrence.operand.to_le_bytes());
-                    bytes.push(access_tag(occurrence.access));
-                }
-                encode_len(&mut bytes, register.fixed_constraints.len());
-                for constraint in &register.fixed_constraints {
-                    match constraint.site {
-                        VirtualFixedConstraintSite::Entry => bytes.push(0),
-                        VirtualFixedConstraintSite::Operand {
-                            position,
-                            point,
-                            instruction,
-                            operand,
-                            access,
-                        } => {
-                            bytes.push(1);
-                            bytes.extend_from_slice(&position.0.to_le_bytes());
-                            bytes.extend_from_slice(&point.0.to_le_bytes());
-                            bytes.extend_from_slice(&instruction.0.to_le_bytes());
-                            bytes.extend_from_slice(&operand.to_le_bytes());
-                            bytes.push(access_tag(access));
-                        }
-                    }
-                    bytes.extend_from_slice(&constraint.view.0.to_le_bytes());
-                }
-                encode_fragments(&mut bytes, &register.fragments);
-                encode_connectors(&mut bytes, &register.edge_connectors);
-            }
-            encode_len(&mut bytes, function.tied_pairs.len());
-            encode_len(&mut bytes, function.edge_transfers.len());
-            for edge in &function.edge_transfers {
-                bytes.extend_from_slice(&edge.source.0.to_le_bytes());
-                bytes.extend_from_slice(&edge.target.0.to_le_bytes());
-                bytes.extend_from_slice(&edge.psi_edge.get().to_le_bytes());
-                bytes.extend_from_slice(&edge.argument.0.to_le_bytes());
-                bytes.extend_from_slice(&edge.parameter.0.to_le_bytes());
-                bytes.extend_from_slice(&edge.class.0.to_le_bytes());
-            }
-            encode_len(&mut bytes, function.copy_affinities.len());
-            for affinity in &function.copy_affinities {
-                bytes.extend_from_slice(&affinity.block.0.to_le_bytes());
-                bytes.extend_from_slice(&affinity.instruction.0.to_le_bytes());
-                bytes.extend_from_slice(&affinity.source.0.to_le_bytes());
-                bytes.extend_from_slice(&affinity.destination.0.to_le_bytes());
-            }
-            for tie in &function.tied_pairs {
-                bytes.extend_from_slice(&tie.block.0.to_le_bytes());
-                bytes.extend_from_slice(&tie.position.0.to_le_bytes());
-                bytes.extend_from_slice(&tie.instruction.0.to_le_bytes());
-                bytes.extend_from_slice(&tie.use_operand.to_le_bytes());
-                bytes.extend_from_slice(&tie.use_virtual_register.0.to_le_bytes());
-                bytes.extend_from_slice(&tie.use_point.0.to_le_bytes());
-                bytes.extend_from_slice(&tie.def_operand.to_le_bytes());
-                bytes.extend_from_slice(&tie.def_virtual_register.0.to_le_bytes());
-                bytes.extend_from_slice(&tie.def_point.0.to_le_bytes());
-                bytes.extend_from_slice(&tie.class.0.to_le_bytes());
-            }
-            encode_len(&mut bytes, function.early_clobbers.len());
-            for early in &function.early_clobbers {
-                bytes.extend_from_slice(&early.block.0.to_le_bytes());
-                bytes.extend_from_slice(&early.position.0.to_le_bytes());
-                bytes.extend_from_slice(&early.instruction.0.to_le_bytes());
-                bytes.extend_from_slice(&early.early_point.0.to_le_bytes());
-                bytes.extend_from_slice(&early.def_operand.to_le_bytes());
-                bytes.extend_from_slice(&early.def_virtual_register.0.to_le_bytes());
-                bytes.extend_from_slice(&early.def_class.0.to_le_bytes());
-                bytes.extend_from_slice(&early.def_point.0.to_le_bytes());
-                encode_len(&mut bytes, early.uses.len());
-                for used in &early.uses {
-                    bytes.extend_from_slice(&used.operand.to_le_bytes());
-                    bytes.extend_from_slice(&used.virtual_register.0.to_le_bytes());
-                    bytes.extend_from_slice(&used.class.0.to_le_bytes());
-                }
-            }
-            encode_len(&mut bytes, function.architectural_units.len());
-            for unit in &function.architectural_units {
-                bytes.extend_from_slice(&unit.unit.0.to_le_bytes());
-                encode_len(&mut bytes, unit.actions.len());
-                for action in &unit.actions {
-                    bytes.extend_from_slice(&action.block.0.to_le_bytes());
-                    bytes.extend_from_slice(&action.position.0.to_le_bytes());
-                    bytes.extend_from_slice(&action.point.0.to_le_bytes());
-                    bytes.extend_from_slice(&action.instruction.0.to_le_bytes());
-                    bytes.push(match action.kind {
-                        ArchitecturalUnitActionKind::Use => 0,
-                        ArchitecturalUnitActionKind::Def => 1,
-                        ArchitecturalUnitActionKind::Clobber => 2,
-                    });
-                }
-                encode_fragments(&mut bytes, &unit.fragments);
-                encode_connectors(&mut bytes, &unit.edge_connectors);
-            }
-            encode_len(&mut bytes, function.interference.len());
-            for pair in &function.interference {
-                bytes.extend_from_slice(&pair.lower.0.to_le_bytes());
-                bytes.extend_from_slice(&pair.higher.0.to_le_bytes());
-            }
-        }
+    encode_len(&mut bytes, digests.len());
+    for digest in digests {
+        bytes.extend_from_slice(digest);
     }
     LiveRangeIdentity::from_bytes(Sha256::digest(bytes).into())
+}
+
+/// One function's share of `live_range_identity`.
+pub fn live_range_function_digest(function: &crate::FunctionLiveRanges) -> [u8; 32] {
+    let mut bytes = Vec::new();
+    bytes.extend_from_slice(b"omega.terminal-live-range-function.v1\0");
+    bytes.extend_from_slice(&function.machine.get().to_le_bytes());
+    encode_len(&mut bytes, function.block_domains.len());
+    for block in &function.block_domains {
+        bytes.extend_from_slice(&block.block.0.to_le_bytes());
+        bytes.extend_from_slice(&block.source_block.get().to_le_bytes());
+        bytes.extend_from_slice(&block.start.0.to_le_bytes());
+        bytes.extend_from_slice(&block.end.0.to_le_bytes());
+    }
+    encode_len(&mut bytes, function.virtual_registers.len());
+    for register in &function.virtual_registers {
+        bytes.extend_from_slice(&register.virtual_register.0.to_le_bytes());
+        bytes.extend_from_slice(&register.class.0.to_le_bytes());
+        encode_len(&mut bytes, register.occurrences.len());
+        for occurrence in &register.occurrences {
+            bytes.extend_from_slice(&occurrence.position.0.to_le_bytes());
+            bytes.extend_from_slice(&occurrence.point.0.to_le_bytes());
+            bytes.extend_from_slice(&occurrence.instruction.0.to_le_bytes());
+            bytes.extend_from_slice(&occurrence.operand.to_le_bytes());
+            bytes.push(access_tag(occurrence.access));
+        }
+        encode_len(&mut bytes, register.fixed_constraints.len());
+        for constraint in &register.fixed_constraints {
+            match constraint.site {
+                VirtualFixedConstraintSite::Entry => bytes.push(0),
+                VirtualFixedConstraintSite::Operand {
+                    position,
+                    point,
+                    instruction,
+                    operand,
+                    access,
+                } => {
+                    bytes.push(1);
+                    bytes.extend_from_slice(&position.0.to_le_bytes());
+                    bytes.extend_from_slice(&point.0.to_le_bytes());
+                    bytes.extend_from_slice(&instruction.0.to_le_bytes());
+                    bytes.extend_from_slice(&operand.to_le_bytes());
+                    bytes.push(access_tag(access));
+                }
+            }
+            bytes.extend_from_slice(&constraint.view.0.to_le_bytes());
+        }
+        encode_fragments(&mut bytes, &register.fragments);
+        encode_connectors(&mut bytes, &register.edge_connectors);
+    }
+    encode_len(&mut bytes, function.tied_pairs.len());
+    encode_len(&mut bytes, function.edge_transfers.len());
+    for edge in &function.edge_transfers {
+        bytes.extend_from_slice(&edge.source.0.to_le_bytes());
+        bytes.extend_from_slice(&edge.target.0.to_le_bytes());
+        bytes.extend_from_slice(&edge.psi_edge.get().to_le_bytes());
+        bytes.extend_from_slice(&edge.argument.0.to_le_bytes());
+        bytes.extend_from_slice(&edge.parameter.0.to_le_bytes());
+        bytes.extend_from_slice(&edge.class.0.to_le_bytes());
+    }
+    encode_len(&mut bytes, function.copy_affinities.len());
+    for affinity in &function.copy_affinities {
+        bytes.extend_from_slice(&affinity.block.0.to_le_bytes());
+        bytes.extend_from_slice(&affinity.instruction.0.to_le_bytes());
+        bytes.extend_from_slice(&affinity.source.0.to_le_bytes());
+        bytes.extend_from_slice(&affinity.destination.0.to_le_bytes());
+    }
+    for tie in &function.tied_pairs {
+        bytes.extend_from_slice(&tie.block.0.to_le_bytes());
+        bytes.extend_from_slice(&tie.position.0.to_le_bytes());
+        bytes.extend_from_slice(&tie.instruction.0.to_le_bytes());
+        bytes.extend_from_slice(&tie.use_operand.to_le_bytes());
+        bytes.extend_from_slice(&tie.use_virtual_register.0.to_le_bytes());
+        bytes.extend_from_slice(&tie.use_point.0.to_le_bytes());
+        bytes.extend_from_slice(&tie.def_operand.to_le_bytes());
+        bytes.extend_from_slice(&tie.def_virtual_register.0.to_le_bytes());
+        bytes.extend_from_slice(&tie.def_point.0.to_le_bytes());
+        bytes.extend_from_slice(&tie.class.0.to_le_bytes());
+    }
+    encode_len(&mut bytes, function.early_clobbers.len());
+    for early in &function.early_clobbers {
+        bytes.extend_from_slice(&early.block.0.to_le_bytes());
+        bytes.extend_from_slice(&early.position.0.to_le_bytes());
+        bytes.extend_from_slice(&early.instruction.0.to_le_bytes());
+        bytes.extend_from_slice(&early.early_point.0.to_le_bytes());
+        bytes.extend_from_slice(&early.def_operand.to_le_bytes());
+        bytes.extend_from_slice(&early.def_virtual_register.0.to_le_bytes());
+        bytes.extend_from_slice(&early.def_class.0.to_le_bytes());
+        bytes.extend_from_slice(&early.def_point.0.to_le_bytes());
+        encode_len(&mut bytes, early.uses.len());
+        for used in &early.uses {
+            bytes.extend_from_slice(&used.operand.to_le_bytes());
+            bytes.extend_from_slice(&used.virtual_register.0.to_le_bytes());
+            bytes.extend_from_slice(&used.class.0.to_le_bytes());
+        }
+    }
+    encode_len(&mut bytes, function.architectural_units.len());
+    for unit in &function.architectural_units {
+        bytes.extend_from_slice(&unit.unit.0.to_le_bytes());
+        encode_len(&mut bytes, unit.actions.len());
+        for action in &unit.actions {
+            bytes.extend_from_slice(&action.block.0.to_le_bytes());
+            bytes.extend_from_slice(&action.position.0.to_le_bytes());
+            bytes.extend_from_slice(&action.point.0.to_le_bytes());
+            bytes.extend_from_slice(&action.instruction.0.to_le_bytes());
+            bytes.push(match action.kind {
+                ArchitecturalUnitActionKind::Use => 0,
+                ArchitecturalUnitActionKind::Def => 1,
+                ArchitecturalUnitActionKind::Clobber => 2,
+            });
+        }
+        encode_fragments(&mut bytes, &unit.fragments);
+        encode_connectors(&mut bytes, &unit.edge_connectors);
+    }
+    encode_len(&mut bytes, function.interference.len());
+    for pair in &function.interference {
+        bytes.extend_from_slice(&pair.lower.0.to_le_bytes());
+        bytes.extend_from_slice(&pair.higher.0.to_le_bytes());
+    }
+    Sha256::digest(bytes).into()
 }
 
 fn encode_fragments(bytes: &mut Vec<u8>, fragments: &[crate::LiveRangeFragment]) {

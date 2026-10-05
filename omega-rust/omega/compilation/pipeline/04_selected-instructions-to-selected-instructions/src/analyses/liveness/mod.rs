@@ -31,7 +31,12 @@ pub fn analyze_liveness_reusing(
 ) -> Result<ValidatedLiveness, LivenessError> {
     let (plan, carried) =
         compute::compute_terminal_liveness_reusing(previous, previous_liveness, selected)?;
-    validate::validate_liveness_carrying(selected, plan, &carried)
+    validate::validate_liveness_carrying(
+        selected,
+        plan,
+        &carried,
+        &previous_liveness.function_digests,
+    )
 }
 
 mod staging;
@@ -105,6 +110,9 @@ impl LivenessValidationReceipt {
 pub struct ValidatedLiveness {
     pub(crate) plan: std::sync::Arc<LivenessPlan>,
     pub(crate) receipt: LivenessValidationReceipt,
+    /// Each function's share of the receipt identity, kept so a successor
+    /// plan that carries a function over unchanged need not hash it again.
+    pub(crate) function_digests: std::sync::Arc<[[u8; 32]]>,
 }
 
 impl ValidatedLiveness {

@@ -17,20 +17,22 @@ pub fn validate_live_ranges(
     liveness: &ValidatedLiveness,
     plan: LiveRangePlan,
 ) -> Result<ValidatedLiveRanges, LiveRangeError> {
-    replay::replay_live_ranges(selected, liveness, plan, &[])
+    replay::replay_live_ranges(selected, liveness, plan, &[], &[])
 }
 
 /// `validate_live_ranges`, except that a function marked in `carried` is not
 /// replayed: its rows were copied unchanged from a validated predecessor plan
 /// for an identical selected function and liveness function, and replay reads
-/// only those two.
+/// only those two. Its identity digest is that predecessor's, from
+/// `previous_digests`.
 pub(super) fn validate_live_ranges_carrying(
     selected: &impl crate::ValidatedSelectedAnalysis,
     liveness: &ValidatedLiveness,
     plan: LiveRangePlan,
     carried: &[bool],
+    previous_digests: &[[u8; 32]],
 ) -> Result<ValidatedLiveRanges, LiveRangeError> {
-    replay::replay_live_ranges(selected, liveness, plan, carried)
+    replay::replay_live_ranges(selected, liveness, plan, carried, previous_digests)
 }
 
 /// Reject a liveness plan computed for another selected program before the

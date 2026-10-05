@@ -4,9 +4,31 @@ use target::{Architecture, ObjectFormat};
 
 use crate::{FunctionLiveness, LivenessIdentity, LivenessPlan};
 
+/// The identity of a complete liveness plan: its roots and the ordered digests
+/// of its functions (`liveness_function_digest`). Hashing per function lets a
+/// producer that carries a function over unchanged carry its digest too, which
+/// runtime-spill recovery does after every rewrite.
 pub fn liveness_identity(plan: &LivenessPlan) -> LivenessIdentity {
+    let digests = plan
+        .functions
+        .iter()
+        .map(liveness_function_digest)
+        .collect::<Vec<_>>();
+    liveness_identity_from_digests(plan, &digests)
+}
+
+/// `liveness_identity` from the digests of `plan.functions`, in order.
+pub fn liveness_identity_from_digests(
+    plan: &LivenessPlan,
+    digests: &[[u8; 32]],
+) -> LivenessIdentity {
+    assert_eq!(
+        digests.len(),
+        plan.functions.len(),
+        "one digest per liveness function"
+    );
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-register-liveness.v9\0");
+    bytes.extend_from_slice(b"omega.terminal-register-liveness.v10\0");
     bytes.extend_from_slice(&plan.selected.bytes());
     bytes.extend_from_slice(&plan.optimization_unit.bytes());
     bytes.extend_from_slice(&plan.fuel_schedule.marker().to_le_bytes());
@@ -21,11 +43,19 @@ pub fn liveness_identity(plan: &LivenessPlan) -> LivenessIdentity {
     });
     bytes.extend_from_slice(&(plan.target.pointer_size as u64).to_le_bytes());
     bytes.extend_from_slice(&(plan.target.pointer_alignment as u64).to_le_bytes());
-    encode_len(&mut bytes, plan.functions.len());
-    for function in &plan.functions {
-        encode_function(&mut bytes, function);
+    encode_len(&mut bytes, digests.len());
+    for digest in digests {
+        bytes.extend_from_slice(digest);
     }
     LivenessIdentity(Sha256::digest(bytes).into())
+}
+
+/// One function's share of `liveness_identity`.
+pub fn liveness_function_digest(function: &FunctionLiveness) -> [u8; 32] {
+    let mut bytes = Vec::new();
+    bytes.extend_from_slice(b"omega.terminal-register-liveness-function.v1\0");
+    encode_function(&mut bytes, function);
+    Sha256::digest(bytes).into()
 }
 
 fn encode_function(bytes: &mut Vec<u8>, function: &FunctionLiveness) {

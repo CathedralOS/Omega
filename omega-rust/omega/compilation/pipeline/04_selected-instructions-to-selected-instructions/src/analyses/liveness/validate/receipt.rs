@@ -1,12 +1,22 @@
 //! Projects report-only counts and admits the exact validated liveness plan.
 
 use crate::analyses::liveness::{LivenessValidationReceipt, ValidatedLiveness};
-use selected_instructions::{LivenessPlan, liveness_identity};
+use selected_instructions::{
+    LivenessPlan, liveness_function_digest, liveness_identity_from_digests,
+};
 
 pub(super) fn admit_validated_liveness(
     selected: &impl crate::ValidatedSelectedAnalysis,
     plan: LivenessPlan,
+    carried: &[bool],
+    previous_digests: &[[u8; 32]],
 ) -> ValidatedLiveness {
+    let function_digests = crate::analyses::carried_digests(
+        &plan.functions,
+        carried,
+        previous_digests,
+        liveness_function_digest,
+    );
     let block_count = plan
         .functions
         .iter()
@@ -37,7 +47,7 @@ pub(super) fn admit_validated_liveness(
         .filter(|operand| operand.early_clobber)
         .count();
     let receipt = LivenessValidationReceipt {
-        identity: liveness_identity(&plan),
+        identity: liveness_identity_from_digests(&plan, &function_digests),
         selected: plan.selected,
         optimization_unit: plan.optimization_unit,
         fuel_schedule: plan.fuel_schedule,
@@ -57,5 +67,6 @@ pub(super) fn admit_validated_liveness(
     ValidatedLiveness {
         plan: plan.into(),
         receipt,
+        function_digests,
     }
 }

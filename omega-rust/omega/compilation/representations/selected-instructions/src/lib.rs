@@ -42,10 +42,12 @@ pub use selected_instructions::{
     VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin, alternative_family_tag, calls,
     constraints, control_flow, effects, encode_machine_alternative_identity,
     encode_machine_alternative_key_identity, encode_machine_encoded_effects_identity, identity,
-    instructions, live_range_identity, live_ranges, liveness, liveness_identity,
-    machine_effect_catalog_identity, plan_identity, pre_allocation_machine_effect_identity,
-    provenance, saturating_family_tag, selected_instruction_plan_identity, structural_case,
-    trapping_family_tag, validate_machine_effect_catalog, values,
+    instructions, live_range_function_digest, live_range_identity,
+    live_range_identity_from_digests, live_ranges, liveness, liveness_function_digest,
+    liveness_identity, liveness_identity_from_digests, machine_effect_catalog_identity,
+    plan_identity, pre_allocation_machine_effect_identity, provenance, saturating_family_tag,
+    selected_instruction_plan_identity, structural_case, trapping_family_tag,
+    validate_machine_effect_catalog, values,
 };
 pub use selected_instructions::{
     AtomicForm, AtomicOperation, AtomicWidth, FloatResultPolicyForm, FloatResultPolicyKind,

@@ -4,7 +4,7 @@
 //! to the selected-instruction transformation stage.
 
 mod identity;
-pub use identity::liveness_identity;
+pub use identity::{liveness_function_digest, liveness_identity, liveness_identity_from_digests};
 
 use crate::{
     SelectedBlockId, SelectedInstructionId, SelectedInstructionPlanIdentity, VirtualRegisterId,
