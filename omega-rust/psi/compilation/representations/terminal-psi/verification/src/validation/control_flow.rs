@@ -9,7 +9,7 @@ use super::operations::require_defined;
 use super::{
     BTreeMap, BTreeSet, BlockId, BoundaryMachineDeclaration, EdgeId, MachineId, ModuleError,
     OperationKind, ScalarType, StructuralAccess, StructuralFieldType, StructuralTypeShape,
-    TerminalMachine, TerminalMachineResult, TerminalModule, Terminator, ValueId,
+    TerminalMachine, TerminalModule, Terminator, ValueId,
 };
 
 mod block_checks;

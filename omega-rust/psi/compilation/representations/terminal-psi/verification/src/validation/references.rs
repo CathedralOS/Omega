@@ -151,16 +151,6 @@ impl BorrowedSources {
     }
 }
 
-pub(crate) fn argument_owns_references(
-    module: &TerminalModule,
-    machine: &TerminalMachine,
-    argument: &StructuralArgument,
-) -> bool {
-    argument.access == StructuralAccess::Owned
-        && super::structural::result_contracts::source_signature(machine, argument.place)
-            .is_some_and(|source| contains_reference(module, source.structural_type))
-}
-
 // Incoming types have no explicit leaf roster to bound reconstruction. Keep
 // this private verification-work capacity separate from resource authority;
 // local/result rosters remain bounded by their existing captured rows.
