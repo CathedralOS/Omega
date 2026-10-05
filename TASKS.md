@@ -2342,6 +2342,42 @@ crash and native exit behavior.
   checkout before recording anything.
 
 
+- **CONSTRUCTED-ARGUMENT-SCHEDULE-REGRESSED-NINE.** (new-scope)
+  `8735cafb4cf` ("psi: compose constructed arguments through the shared value
+  schedule", 35 `.rs` files) regressed **nine** `pass` fixtures from `checked`
+  to `rejected`, and `2b6ea65a9e1` ("tests: re-pin twenty-two corpus outcomes")
+  recorded the refusals. Measured: of that re-pin's 22 rows, **9 are
+  success-to-non-success and 0 are improvements**, and the commit carries **no
+  body**.
+
+  Two diagnostics cover all nine. Seven report `selected ProgramEntry
+  establishment rejoins 0 Terminal context identities; expected one; the
+  machine's unit plan was omitted at ...`, and two report
+  `Lowering(Unsupported("structural argument operand is not a construction or
+  copy"))` -- which names the composing change's own subject, so the attribution
+  is not a guess.
+
+  The rows: `pass/borrows/{branch_selected_record_composed_receiver_exit,
+  owned_byte_value_call_exit, projected_reference_record_argument_exit,
+  projected_reference_record_residual_exit}`,
+  `pass/calls/runtime_nested_case_argument_exit`,
+  `pass/capabilities/{sysv_small_aggregate_import_compile,
+  win64_pointer_length_vs_descriptor_compile}`,
+  `pass/providers/{direct_boundary_array_snapshot_exit,
+  runtime_boundary_array_construction_exit}`. Seven had authored native exits
+  (70 five times, 29 twice); all nine now carry `regressed-from:` tokens in
+  `corpus_native_macos_arm64.txt`, so the losses are explicit rather than
+  silent and the native gate exits 3 on them.
+
+  **This is the second bodyless re-pin today to absorb a batch of regressions
+  with zero improvements** -- `dce3e972eff` did it for seven earlier, and that
+  one also left the native rows claiming successes the check golden refused,
+  which is how both batches became invisible until
+  `corpus_scoreboard.py --cross-golden` was run. A re-pin that records only
+  losses is the signal to stop and attribute, not to record.
+  Acceptance: the nine reach `checked` again and run at their authored exits,
+  with the tokens dropping on their own as each recovers.
+
 - **TWINS-GOLDEN-RECORDS-A-LOAD-ARTIFACT.** (split-of:OPERATOR-BOUNDARY-CALLS)
   `pass/float/build_runtime_semantics_twins_{x86_baseline,windows_x64}` now
   record `timeout 120000ms` stamped `@98ac0f8c4db`. That is a **load-relative
