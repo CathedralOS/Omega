@@ -200,14 +200,40 @@ helper that passes does not close an item.
     selection and admission both succeed, and each fixture's refusal moved to
     one shared compiler gap, `selected overload ... has no compiler-known
     intrinsic realization`. The remaining work is that realization, not source
-    selection. `save_and_mask` is the precedent that an interrupt-family
-    operation is compiler-realized
-    (`backend/runtime/external-roots/src/interrupts/interrupt_masks.rs`);
-    `discharge` and `confirm` have no backend mention at all.
-  - `pass/memory/address_translation_canary` is NOT in the same shape: it has
-    no `build.omg`, so it has nowhere to spell `Build::select_provider` for
-    `Shootdown::discharge`. Adding one changes how the fixture compiles, so
-    decide that before treating it as the same repair.
+    selection.
+
+    **DESIGN-BLOCKED on `bare-metal-requirement-realization` in
+    `OWNER_QUESTIONS.md`. The `save_and_mask` precedent this item used to claim
+    is FALSE and is struck.** Measured: `row_execution_identity`
+    (`selected-dispatch/src/compiler_intrinsic.rs:71-138`) routes a
+    `CompilerIntrinsic` row by **schema kind**. A `BoundaryTrait` row goes to
+    `HOSTED_INTRINSIC_ROWS` -- a closed table of four Console/ProcessExit rows
+    -- and an unrecognized one answers `Unsupported`, which is **tolerated, not
+    an error**. A top-level `BoundaryRequirement` row goes to the numeric
+    catalog and an unrecognized one is a **hard error**.
+    `InterruptMaskControl` is a `boundary trait` (`core/interrupt.omg:30`),
+    so **the compiler lowers nothing for `save_and_mask`** -- its row is merely
+    tolerated -- while `complete` and `confirm` are `boundary requirement`s and
+    are refused. The asymmetry is lane shape, not capability. Nor is
+    `external-roots/src/interrupts/interrupt_masks.rs` on the compile path: its
+    only callers are four sites in that crate's own tests, and no edge reaches
+    `CompilerIntrinsicExecutionIdentity`. A probe also showed
+    `Build::select_provider<InterruptMaskControl::save_and_mask, ..>` is refused
+    at source, so `save_and_mask` cannot even enter the refusing lane. The
+    "`discharge` and `confirm` have no backend mention" line was true but not
+    distinguishing -- `complete` has none either, and neither does
+    `save_and_mask` in any compile-path sense.
+
+    **Do not "fix" this by making the requirement lane answer `Unsupported`
+    like the trait lane.** That was measured: it moves both fixtures off this
+    diagnostic and plausibly to `built` while the program still cannot run,
+    which is blessing a missing result by relocating its refusal.
+  - `pass/memory/address_translation_canary` is at an **earlier** frontier, not
+    this one: it declares no provider and has no `build.omg`, so it sits at the
+    unselected-direct-requirement gate (see
+    UNSELECTED-DIRECT-REQUIREMENT-GATE-WIDENED). Adding a `build.omg` would
+    only march it into the same realization wall, so it is not the same repair
+    and not a shortcut to green.
   - Both providers bind `via ForeignBinding::CompilerIntrinsic` because the
     obligations are opaque linear boundary data with no public constructor, so
     no package-authored body can consume one. If the owner intends completion
