@@ -110,6 +110,7 @@ impl MachineEmission<'_> {
                 plan.state,
                 operation,
                 declaration,
+                self.structural_types,
                 &mut self.evaluation.structural_locals,
             )?;
         }

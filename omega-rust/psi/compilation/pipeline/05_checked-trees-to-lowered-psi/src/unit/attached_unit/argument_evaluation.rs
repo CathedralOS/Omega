@@ -362,7 +362,11 @@ impl Evaluation {
                     argument: StructuralArgument {
                         place: produced.place(),
                         path: produced.path().to_vec(),
-                        access: if shared_borrow.is_some() {
+                        // A reference home owns its descriptor. Borrow access belongs
+                        // to the explicit Referent crossing, not that home.
+                        access: if reference_carrier {
+                            StructuralAccess::Owned
+                        } else if shared_borrow.is_some() {
                             StructuralAccess::SharedBorrow
                         } else if mutable_borrow.is_some() {
                             StructuralAccess::MutableBorrow

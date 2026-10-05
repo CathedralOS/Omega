@@ -70,7 +70,7 @@ fn encode_cleanup(bytes: &mut Vec<u8>, action: &TerminalAffineCleanupAction) {
     }
 }
 
-fn encode_path(bytes: &mut Vec<u8>, path: &[StructuralPathSegment]) {
+pub(crate) fn encode_path(bytes: &mut Vec<u8>, path: &[StructuralPathSegment]) {
     encode_len(bytes, path.len());
     for segment in path {
         match segment {

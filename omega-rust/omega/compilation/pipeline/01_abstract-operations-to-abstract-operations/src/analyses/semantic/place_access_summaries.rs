@@ -642,6 +642,14 @@ fn scan_operation(
                 for place in &case.trivial_affine_discards {
                     pending.attribute(context, *place, Vec::new(), AccessKind::Write);
                 }
+                for discard in &case.residual_affine_discards {
+                    pending.attribute(
+                        context,
+                        discard.place,
+                        runtime_prefix(&discard.path),
+                        AccessKind::Write,
+                    );
+                }
             }
         }
         O::StructuralLeafCopy { source, path, .. } => {
@@ -859,6 +867,14 @@ fn scan_operation(
             for successor in [when_true, when_false] {
                 for place in &successor.trivial_affine_discards {
                     pending.attribute(context, *place, Vec::new(), AccessKind::Write);
+                }
+                for discard in &successor.residual_affine_discards {
+                    pending.attribute(
+                        context,
+                        discard.place,
+                        runtime_prefix(&discard.path),
+                        AccessKind::Write,
+                    );
                 }
             }
         }

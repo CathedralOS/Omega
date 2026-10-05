@@ -476,7 +476,7 @@ fn successor_matches(
             function,
             &target.cleanup_actions,
             &source.trivial_affine_discards,
-            &[],
+            &source.residual_affine_discards,
         )
 }
 

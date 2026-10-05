@@ -19,6 +19,8 @@ mod projection;
 
 pub(super) struct ReceiverAlias {
     pub(super) owner: SymbolHandle,
+    /// Immediate captured storage, before chaining through an erased parent.
+    captured_place: crate::flow::CanonicalPlace,
     pub(super) root: SymbolHandle,
     pub(super) segments: Vec<facts::PlaceSegment>,
     /// The erased loan's exact access and terminal statement. A bare-argument
@@ -112,6 +114,7 @@ fn formation(
         return Some((
             ReceiverAlias {
                 owner: local.symbol,
+                captured_place: place.clone(),
                 root: aliases[parent_position].root,
                 segments,
                 kind: access,
@@ -275,6 +278,7 @@ fn formation(
     Some((
         ReceiverAlias {
             owner: local.symbol,
+            captured_place: place.clone(),
             root: if root_is_self {
                 machine.symbol
             } else {
@@ -360,23 +364,33 @@ fn exclusive_access(
     }
 }
 
-/// Substitute an erased carrier's authored root for its captured referent:
-/// the referent's root plus the captured projection ahead of the authored
-/// suffix. Roots with no validated formation stay as they were spelled.
+/// Follow erased carriers only as far as the nearest materialized storage.
+/// A captured descriptor is the authority for its referent; flattening through
+/// that descriptor would instead lend its suspended backing a second time.
 pub(super) fn resolve(
     aliases: &[ReceiverAlias],
     place: &crate::flow::CanonicalPlace,
+    materialized: impl Fn(facts::PlaceRoot) -> bool,
 ) -> Option<crate::flow::CanonicalPlace> {
-    let facts::PlaceRoot::Symbol(owner) = place.root else {
-        return None;
-    };
-    let alias = aliases.iter().find(|alias| alias.owner == owner)?;
-    let mut segments = alias.segments.clone();
-    segments.extend_from_slice(&place.segments);
-    Some(crate::flow::CanonicalPlace {
-        root: facts::PlaceRoot::Symbol(alias.root),
-        segments,
-    })
+    let mut resolved = place.clone();
+    for _ in 0..aliases.len() {
+        if materialized(resolved.root) {
+            break;
+        }
+        let facts::PlaceRoot::Symbol(owner) = resolved.root else {
+            break;
+        };
+        let Some(alias) = aliases.iter().find(|alias| alias.owner == owner) else {
+            break;
+        };
+        let mut segments = alias.captured_place.segments.clone();
+        segments.extend(resolved.segments);
+        resolved = crate::flow::CanonicalPlace {
+            root: alias.captured_place.root,
+            segments,
+        };
+    }
+    (resolved != *place).then_some(resolved)
 }
 
 /// The erased parent alias and its one-, two-, or three-child roster named by

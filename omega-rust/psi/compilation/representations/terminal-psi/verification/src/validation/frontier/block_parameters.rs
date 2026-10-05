@@ -10,9 +10,8 @@ use super::{
 /// Phase one consumes each owned source before the residual and trivial
 /// cleanup for the same edge runs. A projected owned argument moves one
 /// affine child out of a live root: the root records the exact moved path as
-/// partial custody instead of leaving `owned_places`, and the residual
-/// complement is discarded on that same edge. Only Jump edges carry residual
-/// evidence, so `allow_projected` is false for the other successor kinds.
+/// partial custody instead of leaving `owned_places`. The selected edge may
+/// dispose the exact residual complement or carry it into the successor.
 pub(super) fn consume(
     module: &TerminalModule,
     machine: &TerminalMachine,
@@ -20,7 +19,6 @@ pub(super) fn consume(
     edge: EdgeId,
     target: &terminal_psi::Block,
     arguments: &[StructuralArgument],
-    allow_projected: bool,
     window_aliases: &WindowAliases,
 ) -> Result<Vec<(super::ClaimId, LiveClaim)>, ModuleError> {
     if arguments.len() != target.structural_parameters.len() {
@@ -39,10 +37,9 @@ pub(super) fn consume(
             continue;
         }
         if !argument.path.is_empty() {
-            // A projected move keeps its root live until the residual
-            // complement on this edge disposes of every untouched child.
-            if !allow_projected
-                || argument.access != StructuralAccess::Owned
+            // A projected move keeps its root live until its remaining
+            // complement is transferred or explicitly disposed.
+            if argument.access != StructuralAccess::Owned
                 || parameter.multiplicity != StructuralMultiplicity::Affine
                 || frontier.owned_places.get(&argument.place)
                     != Some(&StructuralMultiplicity::Affine)

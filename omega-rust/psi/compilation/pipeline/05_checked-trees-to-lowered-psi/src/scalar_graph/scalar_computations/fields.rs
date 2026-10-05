@@ -173,6 +173,8 @@ pub(crate) struct Binding {
     path: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
     /// Exact declared path for a float observation or stored-reference crossing.
     primitive_path: Vec<terminal_psi::StructuralPathSegment>,
+    /// The declared root beneath which this observation's path is resolved.
+    observation_root_type: semantic_vocabulary::StructuralTypeId,
     /// The checked coordinate of the loan's one non-literal index segment,
     /// when the captured path selects an element by runtime value.
     runtime_index: Option<checked_trees::CheckedRuntimeIndex>,
@@ -1066,6 +1068,7 @@ pub(crate) fn prepare(
                 Some(overlay) => record_view_source_walk(checked, overlay, subject, *field)?,
                 None => (subject.path.clone(), identity, node.primitive_type),
             };
+            let observation_root_type = declaration.id;
             let mut primitive_path = carrier_path.clone();
             let mut selected_case_fields = None;
             for segment in &walk {
@@ -1222,6 +1225,7 @@ pub(crate) fn prepare(
                 element_path,
                 bounded_leaf,
                 primitive_path,
+                observation_root_type,
                 field: retained.id,
                 scalar_type,
                 leaf_scalar_type,
@@ -1486,9 +1490,16 @@ fn observe(
     source: semantic_vocabulary::PlaceId,
 ) -> Result<LoweredDirectExpression, LoweringError> {
     let scalar_type = binding.scalar_type;
-    let crosses_reference = binding
-        .primitive_path
-        .contains(&terminal_psi::StructuralPathSegment::Referent);
+    let primitive_path = if binding.loan_source.is_none() && binding.receiver.is_none() {
+        bindings.structural_observation_path(
+            source,
+            binding.observation_root_type,
+            &binding.primitive_path,
+        )?
+    } else {
+        binding.primitive_path.clone()
+    };
+    let crosses_reference = primitive_path.contains(&terminal_psi::StructuralPathSegment::Referent);
     if !crosses_reference
         && let [semantic_vocabulary::CanonicalStructuralPathSegment::Case(case)] =
             binding.path.as_slice()
@@ -1575,7 +1586,7 @@ fn observe(
     let leaf = match leaf_type {
         _ if crosses_reference => LoweredDirectExpression::PrimitiveRead {
             source: PrimitiveReadSource::Place(source),
-            path: binding.primitive_path.clone(),
+            path: primitive_path.clone(),
             scalar_type: leaf_type,
         },
         ScalarType::Boolean => LoweredDirectExpression::Boolean {
@@ -1593,7 +1604,7 @@ fn observe(
         },
         ScalarType::IeeeFloat(_) => LoweredDirectExpression::PrimitiveRead {
             source: PrimitiveReadSource::Place(source),
-            path: binding.primitive_path.clone(),
+            path: primitive_path.clone(),
             scalar_type: leaf_type,
         },
     };

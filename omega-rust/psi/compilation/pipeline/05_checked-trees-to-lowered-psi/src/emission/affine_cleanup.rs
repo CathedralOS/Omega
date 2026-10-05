@@ -429,10 +429,8 @@ fn scheduled_discards(terminator: &Terminator) -> Vec<semantic_vocabulary::Place
             when_false,
             ..
         } => when_true
-            .trivial_affine_discards
-            .iter()
-            .chain(&when_false.trivial_affine_discards)
-            .copied()
+            .affine_discard_roots()
+            .chain(when_false.affine_discard_roots())
             .collect(),
         Terminator::Return {
             cleanup_actions, ..
@@ -448,7 +446,7 @@ fn scheduled_discards(terminator: &Terminator) -> Vec<semantic_vocabulary::Place
             .collect(),
         Terminator::StructuralCase { cases, .. } => cases
             .iter()
-            .flat_map(|edge| edge.trivial_affine_discards.iter().copied())
+            .flat_map(|edge| edge.affine_discard_roots())
             .collect(),
         _ => Vec::new(),
     }

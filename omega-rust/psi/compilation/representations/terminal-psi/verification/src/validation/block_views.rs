@@ -318,7 +318,6 @@ pub(super) fn validate_successor(
     available: &BTreeSet<PlaceId>,
     dominators: &crate::control_graph::DominatorTree,
     source_block: BlockId,
-    allow_projected: bool,
 ) -> Result<(), ModuleError> {
     if arguments.len() != target.structural_parameters.len() {
         return Err(ModuleError::StructuralJumpArityMismatch {
@@ -553,14 +552,13 @@ pub(super) fn validate_successor(
         }
         if !argument.path.is_empty() {
             // A projected owned argument moves one affine child out of a live
-            // root into the target's plain affine parameter. Only Jump edges
-            // carry the residual evidence that closes the root; the path must
-            // resolve exactly to the declared child type. A machine parameter
+            // root into the target's plain affine parameter. The path must
+            // resolve exactly to the declared child type; any dying complement
+            // is named by the selected edge's residual cleanup. A machine parameter
             // root is established at entry and dominates every block, so it
             // needs no `available` row — exactly as the whole-owned branch
             // below already treats signature places.
-            if !(allow_projected
-                && expected.access == StructuralAccess::Owned
+            if !(expected.access == StructuralAccess::Owned
                 && expected.multiplicity == StructuralMultiplicity::Affine
                 && expected.qualifications.is_empty()
                 && expected.projected_qualifications.is_empty()
@@ -967,17 +965,17 @@ pub(super) fn mutable_availability(
                         (
                             when_true.target,
                             &when_true.structural_arguments,
-                            when_true.trivial_affine_discards.clone(),
+                            when_true.affine_discard_roots().collect(),
                         ),
                         (
                             when_false.target,
                             &when_false.structural_arguments,
-                            when_false.trivial_affine_discards.clone(),
+                            when_false.affine_discard_roots().collect(),
                         ),
                     ],
                     Terminator::StructuralCase { cases, .. } => cases
                         .iter()
-                        .map(|case| (case.target, &[][..], case.trivial_affine_discards.clone()))
+                        .map(|case| (case.target, &[][..], case.affine_discard_roots().collect()))
                         .collect(),
                     _ => Vec::new(),
                 };

@@ -832,20 +832,30 @@ fn establish_constructor<'a>(
                 "record operand has no structural source",
             )
         })?;
-        let paths = leaf_paths(structural_types, signature.structural_type, live.len())
+        let selected_type = leaf_type(structural_types, signature.structural_type, &argument.path)
             .ok_or_else(|| {
                 invalid(
                     function,
                     block,
                     Some(node),
-                    "record operand requires more reference leaves than are live",
+                    "constructor operand has no exact selected type",
                 )
             })?;
+        let paths = leaf_paths(structural_types, selected_type, live.len()).ok_or_else(|| {
+            invalid(
+                function,
+                block,
+                Some(node),
+                "constructor operand requires more reference leaves than are live",
+            )
+        })?;
         for path in paths {
+            let mut source_path = argument.path.clone();
+            source_path.extend_from_slice(&path);
             let position = live
                 .iter()
                 .position(|reference| {
-                    reference.carrier == argument.place && reference.carrier_path == path
+                    reference.carrier == argument.place && reference.carrier_path == source_path
                 })
                 .ok_or_else(|| {
                     invalid(
@@ -868,7 +878,9 @@ fn establish_constructor<'a>(
             relocations.push((position, destination));
         }
         if live.iter().enumerate().any(|(position, reference)| {
-            reference.carrier == argument.place && !moved.contains(&position)
+            reference.carrier == argument.place
+                && reference.carrier_path.starts_with(&argument.path)
+                && !moved.contains(&position)
         }) {
             return Err(invalid(
                 function,

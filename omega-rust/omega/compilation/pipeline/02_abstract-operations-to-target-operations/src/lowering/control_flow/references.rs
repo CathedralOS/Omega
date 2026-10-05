@@ -172,7 +172,7 @@ fn roots_overlap(left: &ReferenceRoot, right: &ReferenceRoot) -> bool {
 
 /// A live reference's payload producer and geometry after dereferencing it.
 /// Custody retains every possible origin; physical addressing loads the one
-/// address the callee returned, never a selected entry from that origin set.
+/// address stored in the carrier, never a selected entry from that origin set.
 pub(in crate::lowering) struct WritableReferentDestination {
     pub(in crate::lowering) producer: OperationId,
     pub(in crate::lowering) result: StructuralOperationResult,
@@ -181,7 +181,7 @@ pub(in crate::lowering) struct WritableReferentDestination {
     pub(in crate::lowering) path: Vec<StructuralPathSegment>,
 }
 
-fn returned_mutable_record_projection(
+fn materialized_mutable_record_projection(
     function: &AbstractFunction,
     live: &LiveDefinitions,
     types: &StructuralTypeLookup<'_>,
@@ -220,17 +220,11 @@ fn returned_mutable_record_projection(
         || !leaf.result.qualifications.is_empty()
         || !leaf.result.projected_qualifications.is_empty()
         || !leaf.result.claims.is_empty()
-        || !function.operations.iter().any(|operation| matches!(operation,
-            AbstractOperation::CallStructural {
-                psi_operation,
-                result: abstract_operations::AbstractStructuralCallResult::Structural { result, .. },
-                ..
-            } if *psi_operation == producer && result == &leaf.result))
     {
         return None;
     }
     let root = leaf.root.place();
-    // The returned loan may point into an arrival or an activation-local
+    // The materialized loan may point into an arrival or an activation-local
     // owner. Validate each possible origin through the same storage contract
     // used when lending it; its physical residence does not grant authority.
     let exact_origin = |path: &[StructuralPathSegment]| {
@@ -271,7 +265,7 @@ pub(super) fn writable_referent_destination(
     carrier: PlaceId,
     path: &[StructuralPathSegment],
 ) -> Option<WritableReferentDestination> {
-    returned_mutable_record_projection(function, live, types, carrier, path)
+    materialized_mutable_record_projection(function, live, types, carrier, path)
 }
 
 /// Borrow through the live carrier's address word, regardless of which
@@ -1701,30 +1695,32 @@ pub(super) fn record_field_leaves(
 ) -> Result<(), LoweringError> {
     let (contract, _) = source_contract(function, live, argument.place)
         .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
-    if contract != nested {
+    if leaf_type(types, contract, &argument.path) != Some(nested) {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
-    let paths = leaf_paths(types, contract, live.references.len())
+    let paths = leaf_paths(types, nested, live.references.len())
         .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
     for path in &paths {
+        let mut source_path = argument.path.clone();
+        source_path.extend_from_slice(path);
         let leaf = live
             .references
-            .get(&(argument.place, path.clone()))
+            .get(&(argument.place, source_path.clone()))
             .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
         if !moved.insert(leaf.identity.clone()) {
             return Err(LoweringError::unsupported_control_flow(function.machine));
         }
         let mut destination = vec![destination.clone()];
         destination.extend(path.iter().cloned());
-        relocations.push(((argument.place, path.clone()), destination));
+        relocations.push(((argument.place, source_path), destination));
     }
-    // Every leaf the argument carrier owns must relocate; a differing roster
-    // cannot describe the operand's declared type.
-    if live
-        .references
-        .keys()
-        .any(|(carrier, path)| *carrier == argument.place && !paths.contains(path))
-    {
+    // Only the selected subtree moves; disjoint siblings keep their custody.
+    if live.references.keys().any(|(carrier, path)| {
+        *carrier == argument.place
+            && path
+                .strip_prefix(argument.path.as_slice())
+                .is_some_and(|relative| !paths.iter().any(|selected| selected == relative))
+    }) {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     Ok(())

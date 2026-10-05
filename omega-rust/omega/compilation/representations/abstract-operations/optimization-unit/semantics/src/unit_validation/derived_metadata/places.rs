@@ -140,8 +140,13 @@ pub(crate) fn validate_operation_places(
         }
         O::StructuralCase { source, cases } => {
             require(*source, known)?;
-            for place in cases.iter().flat_map(|case| &case.trivial_affine_discards) {
-                require(*place, known)?;
+            for case in cases {
+                for place in &case.trivial_affine_discards {
+                    require(*place, known)?;
+                }
+                for discard in &case.residual_affine_discards {
+                    require(discard.place, known)?;
+                }
             }
         }
         O::Jump {

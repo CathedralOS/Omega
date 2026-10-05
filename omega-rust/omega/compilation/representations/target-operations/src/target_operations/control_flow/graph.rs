@@ -156,6 +156,7 @@ pub struct TargetControlCaseSuccessor {
     pub target: BlockId,
     pub payloads: Vec<TargetControlCasePayload>,
     pub trivial_affine_discards: Vec<semantic_vocabulary::PlaceId>,
+    pub residual_affine_discards: Vec<terminal_psi::StructuralAffineDiscard>,
 }
 
 /// A payload is defined by its destination parameter, not the sum producer.

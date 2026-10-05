@@ -99,6 +99,7 @@ pub(super) fn project(
         || retained.case != case.case
         || retained.case_tag != case.case_tag
         || !retained.trivial_affine_discards.is_empty()
+        || !retained.residual_affine_discards.is_empty()
         || retained.payloads.len() != case.payloads.len()
         || retained
             .payloads

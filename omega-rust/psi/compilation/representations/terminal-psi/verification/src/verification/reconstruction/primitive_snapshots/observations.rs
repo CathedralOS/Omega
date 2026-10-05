@@ -196,9 +196,11 @@ fn edge_preserves_custody(terminator: &Terminator, selected: semantic_vocabulary
             when_true,
             when_false,
             ..
-        } => [when_true, when_false]
-            .iter()
-            .any(|edge| edge.edge == selected && edge.trivial_affine_discards.is_empty()),
+        } => [when_true, when_false].iter().any(|edge| {
+            edge.edge == selected
+                && edge.trivial_affine_discards.is_empty()
+                && edge.residual_affine_discards.is_empty()
+        }),
         // Case dispatch can consume the selected structural carrier. Other
         // terminators have no continuation to this observation.
         _ => false,

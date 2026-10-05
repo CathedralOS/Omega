@@ -374,6 +374,12 @@ impl AddressJoinPins {
             operation,
             &moved,
         ) {
+            if std::env::var_os("OMEGA_TRACE_JOIN_CONFLICT").is_some() {
+                eprintln!(
+                    "join conflict descriptor machine={:?} block={block:?} node={node} place={place:?} operation={operation:?}",
+                    function.machine
+                );
+            }
             return Err(
                 OptimizationUnitValidationError::CurrentSharedJoinOriginDisturbed {
                     machine: function.machine,
@@ -401,6 +407,12 @@ impl AddressJoinPins {
                 _ => crate::unit_validation::function_structure::operation_place_inputs(operation),
             };
             if let Some(place) = inputs.into_iter().find(|place| pinned.contains(place)) {
+                if std::env::var_os("OMEGA_TRACE_JOIN_CONFLICT").is_some() {
+                    eprintln!(
+                        "join conflict exclusive machine={:?} block={block:?} node={node} place={place:?} pinned={pinned:?} operation={operation:?}",
+                        function.machine
+                    );
+                }
                 return Err(
                     OptimizationUnitValidationError::CurrentSharedJoinOriginDisturbed {
                         machine: function.machine,
@@ -417,6 +429,21 @@ impl AddressJoinPins {
         let disturbed = self
             .borrowed_regions
             .conflicted_operation(pinned, (block, node), &moved);
+        if let Some(place) = disturbed
+            && std::env::var_os("OMEGA_TRACE_JOIN_CONFLICT").is_some()
+        {
+            let writes = self
+                .borrowed_regions
+                .writes_at((block, node))
+                .iter()
+                .map(|access| (access.place, access.regions.len(), &access.location))
+                .collect::<Vec<_>>();
+            eprintln!(
+                "join conflict shared machine={:?} block={block:?} node={node} place={place:?} pinned_count={} writes={writes:?} operation={operation:?}",
+                function.machine,
+                pinned.len()
+            );
+        }
         match disturbed {
             Some(place) => Err(
                 OptimizationUnitValidationError::CurrentSharedJoinOriginDisturbed {

@@ -250,14 +250,14 @@ fn validate_nominal_affine_cleanup(
     Ok(())
 }
 
-/// The residual affine discards of a jump or partial affine return name
+/// The residual affine discards of a selected edge or partial return name
 /// distinct claim-free affine paths whose leaf type matches the path.
 fn validate_partial_affine_discards(
     module: &TerminalModule,
     machine: &TerminalMachine,
     block: &Block,
 ) -> Result<(), CodecError> {
-    let (trivial_affine_discards, residual_affine_discards) = match &block.terminator {
+    let rosters = match &block.terminator {
         Terminator::ReturnUnitPartialAffine {
             trivial_affine_discards,
             residual_affine_discards,
@@ -270,65 +270,94 @@ fn validate_partial_affine_discards(
                     "partial affine cleanup requires a Unit result and a residual action",
                 );
             }
-            (trivial_affine_discards, residual_affine_discards)
+            vec![(trivial_affine_discards, residual_affine_discards)]
         }
         Terminator::Jump {
             trivial_affine_discards,
             residual_affine_discards,
             ..
-        } => (trivial_affine_discards, residual_affine_discards),
+        } => vec![(trivial_affine_discards, residual_affine_discards)],
+        Terminator::Conditional {
+            when_true,
+            when_false,
+            ..
+        } => [when_true, when_false]
+            .into_iter()
+            .map(|edge| {
+                (
+                    &edge.trivial_affine_discards,
+                    &edge.residual_affine_discards,
+                )
+            })
+            .collect(),
+        Terminator::StructuralCase { cases, .. } => cases
+            .iter()
+            .map(|edge| {
+                (
+                    &edge.trivial_affine_discards,
+                    &edge.residual_affine_discards,
+                )
+            })
+            .collect(),
         _ => return Ok(()),
     };
-    for discard in residual_affine_discards {
-        let parameter = machine
-            .structural_parameters
-            .iter()
-            .find(|parameter| parameter.place == discard.place);
-        let block_parameter = || {
-            let declaration = machine
-                .structural_places
-                .iter()
-                .find(|declaration| declaration.id == discard.place)?;
-            let StructuralPlaceKind::BlockParameter { block, position } = declaration.kind else {
-                return None;
-            };
-            machine
-                .blocks
-                .iter()
-                .find(|candidate| candidate.id == block)?
+    for (trivial_affine_discards, residual_affine_discards) in rosters {
+        for discard in residual_affine_discards {
+            let parameter = machine
                 .structural_parameters
-                .get(position as usize)
-                .filter(|parameter| {
-                    parameter.place == discard.place && parameter.position == position
-                })
-        };
-        let supported_root = parameter.map_or_else(
-            || {
-                is_plain_affine_call_result(machine, discard.place)
-                    || block_parameter().is_some_and(|parameter| {
-                        parameter.multiplicity == StructuralMultiplicity::Affine
-                            && parameter.access == terminal_psi::StructuralAccess::Owned
-                            && parameter.qualifications.is_empty()
-                            && parameter.projected_qualifications.is_empty()
-                    })
-            },
-            |parameter| parameter.multiplicity == StructuralMultiplicity::Affine,
-        );
-        if !supported_root
-            || discard.path.is_empty()
-            || trivial_affine_discards.contains(&discard.place)
-            || machine
-                .entry_claims
                 .iter()
-                .any(|claim| claim.input == discard.place)
-        {
-            return malformed("partial affine cleanup is not a distinct claim-free affine path");
-        }
-        let Some(root_type) = structural_place_type(machine, discard.place) else {
-            return malformed("partial affine cleanup has no exact structural root type");
-        };
-        if validate_structural_path(module, root_type, &discard.path)? != discard.structural_type {
-            return malformed("partial affine cleanup leaf type does not match its path");
+                .find(|parameter| parameter.place == discard.place);
+            let block_parameter = || {
+                let declaration = machine
+                    .structural_places
+                    .iter()
+                    .find(|declaration| declaration.id == discard.place)?;
+                let StructuralPlaceKind::BlockParameter { block, position } = declaration.kind
+                else {
+                    return None;
+                };
+                machine
+                    .blocks
+                    .iter()
+                    .find(|candidate| candidate.id == block)?
+                    .structural_parameters
+                    .get(position as usize)
+                    .filter(|parameter| {
+                        parameter.place == discard.place && parameter.position == position
+                    })
+            };
+            let supported_root = parameter.map_or_else(
+                || {
+                    is_plain_affine_call_result(machine, discard.place)
+                        || block_parameter().is_some_and(|parameter| {
+                            parameter.multiplicity == StructuralMultiplicity::Affine
+                                && parameter.access == terminal_psi::StructuralAccess::Owned
+                                && parameter.qualifications.is_empty()
+                                && parameter.projected_qualifications.is_empty()
+                        })
+                },
+                |parameter| parameter.multiplicity == StructuralMultiplicity::Affine,
+            );
+            if !supported_root
+                || discard.path.is_empty()
+                || trivial_affine_discards.contains(&discard.place)
+                || machine
+                    .entry_claims
+                    .iter()
+                    .any(|claim| claim.input == discard.place)
+            {
+                return malformed(
+                    "partial affine cleanup is not a distinct claim-free affine path",
+                );
+            }
+            let Some(root_type) = structural_place_type(machine, discard.place) else {
+                return malformed("partial affine cleanup has no exact structural root type");
+            };
+            if validate_structural_path(module, root_type, &discard.path)?
+                != discard.structural_type
+            {
+                return malformed("partial affine cleanup leaf type does not match its path");
+            }
         }
     }
     Ok(())

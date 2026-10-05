@@ -136,7 +136,7 @@ pub(super) fn accepts(
                     &declarations,
                     &edge.structural_bindings,
                     &edge.trivial_affine_discards,
-                    &[],
+                    &edge.residual_affine_discards,
                     types,
                 )
         }),

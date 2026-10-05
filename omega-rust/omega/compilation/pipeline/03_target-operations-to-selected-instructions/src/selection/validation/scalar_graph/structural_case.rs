@@ -324,6 +324,7 @@ fn successor(
         || retained.case != expected.case
         || retained.case_tag != expected.case_tag
         || retained.trivial_affine_discards != expected.trivial_affine_discards
+        || retained.residual_affine_discards != expected.residual_affine_discards
         || retained.payloads.len() != expected.payloads.len()
     {
         return Err(SelectedInstructionError::custody());

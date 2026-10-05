@@ -149,7 +149,9 @@ pub(super) fn body(function: &PsiOptimizationFunction) -> bool {
                     ..
                 } => {
                     when_true.trivial_affine_discards.is_empty()
+                        && when_true.residual_affine_discards.is_empty()
                         && when_false.trivial_affine_discards.is_empty()
+                        && when_false.residual_affine_discards.is_empty()
                 }
                 _ => false,
             })

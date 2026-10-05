@@ -322,6 +322,13 @@ fn case_payload_codec_retains_every_semantic_and_transport_field() {
             transport: SelectedCasePayloadTransport::Unused,
         }],
         trivial_affine_discards: vec![PlaceId::new(11).unwrap()],
+        residual_affine_discards: vec![terminal_psi::StructuralAffineDiscard {
+            place: PlaceId::new(12).unwrap(),
+            path: vec![terminal_psi::StructuralPathSegment::Field(
+                "remaining".into(),
+            )],
+            structural_type: semantic_vocabulary::StructuralTypeId::new(4).unwrap(),
+        }],
     });
     let mut encodings = Vec::new();
     for transport in [
@@ -348,7 +355,7 @@ fn case_payload_codec_retains_every_semantic_and_transport_field() {
     }
     assert_ne!(encodings[0], encodings[1]);
     assert_ne!(encodings[1], encodings[2]);
-    for mutation in 0..6 {
+    for mutation in 0..7 {
         let mut changed = original.clone();
         let case = changed.structural_case.as_mut().unwrap();
         match mutation {
@@ -356,6 +363,7 @@ fn case_payload_codec_retains_every_semantic_and_transport_field() {
             1 => case.payloads[0].semantic.field_byte_offset += 4,
             2 => case.payloads[0].semantic.parameter.value = ValueId::new(10).unwrap(),
             3 => case.trivial_affine_discards.clear(),
+            6 => case.residual_affine_discards.clear(),
             4 => {
                 case.source = SelectedCaseDispatchSource::Local {
                     slot: LocalStorageSlotId::Boundary {

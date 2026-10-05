@@ -300,6 +300,40 @@ impl ScalarBindings {
         Ok(place)
     }
 
+    /// Join a source observation's declared root to the storage actually
+    /// published for it. Borrowed ingress already names its referent; a stored
+    /// reference instead requires an explicit pointer crossing.
+    pub(crate) fn structural_observation_path(
+        &self,
+        place: PlaceId,
+        observed_root: StructuralTypeId,
+        path: &[terminal_psi::StructuralPathSegment],
+    ) -> Result<Vec<terminal_psi::StructuralPathSegment>, LoweringError> {
+        let root = self
+            .structural_place_type(place)
+            .ok_or(LoweringError::Unsupported(
+                "structural observation has no established root type",
+            ))?;
+        if root == observed_root {
+            return Ok(path.to_vec());
+        }
+        let declaration = self
+            .structural_fields
+            .declarations()
+            .iter()
+            .find(|row| row.id == root);
+        if !matches!(declaration.map(|row| &row.shape),
+            Some(terminal_psi::StructuralTypeShape::Reference { referent, access })
+                if *referent == observed_root && matches!(access,
+                    StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow))
+        {
+            return unsupported("structural observation changes its established root type");
+        }
+        let mut selected = vec![terminal_psi::StructuralPathSegment::Referent];
+        selected.extend_from_slice(path);
+        Ok(selected)
+    }
+
     /// Resolve the exact published carrier at a live source place.
     pub(crate) fn structural_place_type(&self, place: PlaceId) -> Option<StructuralTypeId> {
         let mut types = self

@@ -354,14 +354,14 @@ fn terminator_leaves_custody(
             edge_leaves_custody(
                 &edge.structural_arguments,
                 &edge.trivial_affine_discards,
-                &[],
+                &edge.residual_affine_discards,
             )
         }),
         Terminator::StructuralCase { source, cases } => {
             clears(source)
                 && cases
                     .iter()
-                    .all(|case| case.trivial_affine_discards.iter().all(clears))
+                    .all(|case| case.affine_discard_roots().all(|place| clears(&place)))
         }
         Terminator::Return {
             cleanup_actions, ..
@@ -528,14 +528,12 @@ fn terminator_discards(terminator: &Terminator) -> Vec<PlaceId> {
             when_false,
             ..
         } => when_true
-            .trivial_affine_discards
-            .iter()
-            .copied()
-            .chain(when_false.trivial_affine_discards.iter().copied())
+            .affine_discard_roots()
+            .chain(when_false.affine_discard_roots())
             .collect(),
         Terminator::StructuralCase { cases, .. } => cases
             .iter()
-            .flat_map(|case| case.trivial_affine_discards.iter().copied())
+            .flat_map(|case| case.affine_discard_roots())
             .collect(),
         Terminator::Return {
             cleanup_actions, ..

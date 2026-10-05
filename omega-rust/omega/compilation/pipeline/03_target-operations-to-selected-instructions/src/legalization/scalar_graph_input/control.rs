@@ -203,6 +203,7 @@ pub(super) fn validate(
                     || actual.bindings != expected.bindings
                     || actual.structural_bindings != expected.structural_bindings
                     || actual.trivial_affine_discards != expected.trivial_affine_discards
+                    || actual.residual_affine_discards != expected.residual_affine_discards
                 {
                     return Err(LegalizationError::custody());
                 }

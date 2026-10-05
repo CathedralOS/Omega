@@ -160,16 +160,14 @@ impl BlockBindings {
 }
 
 impl TerminalExecution {
-    /// `allow_projected` selects the Jump-edge lane: an owned argument may
-    /// carry a projection path that moves one affine child out of a live
-    /// root. Other successor kinds cannot express the residual complement,
-    /// so they must keep rejecting path-bearing owned arguments.
+    /// Snapshot a selected edge's operands, including projected affine children.
+    /// The caller commits each exact transfer and any residual cleanup before
+    /// installing these bindings at the destination.
     pub(crate) fn prepare_block_bindings(
         &self,
         target: BlockId,
         arguments: &[ValueId],
         structural_arguments: &[StructuralArgument],
-        allow_projected: bool,
     ) -> Result<BlockBindings, TerminalInterpretError> {
         let machine = self.program.machines.get(&self.current_machine).ok_or(
             TerminalInterpretError::VerifiedCallTargetMissing(self.current_machine),
@@ -226,7 +224,7 @@ impl TerminalExecution {
                     && !(matches!(
                         parameter.access,
                         StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
-                    ) || (allow_projected && parameter.access == StructuralAccess::Owned)))
+                    ) || parameter.access == StructuralAccess::Owned))
             {
                 return Err(TerminalInterpretError::VerifiedOperationMalformed);
             }

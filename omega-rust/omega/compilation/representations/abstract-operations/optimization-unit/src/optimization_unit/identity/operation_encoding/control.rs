@@ -53,6 +53,7 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
                     encode_scalar_type(bytes, payload.scalar_type);
                 }
                 encode_ids(bytes, &case.trivial_affine_discards);
+                bytes.slice(&case.residual_affine_discards, encode_residual_cleanup);
             }
         }
         O::Return {
@@ -118,4 +119,5 @@ fn encode_successor(bytes: &mut CanonicalBytes, successor: &AbstractSuccessor) {
     bytes.slice(&successor.bindings, encode_binding);
     bytes.slice(&successor.structural_bindings, encode_structural_binding);
     encode_ids(bytes, &successor.trivial_affine_discards);
+    bytes.slice(&successor.residual_affine_discards, encode_residual_cleanup);
 }

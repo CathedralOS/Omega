@@ -302,6 +302,7 @@ pub(super) fn matches(
                 || actual.case != declared.id
                 || i32::try_from(case_position).ok() != Some(actual.case_tag)
                 || actual.trivial_affine_discards != expected.trivial_affine_discards
+                || actual.residual_affine_discards != expected.residual_affine_discards
                 || actual.payloads.len() != expected.payloads.len()
                 || actual.payloads.len() != target.parameters.len()
                 || !target.structural_parameters.is_empty()

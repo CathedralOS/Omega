@@ -274,12 +274,20 @@ pub(super) fn lower_terminator(
     // Owned parameters owe the same no-code disposition after observation;
     // current ownership validation, not their physical home kind, establishes
     // availability and exact disposal order.
-    let cleanup = |live: &mut LiveDefinitions, places: &[PlaceId]| {
-        let actions = places
+    let cleanup = |live: &mut LiveDefinitions,
+                   places: &[PlaceId],
+                   residuals: &[terminal_psi::StructuralAffineDiscard]| {
+        let mut actions = places
             .iter()
             .copied()
             .map(TerminalAffineCleanupAction::DiscardRoot)
             .collect::<Vec<_>>();
+        actions.extend(
+            residuals
+                .iter()
+                .cloned()
+                .map(TerminalAffineCleanupAction::DiscardResidual),
+        );
         if !plain_home_cleanup(function, live, structural_types, &actions)? {
             return Err(LoweringError::unsupported_control_flow(function.machine));
         }
@@ -293,7 +301,11 @@ pub(super) fn lower_terminator(
             target: edge.target,
             bindings: edge.bindings.clone(),
             structural_bindings: edge.structural_bindings.clone(),
-            cleanup_actions: cleanup(live, &edge.trivial_affine_discards)?,
+            cleanup_actions: cleanup(
+                live,
+                &edge.trivial_affine_discards,
+                &edge.residual_affine_discards,
+            )?,
         })
     };
     match operation {
@@ -563,20 +575,7 @@ pub(super) fn lower_terminator(
             }) {
                 return Err(LoweringError::unsupported_control_flow(function.machine));
             }
-            let mut cleanup_actions = trivial_affine_discards
-                .iter()
-                .copied()
-                .map(TerminalAffineCleanupAction::DiscardRoot)
-                .collect::<Vec<_>>();
-            cleanup_actions.extend(
-                residual_affine_discards
-                    .iter()
-                    .cloned()
-                    .map(TerminalAffineCleanupAction::DiscardResidual),
-            );
-            if !plain_home_cleanup(function, live, structural_types, &cleanup_actions)? {
-                return Err(LoweringError::unsupported_control_flow(function.machine));
-            }
+            let cleanup_actions = cleanup(live, trivial_affine_discards, residual_affine_discards)?;
             provenance.edges.push(*psi_edge);
             Ok(TargetControlTerminator::Jump {
                 successor: TargetControlSuccessor {
@@ -630,11 +629,19 @@ pub(super) fn lower_terminator(
             provenance
                 .edges
                 .extend([when_true.psi_edge, when_false.psi_edge]);
+            let mut true_exit = live.clone();
+            let mut false_exit = live.clone();
+            let lowered_true = successor(&mut true_exit, when_true)?;
+            let lowered_false = successor(&mut false_exit, when_false)?;
+            live.finish_reference_edges(vec![
+                true_exit.reference_edge_exit(when_true.target),
+                false_exit.reference_edge_exit(when_false.target),
+            ]);
             Ok(TargetControlTerminator::Conditional {
                 condition_source: *condition,
                 condition: expression,
-                when_true: successor(live, when_true)?,
-                when_false: successor(live, when_false)?,
+                when_true: lowered_true,
+                when_false: lowered_false,
             })
         }
         _ => Err(LoweringError::unsupported_control_flow(function.machine)),

@@ -578,7 +578,11 @@ fn edge_stops(successor: &SelectedSuccessor, moved: &Moved, carried: &Carried) -
             SubjectStorage::Staging(slot) => case.source.local_slot() == Some(slot),
         };
         let discard_touches = matches!(moved.storage, SubjectStorage::Place)
-            && case.trivial_affine_discards.contains(&moved.place);
+            && (case.trivial_affine_discards.contains(&moved.place)
+                || case
+                    .residual_affine_discards
+                    .iter()
+                    .any(|discard| discard.place == moved.place));
         if slot_touches || discard_touches {
             return true;
         }

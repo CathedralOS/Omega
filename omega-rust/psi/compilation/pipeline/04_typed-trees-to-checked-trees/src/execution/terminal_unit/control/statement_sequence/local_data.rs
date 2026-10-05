@@ -10,8 +10,8 @@
 //! establish their binding directly. What remains is a call initializer:
 //! its result binding goes back to the sequence, which plans the call.
 //!
-//! Place-loan locals precede structural construction: an alias has no new
-//! result home. Runtime scalar parameters are backing roots alongside
+//! Reference captures precede structural construction and establish their
+//! descriptor bindings. Runtime scalar parameters are backing roots alongside
 //! structural parameters and earlier locals; their view reads retain the
 //! parameter's declared carrier for ordinary representation-view replay.
 //! Passing such an alias onward still requires its backing storage to be

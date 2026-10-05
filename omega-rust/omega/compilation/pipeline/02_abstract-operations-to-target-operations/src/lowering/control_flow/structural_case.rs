@@ -250,6 +250,7 @@ pub(super) fn lower(
         return Err(invalid());
     }
     let mut lowered = Vec::with_capacity(cases.len());
+    let mut reference_exits = Vec::with_capacity(cases.len());
     for (case_ordinal, (case, declared)) in cases.iter().zip(declared_cases).enumerate() {
         let target = function
             .block_entries
@@ -268,15 +269,28 @@ pub(super) fn lower(
         // qualifications. This checks the supported cleanup carrier, not
         // ownership liveness; the validated abstract graph remains the
         // custody authority.
-        let discards = case
+        let mut discards = case
             .trivial_affine_discards
             .iter()
             .copied()
             .map(terminal_psi::TerminalAffineCleanupAction::DiscardRoot)
             .collect::<Vec<_>>();
-        if !super::terminator::plain_home_cleanup(function, live, structural_types, &discards)? {
+        discards.extend(
+            case.residual_affine_discards
+                .iter()
+                .cloned()
+                .map(terminal_psi::TerminalAffineCleanupAction::DiscardResidual),
+        );
+        let mut edge_live = live.clone();
+        if !super::terminator::plain_home_cleanup(
+            function,
+            &mut edge_live,
+            structural_types,
+            &discards,
+        )? {
             return Err(invalid());
         }
+        reference_exits.push(edge_live.reference_edge_exit(case.target));
         let fields = declared
             .fields
             .iter()
@@ -322,8 +336,10 @@ pub(super) fn lower(
             target: case.target,
             payloads,
             trivial_affine_discards: case.trivial_affine_discards.clone(),
+            residual_affine_discards: case.residual_affine_discards.clone(),
         });
     }
+    live.finish_reference_edges(reference_exits);
     provenance
         .edges
         .extend(cases.iter().map(|case| case.psi_edge));

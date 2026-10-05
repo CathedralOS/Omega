@@ -213,7 +213,6 @@ pub(super) fn validate_block(
                 &available_structural,
                 dominators,
                 block_id,
-                true,
             )?;
         }
         Terminator::Conditional {
@@ -240,7 +239,6 @@ pub(super) fn validate_block(
                     &available_structural,
                     dominators,
                     block_id,
-                    false,
                 )?;
                 validate_successor_bindings(
                     successor.edge,
@@ -276,7 +274,6 @@ pub(super) fn validate_block(
                     &available_structural,
                     dominators,
                     block_id,
-                    false,
                 )?;
             }
             let source_signature =

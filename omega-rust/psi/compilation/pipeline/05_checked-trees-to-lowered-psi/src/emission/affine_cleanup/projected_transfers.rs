@@ -177,7 +177,14 @@ pub(super) fn complete(
                     for argument in &edge.structural_arguments {
                         transfer(&mut branch, argument)?;
                     }
-                    refuse_unrepresentable_discard(&branch, &edge.trivial_affine_discards)?;
+                    close_existing(&mut branch, &edge.residual_affine_discards, &roots, types)?;
+                    rewrite_discards(
+                        &mut branch,
+                        &mut edge.trivial_affine_discards,
+                        &mut edge.residual_affine_discards,
+                        &roots,
+                        types,
+                    )?;
                     successors.push((edge.target, branch));
                 }
             }
@@ -186,8 +193,16 @@ pub(super) fn complete(
                     return unsupported("case inspection consumes a partially transferred root");
                 }
                 for edge in cases {
-                    refuse_unrepresentable_discard(&frontier, &edge.trivial_affine_discards)?;
-                    successors.push((edge.target, frontier.clone()));
+                    let mut branch = frontier.clone();
+                    close_existing(&mut branch, &edge.residual_affine_discards, &roots, types)?;
+                    rewrite_discards(
+                        &mut branch,
+                        &mut edge.trivial_affine_discards,
+                        &mut edge.residual_affine_discards,
+                        &roots,
+                        types,
+                    )?;
+                    successors.push((edge.target, branch));
                 }
             }
             Terminator::Return {
@@ -249,7 +264,7 @@ pub(super) fn complete(
             }
             Terminator::Crash { .. } => {}
         }
-        match &mut completed[position] {
+        let residual_rosters = match &mut completed[position] {
             Terminator::Jump {
                 residual_affine_discards,
                 ..
@@ -257,35 +272,48 @@ pub(super) fn complete(
             | Terminator::ReturnUnitPartialAffine {
                 residual_affine_discards,
                 ..
-            } => {
-                if residual_affine_discards.iter().any(|discard| {
-                    !producers.iter().any(|(place, _)| *place == discard.place)
-                        && !parameter_order.contains(&discard.place)
-                }) {
-                    return unsupported(
-                        "residual cleanup root is absent from the emitted ownership roster",
-                    );
-                }
-                // Operation results precede block and machine parameters.
-                // Simultaneously live block roots have comparable dominating
-                // definitions; reverse dominance/declaration order is exactly
-                // the receiver's disposal order, independent of block IDs.
-                residual_affine_discards.sort_by_key(|discard| {
-                    if let Some((_, producer)) =
-                        producers.iter().find(|(place, _)| *place == discard.place)
-                    {
-                        (0u8, std::cmp::Reverse(u128::from(producer.get())))
-                    } else if let Some(position) = parameter_order
-                        .iter()
-                        .rposition(|place| *place == discard.place)
-                    {
-                        (1, std::cmp::Reverse(position as u128))
-                    } else {
-                        unreachable!("residual root roster validated above")
-                    }
-                });
+            } => vec![residual_affine_discards],
+            Terminator::Conditional {
+                when_true,
+                when_false,
+                ..
+            } => vec![
+                &mut when_true.residual_affine_discards,
+                &mut when_false.residual_affine_discards,
+            ],
+            Terminator::StructuralCase { cases, .. } => cases
+                .iter_mut()
+                .map(|edge| &mut edge.residual_affine_discards)
+                .collect(),
+            _ => Vec::new(),
+        };
+        for residual_affine_discards in residual_rosters {
+            if residual_affine_discards.iter().any(|discard| {
+                !producers.iter().any(|(place, _)| *place == discard.place)
+                    && !parameter_order.contains(&discard.place)
+            }) {
+                return unsupported(
+                    "residual cleanup root is absent from the emitted ownership roster",
+                );
             }
-            _ => {}
+            // Operation results precede block and machine parameters.
+            // Simultaneously live block roots have comparable dominating
+            // definitions; reverse dominance/declaration order is exactly
+            // the receiver's disposal order, independent of block IDs.
+            residual_affine_discards.sort_by_key(|discard| {
+                if let Some((_, producer)) =
+                    producers.iter().find(|(place, _)| *place == discard.place)
+                {
+                    (0u8, std::cmp::Reverse(u128::from(producer.get())))
+                } else if let Some(position) = parameter_order
+                    .iter()
+                    .rposition(|place| *place == discard.place)
+                {
+                    (1, std::cmp::Reverse(position as u128))
+                } else {
+                    unreachable!("residual root roster validated above")
+                }
+            });
         }
         for (target, mut outgoing) in successors {
             // Empty ownership complements do not end the storage occurrence:
@@ -455,19 +483,6 @@ fn close_existing(
         closed.push(root.place);
     }
     frontier.retain(|root| !closed.contains(&root.place));
-    Ok(())
-}
-
-fn refuse_unrepresentable_discard(
-    frontier: &Frontier,
-    whole: &[PlaceId],
-) -> Result<(), LoweringError> {
-    if whole
-        .iter()
-        .any(|place| frontier.iter().any(|root| root.place == *place))
-    {
-        return unsupported("projected cleanup requires the emitted residual-capable continuation");
-    }
     Ok(())
 }
 

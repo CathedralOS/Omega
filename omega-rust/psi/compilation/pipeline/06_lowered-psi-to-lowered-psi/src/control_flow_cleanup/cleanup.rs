@@ -71,7 +71,7 @@ pub(super) fn cleanup(
                     erased_proof_arguments: taken.erased_proof_arguments.clone(),
                     structural_arguments: taken.structural_arguments.clone(),
                     trivial_affine_discards: taken.trivial_affine_discards.clone(),
-                    residual_affine_discards: Vec::new(),
+                    residual_affine_discards: taken.residual_affine_discards.clone(),
                 },
             )
         };

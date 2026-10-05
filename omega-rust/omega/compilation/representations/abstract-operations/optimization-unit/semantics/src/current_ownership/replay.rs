@@ -955,29 +955,20 @@ pub(super) fn validate_current_ownership_cfg(
                 &frontier,
             )?;
             let mut outgoing = frontier.clone();
-            if matches!(
-                block
-                    .nodes
-                    .last()
-                    .expect("validated block is nonempty")
-                    .operation,
-                O::Jump { .. }
-            ) {
-                apply_edge_partial_affine_discards(
-                    function,
-                    structural_types,
-                    block_id,
-                    &mut outgoing,
-                    &edge.trivial_affine_discards,
-                    &edge.residual_affine_discards,
-                )?;
-            }
             apply_edge_trivial_affine_discards(
                 function,
                 structural_types,
                 block_id,
                 &mut outgoing,
                 &edge.trivial_affine_discards,
+            )?;
+            apply_edge_partial_affine_discards(
+                function,
+                structural_types,
+                block_id,
+                &mut outgoing,
+                &edge.trivial_affine_discards,
+                &edge.residual_affine_discards,
             )?;
             bind_owned_parameters(
                 function,

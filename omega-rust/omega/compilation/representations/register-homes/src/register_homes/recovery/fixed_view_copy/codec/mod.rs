@@ -1,7 +1,7 @@
 //! Optimizer module role: executable entrance. Versioned fixed-view-copy artifact envelope.
 //!
-//! Owns admission and authentication order. V46 removes implicit receiver
-//! flags from parameter declarations and provider signatures.
+//! Owns admission and authentication order. V47 retains projected residual
+//! cleanup on structural case edges.
 //! Atomic field identity remains distinct from its scalar representation.
 //! Every older envelope is rejected before its payload is interpreted.
 
@@ -14,11 +14,11 @@ mod primitives;
 mod selected;
 mod values;
 
-use self::envelope::v46_identity;
+use self::envelope::v47_identity;
 use crate::{FixedViewCopyDecodeError, FixedViewCopyPlan};
 
 const MAGIC: &[u8; 8] = b"OMGFCV\0\0";
-const VERSION: u32 = 46;
+const VERSION: u32 = 47;
 impl FixedViewCopyPlan {
     /// Canonical self-authenticating artifact. Decoding returns plain content;
     /// independent fixed-view-copy validation is still required for custody.
@@ -28,7 +28,7 @@ impl FixedViewCopyPlan {
         let mut encoded = Vec::new();
         encoded.extend_from_slice(MAGIC);
         encoded.extend_from_slice(&VERSION.to_le_bytes());
-        encoded.extend_from_slice(&v46_identity(self, &content));
+        encoded.extend_from_slice(&v47_identity(self, &content));
         encoded.extend_from_slice(&content);
         Ok(encoded)
     }

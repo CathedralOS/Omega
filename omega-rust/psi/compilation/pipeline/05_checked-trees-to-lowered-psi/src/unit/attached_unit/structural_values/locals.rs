@@ -14,6 +14,7 @@ pub(crate) fn bind_local(
     caller_state: symbols::SymbolHandle,
     operation: &CheckedUnitEffectOperationPlan,
     declaration: terminal_psi::StructuralPlaceDeclaration,
+    structural_types: &[terminal_psi::StructuralTypeDeclaration],
     locals: &mut Vec<crate::expression_preparation::bindings::StructuralLocalBinding>,
 ) -> Result<(), LoweringError> {
     let (result, expression) = match operation {
@@ -98,7 +99,17 @@ pub(crate) fn bind_local(
             structural_type,
             argument: terminal_psi::StructuralArgument {
                 place: declaration.id,
-                access: borrowed_access.unwrap_or(terminal_psi::StructuralAccess::Owned),
+                access: if structural_types.iter().any(|declaration| {
+                    declaration.id == structural_type
+                        && matches!(
+                            declaration.shape,
+                            terminal_psi::StructuralTypeShape::Reference { .. }
+                        )
+                }) {
+                    terminal_psi::StructuralAccess::Owned
+                } else {
+                    borrowed_access.unwrap_or(terminal_psi::StructuralAccess::Owned)
+                },
                 path: Vec::new(),
             },
         },

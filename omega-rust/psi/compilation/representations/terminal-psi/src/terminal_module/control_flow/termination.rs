@@ -223,3 +223,25 @@ pub struct StructuralCaseSuccessorEdge {
     /// Exact maximal live residual subtrees disposed after payload observation.
     pub residual_affine_discards: Vec<StructuralAffineDiscard>,
 }
+
+impl SuccessorEdge {
+    /// Roots whose whole value or exact remaining subtrees this edge disposes.
+    pub fn affine_discard_roots(&self) -> impl Iterator<Item = PlaceId> + '_ {
+        self.trivial_affine_discards.iter().copied().chain(
+            self.residual_affine_discards
+                .iter()
+                .map(|discard| discard.place),
+        )
+    }
+}
+
+impl StructuralCaseSuccessorEdge {
+    /// Roots whose whole value or exact remaining subtrees this edge disposes.
+    pub fn affine_discard_roots(&self) -> impl Iterator<Item = PlaceId> + '_ {
+        self.trivial_affine_discards.iter().copied().chain(
+            self.residual_affine_discards
+                .iter()
+                .map(|discard| discard.place),
+        )
+    }
+}

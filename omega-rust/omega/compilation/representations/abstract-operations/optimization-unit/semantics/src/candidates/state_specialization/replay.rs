@@ -362,6 +362,7 @@ fn plan_dispatch(
                 if arm.target != dispatch
                     || !arm.structural_bindings.is_empty()
                     || !arm.trivial_affine_discards.is_empty()
+                    || !arm.residual_affine_discards.is_empty()
                 {
                     continue;
                 }
@@ -657,6 +658,7 @@ fn fused_node(
                 if arm.target != dispatch
                     || !arm.structural_bindings.is_empty()
                     || !arm.trivial_affine_discards.is_empty()
+                    || !arm.residual_affine_discards.is_empty()
                 {
                     return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
                 }
@@ -681,6 +683,7 @@ fn fused_node(
                     bindings: fused.bindings.clone(),
                     structural_bindings: fused.structural_bindings.clone(),
                     trivial_affine_discards: fused.trivial_affine_discards.clone(),
+                    residual_affine_discards: fused.residual_affine_discards.clone(),
                 };
                 successors[index] = fused;
             }

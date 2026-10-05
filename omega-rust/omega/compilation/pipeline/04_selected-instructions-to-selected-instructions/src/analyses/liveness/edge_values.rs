@@ -321,7 +321,8 @@ fn validate_case_transport(
     if case.source.place().is_none()
         || case.case_tag < 0
         || (edge.role == SelectedSuccessorRole::EdgeTransferContinuation
-            && !case.trivial_affine_discards.is_empty())
+            && (!case.trivial_affine_discards.is_empty()
+                || !case.residual_affine_discards.is_empty()))
     {
         return Err(mismatch());
     }

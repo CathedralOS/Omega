@@ -2,7 +2,8 @@
 
 use super::super::CodecError;
 use super::super::contract_wire::{
-    decode_crash_predicate, decode_successor_edge, encode_crash_predicate, encode_successor_edge,
+    decode_crash_predicate, decode_residual_affine_discards, decode_successor_edge,
+    encode_crash_predicate, encode_residual_affine_discards, encode_successor_edge,
 };
 use super::super::wire::{Reader, Writer};
 use crate::sections::semantic_module::proof_term_wire::{decode_proof_terms, encode_proof_terms};
@@ -166,13 +167,22 @@ pub(super) fn encode_terminator(
             when_true,
             when_false,
         } => {
-            writer.u8(3);
+            let projected = !when_true.residual_affine_discards.is_empty()
+                || !when_false.residual_affine_discards.is_empty();
+            writer.u8(if projected { 11 } else { 3 });
             writer.id(*condition);
-            encode_successor_edge(writer, when_true)?;
-            encode_successor_edge(writer, when_false)?;
+            for edge in [when_true, when_false] {
+                encode_successor_edge(writer, edge)?;
+                if projected {
+                    encode_residual_affine_discards(writer, &edge.residual_affine_discards)?;
+                }
+            }
         }
         Terminator::StructuralCase { source, cases } => {
-            writer.u8(9);
+            let projected = cases
+                .iter()
+                .any(|edge| !edge.residual_affine_discards.is_empty());
+            writer.u8(if projected { 12 } else { 9 });
             writer.id(*source);
             writer.len("structural case successors", cases.len())?;
             for case in cases {
@@ -189,6 +199,9 @@ pub(super) fn encode_terminator(
                 )?;
                 for place in &case.trivial_affine_discards {
                     writer.id(*place);
+                }
+                if projected {
+                    encode_residual_affine_discards(writer, &case.residual_affine_discards)?;
                 }
             }
         }
@@ -257,11 +270,29 @@ pub(super) fn decode_terminator(reader: &mut Reader<'_>) -> Result<Terminator, C
             value: reader.id("ValueId")?,
             cleanup_actions: decode_counted(reader, decode_affine_cleanup_action)?,
         },
-        3 => Terminator::Conditional {
-            condition: reader.id("ValueId")?,
-            when_true: decode_successor_edge(reader)?,
-            when_false: decode_successor_edge(reader)?,
-        },
+        tag @ (3 | 11) => {
+            let condition = reader.id("ValueId")?;
+            let mut decode_edge = || {
+                let mut edge = decode_successor_edge(reader)?;
+                if tag == 11 {
+                    edge.residual_affine_discards = decode_residual_affine_discards(reader)?;
+                }
+                Ok::<_, CodecError>(edge)
+            };
+            let when_true = decode_edge()?;
+            let when_false = decode_edge()?;
+            if tag == 11
+                && when_true.residual_affine_discards.is_empty()
+                && when_false.residual_affine_discards.is_empty()
+            {
+                return Err(CodecError::NonCanonicalEncoding);
+            }
+            Terminator::Conditional {
+                condition,
+                when_true,
+                when_false,
+            }
+        }
         4 => {
             let edge = reader.id("EdgeId")?;
             let cause = match reader.u8()? {
@@ -320,19 +351,31 @@ pub(super) fn decode_terminator(reader: &mut Reader<'_>) -> Result<Terminator, C
                 })
             })?,
         },
-        9 => Terminator::StructuralCase {
-            source: reader.id("PlaceId")?,
-            cases: decode_counted(reader, |reader| {
+        tag @ (9 | 12) => {
+            let source = reader.id("PlaceId")?;
+            let cases = decode_counted(reader, |reader| {
                 Ok(StructuralCaseSuccessorEdge {
                     edge: reader.id("EdgeId")?,
                     target: reader.id("BlockId")?,
                     case: reader.id("StructuralCaseId")?,
                     payload_fields: decode_ids(reader, "StructuralFieldId")?,
                     trivial_affine_discards: decode_ids(reader, "PlaceId")?,
-                    residual_affine_discards: Vec::new(),
+                    residual_affine_discards: if tag == 12 {
+                        decode_residual_affine_discards(reader)?
+                    } else {
+                        Vec::new()
+                    },
                 })
-            })?,
-        },
+            })?;
+            if tag == 12
+                && cases
+                    .iter()
+                    .all(|edge| edge.residual_affine_discards.is_empty())
+            {
+                return Err(CodecError::NonCanonicalEncoding);
+            }
+            Terminator::StructuralCase { source, cases }
+        }
         tag => return Err(CodecError::InvalidTag("Terminator", tag)),
     })
 }

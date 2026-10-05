@@ -162,14 +162,11 @@ fn successor_matches(source: &AbstractSuccessor, target: &TargetControlSuccessor
         && source.target == target.target
         && source.bindings == target.bindings
         && source.structural_bindings == target.structural_bindings
-        && cleanup_matches(&target.cleanup_actions, &source.trivial_affine_discards)
-}
-
-pub(super) fn cleanup_matches(
-    actions: &[TerminalAffineCleanupAction],
-    places: &[semantic_vocabulary::PlaceId],
-) -> bool {
-    cleanup_matches_residuals(actions, places, &[])
+        && cleanup_matches_residuals(
+            &target.cleanup_actions,
+            &source.trivial_affine_discards,
+            &source.residual_affine_discards,
+        )
 }
 
 /// The source edge schedules roots before residual subtrees. Preserve that

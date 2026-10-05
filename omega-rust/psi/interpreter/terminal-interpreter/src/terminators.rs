@@ -26,13 +26,24 @@ use crate::results::{
     TerminalScalarCaseResult, TerminalStructuralResult,
 };
 use crate::values::TerminalScalarValue;
-use semantic_vocabulary::{ClaimId, PlaceId, StructuralTypeId};
+use semantic_vocabulary::{BlockId, ClaimId, EdgeId, PlaceId, StructuralTypeId, ValueId};
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_fuel::TerminalFuelMeter;
 use terminal_psi::{
-    StructuralAccess, StructuralAffineDiscard, StructuralMultiplicity, StructuralOperationResult,
-    StructuralPathSegment, StructuralTypeShape, TerminalMachineResult, Terminator,
+    StructuralAccess, StructuralAffineDiscard, StructuralArgument, StructuralMultiplicity,
+    StructuralOperationResult, StructuralPathSegment, StructuralTypeShape, TerminalMachineResult,
+    Terminator,
 };
+
+/// Bindings and cleanup selected by either an unconditional or conditional edge.
+struct SelectedSuccessor<'edge> {
+    edge: EdgeId,
+    target: BlockId,
+    arguments: &'edge [ValueId],
+    structural_arguments: &'edge [StructuralArgument],
+    trivial_affine_discards: &'edge [PlaceId],
+    residual_affine_discards: &'edge [StructuralAffineDiscard],
+}
 
 impl TerminalExecution {
     pub(crate) fn settle_return_unit_nominal_affine(
@@ -232,6 +243,7 @@ impl TerminalExecution {
         meter: &mut TerminalFuelMeter,
     ) -> Result<TerminatorFlow, TerminalInterpretError> {
         let Terminator::Jump {
+            edge,
             target,
             arguments,
             structural_arguments,
@@ -242,6 +254,25 @@ impl TerminalExecution {
         else {
             unreachable!("dispatched settle_jump")
         };
+        self.settle_successor(
+            SelectedSuccessor {
+                edge: *edge,
+                target: *target,
+                arguments,
+                structural_arguments,
+                trivial_affine_discards,
+                residual_affine_discards,
+            },
+            terminator,
+            meter,
+        )
+    }
+
+    fn prepare_residual_disposal(
+        &self,
+        structural_arguments: &[StructuralArgument],
+        residual_affine_discards: &[StructuralAffineDiscard],
+    ) -> Result<BTreeSet<PlaceId>, TerminalInterpretError> {
         // Projected owned arguments open partial custody on their
         // roots: each moves an exact affine child while the
         // residual list closes every dying root's untouched
@@ -253,7 +284,6 @@ impl TerminalExecution {
         for argument in structural_arguments.iter().filter(|argument| {
             argument.access == StructuralAccess::Owned && !argument.path.is_empty()
         }) {
-            residual_roots.insert(argument.place);
             consume_affine_projection(
                 &self.program.structural_types,
                 &self.structural_values,
@@ -281,7 +311,7 @@ impl TerminalExecution {
         let replayed = projected_frontier
             .as_ref()
             .unwrap_or(&self.live_affine_frontier);
-        // Every root this edge touches must be left with exactly its
+        // Every root this edge disposes must be left with exactly its
         // declared residual rows: projected transfers opened the
         // holes, and the listed complement is the only remainder.
         for place in &residual_roots {
@@ -299,12 +329,15 @@ impl TerminalExecution {
                 return Err(TerminalInterpretError::AffineFrontierMismatch);
             }
         }
-        if let Err(error) = meter.charge_terminator(terminator) {
-            return meter_status(error).map(TerminatorFlow::Yield);
-        }
-        let bindings =
-            self.prepare_block_bindings(*target, arguments, structural_arguments, true)?;
-        bindings.validate_discards(self, trivial_affine_discards, residual_affine_discards)?;
+        Ok(residual_roots)
+    }
+
+    fn commit_residual_disposal(
+        &mut self,
+        structural_arguments: &[StructuralArgument],
+        residual_affine_discards: &[StructuralAffineDiscard],
+        residual_roots: &BTreeSet<PlaceId>,
+    ) -> Result<(), TerminalInterpretError> {
         // The edge committed: each projected argument retires the
         // containing root entry and leaves the residual sibling
         // subtrees live; the residual list then closes exactly
@@ -321,45 +354,49 @@ impl TerminalExecution {
         }
         for discard in residual_affine_discards {
             self.live_affine_frontier.remove(discard);
+            let root = self.structural_values.get(&discard.place).ok_or(
+                TerminalInterpretError::VerifiedStructuralPlaceMissing(discard.place),
+            )?;
+            let mut path = root.path.clone();
+            path.extend_from_slice(&discard.path);
+            // A transferred child retains its captured identity, including
+            // transfers on earlier edges. Only the declared residual subtree
+            // dies here; deleting all descriptors under the old root would
+            // also erase those surviving children.
+            self.reference_referents.retain(|carrier, _| {
+                carrier.opaque_identity != root.opaque_identity || !carrier.path.starts_with(&path)
+            });
+            self.structural_element_view_fields.retain(|carrier, _| {
+                carrier.opaque_identity != root.opaque_identity || !carrier.path.starts_with(&path)
+            });
         }
-        for place in &residual_roots {
-            // Every remaining semantic path was validated and
-            // disposed. Only now may the dead root's opaque backing
-            // leave storage. Referent descriptors under a moved
-            // path belong to the destination's retained identity;
-            // every other captured subtree dies with the root.
-            let moved_paths: Vec<&[StructuralPathSegment]> = structural_arguments
-                .iter()
-                .filter(|argument| {
-                    argument.access == StructuralAccess::Owned
-                        && !argument.path.is_empty()
-                        && argument.place == *place
-                })
-                .map(|argument| argument.path.as_slice())
-                .collect();
-            if let Some(value) = self.structural_values.remove(place) {
-                self.reference_referents.retain(|carrier, _| {
-                    if carrier.opaque_identity != value.opaque_identity
-                        || !carrier.path.starts_with(&value.path)
-                    {
-                        return true;
-                    }
-                    moved_paths
-                        .iter()
-                        .any(|moved| carrier.path[value.path.len()..].starts_with(moved))
-                });
-                self.structural_element_view_fields.retain(|carrier, _| {
-                    if carrier.opaque_identity != value.opaque_identity
-                        || !carrier.path.starts_with(&value.path)
-                    {
-                        return true;
-                    }
-                    moved_paths
-                        .iter()
-                        .any(|moved| carrier.path[value.path.len()..].starts_with(moved))
-                });
-            }
+        for place in residual_roots {
+            self.structural_values.remove(place);
         }
+        Ok(())
+    }
+
+    fn settle_successor(
+        &mut self,
+        successor: SelectedSuccessor<'_>,
+        terminator: &Terminator,
+        meter: &mut TerminalFuelMeter,
+    ) -> Result<TerminatorFlow, TerminalInterpretError> {
+        let SelectedSuccessor {
+            edge,
+            target,
+            arguments,
+            structural_arguments,
+            trivial_affine_discards,
+            residual_affine_discards,
+        } = successor;
+        let residual_roots =
+            self.prepare_residual_disposal(structural_arguments, residual_affine_discards)?;
+        if let Err(error) = meter.charge_edge(edge, terminator) {
+            return meter_status(error).map(TerminatorFlow::Yield);
+        }
+        let bindings = self.prepare_block_bindings(target, arguments, structural_arguments)?;
+        bindings.validate_discards(self, trivial_affine_discards, residual_affine_discards)?;
         for place in trivial_affine_discards {
             if reference::discard_structural_value(
                 &mut self.structural_values,
@@ -376,8 +413,13 @@ impl TerminalExecution {
             }
             remove_affine_root(&mut self.live_affine_frontier, *place);
         }
+        self.commit_residual_disposal(
+            structural_arguments,
+            residual_affine_discards,
+            &residual_roots,
+        )?;
         bindings.commit(self);
-        self.current = *target;
+        self.current = target;
         self.next_operation = 0;
         Ok(TerminatorFlow::Continue)
     }
@@ -404,36 +446,18 @@ impl TerminalExecution {
             return Err(TerminalInterpretError::VerifiedOperationMalformed);
         };
         let successor = if condition { when_true } else { when_false };
-        if let Err(error) = meter.charge_edge(successor.edge, terminator) {
-            return meter_status(error).map(TerminatorFlow::Yield);
-        }
-        let bindings = self.prepare_block_bindings(
-            successor.target,
-            &successor.arguments,
-            &successor.structural_arguments,
-            false,
-        )?;
-        bindings.validate_discards(self, &successor.trivial_affine_discards, &[])?;
-        for place in &successor.trivial_affine_discards {
-            if reference::discard_structural_value(
-                &mut self.structural_values,
-                &mut self.reference_referents,
-                &mut self.structural_element_view_fields,
-                *place,
-            )
-            .is_none()
-                && self.scalar_case_values.remove(place).is_none()
-            {
-                return Err(TerminalInterpretError::VerifiedStructuralPlaceMissing(
-                    *place,
-                ));
-            }
-            remove_affine_root(&mut self.live_affine_frontier, *place);
-        }
-        bindings.commit(self);
-        self.current = successor.target;
-        self.next_operation = 0;
-        Ok(TerminatorFlow::Continue)
+        self.settle_successor(
+            SelectedSuccessor {
+                edge: successor.edge,
+                target: successor.target,
+                arguments: &successor.arguments,
+                structural_arguments: &successor.structural_arguments,
+                trivial_affine_discards: &successor.trivial_affine_discards,
+                residual_affine_discards: &successor.residual_affine_discards,
+            },
+            terminator,
+            meter,
+        )
     }
 
     pub(crate) fn settle_structural_case(
@@ -502,6 +526,8 @@ impl TerminalExecution {
             }
             bindings.push((parameter.id, scalar));
         }
+        let residual_roots =
+            self.prepare_residual_disposal(&[], &successor.residual_affine_discards)?;
         for place in &successor.trivial_affine_discards {
             if !self.structural_values.contains_key(place)
                 && !self.scalar_case_values.contains_key(place)
@@ -524,6 +550,7 @@ impl TerminalExecution {
             self.scalar_case_values.remove(place);
             remove_affine_root(&mut self.live_affine_frontier, *place);
         }
+        self.commit_residual_disposal(&[], &successor.residual_affine_discards, &residual_roots)?;
         self.values.extend(bindings);
         self.current = successor.target;
         self.next_operation = 0;

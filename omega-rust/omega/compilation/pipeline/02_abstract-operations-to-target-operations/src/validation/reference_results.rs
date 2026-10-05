@@ -19,7 +19,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use abstract_operations::{
     AbstractBoundaryResult, AbstractFunction, AbstractOperation, AbstractStructuralCallResult,
 };
-use semantic_vocabulary::{MachineId, OperationId, PlaceId, StructuralTypeId};
+use semantic_vocabulary::{BlockId, MachineId, OperationId, PlaceId, StructuralTypeId};
 use target_operations::TargetReferenceResult;
 use terminal_psi::{
     RecordFieldValue, StructuralAccess, StructuralArgument, StructuralFieldType,
@@ -87,7 +87,38 @@ struct Leaf {
 struct Custody {
     borrowed_sources: std::sync::Arc<BTreeMap<PlaceId, Option<Vec<StructuralArgument>>>>,
     leaves: BTreeMap<(PlaceId, Vec<StructuralPathSegment>), Leaf>,
+    edge_exits: Vec<(
+        BlockId,
+        BTreeMap<(PlaceId, Vec<StructuralPathSegment>), Leaf>,
+    )>,
     homes: BTreeMap<PlaceId, (StructuralTypeId, StructuralMultiplicity)>,
+}
+
+impl Custody {
+    /// Cleanup only removes leaves. Each outgoing edge retains an independent
+    /// snapshot; descendants without a direct edge inherit the common survivors.
+    fn finish_edges(
+        &mut self,
+        exits: Vec<(
+            BlockId,
+            BTreeMap<(PlaceId, Vec<StructuralPathSegment>), Leaf>,
+        )>,
+    ) {
+        self.leaves
+            .retain(|key, _| exits.iter().all(|(_, leaves)| leaves.contains_key(key)));
+        self.edge_exits = exits;
+    }
+
+    fn enter_edge(&mut self, target: BlockId) {
+        let mut matching = self.edge_exits.iter().filter(|(block, _)| *block == target);
+        if let Some((_, leaves)) = matching.next() {
+            self.leaves = leaves.clone();
+            for (_, leaves) in matching {
+                self.leaves.retain(|key, _| leaves.contains_key(key));
+            }
+        }
+        self.edge_exits.clear();
+    }
 }
 
 /// Reconstruct immutable borrowed arrivals from current source operations.
@@ -1581,23 +1612,58 @@ fn apply_terminator(
             when_false,
             ..
         } => {
-            actions.extend(
-                when_true
+            let mut exits = Vec::new();
+            for edge in [when_true, when_false] {
+                let mut exit = custody.clone();
+                let actions = edge
                     .trivial_affine_discards
                     .iter()
                     .copied()
-                    .map(TerminalAffineCleanupAction::DiscardRoot),
-            );
-            actions.extend(
-                when_false
+                    .map(TerminalAffineCleanupAction::DiscardRoot)
+                    .chain(
+                        edge.residual_affine_discards
+                            .iter()
+                            .cloned()
+                            .map(TerminalAffineCleanupAction::DiscardResidual),
+                    );
+                apply_cleanup_actions(&mut exit, actions, function, declarations)?;
+                exits.push((edge.target, exit.leaves));
+            }
+            custody.finish_edges(exits);
+            return Some(());
+        }
+        AbstractOperation::StructuralCase { cases, .. } => {
+            let mut exits = Vec::new();
+            for edge in cases {
+                let mut exit = custody.clone();
+                let actions = edge
                     .trivial_affine_discards
                     .iter()
                     .copied()
-                    .map(TerminalAffineCleanupAction::DiscardRoot),
-            );
+                    .map(TerminalAffineCleanupAction::DiscardRoot)
+                    .chain(
+                        edge.residual_affine_discards
+                            .iter()
+                            .cloned()
+                            .map(TerminalAffineCleanupAction::DiscardResidual),
+                    );
+                apply_cleanup_actions(&mut exit, actions, function, declarations)?;
+                exits.push((edge.target, exit.leaves));
+            }
+            custody.finish_edges(exits);
+            return Some(());
         }
         _ => {}
     }
+    apply_cleanup_actions(custody, actions, function, declarations)
+}
+
+fn apply_cleanup_actions(
+    custody: &mut Custody,
+    actions: impl IntoIterator<Item = TerminalAffineCleanupAction>,
+    function: &AbstractFunction,
+    declarations: &[StructuralTypeDeclaration],
+) -> Option<()> {
     for action in actions {
         match action {
             TerminalAffineCleanupAction::DiscardRoot(place) => {
@@ -1750,6 +1816,7 @@ pub(super) fn expected(
             None => initial.clone(),
             Some(dominator) => exits[dominator].clone()?,
         };
+        custody.enter_edge(entries[position].block);
         let range = &ranges[position];
         for operation in &function.operations[range.start..range.end - 1] {
             apply(

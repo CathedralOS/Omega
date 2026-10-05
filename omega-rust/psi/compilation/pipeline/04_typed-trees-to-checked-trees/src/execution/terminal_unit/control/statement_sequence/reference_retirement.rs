@@ -142,10 +142,11 @@ impl Retirement<'_> {
             for (handle, loan) in self.facts.borrow.loans.iter() {
                 if self.facts.borrow.state_owns_loan(state, handle)
                     && loan.statement_index < self.statement_index as usize
-                    && loan.lineage
+                    && (loan.lineage
                         == (checked_trees::BorrowLoanLineage::Reborrow {
                             parent_loan: parent,
                         })
+                        || self.captures_holder(handle, parent))
                 {
                     if !self.holder_retired(handle) {
                         return false;
@@ -159,6 +160,88 @@ impl Retirement<'_> {
         true
     }
 
+    /// Materialized descriptors retain their supplying carrier even when the
+    /// source resource model deliberately leaves aggregate lineage unretained.
+    /// This is a disposal dependency from the checked operation's actual input,
+    /// not a new reborrow permission or an initializer reconstruction.
+    fn captures_holder(
+        &self,
+        child: arena::Handle<BorrowLoanFact>,
+        parent: arena::Handle<BorrowLoanFact>,
+    ) -> bool {
+        let parent = self.facts.borrow.loans.get(parent);
+        self.operations.iter().any(|operation| {
+            let CheckedUnitEffectOperationPlan::EstablishReference { result, source } = operation
+            else {
+                return false;
+            };
+            if local_reference_loan(self.facts, result, self.results) != Some(child) {
+                return false;
+            }
+            let source_holder = match source.source {
+                CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal } => {
+                    self.results.iter().find(|(result, root)| {
+                        result.binding_ordinal == binding_ordinal
+                            && result.statement_index as usize == parent.statement_index
+                            && *root == facts::PlaceRoot::Symbol(parent.owner_symbol)
+                    })
+                }
+                _ => source.structural_storage_root().and_then(|source_root| {
+                    self.results.iter().find(|(result, root)| {
+                        *root == source_root
+                            && result.statement_index as usize == parent.statement_index
+                            && *root == facts::PlaceRoot::Symbol(parent.owner_symbol)
+                    })
+                }),
+            };
+            if source_holder.is_none() {
+                return false;
+            }
+            let owner_path = self.facts.borrow.loan_owner_path(parent);
+            // Only storage before the first reference crossing belongs to the
+            // supplying holder. A borrow of an enclosing subtree pins all of
+            // its contained descriptor slots; disjoint sibling captures do not.
+            let prefix = source
+                .path
+                .iter()
+                .position(|segment| *segment == CheckedUnitStructuralPathSegment::Referent)
+                .unwrap_or(source.path.len());
+            let compared = owner_path.len().min(prefix);
+            let Some((_, local)) = self
+                .program
+                .state_local_declaration(self.state, parent.owner_symbol)
+            else {
+                return true; // A registered holder with unresolved geometry stays live.
+            };
+            let Some(segments) = validation::reference_result_custody::loan_place_segments(
+                self.program,
+                local.type_reference,
+                &source.path[..compared],
+            ) else {
+                return true;
+            };
+            owner_path
+                .iter()
+                .zip(segments)
+                .all(|(owner, selected)| match (owner, selected) {
+                    (
+                        checked_trees::BorrowLoanOwnerSegment::Field(owner),
+                        facts::PlaceSegment::Field { symbol },
+                    ) => *owner == symbol,
+                    (
+                        checked_trees::BorrowLoanOwnerSegment::FixedIndex(owner),
+                        facts::PlaceSegment::FixedIndex { index },
+                    ) => *owner == index,
+                    (
+                        checked_trees::BorrowLoanOwnerSegment::Case(owner),
+                        facts::PlaceSegment::Case { variant },
+                    ) => *owner == variant,
+                    (checked_trees::BorrowLoanOwnerSegment::DynamicIndex, _) => true,
+                    _ => false,
+                })
+        })
+    }
+
     pub(super) fn holder_retired(&self, handle: arena::Handle<BorrowLoanFact>) -> bool {
         let loan = self.facts.borrow.loans.get(handle);
         if loan.statement_index >= self.statement_index as usize {
@@ -170,7 +253,8 @@ impl Retirement<'_> {
         });
         let Some((holder, _)) = holders.next() else {
             // A captured place alias without an emitted descriptor ends at
-            // checked weakening. Unknown and replaced holders remain live.
+            // checked weakening for every borrow access. Unknown and replaced
+            // holders remain live; descendants are checked separately.
             let Some((ordinal, alias)) = self
                 .program
                 .state_local_declaration(self.state, loan.owner_symbol)
@@ -179,11 +263,7 @@ impl Retirement<'_> {
             };
             let unmaterialized_alias = ordinal == loan.statement_index
                 && self.facts.borrow.loan_owner_path(loan).is_empty()
-                && validation::reference_result_custody::shared_place_borrowed_parts(
-                    self.program,
-                    alias.type_reference,
-                )
-                .is_some()
+                && validation::reference_shell(self.program, alias.type_reference).is_some()
                 && !self
                     .results
                     .iter()

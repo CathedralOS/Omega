@@ -1,0 +1,30 @@
+// The case edge disposes the surviving leaf after capturing its scalar argument.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Cell { value: i32 [0..=100]; }
+data Choice { case Selected(value: i32); case Empty; }
+data Pair { first: &Cell; second: &Cell; stamp: i32; }
+data Main { console: Binding<Console>; first: Cell; second: Cell; }
+
+machine Main::main(main: &mut Main) reaches Console {
+    main.first.value = 70;
+    main.second.value = 11;
+    let pair: Pair = Pair { first: &main.first, second: &main.second, stamp: 29 };
+    let observed: i32 [0..=100] = pair.first.value;
+    main.first.value = 81;
+    let stamp: i32 = pair.stamp;
+    let choice: Choice = Choice::Selected { value: 13 };
+    transition choice {
+        Choice::Selected { value } -> selected(main, observed, stamp, value, pair.second.value)
+        Choice::Empty -> bad(main)
+    }
+    state selected(main: &mut Main, observed: i32 [0..=100], stamp: i32, payload: i32, second: i32 [0..=100]) {
+        transition observed == 70 && stamp == 29 && payload == 13 && second == 11 && main.first.value == 81 {
+            true -> good(main)
+            _ -> bad(main)
+        }
+    }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main) { main.console.exit_process(71); }
+}

@@ -406,6 +406,7 @@ fn case_edges_share_the_authored_case_ordinal_without_fabricated_operations() {
                     case: semantic_vocabulary::StructuralCaseId::new(identity).unwrap(),
                     payloads: Vec::new(),
                     trivial_affine_discards: Vec::new(),
+                    residual_affine_discards: Vec::new(),
                 },
             )
             .collect(),

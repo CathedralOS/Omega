@@ -71,6 +71,9 @@ pub(super) fn reconstruct(
                     {
                         observe(place);
                     }
+                    for discard in &edge.residual_affine_discards {
+                        observe(discard.place);
+                    }
                 }
             }
             Terminator::StructuralCase { source, cases } => {
@@ -83,6 +86,9 @@ pub(super) fn reconstruct(
                         .filter(|place| disposal(*place))
                     {
                         observe(place);
+                    }
+                    for discard in &edge.residual_affine_discards {
+                        observe(discard.place);
                     }
                 }
             }

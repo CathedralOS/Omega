@@ -58,6 +58,7 @@ pub(super) fn prepare(
     continuation.fuel.clear();
     let continued = continuation.structural_case.as_mut().ok_or_else(invalid)?;
     continued.trivial_affine_discards.clear();
+    continued.residual_affine_discards.clear();
     let mut instructions = Vec::new();
     for payload in &mut continued.payloads {
         let parameter = match payload.transport {

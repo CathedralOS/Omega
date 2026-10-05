@@ -1174,6 +1174,12 @@ fn encode_terminator(bytes: &mut Vec<u8>, terminator: &LegalizedScalarTerminator
                     bytes,
                     case.trivial_affine_discards.iter().map(|place| place.get()),
                 );
+                encode_len(bytes, case.residual_affine_discards.len());
+                for discard in &case.residual_affine_discards {
+                    bytes.extend_from_slice(&discard.place.get().to_le_bytes());
+                    super::structural_types::encode_structural_path(bytes, &discard.path);
+                    bytes.extend_from_slice(&discard.structural_type.get().to_le_bytes());
+                }
                 encode_fuel(bytes, &case.fuel);
             }
             encode_effect(bytes, *effect);

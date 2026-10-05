@@ -141,26 +141,33 @@ pub(super) fn resolve<'a>(
         ordinal,
         target,
     )?;
-    let authored_place = place.clone();
-    let (mut place, recast_view) = rejoin_loan_local(program, machine, state, ordinal, place)?;
-    if recast_view.is_none()
-        && let facts::PlaceRoot::Symbol(authored) = authored_place.root
-        && let Some(alias) = super::super::receiver_aliases::aliases(program, facts, machine, state)
-            .unwrap_or_default()
-            .into_iter()
-            .find(|alias| alias.owner == authored)
-    {
-        // Erased aliases carry no pointer home. Their validated capture roster
-        // supplies the storage path, including nested aliases and selectors.
-        // Materialized reference fields never enter this substitution.
-        if alias.root == machine.symbol {
-            return None;
-        }
-        let root = alias.root;
-        place.root = facts::PlaceRoot::Symbol(root);
-        place.segments = alias.segments;
-        place.segments.extend(authored_place.segments);
-    }
+    let materialized = |root| {
+        let facts::PlaceRoot::Symbol(symbol) = root else {
+            return false;
+        };
+        let Some((declared, local)) = program.state_local_declaration(state, symbol) else {
+            return false;
+        };
+        validation::reference_result_custody::primitive_local_source(program, state, declared)
+            .or_else(|| {
+                validation::reference_result_custody::borrowed_initializer_source(
+                    program,
+                    state,
+                    local.initial_value,
+                    local.type_reference,
+                )
+            })
+            .is_some()
+    };
+    let aliases =
+        super::super::receiver_aliases::aliases(program, facts, machine, state).unwrap_or_default();
+    let place =
+        super::super::receiver_aliases::resolve(&aliases, &place, materialized).unwrap_or(place);
+    let (place, recast_view) = if materialized(place.root) {
+        (place, None)
+    } else {
+        rejoin_loan_local(program, machine, state, ordinal, place)?
+    };
     let facts::PlaceRoot::Symbol(root_symbol) = place.root else {
         return None;
     };
@@ -492,6 +499,11 @@ impl<'a> Destination<'a> {
             return None;
         }
         let mut path = Vec::with_capacity(segments.len());
+        // Primitive storage operations carry the entire access path. Field
+        // operations resolve their root crossing with the field declaration.
+        if self.view_loan && program.primitive_type_reference(self.root_type).is_some() {
+            path.push(CheckedUnitStructuralPathSegment::Referent);
+        }
         let mut carrier_type = self.root_type;
         let mut owner = self.root_owner;
         let mut ends_at_field = false;

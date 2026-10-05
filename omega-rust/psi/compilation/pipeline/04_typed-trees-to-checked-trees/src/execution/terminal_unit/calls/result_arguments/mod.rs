@@ -69,11 +69,9 @@ pub(super) fn argument(
     {
         return reference::argument(
             program,
-            facts,
             machine,
             source_state,
-            call,
-            expression,
+            call.statement_index,
             place,
             local,
             result,

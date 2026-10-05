@@ -159,34 +159,41 @@ pub(crate) fn structural_call_arguments(
                 })?
         };
         arm("call operation: structural arguments: alias and identity");
-        let restored_alias = reborrow_restored_call_alias_target(
-            facts,
-            caller_machine.symbol,
-            caller_state.symbol,
-            call,
-            &authored_place,
-        )
-        .or_else(|| {
-            reborrow_restored_shared_cohort_observation_alias_target(
-                program,
-                facts,
-                caller_machine.symbol,
-                caller_state,
-                target_machine,
-                target_state,
-                call,
-                call_site,
-                &authored_place,
-            )
-        });
-        let resolved_alias = if restored_alias.is_none() {
-            crate::execution::terminal_unit::receiver_aliases::resolve(
-                &borrow_aliases,
-                &authored_place,
-            )
-        } else {
-            None
+        let materialized = |root| {
+            caller_structural_results
+                .iter()
+                .any(|(_, candidate)| *candidate == root)
         };
+        let resolved_alias = crate::execution::terminal_unit::receiver_aliases::resolve(
+            &borrow_aliases,
+            &authored_place,
+            materialized,
+        );
+        let materialized_root = resolved_alias.as_ref().unwrap_or(&authored_place).root;
+        let restored_alias = (!materialized(materialized_root))
+            .then(|| {
+                reborrow_restored_call_alias_target(
+                    facts,
+                    caller_machine.symbol,
+                    caller_state.symbol,
+                    call,
+                    &authored_place,
+                )
+                .or_else(|| {
+                    reborrow_restored_shared_cohort_observation_alias_target(
+                        program,
+                        facts,
+                        caller_machine.symbol,
+                        caller_state,
+                        target_machine,
+                        target_state,
+                        call,
+                        call_site,
+                        &authored_place,
+                    )
+                })
+            })
+            .flatten();
         let place = restored_alias
             .clone()
             .or_else(|| resolved_alias.clone())

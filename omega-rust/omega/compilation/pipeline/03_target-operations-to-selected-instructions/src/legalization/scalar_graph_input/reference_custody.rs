@@ -88,10 +88,39 @@ fn roots_overlap(left: &Root, right: &Root) -> bool {
 #[derive(Debug, Clone, Default)]
 pub(in crate::legalization) struct Custody {
     leaves: BTreeMap<(PlaceId, Vec<StructuralPathSegment>), Leaf>,
+    edge_exits: Vec<(
+        BlockId,
+        BTreeMap<(PlaceId, Vec<StructuralPathSegment>), Leaf>,
+    )>,
     borrowed_sources: std::sync::Arc<BTreeMap<PlaceId, Option<Vec<StructuralArgument>>>>,
 }
 
 impl Custody {
+    /// Cleanup only removes leaves. Each outgoing edge retains an independent
+    /// snapshot; descendants without a direct edge inherit the common survivors.
+    fn finish_edges(
+        &mut self,
+        exits: Vec<(
+            BlockId,
+            BTreeMap<(PlaceId, Vec<StructuralPathSegment>), Leaf>,
+        )>,
+    ) {
+        self.leaves
+            .retain(|key, _| exits.iter().all(|(_, leaves)| leaves.contains_key(key)));
+        self.edge_exits = exits;
+    }
+
+    fn enter_edge(&mut self, target: BlockId) {
+        let mut matching = self.edge_exits.iter().filter(|(block, _)| *block == target);
+        if let Some((_, leaves)) = matching.next() {
+            self.leaves = leaves.clone();
+            for (_, leaves) in matching {
+                self.leaves.retain(|key, _| leaves.contains_key(key));
+            }
+        }
+        self.edge_exits.clear();
+    }
+
     pub(in crate::legalization) fn leaf(
         &self,
         place: PlaceId,
@@ -115,7 +144,7 @@ impl Custody {
     }
 }
 
-/// Live permission and referent-relative geometry behind a returned carrier.
+/// Live permission and referent-relative geometry behind a materialized carrier.
 /// Candidate roots constrain authority; its pointer payload selects the address.
 pub(in crate::legalization) struct WritableReferentDestination {
     pub(in crate::legalization) producer: OperationId,
@@ -124,7 +153,7 @@ pub(in crate::legalization) struct WritableReferentDestination {
     pub(in crate::legalization) path: Vec<StructuralPathSegment>,
 }
 
-fn returned_mutable_record_projection(
+fn materialized_mutable_record_projection(
     custody: &Custody,
     function: &PsiOptimizationFunction,
     types: &[StructuralTypeDeclaration],
@@ -168,18 +197,6 @@ fn returned_mutable_record_projection(
         || !leaf.result.qualifications.is_empty()
         || !leaf.result.projected_qualifications.is_empty()
         || !leaf.result.claims.is_empty()
-        || !function
-            .blocks
-            .iter()
-            .flat_map(|block| &block.nodes)
-            .any(|node| {
-                matches!(&node.operation,
-            AbstractOperation::CallStructural {
-                psi_operation,
-                result: AbstractStructuralCallResult::Structural { result, .. },
-                ..
-            } if *psi_operation == producer && result == &leaf.result)
-            })
     {
         return None;
     }
@@ -218,7 +235,7 @@ pub(in crate::legalization) fn writable_referent_destination(
     carrier: PlaceId,
     path: &[StructuralPathSegment],
 ) -> Option<WritableReferentDestination> {
-    returned_mutable_record_projection(custody, function, types, carrier, path)
+    materialized_mutable_record_projection(custody, function, types, carrier, path)
 }
 
 #[track_caller]
@@ -1799,39 +1816,59 @@ pub(in crate::legalization) fn apply_terminator(
             when_false,
             ..
         } => {
-            actions.extend(
-                when_true
+            let mut exits = Vec::new();
+            for edge in [when_true, when_false] {
+                let mut exit = custody.clone();
+                let actions = edge
                     .trivial_affine_discards
                     .iter()
                     .copied()
-                    .map(TerminalAffineCleanupAction::DiscardRoot),
-            );
-            actions.extend(
-                when_false
-                    .trivial_affine_discards
-                    .iter()
-                    .copied()
-                    .map(TerminalAffineCleanupAction::DiscardRoot),
-            );
+                    .map(TerminalAffineCleanupAction::DiscardRoot)
+                    .chain(
+                        edge.residual_affine_discards
+                            .iter()
+                            .cloned()
+                            .map(TerminalAffineCleanupAction::DiscardResidual),
+                    );
+                apply_cleanup_actions(&mut exit, actions, function, types)?;
+                exits.push((edge.target, exit.leaves));
+            }
+            custody.finish_edges(exits);
+            return Ok(());
         }
         AbstractOperation::StructuralCase { cases, .. } => {
-            for case in cases {
-                actions.extend(
-                    case.trivial_affine_discards
-                        .iter()
-                        .copied()
-                        .map(TerminalAffineCleanupAction::DiscardRoot),
-                );
+            let mut exits = Vec::new();
+            for edge in cases {
+                let mut exit = custody.clone();
+                let actions = edge
+                    .trivial_affine_discards
+                    .iter()
+                    .copied()
+                    .map(TerminalAffineCleanupAction::DiscardRoot)
+                    .chain(
+                        edge.residual_affine_discards
+                            .iter()
+                            .cloned()
+                            .map(TerminalAffineCleanupAction::DiscardResidual),
+                    );
+                apply_cleanup_actions(&mut exit, actions, function, types)?;
+                exits.push((edge.target, exit.leaves));
             }
+            custody.finish_edges(exits);
+            return Ok(());
         }
         _ => {}
     }
-    // Every edge cleanup roster declares the same places; a `&` carrier's
-    // own leaf ends once, however many edges carry the discard.
-    // Keep action order: a preceding carrier release may make its backing
-    // discardable. Deduplicate sibling-edge repeats without sorting away
-    // that dependency.
-    let mut visited = BTreeSet::new();
+    apply_cleanup_actions(custody, actions, function, types)
+}
+
+fn apply_cleanup_actions(
+    custody: &mut Custody,
+    actions: impl IntoIterator<Item = terminal_psi::TerminalAffineCleanupAction>,
+    function: &PsiOptimizationFunction,
+    types: &[StructuralTypeDeclaration],
+) -> Result<(), LegalizationError> {
+    use terminal_psi::TerminalAffineCleanupAction;
     for action in actions {
         let place = match action {
             TerminalAffineCleanupAction::DiscardRoot(place) => place,
@@ -1841,9 +1878,6 @@ pub(in crate::legalization) fn apply_terminator(
             }
             TerminalAffineCleanupAction::InvokeNominal(_) => return Err(invalid()),
         };
-        if !visited.insert(place) {
-            continue;
-        }
         // A suspended referent root cannot be discarded while its loan lives.
         if is_suspended_root(custody, place) {
             return Err(invalid());
@@ -2038,6 +2072,7 @@ pub(in crate::legalization) fn block_entry_states(
                 .max_by_key(|dominator| dominators[*dominator].len())
                 .ok_or_else(|| invalid())?;
             let mut custody = states[dominator].clone().ok_or_else(|| invalid())?;
+            custody.enter_edge(blocks[position].id);
             // A dominating edge that binds this block's parameters carries
             // each whole owned move's loans onto the bound places. When the
             // dominator reaches this block through an intermediate block —

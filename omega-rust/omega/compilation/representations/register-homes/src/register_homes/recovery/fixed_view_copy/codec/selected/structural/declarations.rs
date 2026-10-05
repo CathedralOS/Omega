@@ -619,7 +619,7 @@ pub(super) fn encode_path(bytes: &mut Vec<u8>, path: &[StructuralPathSegment]) {
     }
 }
 
-pub(super) fn decode_path(
+pub(in super::super) fn decode_path(
     cursor: &mut Cursor<'_>,
 ) -> Result<Vec<StructuralPathSegment>, FixedViewCopyDecodeError> {
     let count = cursor.length()?;

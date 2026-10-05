@@ -165,6 +165,7 @@ impl OperationFrame<'_, '_> {
                 self.state,
                 operation,
                 declaration,
+                self.structural_types.declarations(),
                 &mut self.evaluation.structural_locals,
             )?;
             // A view local this call bound joins the view roster: its lengths

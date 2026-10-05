@@ -11,6 +11,7 @@ pub struct SelectedStructuralCaseEdge {
     pub case_tag: i32,
     pub payloads: Vec<SelectedCasePayloadBinding>,
     pub trivial_affine_discards: Vec<PlaceId>,
+    pub residual_affine_discards: Vec<terminal_psi::StructuralAffineDiscard>,
 }
 
 /// Where a selected case edge reads the dispatched sum. An activation-local
@@ -124,6 +125,12 @@ impl SelectedStructuralCaseEdge {
         bytes.extend_from_slice(&(self.trivial_affine_discards.len() as u64).to_le_bytes());
         for place in &self.trivial_affine_discards {
             bytes.extend_from_slice(&place.get().to_le_bytes());
+        }
+        bytes.extend_from_slice(&(self.residual_affine_discards.len() as u64).to_le_bytes());
+        for discard in &self.residual_affine_discards {
+            bytes.extend_from_slice(&discard.place.get().to_le_bytes());
+            super::effects::program::identity::encode_path(bytes, &discard.path);
+            bytes.extend_from_slice(&discard.structural_type.get().to_le_bytes());
         }
     }
 }

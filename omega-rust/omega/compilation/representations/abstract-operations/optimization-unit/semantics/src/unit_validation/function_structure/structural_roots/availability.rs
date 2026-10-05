@@ -230,6 +230,30 @@ pub(crate) fn operation_place_inputs(operation: &O) -> Vec<PlaceId> {
             inputs.extend(trivial_affine_discards.iter().copied());
             inputs.extend(residual_affine_discards.iter().map(|discard| discard.place));
         }
+        O::Conditional {
+            when_true,
+            when_false,
+            ..
+        } => {
+            for edge in [when_true, when_false] {
+                inputs.extend(edge.trivial_affine_discards.iter().copied());
+                inputs.extend(
+                    edge.residual_affine_discards
+                        .iter()
+                        .map(|discard| discard.place),
+                );
+            }
+        }
+        O::StructuralCase { cases, .. } => {
+            for edge in cases {
+                inputs.extend(edge.trivial_affine_discards.iter().copied());
+                inputs.extend(
+                    edge.residual_affine_discards
+                        .iter()
+                        .map(|discard| discard.place),
+                );
+            }
+        }
         O::Return {
             cleanup_actions, ..
         }

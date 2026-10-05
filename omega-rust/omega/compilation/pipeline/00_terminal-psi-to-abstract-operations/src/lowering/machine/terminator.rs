@@ -133,6 +133,7 @@ pub(super) fn lower_terminator(
                         })
                         .collect(),
                     trivial_affine_discards: successor.trivial_affine_discards.clone(),
+                    residual_affine_discards: successor.residual_affine_discards.clone(),
                 })
             };
             operations.push(AbstractOperation::Conditional {
@@ -173,6 +174,7 @@ pub(super) fn lower_terminator(
                             })
                             .collect(),
                         trivial_affine_discards: successor.trivial_affine_discards.clone(),
+                        residual_affine_discards: successor.residual_affine_discards.clone(),
                     })
                 })
                 .collect::<Result<Vec<_>, LoweringError>>()?;

@@ -357,6 +357,7 @@ pub(super) fn admit_incoming_edge(
             if arm.target != evidence.dispatch
                 || !arm.structural_bindings.is_empty()
                 || !arm.trivial_affine_discards.is_empty()
+                || !arm.residual_affine_discards.is_empty()
             {
                 return None;
             }

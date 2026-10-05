@@ -360,6 +360,7 @@ fn successor(
             case_tag: case.case_tag,
             payloads,
             trivial_affine_discards: case.trivial_affine_discards.clone(),
+            residual_affine_discards: case.residual_affine_discards.clone(),
         }),
     })
 }

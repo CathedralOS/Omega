@@ -10,6 +10,7 @@ pub struct LegalizedStructuralCaseSuccessor {
     pub case_tag: i32,
     pub payloads: Vec<LegalizedStructuralCasePayload>,
     pub trivial_affine_discards: Vec<PlaceId>,
+    pub residual_affine_discards: Vec<terminal_psi::StructuralAffineDiscard>,
     pub fuel: Vec<FuelSettlement>,
 }
 

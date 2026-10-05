@@ -72,6 +72,7 @@ pub(super) fn validate(
             || actual.case != declared.id
             || Some(actual.case_tag) != i32::try_from(case_position).ok()
             || actual.trivial_affine_discards != source.trivial_affine_discards
+            || actual.residual_affine_discards != source.residual_affine_discards
             || actual.fuel != edge.fuel
             || actual.payloads.len() != source.payloads.len()
             || actual.payloads.len() != destination.parameters.len()

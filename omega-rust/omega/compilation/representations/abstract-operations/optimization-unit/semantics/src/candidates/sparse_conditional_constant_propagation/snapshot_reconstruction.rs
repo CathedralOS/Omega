@@ -254,7 +254,7 @@ pub(crate) fn validator_scalar_operation_successors(
                 target: successor.target,
                 bindings: successor.bindings.clone(),
                 trivial_affine_discards: successor.trivial_affine_discards.clone(),
-                residual_affine_discards: Vec::new(),
+                residual_affine_discards: successor.residual_affine_discards.clone(),
                 provenance: vec![PsiProvenance::Edge(successor.psi_edge)],
                 fuel: vec![optimization_unit::FuelSettlement {
                     site: PsiProvenance::Edge(successor.psi_edge),
@@ -270,7 +270,7 @@ pub(crate) fn validator_scalar_operation_successors(
                 bindings: Vec::new(),
                 structural_bindings: Vec::new(),
                 trivial_affine_discards: case.trivial_affine_discards.clone(),
-                residual_affine_discards: Vec::new(),
+                residual_affine_discards: case.residual_affine_discards.clone(),
                 provenance: vec![PsiProvenance::Edge(case.psi_edge)],
                 fuel: vec![optimization_unit::FuelSettlement {
                     site: PsiProvenance::Edge(case.psi_edge),

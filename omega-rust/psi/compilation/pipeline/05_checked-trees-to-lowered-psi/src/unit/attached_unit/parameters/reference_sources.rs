@@ -4,8 +4,10 @@
 
 use super::{
     LoweringError, StructuralArgument, StructuralParameterDeclaration, StructuralPlaceDeclaration,
-    StructuralTypeDeclaration, lower_structural_arguments, unsupported,
+    StructuralTypeDeclaration, lower_structural_arguments, lower_typed_argument_path,
+    structural_access_can_supply, terminal_access, unsupported,
 };
+use crate::expression_preparation::bindings::StructuralLocalBinding;
 use checked_trees::{
     CheckedStructuralAccess, CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralPathSegment,
 };
@@ -20,6 +22,7 @@ pub(crate) fn lower_reference_source(
     trivial_affine_locals: &[StructuralPlaceDeclaration],
     structural_results: &[(Option<StructuralPlaceDeclaration>, bool)],
     primitive_locals: &[super::super::primitive_locals::PrimitiveLocal],
+    structural_locals: &[StructuralLocalBinding],
 ) -> Result<StructuralArgument, LoweringError> {
     if source.access == CheckedStructuralAccess::Owned {
         return unsupported("reference source cannot transfer owned custody");
@@ -32,23 +35,53 @@ pub(crate) fn lower_reference_source(
     if has_leaf_marker {
         prefix.path.pop();
     }
-    let arguments = lower_structural_arguments(
-        std::slice::from_ref(&prefix),
-        structural_types,
-        parameters,
-        trivial_affine_locals,
-        structural_results,
-        // A reference source never transfers owned custody, so no projected
-        // owned alias can answer here.
-        &[],
-        &[],
-        primitive_locals,
-        None,
-        &mut std::iter::empty(),
-        None,
-    )?;
-    let [mut argument] = <[StructuralArgument; 1]>::try_from(arguments)
-        .map_err(|_| LoweringError::Unsupported("reference source is not one argument"))?;
+    let mut argument = if let Some(root) = prefix.structural_storage_root() {
+        // The operation sequence has already materialized this local or
+        // expression. Borrow its published descriptor slot and type; the
+        // initializer's old backing path is no longer its storage identity.
+        let mut bindings = structural_locals
+            .iter()
+            .filter(|binding| binding.root == root);
+        let binding = bindings.next().ok_or(LoweringError::Unsupported(
+            "reference source has no established structural storage",
+        ))?;
+        let access = terminal_access(prefix.access);
+        if bindings.next().is_some()
+            || !binding.argument.path.is_empty()
+            || !structural_access_can_supply(binding.argument.access, access)
+        {
+            return unsupported("reference source changes its established storage custody");
+        }
+        StructuralArgument {
+            place: binding.argument.place,
+            path: lower_typed_argument_path(
+                &prefix.path,
+                binding.structural_type,
+                structural_types,
+                None,
+                &mut std::iter::empty(),
+                None,
+            )?,
+            access,
+        }
+    } else {
+        let arguments = lower_structural_arguments(
+            std::slice::from_ref(&prefix),
+            structural_types,
+            parameters,
+            trivial_affine_locals,
+            structural_results,
+            &[],
+            &[],
+            primitive_locals,
+            None,
+            &mut std::iter::empty(),
+            None,
+        )?;
+        let [argument] = <[StructuralArgument; 1]>::try_from(arguments)
+            .map_err(|_| LoweringError::Unsupported("reference source is not one argument"))?;
+        argument
+    };
     if has_leaf_marker {
         argument
             .path
@@ -72,6 +105,7 @@ pub(crate) fn lower_reference_result_sources(
                 &reference.source,
                 structural_types,
                 parameters,
+                &[],
                 &[],
                 &[],
                 &[],

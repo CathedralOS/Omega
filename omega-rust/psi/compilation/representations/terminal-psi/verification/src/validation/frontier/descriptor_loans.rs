@@ -476,7 +476,7 @@ impl DescriptorLoans {
                             position,
                             edge.target,
                             &edge.structural_arguments,
-                            edge.trivial_affine_discards.iter().copied(),
+                            edge.affine_discard_roots(),
                         ),
                     )?;
                 }
@@ -493,8 +493,7 @@ impl DescriptorLoans {
                             position,
                             edge.target,
                             &[],
-                            std::iter::once(*source)
-                                .chain(edge.trivial_affine_discards.iter().copied()),
+                            std::iter::once(*source).chain(edge.affine_discard_roots()),
                         ),
                     )?;
                 }

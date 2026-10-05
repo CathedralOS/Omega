@@ -687,11 +687,10 @@ pub(super) fn first_unsupported_statement(
         .map(|(index, _)| index)
 }
 
-/// Locals that are checked borrow carriers rather than storage bindings: an
-/// exactly captured exclusive loan alias, or the parent/child roster a
-/// reborrow-restored-call certificate names. Their declarations compose
-/// through the sequence without an operation; each use's planner joins the
-/// captured referent's evidence instead.
+/// Alias bindings whose referents are represented directly by their uses.
+/// A supported capture instead establishes an ordinary reference value: later
+/// transfers need its descriptor identity, even if the borrow also admits an
+/// alias of the backing storage.
 fn erased_alias_locals(
     program: &TypedTrees,
     facts: &CheckFacts,

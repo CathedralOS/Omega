@@ -762,6 +762,19 @@ impl OperationFrame<'_, '_> {
                     self.operations,
                     self.evaluation,
                 )?;
+                let primitive_home = self.evaluation.immutable_local_borrow_home(
+                    self.checked,
+                    self.state,
+                    source,
+                    self.values,
+                    self.type_ids,
+                    self.structural_types.declarations(),
+                    self.next_place,
+                    self.operations,
+                    self.private_places,
+                )?;
+                let mut locals = self.evaluation.structural_locals.clone();
+                locals.extend(primitive_home);
                 parameters::lower_reference_source(
                     source,
                     self.structural_types.declarations(),
@@ -769,6 +782,7 @@ impl OperationFrame<'_, '_> {
                     self.caller.local_places,
                     &earlier,
                     self.primitive_locals,
+                    &locals,
                 )?
             };
         let declaration = reference_results::emit(
@@ -2378,6 +2392,7 @@ impl OperationFrame<'_, '_> {
                     self.state,
                     operation,
                     declaration,
+                    self.structural_types.declarations(),
                     &mut self.evaluation.structural_locals,
                 )?;
             }

@@ -454,6 +454,9 @@ pub(crate) fn validate_terminator(
                     &arm.structural_arguments,
                     &arm.trivial_affine_discards,
                 )?;
+                for discard in &arm.residual_affine_discards {
+                    reject_cleanup(arm.edge, &arm.structural_arguments, &[discard.place])?;
+                }
             }
         }
         Terminator::StructuralCase { cases, .. } => {

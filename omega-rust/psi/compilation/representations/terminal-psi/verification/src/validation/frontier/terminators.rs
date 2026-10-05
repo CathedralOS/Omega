@@ -120,7 +120,6 @@ fn close_jump(
         *edge,
         blocks[target],
         structural_arguments,
-        true,
         walk.window_aliases,
     )?;
     apply_edge_trivial_affine_discards(
@@ -184,7 +183,6 @@ fn close_conditional(
         when_true.edge,
         blocks[&when_true.target],
         &when_true.structural_arguments,
-        false,
         walk.window_aliases,
     )?;
     apply_edge_trivial_affine_discards(
@@ -194,6 +192,14 @@ fn close_conditional(
         &mut true_frontier,
         when_true.edge,
         &when_true.trivial_affine_discards,
+    )?;
+    apply_continuation_residual_discards(
+        module,
+        machine,
+        block.id,
+        parameter_order,
+        &mut true_frontier,
+        &when_true.residual_affine_discards,
     )?;
     super::block_parameters::establish(
         module,
@@ -218,7 +224,6 @@ fn close_conditional(
         when_false.edge,
         blocks[&when_false.target],
         &when_false.structural_arguments,
-        false,
         walk.window_aliases,
     )?;
     apply_edge_trivial_affine_discards(
@@ -228,6 +233,14 @@ fn close_conditional(
         &mut frontier,
         when_false.edge,
         &when_false.trivial_affine_discards,
+    )?;
+    apply_continuation_residual_discards(
+        module,
+        machine,
+        block.id,
+        parameter_order,
+        &mut frontier,
+        &when_false.residual_affine_discards,
     )?;
     super::block_parameters::establish(
         module,
@@ -315,6 +328,14 @@ fn close_structural_case(
             &mut case_frontier,
             case.edge,
             &case.trivial_affine_discards,
+        )?;
+        apply_continuation_residual_discards(
+            module,
+            machine,
+            block.id,
+            parameter_order,
+            &mut case_frontier,
+            &case.residual_affine_discards,
         )?;
         snapshots
             .edge_exits
