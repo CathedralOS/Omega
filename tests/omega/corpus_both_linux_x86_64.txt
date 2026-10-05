@@ -9,6 +9,8 @@
 # context: {"cpus": 16, "jobs": null, "load1_end": 4.55, "load1_start": 3.9, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
 pass/atomics/runtime_atomic_bitwise_widths_exit built 5472ms exit:70 interpreter-exit:70 interpreter:agrees @8ed2986d3282
 pass/atomics/shared_receiver_atomic_store built 5511ms exit:70 interpreter-exit:70 interpreter:agrees @8ed2986d3282
+pass/borrows/mut_loan_local_write_through_exit built 4818ms exit:9 interpreter-exit:9 interpreter:agrees @944fb1232f17
+pass/borrows/runtime_mutable_primitive_reference_exit built 6934ms exit:0 interpreter-exit:0 interpreter:agrees @944fb1232f17
 pass/contracts/ensures_saturating_field_arithmetic_exit built 1802ms exit:70 interpreter-exit:70 interpreter:agrees @c13c39a874dc+wt
 pass/control_flow/runtime_later_state_shared_array_loan built 1003ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @058b197aec1a+wt
 pass/control_flow/runtime_namespace_local_state_loan built 983ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @058b197aec1a+wt
@@ -48,3 +50,4 @@ pass/recast/runtime_mutable_equivalent_range_recast_exit built 7853ms exit:70 in
 pass/recast/runtime_scalar_parameter_shared_views_exit built 2535ms exit:70 interpreter-exit:70 interpreter:agrees @9782e38b64ab+wt
 pass/recast/runtime_shared_domain_weakening_recast_exit built 7058ms exit:70 interpreter-exit:70 interpreter:agrees @f64782b89114+wt
 pass/text/zii_default_string_equality_exit built 2875ms exit:70 interpreter-exit:70 interpreter:agrees @51cfa86f7f14+wt
+run/borrows/local_mut_borrow built 4701ms exit:9 interpreter-exit:9 interpreter:agrees @944fb1232f17

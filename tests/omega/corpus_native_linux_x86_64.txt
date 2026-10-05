@@ -62,8 +62,7 @@ pass/borrows/borrow_returned_window_write_and_call rejected 6580ms @aeb3a47a1e0
 	terminal-artifact production failed: Lowering(InvalidTerminalModule(BorrowedDescriptorLoanDisturbed { operation: OperationId(28), place: PlaceId(6) }))
 pass/borrows/borrow_stated_index_disequality_mut checked 269ms @2d8ed253669f+wt
 pass/borrows/case_payload_state_loan_exit built 4101ms exit:70 @c773c4ad3c34
-pass/borrows/mut_loan_local_write_through_exit rejected 5492ms @aeb3a47a1e0
-	terminal-artifact production failed: Lowering(Unsupported("structural argument has no established storage"))
+pass/borrows/mut_loan_local_write_through_exit built 3170ms exit:9 @944fb1232f17
 pass/borrows/projected_indexed_member_loan built 743ms @2d8ed253669f+wt
 pass/borrows/projected_local_member_loan built 767ms @2d8ed253669f+wt
 pass/borrows/projected_param_member_loan built 763ms exit:0 @2d8ed253669f+wt
@@ -72,6 +71,7 @@ pass/borrows/runtime_carrier_reference_reselection_exit built 4805ms exit:70 @36
 pass/borrows/runtime_carrier_reference_store_exit built 4917ms exit:70 @362d09f71f3
 pass/borrows/runtime_indexed_carrier_bounded_reference_read_exit built 3537ms exit:70 @15c77983aab0
 pass/borrows/runtime_indexed_carrier_reference_read_exit built 2870ms exit:70 @15c77983aab0
+pass/borrows/runtime_mutable_primitive_reference_exit built 3423ms exit:0 @944fb1232f17
 pass/borrows/runtime_nested_carrier_bounded_reference_read_exit built 3535ms exit:70 @b5d8c6882a8
 pass/borrows/runtime_nested_carrier_reference_read_exit built 3996ms exit:70 @b5d8c6882a8
 pass/borrows/runtime_record_byte_region_loan_exit built 21745ms exit:50 @c773c4ad3c34
@@ -1053,8 +1053,7 @@ pass/wire/wire_compatibility_migration_across_shapes built 5019ms exit:0 @fa71a4
 pass/wire/wire_data_reserved_field built 814ms @2d8ed253669f+wt
 pass/wire/wire_preserving_decode_relay_exit built 13841ms exit:70 @176f9a7001a
 run/borrows/direct_runtime_index_write built 2083ms exit:9 @2d8ed253669f+wt
-run/borrows/local_mut_borrow rejected 4500ms @aeb3a47a1e0
-	terminal-artifact production failed: Lowering(Unsupported("structural argument has no established storage"))
+run/borrows/local_mut_borrow built 2536ms exit:9 @944fb1232f17
 run/borrows/mut_record_loan_member_access built 2044ms exit:0 @2d8ed253669f+wt
 run/borrows/probe_shared_len built 1823ms exit:0 @2d8ed253669f+wt
 run/borrows/recast_mut_borrow built 1191ms exit:0 @a3bac00e54bb
