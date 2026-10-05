@@ -93,6 +93,19 @@ or covers fewer packages than the diff affects — that is the fourth publish
 guard, after empty, coordination-only, and unrecorded trusted-surface
 changes. There is no bypass flag; rebase and `verify` again.
 
+**Keep the build warm, or the re-verify cannot fit the lease.** When main moves
+under a held claim, the re-verify of the rebased sha has to finish inside the
+remaining 180 seconds. A cold `cargo check` of the affected packages takes
+about 3m17s and loses every time; the same check against a warm target
+directory takes about 12s. So build the affected packages in the candidate
+worktree *before* enqueueing, and keep that worktree's target directory for the
+whole landing. Four separate sessions lost landings to this on a busy day —
+one took four attempts while main moved five times in 25 minutes — and the
+ones that pre-warmed landed on the next head.
+
+Under an active swarm main can advance every few minutes, so expect to rebase
+inside the lease rather than treating it as the exception.
+
 ## Check locally, then publish
 
 Capture the exact candidate before running the checks required by [tools/testing.md](testing.md)
