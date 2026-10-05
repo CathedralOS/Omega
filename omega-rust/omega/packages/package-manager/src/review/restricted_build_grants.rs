@@ -19,14 +19,9 @@ use diagnostics::Diagnostic;
 use package_evidence::record::PackagePolicyRowKind;
 use semantic_vocabulary::PackageKeyIdentity;
 
-use super::CompilerIssuedPackageReviewSet;
 use crate::declarations::DependencyPurpose;
-use crate::lock::{
-    PackageAcceptanceRow, PackageCheckedContext, PackageLockError, PackageLockTarget,
-    PackagePolicyAcceptance,
-};
-use crate::resolution::graph::{DependencyRequestPath, ResolvedPackageSourceClosure};
-use crate::review::timings;
+use crate::lock::{PackageCheckedContext, PackageLockTarget};
+use crate::resolution::graph::DependencyRequestPath;
 
 /// One normalized restricted build request a checked package occurrence
 /// projected without identical retained accepted-request meaning. Its
@@ -161,36 +156,6 @@ impl RestrictedBuildCheckpoint {
         }
     }
 
-    /// The projected request meanings one checked occurrence asked that this
-    /// checkpoint does not grant — an absent occurrence, a missing row, or a
-    /// request that widened since acceptance each surface ungranted. The
-    /// occurrence's dependency route is shared across its projected requests
-    /// and attaches to each gap record.
-    pub fn ungranted_requests<'a>(
-        &self,
-        package: PackageKeyIdentity,
-        context: PackageCheckedContext,
-        request_path: Option<DependencyRequestPath>,
-        projected: impl Iterator<Item = &'a str>,
-    ) -> Vec<UngrantedRestrictedBuildRequest> {
-        let granted = self
-            .grants
-            .iter()
-            .find(|(identity, granted_context, _)| {
-                *identity == package && *granted_context == context
-            })
-            .map(|(_, _, texts)| texts);
-        projected
-            .filter(|meaning| granted.is_none_or(|texts| !texts.contains(*meaning)))
-            .map(|meaning| UngrantedRestrictedBuildRequest {
-                package,
-                context,
-                request_meaning: meaning.to_owned(),
-                request_path: request_path.clone(),
-            })
-            .collect()
-    }
-
     /// Arm the checkpoint for one admitted activation: the returned binding
     /// crosses to the compile worker and joins each restricted request the
     /// occurrence's build machine projects — by canonical accepted-request
@@ -227,8 +192,9 @@ impl RestrictedBuildCheckpoint {
 /// The binding is owned data (`Send` across the compile thread): it consults
 /// the request's canonical acceptance-row meaning against the granted
 /// meanings retained for this exact package identity and checked context.
-/// A refusal fails the compile with the pending meaning attached, the same
-/// record the post-pass join would surface.
+/// A refusal fails the compile with the pending meaning attached. A review
+/// carried from the persisted cache ran no Build, so the candidate pass admits
+/// its retained requests through this same binding.
 pub struct CheckpointRestrictedBuildGrants {
     package: PackageKeyIdentity,
     context: PackageCheckedContext,
@@ -265,44 +231,4 @@ impl package_compilation::build_execution::RestrictedBuildGrants
             .to_string(),
         )])
     }
-}
-
-/// Join one accepted lock target against the restricted build requests a
-/// fresh review projected per package occurrence.
-///
-/// A request is granted when its occurrence's retained acceptance rows carry
-/// an identical normalized request meaning. An absent occurrence, a missing
-/// row, or a request that widened since acceptance all surface ungranted.
-/// Occurrences match on the complete checked context — package identity,
-/// purpose, selected target, and build execution profile — so a build-purpose
-/// grant never authorizes a product-purpose activation.
-pub fn ungranted_restricted_build_requests(
-    accepted: &PackageLockTarget,
-    reviews: &CompilerIssuedPackageReviewSet,
-    closure: &ResolvedPackageSourceClosure,
-) -> Result<Vec<UngrantedRestrictedBuildRequest>, PackageLockError> {
-    let _stage = timings::stage("restricted_build_grant_join");
-    let checkpoint = RestrictedBuildCheckpoint::derive(accepted);
-    let mut ungranted = Vec::new();
-    for review in reviews.reviews() {
-        if review.restricted_build_requests().is_empty() {
-            continue;
-        }
-        // Re-project this review's own acceptance rows so both sides of the
-        // join read the same normalized meaning form the lock retained.
-        let projected = PackagePolicyAcceptance::from_policy(review.policy())?;
-        ungranted.extend(
-            checkpoint.ungranted_requests(
-                review.key().identity(),
-                review.checked_context(),
-                closure.dependency_path(review.key()),
-                projected
-                    .rows()
-                    .iter()
-                    .filter(|row| row.kind() == PackagePolicyRowKind::RestrictedBuildRequest)
-                    .map(PackageAcceptanceRow::canonical_text),
-            ),
-        );
-    }
-    Ok(ungranted)
 }

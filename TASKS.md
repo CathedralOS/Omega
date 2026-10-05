@@ -3534,20 +3534,22 @@ of a check the same flow already performed, not the check itself.
   for each case the build corpus does not already cover); the build and
   filesystem corpus slices are unchanged.
 
-- **RESTRICTED-REQUEST-GATE-ONCE.** (new-scope) `grants.admit(request)` in
-  `omega-rust/omega/compilation/build-evaluation/src/build_evaluation.rs` is
-  the gate. After it,
-  `omega-rust/omega/packages/package-manager/src/review/candidate/compilation/package_pass.rs::reject_ungranted_restricted_requests`
-  re-projects `PackagePolicyAcceptance::from_policy(review.policy())` and
-  compares the same requests again, including for cache-carried occurrences
-  where no build ran. Delete the post-hoc pass. Separately, with
+- **RESTRICTED-REQUEST-GATE-ONCE.** (new-scope) With
   `restricted_build_checkpoint: None` (install/update review, audit,
-  inspection, `--check --verify`), `if let Some(grants)` admits everything.
-  Make `None` refuse real-host scoped requests: `wiki/spec/packages/review.md`
-  says "An audit must not perform the very action it is asking the owner to
-  approve". Acceptance: one gate call per request; an audit of a package whose
-  build requests scoped filesystem execution performs no host effect; corpus
-  `--filter build` is unchanged.
+  inspection, `--check --verify`), `evaluate_build` in
+  `omega-rust/omega/compilation/build-evaluation/src/build_evaluation.rs`
+  admits every restricted request and executes it.
+  `wiki/spec/packages/review.md` says "An audit must not perform the very
+  action it is asking the owner to approve". Review builds that run as private
+  snapshot execution project no request; a review whose build projects a real
+  scoped request must report it as pending and stop before execution, with
+  final product findings marked unavailable, instead of running it. The
+  consuming-compile side already gates once: fresh activations through
+  `RestrictedBuildGrants::admit` before effects, disk-cache carries through
+  the same binding in `package_pass.rs::carry_prior_compile`. Acceptance: an
+  audit of a package whose build requests scoped filesystem execution performs
+  no host effect and reports the request; corpus `--filter build` is
+  unchanged.
 
 - **CONTRACT-IDENTITY-STRUCTURAL.** (split-of:REVIEW-SINGLE-PROJECTION)
   Checked contract identities are still built from hand-rolled byte strings:
@@ -3576,16 +3578,6 @@ of a check the same flow already performed, not the check itself.
   Acceptance: the bound pass reports `settled_checks=0` for an occurrence
   whose typed program is unchanged, and review output for that command is
   unchanged.
-
-- **REVIEW-CACHE-PLAIN-DECODE.** (new-scope)
-  `omega-rust/omega/packages/package-manager/src/review/candidate/review_cache.rs::into_review_and_facts`
-  `recover_canonical`s the policy, requires byte-identical re-encoding, and
-  re-derives the policy rows and commitment. The SHA-256 trailer already rejects
-  corruption, and a writer to the local cache could equally write the lock.
-  Decode once, with no re-encode comparison. Stop lowering each fresh
-  dependency to Terminal (`publish_checked_component`) just to store a cache
-  description. Acceptance: no re-encode or re-derive on a cache hit; corpus
-  `--filter packages` is unchanged.
 
 - **BEHAVIOR-EXCLUSIONS-CHECKED-ONCE.** (new-scope) An authored exclusion is
   now checked once per entry and once per callback thunk, each on that

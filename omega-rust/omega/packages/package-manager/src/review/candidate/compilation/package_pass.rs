@@ -27,9 +27,7 @@ use super::super::{
 };
 use crate::declarations::DependencyPurpose;
 use crate::declarations::PackageKey;
-use crate::lock::{
-    PackageAcceptanceRow, PackageCheckedContext, PackageOccurrenceRoster, PackagePolicyAcceptance,
-};
+use crate::lock::{PackageCheckedContext, PackageOccurrenceRoster};
 use crate::resolution::PackageCompilationScope;
 use crate::resolution::graph::{ExactTargetPackageSourceClosure, ResolvedPackageSourceClosure};
 use crate::resolution::source::PackageSourceCustody;
@@ -37,10 +35,10 @@ use crate::review::restricted_build_grants::RestrictedBuildCheckpoint;
 use checked_interpreter::{BuildEvaluationSponsor, FilesystemSponsor};
 use compilation_products::CheckedCompileOutcome;
 use diagnostics::Diagnostic;
+use package_compilation::build_execution::RestrictedBuildGrants;
 use package_compilation::{
     AcceptedSemanticBinding, PackageCompilationInputError, PackageCompilationInputs,
 };
-use package_evidence::record::PackagePolicyRowKind;
 use std::collections::BTreeMap;
 use std::path::Path;
 
@@ -218,6 +216,62 @@ pub(super) fn compile_dependency_closure(
                 diagnostics,
             },
         )?;
+    // A carried dependency whose record retains no component description
+    // cannot answer a consumer's `Independent` demand. The pass reruns with
+    // that occurrence compiled fresh; each rerun adds one occurrence, so the
+    // loop ends within the closure's occurrence count.
+    let mut fresh_components = std::collections::BTreeSet::new();
+    loop {
+        match run_closure_pass(
+            target_closure,
+            roster,
+            execution_profile,
+            build_session_root,
+            filesystem_sponsor,
+            evaluation_sponsor,
+            semantic_bindings_by_consumer,
+            root_build_snapshot,
+            restricted_build_checkpoint,
+            discovery,
+            prior,
+            preparation,
+            &dependency_inputs,
+            &fresh_components,
+        ) {
+            Err(CompileResolvedPackageReviewsError::ComponentDescriptionNotRetained {
+                component,
+                purpose,
+                ..
+            }) if fresh_components.insert((component, purpose)) => {}
+            result => return result,
+        }
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn run_closure_pass(
+    target_closure: &ExactTargetPackageSourceClosure<'_>,
+    roster: &PackageOccurrenceRoster,
+    execution_profile: Option<target::TargetProfile>,
+    build_session_root: &Path,
+    filesystem_sponsor: &FilesystemSponsor,
+    evaluation_sponsor: &BuildEvaluationSponsor,
+    semantic_bindings_by_consumer: &BTreeMap<
+        (PackageKey, DependencyPurpose),
+        Vec<AcceptedSemanticBinding>,
+    >,
+    root_build_snapshot: Option<&build_evaluation::BuildSnapshotRequest>,
+    restricted_build_checkpoint: Option<&RestrictedBuildCheckpoint>,
+    discovery: TargetEntryDiscovery,
+    prior: Option<&CompiledPackageReviews>,
+    preparation: &mut CandidateSourcePreparation,
+    dependency_inputs: &[[Option<OccurrenceBuildInputs>; 2]],
+    fresh_components: &std::collections::BTreeSet<(
+        semantic_vocabulary::PackageKeyIdentity,
+        DependencyPurpose,
+    )>,
+) -> Result<CompiledPackageReviews, CompileResolvedPackageReviewsError> {
+    let closure = target_closure.source_closure();
     let mut pass = ClosurePass {
         closure,
         execution_profile,
@@ -231,6 +285,7 @@ pub(super) fn compile_dependency_closure(
         prior,
         preparation,
         dependency_inputs,
+        fresh_components,
         reviews: Vec::with_capacity(roster.occurrence_count()),
         review_positions: vec![[None::<usize>; 2]; closure.graph().packages().len()],
         component_candidates: BTreeMap::new(),
@@ -312,7 +367,14 @@ struct ClosurePass<'pass> {
     preparation: &'pass mut CandidateSourcePreparation,
     /// Named build inputs reconciled across every incoming edge, by graph
     /// position and purpose slot.
-    dependency_inputs: Vec<[Option<OccurrenceBuildInputs>; 2]>,
+    dependency_inputs: &'pass [[Option<OccurrenceBuildInputs>; 2]],
+    /// Dependency occurrences a consumer demanded a component description
+    /// from that no carried record retained: they compile fresh and their
+    /// replacement records carry the published description.
+    fresh_components: &'pass std::collections::BTreeSet<(
+        semantic_vocabulary::PackageKeyIdentity,
+        DependencyPurpose,
+    )>,
     reviews: Vec<CompilerIssuedPackageReview>,
     /// Index into `reviews` of each package position's review, by purpose slot.
     review_positions: Vec<[Option<usize>; 2]>,
@@ -584,6 +646,9 @@ impl ClosurePass<'_> {
         let execution_profile = self.execution_profile;
         let entry = assembled.entry.as_path();
         let build_snapshot = &assembled.build_snapshot;
+        if self.fresh_components.contains(&(key.identity(), purpose)) {
+            return Ok(false);
+        }
         // A pass that arrives at exactly these inputs for this occurrence
         // compiles the same program deterministically, so the prior
         // pass's compile carries its check, build evaluation, and review
@@ -638,6 +703,7 @@ impl ClosurePass<'_> {
                     occurrence.checked.clone(),
                     review,
                     occurrence.policy_canonical_bytes,
+                    false,
                 )
             })
             .or_else(|| {
@@ -661,9 +727,9 @@ impl ClosurePass<'_> {
                 if occurrence.tolerated_unsettled_service_fields() {
                     return None;
                 }
-                Some((occurrence, review, policy_canonical_bytes))
+                Some((occurrence, review, policy_canonical_bytes, true))
             });
-        let Some((compile, review, policy_canonical_bytes)) = carried else {
+        let Some((compile, review, policy_canonical_bytes, from_disk)) = carried else {
             return Ok(false);
         };
         compile
@@ -682,12 +748,24 @@ impl ClosurePass<'_> {
                         maximum_bytes: super::policy::MAXIMUM_RETAINED_POLICY_CANONICAL_BYTES,
                     }
                 })?;
-        reject_ungranted_restricted_requests(
-            self.restricted_build_checkpoint,
-            closure,
-            key,
-            &review,
-        )?;
+        // A disk-cache carry ran no Build, so its retained requests meet the
+        // same gate a fresh activation's requests meet before execution. A
+        // carry from an earlier pass of this invocation already met it.
+        if from_disk && let Some(checkpoint) = self.restricted_build_checkpoint {
+            let mut grants = checkpoint.grants(
+                key.identity(),
+                review.checked_context(),
+                closure.dependency_path(key),
+            );
+            for request in review.restricted_build_requests() {
+                grants.admit(request).map_err(|diagnostics| {
+                    CompileResolvedPackageReviewsError::Compilation {
+                        package: key.clone(),
+                        diagnostics,
+                    }
+                })?;
+            }
+        }
         // Consumers need the same entry-schema offer whether this
         // dependency compiled now, in a prior pass, or in a prior
         // invocation. An offer is not an accepted binding: only the
@@ -983,12 +1061,6 @@ impl ClosurePass<'_> {
             policy_rows,
             policy_commitment,
         };
-        reject_ungranted_restricted_requests(
-            self.restricted_build_checkpoint,
-            closure,
-            key,
-            &review,
-        )?;
         // Persist the review under the occurrence's post-settlement
         // inputs so a later invocation arriving at exactly these inputs
         // carries it without compiling. The key's inputs digest is the
@@ -1002,8 +1074,10 @@ impl ClosurePass<'_> {
             && let Some(cache) = super::super::review_cache::CompiledReviewCache::open(directory)
             && let Some(subject) = checked.sources().package_subject()
         {
-            let component_description =
-                crate::build_session::publish_checked_component(checked.clone()).ok();
+            let demanded = self.fresh_components.contains(&(key.identity(), purpose));
+            let component_description = demanded
+                .then(|| crate::build_session::publish_checked_component(checked.clone()).ok())
+                .flatten();
             if let Some(record) = super::super::review_cache::record_compiled_review(
                 &review,
                 &checked,
@@ -1019,7 +1093,7 @@ impl ClosurePass<'_> {
                 &occurrence_inputs,
                 &build_snapshot,
             ) {
-                cache.store(&cache_key, &record);
+                cache.store(&cache_key, &record, demanded);
             }
         }
         let review_position = self.reviews.len();
@@ -1057,51 +1131,6 @@ impl ClosurePass<'_> {
     }
 }
 
-/// Join one retained review's projected restricted build requests against an
-/// armed checkpoint, rejecting any request no grant covered. A consuming
-/// compile joins each occurrence's projected restricted requests against its
-/// retained consent here — before the review is retained and before the
-/// generated-source bundle can hand off to a dependent activation — rather
-/// than at the consuming operation's boundary after the whole closure
-/// compiled. An ungranted occurrence rejects with its pending request
-/// meanings attached, whether the review was compiled this pass or carried
-/// forward under equal inputs.
-fn reject_ungranted_restricted_requests(
-    restricted_build_checkpoint: Option<&RestrictedBuildCheckpoint>,
-    closure: &crate::resolution::graph::ResolvedPackageSourceClosure,
-    key: &PackageKey,
-    review: &CompilerIssuedPackageReview,
-) -> Result<(), CompileResolvedPackageReviewsError> {
-    let Some(checkpoint) = restricted_build_checkpoint else {
-        return Ok(());
-    };
-    let projected = PackagePolicyAcceptance::from_policy(review.policy()).map_err(|error| {
-        CompileResolvedPackageReviewsError::Projection {
-            package: key.clone(),
-            diagnostics: vec![Diagnostic::error(error.to_string())],
-        }
-    })?;
-    let ungranted = checkpoint.ungranted_requests(
-        review.key().identity(),
-        review.checked_context(),
-        closure.dependency_path(review.key()),
-        projected
-            .rows()
-            .iter()
-            .filter(|row| row.kind() == PackagePolicyRowKind::RestrictedBuildRequest)
-            .map(PackageAcceptanceRow::canonical_text),
-    );
-    if !ungranted.is_empty() {
-        return Err(
-            CompileResolvedPackageReviewsError::UngrantedRestrictedBuildRequests {
-                package: key.clone(),
-                ungranted,
-            },
-        );
-    }
-    Ok(())
-}
-
 /// Publish the verified component descriptions a rejected compile's
 /// discovered `Independent` selections name, and return the same inputs with
 /// them attached. `Ok(None)` means the rejected compile authored no
@@ -1133,22 +1162,19 @@ fn publish_independent_component_descriptions(
         }
         let description = match component_candidates.get(&(component, purpose)) {
             Some(OccurrenceCompile::Checked(component_checked)) => {
-                crate::build_session::publish_checked_component(component_checked.clone())
-                .map_err(|diagnostics| {
-                    CompileResolvedPackageReviewsError::Compilation {
+                crate::build_session::publish_checked_component(component_checked.clone()).map_err(
+                    |diagnostics| CompileResolvedPackageReviewsError::Compilation {
                         package: key.clone(),
                         diagnostics,
-                    }
-                })?
+                    },
+                )?
             }
             Some(OccurrenceCompile::Cached(facts)) => {
                 facts.component_description.clone().ok_or_else(|| {
-                    CompileResolvedPackageReviewsError::Compilation {
+                    CompileResolvedPackageReviewsError::ComponentDescriptionNotRetained {
                         package: key.clone(),
-                        diagnostics: vec![Diagnostic::error(format!(
-                            "an independent provider selection names dependency package `{}`, whose persisted review retains no component description",
-                            inputs.package_name(component).unwrap_or("<unnamed>"),
-                        ))],
+                        component,
+                        purpose,
                     }
                 })?
             }

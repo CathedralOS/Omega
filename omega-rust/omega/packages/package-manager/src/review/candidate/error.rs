@@ -100,14 +100,14 @@ pub enum CompileResolvedPackageReviewsError {
         package: PackageKey,
         maximum_bytes: usize,
     },
-    /// A consuming compile's restricted-request checkpoint found projected
-    /// request meaning the accepted target never granted for this exact
-    /// checked context. The ungranted meanings stay attached so the review
-    /// can present pending consent with incomplete audit state rather than
-    /// losing what the rejected occurrence asked of the host.
-    UngrantedRestrictedBuildRequests {
+    /// A consumer's `Independent` selection names a dependency occurrence
+    /// carried from a persisted record that retains no component description.
+    /// The closure pass reruns with that occurrence compiled fresh; this
+    /// escapes only if the fresh occurrence still publishes none.
+    ComponentDescriptionNotRetained {
         package: PackageKey,
-        ungranted: Vec<crate::review::UngrantedRestrictedBuildRequest>,
+        component: semantic_vocabulary::PackageKeyIdentity,
+        purpose: crate::declarations::DependencyPurpose,
     },
 }
 
@@ -248,18 +248,11 @@ impl fmt::Display for CompileResolvedPackageReviewsError {
                 "normalized package policies exceeded the {maximum_bytes}-byte aggregate canonical encoding ceiling while compiling package `{}`",
                 package.name().as_str()
             ),
-            Self::UngrantedRestrictedBuildRequests { package, ungranted } => {
-                write!(
-                    formatter,
-                    "package `{}` projected {} restricted build request(s) the accepted policy does not grant for this checked context",
-                    package.name().as_str(),
-                    ungranted.len()
-                )?;
-                for gap in ungranted {
-                    write!(formatter, ": {gap}")?;
-                }
-                Ok(())
-            }
+            Self::ComponentDescriptionNotRetained { package, .. } => write!(
+                formatter,
+                "an independent provider selection in package `{}` names a dependency whose review retains no component description",
+                package.name().as_str()
+            ),
         }
     }
 }

@@ -37,6 +37,4 @@ pub use decision::{
     PackagePolicyResolution, PackagePolicyReviewError, ReviewOnlyRootPolicyDisposition,
     recover_package_policy_review, render_package_policy_review, resolve_package_policy_decisions,
 };
-pub use restricted_build_grants::{
-    RestrictedBuildCheckpoint, UngrantedRestrictedBuildRequest, ungranted_restricted_build_requests,
-};
+pub use restricted_build_grants::{RestrictedBuildCheckpoint, UngrantedRestrictedBuildRequest};

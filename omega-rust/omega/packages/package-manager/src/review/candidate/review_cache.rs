@@ -10,18 +10,25 @@
 //! live-inputs digest and the build-snapshot digest — beneath the same
 //! resolver lane that already carries the checked-source index.
 //!
-//! A record never replays a checked verdict by name: on a lookup hit the
-//! policy baseline round-trips through its canonical codec, and the carried
-//! source-consumption commitment is
-//! re-derived over the stored consumed units plus the live inputs before the
-//! occurrence counts. Corruption, staleness, truncation and foreign records
-//! are misses, never trusted rows — the worst outcome is a fresh compile.
+//! A record never replays a checked verdict by name. The SHA-256 trailer
+//! rejects corruption and truncation, and the policy baseline decodes once
+//! from its stored canonical bytes, whose digest is the policy commitment. A
+//! local writer able to forge a record could equally edit the lock, so a hit
+//! does not re-encode the decoded policy to compare it. The carried
+//! source-consumption commitment is re-derived over the stored consumed units
+//! plus the live inputs before the occurrence counts, because those inputs
+//! are live. Stale and foreign records are misses — the worst outcome is a
+//! fresh compile.
 //!
 //! `CheckedCompilation` itself is deliberately not persisted: its sealed
 //! program storage is not serializable. The cache stores the facts a
 //! carried occurrence's `checked` field is actually consumed for — the
 //! tolerated flag, the source-consumption commitment inputs, the
-//! published independent-component description and target-entry candidate.
+//! target-entry candidate and, when a consumer demanded one, the published
+//! independent-component description. Publication lowers the dependency to
+//! Terminal Psi, so a record does not publish one speculatively: a consumer
+//! that later demands a description a record lacks recompiles that
+//! dependency, whose replacement record then carries it.
 //! Entry candidates remain proposals, not admission authority. The graph root
 //! is never cached: its checked compilation is the update's real product.
 //!
@@ -136,11 +143,10 @@ impl CachedCompiledReview {
         }
         let limits = PackagePolicyRecoveryLimits::default();
         let policy = PackagePolicyBaseline::recover_canonical(&self.policy_bytes, limits).ok()?;
-        if policy.canonical_bytes().ok()?.as_slice() != self.policy_bytes.as_slice() {
-            return None;
-        }
-        let (policy_rows, policy_commitment) =
-            super::review_set::policy_rows_and_commitment(&policy).ok()?;
+        let (policy_rows, _) = policy
+            .canonical_rows_with_limits(package_evidence::record::PackagePolicyRowLimits::default())
+            .ok()?;
+        let policy_commitment = Sha256::digest(&self.policy_bytes).into();
         let review = CompilerIssuedPackageReview {
             key: key.clone(),
             resolution: resolution.clone(),
@@ -210,7 +216,10 @@ impl CompiledReviewCache {
 
     /// Persist one compiled review record under `key`. Storing is
     /// best-effort: oversize records and full directories decline silently.
-    pub(crate) fn store(&self, key: &[u8; 32], review: &CachedCompiledReview) {
+    /// Store one record. `replace` overwrites an existing record under the
+    /// same key: a recompile forced by a demanded component description
+    /// replaces the record that lacked it.
+    pub(crate) fn store(&self, key: &[u8; 32], review: &CachedCompiledReview, replace: bool) {
         let mut payload = Vec::new();
         encode_record(review, &mut payload);
         if payload.len() as u64 > self.limits.max_record_bytes {
@@ -221,7 +230,8 @@ impl CompiledReviewCache {
         let digest: [u8; 32] = Sha256::digest(&payload).into();
         trailer.extend_from_slice(&digest);
         let path = self.record_path(key);
-        if path.exists() {
+        let exists = path.exists();
+        if exists && !replace {
             return;
         }
         let count = match std::fs::read_dir(&self.directory) {
@@ -236,7 +246,7 @@ impl CompiledReviewCache {
                 .count(),
             Err(_) => return,
         };
-        if count >= self.limits.max_records {
+        if !exists && count >= self.limits.max_records {
             return;
         }
         static SEQUENCE: AtomicU64 = AtomicU64::new(0);
