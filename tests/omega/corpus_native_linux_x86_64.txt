@@ -769,8 +769,7 @@ pass/proofs/runtime_ranked_accumulator_early_exit built 1014ms exit:70 @2d8ed253
 pass/proofs/runtime_ranked_accumulator_guarantee_exit built 990ms exit:70 @2d8ed253669f+wt
 pass/providers/bare_byte_array_boundary_argument built 861ms @2d8ed253669f+wt
 pass/providers/boundary_scalar_field_store built 1074ms exit:70 @2d8ed253669f+wt
-pass/providers/checked_boundary_operator_const_application_alternate_exit rejected 632ms regressed-from:built+exit:70 @f89ce561a84
-	fixed-array length `[u8; limit()]`: const evaluation of `limit` failed: authored Operator declaration selection occurrence 1922 (`%` in tests/omega/pass/providers/checked_boundary_operator_const_application_alternate_exit/main.omg) remained unresolved after successful checking (CheckedOperator)
+pass/providers/checked_boundary_operator_const_application_alternate_exit built 4676ms exit:70 @6cbb1bbbe86
 pass/providers/checked_boundary_operator_physical_custody built 850ms exit:70 @2d8ed253669f+wt
 pass/providers/checked_boundary_requirement_dispatch_exit built 1549ms exit:70 @2d8ed253669f+wt
 pass/providers/checked_fixed_operator_dispatch_exit built 770ms exit:70 @2d8ed253669f+wt
@@ -787,6 +786,7 @@ pass/providers/runtime_boundary_array_forwarding_exit built 4879ms exit:70 @95e4
 pass/providers/runtime_boundary_array_result_exit built 4344ms exit:70 @362d09f71f3
 pass/providers/runtime_boundary_primitive_array_argument_exit built 985ms exit:70 @2d8ed253669f+wt
 pass/providers/runtime_result_domain_requirement_overload_exit built 831ms exit:70 @2d8ed253669f+wt
+pass/providers/selected_const_provider_call_identity_exit built 5066ms exit:70 @6cbb1bbbe86
 pass/providers/service_fused_root_establishment built 671ms @2d8ed253669f+wt
 pass/providers/specialized_mixed_structural_result_operator_hosted_native built 455ms exit:0 @2d8ed253669f+wt
 pass/providers/specialized_structural_fixed_operator_terminal_custody built 403ms @2d8ed253669f+wt

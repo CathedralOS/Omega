@@ -2533,8 +2533,7 @@ pass/providers/bare_byte_array_boundary_argument checked 1466ms check-target:mac
 pass/providers/borrowed_service_field_forward_exit checked 944ms check-target:macos_arm64 @5745c7562b65
 pass/providers/boundary_primitive_array_argument_exit checked 4140ms check-target:macos_arm64 @cfe60a3a242
 pass/providers/boundary_scalar_field_store checked 1609ms check-target:macos_arm64 @2d8ed253669f
-pass/providers/checked_boundary_operator_const_application_alternate_exit rejected 344ms check-target:macos_arm64 @aeb3a47a1e0
-	fixed-array length `[u8; limit()]`: const evaluation of `limit` failed: authored Operator declaration selection occurrence 1922 (`%` in tests/omega/pass/providers/checked_boundary_operator_const_application_alternate_exit/main.omg) remained unresolved after successful checking (CheckedOperator)
+pass/providers/checked_boundary_operator_const_application_alternate_exit checked 2440ms check-target:macos_arm64 @6cbb1bbbe86
 pass/providers/checked_boundary_operator_physical_custody checked 1269ms check-target:macos_arm64 @2d8ed253669f
 pass/providers/checked_boundary_requirement_dispatch_exit checked 2064ms check-target:macos_arm64 @2d8ed253669f
 pass/providers/checked_fixed_operator_dispatch_exit checked 1244ms check-target:macos_arm64 @2d8ed253669f
@@ -2560,6 +2559,7 @@ pass/providers/runtime_foreign_leaf_borrowed_byte_argument_exit checked 1431ms c
 pass/providers/runtime_result_domain_requirement_overload_exit checked 1345ms check-target:macos_arm64 @2d8ed253669f
 pass/providers/same_name_requirement_dispatch_exit checked 670ms check-target:macos_arm64 @b14cbb25f486+wt
 pass/providers/same_name_requirement_right_dispatch_exit checked 670ms check-target:macos_arm64 @b14cbb25f486+wt
+pass/providers/selected_const_provider_call_identity_exit checked 2774ms check-target:macos_arm64 @6cbb1bbbe86
 pass/providers/service_borrowed_parameter checked 123ms @2a68bc887d99+wt
 pass/providers/service_fused_root_establishment checked 743ms check-target:linux_x86_64 @2d8ed253669f
 pass/providers/specialized_mixed_structural_result_operator_hosted_native rejected 1222ms check-target:macos_arm64 @c5d32a00863
