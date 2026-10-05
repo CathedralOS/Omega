@@ -405,6 +405,13 @@ main changes rather than using a merge-base. Invalid references fail.
 | Manifests, build scripts, lockfiles, toolchain/configuration, shared fixtures, Omega library sources, tools, and unknown inputs | All libraries. Markdown outside the allowlist, including this file, also takes this fallback. |
 | No changed input | No commands; library filter `none()`. |
 
+A change under a `PATH_CANDIDATES` prefix in `test_affected.py` also runs that
+catalog candidate, reported under `path_candidates`. Changes under
+`source/library/` run `std_package_check` (`omega --check
+source/library/std/main.omg`, about 2.5 minutes on a debug build): a corpus
+fixture compiles only the std bodies its program reaches, so only a whole-package
+check observes a std body that fails checking.
+
 Mixed documentation/Rust changes retain the Rust dependency closure. Library
 commands keep `--workspace` feature unification even for a narrow filter;
 splitting compilation into separate package builds need not be equivalent.

@@ -4,7 +4,8 @@
 Supply a previously verified commit as --base. Git compares its tree with the
 current working files (including staged and untracked files). Rust files under
 a known crate's src/ select dependents; audited documentation is reported in the
-plan's documentation_paths. Other inputs run all library tests.
+plan's documentation_paths. Other inputs run all library tests. A change under
+a PATH_CANDIDATES prefix also runs that catalog candidate.
 
 Routine-diff selections also exclude the measured slow tail in SLOW_TEST_OWNERS:
 a listed test is skipped unless its owning package's own src/ files changed or
@@ -56,6 +57,13 @@ DOCUMENTATION_FILES = {
 # relying on a narrow run. Empty since native-realization's library tests
 # (`stack_probe_commit`, `runtime_spill_pressure`) were deleted.
 SLOW_TEST_OWNERS: dict[str, list[tuple[str, int]]] = {}
+
+# Catalog candidates selected by changed path, for behavior no library test or
+# corpus fixture observes. A corpus fixture compiles only the std bodies its
+# program reaches, so a std change that fails whole-package checking stays
+# green everywhere except `omega update`, which every sample's preparation runs:
+# on 2026-10-05 new TimeHost providers broke every std sample for three hours.
+PATH_CANDIDATES = (("source/library/", "std_package_check"),)
 
 
 def is_documentation(filename):
@@ -251,6 +259,26 @@ def jev_post(root, payload, key):
     return result
 
 
+def catalog_candidates():
+    return json.loads(JEV_CATALOG.read_text(encoding="utf-8"))["candidates"]
+
+
+def candidate_command(command, runner):
+    return [part.replace("{runner}", runner).replace("{python}", sys.executable)
+            for part in command]
+
+
+def path_candidate_commands(runner, paths, full):
+    """Commands for PATH_CANDIDATES whose prefix a changed path falls under."""
+    wanted = [candidate for prefix, candidate in PATH_CANDIDATES
+              if full or any(path.startswith(prefix) for path in paths)]
+    if not wanted:
+        return [], []
+    commands = {c["id"]: c.get("command") for c in catalog_candidates()}
+    return wanted, [candidate_command(commands[candidate], runner)
+                    for candidate in wanted]
+
+
 def fixture_filters(paths):
     """tests/omega/<tier>/<group>/... -> corpus gate filter fragments."""
     filters = []
@@ -279,8 +307,7 @@ def jev_augment(root, runner, paths, affected, commands, disabled, full):
     key = jev_api_key(root)
     if key is None or not JEV_CATALOG.exists():
         return summary
-    candidates = json.loads(
-        JEV_CATALOG.read_text(encoding="utf-8"))["candidates"]
+    candidates = catalog_candidates()
     payload = jev_payload(paths, affected, candidates)
     try:
         result = jev_post(root, payload, key)
@@ -307,9 +334,7 @@ def jev_augment(root, runner, paths, affected, commands, disabled, full):
         if command is None or cand.get("auto_run") is False:
             summary["suggested"].append(cid)
             continue
-        argv = [part.replace("{runner}", runner)
-                      .replace("{python}", sys.executable)
-                for part in command]
+        argv = candidate_command(command, runner)
         if cand.get("auto_run") == "filterable":
             fragments = fixture_filters(paths)
             if not fragments:
@@ -375,10 +400,12 @@ def make_plan(root, runner, base, full=False, with_slow_tail=False):
             # A valid selection can contain only bin crates (e.g. omega).
             # The separate integration gate covers those; this phase is --lib.
             commands[-1].extend(["--no-tests", "pass"])
+    path_candidates, path_commands = path_candidate_commands(runner, paths, full)
+    commands.extend(path_commands)
     plan = {"base": base, "changed_paths": paths, "affected_packages": packages,
             "documentation_paths": documentation_paths,
             "filter": expression, "full_suite_reasons": reasons,
-            "commands": commands}
+            "path_candidates": path_candidates, "commands": commands}
     remaining = [entry for entry in slow_tail if entry not in excluded]
     if remaining:
         plan["slow_tail"] = remaining
