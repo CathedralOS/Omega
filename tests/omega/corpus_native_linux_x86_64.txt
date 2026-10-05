@@ -2,11 +2,12 @@
 # One fixture per line: <tier/group/name> <status> <milliseconds>ms, then
 # `expected` or `unexpected` when its expected.txt fragments were weighed,
 # then any execution facts such as exit:70 or stdout:match, then
-# `@<revision>` recording which commit measured the row (`+wt` = dirty
-# tree; rows measured before stamping have no token).
+# `regressed-from:<status>[+fact]*` when the row has lost a success it used
+# to record, then `@<revision>` recording which commit measured the row
+# (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 8, "jobs": null, "load1_end": 1.47, "load1_start": 0.54, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 8, "jobs": null, "load1_end": 1.36, "load1_start": 1.39, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 306ms @2d8ed253669f+wt
 pass/arithmetic/anonymous_rational_integer_landing checked 305ms @2d8ed253669f+wt
 pass/arithmetic/bounded_assignment checked 307ms @2d8ed253669f+wt
@@ -45,7 +46,7 @@ pass/atomics/atomic_global_order_operations checked 322ms @2d8ed253669f+wt
 pass/atomics/runtime_atomic_bitwise_widths_exit built 4292ms exit:70 @8ed2986d3282
 pass/atomics/runtime_atomic_compare_exchange_exit built 873ms exit:70 @2d8ed253669f+wt
 pass/atomics/runtime_atomic_fetch_add_exit built 869ms exit:70 @2d8ed253669f+wt
-pass/atomics/shared_receiver_atomic_store built 2342ms exit:70 @8ed2986d3282
+pass/atomics/shared_receiver_atomic_store built 1478ms exit:70 @b4389bab0444
 pass/blockexec/blocking_executor_custody_claims_compile built 680ms @2d8ed253669f+wt
 pass/borrow/copyable_array_view_survives_owner_pass_compile checked 270ms @2d8ed253669f+wt
 pass/borrow/explicit_aggregate_lifetime_selects_source checked 273ms @2d8ed253669f+wt
