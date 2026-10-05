@@ -19,6 +19,7 @@ use super::{
     RuntimeSpillAllocation, RuntimeSpillAllocationError, RuntimeSpillFacts,
     RuntimeSpillManifestBase, RuntimeSpillSource, RuntimeSpillStep, RuntimeSpillStepRewrite,
 };
+use crate::assignment::home_assignment::compute::FunctionHomeReuse;
 use optimization_core::OptimizationWorkBudget;
 use register_homes::PostAllocationSelectedTransformation;
 use selected_instructions::{
@@ -51,7 +52,18 @@ pub(super) fn assign(
     ranges: &ValidatedLiveRanges,
     legality: &ValidatedAllocationLegality,
 ) -> Result<crate::ValidatedRegisterHomes, crate::RegisterHomeError> {
-    crate::assign_register_homes(
+    assign_reusing(environment, ranges, legality, None)
+}
+
+/// `assign` offering the homes of functions an earlier recovery step left
+/// unchanged (`FunctionHomeReuse`).
+fn assign_reusing(
+    environment: &register_environment::ValidatedTargetRegisterEnvironment,
+    ranges: &ValidatedLiveRanges,
+    legality: &ValidatedAllocationLegality,
+    reuse: Option<&mut FunctionHomeReuse>,
+) -> Result<crate::ValidatedRegisterHomes, crate::RegisterHomeError> {
+    crate::assignment::home_assignment::assign_register_homes_reusing(
         legality,
         ranges,
         environment.identity(),
@@ -59,6 +71,7 @@ pub(super) fn assign(
         environment.constraints(),
         environment.reservations(),
         &environment.allocation_constraint_keys(),
+        reuse,
     )
 }
 
@@ -497,7 +510,15 @@ fn recover_over(
 ) -> Result<RuntimeSpillAllocation, RuntimeSpillAllocationError> {
     let base = source.declared_manifest();
     let environment = source.register_environment();
-    let mut failure = match assign(environment, source.ranges(), source.legality()) {
+    // One reuse set spans every step: each step rewrites one function, so the
+    // others keep the homes their unchanged rows already received.
+    let mut home_reuse = FunctionHomeReuse::default();
+    let mut failure = match assign_reusing(
+        environment,
+        source.ranges(),
+        source.legality(),
+        Some(&mut home_reuse),
+    ) {
         Err(error @ crate::RegisterHomeError::NoCompatibleHome { .. }) => error,
         Err(error) => return Err(RuntimeSpillAllocationError::Homes(error)),
         Ok(_) => return Err(RuntimeSpillAllocationError::RecoveryNotRequired),
@@ -598,7 +619,12 @@ fn recover_over(
                             &current_legality,
                             &SelectedProgramRef::new(&crossing),
                         )?;
-                        match assign(environment, &probe.ranges, &probe.legality) {
+                        match assign_reusing(
+                            environment,
+                            &probe.ranges,
+                            &probe.legality,
+                            Some(&mut home_reuse),
+                        ) {
                             Ok(homes) => {
                                 steps.push(RuntimeSpillStep {
                                     rewrite: RuntimeSpillStepRewrite::Spill(crossing),
@@ -664,7 +690,12 @@ fn recover_over(
                 &current_legality,
                 &rewrite.selected(),
             )?;
-            let homes = assign(environment, &facts.ranges, &facts.legality);
+            let homes = assign_reusing(
+                environment,
+                &facts.ranges,
+                &facts.legality,
+                Some(&mut home_reuse),
+            );
             (facts, homes)
         };
         if !matches!(rewrite, RuntimeSpillStepRewrite::Split(_)) {

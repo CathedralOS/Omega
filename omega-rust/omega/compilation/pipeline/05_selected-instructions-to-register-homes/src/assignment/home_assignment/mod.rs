@@ -34,6 +34,29 @@ pub fn assign_register_homes(
     reservations: &ValidatedRegisterReservationProfile,
     selected_keys: &TargetRegisterEnvironmentConstraintKeys,
 ) -> Result<ValidatedRegisterHomes, RegisterHomeError> {
+    assign_register_homes_reusing(
+        legality,
+        ranges,
+        register_environment,
+        physical,
+        constraints,
+        reservations,
+        selected_keys,
+        None,
+    )
+}
+
+/// `assign_register_homes` reusing unchanged functions' homes from `reuse`.
+pub(crate) fn assign_register_homes_reusing(
+    legality: &ValidatedAllocationLegality,
+    ranges: &ValidatedLiveRanges,
+    register_environment: TargetRegisterEnvironmentIdentity,
+    physical: &ValidatedPhysicalRegisterModel,
+    constraints: &ValidatedRegisterConstraintCatalog,
+    reservations: &ValidatedRegisterReservationProfile,
+    selected_keys: &TargetRegisterEnvironmentConstraintKeys,
+    reuse: Option<&mut compute::FunctionHomeReuse>,
+) -> Result<ValidatedRegisterHomes, RegisterHomeError> {
     let plan = compute::compute_terminal_register_homes(
         legality,
         ranges,
@@ -42,6 +65,7 @@ pub fn assign_register_homes(
         constraints,
         reservations,
         selected_keys,
+        reuse,
     )?;
     validate_register_homes(
         legality,

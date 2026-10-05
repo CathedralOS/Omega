@@ -16,11 +16,78 @@ use register_model::{
 };
 
 use crate::{RegisterHomeError, RegisterHomePlan};
+use register_homes::{FunctionAllocationLegality, FunctionRegisterHomes};
+use selected_instructions::FunctionLiveRanges;
 use selected_instructions_to_selected_instructions::{
     ValidatedAllocationLegality, ValidatedLiveRanges,
 };
 
 pub(crate) use placement::compute_function;
+
+/// Per-function homes from earlier assignments in one register environment,
+/// offered for reuse by ordinal.
+///
+/// A function's homes read only its own legality and live-range rows and the
+/// physical model (`compute_function`), so equal rows in the same environment
+/// yield equal homes. Runtime-spill recovery rewrites one function per step
+/// and reassigns the whole program after each; without reuse, every step
+/// recomputed every function before the one still failing. The reused rows
+/// are proposals: a successful plan is validated whole, as any other.
+#[derive(Default)]
+pub(crate) struct FunctionHomeReuse {
+    register_environment: Option<TargetRegisterEnvironmentIdentity>,
+    functions: Vec<Option<ReusableFunctionHomes>>,
+    #[cfg(test)]
+    reused: usize,
+}
+
+struct ReusableFunctionHomes {
+    legality: FunctionAllocationLegality,
+    ranges: FunctionLiveRanges,
+    homes: FunctionRegisterHomes,
+}
+
+impl FunctionHomeReuse {
+    #[cfg(test)]
+    pub(crate) const fn reused(&self) -> usize {
+        self.reused
+    }
+
+    pub(crate) fn compute(
+        &mut self,
+        register_environment: TargetRegisterEnvironmentIdentity,
+        index: usize,
+        legality: &FunctionAllocationLegality,
+        ranges: &FunctionLiveRanges,
+        physical: &ValidatedPhysicalRegisterModel,
+    ) -> Result<FunctionRegisterHomes, RegisterHomeError> {
+        if self.register_environment != Some(register_environment) {
+            self.register_environment = Some(register_environment);
+            self.functions.clear();
+        }
+        if let Some(Some(prior)) = self.functions.get(index)
+            && prior.legality == *legality
+            && prior.ranges == *ranges
+        {
+            let homes = prior.homes.clone();
+            #[cfg(test)]
+            {
+                self.reused += 1;
+            }
+            return Ok(homes);
+        }
+        let homes = compute_function(index, legality, ranges, physical)?;
+        if self.functions.len() <= index {
+            self.functions.resize_with(index + 1, || None);
+        }
+        self.functions[index] = Some(ReusableFunctionHomes {
+            legality: legality.clone(),
+            ranges: ranges.clone(),
+            homes: homes.clone(),
+        });
+        Ok(homes)
+    }
+}
 
 pub(crate) fn compute_terminal_register_homes(
     legality: &ValidatedAllocationLegality,
@@ -30,6 +97,7 @@ pub(crate) fn compute_terminal_register_homes(
     constraints: &ValidatedRegisterConstraintCatalog,
     reservations: &ValidatedRegisterReservationProfile,
     selected_keys: &TargetRegisterEnvironmentConstraintKeys,
+    mut reuse: Option<&mut FunctionHomeReuse>,
 ) -> Result<RegisterHomePlan, RegisterHomeError> {
     if legality.receipt().ranges() != ranges.receipt().identity()
         || legality.receipt().register_environment() != register_environment
@@ -58,7 +126,12 @@ pub(crate) fn compute_terminal_register_homes(
             if legality.machine != ranges.machine {
                 return Err(RegisterHomeError::FunctionMismatch { function: index });
             }
-            compute_function(index, legality, ranges, physical)
+            match reuse.as_deref_mut() {
+                Some(reuse) => {
+                    reuse.compute(register_environment, index, legality, ranges, physical)
+                }
+                None => compute_function(index, legality, ranges, physical),
+            }
         })
         .collect::<Result<Vec<_>, _>>()?;
     Ok(RegisterHomePlan {
