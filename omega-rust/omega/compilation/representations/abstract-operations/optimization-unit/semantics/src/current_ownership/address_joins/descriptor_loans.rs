@@ -543,6 +543,8 @@ fn operation_observations(
         // The shared path owner interprets selectors. A nested view/reference
         // dereferences storage outside this record; no contained-field alias
         // has been reconstructed here, so it cannot justify descendant access.
+        // The whole root is not such a crossing for any descriptor family:
+        // its establishment registered the backing alias `resolve_at` applies.
         projection.indirect |= root.is_none_or(|root| {
             (0..path.len()).any(|length| {
                 terminal_semantics::runtime_structural_path_tip(
@@ -551,14 +553,12 @@ fn operation_observations(
                     &path[..length],
                 )
                 .is_none_or(|declaration| {
-                    matches!(
-                        declaration.shape,
-                        terminal_psi::StructuralTypeShape::Reference { .. }
-                    ) || (length != 0
+                    length != 0
                         && (matches!(
                             declaration.shape,
-                            terminal_psi::StructuralTypeShape::ElementView { .. }
-                        ) || declaration.shape.is_borrowed_byte_view()))
+                            terminal_psi::StructuralTypeShape::Reference { .. }
+                                | terminal_psi::StructuralTypeShape::ElementView { .. }
+                        ) || declaration.shape.is_borrowed_byte_view())
                 })
             })
         });
