@@ -92,7 +92,7 @@ impl<Conclusion: Clone> Clone for ReplayMemo<Conclusion> {
 }
 
 impl CanonicalTerminalArtifact {
-    /// Encode and independently replay one source-free Terminal artifact.
+    /// Encode one source-free Terminal artifact.
     /// The artifact carries no mathematical-signature section; a program
     /// whose checked cohort held mathematical declarations must publish
     /// through [`Self::from_parts_with_mathematical_signature`].
@@ -111,14 +111,20 @@ impl CanonicalTerminalArtifact {
         )
     }
 
-    /// Encode and independently replay one source-free Terminal artifact that
-    /// also carries the checked mathematical signature.
+    /// Encode one source-free Terminal artifact that also carries the checked
+    /// mathematical signature.
     ///
     /// `mathematical_signature` is the canonical `PSISIG` wire produced by
     /// [`crate::encode_mathematical_signature`], `Some` exactly when the
-    /// checked program carried mathematical declarations. The bytes are
-    /// decoded and kernel re-decided during the construction replay, so an
-    /// artifact whose signature evidence does not verify is never built.
+    /// checked program carried mathematical declarations.
+    ///
+    /// The sections are this call's own encoding of these inputs, so the
+    /// artifact starts replayed and holds the module it encoded. Replaying
+    /// here would decode what was just encoded and rebuild the manifest that
+    /// was just built: under verification placement (`omega-rust/pipeline.md`)
+    /// the producer is the gate, and codec round trips belong to tests.
+    /// Retained bytes cross a trust boundary and are read back through
+    /// [`Self::from_bytes`], which decodes and re-decides every section.
     pub fn from_parts_with_mathematical_signature(
         semantic_module: &TerminalModule,
         proof_bundle: &ProofBundle,
@@ -159,7 +165,8 @@ impl CanonicalTerminalArtifact {
             replayed: ReplayMemo::default(),
             semantic_module: ReplayMemo::default(),
         };
-        artifact.validate()?;
+        let _ = artifact.replayed.0.set(());
+        let _ = artifact.semantic_module.0.set(semantic_module.clone());
         Ok(artifact)
     }
 
@@ -332,6 +339,13 @@ impl CanonicalTerminalArtifact {
                     .map_err(CanonicalTerminalArtifactError::Debug)
             })
             .transpose()?;
+        // The signature wire decodes into a fresh arena, must re-encode to its
+        // exact bytes, and is re-decided by the kernel's `check_signature`
+        // inside the decoder; no producer claim is trusted.
+        if let Some(signature_bytes) = mathematical_signature_bytes {
+            decode_mathematical_signature(signature_bytes)
+                .map_err(CanonicalTerminalArtifactError::MathematicalSignature)?;
+        }
         let artifact = Self::from_parts_with_mathematical_signature(
             &semantic_module,
             &proof_bundle,
