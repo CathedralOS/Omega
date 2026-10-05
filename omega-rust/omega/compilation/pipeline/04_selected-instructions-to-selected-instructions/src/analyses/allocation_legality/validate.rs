@@ -31,6 +31,35 @@ pub fn validate_allocation_legality(
     selected_keys: &TargetRegisterEnvironmentConstraintKeys,
     plan: AllocationLegalityPlan,
 ) -> Result<ValidatedAllocationLegality, AllocationLegalityError> {
+    validate_allocation_legality_carrying(
+        ranges,
+        availability,
+        register_environment,
+        physical,
+        constraints,
+        reservations,
+        selected_keys,
+        plan,
+        &[],
+    )
+}
+
+/// `validate_allocation_legality`, except that a function marked in `carried`
+/// is not replayed: its rows were copied unchanged from a validated
+/// predecessor plan for an identical live-range function under the same
+/// roots, and replay reads only those.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn validate_allocation_legality_carrying(
+    ranges: &ValidatedLiveRanges,
+    availability: &ValidatedAllocatorAvailability,
+    register_environment: TargetRegisterEnvironmentIdentity,
+    physical: &ValidatedPhysicalRegisterModel,
+    constraints: &ValidatedRegisterConstraintCatalog,
+    reservations: &ValidatedRegisterReservationProfile,
+    selected_keys: &TargetRegisterEnvironmentConstraintKeys,
+    plan: AllocationLegalityPlan,
+    carried: &[bool],
+) -> Result<ValidatedAllocationLegality, AllocationLegalityError> {
     let target = ranges.plan().target;
     if target.architecture != physical.model().architecture
         || constraints.physical_identity() != physical.identity()
@@ -69,6 +98,9 @@ pub fn validate_allocation_legality(
             return Err(AllocationLegalityError::FunctionMismatch {
                 function: function_index,
             });
+        }
+        if carried.get(function_index) == Some(&true) {
+            continue;
         }
         // Register-order replay repeatedly visits the same immutable class/location.
         // Share only this replay's general facts; every occurrence still checks its

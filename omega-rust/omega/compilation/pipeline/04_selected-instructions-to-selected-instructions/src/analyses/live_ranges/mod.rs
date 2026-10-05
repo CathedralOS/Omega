@@ -1,9 +1,8 @@
 //! Optimizer module role: executable entrance. Block-local live ranges and interference compute -> validation entrance.
 //!
-//! Replay the liveness prerequisite before the producer inspects it, then keep
-//! those exact immutable inputs through independent range verification. Calling
-//! the public raw-plan validator here would replay the prerequisite a second
-//! time; skipping the first check would move computation ahead of input errors.
+//! The liveness prerequisite was replayed by its own analysis; check that it
+//! belongs to the selected program before the producer inspects it, then
+//! verify the range plan independently.
 use crate::ValidatedLiveness;
 use crate::ValidatedSelectedAnalysis;
 
@@ -24,13 +23,14 @@ pub fn analyze_live_ranges<S: ValidatedSelectedAnalysis>(
     selected: &S,
     liveness: &ValidatedLiveness,
 ) -> Result<ValidatedLiveRanges, LiveRangeError> {
-    let inputs = validate::RevalidatedLiveness::new(selected, liveness)?;
+    validate::require_liveness_of(selected, liveness)?;
     let plan = compute::compute_terminal_live_ranges(selected, liveness)?;
-    inputs.validate(plan)
+    validate_live_ranges(selected, liveness, plan)
 }
 
-/// Reuse function computations only for identical selected bodies and liveness.
-/// The prerequisite and complete candidate result still receive independent replay.
+/// Reuse function computations only for identical selected bodies and liveness,
+/// and replay the functions computed afresh. A carried function's rows were
+/// replayed when its predecessor plan was validated, against the same inputs.
 pub fn analyze_live_ranges_reusing(
     previous: &impl ValidatedSelectedAnalysis,
     previous_liveness: &ValidatedLiveness,
@@ -38,15 +38,15 @@ pub fn analyze_live_ranges_reusing(
     selected: &impl ValidatedSelectedAnalysis,
     liveness: &ValidatedLiveness,
 ) -> Result<ValidatedLiveRanges, LiveRangeError> {
-    let inputs = validate::RevalidatedLiveness::new(selected, liveness)?;
-    let plan = compute::compute_terminal_live_ranges_reusing(
+    validate::require_liveness_of(selected, liveness)?;
+    let (plan, carried) = compute::compute_terminal_live_ranges_reusing(
         previous,
         previous_liveness,
         previous_ranges,
         selected,
         liveness,
     )?;
-    inputs.validate(plan)
+    validate::validate_live_ranges_carrying(selected, liveness, plan, &carried)
 }
 
 mod staging;
@@ -168,7 +168,6 @@ impl ValidatedLiveRanges {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LiveRangeError {
     LivenessRevalidation(LivenessError),
-    LivenessReceiptMismatch,
     RootMismatch,
     UnsupportedUseDef {
         function: usize,

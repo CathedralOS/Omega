@@ -16,8 +16,10 @@ pub(super) fn replay_live_ranges(
     selected: &impl crate::ValidatedSelectedAnalysis,
     liveness: &ValidatedLiveness,
     plan: LiveRangePlan,
+    carried: &[bool],
 ) -> Result<ValidatedLiveRanges, LiveRangeError> {
     if plan.selected != selected.selected_identity()
+        || liveness.plan().selected != selected.selected_identity()
         || plan.liveness != liveness.receipt().identity()
         || plan.optimization_unit != selected.optimization_unit_identity()
         || plan.fuel_schedule != selected.fuel_schedule_identity()
@@ -42,6 +44,9 @@ pub(super) fn replay_live_ranges(
         .zip(&plan.functions)
         .enumerate()
     {
+        if carried.get(function_index) == Some(&true) {
+            continue;
+        }
         let expected = function::replay_function(function_index, selected_function, live_function)?;
         canonical::validate(function_index, actual)?;
         comparison::require_function(function_index, actual, &expected)?;

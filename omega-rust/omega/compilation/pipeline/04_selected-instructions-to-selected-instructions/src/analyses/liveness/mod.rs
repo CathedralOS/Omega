@@ -20,15 +20,18 @@ pub fn analyze_liveness<S: ValidatedSelectedAnalysis>(
     validate_liveness(selected, plan)
 }
 
-/// Reuse unchanged function computations, then independently replay the entire
-/// result. Prior facts are candidates, never authority for the new receipt.
+/// Reuse unchanged function computations and replay the functions computed
+/// afresh. A carried function's rows were replayed when its predecessor plan
+/// was validated, against the same selected function; the new receipt still
+/// covers the whole plan.
 pub fn analyze_liveness_reusing(
     previous: &impl ValidatedSelectedAnalysis,
     previous_liveness: &ValidatedLiveness,
     selected: &impl ValidatedSelectedAnalysis,
 ) -> Result<ValidatedLiveness, LivenessError> {
-    let plan = compute::compute_terminal_liveness_reusing(previous, previous_liveness, selected)?;
-    validate_liveness(selected, plan)
+    let (plan, carried) =
+        compute::compute_terminal_liveness_reusing(previous, previous_liveness, selected)?;
+    validate::validate_liveness_carrying(selected, plan, &carried)
 }
 
 mod staging;

@@ -36,9 +36,10 @@ pub(crate) fn compute_terminal_liveness_reusing(
     previous: &impl crate::ValidatedSelectedAnalysis,
     previous_liveness: &crate::ValidatedLiveness,
     selected: &impl crate::ValidatedSelectedAnalysis,
-) -> Result<LivenessPlan, LivenessError> {
+) -> Result<(LivenessPlan, Vec<bool>), LivenessError> {
     let plan = selected.selected_plan();
     let prior = previous_liveness.plan();
+    let mut carried = vec![false; plan.functions.len()];
     let compatible = prior.selected == previous.selected_identity()
         && prior.optimization_unit == previous.optimization_unit_identity()
         && prior.fuel_schedule == previous.fuel_schedule_identity()
@@ -62,18 +63,22 @@ pub(crate) fn compute_terminal_liveness_reusing(
                     || previous.selected_plan().functions.get(function_index) == Some(function))
                 && let Some(facts) = prior.functions.get(function_index)
             {
+                carried[function_index] = true;
                 return Ok(facts.clone());
             }
             compute_function(function_index, function)
         })
         .collect::<Result<Vec<_>, _>>()?;
-    Ok(LivenessPlan {
-        selected: selected.selected_identity(),
-        optimization_unit: selected.optimization_unit_identity(),
-        fuel_schedule: selected.fuel_schedule_identity(),
-        target: plan.target,
-        functions,
-    })
+    Ok((
+        LivenessPlan {
+            selected: selected.selected_identity(),
+            optimization_unit: selected.optimization_unit_identity(),
+            fuel_schedule: selected.fuel_schedule_identity(),
+            target: plan.target,
+            functions,
+        },
+        carried,
+    ))
 }
 
 pub(crate) fn compute_function(

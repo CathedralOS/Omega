@@ -27,7 +27,7 @@ pub(crate) fn compute_terminal_allocation_legality(
     reservations: &ValidatedRegisterReservationProfile,
     selected_keys: &TargetRegisterEnvironmentConstraintKeys,
     previous: Option<(&ValidatedLiveRanges, &ValidatedAllocationLegality)>,
-) -> Result<AllocationLegalityPlan, AllocationLegalityError> {
+) -> Result<(AllocationLegalityPlan, Vec<bool>), AllocationLegalityError> {
     validate_roots(
         ranges,
         availability,
@@ -62,6 +62,7 @@ pub(crate) fn compute_terminal_allocation_legality(
             && prior_legality.receipt().allocator_availability()
                 == availability.receipt().identity()
     });
+    let mut carried = vec![false; ranges.plan().functions.len()];
     let functions = ranges
         .plan()
         .functions
@@ -72,6 +73,7 @@ pub(crate) fn compute_terminal_allocation_legality(
                 && prior_ranges.plan().functions.get(function_index) == Some(live_ranges)
                 && let Some(function) = prior_legality.plan().functions.get(function_index)
             {
+                carried[function_index] = true;
                 return Ok(function.clone());
             }
             function::compute(
@@ -83,12 +85,15 @@ pub(crate) fn compute_terminal_allocation_legality(
             )
         })
         .collect::<Result<Vec<_>, _>>()?;
-    Ok(AllocationLegalityPlan {
-        ranges: ranges.receipt().identity(),
-        register_environment,
-        allocator_availability: availability.receipt().identity(),
-        functions,
-    })
+    Ok((
+        AllocationLegalityPlan {
+            ranges: ranges.receipt().identity(),
+            register_environment,
+            allocator_availability: availability.receipt().identity(),
+            functions,
+        },
+        carried,
+    ))
 }
 
 fn validate_roots(

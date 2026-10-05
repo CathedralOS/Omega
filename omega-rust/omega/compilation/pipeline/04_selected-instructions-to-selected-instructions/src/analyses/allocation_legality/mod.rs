@@ -27,7 +27,7 @@ pub fn analyze_allocation_legality(
     reservations: &ValidatedRegisterReservationProfile,
     selected_keys: &TargetRegisterEnvironmentConstraintKeys,
 ) -> Result<ValidatedAllocationLegality, AllocationLegalityError> {
-    let plan = compute::compute_terminal_allocation_legality(
+    let (plan, _) = compute::compute_terminal_allocation_legality(
         ranges,
         availability,
         register_environment,
@@ -50,8 +50,10 @@ pub fn analyze_allocation_legality(
 }
 
 /// Reuse proposals for functions whose complete live ranges and allocation
-/// roots are unchanged. The whole result still receives independent replay;
-/// prior rows are not a substitute for validation or the new plan identity.
+/// roots are unchanged, and replay the functions computed afresh. A carried
+/// function's rows were replayed when its predecessor plan was validated,
+/// against the same live ranges and roots; the new identity covers the whole
+/// plan.
 pub fn analyze_allocation_legality_reusing(
     previous_ranges: &ValidatedLiveRanges,
     previous_legality: &ValidatedAllocationLegality,
@@ -63,7 +65,7 @@ pub fn analyze_allocation_legality_reusing(
     reservations: &ValidatedRegisterReservationProfile,
     selected_keys: &TargetRegisterEnvironmentConstraintKeys,
 ) -> Result<ValidatedAllocationLegality, AllocationLegalityError> {
-    let plan = compute::compute_terminal_allocation_legality(
+    let (plan, carried) = compute::compute_terminal_allocation_legality(
         ranges,
         availability,
         register_environment,
@@ -73,7 +75,7 @@ pub fn analyze_allocation_legality_reusing(
         selected_keys,
         Some((previous_ranges, previous_legality)),
     )?;
-    validate_allocation_legality(
+    validate::validate_allocation_legality_carrying(
         ranges,
         availability,
         register_environment,
@@ -82,6 +84,7 @@ pub fn analyze_allocation_legality_reusing(
         reservations,
         selected_keys,
         plan,
+        &carried,
     )
 }
 

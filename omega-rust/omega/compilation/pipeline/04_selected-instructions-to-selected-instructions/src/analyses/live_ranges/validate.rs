@@ -1,20 +1,15 @@
 //! Independent live-range validation entrance.
 //!
-//! Every public call first replays liveness custody, then descends into exact
-//! live-range reconstruction. The producer may retain this prerequisite only
-//! across its computation on the same borrowed inputs. It cannot substitute
-//! another selected program or liveness plan at the final validation join.
-//! Receipt construction and focused corruption
-//! tests live below `validate/`; producer computation remains a sibling of
-//! this entire validation subtree.
+//! The liveness input is a `ValidatedLiveness`: its own analysis replayed it
+//! when it was produced, so this entrance checks only that it belongs to the
+//! selected program before descending into exact live-range reconstruction.
+//! Receipt construction and focused corruption tests live below `validate/`;
+//! producer computation remains a sibling of this entire validation subtree.
 
 mod receipt;
 mod replay;
 
-use crate::{
-    LiveRangeError, ValidatedLiveRanges, ValidatedLiveness, ValidatedSelectedAnalysis,
-    validate_liveness,
-};
+use crate::{LiveRangeError, ValidatedLiveRanges, ValidatedLiveness};
 use selected_instructions::LiveRangePlan;
 
 pub fn validate_live_ranges(
@@ -22,42 +17,32 @@ pub fn validate_live_ranges(
     liveness: &ValidatedLiveness,
     plan: LiveRangePlan,
 ) -> Result<ValidatedLiveRanges, LiveRangeError> {
-    RevalidatedLiveness::new(selected, liveness)?.validate(plan)
+    replay::replay_live_ranges(selected, liveness, plan, &[])
 }
 
-/// Invocation-local custody, not a reusable receipt or retained analysis cache.
-/// The sealed selected input and liveness expose no mutation through shared
-/// borrows. Private fields prevent re-binding an admitted pair before replay.
-pub(super) struct RevalidatedLiveness<'input, Selected> {
-    selected: &'input Selected,
-    liveness: &'input ValidatedLiveness,
+/// `validate_live_ranges`, except that a function marked in `carried` is not
+/// replayed: its rows were copied unchanged from a validated predecessor plan
+/// for an identical selected function and liveness function, and replay reads
+/// only those two.
+pub(super) fn validate_live_ranges_carrying(
+    selected: &impl crate::ValidatedSelectedAnalysis,
+    liveness: &ValidatedLiveness,
+    plan: LiveRangePlan,
+    carried: &[bool],
+) -> Result<ValidatedLiveRanges, LiveRangeError> {
+    replay::replay_live_ranges(selected, liveness, plan, carried)
 }
 
-impl<'input, Selected: ValidatedSelectedAnalysis> RevalidatedLiveness<'input, Selected> {
-    pub(super) fn new(
-        selected: &'input Selected,
-        liveness: &'input ValidatedLiveness,
-    ) -> Result<Self, LiveRangeError> {
-        revalidate_liveness_custody(selected, liveness)?;
-        Ok(Self { selected, liveness })
-    }
-
-    pub(super) fn validate(
-        self,
-        plan: LiveRangePlan,
-    ) -> Result<ValidatedLiveRanges, LiveRangeError> {
-        replay::replay_live_ranges(self.selected, self.liveness, plan)
-    }
-}
-
-fn revalidate_liveness_custody(
-    selected: &impl ValidatedSelectedAnalysis,
+/// Reject a liveness plan computed for another selected program before the
+/// producer reads it.
+pub(super) fn require_liveness_of(
+    selected: &impl crate::ValidatedSelectedAnalysis,
     liveness: &ValidatedLiveness,
 ) -> Result<(), LiveRangeError> {
-    let replayed = validate_liveness(selected, liveness.plan().clone())
-        .map_err(LiveRangeError::LivenessRevalidation)?;
-    if replayed.receipt() != liveness.receipt() {
-        return Err(LiveRangeError::LivenessReceiptMismatch);
+    if liveness.plan().selected != selected.selected_identity()
+        || liveness.receipt().selected() != selected.selected_identity()
+    {
+        return Err(LiveRangeError::RootMismatch);
     }
     Ok(())
 }

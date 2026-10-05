@@ -56,8 +56,9 @@ pub(crate) fn compute_terminal_live_ranges_reusing(
     previous_ranges: &crate::ValidatedLiveRanges,
     selected: &impl crate::ValidatedSelectedAnalysis,
     liveness: &ValidatedLiveness,
-) -> Result<LiveRangePlan, LiveRangeError> {
+) -> Result<(LiveRangePlan, Vec<bool>), LiveRangeError> {
     let prior = previous_ranges.plan();
+    let mut carried = vec![false; selected.selected_plan().functions.len()];
     let compatible = prior.selected == previous.selected_identity()
         && prior.liveness == previous_liveness.receipt().identity()
         && previous_liveness.plan().selected == previous.selected_identity()
@@ -84,17 +85,21 @@ pub(crate) fn compute_terminal_live_ranges_reusing(
                 && previous_liveness.plan().functions.get(function_index) == Some(live)
                 && let Some(facts) = prior.functions.get(function_index)
             {
+                carried[function_index] = true;
                 return Ok(facts.clone());
             }
             compute_function(function_index, function, live)
         })
         .collect::<Result<Vec<_>, _>>()?;
-    Ok(LiveRangePlan {
-        selected: selected.selected_identity(),
-        liveness: liveness.receipt().identity(),
-        optimization_unit: selected.optimization_unit_identity(),
-        fuel_schedule: selected.fuel_schedule_identity(),
-        target: selected.selected_plan().target,
-        functions,
-    })
+    Ok((
+        LiveRangePlan {
+            selected: selected.selected_identity(),
+            liveness: liveness.receipt().identity(),
+            optimization_unit: selected.optimization_unit_identity(),
+            fuel_schedule: selected.fuel_schedule_identity(),
+            target: selected.selected_plan().target,
+            functions,
+        },
+        carried,
+    ))
 }
