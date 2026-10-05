@@ -24,7 +24,7 @@ data Token {
 }
 
 TokenProducer: Token satisfies Producer {
-    machine produce(subject: &Self)
+    machine produce(subject: &Token)
     requires local_first: first_ready()
     requires local_second: second_ready()
     requires local_third: third_ready()
