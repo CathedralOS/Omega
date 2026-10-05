@@ -2196,6 +2196,60 @@ crash and native exit behavior.
   A measured recommendation NOT to do it, with the row count that decides it,
   closes this item too.
 
+- **CORPUS-GOLDEN-HAS-NO-HOST-DIMENSION.** (new-scope)
+  `tests/omega/corpus_outcomes.txt` is one shared golden with **no host
+  dimension**, while every fixture that binds a program entry has a
+  **host-dependent check-leg verdict**. Rows recorded on Linux and rows
+  recorded on macOS sit side by side, so reading two together manufactures
+  contradictions reproducible on neither host.
+  - `omega-rust/omega/compilation/driver/tests/corpus_runner.rs:837`
+    `check_leg_realization_target` -> `pass_realization_target` realizes a
+    program-entry-binding pass fixture for **the recording host's own target**
+    whenever the fixture binds it.
+  - `realization/provider-planning/src/provider_settlement/canonical_filesystem_host.rs:126-131`
+    `toolchain_filesystem_leaves` has exactly one arm, `"linux_x86_64"`, whose
+    11-leaf table (lines 76-121) contains `close` and **not** `errno`. On a
+    Linux realization the mint emits `ProviderBinding::Syscall { number: 3 }`
+    for `close`, `provider_settlement.rs:224` `bind_fused_service_erasures`
+    binds the `FilesystemHost` erasure,
+    `selected-dispatch/src/service_custody/root.rs:160` is satisfied, and the
+    fixture compiles.
+  - So `pass/filesystem/native_close checked` was recorded on Linux by
+    `3a37e6f8862`, whose own `# context:` line reads
+    `{"machine": "x86_64", "platform": "linux"}`, while the `native_errno` row
+    beside it is a Darwin recording. Measured with ten byte-identical probes at
+    two targets: 7 table members build under `--native-target linux_x86_64` and
+    all 7 refuse on `macos_arm64`; 3 non-members refuse on both. Greenness
+    tracks table membership exactly -- not signature shape, not arity, not the
+    release cohort.
+  - This is the **documented** toolchain-mint route, not a `covers_schema`
+    bypass: `canonical_filesystem_host.rs:26-36` states
+    `with_toolchain_settled_plan` "skips only the authored-conformance
+    full-coverage check" while uniqueness, nonzero-identity and boundary-slot
+    invariants still apply. No `satisfies FilesystemHost::` row exists in
+    `source/`, and a macOS leaf table has never existed.
+  - The per-host **native** goldens are already correct:
+    `corpus_native_linux_x86_64.txt` records `native_close built` and
+    `native_errno rejected`; `corpus_native_macos_arm64.txt` records both
+    rejected. Only the check-leg golden lacks the dimension.
+
+  **Why this outranks one wrong row:** a false-green row is invisible to the
+  cheap sweep that would catch it. The red set is swept by building a gate
+  filter from the golden itself (`b40754519d5`), which costs 66 fixtures rather
+  than 1959 but by construction examines only rows the golden already calls
+  red. So **the corpus red count is a lower bound and nobody knows by how
+  much.**
+
+  Do not simply re-pin `native_close` on Darwin: the row is genuinely
+  host-dependent, so that flips a coin the next Linux recorder flips back and
+  erases the only visible trace of the defect. Fix the representation first.
+  Acceptance: a row recorded on one host can never be silently read as a
+  verdict on another, `native_close` is representable honestly on both, and the
+  change states how many of the ~1900 existing rows churn and why.
+
+  Sequencing: `corpus_runner.rs` and the shared golden are also the surface of
+  **CORPUS-SEALED-SOURCE-STAGING**, so the two coordinate rather than race.
+
 - **BUILD-FACET-RECEIVER-RESIDUE.** (split-of:COMPILE-REPORT-PRODUCTS)
   `BuildLog::write_line` and `Build::select_provider` still select by receiver
   place inside the build dispatchers' `!expression_receiver_is_namespace` /
