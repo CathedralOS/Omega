@@ -260,3 +260,42 @@ customer either, since `BoundaryCallingPlanRealization` seals
 `provider-planning`, so a `build-evaluation` unit test cannot construct one.
 Until this is answered the physical calling-convention check is unexercised by
 any program or test.
+
+### Q4 - How does a concrete reference erase to `dyn` at a call-argument position?
+
+Named decision: `dynamic-erasure-at-argument-position`.
+
+**Customer:** `pass/traits/runtime_dyn_two_impl_dispatch_exit` calls
+`Main::dispatch(&mut main.c)` where the parameter is `&mut dyn Shape` and the
+argument is a concrete `&mut Circle`. This is an **implicit erasure at an
+argument position**, with no `let erased: &mut dyn Shape = ... as ...;`
+statement anywhere.
+
+**Existing rules:** `collect_dynamic_conformance_selections`
+(`checking/src/declarations/traits/dynamic.rs`) only visits
+`StatementNode::LocalData` carrying a dynamic coercion cast. So for this
+program **no `DynamicConformanceSelection` is recorded at all** and no dynamic
+dispatch plan is possible. `validate_dynamic_call_arguments` does type-check
+the erasure -- it confirms exactly one closed conformance for `Circle` -- and
+records nothing from it. The refusal therefore surfaces far downstream, as
+`base_type_identity` returning `None` for a `TypeReferenceNode::DynamicTrait`
+in `calls/structural_arguments.rs`. **Do not widen `base_type_identity`:** a
+`&mut dyn` argument is a two-word descriptor, not a structural operand, so its
+having no structural-argument identity is correct.
+
+**Decision needed, in two parts:**
+
+1. Is a coercion form admitted at a call-argument position, and if so does the
+   argument's erasure record a conformance selection the way a local coercion
+   does?
+2. How is the conformance selected **per call site**? This fixture calls one
+   `Main::dispatch` from two sites that select different conformances, while
+   `CheckedDynamicDispatchPlans::for_caller` admits exactly one plan per caller
+   (`let [plan] = ... else { "duplicated" }`). The fixture's own comment calls
+   this call-site monomorphization.
+
+This is recorded as a question rather than implemented because part 2 changes
+what a dispatch plan is keyed by, which is a language-level commitment and not
+an implementation detail. `pass/traits/runtime_local_named_dyn_devirtualized_exit`
+is the sibling fixture that does author a local coercion, is a **different**
+defect, and is tracked on DYN-CONTINUATION-ROOT-REJOIN.
