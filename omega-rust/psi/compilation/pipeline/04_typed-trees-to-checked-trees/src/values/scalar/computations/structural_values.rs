@@ -227,9 +227,10 @@ pub(super) fn is_borrowed_slice_view_value(
 /// A LocalData initializer copying one element of a borrowed view
 /// (`let chosen: Entry = tail[index]`): a single-element index over a bare
 /// name whose declared type is a view of exactly the copyable record the
-/// local declares. The builder then admits the view root, the selector and
-/// the element's scalar fields.
-pub(super) fn is_view_element_copy(
+/// local declares. This is `view_element_copy`'s own admission, consulted by
+/// the builder branch that owns it -- the owned-place arm in `computations`
+/// offers every projected place and does not re-derive this shape.
+fn is_view_element_copy(
     program: &TypedTrees,
     expression: ExpressionHandle,
     expected: TypeReferenceHandle,

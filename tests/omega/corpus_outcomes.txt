@@ -2368,8 +2368,8 @@ pass/ownership/linear_branch_reconciliation checked 279ms @2d8ed253669f
 pass/ownership/linear_self_receiver_disposition checked 302ms @2d8ed253669f
 pass/ownership/linear_transfer_and_consume rejected 2366ms @b5d8c6882a8
 	terminal-artifact production failed: Lowering(InvalidTerminalModule(UnknownStructuralArgument { operation: OperationId(3), argument_index: 0, place: PlaceId(4) }))
-pass/ownership/linear_transparent_record_frontier rejected 1447ms @58e4f6f8667
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: structural call binding`
+pass/ownership/linear_transparent_record_frontier rejected 6014ms @5798b57ae772+wt
+	terminal-artifact production failed: Lowering(Unsupported("nested record cannot create linear custody"))
 pass/ownership/move_keyword_field_assignment checked 1226ms @2d8ed253669f
 pass/ownership/read_owner_before_consumption_and_after_reassignment checked 269ms @0aa983f6af47+wt
 pass/ownership/runtime_borrowed_record_transform_exit checked 1261ms @2d8ed253669f

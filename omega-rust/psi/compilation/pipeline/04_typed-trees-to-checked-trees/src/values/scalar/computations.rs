@@ -150,23 +150,37 @@ pub(crate) fn build_checked_value_computation_plans(
                     StatementNode::Expression(expression) => Some((*expression, state.return_type)),
                     _ => None,
                 };
-                // A whole owned place is a structural value just like a
-                // constructor operand. Let the same builder check its selected
-                // type and storage; local copies must not lose their operation
+                // An owned place is a structural value just like a
+                // constructor operand, whether the authored expression names
+                // the whole root or one of its projected children. Let the
+                // same builder check its selected type and storage; local
+                // copies and partial moves must not lose their operation
                 // merely because they are the root of an initializer.
-                // A whole returned reference instead belongs to reference
-                // completion's affine establishment and exact ingress map.
-                // Reference nodes remain valid inside record constructors.
-                // A `let view: &T = &place` initializer is the same carrier a
-                // selection arm admits; restricting that admission to LocalData
-                // keeps a returned `&place` on its reference-completion owner.
+                //
+                // What narrows this admission is the destination's owning
+                // lane, not the shape of the place expression: a scalar
+                // destination belongs to the primitive-local route, and a
+                // whole returned reference to reference completion's affine
+                // establishment and exact ingress map. Every other
+                // destination is a structural carrier, and `structural_value`
+                // remains the authority over which operation the read becomes
+                // -- a copy, a borrow, or the projected selection transfer a
+                // partial move out of a transparent record records. Reference
+                // nodes remain valid inside record constructors. A
+                // `let view: &T = &place` initializer is the same carrier a
+                // selection arm admits; restricting that admission to
+                // LocalData keeps a returned `&place` on its
+                // reference-completion owner.
                 if let Some((expression, expected)) = construction_destination
                     && (validation::is_scalar_case_value(program, expression, expected)
                         || (validation::reference_result_custody::parts(program, expected)
                             .is_none()
+                            && program.primitive_type_reference(expected).is_none()
                             && matches!(
                                 program.expression_table.expression(expression),
                                 ExpressionNode::Name(_)
+                                    | ExpressionNode::Member(_)
+                                    | ExpressionNode::Indexed(_)
                             ))
                         || structural_values::is_record_value(program, expression, expected)
                         || structural_values::is_scalar_case_place_value(
@@ -203,12 +217,6 @@ pub(crate) fn build_checked_value_computation_plans(
                         // of its own.
                         || (matches!(statement, StatementNode::LocalData(_))
                             && structural_values::is_borrowed_slice_view_value(program, expected))
-                        // A `[copy]` element of a view copies through element
-                        // reads; its value node owns the selection.
-                        || (matches!(statement, StatementNode::LocalData(_))
-                            && structural_values::is_view_element_copy(
-                                program, expression, expected,
-                            ))
                         // Array construction owns the same child values in
                         // a local initializer and a returned expression. Each
                         // element keeps its value node and declared type so
