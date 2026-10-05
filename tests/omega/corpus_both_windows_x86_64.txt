@@ -16,6 +16,7 @@ pass/build/static_assumed_binding_spelling_exit built 6097ms exit:0 interpreter-
 pass/calls/runtime_static_proof_only_namespace_exit built 18768ms exit:0 interpreter-exit:0 interpreter:agrees @d5610b396716+wt
 pass/calls/runtime_static_tail_local_custody_exit built 2771ms exit:0 interpreter-exit:0 interpreter:agrees @c5d32a008630+wt
 pass/calls/runtime_static_tail_reordered_local_custody_exit built 3632ms exit:0 interpreter-exit:0 interpreter:agrees @c5d32a008630+wt
+pass/collections/runtime_maze_pathfind_exit built 27238ms exit:70 interpreter-exit:70 interpreter:agrees @081f64b34b38+wt
 pass/control_flow/element_view_enum_equality_exit built 9147ms exit:70 interpreter-exit:70 interpreter:agrees @5b40b0f7256d
 pass/control_flow/no_payload_case_variant_after_payload_dispatch_exit built 4434ms exit:70 interpreter-exit:70 interpreter:agrees @76e6a2caeab4+wt
 pass/core/extent_root_provider_adapter built 2986ms exit:0 interpreter-exit:0 interpreter:agrees @b429d3348cac+wt

@@ -1,131 +1,132 @@
-// Shortest-path pathfinding on a GRID maze by BFS -- the basis of game navigation and
-// route-finding, and distinct from runtime_bfs_traversal_exit (which used an explicit
-// adjacency matrix): here the graph is IMPLICIT, the four grid neighbours of each open
-// cell. A 5x5 maze (1 = wall) with a snaking corridor; BFS from the top-left cell records
-// the shortest distance to every reachable cell. Each cell's row/col come from the flat
-// index (c/5, c%5); the four moves are offset pairs in dr/dc looped over, the neighbour's
-// flat index is formed into a field, and its wall/dist values are read into fields before
-// being guard subjects (the documented computed-index / indexed-read workarounds). The
-// shortest distance from cell 0 to cell 24 is exactly 16 (verified against a reference
-// BFS). Exits 70.
+// BFS over the implicit four-neighbour graph of a 5x5 maze. The shortest
+// distance from cell 0 to cell 24 is 16. Main owns only its Console binding;
+// one local workspace owns the arrays and queue, while states pass iteration
+// values explicitly. Neighbour coordinates and indexed reads are locals.
 use omega_language_std::console;
 use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;
-    wall: [i32; 25];  // 5x5, 1 = wall
-    dist: [i32; 25];  // BFS distance, -1 = unvisited
+}
+
+data MazeSearch {
+    walls: [i32; 25];
+    distances: [i32; 25];
     queue: [i32; 32];
-    dr: [i32; 4];     // row offsets: up, down, left, right
-    dc: [i32; 4];     // col offsets
+    row_offsets: [i32; 4];
+    column_offsets: [i32; 4];
     head: i32 in Wrapping;
     tail: i32 in Wrapping;
     count: i32 in Wrapping;
-    c: i32 in Wrapping;           // dequeued cell
-    row: i32 in Wrapping;
-    col: i32 in Wrapping;
-    d: i32 in Wrapping;           // direction index
-    ddr: i32 in Wrapping;
-    ddc: i32 in Wrapping;
-    nr: i32 in Wrapping;          // neighbour row
-    nc: i32 in Wrapping;          // neighbour col
-    ncell: i32 in Wrapping;       // neighbour flat index
-    w: i32 in Wrapping;           // wall[ncell]
-    dn: i32 in Wrapping;          // dist[ncell]
-    cd: i32 in Wrapping;          // dist[c]
-    nd: i32 in Wrapping;          // cd + 1
-    r24: i32 in Wrapping;
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    main.wall = [0, 0, 0, 0, 0,  1, 1, 1, 1, 0,  0, 0, 0, 0, 0,  0, 1, 1, 1, 1,  0, 0, 0, 0, 0];
-    main.dist = [0 - 1, 0 - 1, 0 - 1, 0 - 1, 0 - 1,  0 - 1, 0 - 1, 0 - 1, 0 - 1, 0 - 1,
-                 0 - 1, 0 - 1, 0 - 1, 0 - 1, 0 - 1,  0 - 1, 0 - 1, 0 - 1, 0 - 1, 0 - 1,
-                 0 - 1, 0 - 1, 0 - 1, 0 - 1, 0 - 1];
-    main.queue = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-    main.dr = [0 - 1, 1, 0, 0];
-    main.dc = [0, 0, 0 - 1, 1];
-    main.dist[0] = 0;
-    main.queue[0] = 0;
-    main.head = 0;
-    main.tail = 1;
-    main.count = 1;
-    transition { _ -> bfs_loop(main) }
-
-    state bfs_loop(main: &mut Main) {
-        transition main.count > 0 { true -> deq(main) _ -> verify(main) }
-    }
-    state deq(main: &mut Main) {
-        transition main.head >= 0 && main.head < 32 { true -> deq_read(main) _ -> bad(main) }
-    }
-    state deq_read(main: &mut Main) {
-        main.c = main.queue[main.head] as i32 in Wrapping;
-        main.head = main.head + 1;
-        main.count = main.count - 1;
-        main.row = main.c / 5;
-        main.col = main.c % 5;
-        main.d = 0;
-        transition { _ -> dir_loop(main) }
-    }
-    // try each of the four grid neighbours
-    state dir_loop(main: &mut Main) {
-        transition main.d >= 0 && main.d < 4 { true -> dir_read(main) _ -> bfs_loop(main) }
-    }
-    state dir_read(main: &mut Main) {
-        main.ddr = main.dr[main.d] as i32 in Wrapping;
-        main.ddc = main.dc[main.d] as i32 in Wrapping;
-        main.nr = main.row + main.ddr;
-        main.nc = main.col + main.ddc;
-        transition main.nr >= 0 && main.nr < 5 && main.nc >= 0 && main.nc < 5 {
-            true -> nbr_cell(main)
-            _ -> next_d(main)
-        }
-    }
-    state nbr_cell(main: &mut Main) {
-        main.ncell = main.nr * 5 + main.nc;
-        transition main.ncell >= 0 && main.ncell < 25 { true -> nbr_wall(main) _ -> bad(main) }
-    }
-    state nbr_wall(main: &mut Main) {
-        main.w = main.wall[main.ncell] as i32 in Wrapping;
-        transition main.w == 0 { true -> nbr_vis(main) _ -> next_d(main) }
-    }
-    state nbr_vis(main: &mut Main) {
-        main.dn = main.dist[main.ncell] as i32 in Wrapping;
-        transition main.dn < 0 { true -> visit_guard(main) _ -> next_d(main) }
-    }
-    state visit_guard(main: &mut Main) {
-        transition main.c >= 0 && main.c < 25 && main.ncell >= 0 && main.ncell < 25
-            && main.tail >= 0 && main.tail < 32 {
-            true -> do_visit(main)
-            _ -> bad(main)
-        }
-    }
-    state do_visit(main: &mut Main) {
-        main.cd = main.dist[main.c] as i32 in Wrapping;
-        main.nd = main.cd + 1;
-        main.dist[main.ncell] = main.nd as i32;
-        main.queue[main.tail] = main.ncell as i32;
-        main.tail = main.tail + 1;
-        main.count = main.count + 1;
-        transition { _ -> next_d(main) }
-    }
-    state next_d(main: &mut Main) {
-        main.d = main.d + 1;
-        transition { _ -> dir_loop(main) }
+    let mut search: MazeSearch;
+    let distance: i32 = MazeSearch::distance(&mut search);
+    let stored_distance: i32 = search.distances[24];
+    transition distance == 16 && stored_distance == distance {
+        true -> good(main)
+        _ -> wrong(main, distance)
     }
 
-    state verify(main: &mut Main) {
-        main.r24 = main.dist[24] as i32 in Wrapping;
-        transition main.r24 == 16 { true -> good(main) _ -> wrong(main) }
-    }
     state good(main: &mut Main) {
         main.console.exit_process(70);
     }
-    state wrong(main: &mut Main) {
-        main.console.exit_process(main.r24 as i32); // surface the wrong distance
+    state wrong(main: &mut Main, distance: i32) {
+        main.console.exit_process(distance);
     }
-    state bad(main: &mut Main) {
-        main.console.exit_process(1);
+}
+
+machine MazeSearch::distance(search: &mut MazeSearch) -> i32 {
+    search.walls = [0, 0, 0, 0, 0,  1, 1, 1, 1, 0,  0, 0, 0, 0, 0,  0, 1, 1, 1, 1,  0, 0, 0, 0, 0];
+    search.distances = [0 - 1, 0 - 1, 0 - 1, 0 - 1, 0 - 1,  0 - 1, 0 - 1, 0 - 1, 0 - 1, 0 - 1,
+                        0 - 1, 0 - 1, 0 - 1, 0 - 1, 0 - 1,  0 - 1, 0 - 1, 0 - 1, 0 - 1, 0 - 1,
+                        0 - 1, 0 - 1, 0 - 1, 0 - 1, 0 - 1];
+    search.queue = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+    search.row_offsets = [0 - 1, 1, 0, 0];
+    search.column_offsets = [0, 0, 0 - 1, 1];
+    search.distances[0] = 0;
+    search.queue[0] = 0;
+    search.head = 0;
+    search.tail = 1;
+    search.count = 1;
+    transition { _ -> dequeue(search) }
+
+    state dequeue(search: &mut MazeSearch) -> i32 {
+        transition search.count > 0 {
+            true -> check_head(search)
+            _ -> (search.distances[24])
+        }
+    }
+    state check_head(search: &mut MazeSearch) -> i32 {
+        transition search.head >= 0 && search.head < 32 {
+            true -> read_cell(search)
+            _ -> 1
+        }
+    }
+    state read_cell(search: &mut MazeSearch) -> i32 {
+        let cell: i32 in Wrapping = search.queue[search.head] as i32 in Wrapping;
+        search.head = search.head + 1;
+        search.count = search.count - 1;
+        transition { _ -> direction(search, cell, 0) }
+    }
+    state direction(search: &mut MazeSearch, cell: i32 in Wrapping,
+                    direction_index: i32 in Wrapping) -> i32 {
+        transition direction_index >= 0 && direction_index < 4 {
+            true -> neighbour(search, cell, direction_index)
+            _ -> dequeue(search)
+        }
+    }
+    state neighbour(search: &mut MazeSearch, cell: i32 in Wrapping,
+                    direction_index: i32 in Wrapping) -> i32 {
+        let row_offset: i32 in Wrapping = search.row_offsets[direction_index] as i32 in Wrapping;
+        let column_offset: i32 in Wrapping = search.column_offsets[direction_index] as i32 in Wrapping;
+        let row: i32 in Wrapping = cell / 5 + row_offset;
+        let column: i32 in Wrapping = cell % 5 + column_offset;
+        transition row >= 0 && row < 5 && column >= 0 && column < 5 {
+            true -> neighbour_cell(search, cell, direction_index, row * 5 + column)
+            _ -> direction(search, cell, direction_index + 1)
+        }
+    }
+    state neighbour_cell(search: &mut MazeSearch, cell: i32 in Wrapping,
+                         direction_index: i32 in Wrapping, neighbour_index: i32 in Wrapping) -> i32 {
+        transition neighbour_index >= 0 && neighbour_index < 25 {
+            true -> wall(search, cell, direction_index, neighbour_index)
+            _ -> 1
+        }
+    }
+    state wall(search: &mut MazeSearch, cell: i32 in Wrapping,
+               direction_index: i32 in Wrapping, neighbour_index: i32 in Wrapping) -> i32 {
+        let blocked: i32 = search.walls[neighbour_index];
+        transition blocked == 0 {
+            true -> visited(search, cell, direction_index, neighbour_index)
+            _ -> direction(search, cell, direction_index + 1)
+        }
+    }
+    state visited(search: &mut MazeSearch, cell: i32 in Wrapping,
+                  direction_index: i32 in Wrapping, neighbour_index: i32 in Wrapping) -> i32 {
+        let distance: i32 = search.distances[neighbour_index];
+        transition distance < 0 {
+            true -> check_visit(search, cell, direction_index, neighbour_index)
+            _ -> direction(search, cell, direction_index + 1)
+        }
+    }
+    state check_visit(search: &mut MazeSearch, cell: i32 in Wrapping,
+                      direction_index: i32 in Wrapping, neighbour_index: i32 in Wrapping) -> i32 {
+        transition cell >= 0 && cell < 25 && neighbour_index >= 0 && neighbour_index < 25
+            && search.tail >= 0 && search.tail < 32 {
+            true -> visit(search, cell, direction_index, neighbour_index)
+            _ -> 1
+        }
+    }
+    state visit(search: &mut MazeSearch, cell: i32 in Wrapping,
+                direction_index: i32 in Wrapping, neighbour_index: i32 in Wrapping) -> i32 {
+        let distance: i32 in Wrapping = search.distances[cell] as i32 in Wrapping;
+        search.distances[neighbour_index] = (distance + 1) as i32;
+        search.queue[search.tail] = neighbour_index as i32;
+        search.tail = search.tail + 1;
+        search.count = search.count + 1;
+        transition { _ -> direction(search, cell, direction_index + 1) }
     }
 }
