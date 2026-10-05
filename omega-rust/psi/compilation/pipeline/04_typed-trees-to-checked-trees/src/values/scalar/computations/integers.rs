@@ -239,7 +239,7 @@ impl Builder<'_, '_> {
                     left.domain,
                     right.value,
                     right.domain,
-                    self.operators.division_is_defined(expression),
+                    self.operators.formation_is_decided(expression),
                 )?;
                 let CheckedScalarExpression::IntegerBinary {
                     kind,

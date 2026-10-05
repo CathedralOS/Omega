@@ -150,7 +150,7 @@ pub(super) fn analyze(
             diagnostics,
         )
     {
-        decisions.defined_divisions.push(expression);
+        decisions.decided_formations.push(expression);
     }
     let mut exact_result_proven = false;
     if effective_domain == ArithmeticDomain::Exact {
@@ -177,13 +177,23 @@ pub(super) fn analyze(
         && let Some(primitive) = primitive
     {
         operation.warn_unconditional_trap(bridge, primitive, interval, diagnostics);
-        operation.require_representable_result(
+        let representable = operation.require_representable_result(
             bridge,
             primitive,
             interval,
             exact_result_proven,
             diagnostics,
         );
+        // A shift also owes its count bound, decided below; record only the
+        // sum, difference and product whose one condition this proved.
+        if representable
+            && matches!(
+                operator,
+                BinaryOperator::Add | BinaryOperator::Subtract | BinaryOperator::Multiply
+            )
+        {
+            decisions.decided_formations.push(expression);
+        }
     }
     if operation.is_shift()
         && let Some(bridge) = policy_bridge
@@ -620,6 +630,9 @@ impl Operation<'_, '_> {
     ///
     /// Division/remainder use the shared definedness judgment, including the
     /// signed MIN/-1 pair, rather than this result interval gate.
+    /// Require a representable result where the policy owes one. Returns
+    /// whether it owed one and this occurrence proved it: a decision
+    /// lowering may consume.
     fn require_representable_result(
         &self,
         bridge: IntegerPolicyBridge,
@@ -627,7 +640,7 @@ impl Operation<'_, '_> {
         interval: Interval,
         exact_result_proven: bool,
         diagnostics: &mut Vec<Diagnostic>,
-    ) {
+    ) -> bool {
         if matches!(
             self.operator(),
             BinaryOperator::Divide | BinaryOperator::Modulo
@@ -635,15 +648,16 @@ impl Operation<'_, '_> {
             .formation_conditions
             .contains(&IntegerFormationCondition::ResultRepresentable)
         {
-            return;
+            return false;
         }
         let Some(range) = primitive_range(primitive) else {
-            return;
+            return false;
         };
         if self.result_fits(primitive, range, interval, exact_result_proven) {
-            return;
+            return true;
         }
         self.report_unrepresentable(primitive, diagnostics);
+        false
     }
 
     fn result_fits(

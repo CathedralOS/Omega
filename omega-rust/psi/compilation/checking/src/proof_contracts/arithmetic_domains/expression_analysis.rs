@@ -52,16 +52,17 @@ pub(super) struct CheckedAnalysis {
 #[derive(Debug, Default)]
 pub(crate) struct ArithmeticDecisions {
     pub(crate) exact_integer_casts: Vec<crate::ExactIntegerCastFact>,
-    /// Division and remainder occurrences whose every formation condition
-    /// under their selected policy was proven: a nonzero divisor and, for an
-    /// Exact signed operation, the excluded `MIN / -1` pair.
-    pub(crate) defined_divisions: Vec<ExpressionHandle>,
+    /// Integer operations whose every formation condition under their
+    /// selected policy was proven: a nonzero divisor and, for an Exact signed
+    /// division, the excluded `MIN / -1` pair; a representable Exact sum,
+    /// difference or product.
+    pub(crate) decided_formations: Vec<ExpressionHandle>,
 }
 
 impl ArithmeticDecisions {
     pub(crate) fn extend(&mut self, other: Self) {
         self.exact_integer_casts.extend(other.exact_integer_casts);
-        self.defined_divisions.extend(other.defined_divisions);
+        self.decided_formations.extend(other.decided_formations);
     }
 }
 

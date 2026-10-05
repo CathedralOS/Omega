@@ -62,9 +62,9 @@ pub struct ProgramValidationFacts {
     pub stored_integer_writes: Vec<checked_trees::CheckedStoredIntegerWrite>,
     pub boundary_operator_applications: Vec<ValidatedBoundaryOperatorApplication>,
     pub exact_integer_casts: Vec<ExactIntegerCastFact>,
-    /// Division and remainder occurrences whose formation conditions every
-    /// clean arithmetic walk decided.
-    pub defined_divisions: Vec<typed_trees::expression::ExpressionHandle>,
+    /// Integer operations whose formation conditions every clean arithmetic
+    /// walk decided.
+    pub decided_formations: Vec<typed_trees::expression::ExpressionHandle>,
     pub float_meaning_projection_invocations: Vec<ValidatedFloatMeaningProjectionInvocation>,
     pub float_meaning_equality_propositions: Vec<ValidatedFloatMeaningEqualityProposition>,
     pub fact_call_projections: Vec<fact_call_projections::ValidatedFactCallProjection>,
@@ -629,11 +629,11 @@ fn validate(
     finish_diagnostics(literals::anonymous_integer_landing_warnings(program))?;
     let arithmetic_domains::ArithmeticDecisions {
         mut exact_integer_casts,
-        mut defined_divisions,
+        mut decided_formations,
     } = arithmetic_decisions;
-    defined_divisions
+    decided_formations
         .sort_by_key(|expression| checked_trees::operators::handle_position(*expression));
-    defined_divisions.dedup();
+    decided_formations.dedup();
     exact_integer_casts
         .sort_by_key(|fact| (fact.expression.arena_index(), fact.expression.generation()));
     exact_integer_casts.dedup_by(|right, left| {
@@ -653,7 +653,7 @@ fn validate(
             stored_integer_writes,
             boundary_operator_applications,
             exact_integer_casts,
-            defined_divisions,
+            decided_formations,
             float_meaning_projection_invocations,
             float_meaning_equality_propositions,
             fact_call_projections,

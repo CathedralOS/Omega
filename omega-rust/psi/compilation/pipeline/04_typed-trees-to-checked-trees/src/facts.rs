@@ -140,7 +140,7 @@ pub(crate) fn build_check_facts(
     let mut values = build_value_facts(program, proof_plan);
     let mut operators = build_operator_facts(program, &values);
     operators.exact_integer_casts = validation_facts.exact_integer_casts.clone();
-    operators.defined_divisions = validation_facts.defined_divisions.clone();
+    operators.decided_formations = validation_facts.decided_formations.clone();
     let mut proof =
         build_proof_facts_with_operators(program, proof_plan, &borrow, &operators, mathematics)?;
     crate::proof::bind_float_meaning_projection_facts(

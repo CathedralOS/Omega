@@ -830,7 +830,7 @@ pub(crate) fn emit_direct_expression(
                 .expect("generated value identity advances after a binary operation");
             let operation = operations.allocate();
             if *formation_decided
-                && kind.is_division()
+                && kind.formation_is_checker_decided()
                 && let Some(obligation) = kind.formation_obligation(operation)
             {
                 operations.source_checked_obligations.push(obligation);

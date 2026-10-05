@@ -146,9 +146,10 @@ impl LoweredIntegerBinaryKind {
         }
     }
 
-    /// Division and remainder, the kinds whose formation checking records
-    /// as a decision.
-    pub(crate) const fn is_division(self) -> bool {
+    /// The kinds whose formation checking records as a decision: division
+    /// and remainder definedness under every policy, and Exact sum,
+    /// difference and product representability. Shifts are not yet recorded.
+    pub(crate) const fn formation_is_checker_decided(self) -> bool {
         matches!(
             self,
             Self::ExactDivide
@@ -157,6 +158,9 @@ impl LoweredIntegerBinaryKind {
                 | Self::WrappingRemainder
                 | Self::SaturatingDivide
                 | Self::SaturatingRemainder
+                | Self::ExactAdd
+                | Self::ExactSubtract
+                | Self::ExactMultiply
         )
     }
 

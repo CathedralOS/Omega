@@ -126,9 +126,10 @@ pub enum CheckedScalarExpression {
         right: Box<CheckedScalarExpression>,
         /// Checking decided every formation condition this occurrence owes
         /// (a division's nonzero divisor and, for an Exact signed one, the
-        /// excluded `MIN / -1` pair). Lowering marks the emitted operation
-        /// so its obligation consumes the decision; false keeps the
-        /// certificate search.
+        /// excluded `MIN / -1` pair; an Exact sum, difference or product's
+        /// representability). Lowering marks the emitted operation so its
+        /// obligation consumes the decision; false keeps the certificate
+        /// search.
         formation_decided: bool,
     },
     IntegerBitwiseNot {

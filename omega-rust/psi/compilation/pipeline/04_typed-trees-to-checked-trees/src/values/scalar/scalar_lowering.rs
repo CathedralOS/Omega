@@ -755,7 +755,7 @@ pub(crate) fn lower_scalar_expression(
                 left_domain,
                 right,
                 right_domain,
-                operators.division_is_defined(expression),
+                operators.formation_is_decided(expression),
             )
         }
         _ => None,
