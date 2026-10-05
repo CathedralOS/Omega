@@ -16,9 +16,8 @@ use super::{
     CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralArgumentSourcePlan,
     CheckedUnitStructuralParameterPlan, CheckedUnitStructuralResultBindingPlan,
     LocalConstructionTrace, Multiplicity, ScalarCalleePlans, ShapeCollector, SymbolHandle,
-    TypedTrees, checked_constructed_result_type, checked_structural_result_type, consume_results,
-    consume_value_places, is_unit, retain_selected_sources, statement_call_target,
-    structural_operands,
+    TypedTrees, checked_structural_result_type, consume_results, consume_value_places, is_unit,
+    retain_selected_sources, statement_call_target, structural_operands,
 };
 
 /// The sequence state an assignment reads and extends.
@@ -192,7 +191,7 @@ pub(super) fn plan(
         ) {
             checked_copied_result_type(program, shapes, root.type_reference, binders)?
         } else {
-            checked_constructed_result_type(program, shapes, root.type_reference, binders)?
+            checked_structural_result_type(program, shapes, root.type_reference, binders)?
         };
         produced.statement_index = statement_index;
         produced.binding_ordinal = u32::try_from(*structural_count).ok()?;
@@ -476,7 +475,7 @@ fn element_replacements(
         consume_value_places(facts, leaf.value, structural_results, &mut *operations)?;
         super::consume_value_call_sources(facts, structural_results, &mut *operations, &calls)?;
         let mut produced =
-            checked_constructed_result_type(program, shapes, leaf.type_reference, binders)?;
+            checked_structural_result_type(program, shapes, leaf.type_reference, binders)?;
         produced.statement_index = statement_index;
         produced.binding_ordinal = u32::try_from(*structural_count).ok()?;
         *structural_count = structural_count.checked_add(1)?;

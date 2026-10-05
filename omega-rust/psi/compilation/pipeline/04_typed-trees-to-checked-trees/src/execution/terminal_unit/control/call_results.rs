@@ -98,47 +98,19 @@ pub(crate) fn checked_unit_structural_result_local(
     ))
 }
 
-/// Result shape is independent of whether the source binds or discards it.
-/// Linear value classification does not establish custody: the ordinary call
-/// producer must retain the independently reconstructed transfer/return record.
-/// Nominal cleanup still requires its checked settlement plan.
-/// Primitive arrays use their complete-shape classifier, including dimensions
-/// with no leaves; the older owned-storage classifier excludes empty arrays.
-pub(crate) fn checked_structural_result_type(
-    program: &TypedTrees,
-    shapes: &mut ShapeCollector<'_>,
-    result_type: TypeReferenceHandle,
-    binders: &[(SymbolHandle, String)],
-) -> Option<CheckedUnitStructuralResultBindingPlan> {
-    structural_result_type(program, shapes, result_type, binders, false)
-}
-
-/// The result binding of a value a literal constructs in place. Scalar members
-/// may carry a plain domain that means exactly an interval: construction proves
-/// membership through each member's own range obligation. Unlike completed
-/// value transport, a declaration with byte predicates alone cannot establish
-/// a fresh record's contents.
-pub(crate) fn checked_constructed_result_type(
-    program: &TypedTrees,
-    shapes: &mut ShapeCollector<'_>,
-    result_type: TypeReferenceHandle,
-    binders: &[(SymbolHandle, String)],
-) -> Option<CheckedUnitStructuralResultBindingPlan> {
-    structural_result_type(program, shapes, result_type, binders, true)
-}
-
 /// An independently replayed copy preserves the established leaf's complete
 /// represented contents, including bounded byte predicates and live lengths.
-/// Literal admission cannot grant that authority: a fresh initializer still
-/// owes its member proofs. This binding only classifies storage; the copied
-/// value plan must separately rejoin its readable source and exact leaf type.
+/// The shared construction admission below cannot grant that authority: a
+/// fresh initializer still owes its member proofs. This binding only
+/// classifies storage; the copied value plan must separately rejoin its
+/// readable source and exact leaf type.
 pub(crate) fn checked_copied_result_type(
     program: &TypedTrees,
     shapes: &mut ShapeCollector<'_>,
     result_type: TypeReferenceHandle,
     binders: &[(SymbolHandle, String)],
 ) -> Option<CheckedUnitStructuralResultBindingPlan> {
-    if let Some(result) = checked_constructed_result_type(program, shapes, result_type, binders) {
+    if let Some(result) = checked_structural_result_type(program, shapes, result_type, binders) {
         return Some(result);
     }
     if crate::checks::type_multiplicity(program, result_type) != Multiplicity::Unrestricted
@@ -155,12 +127,25 @@ pub(crate) fn checked_copied_result_type(
     })
 }
 
-fn structural_result_type(
+/// Result shape is independent of whether the source binds or discards it,
+/// and of whether a literal constructs the value here or a completed producer
+/// hands it over. Both answer to one storage judgment: the contents a
+/// structural literal establishes. A scalar member under a plain domain whose
+/// complete predicate is represented, and a bounded byte member retaining its
+/// primitive predicates, are as carriable when a call returns the record as
+/// when this body builds it -- the producer discharged the member obligation
+/// either way, and classifying storage never establishes one.
+///
+/// Linear value classification does not establish custody: the ordinary call
+/// producer must retain the independently reconstructed transfer/return record.
+/// Nominal cleanup still requires its checked settlement plan.
+/// Primitive arrays use their complete-shape classifier, including dimensions
+/// with no leaves; the older owned-storage classifier excludes empty arrays.
+pub(crate) fn checked_structural_result_type(
     program: &TypedTrees,
     shapes: &mut ShapeCollector<'_>,
     result_type: TypeReferenceHandle,
     binders: &[(SymbolHandle, String)],
-    constructed: bool,
 ) -> Option<CheckedUnitStructuralResultBindingPlan> {
     if validation::reference_result_custody::parts(program, result_type).is_some() {
         return Some(CheckedUnitStructuralResultBindingPlan {
@@ -237,15 +222,7 @@ fn structural_result_type(
         || program.primitive_type_reference(result_type).is_some()
         || is_reference(program, result_type)
         || (multiplicity != Multiplicity::Linear
-            && (!(validation::has_cleanup_owned_contents(program, result_type)
-                || (!constructed
-                    && multiplicity == Multiplicity::Unrestricted
-                    && validation::has_plain_owned_contents_with_represented_constraints(
-                        program,
-                        result_type,
-                    ))
-                || (constructed
-                    && validation::has_structural_construction_contents(program, result_type))
+            && (!(validation::has_structural_construction_contents(program, result_type)
                 || validation::is_closed_primitive_array_type(program, result_type)
                 || validation::reference_result_custody::is_reference_record(
                     program,

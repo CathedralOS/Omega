@@ -298,10 +298,20 @@ pub(super) fn build(
             // extra ownership proof; the classifier still rejects open types,
             // carried loans and unknown qualifications. Nominal cleanup remains
             // attached to the transported owner and is checked at its death.
+            //
+            // The judgment is the one the result binding answered to: the
+            // contents a structural literal establishes. It carries the
+            // scalar members whose declared plain domain is represented as
+            // well as the nominal-cleanup owners — the callee's completion
+            // proved each member's obligation and this route only transports
+            // the storage, so a transported record is admitted exactly where
+            // a constructed one is. A top-level qualification on the result
+            // still refuses: the binding classifier rejects one before this
+            // route can drop it.
             || (matches!(
                 result.multiplicity,
                 Multiplicity::Affine | Multiplicity::Unrestricted
-            ) && validation::has_cleanup_owned_contents(
+            ) && validation::has_structural_construction_contents(
                 program,
                 target_state.return_type,
             ))

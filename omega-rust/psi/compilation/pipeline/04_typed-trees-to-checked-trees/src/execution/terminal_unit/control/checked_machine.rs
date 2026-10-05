@@ -171,13 +171,15 @@ pub(crate) fn build_checked_machine_residual_parts(
             Some(checked_trees::CheckedStructuralAccess::Owned)
         ) && validation::has_owned_or_shared_view_contents(program, state.return_type))
         && !validation::is_closed_primitive_array_type(program, state.return_type)
-        && !validation::has_cleanup_owned_contents(program, state.return_type)
-        && !(crate::checks::type_multiplicity(program, state.return_type)
-            == language_semantics::Multiplicity::Unrestricted
-            && validation::has_plain_owned_contents_with_represented_constraints(
-                program,
-                state.return_type,
-            ))
+        // One storage judgment for an owned result: the contents a structural
+        // literal establishes. A body that returns a record whose scalar
+        // member carries a represented plain domain proves that member at its
+        // own construction, so the signature carries the same storage a
+        // literal of that record does. The previous pair asked for
+        // nominal-cleanup contents or, only for an unrestricted carrier, the
+        // represented-constraint snapshot — which left every ordinary affine
+        // record with a declared member domain unreturnable.
+        && !validation::has_structural_construction_contents(program, state.return_type)
         && program
             .primitive_type_reference(state.return_type)
             .is_none()

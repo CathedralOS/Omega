@@ -2607,8 +2607,8 @@ pass/structs/runtime_local_array_snapshot_exit checked 1138ms @a0af6064e4c8+wt
 pass/structs/runtime_local_record_policy_exit checked 1712ms @2d8ed253669f
 pass/structs/runtime_named_array_record_member_exit checked 811ms @4ac06a9f69c0+wt
 pass/structs/runtime_nested_struct_construction_exit checked 1391ms @2d8ed253669f
-pass/structs/runtime_nonzero_array_elements_exit rejected 2961ms @cfe60a3a242
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: structural result shape` (state 0, statement 0)
+pass/structs/runtime_nonzero_array_elements_exit rejected 862ms @4534b9a59c11+wt
+	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: structural call binding` (state 0, statement 1)
 pass/structs/runtime_state_record_array_element_read_exit checked 1222ms @1f53680d77f7+wt
 pass/structs/runtime_struct_array_literal_exit checked 10339ms @17039e6ea406+wt
 pass/structs/runtime_view_array_elements_exit checked 5887ms @cfe60a3a242
