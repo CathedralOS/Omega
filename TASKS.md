@@ -1754,27 +1754,22 @@ crash and native exit behavior.
     `expression_preparation/bindings/` and
     `scalar_graph/scalar_computations/fields.rs`. Reuse the shared source-place
     and view-narrowing operations; do not add local-specific call or range routes.
-  - State: stored descriptors can retire at an exact field or fixed-array
-    path while disjoint scalar siblings remain initialized. Release records
-    partial ownership and exact residual cleanup without opening borrowed-storage
-    repair debt. On 2026-10-05 macOS arm64, `omega run --both
-    tests/omega/pass/borrows/runtime_stored_reference_leaf_call_retirement_exit/main.omg`
-    reads the borrowed payload, restores backing to 81 before reading the stamp,
-    and exits 70 in both engines through ordinary package preparation. Shared
-    cohorts, child retirement, constructor transfers and branch cleanup retain
-    their independent source rejection and runtime controls.
-    Remaining: follow a descriptor's actual receiving holder when deciding
-    whether its parent can retire. In
-    `runtime_stored_reference_child_constructor_retirement_exit`, a shared child
-    moves into another record; the interpreter exits 70, but Terminal rejects
-    the early backing write as access to a suspended referent. The checked
-    constructor transport must connect the original child to the receiving
-    leaf's actual retirement, including projected transfers and branch joins.
-    The extended `runtime_callee_integer_at_fitting_write_exit` also exposes
-    missing established storage at an ordinary helper call with an owned local
-    argument. Lower calls and reference formation through the same published
-    storage bindings; do not reconstruct local initializers or add source-shape
-    gates. Both composition cases must reach their authored native results.
+  - State: exact field/fixed-array descriptor retirement preserves disjoint
+    siblings and transfers child retirement to the receiving constructor leaf.
+    On 2026-10-05 macOS arm64, the stored-leaf call and child-constructor
+    regressions return 70 in both engines; public `omega run --both
+    samples/cli/systems/descriptor_walk/main.omg` returns 50 in both engines
+    after local package review. Ordinary owned scalar/record helper arguments
+    use their published storage bindings. The encoded `IntegerAt` call ABI
+    remains owned by **CHECKER-DISCHARGES-OPERATION-OBLIGATIONS**.
+    Remaining: `reference_result_custody::aggregate_construction_sources`
+    transports reference origins from record/array constructors but not from
+    `match` results. Carry each alternative's exact source-to-result paths so
+    retirement can distinguish possible transfers from transfers on every arm.
+    Exercise both outcomes when all arms transfer the same child and when only
+    one arm transfers it; retain rejection while the receiving leaf is live.
+    Calls and stores without a retained receiving-holder association still
+    require their checked correspondence before parent retirement can be proved.
   - Constraints: shared loans cannot gain mutation authority by widening the
     exclusive `receiver_aliases` match. Keep the local symbol as the loan
     subject and compose its captured projection at use; substituting the root

@@ -254,6 +254,7 @@ pub(crate) fn emit_boundary_scalar_return(
                 &[],
                 &[],
                 &[],
+                &[],
                 Some(&scalar_values),
                 &mut selector_values,
                 Some(scalar_calls),

@@ -170,87 +170,77 @@ impl Query<'_> {
                     .data_definitions()
                     .iter()
                     .find(|data| data.symbol == *data_symbol)?;
-                let (declared, case) =
-                    if let CheckedStructuralValueKind::StructuralCase { case, .. } = kind {
-                        let variant = self.program.data_members(data).iter().find_map(
-                            |member| match member {
+                // Common fields and payload fields have independent path
+                // namespaces even when a case establishes both in one roster.
+                let mut declared = self
+                    .program
+                    .data_members(data)
+                    .iter()
+                    .filter_map(|member| match member {
+                        DataMember::Field(field) => Some((field, None)),
+                        DataMember::Variant(_) => None,
+                    })
+                    .collect::<Vec<_>>();
+                if let CheckedStructuralValueKind::StructuralCase { case, .. } = kind {
+                    let variant =
+                        self.program
+                            .data_members(data)
+                            .iter()
+                            .find_map(|member| match member {
                                 DataMember::Variant(variant) if variant.symbol == *case => {
                                     Some(variant)
                                 }
                                 _ => None,
-                            },
-                        )?;
-                        (
-                            self.program
-                                .data_payload_fields(variant)
-                                .iter()
-                                .collect::<Vec<_>>(),
-                            Some(variant),
-                        )
-                    } else {
-                        (
-                            self.program
-                                .data_members(data)
-                                .iter()
-                                .filter_map(|member| match member {
-                                    DataMember::Field(field) => Some(field),
-                                    _ => None,
-                                })
-                                .collect(),
-                            None,
-                        )
-                    };
-                let mut selected = selection;
-                let mut prefix = destination.to_vec();
-                if let Some(case) = case {
-                    if let Some((CheckedUnitStructuralPathSegment::Case(identity), suffix)) =
-                        selected.split_first()
-                    {
-                        if *identity != case.path_identity() {
-                            return None;
-                        }
-                        selected = suffix;
-                    } else if selected.is_empty() {
-                        prefix.push(OwnerSegment::Case(case.symbol));
-                    } else {
-                        return None;
-                    }
+                            })?;
+                    declared.extend(
+                        self.program
+                            .data_payload_fields(variant)
+                            .iter()
+                            .map(|field| (field, Some(variant))),
+                    );
                 }
                 for field in values.record_fields.span(*fields)? {
-                    let declared = declared
+                    let (declaration, case) = declared
                         .iter()
-                        .find(|candidate| candidate.symbol == field.field)?;
-                    let (suffix, path) = if selected.is_empty() {
-                        let mut path = prefix.clone();
-                        path.push(OwnerSegment::Field(field.field));
-                        (&[][..], path)
-                    } else {
-                        let Some((CheckedUnitStructuralPathSegment::Field(identity), suffix)) =
-                            selected.split_first()
-                        else {
-                            return None;
-                        };
-                        if *identity != declared.path_identity() {
-                            // Construction evaluates this sibling before the
-                            // projection disposes it. Its source still moves,
-                            // but no receiving leaf survives in this result.
-                            if let checked_trees::CheckedStructuralRecordFieldValue::Structural(
-                                child,
-                            ) = field.value
-                            {
-                                output.append(
-                                    self.value(child, &[], result, &[], active)?
-                                        .without_receiver(),
-                                );
-                            }
-                            continue;
-                        }
-                        (suffix, prefix.clone())
-                    };
-                    if let checked_trees::CheckedStructuralRecordFieldValue::Structural(child) =
+                        .find(|(candidate, _)| candidate.symbol == field.field)?;
+                    let mut relative = Vec::new();
+                    let mut owner_path = Vec::new();
+                    if let Some(case) = case {
+                        relative.push(CheckedUnitStructuralPathSegment::Case(case.path_identity()));
+                        owner_path.push(OwnerSegment::Case(case.symbol));
+                    }
+                    relative.push(CheckedUnitStructuralPathSegment::Field(
+                        declaration.path_identity(),
+                    ));
+                    owner_path.push(OwnerSegment::Field(field.field));
+                    let checked_trees::CheckedStructuralRecordFieldValue::Structural(child) =
                         field.value
-                    {
-                        output.append(self.value(child, suffix, result, &path, active)?);
+                    else {
+                        continue;
+                    };
+                    if selection.starts_with(&relative) {
+                        // The result selects within this field: its container
+                        // prefix no longer belongs to the receiving value.
+                        output.append(self.value(
+                            child,
+                            &selection[relative.len()..],
+                            result,
+                            destination,
+                            active,
+                        )?);
+                    } else if relative.starts_with(selection) {
+                        // Whole construction or a selected case payload keeps
+                        // the remaining field path inside the receiving value.
+                        let mut path = destination.to_vec();
+                        path.extend_from_slice(&owner_path[selection.len()..]);
+                        output.append(self.value(child, &[], result, &path, active)?);
+                    } else {
+                        // Construction consumed the unselected sibling too;
+                        // its custody is absent from the surviving projection.
+                        output.append(
+                            self.value(child, &[], result, &[], active)?
+                                .without_receiver(),
+                        );
                     }
                 }
             }

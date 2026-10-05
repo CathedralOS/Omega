@@ -183,7 +183,7 @@ pub(super) fn prepare(
         parameters,
         local_places,
         structural_result_places,
-        completed_results,
+        &operations.structural_values,
         call_byte_places,
         primitive_local_places,
         structural_locals,
