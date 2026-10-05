@@ -1,4 +1,4 @@
-//! Owned custody retained on production success and returned on rejection.
+//! Product reporting beside Psi-owned artifact and source custody.
 //!
 //! These are driver results beside the canonical artifact, not another Psi IR.
 
@@ -21,17 +21,9 @@ use artifacts::compile_timings::CompileTimings;
 /// checked frontend is gone, so the receipt leaves production beside the
 /// artifact instead of remaining a direct-route-only custody object.
 #[derive(Debug, PartialEq, Eq)]
-#[must_use = "Terminal production retains checked-source and callback custody"]
+#[must_use = "Terminal production retains the artifact and checked-source custody"]
 pub struct ProducedTerminalArtifact {
-    pub(super) artifact: terminal_codec::CanonicalTerminalArtifact,
-    pub(super) receipt: Option<CheckedProgramEntryTerminalReceipt>,
-    pub(super) unoptimized: Option<LoweredPsi>,
-    pub(super) boundary_operator_scope: CheckedBoundaryOperatorApplicationScope,
-    pub(super) source_call_occurrences: Vec<LoweredSourceCallOccurrence>,
-    pub(super) selected_ieee_float_comparison_occurrences:
-        Vec<LoweredSelectedIeeeFloatComparisonOccurrence>,
-    pub(super) selected_integer_comparison_occurrences:
-        Vec<LoweredSelectedIntegerComparisonOccurrence>,
+    pub(super) production: psi_terminal_production::ProducedTerminalArtifact,
     /// Rewrites a selected pass proposed and then withheld. Empty when every
     /// pass either rewrote or found nothing; the published artifact is the
     /// same either way.
@@ -40,7 +32,7 @@ pub struct ProducedTerminalArtifact {
 
 impl ProducedTerminalArtifact {
     pub const fn artifact(&self) -> &terminal_codec::CanonicalTerminalArtifact {
-        &self.artifact
+        self.production.artifact()
     }
 
     /// The rewrites selected passes proposed and withheld, with the reason
@@ -54,28 +46,28 @@ impl ProducedTerminalArtifact {
     /// The checked `ProgramEntry` receipt, present exactly when the request
     /// carried an entry identity.
     pub const fn receipt(&self) -> Option<&CheckedProgramEntryTerminalReceipt> {
-        self.receipt.as_ref()
+        self.production.receipt()
     }
 
     /// The lowered module before selected optimization, present exactly when
     /// the custody asked to retain it: the composition an admission check
     /// that must not see optimization reads, without lowering again.
     pub const fn unoptimized(&self) -> Option<&LoweredPsi> {
-        self.unoptimized.as_ref()
+        self.production.unoptimized()
     }
 
     pub const fn boundary_operator_scope(&self) -> &CheckedBoundaryOperatorApplicationScope {
-        &self.boundary_operator_scope
+        self.production.boundary_operator_scope()
     }
 
     pub fn source_call_occurrences(&self) -> &[LoweredSourceCallOccurrence] {
-        &self.source_call_occurrences
+        self.production.source_call_occurrences()
     }
 
     pub fn selected_ieee_float_comparison_occurrences(
         &self,
     ) -> &[LoweredSelectedIeeeFloatComparisonOccurrence] {
-        &self.selected_ieee_float_comparison_occurrences
+        self.production.selected_ieee_float_comparison_occurrences()
     }
 
     /// Selected integer comparison joins, the integer counterpart of the IEEE
@@ -84,12 +76,12 @@ impl ProducedTerminalArtifact {
     pub fn selected_integer_comparison_occurrences(
         &self,
     ) -> &[LoweredSelectedIntegerComparisonOccurrence] {
-        &self.selected_integer_comparison_occurrences
+        self.production.selected_integer_comparison_occurrences()
     }
 
     /// Keep only the canonical portable artifact.
     pub fn into_artifact(self) -> terminal_codec::CanonicalTerminalArtifact {
-        self.artifact
+        self.production.into_artifact()
     }
 
     #[allow(clippy::type_complexity)]
@@ -104,15 +96,7 @@ impl ProducedTerminalArtifact {
         Vec<LoweredSelectedIeeeFloatComparisonOccurrence>,
         Vec<LoweredSelectedIntegerComparisonOccurrence>,
     ) {
-        (
-            self.artifact,
-            self.receipt,
-            self.unoptimized,
-            self.boundary_operator_scope,
-            self.source_call_occurrences,
-            self.selected_ieee_float_comparison_occurrences,
-            self.selected_integer_comparison_occurrences,
-        )
+        self.production.into_parts()
     }
 }
 

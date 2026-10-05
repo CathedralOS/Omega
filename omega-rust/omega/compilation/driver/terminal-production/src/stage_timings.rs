@@ -1,63 +1,27 @@
-//! The stage taxonomy Terminal production measures itself against.
+//! Product timing observations around Psi-owned Terminal production.
 //!
-//! Production records straight into the request's `CompileTimings`. It used to
-//! fill a private carrier that the request-level caller merged afterwards, but
-//! that carrier duplicated `CompileTimings` exactly — the same enabled flag,
-//! the same aggregate-onto-the-existing-row rule, the same `record_result`
-//! closure — so only the stage names were ever production's own. They stay
-//! here; the measuring does not. The Psi stages production calls still take no
-//! reporting dependency: they are timed by the closure around them, not
-//! instrumented themselves.
+//! Psi owns stable production labels; Omega borrows its existing request
+//! recorder here. No timing carrier or product-report dependency crosses upward
+//! into Psi, and this adapter neither retries nor interprets a stage judgment.
 
-use artifacts::compile_timings::{StageMeta, TimingCategory};
+use artifacts::compile_timings::{CompileTimings, StageMeta, TimingCategory};
+use psi_terminal_production::{TerminalProductionObserver, TerminalProductionStage};
 
-/// One measured leg inside Terminal artifact production.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TerminalProductionStage {
-    MachineSelection,
-    Lowering,
-    Optimization,
-    EntryReceipt,
-    Publication,
-    BoundaryOperatorScope,
+/// Borrow the existing recorder instead of importing host reporting into Psi.
+pub(crate) struct ProductProductionObserver<'a> {
+    pub(crate) timings: &'a mut CompileTimings,
 }
 
-impl TerminalProductionStage {
-    /// The reporting row this production leg records into.
-    pub const fn stage_meta(self) -> StageMeta {
-        let (name, input, output) = self.observation_labels();
-        StageMeta::new(name, input, output, TimingCategory::Pipeline)
-    }
-
-    /// Stable name, input and output labels for this production leg.
-    const fn observation_labels(self) -> (&'static str, &'static str, &'static str) {
-        match self {
-            Self::MachineSelection => (
-                "terminal-production/machine-selection",
-                "CheckedTrees",
-                "TerminalMachine",
-            ),
-            Self::Lowering => ("terminal-production/lowering", "CheckedTrees", "LoweredPsi"),
-            Self::Optimization => (
-                "terminal-production/optimization",
-                "LoweredPsi",
-                "OptimizedLoweredPsi",
-            ),
-            Self::EntryReceipt => (
-                "terminal-production/entry-receipt",
-                "OptimizedLoweredPsi",
-                "ProgramEntryReceipt",
-            ),
-            Self::Publication => (
-                "terminal-production/publication",
-                "OptimizedLoweredPsi",
-                "CanonicalTerminalArtifact",
-            ),
-            Self::BoundaryOperatorScope => (
-                "terminal-production/boundary-scope",
-                "LoweredPsi+CanonicalTerminalArtifact",
-                "BoundaryOperatorScope",
-            ),
-        }
+impl TerminalProductionObserver for ProductProductionObserver<'_> {
+    fn record_result<Value, Error>(
+        &mut self,
+        stage: TerminalProductionStage,
+        operation: impl FnOnce() -> Result<Value, Error>,
+    ) -> Result<Value, Error> {
+        let (name, input, output) = stage.observation_labels();
+        self.timings.record_result(
+            StageMeta::new(name, input, output, TimingCategory::Pipeline),
+            operation,
+        )
     }
 }

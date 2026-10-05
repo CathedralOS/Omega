@@ -1481,6 +1481,12 @@ then independent claimed restoration slices -> final closure.
   missing/wrong-instance imports fail before effects, and pause/resume does not
   repeat an effect. Source constructors and byte loaders reach that same core.
   A current `--both` result alone cannot close this item while it uses trees.
+  Current frontier: direct and embedded artifact entries already share program
+  projection and execution construction. The missing source-program constructor
+  and production execution callers depend on
+  **CHECKER-DISCHARGES-OPERATION-OBLIGATIONS** -> **PCC-CERTIFICATES-DELETED** ->
+  **OMEGA-READS-TERMINAL-UNVERIFIED**; do not add a constructor that bypasses
+  those obligations or another wrapper around the existing engine.
 
 - **EARLY-TERMINAL-JOBS.** (new-scope) Produce a checked, closed Terminal job
   for a demanded compile-time machine and its complete call dependencies before
@@ -1501,6 +1507,11 @@ then independent claimed restoration slices -> final closure.
   ordering. `fail/comptime/{negative_const_array_length,effectful_const_array_length}`
   still reject. Record a precise dependency if the demanded closure itself
   cannot yet check; do not establish a permanent typed-tree execution exception.
+  Current frontier: the shared stage 05-07 production operation is now owned by
+  `omega-rust/psi/compilation/terminal-production/`; the Omega product adapter
+  delegates to it and retains product timing/report vocabulary. Early demand
+  closure checking, prerequisite ordering and common-core execution remain
+  unfinished. Wire them to this producer rather than copy its lowering body.
 
 - **TERMINAL-BUILD-SEED.** (new-scope) Establish the minimum package-aware
   Build activation that lets agents keep building/checking/running the compiler
@@ -1520,6 +1531,12 @@ then independent claimed restoration slices -> final closure.
   package-aware `omega run tests/omega/pass/float/named_provider_directed_divide_exit/main.omg`
   after normal local package preparation produces 70. Freeze its actual closure,
   not the whole passing corpus. Unrelated unsupported features may become gaps.
+  The seed's actual Build closure needs `Build::application`,
+  `Build::depend(Source::Path)` and all four authored target `Build::bind` rows;
+  the std dependency executes `Build::package`. Exact original Build storage,
+  declaration coordinates and owned structured results must survive the common
+  instance. These compiler catalog bindings and result transport remain missing;
+  native execution through the existing tree route does not establish this seed.
 
 - **CHECKED-INTERPRETER-DELETED.** (new-scope) Delete the tree execution
   engine immediately after **INTERPRETER-MIGRATION-GAPS** and

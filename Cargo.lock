@@ -1522,6 +1522,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "psi-terminal-production"
+version = "0.1.0"
+dependencies = [
+ "checked-trees",
+ "checked-trees-to-lowered-psi",
+ "diagnostics",
+ "lowered-psi",
+ "lowered-psi-to-lowered-psi",
+ "lowered-psi-to-terminal-psi",
+ "optimization",
+ "terminal-codec",
+ "terminal-psi",
+]
+
+[[package]]
 name = "quote"
 version = "1.0.47"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2084,13 +2099,12 @@ version = "0.1.0"
 dependencies = [
  "artifacts",
  "checked-trees",
- "checked-trees-to-lowered-psi",
- "diagnostics",
  "lowered-psi",
  "lowered-psi-to-lowered-psi",
  "lowered-psi-to-terminal-psi",
  "optimization",
  "optimization-core",
+ "psi-terminal-production",
  "terminal-codec",
  "terminal-psi",
 ]

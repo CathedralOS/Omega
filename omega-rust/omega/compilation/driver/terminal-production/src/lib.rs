@@ -1,19 +1,17 @@
 #![forbid(unsafe_code)]
 
-//! Checked trees to a published Terminal Psi artifact.
+//! Product reporting and custody around Psi-owned Terminal production.
 //!
-//! The one operation is `TerminalProductionRequest::produce`
-//! (`terminal_production.rs`). It lowers the selected machine
-//! (05_checked-trees-to-lowered-psi), runs the selected Psi optimization, and
-//! publishes the canonical artifact (07_lowered-psi-to-terminal-psi).
-//! Checked-source receipts stay beside the portable artifact, not inside it.
+//! `TerminalProductionRequest::produce` adapts product timings and refusal
+//! reporting to `psi_terminal_production`; it contains no lowering sequence.
+//! Early compile-time jobs can depend on that Psi owner without importing this
+//! Omega driver. Checked-source custody stays beside the portable artifact.
 
 mod custody;
 mod stage_timings;
 mod terminal_production;
-pub use checked_trees_to_lowered_psi::TerminalMachineSelection;
 pub use custody::{ProducedTerminalArtifact, TerminalProductionCustody};
-pub use stage_timings::TerminalProductionStage;
+pub use psi_terminal_production::{TerminalMachineSelection, TerminalProductionStage};
 pub use terminal_production::{
     ProgramEntryTerminalReceiptError, TerminalArtifactProductionError, TerminalProductionRequest,
 };
