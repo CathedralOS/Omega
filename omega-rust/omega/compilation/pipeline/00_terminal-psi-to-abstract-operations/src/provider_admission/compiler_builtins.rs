@@ -1,7 +1,7 @@
-//! Native builtin admission: independently rejoin selected provider rows,
-//! Terminal demand and the target catalog before producing settlements.
-//! Candidate projection lives in `proposals`; retained request construction
-//! and plan-index custody live in `retained`. Neither replaces admission.
+//! Native builtin admission: derivation (`proposals`) binds each demanded
+//! boundary to its one selected intrinsic row, plan and Terminal boundary
+//! once; `retained` carries that binding to admission by plan index; this
+//! file admits it through the receiving policy and the local target catalog.
 //!
 //! Hosted builtins settle as call-shaped rows. Selected float arithmetic,
 //! minimum, maximum, negation, square root, NaN/infinity classification,
@@ -20,25 +20,28 @@ mod proposals;
 mod retained;
 
 pub use proposals::{
-    CompilerIntrinsicPlanProvenance, CompilerIntrinsicSettlementProposal, boundary_float_formats,
-    demanded_boundary_identities, derive_selected_intrinsic_settlement_proposals,
+    CompilerIntrinsicPlanProvenance, demanded_boundary_identities,
+    derive_selected_intrinsic_settlement_proposals,
 };
-pub use retained::{
-    TerminalCompilerBuiltinProposal, prepare_retained_compiler_builtins,
-    validate_retained_compiler_builtins,
-};
+pub use retained::{TerminalCompilerBuiltinProposal, prepare_retained_compiler_builtins};
 
 use crate::provider_admission::AdmittedTerminalMechanism;
 use crate::provider_admission::{NativeRealizationInput, ProviderAdmissionRequest};
 use crate::{AdmittedBoundaryExecution, AdmittedBoundarySettlement};
 use diagnostics::Diagnostic;
-use effects::{CompilerIntrinsicExecutionIdentity, provider_plan::ProviderBinding};
+use effects::CompilerIntrinsicExecutionIdentity;
 use target_operations::{
     BoundarySettlementRealization, CompilerBuiltinExecution, HostedExitProcessI32Realization,
     HostedReadByteRealization, HostedWriteByteI32Realization,
     NearestIeeeFloatArithmeticRealization,
 };
 
+/// Admit each derived builtin proposal through the receiving policy and the
+/// local target catalog. Derivation already bound every proposal to its one
+/// selected intrinsic row, exact plan and Terminal boundary in this compile,
+/// so admission reads those bindings instead of rejoining them
+/// (pipeline.md, "Verification placement"). The boundary contract, receiving
+/// classification and target support are decided here and nowhere else.
 pub(super) fn settle_compiler_builtins<'request>(
     input: &NativeRealizationInput,
     request: &ProviderAdmissionRequest<'request>,
@@ -51,60 +54,19 @@ pub(super) fn settle_compiler_builtins<'request>(
 > {
     let mut admitted = Vec::with_capacity(request.compiler_builtins.len());
     let mut mechanisms = Vec::with_capacity(request.compiler_builtins.len());
-    let mut seen_requirements = std::collections::BTreeSet::new();
     for proposal in request.compiler_builtins {
         let requirement = proposal.requirement_identity;
-        if !seen_requirements.insert(requirement) {
-            return Err(vec![Diagnostic::error(format!(
-                "native realization received duplicate compiler-builtin proposal for `{requirement}`"
-            ))]);
-        }
-        let selected_matches = request
-            .selected_provider_plans
-            .plans()
-            .iter()
-            .filter(|selected| *selected == proposal.provider_plan)
-            .collect::<Vec<_>>();
-        let [selected_plan] = selected_matches.as_slice() else {
-            return Err(vec![Diagnostic::error(format!(
-                "compiler-builtin proposal for `{requirement}` does not rejoin one exact selected provider plan"
-            ))]);
-        };
-        let selected_rows = selected_plan
-            .rows
-            .iter()
-            .filter(|row| {
-                row.requirement_identity == requirement
-                    && matches!(row.binding, ProviderBinding::CompilerIntrinsic { .. })
-            })
-            .collect::<Vec<_>>();
-        if selected_rows.len() != 1 {
-            return Err(vec![Diagnostic::error(format!(
-                "compiler-builtin proposal for `{requirement}` does not rejoin one selected intrinsic row"
-            ))]);
-        }
-        let boundaries = input
+        let boundary = input
             .plan()
             .boundary_machines
             .iter()
-            .filter(|boundary| {
-                boundary.identity == requirement
-                    || request
-                        .selected_provider_plans
-                        .specialized_requirement_row(&boundary.identity)
-                        .is_some_and(|specialization| {
-                            specialization.selected_requirement_identity == requirement
-                                && specialization.provider_plan_report_identity
-                                    == selected_plan.report_fingerprint()
-                        })
-            })
-            .collect::<Vec<_>>();
-        let [boundary] = boundaries.as_slice() else {
-            return Err(vec![Diagnostic::error(format!(
-                "compiler-builtin proposal for `{requirement}` does not rejoin one Terminal boundary"
-            ))]);
-        };
-        if !boundary_contract_matches_selected_schema(boundary, selected_plan, requirement)
+            .find(|boundary| boundary.id == proposal.boundary)
+            .ok_or_else(|| {
+                vec![Diagnostic::error(format!(
+                    "compiler-builtin proposal for `{requirement}` names an absent Terminal boundary"
+                ))]
+            })?;
+        if !boundary_contract_matches_selected_schema(boundary, proposal.provider_plan, requirement)
             || boundary.completion != compiler_builtin_completion(proposal.execution)
         {
             return Err(vec![Diagnostic::error(format!(

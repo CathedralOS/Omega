@@ -102,7 +102,7 @@ pub fn project_terminal_native_realization_proposal(
         crate::provider_admission::demanded_boundary_identities(terminal_module)?;
     let builtin_proposals =
         crate::provider_admission::derive_selected_intrinsic_settlement_proposals(
-            request.boundaries.selected_provider_plans.plans(),
+            request.boundaries.selected_provider_plans,
             request
                 .boundaries
                 .selected_provider_provenance
@@ -114,18 +114,8 @@ pub fn project_terminal_native_realization_proposal(
                     },
                 ),
             &demanded_intrinsics,
-            &crate::provider_admission::boundary_float_formats(&terminal_module.boundary_machines),
-        )?
-        .into_iter()
-        .map(|proposal| {
-            crate::TerminalCompilerBuiltinProposal::new(
-                proposal.requirement_identity,
-                proposal.plan_index,
-                proposal.execution,
-            )
-            .map_err(|message| vec![Diagnostic::error(message)])
-        })
-        .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
+            &terminal_module.boundary_machines,
+        )?;
     let callback_occurrences = project_callback_occurrences(
         callback_placements,
         source_call_occurrences,
@@ -162,8 +152,7 @@ pub fn project_terminal_native_realization_proposal(
         request.external_bindings,
     )
     .map_err(|message| vec![Diagnostic::error(message)])?;
-    TerminalNativeRealizationProposal::new(
-        artifact,
+    Ok(TerminalNativeRealizationProposal::new(
         request.application,
         program_entry,
         request.optimizations,
@@ -187,8 +176,7 @@ pub fn project_terminal_native_realization_proposal(
             terminal_module,
             &|symbol| effects::boundary_trait_identity(request.boundaries.checked, symbol),
         ),
-    )
-    .map_err(|message| vec![Diagnostic::error(message)])
+    ))
 }
 
 /// Rejoin retained callback placements to their exact Terminal registrar

@@ -26,15 +26,13 @@ mod terminal_authority_review;
 
 pub use callback_arguments::admit_native_callback_arguments;
 pub use compiler_builtins::{
-    CompilerIntrinsicPlanProvenance, CompilerIntrinsicSettlementProposal,
-    TerminalCompilerBuiltinProposal, boundary_float_formats, demanded_boundary_identities,
+    CompilerIntrinsicPlanProvenance, TerminalCompilerBuiltinProposal, demanded_boundary_identities,
     derive_selected_intrinsic_settlement_proposals, prepare_retained_compiler_builtins,
-    validate_retained_compiler_builtins,
 };
 
 pub use source_evaluated_bindings::{
     PreparedSourceEvaluatedBindings, SourceEvaluatedImportSettlement,
-    prepare_source_evaluated_bindings, validate_evaluated_import_rows,
+    prepare_source_evaluated_bindings,
 };
 
 pub use request::{

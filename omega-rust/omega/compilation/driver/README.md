@@ -279,11 +279,9 @@ request-level policy copied into each configuration.
 owns append custody and [checked settlement](#checked-settlement) owns its
 later ordered joins. The
 [pipeline route items](../../../../TASKS.md#pipeline-route) replace the child
-route with the single pass above; until then
-[prepared-input reuse](#prepared-input-reuse)
-shares prepared inputs across children by exact artifact/profile key,
-and shared parsing never permits reusing one child's checked target, providers,
-admissions or physical evidence as another child's authority.
+route with the single pass above; until then each child prepares its own
+Terminal input, and shared parsing never permits reusing one child's checked
+target, providers, admissions or physical evidence as another child's authority.
 
 ## Checked settlement
 
@@ -384,27 +382,15 @@ physical result's retained evidence owner. It shares that allocation instead
 of carrying a second plan copy and separately supplied identity fields.
 Independent fragment, object, and image replay still check the complete join.
 
-### Prepared-input reuse
-
-Until Psi runs once per compilation, each target prepares its own Terminal
-artifact. Stage 00 owns [PreparedNativeRealizationInput](../pipeline/00_terminal-psi-to-abstract-operations/src/artifact_admission/preparation.rs), which
-shares target-neutral decoding, proof admission and abstract-input lowering
-only for equal complete `TerminalArtifactIdentity` and exact `AdmissionProfile`,
-and rechecks that key on use. Preparation retains its admitted placed-view
-establishments. Later optimization choices do not affect this unoptimized
-input and are not part of its reuse key.
-Target, entry and calling plans, provider and external settlements, authority
-policies, optimization selections, callbacks, FMA admission and physical evidence stay per target. The
-reuse is an optimization, not review, proof or audit evidence.
-
 Direct compilation and retained Terminal re-entry share the Terminal entry stage's
 [source-binding preparation](../pipeline/00_terminal-psi-to-abstract-operations/src/provider_admission/source_evaluated_bindings.rs).
 It joins demanded imports and syscalls to exact selected plans, derives import execution and stack
 inputs when none are supplied, and rejects incomplete or substituted supplied
 rosters. The coordinator forwards the prepared settlements; it does not derive
 report identities, assign foreign-call stack reserves, or select import plans.
-Independent provider admission still checks strong plan commitments, retained
-locators, calling contracts, targets, stack custody and receiving authority.
+Provider admission derives each demanded leaf's mechanism and realization from
+those settlements without rejoining their coverage, and the receiving authority
+review classifies the result.
 Direct syscalls derive execution coordinates but no foreign same-stack reserve;
 their settlement checks the exact kernel number, target and physical ABI.
 They still require general target lowering and instruction emission. Admission

@@ -81,9 +81,7 @@ pub use selected_entry::boundary_entry_storage::{
 };
 pub use selected_entry::diagnostic::ProgramStorageEntryDiagnostic;
 pub use selected_entry::root_role::ProgramStorageEntryRootRole;
-pub use selected_entry::service_establishment::{
-    ProgramEntryFusedServiceEstablishment, validate_terminal_fused_service_establishments,
-};
+pub use selected_entry::service_establishment::ProgramEntryFusedServiceEstablishment;
 pub use source_signature::{
     ProgramEntrySourceExtentFieldLayout, ProgramEntrySourceExtentFieldRole,
     ProgramEntrySourceExtentValueLayout, ProgramEntrySourceReceiverSignature,

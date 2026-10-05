@@ -9,14 +9,8 @@
 //! Direct kernel entries have no user-space callee and mint no same-stack
 //! reserve. Their independent settlement rejoins the exact syscall and plan;
 //! preparation never grants receiving authority or recognizes service names.
-//!
-//! `roster` owns the earlier retained-product check: the complete selected import
-//! roster must rejoin its external bindings before execution inputs are prepared.
 
-mod roster;
 mod syscalls;
-
-pub use roster::validate_evaluated_import_rows;
 
 use super::{NativeBoundaryRealization, NativeProviderSettlement};
 use diagnostics::Diagnostic;

@@ -90,15 +90,13 @@ pub(crate) fn prepare_checked_build(
             )?;
             provider_planning::selected_provider_plan_facts(context, &bindings, selected)?
         };
-    let evaluation = if pending.is_empty() {
-        selected_dispatch::SelectedConstantEvaluation::default()
-    } else {
+    if !pending.is_empty() {
         selected_dispatch::SelectedConstantEvaluation::prepare(
             context,
             &selected_provider_plan_facts,
         )?
-        .evaluate_pending(typed, pending)?
-    };
+        .evaluate_pending(typed, pending)?;
+    }
     let mut checked = timings.record(
         artifacts::compile_timings::TYPED_TREES_TO_CHECKED_TREES,
         || {
@@ -115,7 +113,6 @@ pub(crate) fn prepare_checked_build(
             result
         },
     )?;
-    evaluation.validate(&checked, &selected_provider_plan_facts, packages)?;
     selected_dispatch::settle_selected_comparison_execution(
         &mut checked,
         source::DependencyScope::Build,

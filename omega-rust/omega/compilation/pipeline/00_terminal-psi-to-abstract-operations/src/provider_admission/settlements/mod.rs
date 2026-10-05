@@ -1,7 +1,6 @@
-//! Optimizer module role: executable entrance. Provider-execution settlement: reject duplicate requirements,
-//! admit each exact boundary realization, and publish executions in canonical order.
-
-use std::collections::BTreeSet;
+//! Optimizer module role: executable entrance. Provider-execution settlement:
+//! derive each demanded leaf's mechanism, admit each exact boundary
+//! realization, and publish executions in canonical order.
 
 use crate::AdmittedBoundarySettlement;
 use crate::provider_admission::AdmittedTerminalMechanism;
@@ -17,7 +16,7 @@ mod source_imports;
 mod system_call;
 
 use boundary::settle_boundary;
-use source_imports::validate_source_evaluated_import_coverage;
+use source_imports::derive_source_evaluated_mechanisms;
 
 pub fn settle_provider_executions<'request>(
     input: &NativeRealizationInput,
@@ -31,25 +30,17 @@ pub fn settle_provider_executions<'request>(
     ),
     Vec<Diagnostic>,
 > {
-    let (mechanisms, cohort_rows) = validate_source_evaluated_import_coverage(
+    let (mechanisms, cohort_rows) = derive_source_evaluated_mechanisms(
         input.plan(),
         request.selected_provider_plans,
-        request.target,
         request.external_binding_rows,
-        request.settlements,
         request.native_callbacks,
     )?;
-    let mut seen_requirements = BTreeSet::new();
+    // Preparation settled one execution per demanded requirement.
     let mut admitted = Vec::with_capacity(request.settlements.len());
     let mut provider_executions = Vec::with_capacity(request.settlements.len());
 
     for settlement in request.settlements {
-        let requirement = settlement.provider_execution.requirement_identity();
-        if !seen_requirements.insert(requirement.to_owned()) {
-            return Err(vec![Diagnostic::error(format!(
-                "native realization received more than one provider execution for requirement `{requirement}`"
-            ))]);
-        }
         let (admitted_settlement, provider_execution) =
             settle_boundary(input, request, settlement)?;
         admitted.push(admitted_settlement);

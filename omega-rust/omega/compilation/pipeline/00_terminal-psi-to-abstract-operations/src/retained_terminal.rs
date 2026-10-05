@@ -26,7 +26,6 @@ pub struct TerminalNativeProviders {
 }
 
 /// Exact occurrence catalogs produced while checked source custody exists.
-/// Native replay independently rejoins each catalog to canonical operations.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalNativeOccurrences {
     pub callbacks: Vec<TerminalCallbackOccurrenceProposal>,
@@ -46,11 +45,13 @@ pub struct TerminalNativeBoundaryApplications {
 /// Target-constrained native inputs beside one canonical Terminal artifact.
 /// Each producing owner transfers a complete unit. The validated entry owns
 /// target identity; no independently mutable target/profile pair is retained.
-/// Construction and later replay join every unit to the exact artifact. This
-/// product grants no execution, installation, proof or publication authority.
+/// The proposal never leaves the process that produced it and has no codec,
+/// so each unit is constructed once from its derivation in
+/// `project_terminal_native_realization_proposal` and no later stage replays
+/// its artifact joins. This product grants no execution, installation, proof
+/// or publication authority.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalNativeRealizationProposal {
-    terminal_artifact_identity: terminal_codec::TerminalArtifactIdentity,
     application: target::NativeApplicationMetadata,
     program_entry: crate::ValidatedNativeProgramEntrySettlement,
     post_terminal_optimizations: optimization_core::PostTerminalOptimizationSelectionProjection,
@@ -62,11 +63,12 @@ pub struct TerminalNativeRealizationProposal {
 }
 
 impl TerminalNativeRealizationProposal {
-    /// Retain complete producer units, canonicalize permission order and replay
-    /// their artifact-bound joins. Neither permissions nor exclusions are
-    /// derived from the provider selection.
+    /// Retain complete producer units and canonicalize permission order.
+    /// Neither permissions nor exclusions are derived from the provider
+    /// selection. Every unit arrives from its derivation in this compile, so
+    /// construction does not replay its joins against the artifact again
+    /// (pipeline.md, "Verification placement").
     pub fn new(
-        artifact: &terminal_codec::CanonicalTerminalArtifact,
         application: target::NativeApplicationMetadata,
         program_entry: crate::ValidatedNativeProgramEntrySettlement,
         post_terminal_optimizations: optimization_core::PostTerminalOptimizationSelectionProjection,
@@ -77,7 +79,7 @@ impl TerminalNativeRealizationProposal {
             effects::ServiceTerminalAuthorityPermission,
         >,
         behavior_exclusions: effects::BehaviorExclusions,
-    ) -> Result<Self, &'static str> {
+    ) -> Self {
         package_terminal_authority_permissions.sort_by(|left, right| {
             left.service_schema()
                 .as_bytes()
@@ -87,8 +89,7 @@ impl TerminalNativeRealizationProposal {
                         .cmp(right.requirement_identity())
                 })
         });
-        let proposal = Self {
-            terminal_artifact_identity: artifact.manifest().identity(),
+        Self {
             application,
             program_entry,
             post_terminal_optimizations,
@@ -97,184 +98,7 @@ impl TerminalNativeRealizationProposal {
             boundary_applications,
             package_terminal_authority_permissions,
             behavior_exclusions,
-        };
-        proposal.validate_for_artifact(artifact)?;
-        Ok(proposal)
-    }
-
-    pub fn validate_for_artifact(
-        &self,
-        artifact: &terminal_codec::CanonicalTerminalArtifact,
-    ) -> Result<(), &'static str> {
-        artifact
-            .validate()
-            .map_err(|_| "Terminal native proposal is paired with an invalid canonical artifact")?;
-        if self.terminal_artifact_identity != artifact.manifest().identity() {
-            return Err("Terminal native proposal belongs to a different canonical artifact");
         }
-        let complete_selection = optimization_core::OptimizationSelections::new(
-            artifact
-                .optimization()
-                .selections()
-                .as_slice()
-                .iter()
-                .copied()
-                .map(optimization_core::Optimization::from)
-                .chain(
-                    self.post_terminal_optimizations
-                        .selections()
-                        .as_slice()
-                        .iter()
-                        .copied(),
-                ),
-        )
-        .map_err(|_| "Terminal native proposal repeats an optimization across phase custody")?;
-        if complete_selection.identity() != self.post_terminal_optimizations.complete_selection() {
-            return Err(
-                "Terminal native proposal optimization phases do not reconstruct the complete build selection",
-            );
-        }
-        crate::validate_terminal_boundary_application_coverage(
-            artifact,
-            &self.boundary_applications.scope,
-            &self.boundary_applications.coverage,
-        )?;
-        if self
-            .program_entry
-            .checked_entry()
-            .source_signature_identity()
-            != self.program_entry.source().identity().bytes()
-            || self.program_entry.checked_entry().source_machine_symbol()
-                != self.program_entry.source().machine_symbol()
-        {
-            return Err(
-                "Terminal native proposal checked ProgramEntry receipt drifts from its selected source entry",
-            );
-        }
-        if self.program_entry.checked_entry().terminal_psi_identity()
-            != artifact.manifest().semantic()
-        {
-            return Err(
-                "Terminal native proposal checked ProgramEntry receipt drifts from the canonical Terminal identity",
-            );
-        }
-        crate::provider_admission::validate_evaluated_import_rows(
-            self.target_profile(),
-            self.providers.selection.plans(),
-            &self.providers.external_bindings,
-        )?;
-        self.validate_package_terminal_authority_permissions()?;
-        crate::provider_admission::validate_retained_compiler_builtins(
-            &self.providers.compiler_builtins,
-            self.providers.selection.plans(),
-        )?;
-        let module = artifact.semantic_module().map_err(
-            |_| "Terminal callback occurrence replay could not decode canonical semantics",
-        )?;
-        if module.entry != self.program_entry.checked_entry().terminal_entry() {
-            return Err(
-                "Terminal native proposal checked ProgramEntry receipt names a different Terminal entry",
-            );
-        }
-        program_entry_plan::validate_terminal_fused_service_establishments(
-            module,
-            self.program_entry.source(),
-            self.program_entry.checked_entry().receiver_eligibility(),
-            self.program_entry.fused_service_establishments(),
-            self.providers.selection.plans(),
-        )?;
-        // The retained exclusion union is a source-free admission policy over
-        // this artifact's committed semantics: a consumer replays the same
-        // Terminal-closure absence check the producing build enforced, so a
-        // proposal whose retained policy the artifact cannot satisfy never
-        // reaches realization. Boundary-to-service ownership is reconstructed
-        // from the canonical requirement identities inside the artifact, not
-        // trusted from producer rows. The producing admission gate
-        // additionally checked the unoptimized closure committed as this
-        // artifact's optimization input; this replay re-verifies the
-        // published subject. Physical-authority-class rows produce no site in
-        // this walk — mechanisms exist only at realization — but still demand
-        // the bounded entry/call closure the walk enforces; their
-        // adjudication waits for the mechanism-closure review at native
-        // realization, which consumes this same retained union.
-        match effects::establish_behavior_exclusions(
-            module,
-            &[module.entry],
-            &self.behavior_exclusions,
-            &self.providers.selection,
-        )
-        .verdict()
-        {
-            effects::BehaviorExclusionVerdict::Satisfied => {}
-            effects::BehaviorExclusionVerdict::Prohibited => {
-                return Err(
-                    "Terminal native proposal retains a possible behavior its authored exclusions prohibit",
-                );
-            }
-            effects::BehaviorExclusionVerdict::InsufficientEvidence => {
-                return Err(
-                    "Terminal native proposal cannot establish the absence its authored exclusions require",
-                );
-            }
-        }
-        for demand in self.boundary_applications.coverage.demands().rows() {
-            let matching_operations = module
-                .machines
-                .iter()
-                .flat_map(|machine| &machine.blocks)
-                .flat_map(|block| &block.operations)
-                .filter(|operation| operation.id == demand.terminal_operation())
-                .count();
-            if matching_operations != 1 {
-                return Err(
-                    "Terminal native proposal boundary demand does not name one canonical operation",
-                );
-            }
-        }
-        backend_plan::validate_callback_occurrences_for_module(
-            module,
-            &self.occurrences.callbacks,
-        )?;
-        crate::validate_terminal_comparison_coverage(
-            module,
-            self.providers.selection.plans(),
-            &self.occurrences.ieee_float_comparisons,
-            &self.occurrences.integer_comparisons,
-            self.boundary_applications.coverage.realizations(),
-            &self.boundary_applications.scope,
-        )?;
-        Ok(())
-    }
-
-    fn validate_package_terminal_authority_permissions(&self) -> Result<(), &'static str> {
-        let mut previous = None;
-        for permission in &self.package_terminal_authority_permissions {
-            if permission.requirement_identity().is_empty()
-                || permission
-                    .requirement_identity()
-                    .chars()
-                    .any(char::is_control)
-            {
-                return Err(
-                    "Terminal native proposal contains an invalid package terminal-authority permission requirement",
-                );
-            }
-            let coordinate = (
-                permission.service_schema(),
-                permission.requirement_identity(),
-            );
-            if previous == Some(coordinate) {
-                return Err(
-                    "Terminal native proposal repeats a package terminal-authority permission",
-                );
-            }
-            previous = Some(coordinate);
-        }
-        Ok(())
-    }
-
-    pub const fn terminal_artifact_identity(&self) -> terminal_codec::TerminalArtifactIdentity {
-        self.terminal_artifact_identity
     }
 
     pub const fn target_profile(&self) -> target::TargetProfile {
@@ -342,34 +166,19 @@ pub struct RetainedTerminalArtifact {
 }
 
 impl RetainedTerminalArtifact {
-    /// Couples structurally valid rows to an artifact without reconstructing
-    /// their checked-compilation provenance. The compiler's private product
-    /// route supplies that provenance and preserves its checked row order.
-    pub fn new(
-        artifact: terminal_codec::CanonicalTerminalArtifact,
-        callback_placements: Vec<backend_plan::BoundNominalCallbackPlacement>,
-    ) -> Result<Self, &'static str> {
-        let retained = Self {
-            artifact,
-            callback_placements,
-            native_realization_proposal: None,
-        };
-        retained.validate()?;
-        Ok(retained)
-    }
-
+    /// Couple the artifact with the callback placements and native proposal
+    /// this compile produced beside it. The proposal's producer already
+    /// joined every unit to this artifact; the carrier adds no second replay.
     pub fn new_with_native_realization_proposal(
         artifact: terminal_codec::CanonicalTerminalArtifact,
         callback_placements: Vec<backend_plan::BoundNominalCallbackPlacement>,
         native_realization_proposal: TerminalNativeRealizationProposal,
-    ) -> Result<Self, &'static str> {
-        let retained = Self {
+    ) -> Self {
+        Self {
             artifact,
             callback_placements,
             native_realization_proposal: Some(native_realization_proposal),
-        };
-        retained.validate()?;
-        Ok(retained)
+        }
     }
 
     pub const fn artifact(&self) -> &terminal_codec::CanonicalTerminalArtifact {
@@ -396,23 +205,5 @@ impl RetainedTerminalArtifact {
             self.callback_placements,
             self.native_realization_proposal,
         )
-    }
-
-    pub fn validate(&self) -> Result<(), &'static str> {
-        self.artifact
-            .validate()
-            .map_err(|_| "retained Terminal product contains an invalid canonical artifact")?;
-        for placement in &self.callback_placements {
-            backend_plan::validate_bound_nominal_callback_placement(placement)
-                .map_err(|_| "retained Terminal product contains an invalid callback placement")?;
-        }
-        if let Some(proposal) = &self.native_realization_proposal {
-            proposal.validate_for_artifact(&self.artifact)?;
-            backend_plan::validate_callback_occurrence_placements(
-                &self.callback_placements,
-                &proposal.occurrences.callbacks,
-            )?;
-        }
-        Ok(())
     }
 }

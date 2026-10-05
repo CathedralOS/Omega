@@ -93,6 +93,8 @@ impl RetainedNativeRealizationRequest<'_> {
     /// Require native proposal custody and rejoin the image's loader/signing
     /// metadata before provider preparation. This admits a product input, not
     /// provider, receiver or execution authority; stage 00 still checks those.
+    /// The retained product never left this process, so its proposal is not
+    /// replayed against the artifact again.
     /// The caller retains its original image request for failure recovery.
     pub fn prepare_terminal(
         &mut self,
@@ -105,9 +107,6 @@ impl RetainedNativeRealizationRequest<'_> {
         ),
         Vec<Diagnostic>,
     > {
-        retained
-            .validate()
-            .map_err(|message| diagnostic("retained Terminal product", message))?;
         let (artifact, callback_placements, proposal) = retained.into_parts();
         let proposal = proposal.ok_or_else(|| {
             diagnostic(

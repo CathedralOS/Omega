@@ -1,10 +1,5 @@
 //! Source-free receipt for a Fused service established in one selected
 //! application-root occurrence.
-//! `terminal_replay` checks these receipts against the lowered receiver tree
-//! and selected provider plans without consulting source declarations.
-
-mod terminal_replay;
-pub use terminal_replay::validate_terminal_fused_service_establishments;
 
 use crate::ProgramEntrySourceSignatureIdentity;
 use effects::provider_plan::{ProviderPlanDigest, ServiceSchemaDigest};

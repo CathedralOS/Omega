@@ -95,9 +95,7 @@ pub(crate) fn check_selected_execution(
         provider_selection_target,
         opaque_representation_selections,
     )?;
-    let const_evaluation = if pending_pre_checks.is_empty() {
-        SelectedConstantEvaluation::default()
-    } else {
+    if !pending_pre_checks.is_empty() {
         validation::land_float_literal_destinations(&mut typed);
         SelectedConstantEvaluation::prepare(
             provider_planning::ProviderPlanningContext::new(
@@ -106,8 +104,8 @@ pub(crate) fn check_selected_execution(
             ),
             &selected_provider_plan_facts,
         )?
-        .evaluate_pending(&mut typed, pending_pre_checks)?
-    };
+        .evaluate_pending(&mut typed, pending_pre_checks)?;
+    }
     let root_grants = build_config.root_grant_selectors();
     let provider_request = ProviderCheckingRequest {
         native_target: selected_native_target,
@@ -140,11 +138,6 @@ pub(crate) fn check_selected_execution(
     checked.program = std::sync::Arc::new(typed_trees_to_checked_trees::prune_target_siblings(
         std::sync::Arc::try_unwrap(checked.program).unwrap_or_else(|shared| (*shared).clone()),
     ));
-    const_evaluation.validate(
-        &checked.program,
-        &checked.selected_provider_plan_facts,
-        package_inputs,
-    )?;
     // Check all authored code before product pruning and sidecar derivation.
     let product_root_machines = build_config.checked_tree_product_roots(
         selected_target_profile,

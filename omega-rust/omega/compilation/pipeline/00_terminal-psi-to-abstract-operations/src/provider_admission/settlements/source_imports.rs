@@ -1,11 +1,10 @@
 //! Source-selected import and syscall demand to exact mechanism custody.
 //! Classification and optional receiver admission belong to closure review.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
 use crate::AdmittedNativeCallbackArgument;
 use crate::provider_admission::AdmittedTerminalMechanism;
-use crate::provider_admission::{NativeBoundaryRealization, NativeProviderSettlement};
 use diagnostics::Diagnostic;
 use effects::provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRow};
 use semantic_vocabulary::BoundaryMachineId;
@@ -22,12 +21,19 @@ struct ImportCoverageRows<'input> {
     callbacks: Vec<&'input AdmittedNativeCallbackArgument>,
 }
 
-pub(super) fn validate_source_evaluated_import_coverage(
+/// Derive the terminal mechanism of every demanded source-evaluated import and
+/// syscall, plus the toolchain-settled cohort rows those leaves mint.
+/// `prepare_source_evaluated_bindings` already settled one execution per
+/// demanded import and syscall from these selected plans, and provider
+/// settlement extracted the external rows from the same plans, so this
+/// derivation does not rejoin settlement coverage or re-compare targets,
+/// locators and syscall numbers (pipeline.md, "Verification placement").
+/// Each leaf must still resolve to one selected row, one Terminal boundary
+/// and, for an import, one external implementation contract to derive from.
+pub(super) fn derive_source_evaluated_mechanisms(
     plan: &abstract_operations::AbstractOperationPlan,
     selected_plans: &effects::SelectedProviderPlanFacts,
-    target: target::NativeTarget,
     external_binding_rows: &[calling_conventions::ExternalBindingRow],
-    settlements: &[NativeProviderSettlement<'_>],
     native_callbacks: &[crate::AdmittedNativeCallbackArgument],
 ) -> Result<
     (
@@ -42,8 +48,6 @@ pub(super) fn validate_source_evaluated_import_coverage(
         external_binding_rows,
         native_callbacks,
     )?;
-    let mut required_imports = BTreeSet::new();
-    let mut required_syscalls = BTreeSet::new();
     let mut admitted_mechanisms = Vec::new();
     // Toolchain-settled host cohort rows emitted for demanded leaves: they
     // classify beside the supplied receiving policy rather than requiring
@@ -59,54 +63,20 @@ pub(super) fn validate_source_evaluated_import_coverage(
                 rows.selected_count,
             ))]);
         }
-        match &row.binding {
+        if rows.boundary_count != 1 {
+            return Err(vec![Diagnostic::error(format!(
+                "demanded external binding `{requirement}` resolves to {} Terminal boundaries",
+                rows.boundary_count,
+            ))]);
+        }
+        let mechanism = match &row.binding {
             ProviderBinding::Syscall { number } => {
-                let number = *number;
                 let target_profile =
                     target::TargetProfile::from_canonical_target_name(&provider_plan.target)
                         .map_err(|diagnostic| vec![diagnostic])?;
-                if target_profile.native_target() != target {
-                    return Err(vec![Diagnostic::error(format!(
-                        "demanded syscall `{requirement}` targets `{}` rather than the receiving native target",
-                        provider_plan.target,
-                    ))]);
-                }
-                let Some(external) = rows.external.filter(|_| rows.external_count == 1) else {
-                    return Err(vec![Diagnostic::error(format!(
-                        "demanded syscall `{requirement}` resolves to {} retained external binding rows",
-                        rows.external_count,
-                    ))]);
-                };
-                let calling_conventions::ExternalBindingKind::Syscall {
-                    number: external_number,
-                } = external.binding
-                else {
-                    return Err(vec![Diagnostic::error(format!(
-                        "demanded syscall `{requirement}` does not retain one exact syscall external binding"
-                    ))]);
-                };
-                let external_target_profile =
-                    target::TargetProfile::from_canonical_target_name(&external.target_name)
-                        .map_err(|diagnostic| vec![diagnostic])?;
-                if external_target_profile != target_profile {
-                    return Err(vec![Diagnostic::error(format!(
-                        "demanded syscall `{requirement}` substituted its retained external target profile"
-                    ))]);
-                }
-                if external_number != number {
-                    return Err(vec![Diagnostic::error(format!(
-                        "demanded syscall `{requirement}` substituted its normalized syscall number"
-                    ))]);
-                }
-                if rows.boundary_count != 1 {
-                    return Err(vec![Diagnostic::error(format!(
-                        "demanded syscall `{requirement}` resolves to {} Terminal boundaries",
-                        rows.boundary_count,
-                    ))]);
-                }
-                let mechanism = crate::provider_admission::terminal_authority_policy::conservative_syscall_terminal_mechanism(
+                crate::provider_admission::terminal_authority_policy::conservative_syscall_terminal_mechanism(
                     target_profile,
-                    number,
+                    *number,
                     plan,
                     rows.boundary,
                 )
@@ -114,47 +84,20 @@ pub(super) fn validate_source_evaluated_import_coverage(
                     vec![Diagnostic::error(format!(
                         "demanded syscall `{requirement}` has no exact checked argument contract: {error}"
                     ))]
-                })?;
-                let cohort_row = settled_host_cohort_row(provider_plan, row, mechanism);
-                if let Some(row) = cohort_row.filter(|row| !cohort_rows.contains(row)) {
-                    cohort_rows.push(row);
-                }
-                admitted_mechanisms.push(AdmittedTerminalMechanism {
-                    boundary: rows.boundary,
-                    mechanism,
-                });
-                required_syscalls.insert(requirement);
+                })?
             }
             ProviderBinding::Import { evaluated } => {
-                if evaluated.locator().target().native_target() != target {
-                    return Err(vec![Diagnostic::error(format!(
-                        "demanded normalized import `{requirement}` targets `{}` rather than the receiving native target",
-                        evaluated.locator().target().target_name(),
-                    ))]);
-                }
-                let Some(external) = rows.external.filter(|_| rows.external_count == 1) else {
+                let Some(boundary_entry_plan) = rows
+                    .external
+                    .filter(|_| rows.external_count == 1)
+                    .and_then(|external| external.boundary_entry_plan.as_ref())
+                else {
                     return Err(vec![Diagnostic::error(format!(
                         "demanded normalized import `{requirement}` resolves to {} retained external implementation contracts",
                         rows.external_count,
                     ))]);
                 };
-                let (
-                    calling_conventions::ExternalBindingKind::Import {
-                        locator: external_locator,
-                    },
-                    Some(boundary_entry_plan),
-                ) = (&external.binding, &external.boundary_entry_plan)
-                else {
-                    return Err(vec![Diagnostic::error(format!(
-                        "demanded normalized import `{requirement}` does not retain one normalized locator and admitted boundary contract"
-                    ))]);
-                };
-                if external_locator != evaluated.locator() {
-                    return Err(vec![Diagnostic::error(format!(
-                        "demanded normalized import `{requirement}` substituted its retained external locator"
-                    ))]);
-                }
-                let mechanism = match rows.callbacks.as_slice() {
+                match rows.callbacks.as_slice() {
                     [] => crate::provider_admission::normalized_foreign_terminal_mechanism(
                         evaluated.locator(),
                         boundary_entry_plan,
@@ -182,90 +125,18 @@ pub(super) fn validate_source_evaluated_import_coverage(
                     vec![Diagnostic::error(format!(
                         "demanded normalized import `{requirement}` has an invalid admitted implementation contract: {error}"
                     ))]
-                })?;
-                let cohort_row = settled_host_cohort_row(provider_plan, row, mechanism);
-                if let Some(row) = cohort_row.filter(|row| !cohort_rows.contains(row)) {
-                    cohort_rows.push(row);
-                }
-                if rows.boundary_count != 1 {
-                    return Err(vec![Diagnostic::error(format!(
-                        "demanded normalized import `{requirement}` resolves to {} Terminal boundaries",
-                        rows.boundary_count
-                    ))]);
-                }
-                admitted_mechanisms.push(AdmittedTerminalMechanism {
-                    boundary: rows.boundary,
-                    mechanism,
-                });
-                required_imports.insert(requirement);
+                })?
             }
-            _ => {}
+            _ => continue,
+        };
+        let cohort_row = settled_host_cohort_row(provider_plan, row, mechanism);
+        if let Some(row) = cohort_row.filter(|row| !cohort_rows.contains(row)) {
+            cohort_rows.push(row);
         }
-    }
-
-    let mut covered_imports = BTreeSet::new();
-    let mut covered_syscalls = BTreeSet::new();
-    for settlement in settlements {
-        let requirement = settlement.provider_execution.requirement_identity();
-        if required_syscalls.contains(requirement) {
-            if !matches!(
-                settlement.realization,
-                NativeBoundaryRealization::SystemCall
-            ) {
-                return Err(vec![Diagnostic::error(format!(
-                    "source-evaluated syscall `{requirement}` requires a direct kernel settlement"
-                ))]);
-            }
-            if !covered_syscalls.insert(requirement) {
-                return Err(vec![Diagnostic::error(format!(
-                    "source-evaluated syscall `{requirement}` received more than one settlement"
-                ))]);
-            }
-            continue;
-        } else if matches!(
-            settlement.realization,
-            NativeBoundaryRealization::SystemCall
-        ) {
-            return Err(vec![Diagnostic::error(format!(
-                "syscall settlement for `{requirement}` does not cover a demanded selected syscall"
-            ))]);
-        }
-        let is_normalized = matches!(
-            settlement.realization,
-            NativeBoundaryRealization::NormalizedForeignCall(_)
-        );
-        if required_imports.contains(requirement) {
-            if !is_normalized {
-                return Err(vec![Diagnostic::error(format!(
-                    "source-evaluated import `{requirement}` requires a normalized foreign-call settlement"
-                ))]);
-            }
-            if !covered_imports.insert(requirement) {
-                return Err(vec![Diagnostic::error(format!(
-                    "source-evaluated import `{requirement}` received more than one normalized settlement"
-                ))]);
-            }
-        } else if is_normalized {
-            return Err(vec![Diagnostic::error(format!(
-                "normalized foreign-call settlement for `{requirement}` does not cover a demanded selected import"
-            ))]);
-        }
-    }
-    if let Some(missing) = required_imports
-        .iter()
-        .find(|requirement| !covered_imports.contains(**requirement))
-    {
-        return Err(vec![Diagnostic::error(format!(
-            "demanded source-evaluated import `{missing}` has no admitted native settlement"
-        ))]);
-    }
-    if let Some(missing) = required_syscalls
-        .iter()
-        .find(|requirement| !covered_syscalls.contains(**requirement))
-    {
-        return Err(vec![Diagnostic::error(format!(
-            "demanded source-evaluated syscall `{missing}` has no admitted native settlement"
-        ))]);
+        admitted_mechanisms.push(AdmittedTerminalMechanism {
+            boundary: rows.boundary,
+            mechanism,
+        });
     }
     admitted_mechanisms.sort_by_key(|row| row.boundary);
     Ok((admitted_mechanisms, cohort_rows))

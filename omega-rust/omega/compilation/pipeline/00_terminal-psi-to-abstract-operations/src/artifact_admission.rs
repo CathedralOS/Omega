@@ -6,13 +6,11 @@
 mod error;
 mod establishment;
 mod native;
-mod preparation;
 mod retention;
 
 pub use error::ArtifactLoweringError;
 pub use establishment::TerminalPlacedViewEstablishment;
 pub use native::{AdmittedNativeArtifact, VerifiedNativeArtifactInput};
-pub use preparation::{PreparedNativeRealizationInput, prepare_native_realization_input};
 pub use retention::AdmittedOptimizationArtifact;
 
 /// Canonical artifact sections. An offered ledger must replay exactly before

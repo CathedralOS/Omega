@@ -52,10 +52,12 @@ pub struct NativeProviderSettlement<'execution> {
 
 /// Target-constrained compiler-builtin proposal consumed by the local native
 /// lowerer. This carries no provider execution or installation receipt.
+/// `boundary` is the Terminal boundary derivation bound the row to.
 #[derive(Debug, Clone, Copy)]
 pub struct NativeCompilerBuiltinSettlement<'execution> {
     pub requirement_identity: &'execution str,
     pub provider_plan: &'execution effects::provider_plan::ProviderPlan,
+    pub boundary: semantic_vocabulary::BoundaryMachineId,
     pub execution: target_operations::CompilerBuiltinExecution,
 }
 

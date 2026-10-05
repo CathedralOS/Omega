@@ -3,8 +3,9 @@
 //! Provider selection and checked intrinsic review establish the exact
 //! declaration/target identity. This module performs the later executable
 //! projection: only compiler-intrinsic requirements actually called by the
-//! canonical Terminal artifact receive a structural proposal. The consuming
-//! lowerer independently accepts it through its local target catalog.
+//! canonical Terminal artifact receive a structural proposal, bound here to
+//! its selected plan and Terminal boundary. The consuming lowerer admits it
+//! through its local target catalog.
 
 use diagnostics::Diagnostic;
 use effects::CompilerIntrinsicExecutionIdentity;
@@ -16,13 +17,6 @@ use std::collections::{BTreeMap, BTreeSet};
 pub struct CompilerIntrinsicPlanProvenance<'a> {
     pub plan: &'a ProviderPlan,
     pub row_executions: &'a [Option<CompilerIntrinsicExecutionIdentity>],
-}
-
-#[derive(Debug)]
-pub struct CompilerIntrinsicSettlementProposal {
-    pub requirement_identity: String,
-    pub plan_index: usize,
-    pub execution: target_operations::CompilerBuiltinExecution,
 }
 
 pub fn demanded_boundary_identities(
@@ -59,7 +53,7 @@ pub fn demanded_boundary_identities(
 /// format-free builtin identities cannot infer their format from results alone.
 /// This is only a proposal; admission independently checks the complete
 /// signature, rejecting mixed carriers or a substituted result.
-pub fn boundary_float_formats(
+fn boundary_float_formats(
     boundaries: &[terminal_psi::BoundaryMachineDeclaration],
 ) -> BTreeMap<String, semantic_vocabulary::IeeeFloatFormat> {
     boundaries
@@ -89,15 +83,18 @@ struct SelectedIntrinsicRow<'a> {
     execution: Option<CompilerIntrinsicExecutionIdentity>,
 }
 
-/// Project called intrinsic rows into native catalog proposals. Provenance
-/// stays borrowed and source-free; every plan is checked even without demand.
-/// The receiving target catalog independently admits these proposals later.
+/// Project called intrinsic rows into native catalog proposals, each bound
+/// once to its selected plan and the one Terminal boundary it settles.
+/// Provenance stays borrowed and source-free; every plan is checked even
+/// without demand. The receiving target catalog admits these proposals later.
 pub fn derive_selected_intrinsic_settlement_proposals<'a>(
-    plans: &[ProviderPlan],
+    selected: &effects::SelectedProviderPlanFacts,
     provenance: impl ExactSizeIterator<Item = CompilerIntrinsicPlanProvenance<'a>>,
     demanded_boundaries: &BTreeSet<String>,
-    float_formats: &BTreeMap<String, semantic_vocabulary::IeeeFloatFormat>,
-) -> Result<Vec<CompilerIntrinsicSettlementProposal>, Vec<Diagnostic>> {
+    boundaries: &[terminal_psi::BoundaryMachineDeclaration],
+) -> Result<Vec<super::TerminalCompilerBuiltinProposal>, Vec<Diagnostic>> {
+    let plans = selected.plans();
+    let float_formats = boundary_float_formats(boundaries);
     if plans.len() != provenance.len() {
         return Err(vec![Diagnostic::error(
             "selected provider plans are not aligned with compiler-intrinsic settlement provenance",
@@ -150,7 +147,7 @@ pub fn derive_selected_intrinsic_settlement_proposals<'a>(
             .count();
         let (matches, later_rows) = remaining_rows.split_at(matching_count);
         remaining_rows = later_rows;
-        let [selected] = matches else {
+        let [selected_row] = matches else {
             if !matches.is_empty() {
                 diagnostics.push(Diagnostic::error(format!(
                     "Terminal boundary `{requirement}` resolves to {} selected compiler-intrinsic rows",
@@ -159,10 +156,10 @@ pub fn derive_selected_intrinsic_settlement_proposals<'a>(
             }
             continue;
         };
-        let Some(execution) = selected.execution else {
+        let Some(execution) = selected_row.execution else {
             diagnostics.push(Diagnostic::error(format!(
                 "selected compiler intrinsic `{}` for Terminal boundary `{requirement}` has no closed native catalog identity",
-                selected.plan_name,
+                selected_row.plan_name,
             )));
             continue;
         };
@@ -171,15 +168,38 @@ pub fn derive_selected_intrinsic_settlement_proposals<'a>(
         else {
             diagnostics.push(Diagnostic::error(format!(
                 "selected compiler intrinsic `{}` for Terminal boundary `{requirement}` has no native boundary realization",
-                selected.plan_name,
+                selected_row.plan_name,
             )));
             continue;
         };
-        evidence.push(CompilerIntrinsicSettlementProposal {
-            requirement_identity: requirement.clone(),
-            plan_index: selected.plan_index,
+        // A specialized boundary reaches its template-keyed row through the
+        // selected specialization roster of the same plan.
+        let plan_report_identity = plans[selected_row.plan_index].report_fingerprint();
+        let matching_boundaries = boundaries
+            .iter()
+            .filter(|boundary| {
+                boundary.identity == *requirement
+                    || selected
+                        .specialized_requirement_row(&boundary.identity)
+                        .is_some_and(|specialization| {
+                            specialization.selected_requirement_identity == *requirement
+                                && specialization.provider_plan_report_identity
+                                    == plan_report_identity
+                        })
+            })
+            .collect::<Vec<_>>();
+        let [boundary] = matching_boundaries.as_slice() else {
+            diagnostics.push(Diagnostic::error(format!(
+                "compiler-builtin proposal for `{requirement}` does not rejoin one Terminal boundary"
+            )));
+            continue;
+        };
+        evidence.push(super::TerminalCompilerBuiltinProposal::new(
+            requirement.clone(),
+            selected_row.plan_index,
+            boundary.id,
             execution,
-        });
+        ));
     }
     if diagnostics.is_empty() {
         Ok(evidence)

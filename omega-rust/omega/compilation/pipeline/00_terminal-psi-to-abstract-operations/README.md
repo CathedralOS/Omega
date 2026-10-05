@@ -6,9 +6,12 @@ and [boundary realization](../../../../../wiki/spec/terminal-psi/boundary_calls.
 The entry map is [lib.rs](src/lib.rs). Responsibilities are separate modules:
 
 - [retained_terminal.rs](src/retained_terminal.rs): the retained Terminal product
-  and its target-constrained native proposal. This owner rejoins canonical
-  semantics, entry custody, provider rows, callbacks, comparisons and exclusions;
-  compiler reports only retain and expose its products. Build selection closes
+  and its target-constrained native proposal. This owner joins canonical
+  semantics, entry custody, provider rows, callbacks, comparisons and exclusions
+  once, while the proposal is derived; the product has no codec and never
+  leaves the process, so neither re-entry nor admission replays those joins
+  ([verification placement](../../../../pipeline.md#verification-placement)).
+  Compiler reports only retain and expose its products. Build selection closes
   into the existing validated native entry settlement before retention, so no
   build-evaluator object or duplicate entry receipt crosses that boundary.
   Providers, occurrences and boundary applications cross as complete units;
@@ -21,30 +24,28 @@ The entry map is [lib.rs](src/lib.rs). Responsibilities are separate modules:
   producing sequence: entry settlement, canonical decode, provider demands,
   callback and comparison joins, boundary coverage and registrar imports.
   The compiler supplies completed callback artifacts and borrowed selections;
-  the constructor independently checks their roster and exact placement joins.
+  the constructor checks their roster and exact placement joins. Compiler
+  builtins are bound to their selected plan and Terminal boundary here, once.
   It does not call compilation or grant native authority. Checked selections
   remain transitional inputs until provider selection itself moves behind
   Terminal Psi.
   Its [native provider preparation](src/retained_terminal/native_providers.rs)
-  rejoins receiving policies and prepares callbacks, imports and builtins in
+  joins package permissions and prepares callbacks, imports and builtins in
   one operation. Derived import evidence remains invocation-owned through
   admission and emission; the compiler forwards the stage's admission request
   without defining a second copy of its custody fields.
 - [native_admission.rs](src/native_admission.rs): the complete native entrance.
-  Canonical replay, entry and boundary custody, provider installation, and
+  Canonical input preparation, provider settlement and installation, and
   mechanism/exclusion review produce one admitted input before stage 01.
-  [Provider admission](src/provider_admission/mod.rs) owns exact selected-plan,
-  callback, import, builtin and authority joins. Stage 02 consumes these facts;
+  [Provider admission](src/provider_admission/mod.rs) derives each demanded
+  leaf's mechanism and admits builtins through the receiving policy and target
+  catalog; it reads the bindings the proposal derived instead of rejoining them. Stage 02 consumes these facts;
   neither it nor the compiler reconstructs the admission sequence.
 - [artifact_admission.rs](src/artifact_admission.rs): canonical preparation,
   optional obligation-ledger replay, and distinct ordinary/optimizer/native
   admission. Every admitted result retains the exact placed-view input roster.
   Extraction into a consumer without roster custody rejects nonempty inputs;
   this check follows verification and lowering, not canonical decode.
-  Its [reusable preparation](src/artifact_admission/preparation.rs) binds the
-  complete artifact identity, exact proof-admission profile and admitted loans.
-  Cached and direct native inputs use the same admission; later optimization
-  choices remain with realization, not the unoptimized input's reuse key.
 - `optimization`: verified optimization-unit construction and proof questions.
 - `provider_installation`: exact selected-adapter and installation custody.
 - [callback_settlement.rs](src/callback_settlement.rs): rejoin a produced
@@ -63,14 +64,12 @@ The entry map is [lib.rs](src/lib.rs). Responsibilities are separate modules:
   checked-body or intrinsic realizations, and opaque ABI application custody.
   The coordinator supplies borrowed selection inputs; the stage owns role
   selection, const/type identity validation and retained-provenance replay.
-  Direct native retention and retained-Terminal re-entry share its exact
-  occurrence-coverage check. Missing source scope is not an empty-scope proof:
-  only a sealed empty scope permits synthesizing empty coverage, and supplied
-  coverage must rejoin the sealed artifact and its complete occurrence roster.
+  The proposal retains the coverage it settles; native admission consumes it
+  without replaying it against the sealed scope.
 - [comparison_settlement.rs](src/comparison_settlement.rs): join emitted IEEE
   and integer comparisons to their exact authored application, selected plan,
-  retained provenance and rederived intrinsic execution. Retained output, direct
-  native compilation and inspection consume this same operation. The existing
+  retained provenance and rederived intrinsic execution. The native proposal
+  derives these records once and retains them. The existing
   checked-build route still supplies source-side selection evidence; these
   source-free sidecars grant no native authority and do not bypass canonical
   admission. Integer emission order/negation and diagnostic ordering are retained.

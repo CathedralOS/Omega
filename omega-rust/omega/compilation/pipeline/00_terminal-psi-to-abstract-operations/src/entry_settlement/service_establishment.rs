@@ -135,39 +135,3 @@ pub(super) fn validate_terminal_rows(
     }
     Ok(())
 }
-
-pub fn validate_for_artifact_and_selected_plans(
-    artifact: &terminal_codec::CanonicalTerminalArtifact,
-    settlement: NativeProgramEntrySettlement<'_>,
-    selected_provider_plans: &effects::SelectedProviderPlanFacts,
-) -> Result<(), NativeProgramEntrySettlementError> {
-    artifact.validate().map_err(|error| {
-        NativeProgramEntrySettlementError::CanonicalArtifactReplay(error.to_string())
-    })?;
-    let module = artifact.semantic_module().map_err(|error| {
-        NativeProgramEntrySettlementError::CanonicalArtifactReplay(error.to_string())
-    })?;
-    validate_terminal_rows(
-        module,
-        settlement,
-        settlement
-            .checked_entry
-            .and_then(|receipt| receipt.receiver_eligibility()),
-    )?;
-    for row in settlement.fused_service_establishments() {
-        let matching_plans = selected_provider_plans
-            .plans()
-            .iter()
-            .filter(|plan| {
-                program_entry_plan::ProgramEntryFusedServiceEstablishment::requirement_identity_for_schema(&plan.schema)
-                    == row.requirement_identity()
-                    && plan.schema.identity_digest() == row.service_schema_digest()
-                    && plan.identity_digest() == row.selected_provider_plan_digest()
-            })
-            .count();
-        if matching_plans != 1 {
-            return Err(NativeProgramEntrySettlementError::FusedServiceEstablishmentDrift);
-        }
-    }
-    Ok(())
-}

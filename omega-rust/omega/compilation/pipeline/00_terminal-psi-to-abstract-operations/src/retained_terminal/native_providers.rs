@@ -45,8 +45,6 @@ impl PreparedRetainedNativeProviders<'_> {
     ) -> crate::NativeAdmissionRequest<'request> {
         let proposal = self.proposal;
         crate::NativeAdmissionRequest {
-            checked_scope: Some(&proposal.boundary_applications().scope),
-            prepared_input: None,
             boundary_application_coverage: Some(&proposal.boundary_applications().coverage),
             behavior_exclusions: proposal.behavior_exclusions(),
             providers: ProviderAdmissionRequest {

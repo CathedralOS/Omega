@@ -1,50 +1,47 @@
 //! Exact selected execution for deferred source constant evaluation.
-//! The ordinary selected ProviderPlan set is the authority. The folded result
-//! retains its receiving type and source invocation, then final checking
-//! independently rejoins operator facts and reexecutes that invocation.
+//! The ordinary selected ProviderPlan set is the authority. Each fold lands
+//! its value in the typed program once; final checking consumes that program
+//! and the compile does not replay the folds against its own checked result
+//! (pipeline.md, "Verification placement").
 use build_time_evaluation::{
-    FoldedArrayLength, PreCheckEvaluation, SelectedBuildTimeBinaryOperator,
-    SelectedBuildTimeOperators, SelectedBuildTimeProviderBody,
+    PreCheckEvaluation, SelectedBuildTimeBinaryOperator, SelectedBuildTimeOperators,
+    SelectedBuildTimeProviderBody,
 };
-use checked_trees::{CheckedProviderPlanCommitment, CheckedTrees};
+use checked_trees::CheckedProviderPlanCommitment;
 use diagnostics::Diagnostic;
 use effects::SelectedProviderPlanFacts;
 use typed_trees::TypedTrees;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct SelectedConstantEvaluation {
-    /// Provider identities are relative to the checked dependency purpose.
-    /// Replay must use the same context that supplied their execution bodies.
-    scope: source::DependencyScope,
     operators: Vec<SelectedBuildTimeBinaryOperator>,
     /// Selected uses whose meaning is the selected provider's ordinary checked
     /// machine body. Each row carries the exact provider entry the semantic
     /// evaluation owner rebinds to on its private evaluation copy.
     provider_bodies: Vec<SelectedBuildTimeProviderBody>,
-    folds: Vec<FoldedArrayLength>,
 }
 
 impl SelectedConstantEvaluation {
     /// Resume pending Psi evaluation under the exact selected providers.
     /// Consume continuations in their original order against canonical storage.
     /// Preparation may select an executable declaration projection of that same
-    /// storage; only its occurrences acquire selected execution. Retained folds
-    /// stay with those selections until final checked-program replay.
+    /// storage; only its occurrences acquire selected execution. Each fold
+    /// lands its value in `typed`.
     pub fn evaluate_pending(
-        mut self,
+        self,
         typed: &mut TypedTrees,
         pending: Vec<PreCheckEvaluation>,
-    ) -> Result<Self, Vec<Diagnostic>> {
+    ) -> Result<(), Vec<Diagnostic>> {
         for continuation in pending {
-            self.folds.extend(continuation.evaluate_selected_operators(
+            continuation.evaluate_selected_operators(
                 typed,
                 SelectedBuildTimeOperators {
                     operators: &self.operators,
                     provider_bodies: &self.provider_bodies,
                 },
-            )?);
+            )?;
         }
-        Ok(self)
+        Ok(())
     }
 
     /// Join provider authority once for every retained source use. Psi prepares
@@ -57,10 +54,7 @@ impl SelectedConstantEvaluation {
         let typed = context.typed;
         let facts = typed_trees_to_checked_trees::derive_pre_flow_operator_selections(typed);
         let uses = facts.resolved_expression_selections();
-        let mut selected = Self {
-            scope: context.scope,
-            ..Self::default()
-        };
+        let mut selected = Self::default();
         for (expression, origin, requirement, policy) in uses {
             let Some((_, plan)) =
                 provider_planning::selected_requirement_plan(context, plans.plans(), requirement)
@@ -121,93 +115,4 @@ impl SelectedConstantEvaluation {
             .map_err(|reason| vec![Diagnostic::error(reason)])?;
         Ok(selected)
     }
-}
-
-impl SelectedConstantEvaluation {
-    /// Rejoin the final checked provider occurrences and ask Psi to replay the
-    /// retained folds. Report coordinates never substitute for exact custody.
-    pub fn validate(
-        &self,
-        checked: &CheckedTrees,
-        plans: &SelectedProviderPlanFacts,
-        packages: Option<&package_compilation::PackageCompilationInputs>,
-    ) -> Result<(), Vec<Diagnostic>> {
-        if self.folds.is_empty() {
-            return Ok(());
-        }
-        let current = Self::prepare(
-            provider_planning::ProviderPlanningContext::new(&checked.typed, self.scope),
-            plans,
-        )?;
-        for selected in &self.operators {
-            if current
-                .operators
-                .iter()
-                .filter(|row| *row == selected)
-                .count()
-                != 1
-            {
-                return Err(vec![Diagnostic::error(
-                    "folded operator differs from current selected provider execution",
-                )]);
-            }
-            if joined_plan_commitment(
-                checked,
-                self.scope,
-                plans,
-                selected.requirement,
-                selected.origin,
-            ) != Some(selected.provider)
-            {
-                return Err(vec![Diagnostic::error(
-                    "folded operator lost its exact final provider custody",
-                )]);
-            }
-        }
-        for body in &self.provider_bodies {
-            if current
-                .provider_bodies
-                .iter()
-                .filter(|row| *row == body)
-                .count()
-                != 1
-            {
-                return Err(vec![Diagnostic::error(
-                    "folded provider body differs from current selected provider execution",
-                )]);
-            }
-            if joined_plan_commitment(checked, self.scope, plans, body.requirement, body.origin)
-                != Some(body.provider)
-            {
-                return Err(vec![Diagnostic::error(
-                    "folded provider body lost its exact final provider custody",
-                )]);
-            }
-        }
-        let authority = packages.map(|packages| {
-            std::sync::Arc::new(packages.clone())
-                as std::sync::Arc<dyn build_time_evaluation::BuildTimeSelectionAuthority>
-        });
-        build_time_evaluation::validate_folded_array_lengths(
-            checked,
-            &self.folds,
-            &self.operators,
-            &self.provider_bodies,
-            authority,
-        )
-    }
-}
-
-/// The commitment of this target's selected plan serving one checked use,
-/// joined by requirement identity.
-fn joined_plan_commitment(
-    checked: &CheckedTrees,
-    scope: source::DependencyScope,
-    plans: &SelectedProviderPlanFacts,
-    requirement: symbols::SymbolHandle,
-    origin: checked_trees::CheckedValueOrigin,
-) -> Option<CheckedProviderPlanCommitment> {
-    provider_planning::selected_use_plan(checked, scope, plans.plans(), requirement, origin).map(
-        |(_, plan)| CheckedProviderPlanCommitment::from_digest(*plan.identity_digest().as_bytes()),
-    )
 }

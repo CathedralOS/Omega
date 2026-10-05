@@ -189,8 +189,7 @@ pub(crate) fn produce_retained_terminal_artifact(
             artifact,
             callback_placements,
             native_realization_proposal,
-        )
-        .map_err(|message| vec![Diagnostic::error(message)])?;
+        );
     Ok(ProducedRetainedTerminal {
         artifact,
         withheld_rewrites,

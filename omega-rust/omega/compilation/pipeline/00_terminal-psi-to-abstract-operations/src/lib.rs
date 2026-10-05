@@ -3,7 +3,7 @@
 //! Terminal Psi to abstract operations: the first Omega program stage.
 //!
 //! Native production enters `admit_native_realization` (`native_admission`):
-//! canonical replay, entry and boundary custody, provider installation and
+//! canonical input preparation, provider settlement and installation, and
 //! authority review produce one complete admitted input for stage 01.
 //! Portable consumers use `lower_artifact` (`artifact_admission`). It replays
 //! and verifies a Terminal artifact's semantic and proof sections, then lowers
@@ -21,12 +21,14 @@
 //! `entry_settlement` and `callback_settlement` admit native entry sidecars
 //! against already-produced Terminal artifacts. These checks do not create
 //! another program stage or grant artifact-publication authority.
-//! `comparison_settlement` rejoins emitted comparison occurrences to authored
+//! `comparison_settlement` joins emitted comparison occurrences to authored
 //! applications and this target's selected providers. It produces source-free
 //! comparison records, not a substitute for canonical artifact admission.
 //! `retained_terminal::proposal` owns their producing sequence, joining already
-//! compiled entry/callback artifacts to selected native evidence. The compiler
-//! supplies products and selections rather than reconstructing these joins.
+//! compiled entry/callback artifacts to selected native evidence once. The
+//! retained proposal never leaves the process, so no later stage replays these
+//! joins; the compiler supplies products and selections rather than
+//! reconstructing them.
 
 mod artifact_admission;
 mod boundary_application_settlement;
@@ -60,25 +62,19 @@ pub use provider_admission::{
 
 pub use artifact_admission::{
     AdmittedNativeArtifact, AdmittedOptimizationArtifact, ArtifactLoweringError, ArtifactSections,
-    PreparedNativeRealizationInput, TerminalPlacedViewEstablishment, VerifiedNativeArtifactInput,
-    lower_artifact, prepare_native_realization_input,
+    TerminalPlacedViewEstablishment, VerifiedNativeArtifactInput, lower_artifact,
 };
-pub use boundary_application_settlement::{
-    BoundaryApplicationSettlement, retain_terminal_boundary_application_coverage,
-    validate_terminal_boundary_application_coverage,
-};
+pub use boundary_application_settlement::BoundaryApplicationSettlement;
 pub use callback_settlement::{
     CallbackRegistrarOccurrence, settle_callback_registrar_imports,
     validate_callback_thunk_settlement,
 };
 pub use comparison_settlement::{
     settle_ieee_float_comparison_occurrences, settle_integer_comparison_occurrences,
-    validate_terminal_comparison_coverage,
 };
 pub use entry_settlement::{
     NativeProgramEntrySettlement, NativeProgramEntrySettlementError,
-    ValidatedNativeProgramEntrySettlement, validate_fused_program_entry_establishments,
-    validate_native_program_entry_settlement,
+    ValidatedNativeProgramEntrySettlement, validate_native_program_entry_settlement,
 };
 pub use lowering::LoweringError;
 pub use optimization::{
@@ -89,4 +85,3 @@ pub use provider_installation::{
     AdmittedInstalledProviderCall, AdmittedProviderInstallation, ProviderInstallationError,
     SelectedProviderAdapter,
 };
-

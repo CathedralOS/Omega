@@ -239,37 +239,36 @@ impl CompileProduct {
 }
 
 impl TerminalProduct {
-    /// The Terminal kind's joins: the artifact validates, any rollback
-    /// receipt is Psi-phase and matches both the artifact's optimization
-    /// selection and the native proposal's post-Terminal selection, and an
-    /// attached manifest names this artifact and the proposal's target.
+    /// The Terminal kind's joins: any rollback receipt is Psi-phase and
+    /// matches both the artifact's optimization selection and the native
+    /// proposal's post-Terminal selection, and an attached manifest names this
+    /// artifact and the proposal's target. The retained product itself was
+    /// produced in this process and is not replayed here.
     fn has_consistent_custody(&self, manifest: Option<&ProductionCompilationManifest>) -> bool {
-        self.artifact.validate().is_ok()
-            && self.optimization_rollback.as_ref().is_none_or(|receipt| {
-                receipt.is_consistent()
-                    && receipt.requested_disabled().as_slice().iter().all(|rule| {
-                        rule.execution_phase() == optimization_core::OptimizationExecutionPhase::Psi
+        self.optimization_rollback.as_ref().is_none_or(|receipt| {
+            receipt.is_consistent()
+                && receipt.requested_disabled().as_slice().iter().all(|rule| {
+                    rule.execution_phase() == optimization_core::OptimizationExecutionPhase::Psi
+                })
+                && self.artifact.artifact().optimization().selection()
+                    == receipt.effective().project_psi().selections().identity()
+                && self
+                    .artifact
+                    .native_realization_proposal()
+                    .is_some_and(|proposal| {
+                        proposal.post_terminal_optimizations()
+                            == &receipt.effective().project_post_terminal()
                     })
-                    && self.artifact.artifact().optimization().selection()
-                        == receipt.effective().project_psi().selections().identity()
-                    && self
-                        .artifact
-                        .native_realization_proposal()
-                        .is_some_and(|proposal| {
-                            proposal.post_terminal_optimizations()
-                                == &receipt.effective().project_post_terminal()
-                        })
-            })
-            && manifest.is_none_or(|manifest| {
-                manifest.matches_terminal_artifact(self.artifact.artifact())
-                    && self
-                        .artifact
-                        .native_realization_proposal()
-                        .is_some_and(|proposal| {
-                            proposal.target_profile() == manifest.subject().target_profile()
-                                && proposal.native_target() == manifest.subject().native_target()
-                        })
-            })
+        }) && manifest.is_none_or(|manifest| {
+            manifest.matches_terminal_artifact(self.artifact.artifact())
+                && self
+                    .artifact
+                    .native_realization_proposal()
+                    .is_some_and(|proposal| {
+                        proposal.target_profile() == manifest.subject().target_profile()
+                            && proposal.native_target() == manifest.subject().native_target()
+                    })
+        })
     }
 }
 
@@ -971,9 +970,6 @@ impl CompileReport {
                 "compiler report requires the Terminal product's native realization proposal",
             );
         }
-        artifact
-            .validate()
-            .map_err(|_| "compiler report received an invalid retained Terminal product")?;
         let production_manifest = production_subject
             .map(|subject| {
                 ProductionCompilationManifest::for_terminal(subject, artifact.artifact())
