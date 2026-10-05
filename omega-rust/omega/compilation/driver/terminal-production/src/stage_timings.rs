@@ -1,11 +1,15 @@
-//! Per-stage timing carrier owned by Terminal production.
+//! The stage taxonomy Terminal production measures itself against.
 //!
-//! The product driver's narrow production sequence records its completed
-//! `(stage, microseconds)` rows here. The request-level caller merges them
-//! into `CompileTimings`; Psi stages need no reporting dependency. A disabled
-//! carrier runs the same work unmeasured.
+//! Production records straight into the request's `CompileTimings`. It used to
+//! fill a private carrier that the request-level caller merged afterwards, but
+//! that carrier duplicated `CompileTimings` exactly — the same enabled flag,
+//! the same aggregate-onto-the-existing-row rule, the same `record_result`
+//! closure — so only the stage names were ever production's own. They stay
+//! here; the measuring does not. The Psi stages production calls still take no
+//! reporting dependency: they are timed by the closure around them, not
+//! instrumented themselves.
 
-use std::time::Instant;
+use artifacts::compile_timings::{StageMeta, TimingCategory};
 
 /// One measured leg inside Terminal artifact production.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -19,9 +23,14 @@ pub enum TerminalProductionStage {
 }
 
 impl TerminalProductionStage {
-    /// Stable name, input and output labels for this production leg. Consumers
-    /// merge measured rows without maintaining their own stage taxonomy.
-    pub const fn observation_labels(self) -> (&'static str, &'static str, &'static str) {
+    /// The reporting row this production leg records into.
+    pub const fn stage_meta(self) -> StageMeta {
+        let (name, input, output) = self.observation_labels();
+        StageMeta::new(name, input, output, TimingCategory::Pipeline)
+    }
+
+    /// Stable name, input and output labels for this production leg.
+    const fn observation_labels(self) -> (&'static str, &'static str, &'static str) {
         match self {
             Self::MachineSelection => (
                 "terminal-production/machine-selection",
@@ -50,55 +59,5 @@ impl TerminalProductionStage {
                 "BoundaryOperatorScope",
             ),
         }
-    }
-}
-
-/// Completed production legs, in run order. Repeated visits to one stage
-/// aggregate onto its first row so the ladder keeps call order.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct TerminalProductionTimings {
-    enabled: bool,
-    rows: Vec<(TerminalProductionStage, u128)>,
-}
-
-impl TerminalProductionTimings {
-    pub fn enabled() -> Self {
-        Self {
-            enabled: true,
-            rows: Vec::new(),
-        }
-    }
-
-    /// Mirror the request's collection state: enabled measures each leg,
-    /// disabled runs the same instrumented body without clock reads or rows.
-    pub fn enabled_if(enabled: bool) -> Self {
-        if enabled {
-            Self::enabled()
-        } else {
-            Self::default()
-        }
-    }
-
-    pub fn rows(&self) -> &[(TerminalProductionStage, u128)] {
-        &self.rows
-    }
-
-    pub fn record_result<T, E>(
-        &mut self,
-        stage: TerminalProductionStage,
-        work: impl FnOnce() -> Result<T, E>,
-    ) -> Result<T, E> {
-        if !self.enabled {
-            return work();
-        }
-        let started = Instant::now();
-        let result = work();
-        let microseconds = started.elapsed().as_micros();
-        if let Some(row) = self.rows.iter_mut().find(|(name, _)| *name == stage) {
-            row.1 = row.1.saturating_add(microseconds);
-        } else {
-            self.rows.push((stage, microseconds));
-        }
-        result
     }
 }

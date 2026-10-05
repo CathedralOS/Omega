@@ -14,7 +14,8 @@ use lowered_psi_to_lowered_psi::{
 use lowered_psi_to_terminal_psi::CheckedBoundaryOperatorApplicationScope;
 
 use crate::custody::{ProducedTerminalArtifact, TerminalProductionCustody};
-use crate::stage_timings::{TerminalProductionStage, TerminalProductionTimings};
+use crate::stage_timings::TerminalProductionStage;
+use artifacts::compile_timings::CompileTimings;
 
 pub use lowered_psi_to_terminal_psi::ProgramEntryTerminalReceiptError;
 use lowered_psi_to_terminal_psi::{prepare_program_entry_receipt, rejoin_program_entry_receipt};
@@ -75,7 +76,7 @@ impl<'a> TerminalProductionRequest<'a> {
         self,
         entry_identity: Option<[u8; 32]>,
         retain_unoptimized: bool,
-        timings: &mut TerminalProductionTimings,
+        timings: &mut CompileTimings,
     ) -> Result<ProducedTerminalArtifact, TerminalArtifactProductionError> {
         let checked = self.checked;
         // The receipt names the selected checked machine, so the selection is
@@ -83,9 +84,10 @@ impl<'a> TerminalProductionRequest<'a> {
         let entry_selection = match entry_identity {
             Some(_) => Some(
                 timings
-                    .record_result(TerminalProductionStage::MachineSelection, || {
-                        select_terminal_machine(checked, self.machine)
-                    })
+                    .record_result(
+                        TerminalProductionStage::MachineSelection.stage_meta(),
+                        || select_terminal_machine(checked, self.machine),
+                    )
                     .map_err(TerminalArtifactProductionError::Lowering)?,
             ),
             None => None,
@@ -94,7 +96,7 @@ impl<'a> TerminalProductionRequest<'a> {
         let entry_receipt = match (entry_identity, entry_selection) {
             (Some(source_signature_identity), Some(selection)) => Some(
                 timings
-                    .record_result(TerminalProductionStage::EntryReceipt, || {
+                    .record_result(TerminalProductionStage::EntryReceipt.stage_meta(), || {
                         prepare_program_entry_receipt(
                             checked,
                             selection,
@@ -111,7 +113,7 @@ impl<'a> TerminalProductionRequest<'a> {
         // it: a withheld rewrite leaves the artifact exactly as authored.
         let withheld_rewrites = withheld_rewrites(&optimized);
         let (artifact, lowered) = timings
-            .record_result(TerminalProductionStage::Publication, || {
+            .record_result(TerminalProductionStage::Publication.stage_meta(), || {
                 publish_terminal_artifact(optimized, checked)
             })?;
         let receipt = match entry_receipt {
@@ -123,9 +125,10 @@ impl<'a> TerminalProductionRequest<'a> {
             None => None,
         };
         let boundary_operator_scope = timings
-            .record_result(TerminalProductionStage::BoundaryOperatorScope, || {
-                checked_boundary_operator_scope(checked, &artifact, &lowered)
-            })
+            .record_result(
+                TerminalProductionStage::BoundaryOperatorScope.stage_meta(),
+                || checked_boundary_operator_scope(checked, &artifact, &lowered),
+            )
             .map_err(TerminalArtifactProductionError::Lowering)?;
         Ok(ProducedTerminalArtifact {
             artifact,
@@ -146,17 +149,17 @@ impl<'a> TerminalProductionRequest<'a> {
     fn lower_and_optimize(
         self,
         retain_unoptimized: bool,
-        timings: &mut TerminalProductionTimings,
+        timings: &mut CompileTimings,
     ) -> Result<(Option<LoweredPsi>, PsiOptimizationStageResult), TerminalArtifactProductionError>
     {
         let lowered = timings
-            .record_result(TerminalProductionStage::Lowering, || {
+            .record_result(TerminalProductionStage::Lowering.stage_meta(), || {
                 lower_machine(self.checked, self.machine)
             })
             .map_err(TerminalArtifactProductionError::Lowering)?;
         let unoptimized = retain_unoptimized.then(|| lowered.clone());
         let optimized = timings
-            .record_result(TerminalProductionStage::Optimization, || {
+            .record_result(TerminalProductionStage::Optimization.stage_meta(), || {
                 run_psi_optimization(lowered, self.optimization_selections)
             })
             .map_err(TerminalArtifactProductionError::Optimization)?;

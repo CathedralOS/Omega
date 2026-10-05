@@ -2082,6 +2082,7 @@ dependencies = [
 name = "terminal-production"
 version = "0.1.0"
 dependencies = [
+ "artifacts",
  "checked-trees",
  "checked-trees-to-lowered-psi",
  "diagnostics",

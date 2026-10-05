@@ -7,9 +7,9 @@
 use crate::checked::{CheckedCompilation, OptimizationRollback};
 use crate::terminal::native_proposal;
 use artifacts::allocations::AllocationDelta;
-use artifacts::compile_timings::{CompileTimings, StageMeta, TimingCategory};
+use artifacts::compile_timings::{StageMeta, TimingCategory};
 use diagnostics::Diagnostic;
-use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
+use terminal_production::TerminalProductionCustody;
 
 /// Terminal production internally lowers, optimizes and publishes
 /// (checked-trees -> lowered-psi -> lowered-psi -> terminal-psi). The request
@@ -39,20 +39,6 @@ const NATIVE_REALIZATION_PROPOSAL_STAGE: StageMeta = StageMeta::new(
 
 /// Merge the production sequence's rows under the boundary row the caller just
 /// recorded. Rows drop silently when the accumulator is disabled.
-fn merge_terminal_production_timings(
-    stage_timings: &mut CompileTimings,
-    production_timings: &TerminalProductionTimings,
-) {
-    for (stage, microseconds) in production_timings.rows() {
-        let (name, input, output) = stage.observation_labels();
-        stage_timings.add_completed(
-            StageMeta::new(name, input, output, TimingCategory::Pipeline),
-            *microseconds,
-            AllocationDelta::default(),
-        );
-    }
-}
-
 pub fn produce_terminal_report(
     root_path: std::path::PathBuf,
     mut checked: CheckedCompilation,
@@ -110,33 +96,44 @@ pub(crate) fn produce_retained_terminal_artifact(
     // rejoins the record once the product is produced and admitted.
     let mut stage_timings = std::mem::take(checked.timings_mut());
     let psi_optimizations = selections.project_psi();
-    let mut production_timings = TerminalProductionTimings::enabled_if(stage_timings.is_enabled());
-    let produced = stage_timings
-        .record_result(TERMINAL_PRODUCTION_STAGE, || {
-            terminal_production::TerminalProductionRequest {
-                checked: &checked.execution().program,
-                machine: terminal_production::TerminalMachineSelection::Symbol(
-                    entry_machine_symbol,
-                ),
-                optimization_selections: psi_optimizations.selections().clone(),
-            }
-            .produce(TerminalProductionCustody {
-                entry_identity: Some(source_signature_identity),
-                // The authored behavior exclusions are judged against the
-                // unoptimized composition the artifact was published from.
-                retain_unoptimized: !checked
-                    .build()
-                    .config
-                    .behavior_exclusions
-                    .as_slice()
-                    .is_empty(),
-                timings: &mut production_timings,
-            })
-        })
-        // A capacity refusal keeps its exceeded provision on the diagnostic so
-        // the target's outcome publishes `Incomplete`, not a rejection.
-        .map_err(|error| vec![error.diagnostic()])?;
-    merge_terminal_production_timings(&mut stage_timings, &production_timings);
+    // Production records its own legs into this same ladder, so the aggregate
+    // row cannot be taken with `record_result`: that holds the accumulator
+    // borrowed across the call. Measuring around it and adding the row
+    // afterwards is what `record_result` does internally, rejection included,
+    // and `add_completed` is a no-op on a disabled ladder.
+    //
+    // The row is opened at zero first so it keeps the position it held when a
+    // separate carrier was merged in afterwards: the ladder orders phases by
+    // first insertion, and the legs below would otherwise land ahead of their
+    // own total. `add_completed` sums onto an existing label, so the real
+    // elapsed is added to this row rather than replacing it.
+    stage_timings.add_completed(TERMINAL_PRODUCTION_STAGE, 0, AllocationDelta::default());
+    let production_started = std::time::Instant::now();
+    let produced = terminal_production::TerminalProductionRequest {
+        checked: &checked.execution().program,
+        machine: terminal_production::TerminalMachineSelection::Symbol(entry_machine_symbol),
+        optimization_selections: psi_optimizations.selections().clone(),
+    }
+    .produce(TerminalProductionCustody {
+        entry_identity: Some(source_signature_identity),
+        // The authored behavior exclusions are judged against the
+        // unoptimized composition the artifact was published from.
+        retain_unoptimized: !checked
+            .build()
+            .config
+            .behavior_exclusions
+            .as_slice()
+            .is_empty(),
+        timings: &mut stage_timings,
+    });
+    stage_timings.add_completed(
+        TERMINAL_PRODUCTION_STAGE,
+        production_started.elapsed().as_micros(),
+        AllocationDelta::default(),
+    );
+    // A capacity refusal keeps its exceeded provision on the diagnostic so
+    // the target's outcome publishes `Incomplete`, not a rejection.
+    let produced = produced.map_err(|error| vec![error.diagnostic()])?;
     let checked_program_entry = produced.receipt().cloned().ok_or_else(|| {
         vec![Diagnostic::error(
             "terminal-artifact production retained no checked ProgramEntry receipt",

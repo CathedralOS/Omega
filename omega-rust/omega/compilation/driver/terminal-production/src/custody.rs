@@ -9,7 +9,7 @@ use lowered_psi::{
 use lowered_psi_to_terminal_psi::CheckedBoundaryOperatorApplicationScope;
 use terminal_psi::CheckedProgramEntryTerminalReceipt;
 
-use crate::stage_timings::TerminalProductionTimings;
+use artifacts::compile_timings::CompileTimings;
 
 /// Canonical Terminal output beside the checked-source evidence the caller
 /// asked production to retain: the checked D29 demand scope, the selected
@@ -121,9 +121,8 @@ impl ProducedTerminalArtifact {
 /// `entry_identity` is the checked source-signature identity a
 /// `ProgramEntry` receipt retains; `None` publishes the machine as an
 /// ordinary Terminal product with no entry receipt. `timings` records each
-/// production leg; a
-/// [`TerminalProductionTimings::default`] carrier runs the same body
-/// unmeasured.
+/// production leg into the request's own ladder; a disabled `CompileTimings`
+/// runs the same body unmeasured.
 pub struct TerminalProductionCustody<'t> {
     pub entry_identity: Option<[u8; 32]>,
     /// Retain the lowered module as it was before selected optimization,
@@ -131,13 +130,13 @@ pub struct TerminalProductionCustody<'t> {
     /// composition (the authored behavior exclusions) reads it from the
     /// product instead of lowering the entry a second time.
     pub retain_unoptimized: bool,
-    pub timings: &'t mut TerminalProductionTimings,
+    pub timings: &'t mut CompileTimings,
 }
 
 impl<'t> TerminalProductionCustody<'t> {
     /// No entry receipt: only the artifact and its checked-scope evidence are
     /// retained.
-    pub fn artifact_only(timings: &'t mut TerminalProductionTimings) -> Self {
+    pub fn artifact_only(timings: &'t mut CompileTimings) -> Self {
         Self {
             entry_identity: None,
             retain_unoptimized: false,

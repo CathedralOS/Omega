@@ -3,7 +3,7 @@
 
 use crate::checked::CheckedCompilation;
 use diagnostics::Diagnostic;
-use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
+use terminal_production::TerminalProductionCustody;
 use terminal_psi_to_abstract_operations::TerminalNativeRealizationProposal;
 
 pub(crate) fn project_terminal_native_realization_proposal(
@@ -49,7 +49,7 @@ fn produce_callback_thunk_artifact(
     // receipt is minted; the callback placement binds its own evidence to
     // the lowering receipt instead.
     let psi_optimizations = selections.project_psi();
-    let mut production_timings = TerminalProductionTimings::default();
+    let mut production_timings = artifacts::compile_timings::CompileTimings::default();
     let produced = terminal_production::TerminalProductionRequest {
         checked: &checked.execution().program,
         machine: terminal_production::TerminalMachineSelection::Symbol(placement.selected_machine),
