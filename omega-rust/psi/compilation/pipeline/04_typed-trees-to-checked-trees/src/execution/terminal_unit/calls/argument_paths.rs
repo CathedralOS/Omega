@@ -11,9 +11,9 @@ use crate::execution::terminal_unit::{
     CheckedStructuralScalarParameterPlan, CheckedUnitCallCoordinate,
     CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralArgumentSourcePlan,
     CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment, ExpressionNode,
-    MachineSupplyMode, Multiplicity, PermissionAccess, PermissionClaimIdentity,
-    PermissionEventKind, PermissionEventSource, ProofFact, SignatureContractKind, StateParameter,
-    StatementNode, SymbolHandle, TypeReferenceHandle, TypeReferenceNode, TypedTrees,
+    Multiplicity, PermissionAccess, PermissionClaimIdentity, PermissionEventKind,
+    PermissionEventSource, ProofFact, SignatureContractKind, StateParameter, StatementNode,
+    SymbolHandle, TypeReferenceHandle, TypeReferenceNode, TypedTrees,
 };
 
 pub(crate) fn checked_call_scalar_arguments(
@@ -947,7 +947,7 @@ pub(crate) fn ordinary_projected_call_is_supported(
                 && structural_access_for_type_reference(program, target.type_reference)
                     == Some(argument.access)
         };
-    if target_machine.supply_mode == MachineSupplyMode::CheckedBody
+    if target_machine.supplies_checked_body()
         && arguments
             .iter()
             .zip(&target_parameters)
@@ -994,7 +994,7 @@ pub(crate) fn ordinary_projected_call_is_supported(
     // referent type, and authored loan. Borrowed projections compose per
     // argument; neither the number of sibling loans nor the caller's state
     // count grants or removes access to those places.
-    if target_machine.supply_mode == MachineSupplyMode::CheckedBody
+    if target_machine.supplies_checked_body()
         && arguments
             .iter()
             .zip(&target_parameters)
@@ -1123,7 +1123,7 @@ pub(crate) fn ordinary_projected_call_is_supported(
     // stays with the caller and publishes on the caller's return edge
     // instead of the call continuation.
     if allow_field_path_projection
-        && target_machine.supply_mode == MachineSupplyMode::CheckedBody
+        && target_machine.supplies_checked_body()
         && arguments.iter().any(|argument| {
             (argument
                 .source_structural_result_binding_ordinal()

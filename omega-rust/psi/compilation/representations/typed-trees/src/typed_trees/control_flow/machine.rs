@@ -79,6 +79,22 @@ pub struct Machine {
 }
 
 impl Machine {
+    /// Whether a caller reaches this declaration's authored body as an
+    /// ordinary checked callee.
+    ///
+    /// A bodied `boundary machine` is a checked adapter, not a seam: its body
+    /// is authored in-package and competes as an ordinary candidate, while
+    /// only the bodyless declaration is the boundary crossing. Consumers that
+    /// re-derive this as `supply_mode == CheckedBody` silently refuse every
+    /// adapter; ask here instead.
+    pub fn supplies_checked_body(&self) -> bool {
+        match self.supply_mode {
+            language_semantics::MachineSupplyMode::CheckedBody => true,
+            language_semantics::MachineSupplyMode::Boundary => self.body_is_present,
+            _ => false,
+        }
+    }
+
     /// The spelling of this machine's symbol in the symbol table: the
     /// authored name, or `<name>::<target>` for a target sibling, whose
     /// symbol is kept apart from the realized declaration's.

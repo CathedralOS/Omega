@@ -19,8 +19,8 @@ use crate::execution::terminal_unit::{
     BuiltinFunction, CheckFacts, CheckedStructuralAccess, CheckedStructuralScalarParameterPlan,
     CheckedTrivialAffineStructuralLocalPlan, CheckedUnitCallCoordinate,
     CheckedUnitEffectOperationPlan, CheckedUnitEntryClaimPlan, CheckedUnitStructuralArgumentPlan,
-    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralResultBindingPlan, MachineSupplyMode,
-    Multiplicity, PrimitiveType, SymbolHandle, TypedTrees, strips_erased_parameter,
+    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralResultBindingPlan, Multiplicity,
+    PrimitiveType, SymbolHandle, TypedTrees, strips_erased_parameter,
 };
 use checked_trees::{
     CheckedUnitCallParts, CheckedUnitCallPlan, CheckedUnitCallResult, CheckedUnitCallRoute,
@@ -313,11 +313,7 @@ pub(in crate::execution) fn build_call_operation(
         return None;
     }
     phase("call operation: target supply mode");
-    if !boundary
-        && !(target_machine.supply_mode == MachineSupplyMode::CheckedBody
-            || (target_machine.supply_mode == MachineSupplyMode::Boundary
-                && target_machine.body_is_present))
-    {
+    if !boundary && !target_machine.supplies_checked_body() {
         return None;
     }
     phase("call operation: structural arguments");
@@ -615,7 +611,7 @@ fn projected_reference_record_operands_supported(
     target_state: &typed_trees::state::State,
     arguments: &[CheckedUnitStructuralArgumentPlan],
 ) -> bool {
-    if target_machine.supply_mode != MachineSupplyMode::CheckedBody {
+    if !target_machine.supplies_checked_body() {
         return false;
     }
     let target_parameters = program

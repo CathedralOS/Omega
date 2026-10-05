@@ -82,7 +82,11 @@ pub(crate) fn build_checked_terminal_machine_selections(
                     // Its ceiling and acknowledgements are checked separately;
                     // unlike suspension it needs no continuation representation.
                     || machine.suspends
-                    || !machine.supply_mode.is_checked_body()
+                    // A bodied `boundary machine` adapter is an ordinary
+                    // checked root: the Unit roster already builds its plan,
+                    // so a narrower `is_checked_body()` here left its callers
+                    // with a selection they could not lower.
+                    || !machine.supplies_checked_body()
                 {
                     CheckedTerminalSignatureEligibility::Unsupported
                 } else if !program
