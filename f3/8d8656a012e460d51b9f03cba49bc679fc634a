@@ -1,0 +1,4 @@
+owner: z1
+provenance: re-probe at 6cbb1bbbe8: checked_boundary_operator_const_application_alternate_exit healed both legs (selected-const-provider-execution wave lifted the demanded-length const-eval wall) + selected_const_provider_call_identity_exit minted both legs exit:70
+ticket: 28016f656e5e46b492a463ecd7ac7bba
+published_utc: 2026-10-05T20:48:10.327430+00:00
