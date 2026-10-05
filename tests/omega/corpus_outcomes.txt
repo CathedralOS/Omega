@@ -2813,10 +2813,8 @@ pass/text/byte_content_store_continuation_exit checked 1157ms check-target:macos
 pass/text/copy_record_view_field_state_transfer_exit checked 822ms check-target:macos_arm64 @ef2ef25a3ab8+wt
 pass/text/declared_record_view_field_fill_exit checked 875ms check-target:macos_arm64 @20ff4f468d4e+wt
 pass/text/local_bounded_byte_indexed_write_exit checked 1159ms check-target:macos_arm64 @251097c4c144+wt
-pass/text/local_bounded_text_case_result_loan_exit rejected 4097ms check-target:macos_arm64 @dac9585f443
-	terminal-artifact production failed: Lowering(OperationProofUnavailable(ObligationId(20)))
-pass/text/local_bounded_text_scalar_loan_exit incomplete 7392ms check-target:macos_arm64 @c5d32a00863
-	incomplete: terminal-artifact production stopped at the private `proof_search_integer_certificate_work` proof-search capacity (provision 65536) with obligation 27 unproved; the module is not shown invalid
+pass/text/local_bounded_text_case_result_loan_exit checked 1227ms check-target:macos_arm64 @9bd3a402ce47+wt
+pass/text/local_bounded_text_scalar_loan_exit checked 1534ms check-target:macos_arm64 @9bd3a402ce47+wt
 pass/text/local_record_byte_field_copy_exit checked 742ms check-target:macos_arm64 @ca8c127c90c5
 pass/text/mutable_bounded_byte_state_exit checked 712ms check-target:macos_arm64 @63377f7122bb+wt
 pass/text/nested_mutable_receiver_byte_result_exit checked 5652ms check-target:macos_arm64 @cfe60a3a242

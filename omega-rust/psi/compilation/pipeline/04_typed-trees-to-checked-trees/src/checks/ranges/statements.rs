@@ -4,7 +4,7 @@ mod transitions;
 use self::transitions::check_transition_target;
 use super::arrays::fixed_array_type_length;
 use super::facts::RangeFacts;
-use super::indexes::check_expression;
+use super::indexes::{IndexVerdicts, check_expression};
 use super::statement_transfer::{StatementTransferSink, transfer_statement_facts};
 use diagnostics::Diagnostic;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
@@ -20,6 +20,7 @@ pub(super) fn check_statement<'program>(
     facts: &mut RangeFacts<'_>,
     statement: &'program StatementNode,
     diagnostics: &mut Vec<Diagnostic>,
+    verdicts: &mut IndexVerdicts,
 ) {
     /// The checking pass's sink: every read expression emits index
     /// diagnostics and transition targets are checked under their
@@ -32,6 +33,7 @@ pub(super) fn check_statement<'program>(
         state: &'program State,
         call_frames: Option<&'a validation::CallFrameResolver<'program>>,
         diagnostics: &'a mut Vec<Diagnostic>,
+        verdicts: &'a mut IndexVerdicts,
         extent_failed: bool,
     }
     impl<'a, 'program> StatementTransferSink<'program> for CheckSink<'a, 'program> {
@@ -44,6 +46,7 @@ pub(super) fn check_statement<'program>(
                 facts,
                 expression,
                 self.diagnostics,
+                self.verdicts,
             );
         }
         fn check_assignment_extent_window(
@@ -74,6 +77,7 @@ pub(super) fn check_statement<'program>(
                 facts,
                 target,
                 self.diagnostics,
+                self.verdicts,
             );
         }
     }
@@ -83,6 +87,7 @@ pub(super) fn check_statement<'program>(
         state,
         call_frames,
         diagnostics,
+        verdicts,
         extent_failed: false,
     };
     transfer_statement_facts(

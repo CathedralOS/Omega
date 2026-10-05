@@ -1547,6 +1547,7 @@ fn observe(
                 index: Box::new(index),
                 path: binding.element_path.clone(),
                 scalar_type,
+                bound_decided: false,
             }
         } else {
             LoweredDirectExpression::IndexedPrimitiveRead {

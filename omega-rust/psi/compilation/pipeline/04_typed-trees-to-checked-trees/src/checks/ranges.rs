@@ -80,9 +80,10 @@ pub(crate) fn check_indexed_accesses(
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     incoming_guards: &IncomingGuardIndex,
     mutation_summaries: &crate::flow::StateMutationSummaryCache,
-) -> Result<(), Vec<Diagnostic>> {
+) -> Result<Vec<typed_trees::expression::ExpressionHandle>, Vec<Diagnostic>> {
     let field_lengths = fixed_array_field_lengths(program);
     let mut diagnostics = Vec::new();
+    let mut verdicts = indexes::IndexVerdicts::default();
     // All states and their branch snapshots query the same immutable program
     // and borrow facts through the pass's shared summary table.
 
@@ -149,13 +150,14 @@ pub(crate) fn check_indexed_accesses(
                     &mut facts,
                     statement,
                     &mut diagnostics,
+                    &mut verdicts,
                 );
             }
         }
     }
 
     if diagnostics.is_empty() {
-        Ok(())
+        Ok(verdicts.into_proven())
     } else {
         Err(diagnostics)
     }

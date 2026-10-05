@@ -185,9 +185,7 @@ impl ExpressionWalk<'_> {
             ExpressionNode::Binary(binary) => {
                 binary::analyze(self, expression, binary, diagnostics, decisions)
             }
-            ExpressionNode::Unary(unary) => {
-                unary::analyze(self, unary, diagnostics, decisions)
-            }
+            ExpressionNode::Unary(unary) => unary::analyze(self, unary, diagnostics, decisions),
             ExpressionNode::Cast(cast) => {
                 cast::analyze(self, expression, cast, diagnostics, decisions)
             }

@@ -12,8 +12,8 @@ mod transition_statements;
 use crate::declarations::symbols::MachineSymbols;
 use crate::value_custody::locals::WritableRoots;
 use crate::{
-    TopLevelSymbols, ValidatedBoundaryOperatorApplication,
-    declarations::transitions, proof_contracts::arithmetic_domains, value_custody::placed_views,
+    TopLevelSymbols, ValidatedBoundaryOperatorApplication, declarations::transitions,
+    proof_contracts::arithmetic_domains, value_custody::placed_views,
 };
 use diagnostics::Diagnostic;
 use typed_trees::TypedTrees;

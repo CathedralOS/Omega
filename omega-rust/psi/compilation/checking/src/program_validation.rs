@@ -631,7 +631,8 @@ fn validate(
         mut exact_integer_casts,
         mut defined_divisions,
     } = arithmetic_decisions;
-    defined_divisions.sort_by_key(|expression| checked_trees::operators::handle_position(*expression));
+    defined_divisions
+        .sort_by_key(|expression| checked_trees::operators::handle_position(*expression));
     defined_divisions.dedup();
     exact_integer_casts
         .sort_by_key(|fact| (fact.expression.arena_index(), fact.expression.generation()));

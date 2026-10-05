@@ -247,7 +247,11 @@ fn exact_ordinary_actual_intervals(
                 return Some(None);
             }
             let mut diagnostics = Vec::new();
-            let analysis = operand_walk.analyze(*argument, &mut diagnostics, &mut super::ArithmeticDecisions::default());
+            let analysis = operand_walk.analyze(
+                *argument,
+                &mut diagnostics,
+                &mut super::ArithmeticDecisions::default(),
+            );
             diagnostics
                 .is_empty()
                 .then_some(Some((parameter.symbol, analysis.interval)))

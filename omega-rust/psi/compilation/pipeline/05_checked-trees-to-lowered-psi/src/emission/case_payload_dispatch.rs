@@ -467,21 +467,25 @@ pub(crate) fn substitute_direct(
             source,
             index,
             scalar_type,
+            bound_decided,
         } => Direct::ByteSequenceRead {
             source,
             index: Box::new(substitute_direct(*index, bound)),
             scalar_type,
+            bound_decided,
         },
         Direct::ElementViewRead {
             source,
             index,
             path,
             scalar_type,
+            bound_decided,
         } => Direct::ElementViewRead {
             source,
             index: Box::new(substitute_direct(*index, bound)),
             path,
             scalar_type,
+            bound_decided,
         },
         Direct::IndexedPrimitiveRead {
             source,
@@ -507,12 +511,14 @@ pub(crate) fn substitute_direct(
             field,
             index,
             scalar_type,
+            bound_decided,
         } => Direct::ByteSequenceFieldRead {
             source,
             path: substitute_path(path, bound),
             field,
             index: Box::new(substitute_direct(*index, bound)),
             scalar_type,
+            bound_decided,
         },
         Direct::ByteSequenceFieldLength {
             source,

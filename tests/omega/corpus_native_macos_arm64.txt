@@ -1166,10 +1166,8 @@ pass/termination/unsigned_identity_measure_rank_range checked 217ms
 pass/text/byte_content_store_continuation_exit built 1222ms exit:70 @381ab55e53d2+wt
 pass/text/copy_record_view_field_state_transfer_exit built 1444ms exit:70 @ef2ef25a3ab8+wt
 pass/text/local_bounded_byte_indexed_write_exit built 1311ms exit:70 @251097c4c144+wt
-pass/text/local_bounded_text_case_result_loan_exit rejected 5620ms regressed-from:built+exit:70 @835baa6033eb+wt
-	terminal-artifact production failed: Lowering(OperationProofUnavailable(ObligationId(20)))
-pass/text/local_bounded_text_scalar_loan_exit incomplete 7643ms regressed-from:built+exit:70 @835baa6033eb+wt
-	incomplete: terminal-artifact production stopped at the private `proof_search_integer_certificate_work` proof-search capacity (provision 65536) with obligation 27 unproved; the module is not shown invalid
+pass/text/local_bounded_text_case_result_loan_exit built 1320ms exit:70 @9bd3a402ce47+wt
+pass/text/local_bounded_text_scalar_loan_exit built 1643ms exit:70 @9bd3a402ce47+wt
 pass/text/local_record_byte_field_copy_exit built 1021ms exit:70 stdout:match @9484e48a74ff+wt
 pass/text/mutable_bounded_byte_state_exit built 746ms exit:70 @63377f7122bb+wt
 pass/text/nested_mutable_receiver_byte_result_exit built 1214ms exit:70 @f7deb06aff79+wt

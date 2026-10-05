@@ -779,13 +779,6 @@ defines the complete product bar.
   operation.
 
   Samples that build no native program on macOS ARM64:
-  - `algorithms/longest_run`: Terminal production stops at the
-    `proof_search_integer_certificate_work` budget (65536) with obligation 41
-    unproved. That obligation is a `LessThan(u64, u64)` at the `text[index]`
-    read in state `read`. Its axioms carry nine-deep `index + 1 + ...` chains
-    for several values, which inflate the search scope. The same failure
-    occurs at 1e1e71dd791. The fix is checker-side under
-    **CHECKER-DISCHARGES-OPERATION-OBLIGATIONS**, not a larger search budget.
   - `systems/file_journal`: package review exits 200 because `Main::fs` /
     `Main::files::host` have no Darwin `FilesystemHost` provider
     (`omega-rust/omega/compilation/realization/provider-planning/src/provider_settlement/canonical_filesystem_host.rs`
@@ -2408,9 +2401,6 @@ crash and native exit behavior.
   capability.
 
   Remaining recorded failures route to their existing owners:
-  - `pass/text/local_bounded_text_{case_result,scalar}_loan_exit` stops at
-    operation proof production/search; **CHECKER-DISCHARGES-OPERATION-OBLIGATIONS**
-    owns those index decisions.
   - `pass/borrows/borrow_domain_window_write_and_call` reproduces on
     `c9eb93b5756`, macOS ARM64, after ordinary package preparation:
     `omega run --both tests/omega/pass/borrows/borrow_domain_window_write_and_call/main.omg`
@@ -3599,13 +3589,22 @@ deletions, which its commit lists.
     verifier admits that route only for an operation-owned derivable
     obligation (ledger entry `route:source-checked`). Extend the same path to
     the remaining primitive conditions, rather than rebuilding decisions with
-    a separate syntax traversal. Next by customer count is the index bound
-    `LessThan(index, length)`: `pass/text/local_bounded_text_case_result_loan_exit`
-    (obligation 20, `text[0]` behind `0 < text.len` in the predecessor
-    state), `pass/text/local_bounded_text_scalar_loan_exit` (obligation 27, at
-    the 65536 search provision) and `samples/cli/algorithms/longest_run` all
-    stop there; stage 04's `check_indexed_access` computes each verdict and
-    discards it. Exact casts have decisions that stage 05 drops at
+    a separate syntax traversal. Scalar index reads follow: stage 04's range
+    checks keep each occurrence every check proved as
+    `CheckFacts.proven_scalar_indexes`, and stage 05 marks the read at the row
+    boundary (`prepare_expression::mark_checked_index_read`) when the row's
+    authored root is that occurrence and it lowers to one
+    `ByteSequenceRead`, `ByteSequenceFieldRead` or `ElementViewRead`. Not yet
+    covered: index writes (their plans are built after the checks, so they
+    can take the flag at construction, as divisions do) and reads that are
+    not a row's root (they need a provenance handle on the checked read).
+    `samples/cli/collections/heat_grid` stops on neither: its unproved
+    obligation is a `ScalarBlockInvariant` arrival of the authored
+    `requires 0 <= y && y <= grid.max_y` at a loop edge. Source checking
+    discharges those requirements at each transition, but the verifier admits
+    `SourceChecked` only for operation owners, so authored arrival obligations
+    need their own decision record and owner rule (inferred invariant
+    proposals stay certificate-proved). Exact casts have decisions that stage 05 drops at
     `prepare_expression.rs`; Exact add, subtract, multiply and shift
     representability have none yet. Concrete contract
     arithmetic uses that same formation walk; abstract declaration contracts

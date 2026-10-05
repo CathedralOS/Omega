@@ -4,7 +4,7 @@ use typed_trees::state::State;
 use typed_trees::statement::{TransitionTargetHandle, TransitionTargetNode};
 
 use super::super::facts::RangeFacts;
-use super::super::indexes::check_expression;
+use super::super::indexes::{IndexVerdicts, check_expression};
 
 pub(super) fn check_transition_target<'program>(
     program: &'program typed_trees::TypedTrees,
@@ -14,6 +14,7 @@ pub(super) fn check_transition_target<'program>(
     facts: &mut RangeFacts<'_>,
     target: TransitionTargetHandle,
     diagnostics: &mut Vec<Diagnostic>,
+    verdicts: &mut IndexVerdicts,
 ) {
     if !target.is_valid() {
         return;
@@ -30,6 +31,7 @@ pub(super) fn check_transition_target<'program>(
                     facts,
                     *argument,
                     diagnostics,
+                    verdicts,
                 );
             }
         }
@@ -41,6 +43,7 @@ pub(super) fn check_transition_target<'program>(
             facts,
             *value,
             diagnostics,
+            verdicts,
         ),
         TransitionTargetNode::Terminal => {}
     }

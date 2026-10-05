@@ -1372,7 +1372,7 @@ impl ScalarBindings {
         statement: u32,
         role: CheckedScalarExpressionRole,
     ) -> Result<LoweredDirectExpression, LoweringError> {
-        let (_, expression) = checked
+        let (binding, expression) = checked
             .facts
             .values
             .scalar_expressions
@@ -1380,8 +1380,15 @@ impl ScalarBindings {
             .ok_or(LoweringError::Unsupported(
                 "scalar computation needs one checked expression and one source binding",
             ))?;
-        let expression = self.expression(expression)?;
-        Ok(expression)
+        let lowered = self.expression(expression)?;
+        Ok(
+            crate::expression_preparation::prepare_expression::mark_checked_index_read(
+                checked,
+                binding.expression,
+                expression,
+                lowered,
+            ),
+        )
     }
 
     /// A selected dispatch copied this scalar payload before the arm began.

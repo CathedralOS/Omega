@@ -27,7 +27,7 @@ pub(crate) fn lower_checked_scalar_expression_at(
     statement_ordinal: u32,
     role: CheckedScalarExpressionRole,
 ) -> Result<LoweredDirectExpression, LoweringError> {
-    let (_, expression) = checked
+    let (binding, expression) = checked
         .facts
         .values
         .scalar_expressions
@@ -35,8 +35,45 @@ pub(crate) fn lower_checked_scalar_expression_at(
         .ok_or(LoweringError::Unsupported(
             "scalar expression has no unique source-bound checked value plan",
         ))?;
-    let expression = lower_checked_scalar_expression(expression)?;
-    Ok(expression)
+    let lowered = lower_checked_scalar_expression(expression)?;
+    Ok(mark_checked_index_read(
+        checked,
+        binding.expression,
+        expression,
+        lowered,
+    ))
+}
+
+/// Carry a range-check verdict onto the read it decided. A row whose authored
+/// root is one `[]` occurrence every bounds check proved, checked as one
+/// indexed read and lowered to one bounded read, emits that read's bound
+/// obligation as source-checked. The verdicts exist only after the checked
+/// rows were built, so the join happens here at the row, the one place that
+/// sees both the row's authored root and the facts. Any other shape (a recast
+/// byte region, a record observation, a nested selector, a synthesized
+/// comparison) keeps its certificate search.
+pub(crate) fn mark_checked_index_read(
+    checked: &CheckedTrees,
+    root: checked_trees::expression::ExpressionHandle,
+    expression: &CheckedScalarExpression,
+    mut lowered: LoweredDirectExpression,
+) -> LoweredDirectExpression {
+    let one_indexed_read = matches!(
+        expression,
+        CheckedScalarExpression::StructuralParameterIndexedRead { inner_indexes, .. }
+            if inner_indexes.is_empty()
+    );
+    if one_indexed_read && checked.facts.scalar_index_is_proven(root) {
+        match &mut lowered {
+            LoweredDirectExpression::ByteSequenceRead { bound_decided, .. }
+            | LoweredDirectExpression::ByteSequenceFieldRead { bound_decided, .. }
+            | LoweredDirectExpression::ElementViewRead { bound_decided, .. } => {
+                *bound_decided = true;
+            }
+            _ => {}
+        }
+    }
+    lowered
 }
 
 pub(crate) fn lower_checked_scalar_expression(
@@ -65,7 +102,7 @@ pub(crate) fn lower_checked_scalar_expression_at_with_parameters(
     role: CheckedScalarExpressionRole,
     structural_parameters: &[(u32, StructuralParameterDeclaration)],
 ) -> Result<LoweredDirectExpression, LoweringError> {
-    let (_, expression) = checked
+    let (binding, expression) = checked
         .facts
         .values
         .scalar_expressions
@@ -73,7 +110,7 @@ pub(crate) fn lower_checked_scalar_expression_at_with_parameters(
         .ok_or(LoweringError::Unsupported(
             "scalar expression has no unique source-bound checked value plan",
         ))?;
-    let expression = lower_checked_scalar_expression_with_parameters(
+    let lowered = lower_checked_scalar_expression_with_parameters(
         expression,
         structural_parameters,
         &Default::default(),
@@ -84,7 +121,12 @@ pub(crate) fn lower_checked_scalar_expression_at_with_parameters(
         &[],
         None,
     )?;
-    Ok(expression)
+    Ok(mark_checked_index_read(
+        checked,
+        binding.expression,
+        expression,
+        lowered,
+    ))
 }
 
 /// The whole view parameter at `position`, for a length or element read. An
@@ -611,6 +653,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                     field,
                     index: Box::new(exact_u64_index(index)?),
                     scalar_type: terminal_scalar_type(PrimitiveType::U8)?,
+                    bound_decided: false,
                 });
             }
             // Nested selectors read a structural parameter or its static
@@ -749,6 +792,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                         source,
                         index: Box::new(exact_u64_index(index)?),
                         scalar_type: terminal_scalar_type(PrimitiveType::U8)?,
+                        bound_decided: false,
                     });
                 }
                 return Ok(LoweredDirectExpression::IndexedPrimitiveRead {
@@ -980,6 +1024,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                         index: Box::new(exact_u64_index(index)?),
                         path,
                         scalar_type: terminal_scalar_type(*primitive_type)?,
+                        bound_decided: false,
                     });
                 }
             };
@@ -1007,11 +1052,13 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                     index: Box::new(index),
                     path: Vec::new(),
                     scalar_type,
+                    bound_decided: false,
                 }),
                 None => Ok(LoweredDirectExpression::ByteSequenceRead {
                     source,
                     index: Box::new(index),
                     scalar_type: terminal_scalar_type(PrimitiveType::U8)?,
+                    bound_decided: false,
                 }),
             }
         }

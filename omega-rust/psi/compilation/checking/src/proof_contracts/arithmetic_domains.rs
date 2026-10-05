@@ -63,6 +63,7 @@ pub(crate) use assignments::{
 pub(crate) use cast_ranges::record_float_literal_assignment;
 pub(crate) use cast_ranges::validate_range_cast_at_use;
 pub(crate) use cited_element_bounds::{element_place_path, seed_cited_element_bounds};
+pub(crate) use expression_analysis::ArithmeticDecisions;
 pub(crate) use float_arithmetic::{float_interval_fits_integer, float_source_proves_int_cast};
 pub use guard_narrowing::{
     arrival_integer_expression_bounds, occurrence_integer_expression_bounds,
@@ -76,7 +77,6 @@ pub(crate) use integer_ranges::{
     integer_bit_width, literal_i64, primitive_range, validate_anonymous_integer_range,
     validate_value_range, validate_value_range_retaining_decisions,
 };
-pub(crate) use expression_analysis::ArithmeticDecisions;
 pub(crate) use interval::Interval;
 pub(crate) use invariant_bounds::{
     call_result_interval, immutable_integer_expression_interval, standing_integer_interval,

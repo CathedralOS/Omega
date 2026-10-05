@@ -156,7 +156,7 @@ pub(crate) fn check_checked_facts_recording_with_mutation_summaries(
         diagnostics.append(&mut operator_diagnostics);
     }
 
-    if let Err(mut range_diagnostics) = ranges::check_indexed_accesses(
+    match ranges::check_indexed_accesses(
         program,
         &facts.operators,
         &facts.borrow,
@@ -165,7 +165,8 @@ pub(crate) fn check_checked_facts_recording_with_mutation_summaries(
         incoming_guards,
         mutation_summaries,
     ) {
-        diagnostics.append(&mut range_diagnostics);
+        Ok(proven) => facts.proven_scalar_indexes = proven,
+        Err(mut range_diagnostics) => diagnostics.append(&mut range_diagnostics),
     }
 
     if let Err(mut termination_diagnostics) =

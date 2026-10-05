@@ -83,13 +83,15 @@ pub(super) fn analyze(
         && integer_interval_fits_primitive(source.interval, source_type, target_type)
         && let (Some(minimum), Some(maximum)) = (source_interval.low, source_interval.high)
     {
-        decisions.exact_integer_casts.push(crate::ExactIntegerCastFact {
-            expression,
-            source_type,
-            target_type,
-            minimum: numerics::bignum::BigInt::from_i64(minimum),
-            maximum: numerics::bignum::BigInt::from_i64(maximum),
-        });
+        decisions
+            .exact_integer_casts
+            .push(crate::ExactIntegerCastFact {
+                expression,
+                source_type,
+                target_type,
+                minimum: numerics::bignum::BigInt::from_i64(minimum),
+                maximum: numerics::bignum::BigInt::from_i64(maximum),
+            });
     }
     Analysis {
         domain: Some(cast.domain),

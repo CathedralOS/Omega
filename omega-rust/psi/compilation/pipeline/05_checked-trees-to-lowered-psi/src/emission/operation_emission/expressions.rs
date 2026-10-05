@@ -119,6 +119,10 @@ pub(crate) enum LoweredDirectExpression {
         source: PlaceId,
         index: Box<LoweredDirectExpression>,
         scalar_type: ScalarType,
+        /// Checking proved this read's source `[]` index within the live
+        /// length; emission records its bound obligation as source-checked.
+        /// Every read lowering synthesizes leaves this false.
+        bound_decided: bool,
     },
     ByteSequenceFieldRead {
         source: PlaceId,
@@ -126,6 +130,10 @@ pub(crate) enum LoweredDirectExpression {
         field: StructuralFieldId,
         index: Box<LoweredDirectExpression>,
         scalar_type: ScalarType,
+        /// Checking proved this read's source `[]` index within the live
+        /// length; emission records its bound obligation as source-checked.
+        /// Every read lowering synthesizes leaves this false.
+        bound_decided: bool,
     },
     /// Read one scalar of a runtime-selected fixed-array element: `path`
     /// resolves from `source` to the array itself and `index` is the runtime
@@ -157,6 +165,10 @@ pub(crate) enum LoweredDirectExpression {
         index: Box<LoweredDirectExpression>,
         path: Vec<terminal_psi::StructuralPathSegment>,
         scalar_type: ScalarType,
+        /// Checking proved this read's source `[]` index within the live
+        /// length; emission records its bound obligation as source-checked.
+        /// Every read lowering synthesizes leaves this false.
+        bound_decided: bool,
     },
     Parameter {
         position: usize,
@@ -559,6 +571,7 @@ pub(crate) fn emit_direct_expression(
             source,
             index,
             scalar_type,
+            bound_decided,
         } => {
             let index = emit_direct_expression(index, parameters, next_value_identity, operations);
             let length = operations
@@ -576,6 +589,9 @@ pub(crate) fn emit_direct_expression(
                     .checked_add(1)
                     .expect("read obligation follows its operation identity"),
             );
+            if *bound_decided {
+                operations.source_checked_obligations.push(obligation);
+            }
             emit_scalar_leaf(
                 OperationKind::ByteSequenceRead {
                     source: *source,
@@ -594,6 +610,7 @@ pub(crate) fn emit_direct_expression(
             field,
             index,
             scalar_type,
+            bound_decided,
         } => {
             // Evaluate the carrier before the byte selector, once each. Length
             // and read share these exact SSA selectors, not replayed expressions.
@@ -635,6 +652,9 @@ pub(crate) fn emit_direct_expression(
                     .checked_add(1)
                     .expect("read obligation follows its operation identity"),
             );
+            if *bound_decided {
+                operations.source_checked_obligations.push(obligation);
+            }
             emit_scalar_leaf(
                 OperationKind::StructuralByteSequenceFieldRead {
                     source: *source,
@@ -706,6 +726,7 @@ pub(crate) fn emit_direct_expression(
             index,
             path,
             scalar_type,
+            bound_decided,
         } => {
             let index = emit_direct_expression(index, parameters, next_value_identity, operations);
             let length = operations
@@ -723,6 +744,9 @@ pub(crate) fn emit_direct_expression(
                     .checked_add(1)
                     .expect("read obligation follows its operation identity"),
             );
+            if *bound_decided {
+                operations.source_checked_obligations.push(obligation);
+            }
             emit_scalar_leaf(
                 OperationKind::ElementViewRead {
                     source: *source,
