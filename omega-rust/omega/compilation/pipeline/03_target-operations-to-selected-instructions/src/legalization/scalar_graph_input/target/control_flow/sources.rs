@@ -33,7 +33,8 @@ pub(in crate::legalization::scalar_graph_input) fn call_indices(
                 .map(|position| (block, position))
         })
         .ok_or(crate::LegalizationError::custody())?;
-    let mut sources = available(&function.graph, caller, call_block.block);
+    let dominators = SourceDominators::new(caller);
+    let mut sources = available(&function.graph, caller, &dominators, call_block.block);
     sources.extend(
         call_block.operations[..call_position]
             .iter()
@@ -54,9 +55,13 @@ pub(in crate::legalization::scalar_graph_input) fn call_indices(
         .collect()
 }
 
+/// Values available at entry to `block`: the function's parameters, `block`'s
+/// own parameters, and the parameters and definitions of every block that
+/// dominates it, in target block order.
 pub(in crate::legalization::scalar_graph_input) fn available(
     graph: &TargetControlGraph,
     optimized: &PsiOptimizationFunction,
+    dominators: &SourceDominators,
     block: BlockId,
 ) -> Vec<(ValueId, Source)> {
     let mut result = optimized
@@ -75,7 +80,7 @@ pub(in crate::legalization::scalar_graph_input) fn available(
         })
         .collect::<Vec<_>>();
     for candidate in &graph.blocks {
-        if candidate.block == block || dominates(optimized, candidate.block, block) {
+        if dominators.dominates(candidate.block, block) {
             result.extend(candidate.parameters.iter().map(|parameter| {
                 (
                     parameter.value,
@@ -204,30 +209,145 @@ pub(in crate::legalization::scalar_graph_input) fn definition(
     }
 }
 
+/// Whether every path from `function`'s entry to `block` passes `candidate`.
+/// A block dominates itself, and every block dominates one the entry cannot
+/// reach. Callers asking about many blocks of one function build
+/// [`SourceDominators`] once instead.
 pub(in crate::legalization::scalar_graph_input) fn dominates(
     function: &PsiOptimizationFunction,
     candidate: BlockId,
     block: BlockId,
 ) -> bool {
-    let mut pending = vec![function.entry];
-    let mut visited = Vec::new();
-    while let Some(current) = pending.pop() {
-        if current == candidate || visited.contains(&current) {
-            continue;
-        }
-        if current == block {
-            return false;
-        }
-        visited.push(current);
-        if let Some(source) = function.blocks.iter().find(|source| source.id == current) {
-            pending.extend(
-                source
+    SourceDominators::new(function).dominates(candidate, block)
+}
+
+/// The dominator tree of one source function's control-flow graph, computed
+/// once so dominance queries stop re-walking the graph.
+///
+/// Built with the iterative algorithm of Cooper, Harvey and Kennedy ("A Simple,
+/// Fast Dominance Algorithm") over reverse postorder from the entry. Blocks
+/// are the function's own blocks; an edge target that names no block has no
+/// successors, as in a walk of `nodes[..].successors`.
+pub(in crate::legalization::scalar_graph_input) struct SourceDominators {
+    /// Reverse-postorder position of each reachable block.
+    order: std::collections::BTreeMap<BlockId, usize>,
+    /// Immediate dominator of each reachable block, by reverse-postorder
+    /// position; the entry is its own.
+    immediate: Vec<usize>,
+}
+
+impl SourceDominators {
+    pub(in crate::legalization::scalar_graph_input) fn new(
+        function: &PsiOptimizationFunction,
+    ) -> Self {
+        let blocks = function
+            .blocks
+            .iter()
+            .enumerate()
+            .map(|(index, block)| (block.id, index))
+            .collect::<std::collections::BTreeMap<_, _>>();
+        let successors = |block: BlockId| {
+            blocks.get(&block).into_iter().flat_map(|index| {
+                function.blocks[*index]
                     .nodes
                     .iter()
                     .flat_map(|node| &node.successors)
-                    .map(|edge| edge.target),
-            );
+                    .map(|edge| edge.target)
+            })
+        };
+        // Postorder by an explicit stack: (block, successors not yet visited).
+        let mut postorder = Vec::new();
+        let mut visited = std::collections::BTreeSet::from([function.entry]);
+        let mut stack = vec![(
+            function.entry,
+            successors(function.entry).collect::<Vec<_>>(),
+        )];
+        while let Some((block, pending)) = stack.last_mut() {
+            if let Some(next) = pending.pop() {
+                if visited.insert(next) {
+                    let next_successors = successors(next).collect();
+                    stack.push((next, next_successors));
+                }
+            } else {
+                postorder.push(*block);
+                stack.pop();
+            }
         }
+        postorder.reverse();
+        let order = postorder
+            .iter()
+            .enumerate()
+            .map(|(position, block)| (*block, position))
+            .collect::<std::collections::BTreeMap<_, _>>();
+        let mut predecessors = vec![Vec::new(); postorder.len()];
+        for (position, block) in postorder.iter().enumerate() {
+            for successor in successors(*block) {
+                if let Some(target) = order.get(&successor) {
+                    predecessors[*target].push(position);
+                }
+            }
+        }
+        const UNDEFINED: usize = usize::MAX;
+        let mut immediate = vec![UNDEFINED; postorder.len()];
+        if !immediate.is_empty() {
+            immediate[0] = 0;
+        }
+        let intersect = |immediate: &[usize], mut left: usize, mut right: usize| {
+            while left != right {
+                while left > right {
+                    left = immediate[left];
+                }
+                while right > left {
+                    right = immediate[right];
+                }
+            }
+            left
+        };
+        let mut changed = true;
+        while changed {
+            changed = false;
+            for position in 1..postorder.len() {
+                let mut processed = predecessors[position]
+                    .iter()
+                    .copied()
+                    .filter(|predecessor| immediate[*predecessor] != UNDEFINED);
+                let Some(first) = processed.next() else {
+                    continue;
+                };
+                let candidate = processed.fold(first, |current, predecessor| {
+                    intersect(&immediate, current, predecessor)
+                });
+                if immediate[position] != candidate {
+                    immediate[position] = candidate;
+                    changed = true;
+                }
+            }
+        }
+        Self { order, immediate }
     }
-    true
+
+    /// Whether every path from the entry to `block` passes `candidate`; see
+    /// [`dominates`].
+    pub(in crate::legalization::scalar_graph_input) fn dominates(
+        &self,
+        candidate: BlockId,
+        block: BlockId,
+    ) -> bool {
+        if candidate == block {
+            return true;
+        }
+        let Some(mut position) = self.order.get(&block).copied() else {
+            return true;
+        };
+        let Some(candidate) = self.order.get(&candidate).copied() else {
+            return false;
+        };
+        while position != 0 {
+            position = self.immediate[position];
+            if position == candidate {
+                return true;
+            }
+        }
+        candidate == 0
+    }
 }

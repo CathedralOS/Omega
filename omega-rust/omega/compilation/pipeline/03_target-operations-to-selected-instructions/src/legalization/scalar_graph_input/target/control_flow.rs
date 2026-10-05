@@ -91,6 +91,7 @@ pub(super) fn validate(
     // the entry block), and every operation row validates against the custody
     // state it leaves suspended.
     let block_entries = super::super::reference_custody::block_entry_states(optimized, plan, unit)?;
+    let dominators = sources::SourceDominators::new(optimized);
     for (block, source) in graph.blocks.iter().zip(&optimized.blocks) {
         let body_len = block
             .operations
@@ -124,7 +125,7 @@ pub(super) fn validate(
             .iter()
             .filter(|node| !super::super::indirect_calls::is_descriptor_declaration(node))
             .collect();
-        let mut available = sources::available(graph, optimized, block.block);
+        let mut available = sources::available(graph, optimized, &dominators, block.block);
         let mut custody = block_entries
             .get(&block.block)
             .cloned()

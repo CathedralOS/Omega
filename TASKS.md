@@ -121,35 +121,30 @@ helper that passes does not close an item.
   their actual contract rather than an accidental name collision.
 
 - **STATIC-DUNGEON-NATIVE-BUILD-COST.** (split-of:STATIC-MACHINE-MIGRATION)
-  The native build of `samples/cli/games/dungeon_crawler_cli` does not finish.
-  - Current state: the app is migrated to static calls and `omega --check`
-    passes on all of its sources in under a minute, but
-    `python tools/sample_native_gate.py --filter games/dungeon_crawler_cli --timeout 5400`
-    returns `{"state": "timeout"}`. A `detail` of `>Ns` is a lower bound on an
-    unfinished run, not a duration. The cost is single-threaded CPU after
-    checking, in lowering and the stages after it.
-  - Profiled cost sites:
-    (a) `omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/structural/byte_sequence_fields/freshness.rs`
-    (`established_on_every_path`) is quadratic in block count. Deriving the
-    predecessor index once was tried and gave no measurable gain; do not
-    retry it as the fix.
-    (b) whole-module validation repeated several times per publish.
-    `encode_module` (which `semantic_fingerprint` and `terminal_psi_identity`
-    call) no longer runs `validate_module_representation`. Stage 01's
-    `omega-rust/omega/compilation/pipeline/01_abstract-operations-to-abstract-operations/src/validation/projection/initial_ledger.rs`
-    and `.../validation/context/mod.rs` (`ranked_cycles/replay.rs`,
-    `context_projection.rs`) each re-derive identity from the same module.
-    Under the PCC-removal and trust-ceremony rulings this repetition is
-    in-process self-validation and is removed, not preserved:
-    **OMEGA-READS-TERMINAL-UNVERIFIED** removes the remaining verifier
-    passes, and **TERMINAL-VERIFIER-DELETED** deletes (a). Rerun the sample
-    gate first to measure what the encode change bought.
-    (c) `omega-rust/psi/compilation/proof/admission/src/mathematical_core/certificate.rs`
-    starts one 256 MiB-stack thread per certificate admission. Operation
-    certificates go away with **PCC-CERTIFICATES-DELETED**; a persistent
-    worker needs an ownership change and is not the next step.
-  - Cost scales near-linearly per source line on smaller samples, so the
-    multiplier is repetition, not per-line work.
+  The native build of `samples/cli/games/dungeon_crawler_cli` works but takes
+  most of two hours; the gate's default `--timeout` is 300 s per CLI call.
+  - Current state: on macOS ARM64,
+    `python3 tools/sample_native_gate.py --cli <debug omega> --jobs 1 --timeout 6600 --filter games/dungeon_crawler_cli`
+    meets the README oracle in 6771 s at 1e1e71dd791 and in 5408 s with
+    c322a3c7d57 (package review is about 10 minutes of each).
+  - Profile: 5-second stack samples every 5 minutes of `omega run`, binary
+    at 38f145e1fda:
+    - Stage 00 `verify_module` holds minutes 0-10: obligation
+      reconstruction, then certificate admission on one 256 MiB-stack
+      thread each (`proof/admission/src/mathematical_core/certificate.rs`).
+      It leaves with **OMEGA-READS-TERMINAL-UNVERIFIED** after
+      **PCC-CERTIFICATES-DELETED**.
+    - Stage 03 legalization holds minutes 10-17: derive, then the
+      `validate_legalized_operations` replay. Both spent that time in
+      `sources::dominates`, which walked the graph afresh per query. The
+      dominator tree is now built once per function; re-measure this phase.
+      The replay is the stage's own checker; taking checkers off the default
+      compile path needs a way for the corpus runner to exercise them first.
+    - Runtime-spill recovery runs from minute 18 for about 396 steps. Each
+      step still hashes the whole liveness, live-range and legality plans
+      (`liveness_identity`, `live_range_identity`,
+      `allocation_legality_identity`). A per-function digest that carried
+      functions reuse would remove that.
   Acceptance: the sample native gate builds the app within its normal timeout
   and the app meets the oracle in
   [its README](samples/cli/games/dungeon_crawler_cli/README.md#runtime-acceptance).
@@ -747,9 +742,6 @@ defines the complete product bar.
   operation.
 
   Samples that build no native program on macOS ARM64:
-  - `games/dungeon_crawler_cli`: checks, then stops at `ControlCycleIneligible`
-    in Terminal verification; native build cost is
-    **STATIC-DUNGEON-NATIVE-BUILD-COST**, field domains **NOMINAL-FIELD-FLOW**.
   - `systems/file_journal`: package review exits 200 because `Main::fs` /
     `Main::files::host` have no Darwin `FilesystemHost` provider
     (`omega-rust/omega/compilation/realization/provider-planning/src/provider_settlement/canonical_filesystem_host.rs`
@@ -1314,9 +1306,8 @@ defines the complete product bar.
   on macOS ARM64. A byte store preserves `Utf8` only with carrier/byte
   evidence: `ValidUtf8` does not imply `AsciiOnly`.
 
-  The Dungeon Crawler is migrated to explicit parameters; its native build is
-  blocked on **STATIC-DUNGEON-NATIVE-BUILD-COST** and its cycle on
-  **GENERAL-CYCLIC-EXECUTION**.
+  The Dungeon Crawler is migrated to explicit parameters and meets its README
+  runtime oracle natively; its build time is **STATIC-DUNGEON-NATIVE-BUILD-COST**.
 
   Acceptance:
   - Paired qualified/free-machine corpus cases over the same established
@@ -1332,9 +1323,6 @@ defines the complete product bar.
     `pass/structs/qualified_record_element_assignment_exit` and
     `pass/text/nested_mutable_receiver_byte_result_exit`. Guarded and
     closed-case returns keep physical view cleanup and semantic custody.
-  - The migrated application runs closed stdin and `help`/`exit` per
-    [its README](samples/cli/games/dungeon_crawler_cli/README.md#runtime-acceptance)
-    with native exit 0 and the authored room, prompt, command and goodbye output.
   Coordinate with **CANONICALIZE-SCALAR-RANGE-CONTRACTS**,
   **IMPLICIT-STORE-CONVERSION** (policy casts) and **WRITE-ONLY-BORROW**
   (`&mut Room` output). Valid ZII locals need no initializer; arbitrary incoming
@@ -1365,7 +1353,6 @@ defines the complete product bar.
   custody, boundary completion receipts, and claim transfers through Unit/scalar
   calls. Each needs stage 04 to check the arrival/custody relation and stage
   05 to lower it; deleting the fence alone is not the repair.
-  `samples/cli/games/dungeon_crawler_cli` stops at `ControlCycleIneligible`.
   Squalr's earlier `ProcessInfo::set_name` arrival failure is no longer
   reproduced by its explicit-parameter copy graph:
   `pass/slices/runtime_guarded_view_copy_cycle_exit` checks and runs with exit
