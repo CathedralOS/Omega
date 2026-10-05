@@ -17,7 +17,13 @@ A fixture "executed" when its record carries an `exit` fact. It is
 oracle matches `exit` exactly, and `trap` matches any recorded signal exit
 (corpus_gate enforces the precise signal before recording). Executed
 fixtures without an oracle are "unverified": they ran, but nothing pinned
-the result. Standard library only.
+the result.
+
+"regressed" counts rows carrying a `regressed-from:` token — a success this
+host recorded and no longer reaches. Those rows are not a `--base` delta:
+they are the standing loss the golden itself remembers, so one file answers
+whether a fixture has never built here or built and stopped. Standard
+library only.
 """
 
 from __future__ import annotations
@@ -54,7 +60,14 @@ def native_scoreboard(records, oracle_for=None):
              "rejected": 0, "other": 0, "executed": 0, "authored": 0,
              "unverified": 0, "oracle_mismatch": [],
              "stdout_match": 0, "stdout_differs": 0,
+             "regressed": 0, "regressed_rows": [],
              "unimplemented": 0, "unimplemented_canaries": [], "malformed_migration": []}
+    for record in corpus_records.lost_successes(records):
+        board["regressed"] += 1
+        board["regressed_rows"].append({
+            "fixture": record["fixture"],
+            "status": record["status"],
+            "lost": record["regressed_from"]})
     for record in records:
         status = record["status"]
         if status == "unimplemented" or record["facts"].get("interpreter") == "unimplemented":
@@ -147,11 +160,48 @@ def diff_scoreboards(base_records, head_records, oracle_for=None):
             "exit_changed": exit_changed}
 
 
+CHECK_GOLDEN = "corpus_outcomes.txt"
+
+
+def cross_golden_disagreements(native, checked):
+    """Native rows recording a success the check golden says cannot compile.
+
+    A native verdict outliving a check-leg regression is the one false green
+    no diagnostic detector can find: an acceptance carries no diagnostic to
+    read. Two file reads find it instead. Weigh the check row against every
+    non-success status, not `rejected` alone -- one of the eight rows this
+    was written for recorded `incomplete`.
+
+    A row that already carries its `regressed-from:` token is not listed: it
+    agrees with the check golden about what the fixture does today and only
+    remembers what it used to do.
+    """
+    check = {record["fixture"]: record for record in checked}
+    disagreements = []
+    for record in native:
+        if record["status"] not in corpus_records.SUCCESS_STATUSES:
+            continue
+        other = check.get(record["fixture"])
+        if other is None or other["status"] in corpus_records.SUCCESS_STATUSES:
+            continue
+        disagreements.append({
+            "fixture": record["fixture"],
+            "native": record["status"],
+            "native_facts": dict(record["facts"]),
+            "check": other["status"],
+            "check_diagnostic": (other["diagnostics"][0]
+                                 if other["diagnostics"] else None)})
+    return disagreements
+
+
 def summary_line(board, target):
     debt = f", {board['unimplemented']} unimplemented" if board.get("unimplemented") else ""
+    # Named in the lead line because a lost success is the one number a
+    # rejected count cannot distinguish from a fixture that never ran here.
+    lost = f", {board['regressed']} regressed" if board.get("regressed") else ""
     return (f"{target} native: {board['authored']} authored / "
             f"{board['executed']} executed / {board['fixtures']} fixtures, "
-            f"{board['rejected']} rejected{debt} "
+            f"{board['rejected']} rejected{debt}{lost} "
             f"({board['unverified']} executed without an oracle)")
 
 
@@ -315,6 +365,11 @@ def main(argv=None):
                              "the working tree")
     parser.add_argument("--json", action="store_true",
                         help="print the full record as JSON")
+    parser.add_argument("--cross-golden", action="store_true",
+                        help="also list native rows recording a success "
+                             "that tests/omega/corpus_outcomes.txt says "
+                             "cannot compile — a native verdict outliving a "
+                             "check-leg regression; exits 1 when any remain")
     options = parser.parse_args(argv)
     try:
         board = collect(ROOT, golden=Path(options.golden)
@@ -324,11 +379,42 @@ def main(argv=None):
     except ScoreboardError as error:
         print(f"corpus_scoreboard: {error}", file=sys.stderr)
         return 1
+    disagreements = None
+    if options.cross_golden:
+        native_golden = (Path(options.golden) if options.golden
+                         else default_golden()[0])
+        if not native_golden.is_absolute():
+            native_golden = ROOT / native_golden
+        check_golden = native_golden.parent / CHECK_GOLDEN
+        try:
+            if options.head is not None:
+                checked = records_at(ROOT, check_golden, options.head)
+                native = records_at(ROOT, native_golden, options.head)
+            else:
+                checked = corpus_records.read(check_golden)
+                native = corpus_records.read(native_golden)
+        except (OSError, UnicodeError, ValueError) as error:
+            print(f"corpus_scoreboard: unreadable golden: {error}",
+                  file=sys.stderr)
+            return 1
+        if checked is None or native is None:
+            print(f"corpus_scoreboard: a golden is missing at {options.head}",
+                  file=sys.stderr)
+            return 1
+        disagreements = cross_golden_disagreements(native, checked)
+        board["cross_golden"] = disagreements
     if options.json:
         print(json.dumps(board, ensure_ascii=True, indent=2))
-        return 0
+        return 1 if disagreements else 0
     print(summary_line(board["head"], board["target"]))
     print(corpus_records.provenance_line(board["provenance"]))
+    if board["head"]["regressed_rows"]:
+        print(f"rows recording a lost success "
+              f"({len(board['head']['regressed_rows'])}):")
+        for row in board["head"]["regressed_rows"]:
+            lost = corpus_records.format_regression(row["lost"])[
+                len(corpus_records.REGRESSION_PREFIX):]
+            print(f"  {row['fixture']}: now {row['status']}, lost {lost}")
     if "base" in board:
         print(f"base {board['base_label']}: "
               f"{board['base']['authored']} authored / "
@@ -345,6 +431,19 @@ def main(argv=None):
             if fixtures:
                 print(f"{label} ({len(fixtures)}):")
                 print("\n".join(f"  {fixture}" for fixture in fixtures))
+    if disagreements is not None:
+        if not disagreements:
+            print("cross-golden: no native row records a success the check "
+                  "golden refuses")
+            return 0
+        print(f"cross-golden: {len(disagreements)} native row(s) record a "
+              f"success the check golden refuses:")
+        for entry in disagreements:
+            print(f"  {entry['fixture']}: native {entry['native']} "
+                  f"{entry['native_facts']} / check {entry['check']}")
+            if entry["check_diagnostic"]:
+                print(f"    {entry['check_diagnostic'][:160]}")
+        return 1
     return 0
 
 

@@ -1,5 +1,6 @@
-"""Native fixture oracles cannot be repinned into a passing golden, and the
-gate's exit code is a machine-readable verdict."""
+"""Native fixture oracles cannot be repinned into a passing golden, a lost
+success is recorded as a loss rather than silently dropped, and the gate's
+exit code is a machine-readable verdict."""
 
 from pathlib import Path
 import contextlib
@@ -370,7 +371,10 @@ class MainVerdicts(unittest.TestCase):
         (fixture / "expected_stdout.txt").write_text("")
         # A foreign-target build or declaration-only fixture has no runtime
         # facts. Like an exit oracle, authored stdout remains unproved there.
-        cases = [("built", {}), ("checked", {}), ("rejected", {}),
+        # A success-shaped row contradicts the promise and cannot be written;
+        # a refusal produced nothing to contradict it and is written as the
+        # observation it is, with the verdict still `regressed`.
+        cases = [("built", {}), ("checked", {}),
                  ("checked", {"exit": "0", "stdout": "match"}),
                  ("built", {"stdout": "match"}),
                  ("built", {"exit": "timeout", "stdout": "match"}),
@@ -382,6 +386,118 @@ class MainVerdicts(unittest.TestCase):
                 rows = [record("run/a/x", status=status, facts=facts)]
                 self.assertEqual(self.run_gate(rows, "--native", "--record"), 3)
                 self.assertEqual(self.golden.read_text(), corpus_records.render(rows))
+        with patch.object(corpus_gate, "host_target", return_value="linux_x86_64"):
+            rows = [record("run/a/x", status="rejected")]
+            self.assertEqual(self.run_gate(
+                rows, "--native", "--record",
+                golden_records=[record("run/a/x", status="built",
+                                       facts={"exit": "0", "stdout": "match"})]), 3)
+            written = corpus_records.read(self.golden)[0]
+            self.assertEqual(written["status"], "rejected")
+            self.assertEqual(written["regressed_from"],
+                             {"status": "built",
+                              "facts": {"exit": "0", "stdout": "match"}})
+
+    def test_lost_success_records_the_loss_and_still_exits_regressed(self):
+        fixture = self.root / "tests" / "omega" / "pass" / "text" / "decimal"
+        fixture.mkdir(parents=True)
+        (fixture / "expected_native_exit.txt").write_text("70\n")
+        built = record("pass/text/decimal", status="built", facts={"exit": "70"})
+        refused = record("pass/text/decimal", status="rejected",
+                         diagnostics=["the divisor must be proven nonzero"])
+        with patch.object(corpus_gate, "host_target", return_value="macos_arm64"):
+            self.assertEqual(self.run_gate(
+                [refused], "--native", "--record", "--json", str(self.json_path),
+                golden_records=[built]), 3)
+        written = corpus_records.read(self.golden)[0]
+        self.assertEqual(written["status"], "rejected")
+        self.assertEqual(written["facts"], {})
+        self.assertEqual(written["regressed_from"],
+                         {"status": "built", "facts": {"exit": "70"}})
+        document = json.loads(self.json_path.read_text())
+        self.assertEqual(document["verdict"], "recorded_regression")
+        self.assertEqual(document["exit_code"], 3)
+        self.assertEqual(document["counts"]["lost_successes"], 1)
+        self.assertEqual(document["counts"]["lost_success_fixtures"],
+                         ["pass/text/decimal"])
+        self.assertIn("expected native 70", document["oracle_failures"][0])
+        # Recording the loss does not make the next run clean: the row now
+        # matches the golden structurally and the unmet promise still fails.
+        with patch.object(corpus_gate, "host_target", return_value="macos_arm64"):
+            self.assertEqual(self.run_gate(
+                [refused], "--native", golden_records=[written]), 3)
+        # A row that keeps failing carries the ORIGINAL success forward
+        # rather than re-pointing at yesterday's refusal.
+        later = record("pass/text/decimal", status="incomplete")
+        with patch.object(corpus_gate, "host_target", return_value="macos_arm64"):
+            self.assertEqual(self.run_gate(
+                [later], "--native", "--record", golden_records=[written]), 3)
+        self.assertEqual(corpus_records.read(self.golden)[0]["regressed_from"],
+                         {"status": "built", "facts": {"exit": "70"}})
+        # The repair drops the token, so a later fix is a visible move.
+        with patch.object(corpus_gate, "host_target", return_value="macos_arm64"):
+            self.assertEqual(self.run_gate(
+                [built], "--native", "--record",
+                golden_records=corpus_records.read(self.golden)), 0)
+        self.assertIsNone(corpus_records.read(self.golden)[0]["regressed_from"])
+
+    def test_a_fixture_that_never_built_here_records_no_lost_success(self):
+        fixture = self.root / "tests" / "omega" / "pass" / "text" / "fresh"
+        fixture.mkdir(parents=True)
+        (fixture / "expected_native_exit.txt").write_text("70\n")
+        refused = record("pass/text/fresh", status="rejected")
+        for prior in ([refused], [record("pass/text/fresh", status="incomplete")]):
+            with self.subTest(prior=prior[0]["status"]), \
+                 patch.object(corpus_gate, "host_target", return_value="macos_arm64"):
+                self.assertEqual(self.run_gate(
+                    [refused], "--native", "--record", golden_records=prior), 3)
+                self.assertIsNone(
+                    corpus_records.read(self.golden)[0]["regressed_from"])
+        # A fixture absent from the golden has no success to lose either.
+        with patch.object(corpus_gate, "host_target", return_value="macos_arm64"):
+            self.assertEqual(self.run_gate(
+                [refused], "--native", "--record",
+                golden_records=[record("pass/text/other", status="built")]), 3)
+        rows = {row["fixture"]: row for row in corpus_records.read(self.golden)}
+        self.assertIsNone(rows["pass/text/fresh"]["regressed_from"])
+
+    def test_record_refuses_a_contradicted_oracle_and_names_the_fixture(self):
+        fixture = self.root / "tests" / "omega" / "pass" / "text" / "wrong"
+        fixture.mkdir(parents=True)
+        (fixture / "expected_native_exit.txt").write_text("70\n")
+        golden = [record("pass/text/wrong", status="built", facts={"exit": "70"})]
+        ran_differently = [record("pass/text/wrong", status="built",
+                                  facts={"exit": "71"})]
+        stream = io.StringIO()
+        with patch.object(corpus_gate, "host_target", return_value="macos_arm64"), \
+             contextlib.redirect_stderr(stream):
+            self.assertEqual(self.run_gate(
+                ran_differently, "--native", "--record",
+                "--json", str(self.json_path), golden_records=golden), 3)
+        self.assertEqual(self.golden.read_text(), corpus_records.render(golden))
+        self.assertIn("pass/text/wrong", stream.getvalue())
+        self.assertIn("--record refused", stream.getvalue())
+        self.assertEqual(json.loads(self.json_path.read_text())["verdict"],
+                         "regressed")
+
+    def test_unreadable_golden_is_a_usage_error_but_record_replaces_it(self):
+        self.golden.write_text("pass/a/x built nonsense\n", encoding="utf-8")
+        rows = [record("pass/a/x", status="built")]
+        argv_base = ["corpus_gate", "--runner", "unused", "--golden", str(self.golden)]
+
+        def invoke(*extra):
+            with patch.object(corpus_gate, "ROOT", self.root), \
+                 patch.object(corpus_gate, "run_runner", return_value=rows), \
+                 patch.object(corpus_gate, "measurement_stamp",
+                              return_value="aaaaaaaaaaaa"), \
+                 patch.dict(corpus_gate.os.environ, {}, clear=True), \
+                 patch.object(sys, "argv", argv_base + list(extra)), \
+                 contextlib.redirect_stderr(io.StringIO()):
+                return corpus_gate.main()
+
+        self.assertEqual(invoke(), 2)
+        self.assertEqual(invoke("--record"), 0)
+        self.assertEqual(corpus_records.read(self.golden)[0]["status"], "built")
 
     def test_authored_stdout_match_records_without_inventing_an_exit_oracle(self):
         fixture = self.root / "tests" / "omega" / "run" / "a" / "x"

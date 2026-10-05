@@ -2,11 +2,12 @@
 # One fixture per line: <tier/group/name> <status> <milliseconds>ms, then
 # `expected` or `unexpected` when its expected.txt fragments were weighed,
 # then any execution facts such as exit:70 or stdout:match, then
-# `@<revision>` recording which commit measured the row (`+wt` = dirty
-# tree; rows measured before stamping have no token).
+# `regressed-from:<status>[+fact]*` when the row has lost a success it used
+# to record, then `@<revision>` recording which commit measured the row
+# (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": null, "load1_end": 8.12, "load1_start": 8.12, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "3", "load1_end": 25.53, "load1_start": 27.05, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 189ms
 pass/arithmetic/anonymous_rational_integer_landing checked 186ms
 pass/arithmetic/bounded_assignment checked 197ms
@@ -289,7 +290,8 @@ pass/calls/value_call_transition_argument built 16255ms exit:70 @f17a009cdd4b+wt
 pass/calls/value_tail_call_to_machine_exit built 1212ms exit:70 @d0cd22d4e92a+wt
 pass/calls/whole_byte_array_view_loans_exit built 4714ms exit:70 @45c8d6b8b1ce+wt
 pass/capabilities/aarch64_hfa_import_compile checked 819ms
-pass/capabilities/acquires_through_helper_return built 522ms @4b33596b9ee1+wt
+pass/capabilities/acquires_through_helper_return rejected 9149ms regressed-from:built @835baa6033eb+wt
+	native artifact identity physical pipeline failed: common physical staging failed: Selection(Selection(SourceCustodyMismatch { site: Location { file: "omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/selection/construction/scalar_graph/aggregate_return.rs", line: 41, column: 32 } }))
 pass/capabilities/boundary_trait_multiple_effects checked 164ms
 pass/capabilities/callback_direct_install_compile built 1442ms @56c7f12ecb90+wt
 pass/capabilities/derives_through_helper built 272ms
@@ -447,7 +449,9 @@ pass/core/content_conservation_contract rejected 1084ms @48008365d839
 pass/core/content_retained_custody_round_trip built 311ms
 pass/core/extent_core_surface checked 196ms
 pass/core/extent_root_provider_adapter built 351ms
-pass/core/interrupt_obligations_surface checked 223ms
+pass/core/interrupt_obligations_surface rejected 1747ms regressed-from:checked @835baa6033eb+wt
+	direct call `restore` names public boundary requirement `InterruptMaskGuard::restore`, which has no selected provider; select an admitted provider whose checked machine `satisfies InterruptMaskGuard::restore` before calling it
+	direct call `complete` names public boundary requirement `InterruptAcknowledgement::complete`, which has no selected provider; select an admitted provider whose checked machine `satisfies InterruptAcknowledgement::complete` before calling it
 pass/core/numeric_cross_signed_conversion_surface built 13837ms exit:70
 pass/core/numeric_trapping_conversion_overflow built 885ms exit:signal signal:5
 pass/core/runtime_guarded_trapping_conversion_exit built 1516ms exit:70 @48008365d839
@@ -471,7 +475,8 @@ pass/data/runtime_mixed_case_payload_dispatch_exit built 1710ms exit:70 @4800836
 pass/data/runtime_mixed_shape_exit built 2406ms exit:70 @fb2178def922
 pass/data/runtime_proof_only_data_declared_exit built 534ms exit:70
 pass/data/runtime_record_field_value_pattern_exit built 923ms exit:70 @3f4da4527c2d+wt
-pass/dependent/boundary_equality_recast_witness_compile checked 190ms
+pass/dependent/boundary_equality_recast_witness_compile rejected 666ms regressed-from:checked @835baa6033eb+wt
+	machine `Main::main` state `read`: the recast target `u32` needs 4 bytes at offset 4294967295, but the region holds 12 -- the view would read past the buffer (§5b rule 1 is byte-granular)
 pass/dependent/boundary_requires_caller_field_extent_compile checked 190ms
 pass/dependent/call_requires_saved_local_arithmetic_bound_compile checked 209ms
 pass/dependent/case_where_common_field_window checked 183ms
@@ -750,10 +755,13 @@ pass/locals/mutable_local_call_reassignment_exit built 959ms exit:70 @48008365d8
 pass/locals/runtime_deferred_scalar_initialization_exit built 1071ms exit:1 @48008365d839
 pass/locals/runtime_local_array_member_stores_without_mut_exit built 2573ms exit:70 @b077958d6785+wt
 pass/locals/runtime_local_record_array_element_field_reads_exit built 5683ms exit:70 @9435ec134b74+wt
-pass/memory/address_translation_canary checked 259ms
+pass/memory/address_translation_canary rejected 2012ms regressed-from:checked @835baa6033eb+wt
+	direct call `discharge` names public boundary requirement `Shootdown::discharge`, which has no selected provider; select an admitted provider whose checked machine `satisfies Shootdown::discharge` before calling it
 pass/memory/bump_allocator_canary built 732ms
-pass/memory/interrupt_table_canary checked 341ms
-pass/memory/secondary_processor_canary built 291ms
+pass/memory/interrupt_table_canary rejected 3883ms regressed-from:checked @835baa6033eb+wt
+	direct call `complete` names public boundary requirement `InterruptAcknowledgement::complete`, which has no selected provider; select an admitted provider whose checked machine `satisfies InterruptAcknowledgement::complete` before calling it
+pass/memory/secondary_processor_canary rejected 4403ms regressed-from:built @835baa6033eb+wt
+	direct call `confirm` names public boundary requirement `StartupEnvelope::confirm`, which has no selected provider; select an admitted provider whose checked machine `satisfies StartupEnvelope::confirm` before calling it
 pass/memory/weak_vacant_qualifier_satisfied checked 158ms
 pass/modules/aggregate_machine_indices checked 213ms
 pass/modules/boolean_equality_indices checked 239ms
@@ -846,7 +854,8 @@ pass/proofs/kernel_integer_subtract_bound checked 197ms
 pass/proofs/kernel_integer_subtract_order checked 222ms
 pass/proofs/kernel_theorem_equality_certificates built 1355ms exit:70 @bed5f45e9185+wt
 pass/proofs/machine_parameterized_data_compile checked 210ms
-pass/proofs/named_witness_static_trait_plural_compile checked 235ms
+pass/proofs/named_witness_static_trait_plural_compile rejected 787ms regressed-from:checked @835baa6033eb+wt
+	state `produce` expects 1 argument(s), got 0
 pass/proofs/nat_exact_subtraction_compile checked 214ms
 pass/proofs/nat_metric_triangle_compile checked 227ms
 pass/proofs/nested_loop_digit_bytes_keep_utf8_exit built 5969ms exit:70 @48008365d839
@@ -917,7 +926,8 @@ pass/providers/same_name_requirement_dispatch_exit built 1026ms exit:70 @b14cbb2
 pass/providers/same_name_requirement_right_dispatch_exit built 934ms exit:70 @b14cbb25f486
 pass/providers/service_borrowed_parameter checked 226ms @48008365d839
 pass/providers/service_fused_root_establishment built 256ms
-pass/providers/specialized_mixed_structural_result_operator_hosted_native built 448ms exit:0
+pass/providers/specialized_mixed_structural_result_operator_hosted_native rejected 8517ms regressed-from:built+exit:0 @835baa6033eb+wt
+	terminal-artifact production failed: Lowering(Unsupported("provider candidate has ambiguous terminal body plans"))
 pass/providers/specialized_structural_fixed_operator_terminal_custody built 370ms
 pass/providers/token_machine_family_override_exit built 676ms exit:70
 pass/range/data_parameter_counter_non_negative_exit built 850ms exit:11 @ec784d4d82e8+wt
@@ -1148,8 +1158,10 @@ pass/termination/unsigned_identity_measure_rank_range checked 217ms
 pass/text/byte_content_store_continuation_exit built 1222ms exit:70 @381ab55e53d2+wt
 pass/text/copy_record_view_field_state_transfer_exit built 1444ms exit:70 @ef2ef25a3ab8+wt
 pass/text/local_bounded_byte_indexed_write_exit built 1311ms exit:70 @251097c4c144+wt
-pass/text/local_bounded_text_case_result_loan_exit built 1698ms exit:70 @48008365d839
-pass/text/local_bounded_text_scalar_loan_exit built 6611ms exit:70 @48008365d839
+pass/text/local_bounded_text_case_result_loan_exit rejected 5620ms regressed-from:built+exit:70 @835baa6033eb+wt
+	terminal-artifact production failed: Lowering(OperationProofUnavailable(ObligationId(20)))
+pass/text/local_bounded_text_scalar_loan_exit incomplete 7643ms regressed-from:built+exit:70 @835baa6033eb+wt
+	incomplete: terminal-artifact production stopped at the private `proof_search_integer_certificate_work` proof-search capacity (provision 65536) with obligation 27 unproved; the module is not shown invalid
 pass/text/local_record_byte_field_copy_exit built 1021ms exit:70 stdout:match @9484e48a74ff+wt
 pass/text/mutable_bounded_byte_state_exit built 746ms exit:70 @63377f7122bb+wt
 pass/text/nested_mutable_receiver_byte_result_exit built 1214ms exit:70 @f7deb06aff79+wt
@@ -1171,7 +1183,8 @@ pass/text/runtime_local_struct_string_field_concat_exit rejected 762ms @5676dbe7
 pass/text/runtime_mixed_byte_field_equality_exit built 2672ms exit:70 @11b293f8af86+wt
 pass/text/runtime_mutable_string_parameter_concat_write_line rejected 819ms @48008365d839
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: jump successor: parameter transfer` (state 0, statement 2)
-pass/text/runtime_number_to_decimal_exit built 1061ms exit:70
+pass/text/runtime_number_to_decimal_exit rejected 1776ms regressed-from:built+exit:70 @835baa6033eb+wt
+	partial wrapping division in machine `Main::main` state `digit_div` assignment: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts
 pass/text/runtime_owned_string_byte_view_exit built 3811ms exit:70 @4ffed225fc45+wt
 pass/text/runtime_param_domain_forward_exit built 789ms exit:70 @7f80f93fd214+wt
 pass/text/runtime_param_domain_literal_read_exit built 864ms exit:70 @7f80f93fd214+wt
@@ -1197,7 +1210,8 @@ pass/time/runtime_time_host_native_darwin_exit built 2086ms exit:70 @dfbd9bc4ec9
 pass/time/runtime_time_host_native_darwin_x86_64_exit built 9486ms @22d7c734257c+wt
 pass/time/runtime_time_host_virtual_exit checked 413ms
 pass/time/static_duration_accessors built 2763ms exit:70 @48008365d839
-pass/traits/boundary_trait_effects_host_call built 976ms exit:0 @bed5f45e9185+wt
+pass/traits/boundary_trait_effects_host_call rejected 7663ms regressed-from:built+exit:0 @835baa6033eb+wt
+	accepted semantic binding ConsoleExitProcessI32 was not consumed by one exact selected provider plan
 pass/traits/dyn_finite_family_dispatch checked 171ms
 pass/traits/equatable_mixed_shape_equality_exit built 2037ms exit:70 @fb2178def922
 pass/traits/equatable_record_equality_exit built 1490ms exit:70
@@ -1238,7 +1252,8 @@ pass/wire/runtime_wire_roundtrip_nested_and_repeated_exit built 127821ms exit:70
 pass/wire/runtime_wire_utf8_edge_verdicts_exit built 32983ms exit:70 @4ffed225fc45+wt
 pass/wire/wire_compatibility_migration_across_shapes built 448ms
 pass/wire/wire_data_reserved_field built 242ms
-pass/wire/wire_preserving_decode_relay_exit built 1578ms exit:70 @bf6726603463+wt
+pass/wire/wire_preserving_decode_relay_exit rejected 2813ms regressed-from:built+exit:70 @835baa6033eb+wt
+	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: conditional successors: edge cleanup: no state plan` (state 2)
 pass/write_only/state_forwarded_scalar_store_exit built 1019ms exit:70 @2bde2a770491
 run/borrows/direct_runtime_index_write built 1114ms exit:9 @48008365d839
 run/borrows/indexed_loan_element_write built 1123ms exit:0 @48008365d839

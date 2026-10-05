@@ -38,6 +38,18 @@ before golden comparison and recording, so `--record` cannot bless wrong or
 missing output. A declaration-only or foreign-target build supplies no runtime
 evidence and cannot satisfy that promise; use a matching bound host.
 
+Recording a regression is not the same act as pinning it as expected. A row
+whose fixture no longer compiles produced no result to contradict its oracle,
+so `--record` writes today's observation plus a
+`regressed-from:<status>[+fact]*` token naming the success the row is losing,
+and still exits `regressed` with the unmet promise printed. A row whose
+fixture DID run and returned a different exit or different output is
+success-shaped — every reader that counts successes counts it — so `--record`
+refuses that one outright and names it. Without the token a golden cannot say
+whether a fixture never built on this host or built and no longer does, which
+is how eight macOS rows went on claiming `exit:70` for programs whose check
+leg had started refusing.
+
 `--native-target <target>` builds for another catalogued target and diffs
 against that target's golden. Products execute only where the host runs
 them: an Apple-silicon macOS host runs `macos_x86_64` under Rosetta
@@ -106,7 +118,9 @@ a full verdict document with `--json PATH`):
     1  moved: structural or perf moves, but no regression
     2  usage error: bad arguments, missing golden, no host target
     3  regressed: at least one fixture verdict is "regressed", or an
-       authored exit or stdout oracle failed (also the `--record` refusal)
+       authored exit or stdout oracle failed — including a `--record` that
+       wrote the loss down (verdict "recorded_regression") and one that
+       refused a contradicted oracle outright
     4  infrastructure failure: runner build failed, no binary produced,
        runner exited nonzero, or its records were unreadable
 
@@ -167,7 +181,27 @@ def native_exit_oracle(fixture: Path, target: str) -> Path:
     return specific if specific.is_file() else fixture / NATIVE_EXIT_ORACLE
 
 
-def native_exit_failures(records: list[dict], corpus: Path, target: str) -> list[str]:
+def oracle_failure(record: dict, detail: str, recordable: bool = None) -> dict:
+    """One unmet authored promise, with whether `--record` may write the row.
+
+    The two cases are different facts about the program, not two severities.
+    When the observed status is `built` or `checked` the fixture produced a
+    result and that result contradicts the author: the row is success-shaped,
+    every reader that counts successes would count it, and writing it would
+    pin the wrong runtime result as the expected one. When the status is a
+    refusal, an incompleteness or a timeout the program produced no result at
+    all, so today's row cannot be mistaken for the promise being met and
+    writing it is the only way to stop the golden claiming an exit the
+    fixture never reaches. Either way the gate prints the failure and exits
+    `regressed`; recordability decides what the file says, never the verdict.
+    """
+    if recordable is None:
+        recordable = record["status"] not in corpus_records.SUCCESS_STATUSES
+    return {"fixture": record["fixture"], "detail": detail,
+            "recordable": recordable}
+
+
+def native_exit_failures(records: list[dict], corpus: Path, target: str) -> list[dict]:
     """Check authored runtime oracles before comparing or recording observations.
 
     A golden may retain an unfinished compile, but cannot redefine an explicit
@@ -196,19 +230,25 @@ def native_exit_failures(records: list[dict], corpus: Path, target: str) -> list
                     raise ValueError("exit code is outside i32")
                 expected = {"exit": str(code)}
         except (OSError, UnicodeError, ValueError, KeyError) as error:
-            failures.append(f"{record['fixture']}: invalid native exit expectation ({error})")
+            # An unreadable promise says nothing about the program, so the
+            # gate cannot write a row against it either.
+            failures.append(oracle_failure(
+                record,
+                f"{record['fixture']}: invalid native exit expectation ({error})",
+                recordable=False))
             continue
         if corpus_records.migration_gap_route(record) in ("compile", "native"):
             continue
         facts = record.get("facts", {})
         matches = all(facts.get(key) == value for key, value in expected.items())
         if record["status"] != "built" or not matches:
-            failures.append(f"{record['fixture']}: expected native {expectation}, "
-                            f"observed {record['status']} {facts}")
+            failures.append(oracle_failure(
+                record, f"{record['fixture']}: expected native {expectation}, "
+                        f"observed {record['status']} {facts}"))
     return failures
 
 
-def interpreter_exit_failures(records: list[dict], corpus: Path, target: str) -> list[str]:
+def interpreter_exit_failures(records: list[dict], corpus: Path, target: str) -> list[dict]:
     """Preserve authored exit promises on interpreted execution too.
 
     Native/interpreter agreement does not prove the author's result. Unix
@@ -247,15 +287,17 @@ def interpreter_exit_failures(records: list[dict], corpus: Path, target: str) ->
         accepted = (record["status"] in ("checked", "built")
                     or corpus_records.migration_gap_route(record) == "native")
         if not accepted or not matches:
-            detail = (" (requires an observed interpreter trap outcome)"
-                      if expectation == "trap" else "")
-            failures.append(f"{record['fixture']}: expected interpreted {expectation}{detail}, "
-                            f"observed {record['status']} {record['facts']}")
+            note = (" (requires an observed interpreter trap outcome)"
+                    if expectation == "trap" else "")
+            failures.append(oracle_failure(
+                record,
+                f"{record['fixture']}: expected interpreted {expectation}{note}, "
+                f"observed {record['status']} {record['facts']}"))
     return failures
 
 
 def execution_stdout_failures(records: list[dict], corpus: Path,
-                             engine: str) -> list[str]:
+                             engine: str) -> list[dict]:
     """Enforce authored output for each requested execution engine.
 
     The runner compares output after normalizing line endings. Require its
@@ -283,9 +325,10 @@ def execution_stdout_failures(records: list[dict], corpus: Path,
                     corpus_records.migration_gap_route(record) == "native")
         if (not accepted or not completed
                 or facts.get(prefix + "stdout") != "match"):
-            failures.append(
+            failures.append(oracle_failure(
+                record,
                 f"{record['fixture']}: expected {engine} stdout match from completed "
-                f"execution, observed {record['status']} {facts}")
+                f"execution, observed {record['status']} {facts}"))
     return failures
 
 
@@ -527,7 +570,8 @@ def classify(before: dict | None, after: dict | None) -> tuple[str, list[str]]:
     new, removed. Regressed dominates improved dominates moved; the reasons
     list collects everything that fired. Diagnostics compare normalized
     (corpus_records.normalized_diagnostics) so a diagnostic relabel is not
-    a move; recorded_at is measurement provenance, never compared.
+    a move; recorded_at and regressed_from are provenance the gate derives,
+    never observations, so neither is compared.
     """
     if before is None:
         return "new", ["fixture added"]
@@ -781,6 +825,8 @@ def verdict_document(options, leg, target, verdict, exit_code, records,
     fail_not_rejected = [
         record["fixture"] for record in records
         if record["tier"] == "fail" and record["status"] == "checked"]
+    lost_successes = [record["fixture"]
+                      for record in corpus_records.lost_successes(records)]
     subset = (bool(options.filter) or bool(options.shard)
               or bool(os.environ.get("OMEGA_CORPUS_FIXTURE_FILTER", "").strip())
               or bool(os.environ.get("OMEGA_CORPUS_SHARD", "").strip()))
@@ -804,6 +850,8 @@ def verdict_document(options, leg, target, verdict, exit_code, records,
             "wrong_reason_fixtures": wrong_reason,
             "fail_not_rejected": len(fail_not_rejected),
             "fail_not_rejected_fixtures": fail_not_rejected,
+            "lost_successes": len(lost_successes),
+            "lost_success_fixtures": lost_successes,
             "by_verdict": dict(by_verdict)},
         "oracle_failures": oracle_failures,
         "infrastructure_error": infrastructure_error,
@@ -1004,13 +1052,46 @@ def main() -> int:
             records, ROOT / "tests" / "omega", target or host_target() or "unknown"))
         failures.extend(execution_stdout_failures(
             records, ROOT / "tests" / "omega", "interpreter"))
-    if failures:
-        for failure in failures:
-            print(f"corpus_gate: {failure}", file=sys.stderr)
+    # One read of the golden serves both the regression provenance below and
+    # the diff further down; an unreadable golden must not stop --record from
+    # replacing it, so the parse failure is carried rather than raised.
+    prior_records, golden_error = None, None
+    if options.golden.is_file():
+        try:
+            prior_records = corpus_records.read(options.golden)
+        except (OSError, UnicodeError, ValueError) as error:
+            golden_error = error
+    prior = {record["fixture"]: record for record in (prior_records or [])}
+
+    # Each row this run replaces carries forward the last success it recorded
+    # when today's observation is not a success. A reader then sees the
+    # difference between a fixture that has never built on this host and one
+    # that built and no longer does, and the token disappears by itself when
+    # the fixture builds again.
+    for record in records:
+        record["regressed_from"] = corpus_records.carried_regression(
+            prior.get(record["fixture"]), record)
+
+    oracle_failures = [failure["detail"] for failure in failures]
+    for detail in oracle_failures:
+        print(f"corpus_gate: {detail}", file=sys.stderr)
+    # An unmet promise the fixture never produced is writable; one it
+    # contradicted is not. Recording the first stops the golden asserting a
+    # result the program does not reach, and does not make the run clean:
+    # the verdict stays `regressed` either way.
+    contradicted = [failure for failure in failures if not failure["recordable"]]
+    if failures and (not options.record or contradicted):
+        if contradicted and options.record:
+            print("corpus_gate: --record refused: "
+                  + ", ".join(sorted({failure["fixture"]
+                                      for failure in contradicted}))
+                  + " produced a result contradicting an authored oracle; "
+                    "recording would pin it as the expected one",
+                  file=sys.stderr)
         code = 1 if options.bisect else 3
         write_verdict(options, verdict_document(
             options, leg, target, "regressed", code, records, [],
-            failures, None))
+            oracle_failures, None))
         return code
     # --record stamps each row measured this run with its provenance; rows
     # merged forward in a subset record keep the stamp they were born with.
@@ -1028,11 +1109,10 @@ def main() -> int:
         # context line describes this run, not the merged rows' originals —
         # which is honest, since load context only says when the file was
         # written, and each row's @stamp still says when it was measured.
-        if subset and options.golden.is_file():
-            prior = {record["fixture"]: record
-                     for record in corpus_records.read(options.golden)}
-            prior.update({record["fixture"]: record for record in records})
-            merged = [prior[fixture] for fixture in sorted(prior)]
+        if subset and prior_records is not None:
+            carried = {record["fixture"]: record for record in prior_records}
+            carried.update({record["fixture"]: record for record in records})
+            merged = [carried[fixture] for fixture in sorted(carried)]
             rendered = corpus_records.render(merged, context)
         elif subset:
             print(f"corpus_gate: warning — no golden at {options.golden}; "
@@ -1046,8 +1126,25 @@ def main() -> int:
         recorded_gaps = [record for record in merged
                          if record["status"] == "unimplemented"
                          or record["facts"].get("interpreter") == "unimplemented"]
+        lost = corpus_records.lost_successes(merged)
         print(f"corpus_gate: recorded {len(records)} fixture outcomes "
-              f"to {options.golden}; {len(recorded_gaps)} unimplemented rows remain")
+              f"to {options.golden}; {len(recorded_gaps)} unimplemented rows "
+              f"remain, {len(lost)} rows record a lost success")
+        if failures:
+            # The golden now says what the fixture does; it does not say that
+            # is acceptable. A recorded regression is still a regression.
+            for record in corpus_records.lost_successes(records):
+                print(f"corpus_gate: {record['fixture']} recorded as "
+                      f"{record['status']}, lost "
+                      + corpus_records.format_regression(
+                          record["regressed_from"])[
+                              len(corpus_records.REGRESSION_PREFIX):],
+                      file=sys.stderr)
+            code = 1 if options.bisect else 3
+            write_verdict(options, verdict_document(
+                options, leg, target, "recorded_regression", code, records,
+                [], oracle_failures, None))
+            return code
         write_verdict(options, verdict_document(
             options, leg, target, "recorded_unimplemented" if recorded_gaps else "recorded",
             1 if recorded_gaps else 0, records, [], [], None))
@@ -1057,9 +1154,13 @@ def main() -> int:
         print(f"corpus_gate: no golden at {options.golden}; "
               f"run --record first", file=sys.stderr)
         return usage_error
+    if golden_error is not None:
+        print(f"corpus_gate: unreadable golden {options.golden}: "
+              f"{golden_error}", file=sys.stderr)
+        return usage_error
     golden_context = corpus_records.read_context(options.golden)
-    golden_records = corpus_records.read(options.golden)
-    golden = {record["fixture"]: record for record in golden_records}
+    golden_records = prior_records
+    golden = dict(prior)
     actual = {record["fixture"]: record for record in records}
 
     structural_moves = []

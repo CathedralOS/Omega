@@ -249,11 +249,66 @@ than the fixture's own behavior.
 python3 tools/corpus_gate.py --native --filter providers/
 ```
 
+### Recording a regression without pinning it
+
+A status column says what the compiler did today; it cannot also say what the
+fixture used to do. So a native row that stops building reads exactly like one
+that never built on this host, and until this was separated `--record` could
+not write the loss down at all: an unmet authored oracle refused the whole
+write, which is right about blessing and wrong about silence. Eight macOS rows
+went on claiming `built`, six of them with an authored exit, for fixtures whose
+check leg had started refusing.
+
+Two different facts about the program now get two different answers.
+
+- The fixture produced no result at all -- it rejects, is incomplete, is
+  sanctioned `unimplemented:` debt or timed out. Nothing contradicts the
+  oracle, and today's row cannot be read as the promise being met, so
+  `--record` writes the observation plus a
+  `regressed-from:<status>[+fact]*` token naming the last success the row
+  recorded and that success's execution facts. The run still prints the unmet
+  promise and still exits `regressed` (3), with the verdict document reading
+  `recorded_regression` and counting `lost_successes`.
+- The fixture ran and contradicted the author -- a different exit, different
+  output, a trap that did not fire. That row is success-shaped: every reader
+  that counts successes counts it, so `--record` refuses it outright, names
+  the fixture, and leaves the golden alone.
+
+The token is provenance the gate derives when it replaces a row, never a
+runner observation. It never joins `facts`, so nothing counting executions
+sees it and the row diff ignores it. It maintains itself in both directions: a
+row that keeps failing carries the *original* success forward rather than
+re-pointing at yesterday's refusal, and a fixture that builds again drops the
+token, which is what makes the repair a visible move. A row that merely drops
+to a weaker success (`built` to `checked`) carries no token, because its own
+status column already says that.
+
+Read a golden with `corpus_scoreboard.py`, whose lead line now carries a
+`regressed` count and which names each row and the outcome it lost. That
+count, unlike `rejected`, distinguishes a standing loss this host remembers
+from a fixture that has never run here, from one file and without a `--base`
+diff.
+
+Comparing the per-host native golden against `corpus_outcomes.txt` is the
+cheap detector for the rows this is about, and costs one file read: a fixture
+the native golden calls `built` while the check golden refuses is a native
+verdict outliving a check-leg regression. Compare against every non-success
+check status, not `rejected` alone -- one of the eight was `incomplete`. A
+detector reading diagnostics cannot find these at all, because a false green
+carries no diagnostic.
+
+```bash
+python3 tools/corpus_scoreboard.py --cross-golden   # exits 1 on a stale success
+```
+
 `python3 tools/corpus_scoreboard.py` reports the golden as a scoreboard —
 `macos_arm64 native: 64 authored / 172 executed / 746 fixtures` — where
 "authored" means executed with a matching `expected_native_exit.txt`
 oracle. `--base <rev>` diffs two goldens and lists `lost` authored runs as
-regressions; wave reports lead with this number, not commit counts.
+regressions; wave reports lead with this number, not commit counts. A
+`regressed` count in the lead line is the standing loss the golden itself
+remembers -- see
+[recording a regression](#recording-a-regression-without-pinning-it).
 
 The scoreboard reads the golden, which moves only for fixtures a lander ran;
 routine validation filters, so rows go stale — 71 were re-recorded on

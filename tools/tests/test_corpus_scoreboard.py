@@ -150,5 +150,54 @@ class CollectBaseGolden(unittest.TestCase):
                                       base_golden=self.root / "absent.txt")
 
 
+class CrossGolden(unittest.TestCase):
+    """The two-file-read detector for a native verdict outliving a check-leg
+    regression — the one false green no diagnostic detector can find."""
+
+    def test_a_native_success_the_check_golden_refuses_is_listed(self):
+        native = parse(["pass/a/stale built 5ms exit:70",
+                        "pass/a/also_stale checked 5ms"])
+        checked = parse(["pass/a/stale rejected 5ms", "\tdivisor nonzero",
+                         "pass/a/also_stale incomplete 5ms"])
+        found = corpus_scoreboard.cross_golden_disagreements(native, checked)
+        self.assertEqual([entry["fixture"] for entry in found],
+                         ["pass/a/stale", "pass/a/also_stale"])
+        self.assertEqual(found[0]["native_facts"], {"exit": "70"})
+        self.assertEqual(found[0]["check"], "rejected")
+        self.assertEqual(found[0]["check_diagnostic"], "divisor nonzero")
+        # `incomplete` is not a success either: one of the eight rows this was
+        # written for was recorded that way, and a detector keyed to
+        # `rejected` alone would have missed it.
+        self.assertEqual(found[1]["check"], "incomplete")
+
+    def test_agreement_absence_and_a_recorded_loss_are_not_listed(self):
+        native = parse([
+            "pass/a/fine built 5ms exit:0",
+            "pass/a/agrees rejected 5ms",
+            "pass/a/only_native built 5ms",
+            "pass/a/recorded rejected 5ms regressed-from:built+exit:70"])
+        checked = parse(["pass/a/fine checked 5ms",
+                         "pass/a/agrees rejected 5ms",
+                         "pass/a/recorded rejected 5ms"])
+        self.assertEqual(
+            corpus_scoreboard.cross_golden_disagreements(native, checked), [])
+
+    def test_the_scoreboard_counts_and_names_a_recorded_loss(self):
+        records = parse([
+            "pass/a/lost rejected 5ms regressed-from:built+exit:70",
+            "pass/a/never rejected 5ms",
+            "pass/a/fine built 5ms exit:70"])
+        board = corpus_scoreboard.native_scoreboard(records, lambda _: "70")
+        self.assertEqual(board["regressed"], 1)
+        self.assertEqual(board["regressed_rows"], [
+            {"fixture": "pass/a/lost", "status": "rejected",
+             "lost": {"status": "built", "facts": {"exit": "70"}}}])
+        # A row recording a loss is not an authored run and not executed.
+        self.assertEqual((board["authored"], board["executed"],
+                          board["rejected"]), (1, 1, 2))
+        self.assertIn("1 regressed",
+                      corpus_scoreboard.summary_line(board, "macos_arm64"))
+
+
 if __name__ == "__main__":
     unittest.main()

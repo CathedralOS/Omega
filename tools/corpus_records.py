@@ -13,7 +13,11 @@ Crashed outcome with CrashCause::Trap, without a numeric exit or physical signal
 CrashCause::Abort, exhaustion, errors
 and a declined comparison cannot satisfy this fact. Each fact key appears
 once: repeated keys are malformed evidence, even when their values agree.
-A trailing `@<revision>` token records which checkout measured the row (`+wt` marks a
+A `regressed-from:<status>[+key:value]*` token records the last recorded
+success a row has lost, which is what separates a fixture that never built
+here from one that built and no longer does; the gate derives it at
+`--record` time and the runner never observes it. A trailing `@<revision>`
+token records which checkout measured the row (`+wt` marks a
 dirty tree); a filtered `--record` merges old rows forward, so without the
 stamp a `built` row can be days stale. Legacy rows carry no stamp. Each
 diagnostic follows on its
@@ -36,13 +40,89 @@ HEADER = """\
 # One fixture per line: <tier/group/name> <status> <milliseconds>ms, then
 # `expected` or `unexpected` when its expected.txt fragments were weighed,
 # then any execution facts such as exit:70 or stdout:match, then
-# `@<revision>` recording which commit measured the row (`+wt` = dirty
-# tree; rows measured before stamping have no token).
+# `regressed-from:<status>[+fact]*` when the row has lost a success it used
+# to record, then `@<revision>` recording which commit measured the row
+# (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
 """
 
 CONTEXT_PREFIX = "# context: "
+
+# A row's status column says what the compiler did today. It cannot also say
+# what the fixture used to do, so a native row that stops building reads
+# identically to one that never built here -- and `--record` had no way to
+# write the loss down at all, because an unmet authored oracle refused the
+# whole write. `regressed-from:` is that missing sentence: provenance the gate
+# derives when it replaces a row, naming the last success the fixture recorded
+# and that success's execution facts. The row keeps today's status and
+# diagnostics, so writing a loss is a different act from pinning it as
+# expected -- the gate still reports the unmet oracle and still exits
+# `regressed`. Only a success can be lost: the token carries `built` or
+# `checked`, never a refusal.
+REGRESSION_PREFIX = "regressed-from:"
+SUCCESS_STATUSES = ("built", "checked")
+
+
+def format_regression(outcome: dict) -> str:
+    """The `regressed-from:` token naming one lost success outcome."""
+    if outcome["status"] not in SUCCESS_STATUSES:
+        raise ValueError(
+            f"lost outcome is not a success: {outcome['status']!r}")
+    token = outcome["status"]
+    for key, value in outcome.get("facts", {}).items():
+        if not key or not value or any(
+                character in key or character in value
+                for character in "+:" + " \t\r\n"):
+            raise ValueError(f"lost fact {key!r} is not token-safe")
+        token += f"+{key}:{value}"
+    return REGRESSION_PREFIX + token
+
+
+def parse_regression(token: str) -> dict:
+    """The lost outcome a `regressed-from:` token names.
+
+    A token carrying any other status is malformed rather than a weaker
+    claim: a row must not be able to assert a regression from a refusal.
+    """
+    status, *pairs = token.split("+")
+    if status not in SUCCESS_STATUSES:
+        raise ValueError(
+            f"regressed-from status must be a success: {status!r}")
+    facts: dict[str, str] = {}
+    for pair in pairs:
+        key, separator, value = pair.partition(":")
+        if not separator or not key or not value:
+            raise ValueError(f"malformed regressed-from fact {pair!r}")
+        if key in facts:
+            raise ValueError(f"duplicate regressed-from fact {key!r}")
+        facts[key] = value
+    return {"status": status, "facts": facts}
+
+
+def carried_regression(golden_record, observed: dict):
+    """The last recorded success `observed` is losing, or None.
+
+    Derived from the row being replaced, so it maintains itself in both
+    directions: a fixture that succeeds again drops the token, which is what
+    makes a later repair a visible move, and a row that keeps failing
+    carries the ORIGINAL success forward instead of re-pointing at
+    yesterday's failure. A row that still records a weaker success -- `built`
+    down to `checked` -- carries no token, because its own status column
+    already tells that story.
+    """
+    if observed["status"] in SUCCESS_STATUSES or golden_record is None:
+        return None
+    if golden_record["status"] in SUCCESS_STATUSES:
+        return {"status": golden_record["status"],
+                "facts": dict(golden_record.get("facts", {}))}
+    return golden_record.get("regressed_from")
+
+
+def lost_successes(records: list) -> list:
+    """Rows recording a success they no longer achieve."""
+    return [record for record in records if record.get("regressed_from")]
+
 
 _ESCAPES = {"\\": "\\\\", "\n": "\\n", "\r": "\\r", "\t": "\\t"}
 _UNESCAPES = {"\\": "\\", "n": "\n", "r": "\r", "t": "\t"}
@@ -67,8 +147,8 @@ def unescape(text: str) -> str:
 def parse(text: str) -> list[dict]:
     """Records as dictionaries: fixture, tier, status, millis,
     expected_satisfied (True, False or None), facts (ordered key to value),
-    diagnostics and recorded_at (the revision stamp, or None on legacy
-    rows)."""
+    diagnostics, regressed_from (the lost success outcome, or None) and
+    recorded_at (the revision stamp, or None on legacy rows)."""
     records: list[dict] = []
     for number, line in enumerate(text.splitlines(), 1):
         if not line or line.startswith("#"):
@@ -85,14 +165,28 @@ def parse(text: str) -> list[dict]:
         verdict = None
         facts: dict[str, str] = {}
         recorded_at = None
+        regressed_from = None
         for index, token in enumerate(fields[3:], 3):
-            if token in ("expected", "unexpected") and verdict is None and not facts:
+            if (token in ("expected", "unexpected") and verdict is None
+                    and not facts and regressed_from is None):
                 verdict = token
             elif token.startswith("@"):
                 if index != len(fields) - 1 or not token[1:]:
                     raise ValueError(
                         f"line {number}: @{token[1:]} must be the last token")
                 recorded_at = token[1:]
+            elif token.startswith(REGRESSION_PREFIX):
+                # Derived provenance, not an execution fact: it never joins
+                # `facts`, so a reader counting observations and the gate
+                # comparing rows both stay blind to it.
+                if regressed_from is not None:
+                    raise ValueError(
+                        f"line {number}: duplicate regressed-from token")
+                try:
+                    regressed_from = parse_regression(
+                        token[len(REGRESSION_PREFIX):])
+                except ValueError as error:
+                    raise ValueError(f"line {number}: {error}") from error
             elif ":" in token:
                 key, value = token.split(":", 1)
                 # Overwriting an earlier exit/stdout fact could turn a failed
@@ -110,6 +204,7 @@ def parse(text: str) -> list[dict]:
             "expected_satisfied": None if verdict is None else verdict == "expected",
             "facts": facts,
             "diagnostics": [],
+            "regressed_from": regressed_from,
             "recorded_at": recorded_at,
         })
     return records
@@ -126,6 +221,8 @@ def render(records: list[dict], context=None) -> str:
             header += " expected" if record["expected_satisfied"] else " unexpected"
         for key, value in record.get("facts", {}).items():
             header += f" {key}:{value}"
+        if record.get("regressed_from") is not None:
+            header += " " + format_regression(record["regressed_from"])
         if record.get("recorded_at") is not None:
             header += f" @{record['recorded_at']}"
         lines.append(header)

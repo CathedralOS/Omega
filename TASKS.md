@@ -2243,46 +2243,54 @@ crash and native exit behavior.
   fixture compiles and refuses a nonempty release-rollback overlay without
   publishing partial outputs.
 
-- **NATIVE-GOLDEN-CANNOT-RECORD-A-REGRESSION.**
-  (split-of:CORPUS-GOLDEN-HAS-NO-HOST-DIMENSION)
-  The check golden's host dimension is settled. `check_leg_realization_target`
-  reads the fixture's own `build.omg` -- the first of `macos_arm64`,
-  `linux_x86_64`, `windows_x86_64` it binds, else its first declared target --
-  and never the recording host, and every realized row names the result as a
-  `check-target:<target>` fact. The four self-identifying rows the diagnostic
-  detector found are recorded at their deterministic target, as is
-  `native_close`, which that detector could not see: its false green carried no
-  diagnostic at all, so a detector reading diagnostics finds host-dependent
-  refusals and never a host-dependent acceptance. What remains is the other half
-  of the same investigation.
-
-  **Eight macOS rows claim native `built` for a fixture whose check leg
-  refuses**, so a native verdict outlives a check-leg regression, and six of
-  them still name an authored exit (four `exit:70`):
-  `pass/capabilities/acquires_through_helper_return`,
-  `pass/memory/secondary_processor_canary`,
-  `pass/providers/specialized_mixed_structural_result_operator_hosted_native`,
-  `pass/text/local_bounded_text_{case_result,scalar}_loan_exit`,
+- **MACOS-NATIVE-LOST-SUCCESSES.** (new-scope)
+  `tests/omega/corpus_native_macos_arm64.txt` carries 13 rows with a
+  `regressed-from:` token: a success this host recorded and no longer reaches.
+  They were invisible until the golden could say so -- eight claimed `built`
+  and six of those claimed an authored exit, which is why `authored` reads
+  807 rather than 813. Four lost a running program with an authored exit
+  (`pass/text/local_bounded_text_case_result_loan_exit`,
   `pass/text/runtime_number_to_decimal_exit`,
-  `pass/traits/boundary_trait_effects_host_call` and
-  `pass/wire/wire_preserving_decode_relay_exit`.
+  `pass/wire/wire_preserving_decode_relay_exit` at `exit:70`, and
+  `pass/text/local_bounded_text_scalar_loan_exit`, now `incomplete` at the
+  proof-search provision); two lost `exit:0`
+  (`pass/providers/specialized_mixed_structural_result_operator_hosted_native`
+  on an ambiguous terminal body plan,
+  `pass/traits/boundary_trait_effects_host_call` on an unconsumed
+  ConsoleExitProcessI32 binding). The other two that lost `built` name an
+  absent boundary provider (`pass/memory/secondary_processor_canary`, on
+  StartupEnvelope::confirm) and a `SourceCustodyMismatch` out of physical
+  staging (`pass/capabilities/acquires_through_helper_return`) -- the second
+  reads as a compiler internal rather than an authored-program refusal and is
+  the one to probe first.
 
-  **They cannot be corrected today.** `corpus_gate.py` exits `regressed` and
-  refuses `--record` when an authored exit or stdout oracle fails
-  (`tools/corpus_gate.py:109`), which is right -- recording would pin the
-  regression as the new truth -- but it leaves no way to say "this used to build
-  and now does not", so the row stays false until the fixture is fixed. These
-  eight do not change the red count; the check golden has them right. What they
-  change is that a native row cannot be read as evidence of health without its
-  check row. Acceptance: the native leg can record a regression distinctly from
-  pinning it as expected, and the eight stop claiming an exit they do not meet.
+  Five more lost `checked`: three on an absent boundary provider this host
+  does not supply (`pass/core/interrupt_obligations_surface`,
+  `pass/memory/address_translation_canary`,
+  `pass/memory/interrupt_table_canary`),
+  `pass/dependent/boundary_equality_recast_witness_compile` on a recast offset
+  of 4294967295, and
+  `pass/proofs/named_witness_static_trait_plural_compile`, whose state
+  `produce` is called with 0 of its 1 argument. Every diagnostic matches the
+  one the check golden already recorded, so none of these is native-only: the
+  native row had simply outlived the check-leg regression. Group them by
+  diagnostic before claiming any -- several belong to items that already own
+  that refusal, and the provider-absence rows may be reporting the host.
+  Acceptance: `python3 tools/corpus_scoreboard.py` reports fewer `regressed`
+  rows because the fixtures run again, not because a row was re-recorded.
 
-  Separately, the **Linux-side bound is now measurable rather than unknowable.**
-  It could not be taken from a macOS host because a row green here and red there
-  left no local trace; with the realized target deterministic, one Linux
-  recorder running the corpus and diffing answers it, and any row that still
-  differs is a genuine Linux/macOS compiler difference rather than a recording
-  artifact.
+- **NATIVE-GOLDEN-LINUX-BOUND-UNMEASURED.**
+  (split-of:NATIVE-GOLDEN-CANNOT-RECORD-A-REGRESSION)
+  The **Linux-side bound is measurable rather than unknowable.** It could not
+  be taken from a macOS host because a row green here and red there left no
+  local trace; with `check_leg_realization_target` reading the fixture's own
+  `build.omg`, one Linux recorder running the corpus and diffing answers it,
+  and any row that still differs is a genuine Linux/macOS compiler difference
+  rather than a recording artifact. Host-gated: it needs a Linux recorder, not
+  a macOS session. Acceptance: `tests/omega/corpus_native_linux_x86_64.txt` is
+  recorded at one known commit by a Linux host, and
+  `python3 tools/corpus_scoreboard.py --cross-golden` is empty there as it is
+  on macOS.
 
 - **BUILD-FACET-DEAD-SELECTION-RESIDUE.** (split-of:BUILD-FACET-RECEIVER-RESIDUE)
   No build operation is classified by receiver shape any more: stage 04's

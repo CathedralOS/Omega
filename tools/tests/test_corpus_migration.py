@@ -44,7 +44,7 @@ class MigrationEvidence(unittest.TestCase):
         return {"fixture": self.fixture, "tier": "pending", "status": status,
                 "millis": 1, "expected_satisfied": None, "facts": facts or {},
                 "diagnostics": diagnostics if diagnostics is not None else [self.marker()],
-                "recorded_at": None}
+                "regressed_from": None, "recorded_at": None}
 
     def classify(self, record, roster=None):
         return corpus_records.classify_migration([record], roster or self.roster)[0]
