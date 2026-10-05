@@ -245,6 +245,8 @@ fail/borrows/named_jump_receiver_under_argument_loan rejected 176ms expected @17
 	state `write_through_subject` receives `main.count` as mutable while its mutable receiver writes `main.count`
 fail/borrows/nested_reference_live_source_write rejected 145ms expected @21b65913386f+wt
 	statement 2 mutates `cell.value` while local borrow `message` is still active (borrowed at statement 0; its last use is at statement 3)
+fail/borrows/primitive_aggregate_live_owner_read rejected 853ms expected @99b41199ec38
+	state `observe` receives `value` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
 fail/borrows/qualified_byte_element_mutable_call_rejected rejected 259ms expected @51b4aa0b5a70+wt
 	cannot prove default-domain field requirement for return from Packet::main at statement 1: packet.bytes requires [u8; N]::Ascii
 fail/borrows/reference_array_result_conditional_live_write rejected 1427ms expected @6ba9c43af356+wt
@@ -1617,6 +1619,7 @@ pass/borrows/returned_record_method_receiver_exit checked 1304ms check-target:ma
 pass/borrows/returned_record_projected_call_exit checked 1321ms check-target:macos_arm64 @011fd400e8c1+wt
 pass/borrows/runtime_affine_local_case_return_exit checked 2144ms check-target:macos_arm64 @f935383e1d47+wt
 pass/borrows/runtime_affine_local_scalar_exit checked 1529ms check-target:macos_arm64 @ca8c127c90c5
+pass/borrows/runtime_array_primitive_reference_capture_exit checked 6920ms check-target:macos_arm64 @99b41199ec38
 pass/borrows/runtime_captured_primitive_reference_exit checked 4568ms check-target:macos_arm64 @3fa817733300+wt
 pass/borrows/runtime_captured_record_nested_field_snapshot_exit checked 1563ms check-target:macos_arm64 @681c48c0cebc+wt
 pass/borrows/runtime_carrier_reference_reselection_exit checked 2946ms check-target:macos_arm64 @056c1343fac1+wt
@@ -1638,6 +1641,7 @@ pass/borrows/runtime_nested_carrier_reference_read_exit checked 3670ms check-tar
 pass/borrows/runtime_nested_reference_array_bounded_read_exit checked 1736ms check-target:macos_arm64 @15c77983aab0+wt
 pass/borrows/runtime_nested_reference_record_direct_payload_restoration_exit checked 1757ms check-target:macos_arm64 @681c48c0cebc+wt
 pass/borrows/runtime_record_byte_region_loan_exit checked 40006ms check-target:macos_arm64 @cfe60a3a242
+pass/borrows/runtime_record_primitive_reference_capture_exit checked 4511ms check-target:macos_arm64 @99b41199ec38
 pass/borrows/runtime_reference_array_pressure_exit checked 2021ms check-target:macos_arm64 @a195e6cdf066+wt
 pass/borrows/runtime_reference_local_constructor_leaf_retirement_exit checked 1686ms check-target:macos_arm64 @9660dd146223
 pass/borrows/runtime_reference_record_array_field_read_exit checked 1602ms check-target:macos_arm64 @681c48c0cebc+wt
