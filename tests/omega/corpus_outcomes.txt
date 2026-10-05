@@ -514,10 +514,13 @@ fail/collections/wrapping_loop_increment_bound rejected 289ms expected @c08960be
 	cannot prove index `main.index` is within length 4 in Main::run::fill
 fail/collections/wrapping_range_index_unproven rejected 386ms expected @2d8ed253669f
 	data `Main` field `i` declares a range constraint together with the `Wrapping` domain: ranges are only enforced under Exact arithmetic, so the combination is ill-formed (a store outside the range would be silently accepted). Keep the range and drop the domain, or keep the domain and drop the range
+fail/comptime/const_array_length_dependency_cycle rejected 79ms expected @aeb3a47a1e0
+	fixed-array length `[u8; first_size()]`: const evaluation of `first_size` failed: fixed-array length `[u8; second_size()]`: const evaluation of `second_size` failed: fixed-array length dependency cycle: first_size at Handle { arena_index: 2, generation: 1 } -> second_size at Handle { arena_index: 8, generation: 1 } -> first_size at Handle { arena_index: 2, generation: 1 }
+	fixed-array length `[u8; second_size()]`: const evaluation of `second_size` failed: fixed-array length `[u8; first_size()]`: const evaluation of `first_size` failed: fixed-array length dependency cycle: first_size at Handle { arena_index: 2, generation: 1 } -> first_size at Handle { arena_index: 2, generation: 1 }
 fail/comptime/effectful_const_array_length rejected 69ms expected @2d8ed253669f
 	fixed-array length `[i64; loud_size()]`: const evaluation of `loud_size` failed: machine `loud_size` is not build-time admissible: service reach [Console]; build-time evaluation requires empty service reach, no possible suspension or blocking, ordinary checked termination, no unadmitted linear runtime carrier, and admitted declaration-selection authority across the complete call closure
-fail/comptime/fuel_exhausted_const_array_length rejected 84ms expected @2d8ed253669f
-	fixed-array length `[i64; table_size()]`: const evaluation of `table_size` failed: step budget exceeded
+fail/comptime/fuel_exhausted_const_array_length rejected 62ms unexpected @aeb3a47a1e0
+	fixed-array length `[i64; table_size()]`: const evaluation of `table_size` failed: exact arithmetic in machine `burn` state `entry` transition argument may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/comptime/negative_const_array_length rejected 116ms expected @2d8ed253669f
 	fixed-array length `[i64; shrunk_size()]`: const evaluation of `shrunk_size` failed: the call returned -5, but an array length must be a non-negative integer
 fail/comptime/recursive_accumulator_requires_coupling rejected 677ms expected @2d8ed253669f
@@ -1909,6 +1912,7 @@ pass/collections/view_record_element_member_read_exit checked 1452ms check-targe
 pass/collections/zero_length_byte_array_admission checked 298ms @2d8ed253669f
 pass/comptime/provider_boundary_range_endpoint_exit checked 1379ms check-target:macos_arm64 @2d8ed253669f
 pass/comptime/range_endpoint_requires_discharge_exit checked 1662ms check-target:macos_arm64 @2d8ed253669f
+pass/comptime/runtime_const_array_length_dependency_order_exit checked 9463ms check-target:macos_arm64 @aeb3a47a1e0
 pass/comptime/runtime_const_array_length_transitive_exit checked 1369ms check-target:macos_arm64 @2d8ed253669f
 pass/comptime/runtime_const_measured_recursion_exit checked 1661ms check-target:macos_arm64 @2d8ed253669f
 pass/comptime/selected_float_array_length_exit checked 6077ms check-target:macos_arm64 @2d8ed253669f
@@ -2485,7 +2489,8 @@ pass/providers/bare_byte_array_boundary_argument checked 1466ms check-target:mac
 pass/providers/borrowed_service_field_forward_exit checked 944ms check-target:macos_arm64 @5745c7562b65
 pass/providers/boundary_primitive_array_argument_exit checked 4140ms check-target:macos_arm64 @cfe60a3a242
 pass/providers/boundary_scalar_field_store checked 1609ms check-target:macos_arm64 @2d8ed253669f
-pass/providers/checked_boundary_operator_const_application_alternate_exit checked 1332ms check-target:macos_arm64 @2d8ed253669f
+pass/providers/checked_boundary_operator_const_application_alternate_exit rejected 344ms check-target:macos_arm64 @aeb3a47a1e0
+	fixed-array length `[u8; limit()]`: const evaluation of `limit` failed: authored Operator declaration selection occurrence 1922 (`%` in tests/omega/pass/providers/checked_boundary_operator_const_application_alternate_exit/main.omg) remained unresolved after successful checking (CheckedOperator)
 pass/providers/checked_boundary_operator_physical_custody checked 1269ms check-target:macos_arm64 @2d8ed253669f
 pass/providers/checked_boundary_requirement_dispatch_exit checked 2064ms check-target:macos_arm64 @2d8ed253669f
 pass/providers/checked_fixed_operator_dispatch_exit checked 1244ms check-target:macos_arm64 @2d8ed253669f

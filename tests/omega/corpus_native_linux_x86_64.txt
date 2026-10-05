@@ -54,11 +54,15 @@ pass/borrow/runtime_exclusive_loan_local_write_exit built 747ms exit:70 @2d8ed25
 pass/borrow/runtime_method_view_write_after_last_use_exit built 1370ms exit:70 @9baafc0ace88
 pass/borrow/write_only_constrained_record_field checked 281ms @2d8ed253669f+wt
 pass/borrow/write_only_whole_scalar_replace checked 275ms @2d8ed253669f+wt
-pass/borrows/borrow_domain_window_write_and_call checked 272ms @2d8ed253669f+wt
+pass/borrows/borrow_domain_window_write_and_call rejected 6561ms @aeb3a47a1e0
+	terminal-artifact production failed: Lowering(InvalidTerminalModule(BorrowedDescriptorLoanDisturbed { operation: OperationId(27), place: PlaceId(6) }))
 pass/borrows/borrow_guarded_window_write_and_call checked 268ms @2d8ed253669f+wt
-pass/borrows/borrow_returned_window_write_and_call checked 271ms @2d8ed253669f+wt
+pass/borrows/borrow_returned_window_write_and_call rejected 6580ms @aeb3a47a1e0
+	terminal-artifact production failed: Lowering(InvalidTerminalModule(BorrowedDescriptorLoanDisturbed { operation: OperationId(28), place: PlaceId(6) }))
 pass/borrows/borrow_stated_index_disequality_mut checked 269ms @2d8ed253669f+wt
 pass/borrows/case_payload_state_loan_exit built 4101ms exit:70 @c773c4ad3c34
+pass/borrows/mut_loan_local_write_through_exit rejected 5492ms @aeb3a47a1e0
+	terminal-artifact production failed: Lowering(Unsupported("structural argument has no established storage"))
 pass/borrows/projected_indexed_member_loan built 743ms @2d8ed253669f+wt
 pass/borrows/projected_local_member_loan built 767ms @2d8ed253669f+wt
 pass/borrows/projected_param_member_loan built 763ms exit:0 @2d8ed253669f+wt
@@ -92,6 +96,7 @@ pass/build/described_runner_entry_right_exit built 873ms exit:37 @233d30cb1ceb
 pass/build/runtime_depend_mapping_exit built 796ms exit:70 @2d8ed253669f+wt
 pass/build/runtime_main_source_builder_is_ordinary_exit built 908ms exit:70 @2d8ed253669f+wt
 pass/build/runtime_static_service_exclusion_exit built 3023ms exit:0 @5fac9b57088
+pass/build/selected_const_array_length_exit built 40712ms exit:0 @aeb3a47a1e0
 pass/build/uefi_os_handoff_invocation rejected 1399ms @2d8ed253669f+wt
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Loader::drive`), which was itself omitted at an unavailable callee (`UefiOsHandoffCycle::run`), which was itself omitted at an unavailable callee (`UefiOsHandoffCycle::acquire`), which was itself omitted at local construction at `call operation: projected operand support`
 pass/calls/ambient_receiver_scalar_return_exit built 913ms exit:70 @2d8ed253669f+wt
@@ -273,6 +278,7 @@ pass/collections/view_record_element_member_read_exit built 1059ms exit:70 @2d8e
 pass/collections/zero_length_byte_array_admission checked 396ms @2d8ed253669f+wt
 pass/comptime/provider_boundary_range_endpoint_exit built 953ms exit:70 @2d8ed253669f+wt
 pass/comptime/range_endpoint_requires_discharge_exit built 1673ms exit:70 @2d8ed253669f+wt
+pass/comptime/runtime_const_array_length_dependency_order_exit built 18224ms exit:70 @aeb3a47a1e0
 pass/comptime/runtime_const_array_length_transitive_exit built 930ms exit:70 @2d8ed253669f+wt
 pass/comptime/runtime_const_measured_recursion_exit built 1250ms exit:70 @2d8ed253669f+wt
 pass/comptime/selected_float_array_length_exit built 3201ms exit:70 @2d8ed253669f+wt
@@ -544,7 +550,8 @@ pass/float/runtime_float_to_integer_policy_casts_exit built 3035ms exit:70 @2d8e
 pass/float/runtime_named_float_to_integer_conversion_exit built 3232ms exit:70 @2d8ed253669f+wt
 pass/float/runtime_named_format_conversion_exit built 4456ms exit:70 @2d8ed253669f+wt
 pass/float/runtime_std_is_finite_exit built 2997ms exit:70 @2d8ed253669f+wt
-pass/float/runtime_total_order_satisfiers_exit built 68802ms exit:70 @3284f31163c
+pass/float/runtime_total_order_satisfiers_exit rejected 15605ms @aeb3a47a1e0
+	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "F32::TotalOrder", reason: "scalar callee has no checked executable body", omission: Some("`F32::TotalOrder` has no admitted body (local construction stopped at statement sequence: local data: reference capture, statement 0)") })
 pass/float/scalar_helper_boundary_sequence_exit built 2975ms exit:70 @2d8ed253669f+wt
 pass/float/x86_fma_plan_association rejected 2566ms @2d8ed253669f+wt
 	compiler float arithmetic for `operator::F32::fused_multiply_add(named(name(f32)),named(name(f32)),named(name(f32)))->named(name(f32))` has no local target catalog realization on NativeTarget { architecture: X86_64, object_format: Elf, pointer_size: 8, pointer_alignment: 8 }
@@ -794,7 +801,11 @@ pass/recast/runtime_nested_record_byte_store_exit built 1403ms exit:70 @a3bac00e
 pass/recast/runtime_offset_byte_recast_mutable_write_exit built 1841ms exit:70 @a3bac00e54bb
 pass/recast/runtime_record_array_view_mutable_write_exit rejected 1020ms @a3bac00e54bb
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: byte sequence carrier` (state 0, statement 5)
+pass/recast/runtime_scalar_parameter_shared_views_exit rejected 4624ms @aeb3a47a1e0
+	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "read_bits64", reason: "scalar callee has no checked executable body", omission: Some("`read_bits64` has no admitted body (local construction stopped at statement sequence: local data: reference capture, statement 0)") })
 pass/recast/runtime_shared_domain_weakening_recast_exit built 1130ms exit:70 @a3bac00e54bb
+pass/recast/runtime_shared_parameter_view_calls_exit rejected 6523ms @aeb3a47a1e0
+	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "inspect", reason: "scalar callee has no checked executable body", omission: Some("`inspect` has no admitted body (local construction stopped at statement sequence: local data: reference capture, state 0, statement 1)") })
 pass/recast/runtime_shared_record_float_range_weakening_exit built 3421ms exit:70 @a3bac00e54bb
 pass/references/runtime_shared_ref_param_guard_exit built 818ms exit:1 @2d8ed253669f+wt
 pass/relevance/erased_case_payload_field_exit built 805ms exit:70 @2d8ed253669f+wt
@@ -1038,7 +1049,8 @@ pass/wire/wire_compatibility_migration_across_shapes built 524ms @2d8ed253669f+w
 pass/wire/wire_data_reserved_field built 814ms @2d8ed253669f+wt
 pass/wire/wire_preserving_decode_relay_exit built 13841ms exit:70 @176f9a7001a
 run/borrows/direct_runtime_index_write built 2083ms exit:9 @2d8ed253669f+wt
-run/borrows/local_mut_borrow built 1464ms exit:0 @2d8ed253669f+wt
+run/borrows/local_mut_borrow rejected 4500ms @aeb3a47a1e0
+	terminal-artifact production failed: Lowering(Unsupported("structural argument has no established storage"))
 run/borrows/mut_record_loan_member_access built 2044ms exit:0 @2d8ed253669f+wt
 run/borrows/probe_shared_len built 1823ms exit:0 @2d8ed253669f+wt
 run/borrows/recast_mut_borrow built 1191ms exit:0 @a3bac00e54bb
