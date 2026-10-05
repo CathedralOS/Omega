@@ -16,8 +16,7 @@
 //! validated module: `control_graph` and `control_cycles` (control
 //! topology and natural ranks), `proof_recursion` (recursive-component
 //! questions), `optimization` (checks of target-neutral rewrites),
-//! `quotient_correspondence` (the quotient bridge replay) and
-//! `terminal_trace_v1` (the bounded observation profile).
+//! and `terminal_trace_v1` (the bounded observation profile).
 
 mod control_cycles;
 mod control_graph;
@@ -29,7 +28,6 @@ pub use control_cycles::{
 };
 mod optimization;
 mod proof_recursion;
-mod quotient_correspondence;
 mod terminal_trace_v1;
 mod validation;
 mod verification;
@@ -48,9 +46,6 @@ pub use proof_recursion::{
     proof_recursive_component_identity, proof_recursive_edge_obligation_id,
     proof_recursive_well_foundedness_obligation_id,
     reconstruct_proof_recursive_component_obligations,
-};
-pub use quotient_correspondence::{
-    QuotientCorrespondenceReplayError, replay_non_executable_quotient_correspondence,
 };
 pub use terminal_trace_v1::{
     TerminalTraceV1ReconstructionError, reconstruct_terminal_observation_profile_rows,

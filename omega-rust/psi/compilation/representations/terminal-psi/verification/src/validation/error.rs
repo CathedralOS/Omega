@@ -313,14 +313,6 @@ pub enum ModuleError {
         machine: MachineId,
         position: u32,
     },
-    NonCanonicalQuotientCorrespondenceOrder,
-    DuplicateQuotientCorrespondenceIdentity,
-    DuplicateQuotientCorrespondenceOwner,
-    InvalidQuotientCorrespondence {
-        index: usize,
-        error: crate::QuotientCorrespondenceReplayError,
-    },
-    NonExecutableQuotientCorrespondence,
     NonDenseFloatMeaningProjection {
         expected: u32,
         result: u32,

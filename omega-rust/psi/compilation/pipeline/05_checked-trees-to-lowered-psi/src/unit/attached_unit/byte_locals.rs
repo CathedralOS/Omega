@@ -41,11 +41,8 @@ pub(crate) fn validate(
                 validation::slice_view_shell(&checked.typed, authored.return_type, &[])
                     .is_some_and(|view| view.access == language_semantics::ReferenceAccess::Shared);
             if !shared_view
-                && (crate::content_classes::bounded_byte_capacity(
-                    checked,
-                    authored.return_type,
-                )
-                .is_none()
+                && (crate::content_classes::bounded_byte_capacity(checked, authored.return_type)
+                    .is_none()
                     || !crate::content_classes::plain_owned_with_represented_constraints(
                         checked,
                         authored.return_type,

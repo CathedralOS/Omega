@@ -572,14 +572,6 @@ rows! {
         &["formation:contract-validation", "composition:ranked-scc-validation"],
         &[tv!( "validation/proof_recursion.rs")]
     );
-    FORM_QUOTIENT => (
-        "formation:quotient-correspondence",
-        SharedFormation,
-        "the retained quotient-correspondence declaration and its canonical bridge",
-        "the standalone correspondence is independently replayed: theorem roles, parameters, and hermetic identities must match exactly",
-        &["formation:module-structure"],
-        &[tv!( "quotient_correspondence.rs"), tv!( "validation/quotient_correspondence.rs")]
-    );
     FORM_DYNAMIC_DISPATCH => (
         "formation:dynamic-dispatch",
         SharedFormation,

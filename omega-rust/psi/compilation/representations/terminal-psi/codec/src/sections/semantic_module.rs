@@ -26,7 +26,6 @@ pub(crate) mod proof_declaration_wire;
 pub(crate) mod proof_term_wire;
 pub(crate) mod proposition_wire;
 pub(crate) mod provider_candidate_wire;
-pub(crate) mod quotient_correspondence_wire;
 pub(crate) mod reach_application_wire;
 pub(crate) mod scalar_qualification_wire;
 pub(crate) mod scalar_term_wire;

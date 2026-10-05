@@ -3141,21 +3141,6 @@ the validation `src/` (written `omega-rust/psi/compilation/checking/src/`) unles
   `collect_contract_entailment_stand_downs` is gone; corpus
   `--filter contracts,proofs/,ensures` unchanged.
 
-- **QUOTIENT-CORRESPONDENCE-ROWS-DELETED.** (new-scope) Delete the Terminal
-  correspondence-row and certificate production for quotients:
-  `omega-rust/psi/compilation/checking/src/proof_contracts/quotients/relation_plan/correspondence_certificate.rs`,
-  the row emission in `relation_plan/terminal_bridge.rs` and
-  `omega-rust/psi/compilation/checking/src/proof_contracts/quotients/terminal_bridge.rs`,
-  and `extract_non_executable_quotient_correspondences*` (the review capture
-  that read them is already gone). The stage 05 side is deleted by **PCC-CERTIFICATES-DELETED**. Keep quotient
-  formation and request checking (`equivalence_selection`,
-  `formation_collection`, `carrier_fence`) and the relation/theorem schema
-  judgments that **QUOTIENT-THEOREM-LIFT** and
-  **QUOTIENT-RUNTIME-REALIZATION** need; rewrite **QUOTIENT-THEOREM-LIFT** to
-  build on those judgments instead of the deleted bridge in the same commit.
-  Acceptance: `pass/proofs/quotient_*` and `fail/proofs/quotient_*` keep
-  their verdicts; no quotient code emits Terminal rows or certificates.
-
 - **CHECKER-RECORDS-ONCE.** (new-scope) Values the checker decides are
   recomputed by later consumers instead of read from checked trees:
   - `omega-rust/psi/compilation/checking/src/machine_calls/machine_specialization_identity.rs` and
@@ -3654,7 +3639,7 @@ deletions, which its commit lists.
     `nonzero_divisor_certificate`, `operation_proofs`,
     `scalar_block_invariants`, `scalar_result_guarantees`,
     `entry_requirement_certificates`, `proof_recursion`,
-    `control_cycle_proofs`, `retained_evidence`, `quotient_correspondence`,
+    `control_cycle_proofs`, `retained_evidence`,
     `float_meaning_projection` and `mathematical_declarations`, plus the
     certificate half of `evidence_lowering`;
   - `proof-admission`
@@ -3744,7 +3729,6 @@ deletions, which its commit lists.
     `publication.rs`, `bin/psi-terminal-publish.rs`, the proof section of
     `canonical_artifact.rs`/`sections/artifact_manifest.rs`, the
     `ProofBundle` in `sections/optimization_execution.rs`, and
-    `sections/semantic_module/quotient_correspondence_wire/` and
     `sections/semantic_module/mathematical_certificate_wire/`;
   - `omega-rust/psi/compilation/representations/terminal-psi/src/artifacts/proof_bundle/`:
     move `nodes.rs` and `witnesses.rs`, with the certificate envelope, into
@@ -5817,12 +5801,6 @@ wait for Cathedral's instruction coverage. The interpreter is
     with "quotient carriers must be proof-only". Admit representable,
     custody-free carriers; keep `carrier_fence.rs`'s rejection of affine/linear
     content and routed custody.
-  - Undemanded metadata: `pass/proofs/quotient_{define,lift}_managed_compile`
-    reject with `NonExecutableQuotientCorrespondence` from
-    `omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/quotient_correspondence.rs`,
-    which refuses every nonempty correspondence table. Mere presence of
-    proof-only metadata must not reject an executable module; a demanded
-    operation without a realizable representative still rejects.
   - Execution: carry the representative ABI through construction, arguments,
     results, calls, Terminal operations and native realization. Preserve public
     operation identity; generated wrappers use a stable derived identity and
@@ -5830,18 +5808,21 @@ wait for Cathedral's instruction coverage. The interpreter is
     sealed `quotient_operation` proof requests into runtime calls by deleting
     guards. No backend-specific quotient engine. Axiomatic operations supply no
     algorithm.
-  Acceptance: the managed fixtures compile with their proof-only metadata;
-  new run fixtures execute direct `define` and transport-backed `lift`
+  Acceptance: new run fixtures execute direct `define` and transport-backed `lift`
   operations natively with observable exits, without structural observers or
   representative extraction; demanding an unrealizable operation and
   mismatched arguments/results/relations reject.
 
 - **QUOTIENT-THEOREM-LIFT.** Extend quotient correspondence beyond public
   parameter positions under [lifting operations](wiki/spec/proofs/quotients.md#lifting-operations)
-  and [published correspondence](wiki/spec/proofs/quotients.md#published-quotient-correspondence).
+  and the [correspondence judgment](wiki/spec/proofs/quotients.md#quotient-correspondence-judgment).
   `omega-rust/psi/compilation/checking/src/proof_contracts/quotients/relation_plan/terminal_bridge.rs`
   already handles parameter selection/permutation/repetition/omission,
-  immutable result aliases and finite state forwarding; reuse it.
+  immutable result aliases and finite state forwarding; reuse it. It is now
+  only the admission judgment (`admit_checked_quotient_requests` admits a
+  batch the bridge can express) and still builds the old Terminal row shape
+  and its `correspondence_certificate.rs` certificate to decide; replace that
+  row-shaped output with the normalized judgments as the forms broaden.
   - Its `canonical_lift_runtime_positions` covers only public-parameter
     positions; the bridge requires empty static applications and single
     representative/theorem states and refuses `define` preconditions. Support

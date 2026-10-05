@@ -84,7 +84,6 @@ pub(crate) mod mathematical_declarations;
 pub(crate) mod nonzero_divisor_certificate;
 pub(crate) mod operation_proofs;
 pub(crate) mod proof_recursion;
-pub(crate) mod quotient_correspondence;
 mod retained_evidence;
 pub(crate) mod scalar_block_invariants;
 mod scalar_result_guarantees;

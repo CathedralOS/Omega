@@ -354,31 +354,20 @@ observation points to a named lifted operation. Effectful, nonterminating, or
 custody-bearing requests name their unsupported behavioral/occurrence relation.
 Diagnostic reconstruction supplies no certificate or execution authority.
 
-### Published quotient correspondence
+### Quotient correspondence judgment
 
-The current retained Terminal table is proof-only: monomorphic total faithful
-`define` and transport-backed `lift` with congruence and forward transport
-evidence. Rows retain exact public callable, selected application, theorem
-roles, relations, eligibility, fact coordinates, the representative-ordered
-runtime argument map (`lift` may select, permute, repeat, or omit public
-parameters; `define` stays position-preserving), and the complete checked
-normal-result flow: the result statement position, the exact immutable-alias
-depth between the request and that result, and — for a finite forwarding
-machine — the machine state count, result-state position, and one forwarding
-edge per non-result state, where each edge preserves the public telescope
-positionally.
+Validation admits monomorphic total faithful `define` and transport-backed
+`lift` requests with congruence and forward transport evidence. The judgment
+checks the public callable, selected application, theorem roles, relations,
+eligibility, the representative-ordered runtime argument map (`lift` may
+select, permute, repeat, or omit public parameters; `define` stays
+position-preserving), and the complete checked normal-result flow, including
+finite state forwarding that preserves the public telescope positionally.
+Substituted, missing, reversed, surplus, or role/payload-mismatched evidence
+rejects.
 
-Role tags precede application and payload in identity. Transport retains Left/Right
-application side and authored-source/selected-theorem coordinates. Rows and their
-evidence use canonical role-specific ordering. Decode and validation rederive
-identity and the complete congruence/transport join; substituted, missing,
-reversed, surplus, or role/payload-mismatched evidence rejects.
-
-The table alone owns no executable operation. Proof-only package review
-reconstructs the complete source batch; retention alone is neither checked
-executable projection nor source-to-native correspondence. The current blanket
-execution rejection of nonempty tables is an implementation limitation, not the
-language rule: executable demand follows
+The correspondence is a checking judgment only. Terminal Psi does not retain
+it, and it grants no executable operation: executable demand follows
 [ordinary checked-body realization](#execution-through-ordinary-checked-bodies).
 [Validation support](../../../omega-rust/psi/compilation/checking/README.md#quotient-correspondence)
 records producer limits; `QUOTIENT-RUNTIME-REALIZATION`, `QUOTIENT-THEOREM-LIFT`

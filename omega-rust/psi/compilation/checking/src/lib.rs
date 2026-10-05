@@ -199,10 +199,8 @@ pub use proof_contracts::properties::{
 };
 pub use proof_contracts::proposition_entailment::select_subjectless_evidence_conformance;
 pub use proof_contracts::quotients::{
-    CheckedTerminationOracle, NonExecutableQuotientCorrespondenceBatch, QuotientRequestAdmission,
-    ValidatedQuotientFormation, admit_checked_quotient_requests,
-    extract_non_executable_quotient_correspondences,
-    extract_non_executable_quotient_correspondences_with_termination, validate_quotient_formations,
+    CheckedTerminationOracle, QuotientRequestAdmission, ValidatedQuotientFormation,
+    admit_checked_quotient_requests, validate_quotient_formations,
 };
 pub use value_custody::expression_types::argument_matches_type_reference_handle as checked_argument_matches_type_reference;
 pub use value_custody::expression_types::match_subject_primitive_type;

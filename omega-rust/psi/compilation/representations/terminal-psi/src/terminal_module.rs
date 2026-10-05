@@ -84,13 +84,12 @@ pub use proof::{
     ProofOutputCall, ProofOutputEvidenceArgument, ProofOutputRuntimeCall, ProofOutputRuntimeResult,
     ProofPropositionId, ProofValueDeclaration, ProofValueId, PropositionApplicationIdentity,
     PropositionBinderArgumentIdentity, PropositionBinderArgumentKind, PropositionBinderDeclaration,
-    PropositionBinderKind, PropositionDeclaration, PropositionEvidence,
-    QuotientCorrespondenceIdentity, RetainedQuotientCorrespondence, ScalarBlockInvariant,
+    PropositionBinderKind, PropositionDeclaration, PropositionEvidence, ScalarBlockInvariant,
     ScalarBlockInvariantArrival, StaticRequirementDispatch, TerminalOperationCrashContract,
     TerminalProofRankingRelation, TerminalProofRecursiveCallSite, TerminalProofRecursiveComponent,
     TerminalProofRecursiveEdge, TerminalProofRecursiveField, TerminalProofRecursiveMember,
     TerminalProofRecursiveTransitionLane, TerminalProofRecursiveType,
-    float_meaning_equality_proposition_id, retain_non_executable_quotient_correspondence,
+    float_meaning_equality_proposition_id,
 };
 pub use types::{
     ByteSequenceCarrier, ResultQualificationEstablishment, ScalarDomainDeclaration,
@@ -193,11 +192,6 @@ pub struct TerminalModule {
     /// plan with the same key/target and committed frontier.
     pub suspension_call_sites: Vec<TerminalSuspensionCallSite>,
     pub suspension_call_plans: Vec<TerminalSuspensionCallPlan>,
-    /// Canonical proof-only quotient correspondence, strictly ordered by its
-    /// independently replayable identity. The public operation's hermetic
-    /// identity is the semantic owner; these rows do not join an executable
-    /// Terminal machine or authorize a representative call.
-    pub quotient_correspondences: Vec<crate::RetainedQuotientCorrespondence>,
     pub machines: Vec<TerminalMachine>,
 }
 
@@ -236,7 +230,6 @@ impl TerminalModule {
             suspension_call_plan_count: 0,
             suspension_call_sites: Vec::new(),
             suspension_call_plans: Vec::new(),
-            quotient_correspondences: Vec::new(),
             machines: Vec::new(),
         }
     }

@@ -1,9 +1,9 @@
 //! Structural validation of one terminal module.
 //!
 //! `validate_module` (and its interpretation and optimization variants) runs
-//! `validate_module_with_policy`, whose body is the pass order: the
+//! `validate_whole_module`, whose body is the pass order: the
 //! proposition vocabulary and structural foundation, closed conformance and
-//! reach applications, float-meaning projections, quotient correspondences,
+//! reach applications, float-meaning projections,
 //! content projections and boundary content guarantees, the machine and
 //! contract id registry, proof recursive components, placed-view inputs,
 //! reborrow handoffs and restored call uses, dynamic dispatches, evidence
@@ -14,7 +14,7 @@
 //!
 //! The child modules are one pass or one shared query each. The module-wide
 //! passes above are `foundation`, `evidence`, `conformance_applications`,
-//! `reach_applications`, `float_meaning`, `quotient_correspondence`,
+//! `reach_applications`, `float_meaning`,
 //! `content`, `proof_recursion`, `dynamic_dispatch`, `scalar_qualifications`,
 //! `scalar_block_invariants`, `suspension_call_plan`, `call_graph` and
 //! `root_service_reach`. `machine::validate_machine` runs the per-machine
@@ -84,7 +84,6 @@ mod partial_affine;
 mod primitive_storage;
 mod proof_recursion;
 mod propositions;
-mod quotient_correspondence;
 pub(crate) mod scalar;
 pub(crate) mod structural;
 
@@ -197,7 +196,7 @@ pub(crate) fn validate_module_retaining_frontiers(
     ),
     ModuleError,
 > {
-    let validation = validate_module_with_policy(module, ValidationPolicy::Admission)?;
+    let validation = validate_whole_module(module)?;
     Ok((ValidatedTerminalModule { module }, validation.frontiers))
 }
 
@@ -228,7 +227,7 @@ impl<'module> ValidatedInterpretableTerminalModule<'module> {
 pub fn validate_module_for_interpretation(
     module: &TerminalModule,
 ) -> Result<ValidatedInterpretableTerminalModule<'_>, ModuleError> {
-    validate_module_with_policy(module, ValidationPolicy::Admission)?;
+    validate_whole_module(module)?;
     Ok(ValidatedInterpretableTerminalModule {
         validated: ValidatedTerminalModule { module },
     })
@@ -255,7 +254,7 @@ impl<'module> ValidatedOptimizableTerminalModule<'module> {
 pub fn validate_module_for_optimization(
     module: &TerminalModule,
 ) -> Result<ValidatedOptimizableTerminalModule<'_>, ModuleError> {
-    validate_module_with_policy(module, ValidationPolicy::Admission)?;
+    validate_whole_module(module)?;
     Ok(ValidatedOptimizableTerminalModule {
         validated: ValidatedTerminalModule { module },
     })
@@ -835,7 +834,7 @@ fn is_canonical_hermetic_identity(identity: &str) -> bool {
 /// This remains a distinct entry point so canonical representation checks do
 /// not themselves confer an execution-grade `ValidatedTerminalModule`.
 pub fn validate_module_representation(module: &TerminalModule) -> Result<(), ModuleError> {
-    validate_module_with_policy(module, ValidationPolicy::Representation).map(|_| ())
+    validate_whole_module(module).map(|_| ())
 }
 
 /// Return the largest obligation identity registered by full representation
@@ -843,23 +842,12 @@ pub fn validate_module_representation(module: &TerminalModule) -> Result<(), Mod
 /// whose evidence is retained outside the ordinary reconstructed site list.
 /// The result supports fresh producer allocation and grants no proof authority.
 pub fn maximum_registered_obligation_id(module: &TerminalModule) -> Result<u64, ModuleError> {
-    let validation = validate_module_with_policy(module, ValidationPolicy::Representation)?;
+    let validation = validate_whole_module(module)?;
     Ok(validation
         .registry
         .obligations
         .last()
         .map_or(0, |obligation| obligation.get()))
-}
-
-/// Execution, interpretation, fixed-fuel and optimizer admission run the same
-/// checks; their validated carriers stay distinct types so one consumer's
-/// authority cannot stand in for another's. Representation validation, for
-/// canonical codecs, additionally admits non-executable quotient
-/// correspondences.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum ValidationPolicy {
-    Admission,
-    Representation,
 }
 
 /// What full validation established besides acceptance: the identity
@@ -870,10 +858,10 @@ struct ModuleValidation {
     frontiers: VerifiedTerminalStructuralFrontiers,
 }
 
-fn validate_module_with_policy(
-    module: &TerminalModule,
-    policy: ValidationPolicy,
-) -> Result<ModuleValidation, ModuleError> {
+/// Execution, interpretation, fixed-fuel, optimizer and representation
+/// admission run the same checks; their validated carriers stay distinct
+/// types so one consumer's authority cannot stand in for another's.
+fn validate_whole_module(module: &TerminalModule) -> Result<ModuleValidation, ModuleError> {
     if module.machines.is_empty() {
         return Err(ModuleError::EmptyModule);
     }
@@ -882,7 +870,6 @@ fn validate_module_with_policy(
     validate_closed_conformance_applications(module)?;
     reach_applications::validate_closed_reach_applications(module)?;
     float_meaning::validate_float_meaning_projections(module)?;
-    quotient_correspondence::validate_quotient_correspondences(module, policy)?;
 
     let mut registry = IdRegistry::default();
     for projection in module

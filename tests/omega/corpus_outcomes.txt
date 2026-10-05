@@ -2514,11 +2514,9 @@ pass/proofs/proof_order_antisymmetry checked 353ms @2d8ed253669f
 pass/proofs/proof_order_transitivity checked 364ms @2d8ed253669f
 pass/proofs/proof_remainder_range checked 354ms @2d8ed253669f
 pass/proofs/proposition_relation_hierarchy_compile checked 344ms @2d8ed253669f
-pass/proofs/quotient_define_managed_compile rejected 770ms check-target:linux_x86_64 @c47f8652484
-	terminal-artifact production failed: Lowering(InvalidTerminalModule(NonExecutableQuotientCorrespondence))
+pass/proofs/quotient_define_managed_compile checked 3205ms check-target:linux_x86_64 @6cbb1bbbe860+wt
 pass/proofs/quotient_equivalence_compile checked 336ms @2d8ed253669f
-pass/proofs/quotient_lift_managed_compile rejected 742ms check-target:linux_x86_64 @c47f8652484
-	terminal-artifact production failed: Lowering(InvalidTerminalModule(NonExecutableQuotientCorrespondence))
+pass/proofs/quotient_lift_managed_compile checked 3252ms check-target:linux_x86_64 @6cbb1bbbe860+wt
 pass/proofs/ring_full_polynomial_compile checked 1201ms check-target:macos_arm64 @2d8ed253669f
 pass/proofs/ring_law_conformance checked 1204ms check-target:macos_arm64 @2d8ed253669f
 pass/proofs/runtime_byte_predicate_state_contract_exit checked 724ms check-target:macos_arm64 @767b982de12c+wt

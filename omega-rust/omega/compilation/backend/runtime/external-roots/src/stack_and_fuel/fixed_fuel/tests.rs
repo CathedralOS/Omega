@@ -234,7 +234,6 @@ fn terminal_fixture() -> TerminalModule {
         suspension_call_plan_count: 0,
         suspension_call_sites: Vec::new(),
         suspension_call_plans: Vec::new(),
-        quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
             closed_reach_application: None,
             declared_service_reach: Vec::new(),
@@ -349,7 +348,6 @@ fn ranked_terminal_fixture() -> TerminalModule {
         suspension_call_plan_count: 0,
         suspension_call_sites: Vec::new(),
         suspension_call_plans: Vec::new(),
-        quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
             closed_reach_application: None,
             declared_service_reach: Vec::new(),

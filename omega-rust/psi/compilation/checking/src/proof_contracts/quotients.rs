@@ -115,36 +115,6 @@ where
     }
 }
 
-/// Complete source-free quotient-correspondence batch admitted by the narrow
-/// proof-only extraction seam.
-///
-/// The inner rows are intentionally private. Downstream Terminal producers
-/// may inspect or consume a batch, but only this validation crate can construct
-/// one after checking every retained quotient request. This preserves the
-/// extractor's all-or-nothing guarantee across the source-erasure boundary.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct NonExecutableQuotientCorrespondenceBatch {
-    correspondences:
-        Vec<language_semantics::quotient_correspondence::CanonicalQuotientCorrespondence>,
-}
-
-impl NonExecutableQuotientCorrespondenceBatch {
-    /// Consume the validated batch at the source-erasure boundary.
-    pub fn into_correspondences(
-        self,
-    ) -> Vec<language_semantics::quotient_correspondence::CanonicalQuotientCorrespondence> {
-        self.correspondences
-    }
-}
-
-impl std::ops::Deref for NonExecutableQuotientCorrespondenceBatch {
-    type Target = [language_semantics::quotient_correspondence::CanonicalQuotientCorrespondence];
-
-    fn deref(&self) -> &Self::Target {
-        &self.correspondences
-    }
-}
-
 /// Exact quotient-formation identity rederived from the complete typed graph.
 ///
 /// The selected equivalence conformance licenses formation but is deliberately
@@ -171,48 +141,6 @@ pub fn validate_quotient_formations(
     } else {
         Err(diagnostics)
     }
-}
-
-/// Derive the first source-handle-free quotient correspondence aggregate.
-///
-/// This API is deliberately separate from ordinary validation. It grants no
-/// checked or executable authority, and [`validate_program`] continues to
-/// reject every quotient operation request. The extraction is all-or-nothing:
-/// if any retained request lies outside the narrow total direct faithful
-/// `define` or argument-adapted forward-transport `lift` bridge, no partial
-/// aggregate is returned.
-pub fn extract_non_executable_quotient_correspondences(
-    program: &TypedTrees,
-) -> Result<NonExecutableQuotientCorrespondenceBatch, Vec<Diagnostic>> {
-    extract_non_executable_quotient_correspondences_with_termination(program, program)
-}
-
-/// [`extract_non_executable_quotient_correspondences`] with termination
-/// eligibility answered by `termination` instead of the typed machine
-/// summaries. The Terminal producer passes the checked stage's termination
-/// facts here; every other judgment still reads the typed program.
-pub fn extract_non_executable_quotient_correspondences_with_termination(
-    program: &TypedTrees,
-    termination: &dyn CheckedTerminationOracle,
-) -> Result<NonExecutableQuotientCorrespondenceBatch, Vec<Diagnostic>> {
-    let proof_only = crate::proof_only_classification(program);
-    let mut diagnostics = Vec::new();
-    collect_validated_quotient_formations(program, &proof_only, &mut diagnostics);
-    if !diagnostics.is_empty() {
-        return Err(diagnostics);
-    }
-    terminal_bridge::extract(program, termination)
-        .map(|correspondences| NonExecutableQuotientCorrespondenceBatch { correspondences })
-        .map_err(|errors| {
-            errors
-                .into_iter()
-                .map(|error| {
-                    Diagnostic::error(format!(
-                        "non-executable quotient correspondence extraction failed: {error}"
-                    ))
-                })
-                .collect()
-        })
 }
 
 /// Where a program's sealed `Quotient::define`/`Quotient::lift` requests are
@@ -251,12 +179,11 @@ pub(crate) fn validate_quotients_with_admission(
 /// This is the [`QuotientRequestAdmission::AfterCheckedFacts`] half: the
 /// checked stage calls it once its termination facts exist, answering
 /// `termination` from them. A program without requests admits trivially. A
-/// program whose whole request batch the proof-only bridge extracts admits;
+/// program whose whole request batch the proof-only bridge can express admits;
 /// the batch is all-or-nothing, so any other request keeps every request's
 /// rejection diagnostic, rendered against the same checked termination.
-/// Admission is proof-only: the extracted rows reach Terminal only through
-/// the producer's own installer, and a nonempty correspondence table is still
-/// refused by Terminal execution.
+/// Admission is proof-only: the bridged correspondences are a judgment and
+/// are not retained in Terminal Psi.
 pub fn admit_checked_quotient_requests(
     program: &TypedTrees,
     termination: &dyn CheckedTerminationOracle,

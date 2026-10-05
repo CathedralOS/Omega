@@ -644,7 +644,6 @@ pub(crate) fn lower_unit_closure(
             suspension_call_plan_count: 0,
             suspension_call_sites: Vec::new(),
             suspension_call_plans: Vec::new(),
-            quotient_correspondences: Vec::new(),
             machines,
         },
         proof_bundle: ProofBundle {

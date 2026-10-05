@@ -3274,7 +3274,6 @@ fn rebase_place_through_local_loans(
     }
 }
 
-
 /// Whether a recorded loan's owner path is a prefix of one actual's place
 /// segments, so the loan's own (root, segments) rebase the actual's
 /// remainder. Dynamic owners overlap any index-shaped place step.
@@ -3316,7 +3315,6 @@ fn loan_owner_path_is_prefix(
                 }
             })
 }
-
 
 /// Earliest statement entry permitted by this local's own uses and loans.
 /// A dead reference leaf does not authorize destroying a live scalar sibling.

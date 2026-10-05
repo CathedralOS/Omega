@@ -352,10 +352,12 @@ full source acceptance or executable Terminal realization.
 
 ## Quotient correspondence
 
-The [published correspondence contract](../../../../wiki/spec/proofs/quotients.md#published-quotient-correspondence)
+The [correspondence judgment](../../../../wiki/spec/proofs/quotients.md#quotient-correspondence-judgment)
 is implemented through [quotients/terminal_bridge.rs](src/proof_contracts/quotients/terminal_bridge.rs)
-and the relation-plan bridge. Current direct `define`/transport-backed `lift`
-retention and proof-only package review do not admit executable quotient calls.
+and the relation-plan bridge, which decide quotient request admission. The
+bridged correspondence is not retained in Terminal Psi, and direct
+`define`/transport-backed `lift` admission does not admit executable quotient
+calls.
 Adapted, permuted, repeated, generic/private applications and broader lift forms
 still require complete correspondence and package-projection integration.
 Do not retain schema-bump history as a substitute for those acceptance conditions.

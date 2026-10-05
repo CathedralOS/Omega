@@ -2,11 +2,12 @@
 # One fixture per line: <tier/group/name> <status> <milliseconds>ms, then
 # `expected` or `unexpected` when its expected.txt fragments were weighed,
 # then any execution facts such as exit:70 or stdout:match, then
-# `@<revision>` recording which commit measured the row (`+wt` = dirty
-# tree; rows measured before stamping have no token).
+# `regressed-from:<status>[+fact]*` when the row has lost a success it used
+# to record, then `@<revision>` recording which commit measured the row
+# (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 32, "jobs": null, "load1_end": null, "load1_start": null, "machine": "amd64", "platform": "windows", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 24, "jobs": null, "load1_end": null, "load1_start": null, "machine": "amd64", "platform": "windows", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 302ms @0484de104502
 pass/arithmetic/anonymous_rational_integer_landing checked 306ms @0484de104502
 pass/arithmetic/bounded_assignment checked 323ms @0484de104502
@@ -671,11 +672,9 @@ pass/proofs/proof_order_antisymmetry checked 515ms @0484de104502
 pass/proofs/proof_order_transitivity checked 494ms @0484de104502
 pass/proofs/proof_remainder_range checked 546ms @0484de104502
 pass/proofs/proposition_relation_hierarchy_compile checked 479ms @0484de104502
-pass/proofs/quotient_define_managed_compile rejected 609ms @0484de104502
-	terminal-artifact production failed: Lowering(InvalidTerminalModule(NonExecutableQuotientCorrespondence))
+pass/proofs/quotient_define_managed_compile built 3481ms @6cbb1bbbe860+wt
 pass/proofs/quotient_equivalence_compile checked 462ms @0484de104502
-pass/proofs/quotient_lift_managed_compile rejected 598ms @0484de104502
-	terminal-artifact production failed: Lowering(InvalidTerminalModule(NonExecutableQuotientCorrespondence))
+pass/proofs/quotient_lift_managed_compile built 3482ms @6cbb1bbbe860+wt
 pass/proofs/ring_full_polynomial_compile built 1077ms @0484de104502
 pass/proofs/ring_law_conformance built 1087ms @0484de104502
 pass/proofs/runtime_decreases_u64_measure_exit built 1491ms exit:70 @0484de104502

@@ -40,7 +40,6 @@ use crate::proofs::evidence_lowering::lower_and_install_evidence_artifacts;
 use crate::proofs::mathematical_declarations::admit_mathematical_declarations;
 use crate::proofs::operation_proofs::finalize_operation_proofs;
 use crate::proofs::proof_recursion::lower_and_install_proof_recursion;
-use crate::proofs::quotient_correspondence::retain_checked_quotient_correspondences;
 use crate::retention::placed_view_inputs::retain_selected_placed_view_inputs;
 use crate::retention::{
     closed_reach_applications, operation_crash_contracts, reborrow_restored_call_use,
@@ -297,7 +296,6 @@ fn lower_terminal_selection(
     // Proof-only quotient correspondence rows join module identity before
     // validation; a nonempty table is then refused by the execution gate below
     // until executable quotient lowering exists.
-    retain_checked_quotient_correspondences(checked, &mut lowered.semantic_module)?;
     crate::emission::operation_emission::place_declarations::reconcile_leaf_copy_place_declarations(
         &mut lowered.semantic_module,
     );

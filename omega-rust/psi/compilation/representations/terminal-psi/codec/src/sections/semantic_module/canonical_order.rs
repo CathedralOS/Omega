@@ -237,16 +237,6 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
             "stored dynamic dispatches by owner and operation",
         ));
     }
-    if !strictly_increasing(
-        module
-            .quotient_correspondences
-            .iter()
-            .map(|correspondence| correspondence.identity.0.as_slice()),
-    ) {
-        return Err(CodecError::NonCanonicalOrder(
-            "quotient correspondences by canonical identity",
-        ));
-    }
     for invocation in &module.proof_output_calls {
         if invocation
             .outputs

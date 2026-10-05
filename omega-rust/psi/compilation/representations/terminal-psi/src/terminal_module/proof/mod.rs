@@ -5,7 +5,6 @@ mod contracts;
 mod declarations;
 mod operation_crash_contracts;
 mod outputs;
-mod quotient;
 mod recursion;
 mod scalar_block_invariants;
 mod values;
@@ -31,10 +30,6 @@ pub use operation_crash_contracts::TerminalOperationCrashContract;
 pub use outputs::{
     ProofOutput, ProofOutputCall, ProofOutputEvidenceArgument, ProofOutputRuntimeCall,
     ProofOutputRuntimeResult, StaticRequirementDispatch,
-};
-pub use quotient::{
-    QuotientCorrespondenceIdentity, RetainedQuotientCorrespondence,
-    retain_non_executable_quotient_correspondence,
 };
 pub use recursion::{
     TerminalProofRankingRelation, TerminalProofRecursiveCallSite, TerminalProofRecursiveComponent,

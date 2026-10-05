@@ -43,9 +43,6 @@ use super::proof_declaration_wire::{
     encode_proposition_declaration,
 };
 use super::provider_candidate_wire::{decode_provider_candidate, encode_provider_candidate};
-use super::quotient_correspondence_wire::{
-    decode_quotient_correspondence, encode_quotient_correspondence,
-};
 use super::structural_signature_wire::{decode_boundary_machine, encode_boundary_machine};
 use super::structural_type_wire::{decode_structural_type, encode_structural_type};
 use super::wire::{Reader, Writer};
@@ -201,13 +198,6 @@ pub(crate) fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError>
         encode_suspension_call_plan(&mut writer, plan)?;
     }
     writer.len(
-        "quotient correspondences",
-        module.quotient_correspondences.len(),
-    )?;
-    for correspondence in &module.quotient_correspondences {
-        encode_quotient_correspondence(&mut writer, correspondence)?;
-    }
-    writer.len(
         "scalar block invariants",
         module.scalar_block_invariants.len(),
     )?;
@@ -300,7 +290,6 @@ pub(crate) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
         decode_counted(reader, decode_suspension_call_site)?,
         decode_counted(reader, decode_suspension_call_plan)?,
     );
-    let quotient_correspondences = decode_counted(reader, decode_quotient_correspondence)?;
     let scalar_block_invariants = decode_counted(
         reader,
         scalar_block_invariant_wire::decode_scalar_block_invariant,
@@ -355,7 +344,6 @@ pub(crate) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
         suspension_call_plan_count,
         suspension_call_sites,
         suspension_call_plans,
-        quotient_correspondences,
         machines,
     })
 }

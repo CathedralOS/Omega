@@ -631,10 +631,9 @@ the declaration order below and ending with the machine roster.
 | 28 | stored dynamic dispatches | counted stored dispatch rows |
 | 29 | parameter dynamic dispatches | counted parameter dispatch rows |
 | 30 | suspension rows | a bare `u32` call-plan count, then counted suspension call sites, then counted suspension call plans |
-| 31 | quotient correspondences | counted quotient correspondence rows |
-| 32 | scalar block invariants | the counted invariant rows above |
-| 33 | operation crash contracts | counted operation crash contract rows |
-| 34 | machines | counted machine rows |
+| 31 | scalar block invariants | the counted invariant rows above |
+| 32 | operation crash contracts | counted operation crash contract rows |
+| 33 | machines | counted machine rows |
 
 The machine roster is strictly
 ordered by machine id. A machine row is its machine id followed, in order, by
@@ -1374,109 +1373,6 @@ Suspension call sites and plans are strictly ordered by operation id and
 crossing id; each plan's live values are strictly ordered by place, storage,
 value type, and carry policy, and each live value's claims are strictly
 ordered by claim id.
-
-### Quotient correspondences
-
-| Row | Fields |
-| --- | --- |
-| quotient correspondence | operation kind + public callable + representative application + counted positional input relations + positional result relation + counted runtime positions + counted theorem evidence + representative eligibility + result flow positions |
-| public callable | declaration identity string + overload identity string |
-| representative application | public callable + counted static binding strings |
-| positional relation | quotient declaration identity + quotient type identity + carrier type identity + relation callable identity strings (two) |
-| runtime position | `u32` public position + `u32` representative position |
-| theorem evidence | theorem role + selected application + theorem correspondence + quotient eligibility (purity + termination + crash) |
-| representative eligibility | quotient purity + quotient termination |
-| result flow | result flow tag + variant payload |
-| direct result flow | `u32` statement position + `u32` immutable alias count |
-| forwarded result flow | `u32` machine state count + `u32` result state position + `u32` statement position + `u32` immutable alias count + counted forwarding edges |
-| forwarding edge | `u32` source position + `u32` target position |
-| congruence theorem | counted parameters + counted relation premises + counted legality premises + conclusion |
-| theorem parameter | `u32` theorem parameter position + parameter role |
-| relation premise | `u32` expected premise position + coordinate + relation string + `u32` left parameter + `u32` right parameter |
-| transport fact | application side + source coordinate + actual coordinate |
-| transport coordinate | contract owner + `u32` contract position + `u32` fact position |
-| congruence conclusion | coordinate + relation string + left representative application + right representative application |
-| theorem representative application | counted `u32` argument positions |
-
-<!-- quotient-operation-kind-tags -->
-
-| tag | Quotient operation kind |
-| --- | --- |
-| 1 | Lift |
-| 2 | Define |
-| 3 | LiftWithForwardPreconditionTransport |
-
-<!-- quotient-positional-relation-tags -->
-
-| tag | Quotient positional relation |
-| --- | --- |
-| 1 | Quotient | positional relation |
-| 2 | ExactEquality | public type identity string + representative type identity string |
-
-<!-- quotient-theorem-role-tags -->
-
-| tag | Quotient theorem role |
-| --- | --- |
-| 1 | Congruence |
-| 2 | ForwardPreconditionTransport |
-
-<!-- quotient-theorem-correspondence-tags -->
-
-| tag | Quotient theorem correspondence |
-| --- | --- |
-| 1 | Congruence | congruence theorem |
-| 2 | ForwardPreconditionTransport | counted public premises + counted representative conclusions (each a counted transport facts list) |
-
-<!-- quotient-purity-tags -->
-
-| tag | Quotient purity |
-| --- | --- |
-| 1 | PureClosure |
-
-<!-- quotient-termination-tags -->
-
-| tag | Quotient termination |
-| --- | --- |
-| 1 | Unconditional |
-
-<!-- quotient-crash-tags -->
-
-| tag | Quotient crash |
-| --- | --- |
-| 1 | CrashFree |
-
-<!-- quotient-parameter-role-tags -->
-
-| tag | Quotient theorem parameter role |
-| --- | --- |
-| 1 | QuotientLeft | `u32` input position |
-| 2 | QuotientRight | `u32` input position |
-| 3 | Shared | `u32` input position |
-
-<!-- quotient-application-side-tags -->
-
-| tag | Quotient application side |
-| --- | --- |
-| 1 | Left |
-| 2 | Right |
-
-<!-- quotient-contract-owner-tags -->
-
-| tag | Quotient contract owner |
-| --- | --- |
-| 1 | Machine |
-| 2 | State |
-
-<!-- quotient-result-flow-tags -->
-
-| tag | Quotient result flow |
-| --- | --- |
-| 1 | Direct |
-| 2 | Forwarded |
-
-A quotient correspondence's retained identity is derived from the
-certificate: it is a pure function of the encoded row and is not itself
-encoded. Rows are strictly ordered by that derived canonical identity.
 
 ### Operation crash contracts
 
