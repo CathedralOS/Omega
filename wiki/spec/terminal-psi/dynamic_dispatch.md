@@ -21,49 +21,62 @@ machines supply missing rows.
 
 Requirements and realizations are static machines with explicit parameters,
 under the [ordinary machine contract](../language/machines.md#static-declarations-and-explicit-state).
-A call names the requirement and supplies its dynamic subject explicitly, for
-example `ImageFilter::apply(filter, image)`. The `filter` argument carries the
-selected conformance; the call introduces no implicit receiver argument and
-performs no ambient conformance search. The checked call retains the ordinary
-parameter position corresponding to that erased subject.
+`dyn Trait<Arguments...>` selects a named implementation at runtime. It does
+not package an instance of an implementing data type or hide a trait argument.
+For example, `dyn CounterOperations<CounterData>` can select normal or
+saturating operations over the same explicitly passed `CounterData`.
+`dyn Convert<Image, Text>` can select different Image-to-Text implementations;
+neither `Image` nor `Text` is a distinguished subject.
 
-A named-conformance coercion retains source data/place, target trait, exact
-conformance, and normalized rows. A bare place coercion cannot search visible
-conformances. A concrete argument coerces through an explicitly named complete
-conformance; an already-packaged dynamic argument retains its selection.
-A bare dynamic parameter accepts fitting eligible maps without selecting one
-by visibility. A bodyless declaration without a
-normalized map is not a dynamic candidate.
+A selection is constructed from an exact named implementation:
+`let operations: dyn Ranked<Card> = PowerOrder as dyn Ranked<Card>;`.
+Calling `Ranked::rank_value(operations, &card)` explicitly supplies the
+implementation selector and then the requirement's declared value arguments.
+The selector is a dispatch operand, not an inserted requirement parameter or
+a data argument forwarded to the selected machine. The checked call retains
+it separately from the ordinary argument list. A direct static selection uses
+the named implementation or a static evidence binder instead.
 
-The requirement owns one erased caller shape. Every realization supplies a
-checked adapter to it; a representative candidate cannot choose the shape for
-the rest. Descriptor forwarding, rebinding, joins, and storage preserve the
-actual instance and table. At a join, each predecessor supplies its own descriptor
-to the shared parameter; retain all predecessor paths and selection identities,
-never a representative conformance or synthetic joined table.
+Coercion retains the target trait application, exact implementation and
+normalized rows. It does not coerce a data place into a trait object or search
+for implementations of that place's type. A bare dynamic parameter accepts
+fitting eligible maps without selecting one by visibility. A bodyless
+declaration without a normalized map is not a dynamic candidate.
+
+The requirement after ordinary argument substitution owns the call shape.
+Every realization matches that shape; a representative candidate cannot choose
+it for the rest. Descriptor forwarding, rebinding, joins and storage preserve
+the actual selected implementation. Each predecessor at a join supplies its
+own selector; never invent a representative implementation or mixed table.
+Data arguments keep their own independent place, lifetime and ownership facts.
+
+Named decision `dynamic-caller-subject-parameter` is settled by this model:
+a dynamic caller has ordinary explicit parameters and an explicit selection
+operand, with no attachment or synthetic receiver. No parameter position is
+privileged. Terminal Psi must retain selection and value arguments separately.
 
 ## Source eligibility and operational envelopes
 
-The runtime dynamic surface is borrowed. Owned runtime erasure additionally
-requires storage ownership, size/alignment information, and checked cleanup;
-borrowed dispatch alone establishes none of those. An owned proof-only dynamic
-term may erase when its entire normalized value has neither a runtime instance
-nor runtime table slots. An empty table alone cannot erase a runtime instance
-with unknown size or cleanup obligations.
+Runtime `dyn` values carry implementation selection, not owned or borrowed user
+state. Borrowing a selector does not borrow an implied data instance. Copying
+or storing it grants no authority over any separately passed data. A proof-only
+selection with no executable rows erases under the ordinary evidence rules.
+There is no data-instance allocation or cleanup obligation created by `dyn`.
 
-A requirement belongs to the dynamic surface only when exactly one explicit
-parameter borrows its subject as `&Self` or `&mut Self`, and `Self` occurs nowhere
-else (including nested runtime contracts). That parameter's ordinary position,
-access and lifetime identify the descriptor-backed argument; its name is not
-special. For example, `machine apply(filter: &mut Self, image: &mut Image)` is
-eligible on this axis, while a second `&Self` parameter or a `Self` result is not.
-Requirement-local generic parameters are ineligible except for the closed
-value families described below. After binding trait arguments and any exact
-family tuple, parameter/result representations must be concrete, returned borrow
-lifetimes must be expressible from inputs, and the public contract must name no
-satisfier-private identity. Boundary-machine requirements are ineligible.
-An ineligible requirement is excluded individually, not by rejecting unrelated
-requirements on the trait. No `Self: Sized` escape hatch is needed.
+After binding trait arguments and any exact family tuple, the requirement's
+parameter/result representations must be concrete, returned borrow lifetimes
+must be expressible from inputs, and the public contract must name no
+implementation-private identity. Zero, one, or multiple data parameters and
+owned results are allowed under their ordinary contracts. There is no
+one-subject restriction or `Self` eligibility rule. Requirement-local generic
+parameters remain ineligible except for the closed value families below.
+Boundary-machine requirements use their boundary calling plan, not local
+dynamic tables. Eligibility remains per requirement.
+
+Hiding data types is a separate packaging facility, not part of implementation
+selection. This contract introduces no existential type binder, heterogeneous
+data container, or implicit boxing. A future such facility must preserve the
+relationships between hidden types and the values accepted or returned.
 
 The normalized operational contract must fit its per-requirement dynamic
 envelope: service reach, direct synchronous invocation, mutation summary,
@@ -91,7 +104,8 @@ not runtime representation, and does not require code monomorphization.
 
 An explicit finite value family under the
 [generic specialization contract](../language/generics.md#finite-specialization-boundary)
-may expose requirement-local value binders through a borrowed dynamic interface.
+may expose requirement-local value binders through a dynamic implementation
+interface.
 Unrestricted local type/machine binders or ranges requiring arbitrary enumeration
 do not acquire dynamic eligibility. Every tuple must close the method's remaining
 local parameters and yield an eligible concrete call shape and contract.
@@ -144,12 +158,15 @@ Each selection retains the complete canonical `ClosedConformanceApplication`:
 telescope, ordered requirement-row map, callable registry, report coordinate,
 and strong commitment. Selecting one row does not permit dropping or reordering
 unselected rows. Verification rejoins the application to the exact selected row,
-callable, carrier type, access, result, and service reach.
+callable, trait arguments, explicit argument types and access, result, and service
+reach.
 
 A rebound descriptor retains initializer and latest selections and their
 version relationship. Rebinding to a different named conformance preserves the
-exact carrier, dynamic-trait interface, borrow access, telescope, and ordered
-requirement roster. The two applications have independent commitments. Only
+exact dynamic trait application, telescope and ordered requirement roster,
+within the storage's declared operational envelope. It does not rebind any
+separately supplied data argument. The two applications have independent
+commitments. Only
 the latest supplies the executable table; an overwritten initializer remains
 identified without inventing an unused table.
 
@@ -179,10 +196,12 @@ call remain two independently identified operations.
 
 ## Native tables and replay
 
-Native realization uses the canonical `{ instance, table }` carrier. Descriptor
-and scalar-result storage do not overlap. Borrowed instances obey
-[reference identity](structural_access.md); a descriptor does not authorize
-copying a borrowed referent.
+Native realization represents the selector by its implementation table
+reference or an equivalent target representation preserving that identity.
+There is no canonical `{ instance, table }` pair: remove the retired instance
+field and its receiver adapters. Descriptor and scalar-result storage do not
+overlap. Explicit borrowed arguments obey [reference identity](structural_access.md)
+independently; copying a selector cannot copy or extend a borrowed referent.
 
 Immutable tables may deduplicate identical complete applications by strong
 identity. Emit one slot per canonical row. A row with an executable callable
@@ -200,8 +219,8 @@ does not imply mutable data or BSS support.
 ## Mutation-bearing realizations
 
 A realization's ordered stores are distinct from its return expression. Each
-store retains the exact explicit subject/path, primitive field, typed value, and source
-order; subsequent reads retain their own identities. Lowering and replay
+store retains the exact explicit argument/path, primitive field, typed value,
+and source order; subsequent reads retain their own identities. Lowering and replay
 reconstruct all field offsets from declarations. A subloan of an unrestricted
 mutable root remains unrestricted, not an invented linear entry claim.
 
@@ -215,15 +234,15 @@ They are implementation limits, not additional source semantics.
 
 ## Resource and component boundary
 
-An erased call accounts for descriptor dispatch, table adapter, erased physical
-shape, and selected satisfier demand. A suspension-capable caller shape still
-costs its frame and structural work when a particular satisfier never suspends.
+A dynamic call accounts for selector dispatch, table adapter, concrete physical
+argument shape, and selected satisfier demand. A suspension-capable caller shape
+still costs its frame and structural work when a particular satisfier never suspends.
 The selected implementation may meet a suspension promise while exceeding a
 separate stack or work ceiling.
 
 An occurrence-specific, whole-artifact devirtualization may replace a nonescaping
-selection/call with its exact realization and original subject argument. It must retain
-the realized direct-call cost, not erase it because the target is known. General
+selection/call with its exact realization and original explicit arguments.
+It must retain the realized direct-call cost, not erase it because the target is known. General
 escaping descriptors still need their actual table and adapter. Private
 realization footprints compose into the enclosing root's evidence without
 inventing separate boundary contracts.

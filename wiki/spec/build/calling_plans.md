@@ -8,8 +8,9 @@ the portable module.
 
 ## Authorship and evaluation
 
-`Calling<C>` names a convention subject `C`, declared `where C satisfies
-CallingPolicy` and resolved through that exact named conformance. Its compile-time `plan` machine
+`Calling<Policy>` takes an explicit named implementation parameter declared
+`Policy satisfies CallingPolicy`. There is no convention data subject. Its
+compile-time `plan` machine
 receives a normalized `BoundarySignature` and returns
 `Accepted(BoundaryEntryPlan)` or `Rejected(CallingPolicyRejection)`.
 
@@ -29,7 +30,7 @@ support, not another policy declaration.
 
 Boundary service parents contribute service reach. Ordinary policy parents
 contribute contract identity without service reach. A reusable boundary trait
-may parameterize its convention and named policy; each closed application has
+may parameterize its named policy; each closed application has
 its own contract. Providers cannot independently choose conventions for the same
 requirement. Mixed conventions require distinct applications or composed facets.
 

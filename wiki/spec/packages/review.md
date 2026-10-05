@@ -98,8 +98,11 @@ invariant without making the later representation the only permissible source.
   Unresolved nominals, malformed canonical values, missing selections, and
   unsupported structural forms cannot be encoded as exact review identity.
 - Constants retain checked carrier and canonical value, not display strings.
-  Closed conformance arguments retain declaration, ordered arguments, subject,
+  Closed conformance arguments retain implementation declaration, ordered arguments,
   target-trait application, and exact checked call substitution.
+  They have no data subject. Remove the legacy subject metadata with the
+  [named-implementation migration](../language/conformances.md#data-and-code-are-independent);
+  retaining an empty subject slot does not establish the new identity model.
 - Contracts and mathematical bundles retain exact subjects, laws, witnesses,
   and dependencies. Their source/encoding migration follows the
   [proof contract](../proofs/contracts.md); unsupported forms remain explicit

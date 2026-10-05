@@ -73,10 +73,11 @@ Provider selection alone cannot construct arbitrary service values. Missing
 bindings or unestablishable context fields reject before invocation. Other
 fixture construction and parameterized helper calls are ordinary test code.
 
-For a context-bearing requirement, each satisfier identifies its concrete context
-carrier through ordinary subject-type substitution in the explicit parameter.
-That is not a guessed generic test
-argument or a synthesized implementation of the whole containing trait.
+For a context-bearing requirement, the registered exact trait application
+names the context type as an ordinary trait argument, for example
+`Tests<ScanFixture>::memory`. Every satisfier matches that declared parameter.
+Register different concrete applications separately; the runner neither infers
+a data subject nor guesses generic arguments or synthesizes a whole-trait map.
 
 The runner establishes all entry preconditions; registration grants none.
 Requirements retain ordinary reach, crash, suspension, blocking, termination,

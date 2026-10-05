@@ -58,6 +58,53 @@ helper that passes does not close an item.
 
 ## Immediate product closure
 
+- **REFERENCE-CUSTODY-JOIN-SCALING.** (new-scope) Investigate and remove
+  avoidable compilation cost in reference-custody joins without weakening their
+  semantics. `pass/expressions/runtime_indexed_float_record_fields_exit` was
+  recorded moving from roughly 3.3s to 9s across stored-reference changes;
+  those historical measurements are a lead, not a current baseline or an
+  accepted cost envelope. The former `custody-join-build-cost` escalation is
+  engineering under [Psi ownership](omega-rust/pipeline.md#psi-implementation-and-deferred-human-audit).
+  - Reproduce on one host/configuration and profile the exact reader before
+    choosing a repair. Own the evidenced Psi custody/fact propagation path;
+    compare against stored-reference sibling programs and increasing record/
+    reference counts to distinguish fixed work from superlinear recomputation.
+    Do not add timing thresholds to semantic tests or omit custody checks.
+  Acceptance: the customer still produces its authored result; report repeated
+  before/after timings and scaling on the same configuration, plus
+  `python tools/corpus_gate.py --filter expressions/runtime_indexed_float_record_fields_exit,borrows/runtime_indexed_reference_array_bounded_read_exit`.
+  If the regression no longer reproduces, remove this task with that evidence;
+  do not invent a new language decision to justify keeping it open.
+
+- **ENTRY-SLOT-EXACT-SCHEMA-SELECTION.** (split-of:UEFI-PHYSICAL-SEMANTIC-ENTRY) Select a root slot's
+  boundary schema by its exact declaration/package identity, as already
+  required by [target slots](wiki/spec/build/entry_roots.md#slots).
+  `entry-slot-schema-resolved-by-bare-name` is an implementation defect, not
+  permission for an unrelated local schema to shadow a target's declaration.
+  - `omega-rust/omega/compilation/realization/provider-planning/src/program_entry.rs::validate_selected_program_entry_calling_plan`
+    scans all loaded boundary traits by `definition.name == schema_name`.
+    Join the slot's exact owner/schema or explicit accepted package binding,
+    retaining physical and semantic requirement identities. Remove the
+    global name scan, not just its duplicate-name diagnostic.
+  - Customer: a program binding the canonical UEFI entry while another loaded
+    package declares an unrelated `UefiApplication`. The latter must neither
+    redirect nor make the selected entry ambiguous. Preserve
+    `pass/build/uefi_os_handoff_invocation` and cover a same-leaf nonselected
+    schema plus wrong-owner/schema controls.
+  - Repair `fail/build/uefi_program_entry_wrong_calling_policy` to exercise the
+    actual physical-convention mismatch through the existing exact accepted
+    package/schema route. Its current same-leaf local declaration is not a
+    selection. If its advertised construction is unexpressible under that
+    contract, replace the fixture with a valid rejection customer; do not add
+    a shadowing feature or pin the accidental global duplicate as the rule.
+    Remove the fixture header's stale owner-decision claim during that repair.
+    Task-specific corpus coverage must still distinguish the plan mismatch
+    from schema selection failure.
+  Acceptance: `python tools/corpus_gate.py --filter build/uefi_` and new
+  same-leaf schema coverage exercise exact selection and physical/semantic
+  plan compatibility. The unrelated declaration leaves the valid program's
+  result unchanged, and invalid selected plans reject for their real contract.
+
 - **STATIC-DUNGEON-NATIVE-BUILD-COST.** (split-of:STATIC-MACHINE-MIGRATION)
   The native build of `samples/cli/games/dungeon_crawler_cli` does not finish.
   - Current state: the app is migrated to static calls and `omega --check`
@@ -94,37 +141,21 @@ helper that passes does not close an item.
   [its README](samples/cli/games/dungeon_crawler_cli/README.md#runtime-acceptance).
 
 - **STATIC-BOUNDARY-REQUIREMENT-CALL-FORM.** (split-of:STATIC-MACHINE-MIGRATION)
-  A receiver call on a public boundary requirement reaches it without a
-  selected provider; the static qualified call demands one.
-  **Recorded as OWNER_QUESTIONS Q8** (`33b61f830d8`), and the item's framing
-  was wrong in a way that narrows the question. Measured 2026-10-04:
-  - Both customers **already spell the static form** and still reject:
-    `address_translation_canary/main.omg:152` is `Shootdown::discharge(owed);`
-    and `secondary_processor_canary/cathedral/processor_startup.omg:217,315` is
-    `StartupEnvelope::confirm(envelope);`. Neither spells `self`, so the
-    item's second branch (find a static spelling that stays provider-free) is
-    not open.
-  - The discriminator is **installation, not the call form**. `grep` finds
-    **zero** `satisfies` rows for `InterruptAcknowledgement::complete`,
-    `Shootdown::discharge` or `StartupEnvelope::confirm` anywhere in the
-    repository, yet only the first is admitted — it is called from inside
-    machines that `satisfies InterruptEntry::enter`
-    (`interrupt_table_canary/cathedral/interrupt_roots.omg:161,271`), while
-    `discharge` and `confirm` are called from ordinary machines. That is the
-    rule `source/library/core/interrupt.omg` already states for `complete`,
-    where installation "turns the exact non-self parameter route into an
-    introduction".
-  - So Q8 asks only this: does a linear carrier whose domain only that
-    requirement extinguishes thread its installation lineage to an ordinary
-    caller, or do both canaries owe an authored provider and a rewritten
-    header? Both are written as though the first holds, so the answer decides
-    what they pin.
-  - The "unverified corpus rows" bullet is resolved: both were re-measured and
-    re-recorded at `cf06f90068e`. `secondary_processor_canary` previously
-    rejected in 3ms on a bad bundled-`std` import spelling and never reached
-    this rule at all.
-  Acceptance: both fixtures use the decided static spelling and check with
-  their current pins.
+  The remaining owner decision is `boundary-requirement-call-without-installation`
+  in `OWNER_QUESTIONS.md`: whether an explicitly transferred completion token
+  carries the operation's installation selection, or its caller also needs an
+  explicit binding/provider selection. The static call spelling is settled.
+  - Customers: `pass/memory/address_translation_canary` calls
+    `Shootdown::discharge(owed)`; `pass/memory/secondary_processor_canary`
+    calls `StartupEnvelope::confirm(envelope)`. Recorded failures name the
+    missing selected provider. The contrasting interrupt completion calls are
+    within installed `InterruptEntry::enter` satisfiers.
+  - Once the authority rule is answered, implement its exact installation/token
+    correspondence and migrate the canaries accordingly. No implicit receiver,
+    data-subject conformance, or authority inferred from a domain name.
+  Acceptance: `python tools/corpus_gate.py --filter memory/address_translation_canary,memory/secondary_processor_canary`
+  checks the intended completion flows and rejects forged, unrelated or replayed
+  completion evidence. Keep this blocked on the named authority decision only.
 
 - **STATIC-LOWERING-BORROWED-ARGUMENT-TRANSFER.** (split-of:STATIC-MACHINE-MIGRATION)
   Lower a call that consumes a linear input and returns an affine result
@@ -146,17 +177,139 @@ helper that passes does not close an item.
   through `omega run`. Native execution additionally needs a selected
   `Task::finish` provider; source declarations alone do not supply one.
 
+- **NAMED-IMPLEMENTATION-CONFORMANCE-MIGRATION.** (split-of:STATIC-MACHINE-MIGRATION)
+  Replace data-subject satisfaction with named implementations under
+  [conformances](wiki/spec/language/conformances.md#data-and-code-are-independent).
+  `NormalCounter satisfies CounterOperations<CounterData>` names code, not
+  data; `CounterData` is an ordinary trait argument. There is no `Self`, hidden
+  first type binder, implicit implementing type or special subjectless variant.
+  - Customers: migrate `pass/traits/static_subject_satisfies_receiver_requirement_exit`
+    (authored exit 1) and `pass/proofs/named_witness_static_trait_plural_compile`.
+    Rename the former for named implementation selection while retaining its
+    behavior. Add a runnable pair of implementations over one data type, a
+    trait over two unrelated argument types, and a no-data machine bundle.
+  - Own parsing, resolution, typing, checking and conformance publication in
+    `omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees` through
+    `07_lowered-psi-to-terminal-psi`, their representations and
+    `omega-rust/psi/compilation/checking`; apply the same source contract to
+    the product producer in `source/psi/`. Carry implementation identity,
+    complete ordinary trait arguments, rows and laws through Terminal codecs,
+    interpretation, package review metadata and independent verification.
+    Consumers already scheduled for PCC deletion are deleted, not migrated
+    or restored; retain source checking and authored mathematics proof checking.
+    Remove subject/carrier fields and receiver correspondence used solely for
+    trait satisfaction; do not rename them into a hidden distinguished binder.
+  - Generic implementation binders and exact `satisfies Trait<...>::member`
+    edges substitute declared arguments only. Defaults call the selected map's
+    rows. Keep explicit selection, visibility, laws and complete row identity;
+    fix the named-witness declaration arity path instead of preserving an
+    implicit argument through qualification. No data-owned trait discovery.
+  - **Owner-authorized breaking migration:** break old source APIs, fixtures,
+    snapshots and internal schemas as needed. Intermediate commits may have
+    failures attributable to this removed model; name the affected cases and
+    remaining owning migration task. Delete legacy-only tests and code; rewrite
+    tests of real behavior under the new model. No compatibility modes, aliases,
+    fallback inference, dual implementations or requirement to keep legacy
+    tests green. This does not permit weakening proofs, accepting invalid new
+    programs, or declaring unfinished runtime behavior complete. The same
+    authorization governs the source and dynamic migration tasks below.
+  Acceptance: the named counter program runs and the migrated witness program
+  checks; wrong trait arguments, incomplete maps, data-as-implementation and
+  retired `Self`/subject syntax reject. Run
+  `python tools/corpus_gate.py --filter traits/,proofs/named_witness_static_trait_plural_compile`
+  on the rewritten coverage and focused package checks for changed owners.
+  Product-producer parity is required; changes to the accepted bootstrap chain
+  still follow its proofs, not a golden-file reset. Coordinate source batches
+  with **TRAIT-IMPLEMENTATION-SOURCE-MIGRATION**, not a second syntax dialect.
+
+- **TRAIT-IMPLEMENTATION-SOURCE-MIGRATION.** (split-of:STATIC-MACHINE-MIGRATION)
+  Aggressively migrate authored requirements, implementations and consumers to
+  the [named-implementation model](wiki/spec/language/conformances.md).
+  Depends on **NAMED-IMPLEMENTATION-CONFORMANCE-MIGRATION** for compiler
+  support; source conversion can be prepared concurrently in disjoint paths.
+  - Own the affected declarations in `source/library/`, `samples/`, and
+    `tests/omega/`, with item/path claims for independent batches. Update exact
+    satisfaction edges, generic bounds, inherited trait arguments, defaults,
+    operator wrappers, placed-access families, proof bundles and test-group
+    registrations together with their callers. No blanket `Self` replacement:
+    declare each actual data type parameter where the signature needs it.
+  - Customers include `source/library/core/layout.omg`,
+    `samples/gui/{window_app,window_demo,windowed_calculator,image_viewer}`,
+    clock-bearing CLI samples, and
+    `pass/progress/provider_receiver_progress_installation`. Providers remain
+    stateless (**STATELESS-PROVIDERS**). Persistent state is explicit returned
+    data passed back by callers. Vtable addresses belong to the foreign binding
+    plan, not an invented provider object. Capability preconditions name real
+    declared values and their exact service relationship; do not remove a
+    fairness requirement merely to eliminate an old receiver.
+  - Audit current source rather than trusting retired receiver-declaration counts.
+    Preserve real behavior oracles; rename or replace fixtures whose names or
+    shapes pin data-subject satisfaction. Delete tests whose only purpose is
+    legacy acceptance. Apply the breaking-migration authorization above.
+  Acceptance: the migrated counter/witness programs, placed access corpus and
+  progress customer work under their existing behavioral obligations; clock
+  samples and the four GUI customers compile and run on their supported hosts
+  with their authored results. Use `python tools/corpus_gate.py --filter traits/,layouts/,progress/`
+  plus `python tools/sample_gate.py --filter gui/window_app,gui/window_demo,gui/windowed_calculator,gui/image_viewer`
+  and focused clock sample filters for source checks, then
+  `mbx run -p omega -- run <sample/main.omg>` on supported hosts against each
+  sample's runtime oracle. Existing unrelated backend blockers
+  remain named dependencies, not permission to restore a subject. No active
+  Omega source retains `Self`, data-subject satisfaction, or implicit receiver supply.
+
+- **DYNAMIC-IMPLEMENTATION-SELECTION-MIGRATION.** (split-of:RESTORE-DYNAMIC-DESCRIPTOR-AND-TABLE-CUSTODY)
+  Replace data-attached trait objects with runtime selection of named
+  implementations under [dynamic dispatch](wiki/spec/terminal-psi/dynamic_dispatch.md).
+  Depends on **NAMED-IMPLEMENTATION-CONFORMANCE-MIGRATION** for closed maps.
+  The implementation selector and every data argument have distinct identities;
+  no argument is an erased subject and no caller requires an attachment.
+  - Customers: rewrite `pass/traits/runtime_dyn_two_impl_dispatch_exit`,
+    `runtime_local_named_dyn_devirtualized_exit`,
+    `runtime_local_named_dyn_pass_through_exit`, and `dyn_finite_family_dispatch`
+    to select named implementations and pass data separately. Keep runtime
+    branching, descriptor rebinding/forwarding, mutation and result oracles;
+    do not reduce all calls to known static selections.
+  - Own Psi dynamic checking/facts and stages 04/05/07, Terminal selection/call
+    representation and codec, and corresponding `source/psi/` producers.
+    Delete the `structural.is_empty()`/caller attachment requirement in
+    `composed_control/dynamic_result`, synthetic `is_self` parameters in
+    `dynamic_composed_unit`, data-place-to-dyn coercions and the one-`&Self`
+    eligibility rule. Bind all types through ordinary trait applications.
+    Zero-data calls, two same-type data arguments, two different data types,
+    and concrete owned results use the same ordinary call machinery.
+  - Forward and store selector identity independently from explicit argument
+    loans and places. Entry establishment must see ordinary context parameters
+    in dynamic callers rather than recover a hidden receiver. Preserve exact
+    rows, contracts, finite families, proof actuals and private selection
+    visibility. Package review and independent verification consume the same
+    new records; reject obsolete records rather than translate them silently.
+  - **RESTORE-DYNAMIC-DESCRIPTOR-AND-TABLE-CUSTODY** owns consuming this model
+    in Omega lowering and native emission, including `source/omega/` parity.
+    Remove the instance half of descriptors and receiver adapters end to end.
+    Apply the breaking-migration authorization above. Hiding input/output types
+    is separate work, not a prerequisite and not permission to restore `Self`.
+  Acceptance: `python tools/corpus_gate.py --filter traits/` covers the migrated
+  programs with interpreter/native result agreement on matching supported hosts.
+  A selector changes implementation at runtime while operating on the same
+  explicit counter; separate coverage uses zero and multiple data arguments.
+  A mismatched trait application rejects, and copying/rebinding the selector
+  neither captures data nor changes its borrow lifetime. No legacy dynamic
+  subject path remains. Native completion depends on the custody task below.
+
 - **STATIC-MACHINE-MIGRATION.** (new-scope) Eliminate machine/state `self`
   receivers and implicit receiver calls under the
   [static-machine contract](wiki/spec/language/machines.md#static-declarations-and-explicit-state).
-  This is an owner decision, not an optional compatibility mode. The parser
+  This is an owner decision, not an optional compatibility mode. The
+  [named-implementation decision](wiki/spec/language/conformances.md#data-and-code-are-independent)
+  also removes data-subject conformances and `Self`; the three implementation
+  migration tasks below own that work. Their authorization to break legacy tests
+  and remove compatibility paths applies to this migration too. The parser
   rejects `self` parameters and implicit `self` expressions
   (`fail/machines/retired_self_receiver`); do not restore them to make an
   unmigrated program pass.
   - Source remainder: boundary-trait requirements in
     `samples/gui/{window_app,window_demo,windowed_calculator}/main.omg`
-    (owner question Q1 `trait-requirement-subject-binding` and
-    **STATELESS-PROVIDERS**) and the two memory canaries
+    (**TRAIT-IMPLEMENTATION-SOURCE-MIGRATION** and **STATELESS-PROVIDERS**) and the two memory canaries
     (**STATIC-BOUNDARY-REQUIREMENT-CALL-FORM**). Build receiver calls remain
     for facets such as test groups. Move their producers and consumers to
     namespace-qualified calls with explicit arguments, following `Build::bind`,
@@ -216,26 +369,38 @@ additional evidence without an exercising program. The
 defines the complete product bar.
 
 - **REFERENCE-BEARING-RECORD-LOCAL-FILL.** (split-of:STATE-LOCAL-VALUE-FRONTIER)
-  Assign a byte concatenation into a local borrowed-view record field.
-  - Customers: `tests/omega/pass/text/runtime_string_stored_suffix_exit`
-    (exit 193) and `tests/omega/pass/text/runtime_local_struct_string_field_concat_exit`
-    (exit 188). Both are recorded rejected: the machine's unit plan is
-    omitted at local construction at `structural field store: destination
-    parameter` (state 1, statement 3), assigning concatenation into the
-    uninitialized borrowed-view local `out_line`.
-  - Missing: the concatenation's result backing and the assigned view's
-    lifetime under
-    [byte construction](wiki/spec/terminal-psi/structural_access.md#store-vocabulary)
-    and [storage provision](wiki/spec/language/generics.md#value-binders-and-const-requirements).
-    The existing operation materializes a bounded owner; these customers
-    declare only `&[u8]`. Do not infer storage authority from `Utf8`, reserve
-    an arbitrary maximum, or add a literal-flow recognizer.
-  - Keep: descriptor lifetime, overlapping-write rejection, and the controls
+  Generalize borrowed-view descriptor stores to an ordinary root plus path,
+  including an empty path selecting a whole local. This is delegated Psi
+  representation work under [the implementation policy](omega-rust/pipeline.md#psi-implementation-and-deferred-human-audit),
+  not an open `borrowed-view-whole-slot-store` language decision.
+  - Customers: `pass/text/runtime_string_stored_suffix_exit` (exit 193) and
+    `pass/text/runtime_local_struct_string_field_concat_exit` (exit 188).
+    The recorded first failure assigns into the uninitialized borrowed-view
+    local `out_line`; an assignment of a literal alone exposed the same gap.
+    Reproduce that first, rather than conflating it with concatenation backing.
+  - Stage 04's `structural_scalar_store/destination.rs::owned_local_root`
+    still limits declared structural homes to named/generic/fixed-array forms;
+    the downstream descriptor path also requires a final field. Replace the
+    root/field split through checked plans, stage 05, Terminal encoding,
+    interpretation and Omega lowering. Reuse the ordinary store path instead
+    of adding a view-local recognizer. Follow
+    [store vocabulary](wiki/spec/terminal-psi/structural_access.md#store-vocabulary).
+  - Then resolve concatenation backing and lifetime under ordinary bounded
+    storage rules. The current operation materializes an owned result while
+    these customers declare only a borrowed view. `Utf8` grants no storage;
+    neither an arbitrary maximum nor a literal-flow exception supplies it.
+    The recorded initialized-view variant instead reached Omega's control-flow
+    observations refusal; reproduce it against the current compiler before
+    treating that historical diagnostic as the frontier.
+  - Retain descriptor lifetimes, overlapping-write rejection and the controls
     `pass/text/declared_record_view_field_fill_exit`,
-    `pass/wire/runtime_wire_utf8_edge_verdicts_exit` and
+    `pass/wire/runtime_wire_utf8_edge_verdicts_exit`, and
     `pass/domains/runtime_qualified_view_field_parameter_store_exit` (exit 70).
-  Acceptance: both unchanged customers reach their authored exits natively
-  and in the checked interpreter.
+    Do not revive Terminal verification scheduled for deletion by the PCC work.
+  Acceptance: `python tools/corpus_gate.py --filter text/runtime_string_stored_suffix_exit,text/runtime_local_struct_string_field_concat_exit,text/declared_record_view_field_fill_exit,domains/runtime_qualified_view_field_parameter_store_exit`
+  covers first initialization, reassignment and the two authored exits in native
+  and checked-interpreter execution, with invalid lifetime/read-before-establishment
+  controls. The closure must preserve backing through surviving copies.
 
 - **STATE-LOCAL-VALUE-FRONTIER.** Complete ordinary expression, call and
   storage composition through checked plans and native execution, preserving
@@ -648,7 +813,7 @@ defines the complete product bar.
     MicrosoftX64 policy mismatch;
     `omega-rust/omega/compilation/realization/provider-planning/src/program_entry.rs`
     selects schemas by bare name, so the local `UefiApplication` collides first.
-    Exact schema identity: **UEFI-PHYSICAL-SEMANTIC-ENTRY**. Do not repin onto
+    Exact schema identity: **ENTRY-SLOT-EXACT-SCHEMA-SELECTION**. Do not repin onto
     the duplicate-schema error.
   - `fail/providers/checked_boundary_operator_const_application_unselected`:
     recorded diagnostic and `expected.txt` disagree; it must reject for missing
@@ -889,8 +1054,8 @@ defines the complete product bar.
     goes with it.
   - A foreign-bound provider whose fields hold vtable addresses
     (`ForeignBinding::VtableField`) takes those from its foreign binding plan,
-    not from provider data; owner question Q1 covers the subject-free
-    requirement side.
+    not from provider data. **TRAIT-IMPLEMENTATION-SOURCE-MIGRATION** owns
+    the requirement conversion under the settled named-implementation contract.
 
   Acceptance: no satisfier declares a parameter its requirement lacks (a fail
   fixture pins the rejection); the four GUI samples check;
@@ -3227,8 +3392,17 @@ deletions, which its commit lists.
 - **TERMINAL-VERIFIER-DELETED.** (new-scope) Depends on
   **OMEGA-READS-TERMINAL-UNVERIFIED**. Delete the `terminal-verifier` crate
   (`omega-rust/psi/compilation/representations/terminal-psi/verification/`)
-  and its tests. Acceptance: workspace `mbx build --lib --tests` succeeds and
-  the corpus is unchanged.
+  and its tests. This also retires its `trusted_surface` ledger and stale
+  `TEST_ONLY_SOURCES` inventory. `trusted-surface-ledger-drift` is superseded
+  by this deletion, not a reason to restore the removed verifier test suite.
+  Remove `tools/trusted_surface_digests.py` and the landing guard/documentation
+  that refers to this retired ledger once its consumers are gone; retain the
+  independent mathematics kernel and bootstrap proof obligations. Until removal,
+  changes to still-bound production sites require the documented revalidation,
+  not permission from their original author. Historical drift is not a blanket
+  authorization to refresh hashes without checking the citing entries.
+  Acceptance: workspace `mbx build --lib --tests` succeeds, the corpus is
+  unchanged, and no maintenance or landing command reads the deleted ledger.
 
 - **PCC-WIRE-DELETED.** (new-scope) Depends on **PCC-CERTIFICATES-DELETED**.
   Delete the proof transport in one commit and bump the codec version:
@@ -4454,6 +4628,8 @@ wait for Cathedral's instruction coverage. The interpreter is
   [native-artifact's receiver wrapper](omega-rust/omega/compilation/backend/artifacts/native-artifact/src/fragment_object_publication.rs)
   to actual arrival and scoped providers through
   `omega-rust/omega/compilation/backend/runtime/external-roots/src/platform_bringup/uefi_bootstrap/`.
+  Exact entry schema selection is split into
+  **ENTRY-SLOT-EXACT-SCHEMA-SELECTION**; consume that selected identity here.
   Needs a source customer and a firmware or controlled-provider execution
   harness. Repair general capabilities in their owners; no firmware-protocol
   intrinsics.
@@ -4549,10 +4725,12 @@ wait for Cathedral's instruction coverage. The interpreter is
   on `DescriptorTableValidation::run`'s `terminates by fuel` ranking until
   `0b98b2fc46a`. It now stops at "direct call `complete` names public boundary
   requirement `InterruptAcknowledgement::complete`, which has no selected
-  provider" -- provider selection, the same family as OWNER_QUESTIONS Q8, and
-  no `satisfies` row for that requirement exists anywhere in the repository.
-  Q8's answer decides whether one is owed here, so this item is gated on it
-  rather than on the backend joins below.
+  provider". The remaining owner decision
+  `boundary-requirement-call-without-installation` in `OWNER_QUESTIONS.md`
+  determines whether retained installation evidence selects completion or an
+  explicit provider binding is also required. No `satisfies` row for this
+  requirement currently exists. Resolve that dependency before the backend
+  joins below; explicit call arguments alone do not establish authority.
   - Join the stub and member-call relocation from
     `omega-rust/omega/compilation/backend/machine-emission/src/entry_exit_stub.rs`
     to image placement, installation and external-root admission;
@@ -5308,33 +5486,36 @@ wait for Cathedral's instruction coverage. The interpreter is
   zeros). **OPERATOR-BOUNDARY-CALLS** owns executable provider installation;
   **X86-FMA-PROVIDER-TRANSPORT** owns native FMA.
 
-- **RESTORE-DYNAMIC-DESCRIPTOR-AND-TABLE-CUSTODY.** Finish native borrowed
-  [dynamic dispatch](wiki/spec/terminal-psi/dynamic_dispatch.md), starting with
-  a non-entry helper that forwards a descriptor and uses its call result across
-  calculations and branches.
-  - Legalization keeps the complete descriptor entry signature; instruction
-    selection still rejects `LegalizedScalarInstructionKind::DynamicParameterCall`.
-    Carry the indirect call through selection, register allocation and ISA
-    emission, then immutable tables, relocations and final-image custody.
+- **RESTORE-DYNAMIC-DESCRIPTOR-AND-TABLE-CUSTODY.** Consume the selector/data
+  separation from **DYNAMIC-IMPLEMENTATION-SELECTION-MIGRATION** in Omega
+  lowering and native execution under [dynamic dispatch](wiki/spec/terminal-psi/dynamic_dispatch.md).
+  Start with a helper that forwards a selector, accepts explicit data arguments,
+  and uses the result across calculations and branches. The breaking-migration
+  authorization in **NAMED-IMPLEMENTATION-CONFORMANCE-MIGRATION** applies.
+  - Own Omega pipeline representations, lowering, instruction selection,
+    register allocation, ISA emission and image table/relocation custody,
+    plus corresponding `source/omega/` code. Replace the old `{instance, table}`
+    descriptor and receiver adapters with implementation selection plus the
+    requirement's ordinary operands. No subject slot, forced parameter zero,
+    hidden receiver or fallback legacy call route.
+  - Known old-path gaps to resolve in the new route: instruction selection
+    rejects `LegalizedScalarInstructionKind::DynamicParameterCall`, and
     `omega-rust/omega/compilation/backend/images/image-emission/src/function_fragments/production.rs`
-    emits empty dynamic rosters and validation rejects nonempty ones.
-  - Preserve the erased caller shape and exact instance/table/slot, ABI,
-    clobber, effect and receiver-loan identities. Unit calls have no result
-    home; descriptor and result storage cannot overlap. Keep complete tables
-    including trap slots. Retire superseded forwarded-call recognizers without
-    unproved devirtualization.
-  - Storage composition: `pass/traits/runtime_local_named_dyn_pass_through_exit`
-    rejects at checked descriptor reassignment (`structural field store: target
-    place`). `omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/unit/dynamic_composed_unit/forwarded_helpers.rs`
-    requires one call, immutable scalar locals, matching result carriers and
-    empty contracts; extend it to ordered effects, mutable storage and
-    differing results through the ordinary operation owners.
-  Acceptance: `runtime_local_named_dyn_pass_through_exit` runs; new run
-  fixtures select distinct implementations at runtime on Linux x86-64/AArch64
-  matching hosts and preserve calculations and writes to the original
-  referent; public dynamic returns keep producer-private selection.
-  Entry-receiver provisioning is a separate customer; owned erased cleanup
-  belongs to **CLEANUP-HOOK-SELECTION-AND-ERASED-OWNERSHIP**.
+    emits empty dynamic rosters. Implement indirect calls, immutable complete
+    tables, relocations and final-image evidence through the ordinary owners.
+  - Preserve exact table/slot, ABI, clobber, effect and explicit argument-loan
+    identities. Unit calls have no result home; selector and result storage
+    cannot overlap. Tables retain trap slots and private implementation
+    identities. Forwarding, storage and result composition must accept ordinary
+    effects and control flow; remove superseded one-call/scalar recognizers.
+  Acceptance: migrated `runtime_local_named_dyn_pass_through_exit` and
+  `runtime_dyn_two_impl_dispatch_exit` run on matching supported hosts, including
+  Windows and macOS. Their results and writes to explicitly supplied data agree
+  with interpretation. Add zero-data and multiple-data-argument calls and
+  preserve producer-private selection on returned selectors. Run
+  `python tools/corpus_gate.py --filter traits/` and affected backend checks.
+  A `dyn` selector owns no implicit data; explicit owners retain the ordinary
+  cleanup obligations covered by **CLEANUP-HOOK-SELECTION-AND-ERASED-OWNERSHIP**.
 
 - **TARGET-SEMANTIC-APPLICATIONS.** Make compile-time evaluation consume the
   [target-semantic capsule](wiki/spec/language/evaluation.md#target-semantic-capsule)

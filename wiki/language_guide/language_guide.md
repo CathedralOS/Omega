@@ -32,7 +32,7 @@ Proof and semantic model:
 Language-building features:
 
 - [Chapter 13: Generics](chapter_13_generics.md)
-- [Chapter 14: Traits And Erased Dispatch](chapter_14_traits.md)
+- [Chapter 14: Traits And Runtime Implementation Selection](chapter_14_traits.md)
 - [Chapter 15: Modules, Imports, And Visibility](chapter_15_modules_imports_visibility.md)
 - [Chapter 16: Errors, Traps, And Failure](chapter_16_errors_traps_failure.md)
 - [Chapter 17: Drops And Cleanup](chapter_17_drops_and_cleanup.md)

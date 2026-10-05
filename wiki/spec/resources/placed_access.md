@@ -147,7 +147,7 @@ checked operation. Route authorization alone proves neither absence of content
 nor possession of a resident; predicates and custody obligations remain separate.
 
 Non-runtime Type fields use an ordinary authored custody record `C` and one
-explicit named `C satisfies PlacementCustody<P, T>` conformance. Agreement
+explicit named implementation of `PlacementCustody<C, P, T>`. Agreement
 checks exact canonical field paths, types, multiplicities, and the evaluated
 plan's represented/custody decisions. It grants no storage, content, provider,
 or domain authority. Case-dependent custody requires an authored machine that
@@ -252,11 +252,12 @@ and read-patch-write reserve the whole container. Logically disjoint bitfields
 therefore cannot acquire overlapping exclusive RMW access. A destructive read
 returns one whole owned snapshot before pure field projection; it derives
 `DestructiveRead`, not `Readable`. Granular accessor requirements take explicit
-borrowed subjects: `Readable::read(accessor: &Self)`,
-`DestructiveRead::take(accessor: &mut Self)`, and mutable accessor parameters
-followed by the value parameter for `Writable::write` and `Swappable::swap`.
-The exact atomic families likewise declare their subject explicitly. `Self`
-denotes the selected conformance's type, not an implicit machine argument.
+ordinary parameters: `Readable<Accessor, Value>::read(accessor: &Accessor)`,
+`DestructiveRead<Accessor, Value>::take(accessor: &mut Accessor)`, and mutable
+accessor parameters followed by the value for `Writable` and `Swappable`.
+`Accessor` and `Value` are ordinary declared trait parameters. Named
+implementations supply these operations; accessor data does not satisfy a
+trait. The exact atomic families likewise name their argument types explicitly.
 
 External guarantees a non-elided transfer at its declared width and preserves
 relative External order within one region and activation. It does not guarantee

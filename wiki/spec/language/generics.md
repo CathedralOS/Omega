@@ -391,7 +391,7 @@ from the selected public contract within the requirement's bound. Ordinary call
 acknowledgements follow the abstract envelope, not incidental stronger behavior.
 
 A required member operation belongs to a named trait and is supplied through an
-explicit conformance binder, for example `Order: Element satisfies Ranked`.
+explicit conformance binder, for example `Order satisfies Ranked<Element>`.
 There is no anonymous member requirement inferred or carried by a
 `where machine T::member(...)` clause. A structural contract for an independently
 bound machine parameter is the distinct form below.
@@ -400,8 +400,9 @@ bound machine parameter is the distinct form below.
 selection and explicit arguments to generic conformance applications. Expected
 shape validates an explicitly selected map; it does not discover one or fill
 its non-lifetime arguments. An already-closed evidence binder forwards its map.
-Explicit trait type parameters supply dependent interface types; no associated-
-type declaration surface is specified here.
+Explicit trait type parameters supply all data types needed by the interface.
+There is no implementing data subject, `Self` binder, or associated-type
+declaration surface. Evidence parameters name implementations, not data types.
 
 ## Static machine binder categories
 

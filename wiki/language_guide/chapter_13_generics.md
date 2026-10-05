@@ -39,7 +39,7 @@ acquire runtime layout merely by being closed.
 A generic machine can require one explicitly passed conformance:
 
 ```omega
-machine equal<T, Equality: T satisfies Equatable>(left: &T, right: &T) -> bool {
+machine equal<T, Equality satisfies Equatable<T>>(left: &T, right: &T) -> bool {
     Equality::equals(left, right)
 }
 ```
@@ -116,8 +116,8 @@ and 64 select different kernels without requiring arbitrary dynamic layouts.
 An explicit OR constraint can describe the family once:
 
 ```omega
-trait ByteScanner {
-    machine scan<Width: u32>(scanner: &Self, bytes: &[u8]) -> u64
+trait ByteScanner<Scanner> {
+    machine scan<Width: u32>(scanner: &Scanner, bytes: &[u8]) -> u64
     where
         Width == 16 || Width == 32 || Width == 64;
 }
@@ -141,8 +141,8 @@ define the rules.
 
 The implementation canary
 `tests/omega/pass/traits/dyn_finite_family_dispatch` exercises separate generated
-rows for closed widths 16 and 32. Its remaining receiver syntax is migration
-debt, not the static source contract shown above. The implemented limit is
+rows for closed widths 16 and 32. Any remaining receiver or data-subject
+conformance syntax is migration debt under the named-implementation contract. The implemented limit is
 narrower than "no generic virtual calls": the binder tuple must be one complete
 roster tuple of closed static values; runtime width selection is not yet covered.
 
@@ -280,7 +280,7 @@ Indexed<combine(A, B)>  ->  Indexed<combine(B, A)>
 
 Require a trait containing `combine` and its commutativity law, then have the
 caller supply a checked conformance. An ordinary binder such as
-`Algebra: Index satisfies CommutativeCombine` supplies both the operation and
+`Algebra satisfies CommutativeCombine<Index>` supplies both the operation and
 the proof; `CommutativeCombine` is a library trait, not a compiler keyword.
 Reassociation needs an associativity law as well. Merely carrying an index
 requires neither law, and naming an operation `+` proves neither one.
@@ -387,7 +387,7 @@ conformance binder, not an anonymous `where machine T::member(...)` declaration.
 For example, assuming `Ranked` declares the required ordering operations:
 
 ```omega
-machine sort<Element, Order: Element satisfies Ranked>(values: &mut [Element]) {
+machine sort<Element, Order satisfies Ranked<Element>>(values: &mut [Element]) {
     ... // implementation and proof omitted
 }
 
@@ -397,7 +397,7 @@ sort<Card, PowerOrder>(&mut cards);
 When the selected conformance owns parameters, its application nests inside the
 evidence argument, as in `SequenceEncoding<u8, PlayerMessage>`. Every type,
 const, and static-machine argument owned by that conformance is explicit. The
-expected subject and trait validate the resulting closed map; they do not fill
+expected trait application validates the resulting closed map; they do not fill
 missing arguments or `_` holes. An already-closed evidence binder forwards bare.
 
 Only lifetime arguments follow ordinary application-site elision, and only
@@ -416,7 +416,7 @@ times, not permission to reinterpret runtime data as arbitrary type declarations
 Calls through explicitly selected evidence are static by default:
 
 ```omega
-machine Runner::tick<T, Increment: T satisfies Incrementable>(subject: &mut T) {
+machine Runner::tick<T, Increment satisfies Incrementable<T>>(subject: &mut T) {
     Increment::increment(subject);
 }
 ```

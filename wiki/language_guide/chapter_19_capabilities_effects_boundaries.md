@@ -180,8 +180,7 @@ data LoggingProxy {
     service: Binding<LoggingService>;
 }
 
-ComponentLogger:
-    LoggingProxy satisfies Logger
+ComponentLogger satisfies Logger<LoggingProxy>
 {
     machine write(proxy: &LoggingProxy, text: &[u8])
         reaches LoggingService
@@ -192,8 +191,8 @@ ComponentLogger:
 }
 ```
 
-The local descriptor points to the proxy; the proxy calls through the service's
-selected entry and provider lease. See [traits](chapter_14_traits.md) for local
+The local descriptor selects `ComponentLogger`; each call passes the proxy
+explicitly. Its machine uses the service's selected entry and provider lease. See [traits](chapter_14_traits.md) for local
 dynamic values and [component publication](../spec/build/component_publication.md)
 for service carriers, duplication, era pins, and replacement.
 
@@ -856,7 +855,7 @@ named `MicrosoftX64Policy` conformance is in scope:
 
 ```omega
 boundary trait WindowProcedure:
-    Calling<MicrosoftX64>
+    Calling<MicrosoftX64Policy>
 {
     machine call(
         window: HWnd,

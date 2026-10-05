@@ -103,6 +103,12 @@ stages or the application crate; the owner rejected that consolidation on
 
 The rules that touch every edit:
 
+- Data and code are independent: named implementations satisfy traits; data
+  does not. Trait data types are ordinary explicit parameters. There is no
+  conformance subject, `Self` type binding, or implicit `self` value. `dyn`
+  selects an implementation at runtime; data arguments stay separate. Follow
+  [named implementations](wiki/spec/language/conformances.md#data-and-code-are-independent)
+  and remove legacy support rather than preserving it for old tests.
 - Real words in code (`character`, `expression`, `arguments` — not `ch`,
   `expr`, `args`). Names must read outside compiler insiders: `pipeline`
   over `driver`.

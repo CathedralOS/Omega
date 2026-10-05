@@ -121,7 +121,7 @@ the exact argument path, identity, and establishment lineage under
 Checked satisfiers are ordinary Terminal machines with canonical conformance
 rows. A row binds the exact boundary requirement, nominal provider, canonical
 adapter, artifact-local machine, signature, and checked service refinement.
-Resolve selected adapters by exact overload, provider type, and adapter identity
+Resolve selected adapters by exact overload, provider implementation, and adapter identity
 against the verified catalog, then admit only those machine identities for the
 exact artifact. A cataloged boundary without that installation rejects; it must
 not fall through to a generic host effect handler.

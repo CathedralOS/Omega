@@ -250,7 +250,7 @@ and [root-assumed contracts](chapter_19_capabilities_effects_boundaries.md#root-
 ## Calling Conventions
 
 Omega's internal calling convention is compiler-owned. A boundary pins an
-observable promise through `Calling<C>`, where `C` carries an exact named
+observable promise through `Calling<Policy>`, where `Policy` is an exact named
 `CallingPolicy` conformance.
 
 | Plan | Question |
@@ -370,7 +370,7 @@ protocol machines, not additional access-plan cases.
 Helpers can accept just the operation they need:
 
 ```omega
-machine send_byte<T, Write: T satisfies Writable<u8>>(
+machine send_byte<T, Write satisfies Writable<T, u8>>(
     transmit: &mut T,
     byte: u8
 )
@@ -437,8 +437,9 @@ data PacketCustody {
     authority: DeviceAuthority;
 }
 
-pub PacketNativeCustody:
-    PacketCustody satisfies PlacementCustody<Native, Packet>;
+pub PacketNativeCustody satisfies PlacementCustody<PacketCustody, Native, Packet> {
+    // Exact required custody rows.
+}
 ```
 
 The conformance checks exact field paths, types, multiplicities and plan decisions.

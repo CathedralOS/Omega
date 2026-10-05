@@ -36,6 +36,17 @@ by `STATIC-MACHINE-MIGRATION`; deleting a table column alone would misdescribe
 the bytes. Do not introduce new receiver-specific authority or dependencies on
 those flags while completing that migration.
 
+The same distinction applies to the legacy conformance subject field and the
+single structural argument stored in a dynamic selection below. The
+[named-implementation contract](../language/conformances.md#data-and-code-are-independent)
+has no subject. The [dynamic contract](dynamic_dispatch.md) retains an
+implementation selector separately from zero or more ordinary call arguments.
+`NAMED-IMPLEMENTATION-CONFORMANCE-MIGRATION` and
+`DYNAMIC-IMPLEMENTATION-SELECTION-MIGRATION` must remove those legacy fields
+across producers, codecs, interpreters and consumers together. The byte tables
+record the current implementation during that migration; they do not authorize
+retaining the old semantic model or decoding it as a compatibility dialect.
+
 Operation variants are closed and typed. Their referenced values must be
 available under the operation's definition/dominance rules. Each reconstructs
 its logical result and obligations; an encoded proof cannot select them.
@@ -1215,6 +1226,12 @@ id and ordinal, and each call's outputs are positional by output position.
 
 ### Closed conformance applications
 
+Implementation migration: the `optional subject identity` below is retired
+semantic state. The replacement identity is the named implementation, its
+complete telescope and trait application, rows, laws and callable identities.
+Do not infer a subject from the first type argument or emit a permanent empty
+subject field as the new representation.
+
 | Row | Fields |
 | --- | --- |
 | closed conformance application | owner machine id + declaration identity string + counted telescope bindings + optional subject identity + trait identity string + counted trait lifetime argument strings + counted trait argument strings + counted realization callables + counted conformance rows + `u64` report fingerprint + 32-byte commitment |
@@ -1243,6 +1260,13 @@ Closed conformance applications are strictly ordered by owner machine id,
 declaration identity, and report fingerprint.
 
 ### Dynamic dispatch tables
+
+Implementation migration: the exactly-one structural argument in the selection
+row below belongs to the retired data-attached descriptor. In the replacement,
+selection rows identify implementations only; dispatch rows retain an explicit
+selector and the requirement's complete ordinary argument roster. Data arguments
+use the shared call vocabulary and preserve their own place/access/lifetime
+facts. The selector has no implied instance or subject parameter position.
 
 | Row | Fields |
 | --- | --- |

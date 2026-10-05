@@ -645,8 +645,10 @@ Unread structural operands and receivers still occupy authored positions;
 dense scalar positions count only preceding primitive parameters.
 
 Boolean entry readers admit direct owned formals and plain field paths through
-eligible owned/shared/mutable roots. Explicit receiver paths rejoin the exact
-machine-owned `Self` alias and nominal field identity. Fixed-integer comparisons
+eligible owned/shared/mutable roots. Explicit argument paths must rejoin the
+declared parameter type and nominal field identity. The old machine-owned
+`Self` alias is migration debt under `NAMED-IMPLEMENTATION-CONFORMANCE-MIGRATION`,
+not an accepted type binding. Fixed-integer comparisons
 share literal landing, same-carrier construction, and numbered-field handling
 with the integer-contract owner; write-only fields supply no readable hypothesis.
 Comparison totality on policy-qualified inputs does not admit arithmetic, casts,

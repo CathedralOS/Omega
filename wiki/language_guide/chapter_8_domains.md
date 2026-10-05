@@ -360,8 +360,8 @@ Examples:
 - `bytes as [u8]::Path` requires a proof of `no_nul(bytes) == true`;
 - `5 as i32::Km` is direct qualification because `Km` states no obligations;
 - `small as u32` succeeds only when representability is proved;
-- `&card as &dyn PowerOrder` proves the named conformance fits and
-  packages the same referent with its local dispatch table;
+- `PowerOrder as dyn Ranked<Card>` proves the named implementation fits and
+  packages its local dispatch selection; card data is passed separately;
 - `reservation as Reservation::Issued` fails when issuance requires
   `BoxOffice` state;
 - `extent as Extent::Granted` fails when authority requires an admitted root

@@ -36,6 +36,15 @@ it must instead satisfy [required artifact completion](scoped_execution.md#stage
 Runtime-installed slots may remain open until installation validates the
 same shape, portable demands, target supply, authority, and lifecycle.
 
+The `entry-slot-schema-resolved-by-bare-name` issue is answered by the exact
+identity rule above. Resolve the target-owned schema, or the exact
+consumer-accepted package/schema on a package-aware route. An unrelated
+same-leaf declaration neither shadows that selection nor creates a second
+candidate. The caller's package and a declaration's leaf spelling cannot
+choose the schema. Selecting an alternate package contract requires the
+existing explicit accepted binding; loading it is not selection. The remaining
+lookup and canary repair is `ENTRY-SLOT-EXACT-SCHEMA-SELECTION` in `TASKS.md`.
+
 ## Source selection is not invocation
 
 For an application named `entry_example`, Build selects
@@ -55,7 +64,7 @@ permits provisioning, it designates one ordinary mutable context parameter,
 for example `machine Application::start(context: &mut Application)`. The
 qualified declaration path does not supply or imply that parameter. Build
 selects the declaration, not a context value or invocation arguments; the arrival
-bridge supplies the schema-declared arguments. The provider selection names a nominal type;
+bridge supplies the schema-declared arguments. The provider selection names a provider implementation;
 its ordinary satisfiers determine the derived plan. A leaf needs `via` only for
 payload not derivable from its exact declaration and target.
 

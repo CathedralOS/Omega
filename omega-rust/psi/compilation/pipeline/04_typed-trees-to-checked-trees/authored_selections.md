@@ -22,10 +22,10 @@ overloads, operators, and inferred conformances after checking succeeds.
 | Trait parent / body requirement | Exact resolved trait under enclosing exposure. Its explanatory `trait_parent` span is not a separate grant. |
 | Attached declaration head | Exact carrier type selection, including exported boundary supply. |
 | Contract membership | Selected domain declaration; parameter/local roots stay lexical. |
-| Qualified conformance bound | Exact carrier and conformance; enclosing declaration determines exposure. |
+| Named implementation bound | Exact implementation and explicit trait arguments; enclosing declaration determines exposure. No data-subject selection. |
 | Quotient formation | Every authored carrier/relation/trait/application coordinate; selected proof conformance alone uses private formation exposure. |
 | Explicit static conformance argument | Exact source-backed declaration at its own token. |
-| Inferred conformance argument | Exact unique specialization selection and qualified fingerprint, attached to the authored call; do not duplicate explicit arguments at the call token. |
+| Specialized conformance application | Retain the explicitly selected implementation and complete specialization fingerprint; type inference never discovers an implementation. |
 | Unit/discarded-result statement call | Preserve the call and explicit static arguments before rebuilding statement tables; checked flow finalizes late targets and inferred conformances. |
 | Nested static arguments | Retain each declaration path recursively. Conformances keep their evidence-specific kind; type/machine/forwarded binder paths share static-argument kind with exact symbol/telescope category. Integer literals name no declaration. |
 | Named const | Static arguments join declaration and canonical value; expression substitution retains declaration provenance and occurrence without carrying const semantics into runtime trees. |

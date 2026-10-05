@@ -4,12 +4,42 @@ A trait names machine requirements and their laws. A whole-trait conformance is
 one explicitly selected, closed implementation map. An exact machine
 satisfaction edge implements one requirement; it does not claim the whole map.
 
+## Data and code are independent
+
+Named decision: `trait-requirement-subject-binding`, settled 2026-10-04.
+Removing `self` decouples data and code; it is not just a receiver spelling
+change. Data declares storage, machines declare operations, traits declare
+machine requirements, and named implementations satisfy those requirements.
+A conformance is the checked identity and complete requirement-to-machine map
+of a named implementation. It is neither a data declaration nor an instance.
+
+Data does not satisfy traits. A conformance has no data subject, carrier type,
+implicit first type parameter, or privileged implementing type. `Self` has no
+binding and is retired together with receiver `self`. Types needed by a trait
+are ordinary declared parameters; zero, one, or several are allowed, and none
+has special status. An implementation name identifies a map of machines, not a
+type that can be borrowed as state. All state remains explicit value arguments.
+
+These are the governing source rules. Existing compiler support, fixtures and
+library declarations using data-subject conformances are migration debt, not
+an alternative dialect. The migration may break old tests and source APIs;
+remove the old paths rather than add compatibility inference, aliases or modes.
+Replacement tests must retain the actual behavior and safety obligations.
+Implementation work is on the [execution board](../../../TASKS.md) under
+`NAMED-IMPLEMENTATION-CONFORMANCE-MIGRATION`,
+`TRAIT-IMPLEMENTATION-SOURCE-MIGRATION`, and
+`DYNAMIC-IMPLEMENTATION-SELECTION-MIGRATION`.
+
 ## Declaration and selection
 
 ```omega
-pub SaturatingIncrement:
-    Counter satisfies Incrementable
-{
+trait Incrementable<T> {
+    machine increment(counter: &mut T);
+}
+
+data Counter { value: i32; }
+
+pub SaturatingIncrement satisfies Incrementable<Counter> {
     machine increment(counter: &mut Counter) {
         if counter.value < i32::Maximum {
             counter.value = counter.value + 1;
@@ -18,18 +48,20 @@ pub SaturatingIncrement:
 }
 ```
 
-Here `Counter` has an `i32` value and `Incrementable` requires only the callable
-shape, with no strict-increment law. The named implementation intentionally
-saturates; its guard proves representability of the addition.
-The requirement likewise declares its explicit mutable argument. Selecting
-`Counter` as the conformance subject supplies no implicit value argument;
-requirement matching substitutes the subject type into ordinary parameter types.
+`SaturatingIncrement` is the implementation name, `Incrementable<Counter>`
+is the contract, and `Counter` is an ordinary type argument. The named
+implementation intentionally saturates; its guard proves representability.
+Selecting it creates no counter and supplies no hidden argument. Another named
+implementation may satisfy the same trait application with different machines.
+An implementation may instead bind already-declared machines by exact rows.
 
 The conformance has its own package-scoped name, visibility, binder telescope,
-optional subject, instantiated trait application, complete row map, laws, and
-provenance. It is private unless declared `pub`; neither carrier nor trait
-visibility publishes it. Cross-package authored selection and a public interface
-naming it require public visibility and ordinary direct-dependency authority.
+instantiated trait application, complete row map, laws, and provenance. It is
+private unless declared `pub`; data and trait visibility do not publish it.
+Cross-package selection requires public visibility and ordinary direct-dependency
+authority. A generic evidence binder has the same shape without a body:
+`Order satisfies Ranked<Element>`. It is an implementation parameter, not a
+constraint saying that `Element` owns or implements operations.
 
 Every whole-trait use names its evidence, whether through a concrete selected
 conformance, a generic evidence binder, or evidence already carried by a value.
@@ -45,13 +77,13 @@ checker consumes the selected evidence; it does not search for an algebra or
 infer one from operator punctuation. [Licensed normalization](../proofs/contracts.md#licensed-normalization)
 defines which transformations that evidence permits.
 
-Generic conformances own their telescopes rather than inheriting parameters
-from a carrier. Select one through a nested application with every type, const,
+Generic conformances own their telescopes independently of data declarations.
+Select one through a nested application with every type, const,
 and static-machine argument explicit; expected shape or visibility cannot infer
-them. Lifetime elision is application-only, under the rule below. Carrierless evidence omits
-the subject, retains an explicit subjectless identity, and owns the same complete
-map. Its trait arguments cannot invent a carrier or grant eligibility for nominal
-data or runtime dynamic-conformance selection.
+them. Lifetime elision is application-only, under the rule below. Proof-only
+and runtime-capable implementations use the same conformance model. Their
+requirements determine execution and erasure; absence of a data subject is
+universal and does not exclude an implementation from dynamic selection.
 
 A declaration targeting a lifetime-parameterized trait supplies every lifetime
 slot explicitly, in trait declaration order, using its own in-scope binders.
@@ -199,10 +231,14 @@ Compiler-synthesized core conformances emit ordinary checked machine bodies.
 An explicit member or exact reference row overrides synthesis. User traits do
 not acquire compiler synthesis privilege through a name or empty block.
 
-`Equatable` is a sealed type-owned operator route. Each structural type may
-publish at most one operator-facing conformance; `==` and `!=` select it from
-the operand type, not visibility. Other mathematical relations use separately
-named contracts and conformances without competing for operator syntax.
+`Equatable<T>` describes equality machines over explicit `T` arguments.
+A named implementation supplies its rows. The sealed core operator route
+selects at most one operator-facing implementation for an operand signature;
+this is operator selection, not a conformance owned by the operand's data.
+An explicit concrete operator wrapper can select the implementation, as in
+the [operator guide](../../language_guide/chapter_14_traits.md#operator-requirements).
+There is no ambient search. Other mathematical relations use separately named
+contracts and implementations without competing for operator syntax.
 
 Primitives and payload-less sums acquire equality implicitly. Records and
 payload-bearing sums require an explicit named conformance. Adding a payload
@@ -211,9 +247,10 @@ declaration. Domain membership uses its own tag/domain rules, not `Equatable`.
 
 Structural synthesis compares record fields, or sum tags followed by the selected
 case's payload. Every field must be a scalar primitive, payload-less sum, text
-compared by byte content, or independently Equatable-conforming. Recursive
-structural synthesis rejects. Operators and the callable equality wrapper share
-the selected member meaning. [General reflection](reflection.md) lets authorized
+compared by byte content, or covered by an explicitly selected equality
+implementation. Recursive structural synthesis rejects. Operators and the
+callable equality wrapper share the selected member meaning.
+[General reflection](reflection.md) lets authorized
 authors generate ordinary checked member calls; it does not expand this sealed
 synthesis catalog, supply missing law evidence, or permit raw quotient observation.
 

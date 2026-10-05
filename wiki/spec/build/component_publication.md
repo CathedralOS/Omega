@@ -149,7 +149,7 @@ and reconstructed obligations. A native-only capsule supplies independently
 checkable native evidence; any intermediate definitions needed by that evidence
 are included or exact accepted dependencies, not a missing separate Psi product.
 Source/provider identity remains audit/correspondence data, not the runtime
-service carrier's provider type.
+service carrier's data type.
 
 An envelope may admit verified Psi on an interpreter proved against pinned
 semantics, checked target-native realization of that Psi (shipped or lowered

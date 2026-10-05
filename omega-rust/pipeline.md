@@ -357,6 +357,13 @@ block those choices on owner approval or add owner questions for them. Choose
 cohesive representations, update their specifications and versioned schemas, and
 carry the change through producers, consumers, and customer acceptance.
 
+Compilation-cost investigation is also implementation work. A historical
+slowdown does not establish an accepted performance envelope or require an owner
+decision before profiling. Measure a current baseline, preserve custody and
+source behavior, and remove avoidable recomputation. The named
+`custody-join-build-cost` report is tracked by `REFERENCE-CUSTODY-JOIN-SCALING`
+on the execution board; it is not a pending architecture approval.
+
 This defers human design review, not compiler checking or required evidence.
 Keep the verifiers that run at [trust boundaries](#verification-placement),
 rejection controls, and applicable tests; do not declare deferred audits

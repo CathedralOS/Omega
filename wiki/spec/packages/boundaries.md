@@ -64,10 +64,11 @@ has interface exposure even without ordinary `pub`.
 
 Trait parents and body requirements normalize to semantic composition edges but
 retain every authored selection. Generic bounds select their exact right-hand
-trait; a qualified conformance selects both carrier and conformance. Subject
-parameters, evidence binders, and local value roots remain lexical bindings.
-Explicit and inferred conformance selections both need dependency authority;
-inference is not a route to a transitive-only declaration.
+trait application; a named conformance selects its implementation and explicit
+trait arguments, with no data subject. Type parameters, evidence binders and
+local value roots remain lexical bindings.
+Every selected implementation needs dependency authority. Ordinary type
+inference neither selects a conformance nor grants transitive-only access.
 
 An exact `satisfies` edge selects its trait and overload-resolved requirement,
 or its exact operator/top-level boundary requirement. It follows the realizing

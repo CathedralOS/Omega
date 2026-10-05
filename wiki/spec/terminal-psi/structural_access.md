@@ -369,6 +369,17 @@ record field identities for array positions.
 
 ## Store vocabulary
 
+The `borrowed-view-whole-slot-store` question is implementation work under
+[Psi ownership](../../../omega-rust/pipeline.md#psi-implementation-and-deferred-human-audit).
+Ordinary initialization and replacement of a local borrowed-view descriptor
+obey the same establishment, access, qualification and backing-lifetime rules
+as a stored view field. Use a destination root plus a path; an empty path names
+the whole local. An unestablished local cannot be read, and assigning its
+descriptor does not grant storage for the referenced bytes. Generalize the
+existing descriptor store rather than preserving a field-only path alongside
+a new local-only operation. The field-specific operation names below describe
+the implementation awaiting `REFERENCE-BEARING-RECORD-LOCAL-FILL`.
+
 An initialized primitive local uses an unrestricted, unqualified, claim-free
 `OperationResult` place. `EstablishPrimitiveLocal` consumes an exactly typed SSA
 initializer and establishes the referent; `PrimitiveScalarRead` produces a

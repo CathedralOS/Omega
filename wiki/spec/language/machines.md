@@ -11,7 +11,11 @@ capture-environment construction are not part of the source language.
 
 ## Static declarations and explicit state
 
-All machines are static declarations. There is no special `self` parameter,
+All machines are static declarations independent of data. Named implementations
+satisfy traits; data types only occur as ordinary signature types or declared
+trait arguments. There is no conformance data subject or `Self` type binding
+([conformances](conformances.md#data-and-code-are-independent)).
+There is no special `self` parameter,
 implicit receiver, bound-method value, or receiver-inserting call syntax.
 `Counter::increment` may identify a carrier-qualified declaration; qualification
 retains its semantic owner and visibility but contributes no argument or storage.

@@ -79,8 +79,8 @@ A group declares permitted behavior; the build selects compatible providers.
 For service-bearing tests, declare an ordinary context parameter for provisioning:
 
 ```omega
-trait Tests {
-    machine memory(context: &mut Self)
+trait Tests<Context> {
+    machine memory(context: &mut Context)
         reaches Filesystem;
         crashes Trap;
 }
@@ -90,7 +90,7 @@ data ScanFixture {
 }
 
 machine ScanFixture::empty_input(context: &mut ScanFixture)
-satisfies Tests::memory
+satisfies Tests<ScanFixture>::memory
 {
     // Pass context.filesystem to ordinary scanning/checking helpers.
     // Keep scratch buffers local to this invocation.
@@ -102,12 +102,12 @@ service and compatible in-memory provider; the compiler does not recognize
 them by spelling. This is a separate example from the arithmetic-only trait.
 
 ```omega
-let memory: TestGroup = builder.tests.group<Tests::memory>();
+let memory: TestGroup = builder.tests.group<Tests<ScanFixture>::memory>();
 memory.service<Filesystem, MemoryFilesystem>();
 ```
 
-The requirement's `Self` type is substituted with the satisfier's concrete
-`ScanFixture` type; it does not insert a value argument. Each invocation receives
+The registered requirement explicitly applies `Tests` to `ScanFixture`;
+ordinary trait-argument substitution fixes the context parameter's type. Each invocation receives
 a fresh context and mock-service state. The runner
 establishes the `Binding` field before entering the test; zeroed bytes do not
 make a service valid. Other fields must be zero-valid, and additional fixture

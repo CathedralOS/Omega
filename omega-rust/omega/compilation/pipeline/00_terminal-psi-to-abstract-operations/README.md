@@ -228,7 +228,12 @@ and proof joins are implemented.
 ## Dynamic dispatch
 
 The [dynamic-dispatch contract](../../../../../wiki/spec/terminal-psi/dynamic_dispatch.md)
-owns selection identity, forwarding roles, and complete tables. Reconstruction
+owns selection identity, forwarding roles, and complete tables. Its governing
+model is runtime selection of named implementations with separately supplied
+data arguments. The former instance/table descriptor, subject erasure and
+receiver adapters are migration debt under
+`DYNAMIC-IMPLEMENTATION-SELECTION-MIGRATION`; they must not constrain the source
+contract or be retained as a compatibility path. Reconstruction
 starts in [dynamic_dispatch.rs](src/lowering/machine/operation/calls/dynamic_dispatch.rs).
 Retain whole closed applications, not just the selected callable. Changing an
 unselected row must still change identity and fail stale replay.

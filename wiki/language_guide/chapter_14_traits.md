@@ -1,4 +1,4 @@
-# Chapter 14: Traits And Erased Dispatch
+# Chapter 14: Traits And Runtime Implementation Selection
 
 Traits name required machine surfaces. This chapter teaches their use; the
 [named-conformance specification](../spec/language/conformances.md) owns the
@@ -15,25 +15,28 @@ machine requirements.
 
 ## Core Model
 
-A trait is a compile-time contract over available machines.
+A trait is a contract over machines. A named implementation satisfies it;
+data does not. Data types are ordinary trait arguments and machines receive
+all data explicitly. The [data/code decision](../spec/language/conformances.md#data-and-code-are-independent)
+retires `Self`, data-subject conformances and data-attached dynamic objects.
+The examples below specify the destination model; compiler migration is tracked
+on the [execution board](../../TASKS.md), not provided as a compatibility dialect.
 
 ```omega
-trait Incrementable {
-    machine Self::increment(counter: &mut Self);
+trait Incrementable<T> {
+    machine increment(counter: &mut T);
 }
 ```
 
-This means a type satisfies `Incrementable` through one complete conformance
-whose `increment` member implements the requirement with a compatible
-signature and contract.
+A named implementation of `Incrementable<T>` supplies `increment` with a
+compatible signature and contract. `T` names only the argument's type.
 
 ```omega
 data Counter {
     value: i32;
 }
 
-SaturatingIncrement:
-    Counter satisfies Incrementable
+SaturatingIncrement satisfies Incrementable<Counter>
 {
     machine increment(counter: &mut Counter) {
         transition counter.value < i32::Maximum {
@@ -61,29 +64,28 @@ a free or carrier-qualified static machine; inside a trait it declares a
 requirement; inside a conformance block it declares the satisfier for that block's corresponding
 requirement. The lexically visible enclosure carries that distinction.
 
-`Self` denotes the conformance's subject type, not an implicit value parameter.
-Requirements and implementations name every argument explicitly. Qualifying a
-machine with that type contributes neither storage nor a hidden argument.
+`SaturatingIncrement` names the implementation; `Counter` names data passed
+to its machine. Selecting that implementation creates no `Counter` and supplies
+no argument. There is no implementing data type and no `Self` binding.
 
 <a id="satisfaction"></a>
 <a id="conformance-blocks"></a>
 
 ### Named conformances
 
-A type may satisfy one trait in several coherent ways. Each named conformance
-is one implementation block binding the complete trait surface; Omega never
+Several named implementations may satisfy the same trait application. Each
+conformance binds the complete machine surface; Omega never
 assembles one conformance by searching ambient machines.
 
 ```omega
 data Card { power: u32; cost: u32; }
 
-trait Ranked {
-    machine before(card: &Self, other: &Self) -> bool;
-    machine rank_value(card: &Self) -> u32;
+trait Ranked<T> {
+    machine before(card: &T, other: &T) -> bool;
+    machine rank_value(card: &T) -> u32;
 }
 
-pub PowerOrder:
-    Card satisfies Ranked
+pub PowerOrder satisfies Ranked<Card>
 {
     machine before(card: &Card, other: &Card) -> bool {
         card.power < other.power
@@ -94,8 +96,7 @@ pub PowerOrder:
     }
 }
 
-CostOrder:
-    Card satisfies Ranked
+CostOrder satisfies Ranked<Card>
 {
     machine before(card: &Card, other: &Card) -> bool {
         card.cost < other.cost
@@ -122,8 +123,7 @@ defines overload identity and default instantiation.
 A generic conformance owns its binder telescope on its declared name:
 
 ```omega
-SequenceEncoding<Element, Message>:
-    Vec<Element> satisfies WireEncodable<Message>
+SequenceEncoding<Element, Message> satisfies WireEncodable<Vec<Element>, Message>
 {
     machine to_wire(items: &Vec<Element>, out: &mut Message) {
         // ...
@@ -139,8 +139,7 @@ pub trait Reads<'view, Item> {
     machine read(value: &'view Item);
 }
 
-pub BufferReads<'scope, Item>:
-    Buffer satisfies Reads<'scope, Item>
+pub BufferReads<'scope, Item> satisfies Reads<'scope, Item>
 {
     // ...
 }
@@ -169,8 +168,8 @@ unique complete mapping. Declaration-site lifetime arguments are never elided.
 See [declaration and selection](../spec/language/conformances.md#declaration-and-selection)
 for exact lifetime identity and compatibility rules.
 
-A carrierless proof conformance omits the data subject. It still owns a complete
-named map, but does not describe a runtime instance. See
+A proof-only implementation uses the same named map as an executable
+implementation. Neither has a data subject or creates a runtime instance. See
 [proof projection](#proof-projection-and-carrierless-evidence) below.
 
 To reuse an existing machine, fill a row by reference rather than repeat its
@@ -194,10 +193,9 @@ evidence explicitly. A generic evidence binder uses the same right-hand
 grammar as a concrete declaration, without a body:
 
 ```omega
-let ranked: &dyn Ranked =
-    &card as &dyn PowerOrder;
+let ranked: dyn Ranked<Card> = PowerOrder as dyn Ranked<Card>;
 
-machine sort<Element, Order: Element satisfies Ranked>(
+machine sort<Element, Order satisfies Ranked<Element>>(
     cards: &mut [Element]
 )
 {
@@ -218,12 +216,11 @@ They cannot search ambient implementations; their meaning must already follow
 from the operand type, qualification, an explicit static selection, or a sealed
 language route.
 
-A trait requirement need not borrow its subject; it may take ordinary owned
-arguments too:
+A trait requirement may take several ordinary owned arguments and return one:
 
 ```omega
-trait Additive {
-    machine add(a: Self, b: Self) -> Self;
+trait Additive<T> {
+    machine add(a: T, b: T) -> T;
 }
 ```
 
@@ -271,7 +268,7 @@ post-signature metadata on the machine.
 machine Player::draw(
     player: &Player,
     canvas: &mut Canvas
-) satisfies Drawable::draw {
+) satisfies Drawable<Player>::draw {
     Canvas::draw_sprite(canvas, player.sprite);
 }
 ```
@@ -279,8 +276,8 @@ machine Player::draw(
 This keeps machine identity clean:
 
 - `Player::draw` is still the machine.
-- `Drawable::draw` is the exact trait requirement it satisfies.
-- `Self` inside the trait requirement binds to `Player`.
+- `Drawable<Player>::draw` is the exact trait requirement it satisfies.
+- `Player` is the explicit argument to the trait's declared type parameter.
 - The compiler checks that the params, return type, service reach, direct
   synchronous invocation ceiling, and obligations match the trait requirement.
 
@@ -360,17 +357,17 @@ That belongs to the domains/proof model, not to runtime trait dispatch.
 When a surface is reused, give it a name.
 
 ```omega
-trait CounterLike {
-    machine Self::increment(counter: &mut Self);
-    machine Self::reset(counter: &mut Self);
-    machine Self::snapshot(counter: &Self, out: &mut CounterSnapshot);
+trait CounterLike<T> {
+    machine increment(counter: &mut T);
+    machine reset(counter: &mut T);
+    machine snapshot(counter: &T, out: &mut CounterSnapshot);
 }
 ```
 
 Bundles are useful for APIs that need a coherent family of operations.
 
 ```omega
-machine Metrics::sample<T, Counters: T satisfies CounterLike>(
+machine Metrics::sample<T, Counters satisfies CounterLike<T>>(
     source: &T,
     out: &mut CounterSnapshot
 )
@@ -387,18 +384,18 @@ set.
 Traits may bundle other traits.
 
 ```omega
-trait Resettable {
-    machine Self::reset(counter: &mut Self);
+trait Resettable<T> {
+    machine reset(counter: &mut T);
 }
 
-trait ObservableCounter {
-    machine Self::snapshot(counter: &Self, out: &mut CounterSnapshot);
+trait ObservableCounter<T> {
+    machine snapshot(counter: &T, out: &mut CounterSnapshot);
 }
 
-trait ManagedCounter {
-    requires Resettable;
-    requires ObservableCounter;
-    machine Self::increment(counter: &mut Self);
+trait ManagedCounter<T> {
+    requires Resettable<T>;
+    requires ObservableCounter<T>;
+    machine increment(counter: &mut T);
 }
 ```
 
@@ -409,20 +406,16 @@ Header composition is the generic-capable spelling of the same graph:
 
 ```omega
 trait CallingPolicy {
-    machine Self::plan(
+    machine plan(
         signature: BoundarySignature,
     ) -> BoundaryPlanResult;
 }
 
-trait Calling<C>
-where C satisfies CallingPolicy
+trait Calling<Policy satisfies CallingPolicy>
 {
 }
 
-boundary data X86InterruptConvention;
-
-X86InterruptPolicy:
-    X86InterruptConvention satisfies CallingPolicy
+X86InterruptPolicy satisfies CallingPolicy
 {
     machine plan(signature: BoundarySignature) -> BoundaryPlanResult {
         ...
@@ -430,7 +423,7 @@ X86InterruptPolicy:
 }
 
 boundary trait TimerInterrupt:
-    InterruptService + Calling<X86InterruptConvention>
+    InterruptService + Calling<X86InterruptPolicy>
 {
 }
 ```
@@ -438,11 +431,11 @@ boundary trait TimerInterrupt:
 `requires InterruptService;` and `: InterruptService` normalize to the same
 requirement edge. The referenced trait determines the edge's role: a boundary
 parent contributes service reach, while an ordinary parent such as
-`Calling<C>` contributes policy/contract identity and no service reach. An
+`Calling<Policy>` contributes policy/contract identity and no service reach. An
 ordinary trait therefore cannot inherit a boundary parent; the child must also
 be a `boundary trait`.
 
-`C`'s named `CallingPolicy` conformance supplies the build-time `plan`
+The explicitly selected `Policy` implementation supplies the build-time `plan`
 machine that checks the boundary signature. It returns an accepted plan or a structured
 rejection, such as an incompatible interrupt-frame shape. The compiler validates
 and canonicalizes accepted plans. The evaluated promise, not a friendly policy
@@ -460,7 +453,7 @@ surface.
 
 ```omega
 trait CounterUpgrade {
-    machine Counter::from_v1(old: CounterV1, out: &mut Counter);
+    machine from_v1(old: CounterV1, out: &mut Counter);
 }
 ```
 
@@ -469,7 +462,7 @@ generic upgrade requirement uses the same ordinary type parameters:
 
 ```omega
 trait Upgrade<Old, New> {
-    machine New::from(old: Old, out: &mut New);
+    machine from(old: Old, out: &mut New);
 }
 ```
 
@@ -483,11 +476,11 @@ Wire protocols can use the same model.
 
 ```omega
 trait WireReadable<Message, Value> {
-    machine Value::from_wire(message: Message, out: &mut Value);
+    machine from_wire(message: Message, out: &mut Value);
 }
 
 trait WireWritable<Value, Message> {
-    machine Message::from_value(value: Value, out: &mut Message);
+    machine from_value(value: Value, out: &mut Message);
 }
 ```
 
@@ -503,7 +496,7 @@ ordinary static argument. The compiler therefore resolves concrete machine
 targets without searching visible declarations.
 
 ```omega
-machine Metrics::sample<T, Counters: T satisfies CounterLike>(
+machine Metrics::sample<T, Counters satisfies CounterLike<T>>(
     source: &T,
     out: &mut CounterSnapshot
 )
@@ -512,120 +505,74 @@ machine Metrics::sample<T, Counters: T satisfies CounterLike>(
 }
 ```
 
-The default is a direct machine call with the trait requirement erased after
-checking. `dyn` is the explicit form for runtime selection among conformances
-compiled into the same artifact:
+The default is a direct machine call selected by static evidence. `dyn`
+selects an implementation at runtime within the same artifact:
 
 ```omega
-trait ImageFilter {
-    machine apply(filter: &mut Self, image: &mut Image);
+trait CounterOperations<T> {
+    machine increment(counter: &mut T);
+    machine reset(counter: &mut T);
 }
 
-machine App::run_filter(
-    filter: &mut dyn ImageFilter,
-    image: &mut Image
+machine update(
+    operations: dyn CounterOperations<Counter>,
+    counter: &mut Counter
 ) {
-    ImageFilter::apply(filter, image);
+    CounterOperations::increment(operations, counter);
 }
 ```
 
-The explicit `filter` argument supplies both the borrowed instance and its
-selected conformance. `ImageFilter::apply` identifies the requirement; it does
-not select an implementation by name or insert a missing argument.
+`operations` selects the machine; `counter` supplies the data. The dispatch
+operand is explicit and separate from the requirement's ordinary arguments.
+The selected implementation's `increment` receives only the declared counter
+argument. A selector neither owns that counter nor supplies it implicitly.
 
 ### Local dynamic values
 
-A borrowed dynamic value is two runtime words:
-
-```text
-&dyn ImageFilter
-┌──────────────────┬──────────────────────────────┐
-│ instance pointer │ selected-conformance table   │
-└──────────────────┴──────────────────────────────┘
-```
-
-For nongeneric methods, the exact requirement identity
-`(declaring trait, complete overload identity)` selects a table slot.
-[Finite value-generic families](../spec/terminal-psi/dynamic_dispatch.md#finite-generic-method-families)
-also retain the exact canonical argument tuple. The overload identity includes
-the normalized parameter
-signature and dispatch-bearing result-domain set described in chapter 3. Call
-typing retains the resulting requirement symbol even when the slot is inherited;
-lowering never chooses a row from the leaf spelling alone. The table entry calls
-the matching machine from one selected conformance. When a type has several
-conformances to the trait, a coercion names the conformance:
-
 ```omega
-let ranked: &dyn Ranked =
-    &card as &dyn PowerOrder;
+let ranked: dyn Ranked<Card> = PowerOrder as dyn Ranked<Card>;
+let power: u32 = Ranked::rank_value(ranked, &card);
 ```
 
-The coercion is an `as` operation: the compiler proves that the named
-conformance fits and packages the same referent with a statically selected
-table. It runs no user code and cannot fail.
+The conversion packages an exact named implementation, not `&card`. Its runtime
+representation selects a complete table of operations; it contains no hidden
+user-data pointer. Copying or forwarding it does not copy, borrow, or capture
+the data later passed to a call. The compiler may eliminate a known local
+selection and call the selected machine directly with the original arguments.
+Otherwise, joins, reassignment, storage and helper calls retain the actual
+selected table, never a representative candidate or rows from mixed maps.
 
-When a direct-place coercion remains local and its exact call is visible in the
-closed artifact, Omega may devirtualize it completely. The retained conformance
-row selects the realization and the coercion's retained source place supplies
-the concrete explicit subject argument; no descriptor or table needs to
-materialize for that call. This changes only lowering. A dynamic value that is passed onward,
-rebound, stored, joined with another selection, or otherwise escapes that
-closed use retains the two-word representation above.
+Each row retains the declaring requirement, exact overload, implementation,
+default instantiation if any, normalized contracts and selected conformance.
+An isolated `satisfies Trait::member` edge does not create a complete table.
+Implementation names and table addresses are not data type identities.
 
-Forwarding, rebinding, joins, and local storage must preserve the actual referent
-and its selected conformance. A join carries each predecessor's descriptor; it
-cannot choose one predecessor as representative or construct a mixed table.
-These operations preserve ordinary borrow access: a shared descriptor cannot
-become mutable.
-
-A bodyless declaration without a complete row map and a bare exact-requirement
-satisfier cannot supply a dynamic table. Current source/native support is bounded;
-see the [implementation owner](../../omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/README.md#dynamic-dispatch)
-for supported shapes, rather than treating them as language restrictions.
-
-Each row retains the declaring trait, requirement, exact satisfier machine,
-default instantiation when applicable, normalized contracts, and selected
-conformance identity.
-
-The table is a private realization. Logical identity records the trait,
-selected conformance, and normalized contracts rather than a table address.
-Adding a conformance therefore does not change the layout of the concrete
-type.
-
-The runtime dynamic form described here is borrowed. An owned erased runtime
-value additionally needs a storage owner, size/alignment metadata, and checked
-cleanup. Those requirements do not change local dispatch or make the value
-component-safe; a borrowed descriptor alone does not provide them.
-
-There is one exact by-value case that needs none of that machinery. When the
-entire normalized dynamic value has no runtime carrier — no instance and no
-runtime table slots — owned `dyn` is a proof-only evidence term and erases.
-Absence of slots alone is insufficient because an ordinary runtime instance
-may still have unknown size and cleanup.
+`dyn Convert<Image, Text>` selects an Image-to-Text implementation. Its type
+arguments remain known; neither one is a privileged subject. Hiding input or
+output types is a separate packaging question and is not implied by `dyn`.
 
 ### Dynamic surface
 
-Eligibility is per requirement, not all-or-nothing for a trait. For example,
-`machine clone(value: &Self) -> Self` cannot return a concrete `Self` through an erased
-interface, but its presence does not hide an unrelated `write(value: &Self, ...)`.
-There is no `Self: Sized` workaround.
+After substituting ordinary trait arguments, each eligible requirement has
+concrete parameter/result representations and an expressible public contract.
+It may take zero or several data arguments and return an owned result. For
+example, `Additive<u32>::add` takes two `u32` values and returns a `u32`;
+there is no one-borrowed-subject restriction.
 
-The [dynamic surface contract](../spec/terminal-psi/dynamic_dispatch.md#source-eligibility-and-operational-envelopes)
-checks explicit subject access, generic parameters, concrete representations, returned
-borrow lifetimes, and public operational contracts. One selected conformance
-supplies the entire eligible surface, so laws relating its members remain valid.
+Eligibility is per requirement. Requirement-local generics need an explicitly
+finite supported family; arbitrary generic virtual methods are not supplied
+by runtime implementation selection. One named implementation supplies the
+whole family. The [dynamic surface contract](../spec/terminal-psi/dynamic_dispatch.md#source-eligibility-and-operational-envelopes)
+owns call shapes, envelopes and [finite families](../spec/terminal-psi/dynamic_dispatch.md#finite-generic-method-families).
+Boundary requirements retain their separate boundary calling plan.
 
-A method with an explicit finite OR/equality constraint over value binders can
-expand into a complete family of concrete rows. Widths 16, 32, and 64 need no
-separately named methods; every row still has a checked signature, result shape,
-and operational contract. Ordinary arbitrary generic methods are not made
-dynamic by this rule. Runtime-capable calls dispatch to the exact tuple, while
-const-only methods still need a static argument or an enclosing checked bridge.
-An escaping specialized result requires a common representation or an explicit
-finite sum/eligible descriptor with its ownership intact. This is the settled
-family contract, not a claim that current dynamic lowering implements it.
+These rules replace the former borrowed-instance/table model. Current compiler
+limitations belong to `DYNAMIC-IMPLEMENTATION-SELECTION-MIGRATION` and
+`RESTORE-DYNAMIC-DESCRIPTOR-AND-TABLE-CUSTODY` on the execution board.
 
-### Proof projection and carrierless evidence
+<a id="proof-projection-and-carrierless-evidence"></a>
+
+### Proof projection and implementation evidence
 
 Traits group mathematical operations, witness values/functions, and laws
 expressed through ordinary machine contracts. Named conformances supply the
@@ -664,7 +611,7 @@ contract checking, not a runtime dictionary or required code duplication.
 A transparent refinement gives a reusable name to a narrower trait contract:
 
 ```omega
-pub trait LocalLogger = Logger {
+pub trait LocalLogger<T> = Logger<T> {
     machine *
         reaches;
         suspends false;
@@ -672,7 +619,7 @@ pub trait LocalLogger = Logger {
         terminates;
 }
 
-pub trait BufferedLogger = Logger {
+pub trait BufferedLogger<T> = Logger<T> {
     machine Logger::write
         reaches;
         suspends false;
@@ -682,13 +629,13 @@ pub trait BufferedLogger = Logger {
 }
 ```
 
-A refinement is a bound, not a new nominal conformance target. A type must
-still explicitly satisfy `Logger`; fitting the refinement is then a structural
+A refinement is a bound, not a new nominal conformance target. An implementation
+must explicitly satisfy `Logger<T>`; fitting the refinement is then a structural
 contract check over that existing conformance. A machine declaration cannot
-`satisfies LocalLogger`, while a generic evidence binder may require it:
+`satisfies LocalLogger<T>`, while a generic evidence binder may require it:
 
 ```omega
-machine record<L, Logging: L satisfies LocalLogger>(logger: &L)
+machine record<L, Logging satisfies LocalLogger<L>>(logger: &L)
 {
     Logging::write(logger, "record");
 }
@@ -727,8 +674,7 @@ data LoggingProxy {
     service: Binding<LoggingService>;
 }
 
-ComponentLogger:
-    LoggingProxy satisfies Logger
+ComponentLogger satisfies Logger<LoggingProxy>
 {
     machine write(proxy: &LoggingProxy, text: &[u8])
         reaches LoggingService
@@ -738,13 +684,12 @@ ComponentLogger:
     }
 }
 
-let logger: &dyn Logger =
-    &proxy as &dyn ComponentLogger;
+let logger: dyn Logger<LoggingProxy> = ComponentLogger as dyn Logger<LoggingProxy>;
 ```
 
-The descriptor points to the proxy in the current artifact. The proxy crosses
-the boundary through the ordinary binding, concentrating ABI, replacement,
-effect, and resource costs at one named seam.
+The descriptor selects `ComponentLogger`; the caller passes `&proxy`
+separately. Its machine crosses the boundary through the proxy's ordinary
+binding, concentrating ABI, replacement, effect and resource costs at one seam.
 
 ## Contracts And Reach
 
@@ -753,7 +698,7 @@ that make those machines safe to use through ordinary contracts. There is no
 trait-level `invariant` clause and no implicit contract injected around every
 requirement.
 
-An abstract `Self` has no structural field namespace. Contracts use declared
+An abstract type parameter has no structural field namespace. Contracts use declared
 accessors or mathematical parameters rather than guessing a concrete field.
 For example, an accessor-based counter interface can require a nonnegative
 returned count. A satisfier must prove the accessor's contract from its own
@@ -799,12 +744,11 @@ Example: a runtime value can be transformed into a matching wire message. A
 Use explicit trait parameters to name that relationship.
 
 ```omega
-trait WireEncodable<Message> {
-    machine Self::to_wire(value: &Self, out: &mut Message);
+trait WireEncodable<Value, Message> {
+    machine to_wire(value: &Value, out: &mut Message);
 }
 
-PlayerWireEncoding:
-    Player satisfies WireEncodable<PlayerMessage>
+PlayerWireEncoding satisfies WireEncodable<Player, PlayerMessage>
 {
     machine to_wire(player: &Player, out: &mut PlayerMessage) {
         out.name = player.name;
@@ -819,8 +763,8 @@ Generic code can require the relationship directly.
 machine Network::send<
     T,
     Message,
-    Encoding: T satisfies WireEncodable<Message>,
-    MessageShape: Message satisfies WireMessage
+    Encoding satisfies WireEncodable<T, Message>,
+    MessageShape satisfies WireMessage<Message>
 >(
     network: &mut Network,
     value: &T
@@ -845,27 +789,27 @@ A trait machine with a body supplies the fallback implementation. Body presence
 is the marker; Omega has no `default` keyword.
 
 ```omega
-trait ResettableCounter {
-    machine Self::set(counter: &mut Self, value: i32);
+trait ResettableCounter<T> {
+    machine set(counter: &mut T, value: i32);
 
-    machine Self::reset(counter: &mut Self) {
-        Self::set(counter, 0);
+    machine reset(counter: &mut T) {
+        ResettableCounter::set(counter, 0);
     }
 }
 ```
 
-A satisfying type only needs to provide `set`; the conformance instantiates the
-trait body for `reset`. Reusable behavior that does not need member
-instantiation should remain an ordinary generic library machine:
+A named implementation only needs to provide `set`; the conformance instantiates
+the trait body for `reset`. Its `ResettableCounter::set` call selects the same
+implementation's `set` row, not a machine attached to `T`. Reusable behavior
+that does not need member instantiation should remain an ordinary generic
+library machine:
 
 ```omega
-trait SettableCounter {
-    machine Self::set(counter: &mut Self, value: i32);
+trait SettableCounter<T> {
+    machine set(counter: &mut T, value: i32);
 }
 
-data CounterDefaults { }
-
-machine CounterDefaults::reset<T, Setter: T satisfies SettableCounter>(
+machine reset_counter<T, Setter satisfies SettableCounter<T>>(
     value: &mut T
 )
 {
@@ -874,8 +818,8 @@ machine CounterDefaults::reset<T, Setter: T satisfies SettableCounter>(
 ```
 
 Prefer ordinary library machines when behavior is reusable without access to
-trait-member generation or `Self`-specific conformance. Default instantiation
-always uses the selected conformance's member map.
+trait-member generation or a selected implementation's other rows. Default
+instantiation always uses the selected conformance's member map.
 
 ## Synthesized Core Traits
 
@@ -883,18 +827,17 @@ A closed set of core traits supports compiler synthesis. An empty named
 `Equatable` conformance requests structural equality:
 
 ```omega
-trait Equatable {
-    machine equals(value: &Self, other: &Self) -> bool;
+trait Equatable<T> {
+    machine equals(value: &T, other: &T) -> bool;
 }
 
 data Point { x: i32; y: i32; }
-StructuralEquality:
-    Point satisfies Equatable { }   // compiler emits this block's equals row
+StructuralEquality satisfies Equatable<Point> { }   // compiler emits this block's equals row
 ```
 
 Synthesis is a compiler privilege over a closed core set. Ordinary machines may
 use [semantic reflection](chapter_21_reflection.md) within their own visibility
-and dependency authority. A trait body does not inherit a conforming owner's
+and dependency authority. A trait body does not inherit a data type's
 private access, and reflection does not synthesize laws or enlarge the core set.
 [Semantic evaluation](../spec/language/evaluation.md#trait-bodies-and-generators)
 owns evaluation eligibility.
@@ -908,11 +851,13 @@ An authored `equals` body or explicit reference row overrides synthesis.
 Synthesized equality compares record fields, or a sum's tag and selected
 payload fields. Prerequisites are checked at the conformance: each field must
 be a primitive, a payload-less sum, text compared by content, or another
-Equatable-conforming type. Recursive expansion rejects.
+type covered by an explicitly selected equality implementation. Recursive
+expansion rejects.
 
-`Equatable` is a sealed, type-owned core operator route: each structural type
-may publish at most one operator-facing Equatable conformance, and `==` resolves
-that route from the operand type rather than searching visible conformances.
+The sealed core equality operator route selects at most one named
+`Equatable<T>` implementation for an operand signature. Data does not own or
+satisfy that implementation. Operator selection uses an explicit concrete
+wrapper or the sealed primitive rule, never visible-conformance search.
 Other mathematical equivalence relations use ordinary contracts and selected
 conformances and do not compete for operator syntax.
 See [core equality acquisition](../spec/language/conformances.md#core-equality-acquisition)

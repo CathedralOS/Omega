@@ -122,7 +122,12 @@ candidate that changes a trusted-surface implementation site pinned in
 `terminal-verifier/src/trusted_surface/sites.rs` without re-recording its
 SHA-256: that is a verifier change nobody revalidated against the ledger
 entries citing it. Revalidate them, then run
-`python3 tools/trusted_surface_digests.py --write`. A fourth guard refuses a
+`python3 tools/trusted_surface_digests.py --write`. Revalidation is an evidence
+obligation, not an original-author permission rule. Historical drift does not
+justify refreshing unrelated entries without reviewing their justifications.
+`TERMINAL-VERIFIER-DELETED` in `TASKS.md` retires this ledger, its report tool
+and this guard together; do not restore verifier tests slated for deletion
+merely to close the superseded `trusted-surface-ledger-drift` question. A fourth guard refuses a
 candidate that changes Rust packages without a passing `verify` receipt for
 this exact sha (see "Verify the build before publishing"). Only the candidate's own
 changes are checked, so drift already on main never blocks unrelated work. Compiler advancement uses the

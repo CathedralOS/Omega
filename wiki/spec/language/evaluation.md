@@ -277,7 +277,7 @@ recorded logical charge, so warm and cold builds make the same hard-ceiling
 decision. Linking an already-built dependency does not charge its historical
 production cost.
 
-Published carrierless selected-conformance evidence is separate compilation,
+Published proof-only selected-conformance evidence is separate compilation,
 not a local cache exception. A producer performs witness search; a consumer
 projects the retained proposition and verifies its artifact/kernel
 evidence without rerunning the search. Ordinary theorem contracts and named
@@ -291,8 +291,9 @@ untrusted search reuse, not a replacement admission route.
 A trait machine body is its overridable default, without a `default` keyword.
 [Semantic reflection](reflection.md) may inspect an explicitly selected type
 under the lexical author's ordinary dependency and visibility authority; it is
-not restricted to a conforming Self. A generic default does not inherit a
-conformance author's or caller's private access. An owner can instead supply a
+not restricted to an implicitly bound implementing type; no such type exists.
+A generic default does not inherit a conformance author's or caller's private
+access. An owner can instead supply a
 checked visitor/operation through an explicit requirement or conformance.
 Owned TypeSchema descriptions and typed per-member calls follow the reflection
 contract; they grant no runtime type-to-generic conversion, source splicing,

@@ -192,11 +192,10 @@ The laws quantify the appropriate packs independently: symmetry changes
 redeclaring them. Changing a valid proof conformance changes proof provenance,
 not relation or quotient identity.
 
-A carrierless named conformance omits the subject and owns its entire telescope:
+A named proof implementation owns its entire telescope, like every conformance:
 
 ```omega
-TogetherEvidence<machine Left, machine Right>:
-    satisfies ConvergenceEvidence<Left, Right>
+TogetherEvidence<machine Left, machine Right> satisfies ConvergenceEvidence<Left, Right>
 where machine Left(index: Nat) -> Rat;
 where machine Right(index: Nat) -> Rat;
 {
@@ -204,9 +203,9 @@ where machine Right(index: Nat) -> Rat;
 }
 ```
 
-It has a package-root identity, an explicit subjectless marker, and the same
-normalized row keys as carrier-owned conformances. Trait arguments neither infer
-its telescope nor choose an arbitrary carrier. Static-machine examples do not
+It has a package-root identity and the same normalized row keys as executable
+implementations. Neither has a data subject or needs a special subjectless
+marker. Trait arguments do not infer its implementation telescope. Static-machine examples do not
 replace the required general mathematical function/predicate binders.
 
 Bundles carry witnesses and laws together. Repeated projection preserves the

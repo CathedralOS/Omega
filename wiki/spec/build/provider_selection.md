@@ -13,7 +13,7 @@ receiver admission, not as a mandatory gate on ordinary artifact production.
 
 ## Declaration and choice
 
-The selected target package supplies ordinary default provider types. The build,
+The selected target package supplies ordinary named default provider implementations. The build,
 test harness, or component manager owning a service slot may override them with
 an admitted provider. Conformances and exact bodyless bindings declare candidates;
 the compiler derives ProviderPlan; configuration selects it. Requirements do not
@@ -36,7 +36,7 @@ satisfy the canonical arithmetic contract, not choose a different meaning for `+
 `Build::select_provider<Slot, Provider>(builder)` is ordinary typed vocabulary. Slot
 resolves to one exact boundary trait, package-qualified same-path boundary-
 operator family, or top-level boundary requirement. Provider resolves to one
-provider-data symbol. Both retain compiler-derived package ownership. Plans and
+named provider implementation, not a data type or a provider instance. Both retain compiler-derived package ownership. Plans and
 checked adapters rejoin exact slot, realizing machine, provider, schema, and
 requirement owners. Leaf names, strings, normalized signatures, ordinals,
 declaration order, and compact fingerprints cannot select overloads.

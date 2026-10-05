@@ -43,15 +43,17 @@ implementation, incomplete proof search and ordinary rejection. Neither requires
 a dependency on the Omega reporting accumulator.
 
 The [stage-07 entry receipt owner](../../../../psi/compilation/pipeline/07_lowered-psi-to-terminal-psi/src/entry_receipt.rs) checks the
-unique Unit entry, records its identity and delegates source receiver eligibility
+unique Unit entry, records its identity and delegates explicit context eligibility
 to its own child before publication.
 
-ProgramEntry also retains source-derived receiver eligibility when the exact
-attached record is ZII-valid and needs no executable nominal cleanup. The
-source `Self` reference names the machine; its resolved attachment names the
-owned data. Keep both identities distinct when joining the exact Terminal self
-parameter. An absent eligibility row means free or unsupported, not permission
-to infer validity from layout. The shared cleanup query also serves ordinary
+ProgramEntry retains source-derived eligibility for the exact declared context
+parameter when its record is ZII-valid and needs no executable nominal cleanup.
+Keep machine, parameter and declared data-type identities distinct. The former
+`Self`/attachment/receiver join is migration debt; the
+[machine contract](../../../../../wiki/spec/language/machines.md#static-declarations-and-explicit-state)
+requires ordinary explicit parameters, including in dynamic callers.
+An absent eligibility row is not permission to infer validity from layout.
+The shared cleanup query also serves ordinary
 checked cleanup planning. This receipt is checked-source correspondence, not a
 source-free proof, a storage grant, or Fused service establishment; native entry
 must still supply those independent obligations.

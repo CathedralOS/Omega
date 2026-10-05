@@ -280,9 +280,10 @@ library/build products with ordinary storage and lifecycle contracts.
 
 Selected runtime interfaces separately expose descriptions, getters, setters,
 factories, serialization, or invocation. Availability of one does not imply all.
-Ordinary explicit dynamic conformances retain instance/table custody and borrowed
-lifetimes; there is no accidental static-lifetime requirement on all inspectable
-values. Recursive adapter retention follows exact dependencies, not a global
+Dynamic values retain the selected named implementation independently from the
+data passed to its machines. Explicit data arguments retain their ordinary
+borrowed lifetimes; there is no accidental static-lifetime requirement on all
+inspectable values. Recursive adapter retention follows exact dependencies, not a global
 inventory of every known type.
 
 Ordinary RAM borrows remain ordinary field projections. Packed/fragmented fields

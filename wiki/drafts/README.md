@@ -171,9 +171,9 @@ A proposed shape for work that has not landed.
 - [Condition-fact equality roster](designs/condition_fact_equality_roster.md): sparse
   projection design for the cliff's open asymptotic centre; delete once the
   projection lands and that hotspot closes.
-- [Dynamic erased-argument lane](designs/dynamic_erased_lane_channel.md): smallest
-  sound channel for proof-only actuals on `&dyn` calls; replace or delete when
-  the design question is settled elsewhere.
+- [Dynamic proof arguments](designs/dynamic_erased_lane_channel.md): migration
+  obligations after retirement of the instance-descriptor proposal; preserve
+  proof argument relationships independently of implementation selection.
 - [Evaluated foreign bindings](designs/evaluated_foreign_bindings.md): resume recipe for
   the privileged port-effect producer chain; delete once the producer legs land
   and a port-bearing artifact replays its effects.
