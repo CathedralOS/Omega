@@ -929,11 +929,15 @@ fn validate_module_with_policy(
     validate_evidence_contract_lanes(module, &machines)?;
     let mut descriptor_requirements = BTreeMap::new();
     let mut machine_frontiers = Vec::with_capacity(module.machines.len());
+    // Every machine's frontier walk replays descriptors over the same
+    // whole-module graph; build it once rather than once per machine.
+    let descriptor_graph = terminal_semantics::descriptor_results::terminal_graph(module);
     for machine in &module.machines {
         machine_frontiers.push(machine::validate_machine(
             module,
             machine,
             &machines,
+            &descriptor_graph,
             &mut registry,
             descriptor_requirements.entry(machine.id).or_default(),
         )?);

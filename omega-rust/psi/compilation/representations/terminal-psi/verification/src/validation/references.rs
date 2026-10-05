@@ -91,9 +91,14 @@ pub(super) struct BorrowedSources {
 }
 
 impl BorrowedSources {
-    pub(super) fn new(module: &TerminalModule, machine: &TerminalMachine) -> Self {
+    /// `graph` is the module's `terminal_graph`, built once per validation.
+    pub(super) fn new(
+        module: &TerminalModule,
+        machine: &TerminalMachine,
+        graph: &[terminal_semantics::descriptor_results::DescriptorMachine],
+    ) -> Self {
         use terminal_semantics::descriptor_lifetimes::{DescriptorLocation, descriptor_path};
-        use terminal_semantics::descriptor_results::{DescriptorAnalysis, terminal_graph};
+        use terminal_semantics::descriptor_results::DescriptorAnalysis;
         let mut sources = Vec::new();
         if machine.blocks.iter().all(|block| {
             block
@@ -103,8 +108,7 @@ impl BorrowedSources {
         }) {
             return Self { sources };
         }
-        let graph = terminal_graph(module);
-        let mut analysis = DescriptorAnalysis::new(&module.structural_types, &graph);
+        let mut analysis = DescriptorAnalysis::new(&module.structural_types, graph);
         for block in &machine.blocks {
             for parameter in &block.structural_parameters {
                 // Descriptor payloads have their own captured-origin owner;

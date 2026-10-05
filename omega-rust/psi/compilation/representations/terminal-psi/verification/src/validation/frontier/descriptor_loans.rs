@@ -49,9 +49,13 @@ pub(super) struct DescriptorLoans {
 }
 
 impl DescriptorLoans {
-    pub(super) fn new(module: &TerminalModule, machine: &TerminalMachine) -> Self {
-        let graph = terminal_semantics::descriptor_results::terminal_graph(module);
-        let mut analysis = DescriptorAnalysis::new(&module.structural_types, &graph);
+    /// `graph` is the module's `terminal_graph`, built once per validation.
+    pub(super) fn new(
+        module: &TerminalModule,
+        machine: &TerminalMachine,
+        graph: &[terminal_semantics::descriptor_results::DescriptorMachine],
+    ) -> Self {
+        let mut analysis = DescriptorAnalysis::new(&module.structural_types, graph);
         let aliases::Origins {
             aliases,
             positions,

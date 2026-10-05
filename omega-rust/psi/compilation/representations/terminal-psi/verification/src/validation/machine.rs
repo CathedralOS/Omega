@@ -32,6 +32,7 @@ pub(super) fn validate_machine(
     module: &TerminalModule,
     machine: &TerminalMachine,
     machines: &BTreeMap<MachineId, &TerminalMachine>,
+    descriptor_graph: &[terminal_semantics::descriptor_results::DescriptorMachine],
     registry: &mut IdRegistry,
     requirements: &mut Vec<
         terminal_semantics::descriptor_results::DescriptorCompatibilityRequirement,
@@ -139,6 +140,7 @@ pub(super) fn validate_machine(
         module,
         machine,
         machines,
+        descriptor_graph,
         &blocks,
         &dominators,
         requirements,

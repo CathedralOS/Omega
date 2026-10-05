@@ -272,6 +272,7 @@ pub(super) fn validate_structural_frontier(
     module: &TerminalModule,
     machine: &TerminalMachine,
     machines: &BTreeMap<MachineId, &TerminalMachine>,
+    descriptor_graph: &[terminal_semantics::descriptor_results::DescriptorMachine],
     blocks: &BTreeMap<BlockId, &terminal_psi::Block>,
     dominators: &crate::control_graph::DominatorTree,
     requirements: &mut Vec<
@@ -301,8 +302,10 @@ pub(super) fn validate_structural_frontier(
     let order = traversal::block_order(machine.entry, blocks);
     let origins = super::borrowed_windows::borrowed_storage_origins(module, machine);
     let shared_loans = shared_loans::SharedLoans::new(machine, &origins);
-    let descriptor_loans = descriptor_loans::DescriptorLoans::new(module, machine);
-    let borrowed_reference_sources = super::references::BorrowedSources::new(module, machine);
+    let descriptor_loans =
+        descriptor_loans::DescriptorLoans::new(module, machine, descriptor_graph);
+    let borrowed_reference_sources =
+        super::references::BorrowedSources::new(module, machine, descriptor_graph);
     let mut incoming = BTreeMap::<BlockId, Vec<StructuralOwnershipFrontier>>::new();
     incoming.insert(machine.entry, vec![entry]);
     let window_aliases = crate::validation::borrowed_windows::window_aliases_from_origins(&origins);
