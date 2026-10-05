@@ -551,7 +551,7 @@ pub static ENTRIES: &[TrustedSurfaceEntry] = &[
         id: "route:source-checked",
         family: LedgerFamily::EvidenceRoute,
         binding: dispatch(CoveredSurface::EvidenceRoutes),
-        premises: "a derivable obligation the reconstruction assigns to one operation, whose formation condition the producing compile's source checker decided from flow facts and lowering attached to that exact operation",
+        premises: "a derivable obligation the reconstruction assigns to one operation or to one scalar block arrival, whose formation condition, or whose arrival contract delivered by a source transition, the producing compile's source checker decided from flow facts and lowering attached to that exact operation or edge; the producer attaches an arrival only while its row's predicate is the authored contract the checker judged",
         conclusion: "the fact is accepted on the producing checker's decision; no proof travels, so the checker is trusted for this goal, and any other owner, an admission row, a ranking edge or a normalization law rejects the route",
         dependencies: &["formation:proposition-context"],
         implementation: &[EVIDENCE, ADMISSION, VERIFICATION],

@@ -88,9 +88,10 @@ pub(super) fn check_flow_call_contracts(
     incoming_guards: &crate::checks::ranges::incoming_guards::IncomingGuardIndex,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     proven_machine_contracts: &[(SymbolHandle, Vec<ExpressionHandle>)],
-) -> Result<(), Vec<Diagnostic>> {
+) -> Result<Vec<checked_trees::DecidedCallRequires>, Vec<Diagnostic>> {
     let mut diagnostics =
         crate::facts::contextual_cleanup::check_cleanup_requirements(program, facts);
+    let mut decided = Vec::new();
     let content_plans = validation::content_conservation_plans(program);
     let nominal_requirements = nominal_inputs::DeclaredFieldRequirements::new(&facts.semantic);
     let mut owned_call_frames = None;
@@ -152,6 +153,7 @@ pub(super) fn check_flow_call_contracts(
                 call_flow,
                 &mut diagnostics,
             );
+            let before = diagnostics.len();
             check_call_requires(
                 program,
                 facts,
@@ -162,6 +164,17 @@ pub(super) fn check_flow_call_contracts(
                 call_frames,
                 &mut diagnostics,
             );
+            // Every unproved fact pushes a diagnostic, so a call that adds
+            // none had its whole contract discharged here.
+            if diagnostics.len() == before
+                && let Ok(statement_index) = u32::try_from(call_flow.statement_index)
+            {
+                decided.push(checked_trees::DecidedCallRequires {
+                    state: state_flow.state_symbol,
+                    statement_index,
+                    target: call_flow.target_symbol,
+                });
+            }
         }
         for exit_flow in facts.flow.control.exits.span_or_empty(state_flow.exits) {
             exits::check_scalar_result_domains(program, facts, exit_flow, &mut diagnostics);
@@ -212,7 +225,7 @@ pub(super) fn check_flow_call_contracts(
     }
 
     if diagnostics.is_empty() {
-        Ok(())
+        Ok(decided)
     } else {
         Err(diagnostics)
     }

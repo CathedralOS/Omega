@@ -266,10 +266,37 @@ pub(crate) fn retain_provable_bounded(
         .map_err(LoweringError::InvalidTerminalModule)?;
     retain_provable_roster_bounded(lowered, &original, roster_rounds, &mut declines)?;
     if !preserves_mandatory_roster(&mandatory, &lowered.semantic_module.scalar_block_invariants) {
-        lowered.semantic_module.scalar_block_invariants = mandatory;
-        return Ok(declines);
+        lowered.semantic_module.scalar_block_invariants = mandatory.clone();
     }
+    strip_extended_source_checked_arrivals(lowered, &mandatory);
     Ok(declines)
+}
+
+/// A source-checked arrival answers the authored contract the checker judged
+/// at its transition. Where inference extended that row, the arrival's goal now
+/// carries members the checker never saw, so its decision is withdrawn and
+/// finalization's certificate search proves the extended goal instead.
+fn strip_extended_source_checked_arrivals(
+    lowered: &mut LoweredPsi,
+    mandatory: &[terminal_psi::ScalarBlockInvariant],
+) {
+    let extended = lowered
+        .semantic_module
+        .scalar_block_invariants
+        .iter()
+        .filter(|row| {
+            authored_row(mandatory, row.machine, row.header)
+                .is_some_and(|authored| authored.predicate != row.predicate)
+        })
+        .flat_map(|row| row.arrivals.iter().map(|arrival| arrival.obligation))
+        .collect::<BTreeSet<_>>();
+    if extended.is_empty() {
+        return;
+    }
+    lowered.proof_bundle.evidence.retain(|evidence| {
+        evidence.route != proof_admission::EvidenceRoute::SourceChecked
+            || !extended.contains(&evidence.obligation)
+    });
 }
 
 /// The atomic members of a predicate, with nested conjunctions flattened.

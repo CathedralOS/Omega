@@ -57,6 +57,9 @@ pub(super) struct StateGraphEmission<'a, 'c> {
     /// Jump and Conditional edge identities emitted so far, keyed by their
     /// target block — the exact roster a header invariant must cite.
     arrival_edges: BTreeMap<BlockId, Vec<EdgeId>>,
+    /// Arrival edges whose source transition checking proved the target's
+    /// whole `requires` contract for (`CheckFacts::call_requires_decided`).
+    decided_arrival_edges: std::collections::BTreeSet<EdgeId>,
     structural_places: Vec<StructuralPlaceDeclaration>,
     blocks: Vec<Block>,
     scalar_block_invariants: Vec<terminal_psi::ScalarBlockInvariant>,
@@ -399,6 +402,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         state_erased,
         state_erased_proof,
         arrival_edges,
+        decided_arrival_edges: std::collections::BTreeSet::new(),
         structural_places,
         blocks,
         loaned_local_homes: BTreeMap::new(),
@@ -429,12 +433,13 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         state_erased,
         state_erased_proof: _,
         arrival_edges,
+        decided_arrival_edges,
         mut structural_places,
         mut blocks,
         mut scalar_block_invariants,
         loaned_local_homes,
         loan_chains,
-        occurrences,
+        mut occurrences,
         block_ranks,
         rank_edges,
         ..
@@ -483,14 +488,29 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         else {
             continue;
         };
+        // An arrival whose transition checking discharged in full needs no
+        // certificate, provided every row is a plain clause the call check
+        // judged; a float range rides its own catalog and keeps the search.
+        // The invocation-entry arrival has no transition and never qualifies.
+        let checked_rows = state.requires.iter().all(|row| {
+            matches!(
+                row,
+                Some(
+                    checked_trees::ClosedScalarContractValue::Predicate(_)
+                        | checked_trees::ClosedScalarContractValue::Boolean(_)
+                        | checked_trees::ClosedScalarContractValue::Integer(_)
+                )
+            )
+        });
         let mut arrivals = Vec::new();
         for edge in arrival_edges.get(&header).cloned().unwrap_or_default() {
-            arrivals.push(terminal_psi::ScalarBlockInvariantArrival {
-                edge,
-                obligation: obligation_id(allocate_dense(
-                    &mut catalogs.scalar_calls.next_call_obligation,
-                )?),
-            });
+            let obligation = obligation_id(allocate_dense(
+                &mut catalogs.scalar_calls.next_call_obligation,
+            )?);
+            if checked_rows && decided_arrival_edges.contains(&edge) {
+                occurrences.source_checked_obligations.push(obligation);
+            }
+            arrivals.push(terminal_psi::ScalarBlockInvariantArrival { edge, obligation });
         }
         if arrivals.is_empty() {
             return unsupported("Unit graph requires header has no edge arrivals");

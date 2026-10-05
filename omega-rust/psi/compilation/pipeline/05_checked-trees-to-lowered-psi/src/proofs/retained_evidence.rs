@@ -26,6 +26,14 @@ pub(super) fn replays(
         if original.obligations().iter().any(|before| before == after) {
             continue;
         }
+        // A checker decision answers the goal it judged. New premises leave it
+        // valid. A changed goal (inference conjoining a member into an authored
+        // arrival contract) is a question the checker never saw: the pass may
+        // still keep the proposal, and `retain_provable_bounded` strips the
+        // decision afterwards so certificate search proves the extended goal.
+        if proof.route == proof_admission::EvidenceRoute::SourceChecked {
+            continue;
+        }
         let machine =
             validated
                 .machine(after.owner.machine())

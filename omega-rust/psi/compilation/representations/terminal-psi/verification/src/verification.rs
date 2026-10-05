@@ -246,10 +246,12 @@ pub fn verify_module_for_fixed_fuel<'module>(
 }
 
 /// Verify one reconstructed obligation's evidence. The checker judges source
-/// operations, so a source-checked route is admitted only for an obligation an
-/// operation owns; a contract, call or cleanup obligation, like every other
-/// route, goes through the proof kernel. Producers re-verifying their own
-/// retained evidence call this too, so both sides admit the same routes.
+/// operations and the `requires` contract a transition delivers to its target
+/// state, so a source-checked route is admitted only for an obligation an
+/// operation or a scalar block arrival owns; a contract, call or cleanup
+/// obligation, like every other route, goes through the proof kernel.
+/// Producers re-verifying their own retained evidence call this too, so both
+/// sides admit the same routes.
 pub fn verify_reconstructed_obligation(
     context: &semantic_vocabulary::PropositionContext,
     site: &ReconstructedTerminalObligation,
@@ -261,6 +263,7 @@ pub fn verify_reconstructed_obligation(
         if !matches!(
             site.owner,
             ReconstructedTerminalObligationOwner::Operation { .. }
+                | ReconstructedTerminalObligationOwner::ScalarBlockInvariant { .. }
         ) {
             return Err(VerificationError::SourceCheckedNonOperation(
                 site.obligation.id,

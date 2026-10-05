@@ -60,7 +60,7 @@ pub use carry::{
     SuspensionCrossingValueOrigin, canonical_suspension_crossing_id,
 };
 pub use checked_crash_operator_site::{CheckedCrashOperatorSite, OperatorSiteLocation};
-pub use collection::CheckFacts;
+pub use collection::{CheckFacts, DecidedCallRequires};
 pub use content::{
     ContentIdentityReshuffleFact, ContentPartitionCompositionFact,
     ContentPartitionInputClaimBinding, ContentPartitionPlaceSubstitution,

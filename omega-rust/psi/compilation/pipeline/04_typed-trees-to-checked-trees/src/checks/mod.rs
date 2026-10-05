@@ -106,14 +106,15 @@ pub(crate) fn check_checked_facts_recording_with_mutation_summaries(
         diagnostics.append(&mut borrow_diagnostics);
     }
 
-    if let Err(mut contract_diagnostics) = contracts::check_flow_call_contracts(
+    match contracts::check_flow_call_contracts(
         program,
         facts,
         incoming_guards,
         call_frames.as_ref(),
         proven_machine_contracts,
     ) {
-        diagnostics.append(&mut contract_diagnostics);
+        Ok(decided) => facts.decided_call_requires = decided,
+        Err(mut contract_diagnostics) => diagnostics.append(&mut contract_diagnostics),
     }
 
     if let Err(mut store_diagnostics) =

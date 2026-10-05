@@ -21,6 +21,11 @@ pub struct CheckFacts {
     /// were established at the store itself, ordered by target handle position.
     /// A later restoration of an invariant does not establish this decision.
     pub proven_byte_writes: Vec<typed_trees::expression::ExpressionHandle>,
+    /// Calls whose every `requires` fact checking proved at the call site,
+    /// keyed by calling state, statement and resolved target. For a state
+    /// transfer this is the target state's arrival contract, so lowering
+    /// can publish the matching arrival obligation as decided.
+    pub decided_call_requires: Vec<DecidedCallRequires>,
     /// Final source execution dependencies, including selected cleanup edges.
     /// The memo scope accelerates queries; it is not their semantic owner.
     pub operational: flow_effects::OperationalPlan,
@@ -106,6 +111,14 @@ pub struct CheckFacts {
     pub placed_view_inputs: Vec<CheckedPlacedViewInput>,
 }
 
+/// One call site whose `requires` checking discharged in full.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DecidedCallRequires {
+    pub state: symbols::SymbolHandle,
+    pub statement_index: u32,
+    pub target: symbols::SymbolHandle,
+}
+
 impl CheckFacts {
     pub fn byte_write_is_proven(&self, target: typed_trees::expression::ExpressionHandle) -> bool {
         self.proven_byte_writes
@@ -113,6 +126,21 @@ impl CheckFacts {
                 crate::operators::handle_position(*proven)
             })
             .is_ok()
+    }
+
+    /// Whether checking proved every `requires` fact of the call `state`
+    /// makes to `target` at `statement_index`.
+    pub fn call_requires_decided(
+        &self,
+        state: symbols::SymbolHandle,
+        statement_index: u32,
+        target: symbols::SymbolHandle,
+    ) -> bool {
+        self.decided_call_requires.iter().any(|decided| {
+            decided.state == state
+                && decided.statement_index == statement_index
+                && decided.target == target
+        })
     }
 
     /// Whether every bounds check of this `[]` occurrence proved its scalar

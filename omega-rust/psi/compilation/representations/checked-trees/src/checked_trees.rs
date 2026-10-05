@@ -45,7 +45,7 @@ pub use borrow::{
 pub use facts::{
     CheckedStoredIntegerWrite, ContextualCleanupApplication, ContextualCleanupDisposition,
     ContextualCleanupEntryRequirement, ContextualCleanupEntryRequirements, ContextualCleanupFacts,
-    StoredIntegerWriteSite,
+    DecidedCallRequires, StoredIntegerWriteSite,
 };
 
 pub use facts::{

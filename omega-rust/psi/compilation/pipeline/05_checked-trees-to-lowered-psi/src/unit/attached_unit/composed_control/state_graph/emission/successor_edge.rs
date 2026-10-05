@@ -53,6 +53,11 @@ impl StateGraphEmission<'_, '_> {
             consumed_case_subjects,
         } = *frame;
         let state = &plan.states[position];
+        let arrival_decided = checked.facts.call_requires_decided(
+            state.state,
+            edge.statement_ordinal,
+            edge.target_state,
+        );
         // A fused roster mixes owners: this state's authored facts live
         // under its own machine, and the edge's authored target signature
         // resolves through the roster position.
@@ -864,6 +869,9 @@ impl StateGraphEmission<'_, '_> {
             let backedge = edge_id(allocate_dense(next_edge)?);
             let selection_edge = edge_id(allocate_dense(next_edge)?);
             self.arrival_edges.entry(target).or_default().push(backedge);
+            if arrival_decided {
+                self.decided_arrival_edges.insert(backedge);
+            }
             if let Some(rank) = current_rank {
                 self.block_ranks.insert(staged, rank);
                 self.block_ranks.insert(edge_evaluation.current, rank);
@@ -940,6 +948,9 @@ impl StateGraphEmission<'_, '_> {
                 .entry(target)
                 .or_default()
                 .push(successor_edge);
+            if arrival_decided {
+                self.decided_arrival_edges.insert(successor_edge);
+            }
             if let Some(after) = arriving_rank {
                 self.rank_edges.insert(
                     successor_edge,
