@@ -967,10 +967,9 @@ pass/text/utf8_boundary_established checked 706ms @2d8ed253669f+wt
 pass/text/zii_default_string_equality_exit built 2758ms exit:70 @9baafc0ace88
 pass/time/runtime_checked_time_arith_exit built 19536ms exit:70 @9baafc0ace88
 pass/time/runtime_duration_core_exit built 12181ms exit:70 @233d30cb1ceb
-pass/time/runtime_fs_mtime_system_time_interop_exit rejected 2605ms @2d8ed253669f+wt
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `call operation: boundary receiver` (state 0, statement 2)
-pass/time/runtime_time_elapsed_since_exit rejected 13460ms @95e4e5c52dc
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(TimeHost::monotonic_ticks_per_second),parameters(),result-dispatch())` resolves to 0 selected provider rows
+pass/time/runtime_fs_mtime_system_time_interop_exit rejected 6755ms @ee58ca6633
+	selected ProgramEntry Binding field `Main::fs` requires a selected Fused provider for boundary `FilesystemHost`
+pass/time/runtime_time_elapsed_since_exit built 27904ms exit:70 @ee58ca6633
 pass/time/runtime_time_host_native_darwin_exit built 2494ms @9baafc0ace88
 pass/time/runtime_time_host_virtual_exit checked 1537ms @2d8ed253669f+wt
 pass/time/static_duration_accessors built 6269ms exit:70 @2d8ed253669f+wt
