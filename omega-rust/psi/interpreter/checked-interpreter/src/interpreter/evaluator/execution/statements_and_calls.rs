@@ -528,6 +528,34 @@ impl<'program> Evaluator<'program> {
         )? {
             return Ok(value);
         }
+        // `BuildOutput::require(&mut builder.output, name);` still issues the
+        // obligation when the marker result is dropped, and `complete`/`fail`
+        // still settle their operand obligation. Both take the facet as an
+        // explicit operand, so neither depends on a receiver place.
+        if self
+            .try_build_output_obligation_call(
+                call.target_symbol,
+                self.program
+                    .statement_table
+                    .expression_handles(call.arguments),
+                frame,
+            )?
+            .is_some()
+        {
+            return Ok(Value::Unit);
+        }
+        if self
+            .try_required_output_path_call(
+                call.target_symbol,
+                self.program
+                    .statement_table
+                    .expression_handles(call.arguments),
+                frame,
+            )?
+            .is_some()
+        {
+            return Ok(Value::Unit);
+        }
         // Other activation facets still require a runtime receiver. A declaration called
         // `write` or `close` is not a facet merely because its leaf matches;
         // let ordinary selected-target dispatch handle namespace calls below.
@@ -536,12 +564,6 @@ impl<'program> Evaluator<'program> {
                 return Ok(value);
             }
             if self.try_build_log_write_line_statement(call, frame)? {
-                return Ok(Value::Unit);
-            }
-            if self.try_build_output_obligation_statement(call, frame)? {
-                return Ok(Value::Unit);
-            }
-            if self.try_required_output_path_statement(call, frame)? {
                 return Ok(Value::Unit);
             }
         }

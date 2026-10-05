@@ -17,9 +17,10 @@
 //! activation. An authored `RequiredOutput {}` or `OutputReceipt {}` has the
 //! declared type name instead of the private marker name, so it can never
 //! satisfy `described_output_obligation` or name a table row.
+use super::paths::OUTPUT_ROOT_FACET_TYPE;
 use crate::MAX_BUILD_OUTPUT_OBLIGATIONS;
 use crate::interpreter::evaluator::{
-    BTreeMap, Cell, EvalResult, Evaluator, ExpressionHandle, FilesystemGrantRootIdentity,
+    BTreeMap, EvalResult, Evaluator, ExpressionHandle, FilesystemGrantRootIdentity,
     FilesystemHostOperation, FilesystemLogicalHandleInputResolution, FilesystemLogicalHandleKind,
     FilesystemLogicalHandleOutputSource, FilesystemOperationAttemptOutcome, Frame, Halt,
     SymbolHandle, Value, rooted_build_path_parts, validate_build_relative_path,
@@ -52,180 +53,61 @@ pub(in crate::interpreter) enum OutputSealState {
 }
 
 impl<'program> Evaluator<'program> {
-    /// `builder.output.require` / `complete` / `fail` as a value-position
-    /// call on the compiler-issued `Build.output` facet.
-    pub(in crate::interpreter::evaluator) fn try_build_output_obligation_value_call(
+    /// `BuildOutput::require` / `complete` / `fail` on an explicit
+    /// compiler-issued `Build.output` activation operand.
+    ///
+    /// The facet arrives as the call's first argument, exactly as every other
+    /// Build facet family takes its authority, and the selected declaration is
+    /// identified by its resolved target symbol rather than by the spelled
+    /// leaf. Keying on a receiver place instead left these three operations
+    /// unreachable: a qualified `BuildOutput::require(&mut builder.output, ..)`
+    /// call carries a declaration namespace as its receiver, which the
+    /// dispatcher's namespace guard skipped, so the prelude's declared body ran
+    /// and issued no obligation at all.
+    pub(in crate::interpreter::evaluator) fn try_build_output_obligation_call(
         &mut self,
-        call: &typed_trees::expression::TableCallExpression,
+        target: SymbolHandle,
+        arguments: &[ExpressionHandle],
         frame: &mut Frame,
     ) -> EvalResult<Option<Value>> {
-        if !call.receiver.is_valid()
-            || !matches!(call.target.as_str(), "require" | "complete" | "fail")
-        {
-            return Ok(None);
-        }
-        let receiver = self.resolve_place(call.receiver, frame)?;
-        let Some(output_root) =
-            self.output_facet_root(receiver, call.target.as_str(), call.target_symbol)?
+        let Some(("BuildOutput", operation @ ("require" | "complete" | "fail"))) =
+            self.build_prelude_facet_method(target)
         else {
             return Ok(None);
         };
-        let arguments = self
-            .program
-            .expression_table
-            .expression_handles(call.arguments);
-        self.dispatch_build_output_obligation(call.target.as_str(), output_root, arguments, frame)
+        let Some((facet, operands)) = arguments.split_first() else {
+            return Err(Halt::Trap(format!(
+                "build output `{operation}` has no explicit activation facet"
+            )));
+        };
+        let output_root = self.build_root_argument(*facet, OUTPUT_ROOT_FACET_TYPE, frame)?;
+        self.dispatch_build_output_obligation(operation, output_root, operands, frame)
             .map(Some)
     }
 
-    /// The statement-position twin: `builder.output.require(name);` still
-    /// issues the obligation even though the marker result is dropped, and
-    /// `complete`/`fail` still settle their operand obligation.
-    pub(in crate::interpreter::evaluator) fn try_build_output_obligation_statement(
+    /// `RequiredOutput::path` on an explicit issued obligation marker: answer
+    /// the obligation's declared canonical name. Only the evaluator's own
+    /// marker shape is admitted, so an authored `RequiredOutput {}` is refused
+    /// rather than silently answering an empty name.
+    pub(in crate::interpreter::evaluator) fn try_required_output_path_call(
         &mut self,
-        call: &typed_trees::statement::TableCall,
-        frame: &mut Frame,
-    ) -> EvalResult<bool> {
-        if call.receiver.is_empty()
-            || !matches!(call.target.as_str(), "require" | "complete" | "fail")
-        {
-            return Ok(false);
-        }
-        let Some(receiver) = self.statement_receiver_cell(call, frame)? else {
-            return Ok(false);
-        };
-        let Some(output_root) =
-            self.output_facet_root(receiver, call.target.as_str(), call.target_symbol)?
-        else {
-            return Ok(false);
-        };
-        let arguments = self
-            .program
-            .statement_table
-            .expression_handles(call.arguments);
-        self.dispatch_build_output_obligation(call.target.as_str(), output_root, arguments, frame)?;
-        Ok(true)
-    }
-
-    /// `required.path()` as a value-position call on an issued obligation
-    /// marker: returns the obligation's declared canonical name.
-    pub(in crate::interpreter::evaluator) fn try_required_output_path_value_call(
-        &mut self,
-        call: &typed_trees::expression::TableCallExpression,
+        target: SymbolHandle,
+        arguments: &[ExpressionHandle],
         frame: &mut Frame,
     ) -> EvalResult<Option<Value>> {
-        if call.target.as_str() != "path" || !call.receiver.is_valid() {
+        let Some(("RequiredOutput", "path")) = self.build_prelude_facet_method(target) else {
             return Ok(None);
-        }
-        let receiver = self.resolve_place(call.receiver, frame)?;
-        let receiver = self.deref_cell(receiver);
-        let is_marker = matches!(
-            &*receiver.borrow(),
-            Value::Struct { type_name, .. } if **type_name == *REQUIRED_OUTPUT_TYPE
-        );
-        if !is_marker {
-            if call.target_symbol.is_valid()
-                && self.exact_build_facet_method("RequiredOutput", "path", call.target_symbol)
-            {
-                return Err(Halt::Trap(
-                    "required-output path access requires a compiler-issued RequiredOutput"
-                        .to_owned(),
-                ));
-            }
-            return Ok(None);
-        }
-        if !self.exact_build_facet_method("RequiredOutput", "path", call.target_symbol) {
+        };
+        let [obligation] = arguments else {
             return Err(Halt::Trap(
-                "required-output path access did not select the exact toolchain machine".to_owned(),
+                "required-output path access requires one obligation operand".to_owned(),
             ));
-        }
-        let index = self.described_output_obligation(&receiver.borrow())?;
+        };
+        let obligation = self.eval_argument(*obligation, frame)?;
+        let obligation = self.deref_cell(obligation);
+        let index = self.described_output_obligation(&obligation.borrow())?;
         let path = self.output_obligations[index].relative_path.clone();
         Ok(Some(self.allocate_text(path)?))
-    }
-
-    /// The statement-position twin of `required.path()`; the declared name is
-    /// evaluated and dropped.
-    pub(in crate::interpreter::evaluator) fn try_required_output_path_statement(
-        &mut self,
-        call: &typed_trees::statement::TableCall,
-        frame: &Frame,
-    ) -> EvalResult<bool> {
-        if call.target.as_str() != "path" || call.receiver.is_empty() {
-            return Ok(false);
-        }
-        let Some(receiver) = self.statement_receiver_cell(call, frame)? else {
-            return Ok(false);
-        };
-        let is_marker = matches!(
-            &*receiver.borrow(),
-            Value::Struct { type_name, .. } if **type_name == *REQUIRED_OUTPUT_TYPE
-        );
-        if !is_marker {
-            if call.target_symbol.is_valid()
-                && self.exact_build_facet_method("RequiredOutput", "path", call.target_symbol)
-            {
-                return Err(Halt::Trap(
-                    "required-output path access requires a compiler-issued RequiredOutput"
-                        .to_owned(),
-                ));
-            }
-            return Ok(false);
-        }
-        if !self.exact_build_facet_method("RequiredOutput", "path", call.target_symbol) {
-            return Err(Halt::Trap(
-                "required-output path access did not select the exact toolchain machine".to_owned(),
-            ));
-        }
-        self.described_output_obligation(&receiver.borrow())?;
-        Ok(true)
-    }
-
-    /// The receiver must be the compiler-issued `BuildOutput` facet marker;
-    /// an authored `BuildOutput` value can select the toolchain machine
-    /// through member resolution but carries no output-root authority.
-    /// Returns the facet's grant-root identity.
-    fn output_facet_root(
-        &self,
-        receiver: Cell,
-        target: &str,
-        target_symbol: SymbolHandle,
-    ) -> EvalResult<Option<FilesystemGrantRootIdentity>> {
-        let receiver = self.deref_cell(receiver);
-        let root = match &*receiver.borrow() {
-            Value::Struct {
-                type_name, fields, ..
-            } if **type_name
-                == *crate::interpreter::evaluator::build_machine::paths::OUTPUT_ROOT_FACET_TYPE =>
-            {
-                fields
-                    .get("root")
-                    .and_then(|root| root.borrow().as_int())
-                    .and_then(|root| u32::try_from(root).ok())
-                    .and_then(FilesystemGrantRootIdentity::new)
-                    .ok_or_else(|| {
-                        Halt::Trap(
-                            "build-output activation facet has no valid root identity".to_owned(),
-                        )
-                    })?
-            }
-            _ => {
-                if target_symbol.is_valid()
-                    && self.exact_build_facet_method("BuildOutput", target, target_symbol)
-                {
-                    return Err(Halt::Trap(format!(
-                        "build output `{target}` requires the compiler-issued Build.output facet"
-                    )));
-                }
-                return Ok(None);
-            }
-        };
-        if !self.exact_build_facet_method("BuildOutput", target, target_symbol) {
-            return Err(Halt::Trap(format!(
-                "build output `{target}` did not select the exact toolchain machine"
-            )));
-        }
-        Ok(Some(root))
     }
 
     fn dispatch_build_output_obligation(

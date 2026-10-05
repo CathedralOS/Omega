@@ -602,6 +602,27 @@ impl<'program> Evaluator<'program> {
         )? {
             return Ok(value);
         }
+        // Required-output custody takes the activation facet and the issued
+        // obligation as ordinary explicit operands, so it is selected here by
+        // resolved toolchain identity rather than below by receiver shape.
+        if let Some(value) = self.try_build_output_obligation_call(
+            call.target_symbol,
+            self.program
+                .expression_table
+                .expression_handles(call.arguments),
+            frame,
+        )? {
+            return Ok(value);
+        }
+        if let Some(value) = self.try_required_output_path_call(
+            call.target_symbol,
+            self.program
+                .expression_table
+                .expression_handles(call.arguments),
+            frame,
+        )? {
+            return Ok(value);
+        }
         let target = call.target.as_str();
         // Build facets act on invocation-owned values, never declaration
         // namespaces. Probing storage for a qualified user `read`/`resolve`
@@ -611,12 +632,6 @@ impl<'program> Evaluator<'program> {
         let qualified = self.expression_receiver_is_namespace(call.receiver);
         if !qualified {
             if let Some(value) = self.try_build_log_write_line_value_call(call, frame)? {
-                return Ok(value);
-            }
-            if let Some(value) = self.try_build_output_obligation_value_call(call, frame)? {
-                return Ok(value);
-            }
-            if let Some(value) = self.try_required_output_path_value_call(call, frame)? {
                 return Ok(value);
             }
         }

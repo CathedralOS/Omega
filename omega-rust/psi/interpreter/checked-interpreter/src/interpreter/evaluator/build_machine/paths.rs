@@ -29,9 +29,16 @@ enum BuildPathOperation {
 }
 
 impl<'program> Evaluator<'program> {
-    /// Select only the resolved compiler-owned declaration. Ordinary user
-    /// machines with the same spelling never acquire Build host semantics.
-    fn build_path_operation(&self, target: SymbolHandle) -> Option<BuildPathOperation> {
+    /// Name the exact toolchain Build facet method a resolved call target
+    /// selects, as the `(attached data, state)` pair its prelude declaration
+    /// carries. Every Build facet family keys on this one answer, so an
+    /// ordinary user machine spelled `write` or `require` can never acquire
+    /// Build host semantics, and a facet stays reachable through the explicit
+    /// activation-operand spelling rather than through a receiver place.
+    pub(in crate::interpreter::evaluator) fn build_prelude_facet_method(
+        &self,
+        target: SymbolHandle,
+    ) -> Option<(&'program str, &'program str)> {
         if !target.is_valid() || !self.symbol_has_build_prelude_source(target) {
             return None;
         }
@@ -46,10 +53,16 @@ impl<'program> Evaluator<'program> {
         {
             return None;
         }
-        match (
+        Some((
             machine.attached_data.as_ref()?.as_str(),
             state.name.as_str(),
-        ) {
+        ))
+    }
+
+    /// Select only the resolved compiler-owned declaration. Ordinary user
+    /// machines with the same spelling never acquire Build host semantics.
+    fn build_path_operation(&self, target: SymbolHandle) -> Option<BuildPathOperation> {
+        match self.build_prelude_facet_method(target)? {
             ("BuildSource", "resolve") => Some(BuildPathOperation::Resolve(SOURCE_ROOT_FACET_TYPE)),
             ("BuildOutput", "resolve") => Some(BuildPathOperation::Resolve(OUTPUT_ROOT_FACET_TYPE)),
             ("BuildInputs", "get") => Some(BuildPathOperation::NamedInput),
@@ -141,7 +154,11 @@ impl<'program> Evaluator<'program> {
         Ok(Some(value))
     }
 
-    fn build_root_argument(
+    /// Admit one explicit activation-facet operand and answer its grant-root
+    /// identity. Every Build facet family takes its authority this way: an
+    /// authored `BuildOutput {}` has the declared type name rather than the
+    /// private activation marker, so it carries no root.
+    pub(in crate::interpreter::evaluator) fn build_root_argument(
         &mut self,
         expression: ExpressionHandle,
         expected: &str,
