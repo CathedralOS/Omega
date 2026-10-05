@@ -328,7 +328,6 @@ fn expression_places_resolve_attached_data_members() {
             type_reference: self_type,
             is_const: false,
             is_mutable: true,
-            is_self: true,
             relevance: Default::default(),
         },
     );
