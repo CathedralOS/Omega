@@ -288,7 +288,9 @@ impl StateGraphEmission<'_, '_> {
                 .map_err(|_| LoweringError::Unsupported("record capture state extent overflow"))?
             }
         };
-        evaluation.capture_observation_coordinates_before(
+        evaluation.prepare_observations_before(
+            self.checked,
+            state.state,
             capture_boundary,
             &self.catalogs.structural_types,
             &values,

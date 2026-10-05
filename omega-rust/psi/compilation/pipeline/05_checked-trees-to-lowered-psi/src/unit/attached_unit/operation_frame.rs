@@ -768,9 +768,8 @@ impl OperationFrame<'_, '_> {
                 let primitive_home = self.evaluation.immutable_local_borrow_home(
                     self.checked,
                     self.state,
-                    source,
+                    source.structural_storage_root(),
                     self.values,
-                    self.type_ids,
                     self.structural_types.declarations(),
                     self.next_place,
                     self.operations,

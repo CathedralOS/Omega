@@ -22,12 +22,16 @@ pass/core/extent_root_provider_adapter built 2986ms exit:0 interpreter-exit:0 in
 pass/data/opaque_copy_selected built 3871ms exit:0 interpreter-exit:0 interpreter:agrees @9daaa9bd9280+wt
 pass/domains/named_const_subject_binding built 5457ms exit:3 interpreter-exit:3 interpreter:agrees @9ed8b7d0772d
 pass/domains/named_subject_capacity_identity_exit built 5855ms exit:70 interpreter-exit:70 interpreter:agrees @9ed8b7d0772d
+pass/float/runtime_total_order_satisfiers_exit built 74829ms exit:70 interpreter-exit:70 interpreter:agrees @6d9868469d56+wt
 pass/generics/runtime_const_container_methods_exit built 6084ms exit:70 interpreter-exit:70 interpreter:agrees @0bb2f2c02dae+wt
 pass/generics/runtime_container_setter_matrix_exit built 5872ms exit:1 interpreter-exit:1 interpreter:agrees @506354b3cca3+wt
 pass/locals/static_local_field_names_exit built 2008ms exit:0 interpreter-exit:0 interpreter:agrees @105d2b8e6ff9+wt
 pass/machines/static_namespace_constant_exit built 6980ms exit:0 interpreter-exit:0 interpreter:agrees @0bb2f2c02dae+wt
 pass/providers/lifetime_boundary_requirement_dispatch_exit built 5436ms exit:41 interpreter-exit:41 interpreter:agrees @506354b3cca3+wt
 pass/providers/runtime_adapter_dispatch_exit built 5331ms exit:70 interpreter-exit:70 interpreter:agrees @944ee0efb38f+wt
+pass/recast/runtime_bool_representation_recast_exit built 4563ms exit:70 interpreter-exit:70 interpreter:agrees @6d9868469d56+wt
+pass/recast/runtime_float_range_representation_recast_exit built 12409ms exit:70 interpreter-exit:70 interpreter:agrees @6d9868469d56+wt
+pass/recast/runtime_scalar_parameter_shared_views_exit built 5934ms exit:70 interpreter-exit:70 interpreter:agrees @6d9868469d56+wt
 pass/relevance/runtime_static_proof_namespace_exit built 7745ms exit:0 interpreter-exit:0 interpreter:agrees @0c9d1b8dd763+wt
 pass/structural/runtime_enum_equality_exit built 7520ms exit:70 interpreter-exit:70 interpreter:agrees @5b40b0f7256d
 pass/termination/runtime_receiver_byte_slice_recursion_exit built 5769ms exit:70 interpreter-exit:70 interpreter:agrees @506354b3cca3+wt

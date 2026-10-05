@@ -248,7 +248,9 @@ pub(super) fn emit_call_operations(
     while let Some(step) = schedule.next() {
         let (operation_index, staged) = match *step {
             Step::CaptureBefore(statement) => {
-                evaluation.capture_observation_coordinates_before(
+                evaluation.prepare_observations_before(
+                    checked,
+                    state.state,
                     statement,
                     &catalogs.structural_types,
                     values,

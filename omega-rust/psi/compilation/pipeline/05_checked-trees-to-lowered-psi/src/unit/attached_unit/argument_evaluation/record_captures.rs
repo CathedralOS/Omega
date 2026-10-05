@@ -1,10 +1,11 @@
-//! Materialize captured coordinates at their declaration boundary. The private
-//! primitive home keeps its initialized value across selective joins; source
-//! locals and later observations never acquire permission to overwrite it.
+//! Prepare observed storage and captured coordinates at declaration boundaries.
+//! Primitive loans share the original addressable home. Coordinate snapshots
+//! stay private across joins; later observations cannot overwrite them.
 use super::{Evaluation, LoweringError, StructuralTypeDeclaration, ValueDeclaration};
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::expressions::emit_direct_expression;
 use crate::expression_preparation::bindings::ScalarBindings;
+use crate::expression_preparation::bindings::place_observations::LoanedSource;
 use crate::expression_preparation::prepare_expression::exact_u64_index;
 use crate::unit::{StructuralPlaceKind, allocate_dense, place_id};
 use terminal_psi::{
@@ -14,8 +15,10 @@ use terminal_psi::{
 
 impl Evaluation {
     #[allow(clippy::too_many_arguments)]
-    pub(crate) fn capture_observation_coordinates_before(
+    pub(crate) fn prepare_observations_before(
         &mut self,
+        checked: &checked_trees::CheckedTrees,
+        state: symbols::SymbolHandle,
         statement: u32,
         types: &[StructuralTypeDeclaration],
         values: &[ValueDeclaration],
@@ -30,6 +33,23 @@ impl Evaluation {
                 continue;
             }
             // Unsupported unused loans retain their ordinary use-site refusal.
+            let Ok(capture) = &loan.capture else { continue };
+            // An observation is address demand just like passing a loan. Keep
+            // the same original primitive home for both; a local recast does
+            // not need to be passed to a machine before it can be observed.
+            if let LoanedSource::Local(symbol) = capture.source {
+                self.immutable_local_borrow_home(
+                    checked,
+                    state,
+                    Some(facts::PlaceRoot::Symbol(symbol)),
+                    values,
+                    types,
+                    next_place,
+                    operations,
+                    private_places,
+                )?;
+            }
+            let loan = &self.place_observations[position];
             let Ok(capture) = &loan.capture else { continue };
             let Some(selector) = &capture.runtime_index else {
                 continue;

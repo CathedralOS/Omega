@@ -726,14 +726,27 @@ impl ScalarBindings {
                 Ok(parameter.place)
             }
             LoanedSource::Local(symbol) => {
-                let Some(StructuralLocalBinding { argument, .. }) = self
-                    .structural_locals
+                // A loan names its original storage, regardless of whether the
+                // owner is a primitive local or a structural local. Recasting
+                // changes the observation type, not that storage identity.
+                let mut homes = self
+                    .primitive_storage
                     .iter()
-                    .find(|local| local.root == facts::PlaceRoot::Symbol(symbol))
-                else {
-                    return unsupported("record byte observation lost its live local backing");
-                };
-                Ok(argument.place)
+                    .filter(|(candidate, _, _)| *candidate == symbol)
+                    .map(|(_, place, _)| *place)
+                    .chain(
+                        self.structural_locals
+                            .iter()
+                            .filter(|local| local.root == facts::PlaceRoot::Symbol(symbol))
+                            .map(|local| local.argument.place),
+                    );
+                let place = homes.next().ok_or(LoweringError::Unsupported(
+                    "place observation lost its live local backing",
+                ))?;
+                if !symbol.is_valid() || homes.next().is_some() {
+                    return unsupported("place observation has ambiguous local backing");
+                }
+                Ok(place)
             }
         }
     }

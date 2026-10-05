@@ -539,9 +539,10 @@ Sorting selects total order explicitly:
 sort_by<F64::TotalOrder>(&mut samples);
 ```
 
-Core `F32::TotalOrder` and `F64::TotalOrder` are ordinary named `Order`
-conformances over honest representation bits. They do not change arithmetic's
-partial order.
+Core `F32::TotalOrder` and `F64::TotalOrder` are ordinary machines satisfying
+`Order<f32>::before` and `Order<f64>::before` over honest representation bits.
+These exact requirement edges do not declare whole-trait conformances or change
+arithmetic's partial order.
 
 ### No ambient relaxation
 

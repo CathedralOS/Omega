@@ -106,9 +106,9 @@ impl ByteOverlaySource {
     }
 }
 
-/// The established place a shared record loan resolves to at observation: a
-/// structural parameter (by dense roster index) or an owned structural local
-/// (by symbol, resolved through the ordinary argument join).
+/// The established place a loan resolves to at observation: a structural
+/// parameter (by dense roster index) or a primitive/structural local (by symbol).
+/// A view never substitutes its own type for the original backing's identity.
 #[derive(Clone, Copy)]
 pub(crate) enum LoanedSource {
     Parameter(u32),

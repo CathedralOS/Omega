@@ -864,6 +864,9 @@ fail/float/record_window_transition_unrepaired rejected 348ms expected @ca8c127c
 	the next whole-value read of `envelope.child` occurs inside an OPEN invariant window: a prior write left data `Sample`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
 fail/float/suffix_format_disagrees_rejected rejected 260ms expected @2d8ed253669f
 	literal `1.5` is suffixed `f32` but lands in a `f64` place -- a width suffix chooses the literal's format at the spelling, so it must agree with the destination's declared type (drop the suffix or fix one side)
+fail/float/total_order_wrong_carrier rejected 454ms expected @6d9868469d56+wt
+	machine `Wrong::before` state `before` does not satisfy trait `Order` machine `before` parameter `left`: expected `T`, got `f32`
+	machine `Wrong::before` state `before` does not satisfy trait `Order` machine `before` parameter `right`: expected `T`, got `f32`
 fail/generics/closed_indexed_domain_mismatch rejected 537ms expected @2d8ed253669f
 	index compatibility condition `index-equality:Quantity:mismatch::entry:statement-0:Quantity<Unit { exponent: 0 }>==Quantity<Unit { exponent: 1 }>` is not established: actual `Quantity<Unit { exponent: 0 }>` and expected `Quantity<Unit { exponent: 1 }>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
 fail/generics/const_container_mismatched_witness rejected 112ms expected @ca8c127c90c5

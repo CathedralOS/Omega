@@ -1091,7 +1091,9 @@ impl MachineEmission<'_> {
         };
         let (operation_index, staged) = match step {
             argument_schedule::Step::CaptureBefore(statement) => {
-                self.evaluation.capture_observation_coordinates_before(
+                self.evaluation.prepare_observations_before(
+                    self.checked,
+                    self.plan.state,
                     statement,
                     self.structural_types,
                     &self.scalar_result_values,

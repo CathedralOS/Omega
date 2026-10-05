@@ -271,9 +271,8 @@ impl super::argument_evaluation::Evaluation {
         &mut self,
         checked: &CheckedTrees,
         state_symbol: symbols::SymbolHandle,
-        source: &checked_trees::CheckedUnitStructuralArgumentPlan,
+        root: Option<facts::PlaceRoot>,
         values: &[terminal_psi::ValueDeclaration],
-        type_ids: &[(String, semantic_vocabulary::StructuralTypeId)],
         structural_types: &[StructuralTypeDeclaration],
         next_place: &mut u64,
         operations: &mut crate::emission::operation_emission::buffer::OperationBuffer,
@@ -282,7 +281,7 @@ impl super::argument_evaluation::Evaluation {
         Option<crate::expression_preparation::bindings::StructuralLocalBinding>,
         LoweringError,
     > {
-        let Some(facts::PlaceRoot::Symbol(symbol)) = source.structural_storage_root() else {
+        let Some(facts::PlaceRoot::Symbol(symbol)) = root else {
             return Ok(None);
         };
         let (_, state) = crate::declarations::state_declaration(checked, state_symbol)?;
@@ -316,7 +315,18 @@ impl super::argument_evaluation::Evaluation {
         if value.scalar_type != scalar_type {
             return unsupported("immutable primitive borrow changes its completed scalar type");
         }
-        let structural_type = lookup_type_id(type_ids, &source.type_identity)?;
+        let mut carriers = structural_types.iter().filter(|declaration| {
+            declaration.shape == StructuralTypeShape::PrimitiveScalar(scalar_type)
+        });
+        let structural_type = carriers
+            .next()
+            .ok_or(LoweringError::Unsupported(
+                "immutable primitive home has no storage carrier",
+            ))?
+            .id;
+        if carriers.next().is_some() {
+            return unsupported("immutable primitive home has ambiguous storage carriers");
+        }
         let place = self.immutable_primitive_home(
             symbol,
             value,
