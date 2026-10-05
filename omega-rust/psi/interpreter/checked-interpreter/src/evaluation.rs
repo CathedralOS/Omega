@@ -706,6 +706,7 @@ pub struct MeasuredBuildMachineEvaluation<T> {
     pub(crate) executed_root_bindings: Vec<ExecutedRootBinding>,
     pub(crate) executed_behavior_exclusions: Vec<ExecutedBehaviorExclusion>,
     pub(crate) executed_provider_selections: Vec<ExecutedProviderSelection>,
+    pub(crate) executed_wire_demands: Vec<typed_trees::expression::ExpressionHandle>,
 }
 
 impl<T> MeasuredBuildMachineEvaluation<T> {
@@ -716,6 +717,7 @@ impl<T> MeasuredBuildMachineEvaluation<T> {
         executed_root_bindings: Vec<ExecutedRootBinding>,
         executed_behavior_exclusions: Vec<ExecutedBehaviorExclusion>,
         executed_provider_selections: Vec<ExecutedProviderSelection>,
+        executed_wire_demands: Vec<typed_trees::expression::ExpressionHandle>,
     ) -> Self {
         Self {
             measured: MeasuredEvaluation::new(value, usage),
@@ -723,6 +725,7 @@ impl<T> MeasuredBuildMachineEvaluation<T> {
             executed_root_bindings,
             executed_behavior_exclusions,
             executed_provider_selections,
+            executed_wire_demands,
         }
     }
 
@@ -735,6 +738,7 @@ impl<T> MeasuredBuildMachineEvaluation<T> {
             executed_root_bindings: Vec::new(),
             executed_behavior_exclusions: Vec::new(),
             executed_provider_selections: Vec::new(),
+            executed_wire_demands: Vec::new(),
         }
     }
 
@@ -772,6 +776,12 @@ impl<T> MeasuredBuildMachineEvaluation<T> {
         &self.executed_provider_selections
     }
 
+    /// Wire demand calls executed against this activation's original Build.
+    /// Coordinates refer to the exact evaluated program, including helpers.
+    pub fn executed_wire_demands(&self) -> &[typed_trees::expression::ExpressionHandle] {
+        &self.executed_wire_demands
+    }
+
     pub fn into_value(self) -> T {
         self.measured.into_value()
     }
@@ -790,6 +800,7 @@ impl<T> MeasuredBuildMachineEvaluation<T> {
         Vec<ExecutedRootBinding>,
         Vec<ExecutedBehaviorExclusion>,
         Vec<ExecutedProviderSelection>,
+        Vec<typed_trees::expression::ExpressionHandle>,
     ) {
         let (value, usage) = self.measured.into_parts();
         (
@@ -799,6 +810,7 @@ impl<T> MeasuredBuildMachineEvaluation<T> {
             self.executed_root_bindings,
             self.executed_behavior_exclusions,
             self.executed_provider_selections,
+            self.executed_wire_demands,
         )
     }
 }

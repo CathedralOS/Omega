@@ -27,6 +27,7 @@ pub(crate) fn static_argument_role(
         Some(
             Intrinsic::BuildProviderSelection
             | Intrinsic::BuildBoundaryAcceptance
+            | Intrinsic::BuildWireCompatibilityRequest
             | Intrinsic::BuildRepresentationSelection
             | Intrinsic::BuildServiceExclusion
             | Intrinsic::BuildAssumedBindingContract,
@@ -49,9 +50,6 @@ enum BuildOperationForm {
     MutableBuildReceiver,
     /// Selected on a receiver of one exact build-prelude data type.
     PreludeDataReceiver(&'static str),
-    /// A parser-carved marker with no declared target and no receiver
-    /// custody at this stage: the spelling alone selects it.
-    Marker,
 }
 
 fn build_operation_form(operation: BuildOperation) -> BuildOperationForm {
@@ -59,7 +57,8 @@ fn build_operation_form(operation: BuildOperation) -> BuildOperationForm {
         BuildOperation::ProviderSelection
         | BuildOperation::ServiceExclusion
         | BuildOperation::RepresentationSelection
-        | BuildOperation::BoundaryAcceptance => BuildOperationForm::StaticBuildArgument,
+        | BuildOperation::BoundaryAcceptance
+        | BuildOperation::WireCompatibilityRequest => BuildOperationForm::StaticBuildArgument,
         BuildOperation::AssumedBindingContract => BuildOperationForm::MutableBuildReceiver,
         BuildOperation::IncludedSourceHandoff => {
             BuildOperationForm::PreludeDataReceiver("BuildOutput")
@@ -68,7 +67,6 @@ fn build_operation_form(operation: BuildOperation) -> BuildOperationForm {
         BuildOperation::OptimizationSelection | BuildOperation::OptimizationReportRequest => {
             BuildOperationForm::PreludeDataReceiver("Optimizations")
         }
-        BuildOperation::WireCompatibilityRequest => BuildOperationForm::Marker,
     }
 }
 
@@ -90,7 +88,7 @@ pub(crate) fn checked_statement_call_intrinsic(
             BuildOperationForm::PreludeDataReceiver(expected_receiver) => {
                 exact_statement_build_member_receiver(program, state, call, expected_receiver)
             }
-            BuildOperationForm::Marker | BuildOperationForm::StaticBuildArgument => false,
+            BuildOperationForm::StaticBuildArgument => false,
         }
     {
         return Some(operation.intrinsic());
@@ -134,7 +132,8 @@ pub(crate) fn checked_expression_call_intrinsic(
     if let Some(
         operation @ (BuildOperation::ServiceExclusion
         | BuildOperation::RepresentationSelection
-        | BuildOperation::BoundaryAcceptance),
+        | BuildOperation::BoundaryAcceptance
+        | BuildOperation::WireCompatibilityRequest),
     ) = BuildOperation::from_call_target(call.target.as_str())
         && super::provider_selection::has_explicit_build_argument(program, call)
         && program
@@ -142,12 +141,11 @@ pub(crate) fn checked_expression_call_intrinsic(
             .expression_handles(call.arguments)
             .len()
             == 1
-        && call.machine_arguments.len()
-            == if operation != BuildOperation::RepresentationSelection {
-                1
-            } else {
-                2
-            }
+        && match operation {
+            BuildOperation::WireCompatibilityRequest => call.machine_arguments.len() >= 5,
+            BuildOperation::RepresentationSelection => call.machine_arguments.len() == 2,
+            _ => call.machine_arguments.len() == 1,
+        }
     {
         return Some(operation.intrinsic());
     }
@@ -182,17 +180,13 @@ fn checked_call_intrinsic(
             BuildOperationForm::PreludeDataReceiver(expected_receiver) => {
                 exact_build_prelude_receiver(program, receiver, expected_receiver)
             }
-            BuildOperationForm::Marker | BuildOperationForm::StaticBuildArgument => false,
+            BuildOperationForm::StaticBuildArgument => false,
         };
         receiver_selects.then(|| operation.intrinsic())
     } else if let Some(predicate) =
         language_semantics::byte_predicates::ByteSequencePredicate::from_name(target)
     {
         Some(Intrinsic::ByteSequencePredicate(predicate))
-    } else if let Some(operation) = BuildOperation::from_call_target(target)
-        && build_operation_form(operation) == BuildOperationForm::Marker
-    {
-        Some(operation.intrinsic())
     } else if target.starts_with("asm#") {
         Some(Intrinsic::InlineAssemblyOperation)
     } else {

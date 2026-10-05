@@ -305,6 +305,7 @@ fn validate_call_selection(
             Some(
                 BuildOperation::ProviderSelection
                     | BuildOperation::BoundaryAcceptance
+                    | BuildOperation::WireCompatibilityRequest
                     | BuildOperation::RepresentationSelection
                     | BuildOperation::ServiceExclusion
             )

@@ -228,8 +228,7 @@ pub enum BuildOperation {
     OptimizationReportRequest,
     /// `Build::accept_boundary<pkg::symbol>(builder)`.
     BoundaryAcceptance,
-    /// `b.require_wire_compatibility<Edge, Lineage, Local, Peer, Fact..>()`,
-    /// retained as the `wire_compatibility#<operands>` marker.
+    /// `Build::require_wire_compatibility<Edge, Lineage, Local, Peer, Fact..>(b)`.
     WireCompatibilityRequest,
     /// `BuildOutput::include_source`.
     IncludedSourceHandoff,
@@ -238,11 +237,6 @@ pub enum BuildOperation {
 }
 
 impl BuildOperation {
-    /// The separator after which a marker-carrying operation's angle-bracket
-    /// operands follow in its retained call target. `#` cannot appear in an
-    /// identifier, so a marker never collides with a declared method.
-    pub const MARKER_OPERAND_SEPARATOR: char = '#';
-
     /// Every toolchain-owned build operation. Adding a variant without its
     /// spelling stops compiling here rather than silently dropping out of
     /// the map.
@@ -259,15 +253,7 @@ impl BuildOperation {
         Self::LogWriteLine,
     ];
 
-    /// The call-target spelling which selects this operation.
-    ///
-    /// The spelling is authored vocabulary, so it belongs to the vocabulary
-    /// that owns the operation. For a marker-carrying operation
-    /// ([`Self::carries_marker_operands`]) it is the marker prefix the parser
-    /// retains ahead of [`Self::MARKER_OPERAND_SEPARATOR`], which for the
-    /// wire-compatibility request differs from the authored method name
-    /// `require_wire_compatibility`; everywhere else it is the authored
-    /// method name itself.
+    /// The exact authored operation name; static operands stay in their own table.
     pub const fn authored_spelling(self) -> &'static str {
         match self {
             Self::ProviderSelection => "select_provider",
@@ -277,56 +263,18 @@ impl BuildOperation {
             Self::OptimizationSelection => "enable",
             Self::OptimizationReportRequest => "emit_report",
             Self::BoundaryAcceptance => "accept_boundary",
-            Self::WireCompatibilityRequest => "wire_compatibility",
+            Self::WireCompatibilityRequest => "require_wire_compatibility",
             Self::IncludedSourceHandoff => "include_source",
             Self::LogWriteLine => "write_line",
         }
     }
 
-    /// Whether the parser retains this operation's angle-bracket operands in
-    /// the call target after [`Self::MARKER_OPERAND_SEPARATOR`]
-    /// (`wire_compatibility#...`), so a call target selects the
-    /// operation by prefix rather than by exact spelling.
-    pub const fn carries_marker_operands(self) -> bool {
-        matches!(self, Self::WireCompatibilityRequest)
-    }
-
-    /// The build operation a retained call target selects, or `None` when
-    /// the target names no toolchain-owned build operation.
-    ///
-    /// An exact spelling selects an ordinary operation; a marker-carrying
-    /// operation is selected by its spelling followed by the separator and
-    /// its operands. A matching spelling is a necessary condition, never a
-    /// sufficient one: a declared machine may be spelled `enable` too. The
-    /// caller still owes the receiver and call-shape conditions which
-    /// separate the toolchain-owned operation from an ordinary call of the
-    /// same name.
+    /// Spelling is necessary but not sufficient: checking also establishes
+    /// the toolchain namespace and the explicit argument's Build identity.
     pub fn from_call_target(target: &str) -> Option<Self> {
-        Self::ALL.into_iter().find(|operation| {
-            let spelling = operation.authored_spelling();
-            if operation.carries_marker_operands() {
-                target
-                    .strip_prefix(spelling)
-                    .is_some_and(|rest| rest.starts_with(Self::MARKER_OPERAND_SEPARATOR))
-            } else {
-                target == spelling
-            }
-        })
-    }
-
-    /// The operands a marker-carrying operation retained after its spelling
-    /// and [`Self::MARKER_OPERAND_SEPARATOR`] in `target`, or `None` when the
-    /// target does not select this operation or the operation carries no
-    /// marker operands. Consumers that read the operands (a root grant path,
-    /// a wire-compatibility demand) ask here instead of stripping the prefix
-    /// themselves, so the spelling stays in one place.
-    pub fn marker_operands(self, target: &str) -> Option<&str> {
-        if !self.carries_marker_operands() {
-            return None;
-        }
-        target
-            .strip_prefix(self.authored_spelling())?
-            .strip_prefix(Self::MARKER_OPERAND_SEPARATOR)
+        Self::ALL
+            .into_iter()
+            .find(|operation| operation.authored_spelling() == target)
     }
 
     /// The intrinsic selection target checking records for this operation.
@@ -413,6 +361,7 @@ pub enum AuthoredDeclarationSelectionIntrinsic {
     BuildOptimizationReportRequest,
     BuildBoundaryAcceptance,
     BuildWireCompatibilityRequest,
+    WireCompatibilityFact(crate::wire::WireCompatibilityFact),
     BuildIncludedSourceHandoff,
     /// Exact toolchain `BuildLog::write_line` selection. Build logging is a
     /// compiler-owned build observation, not a package or boundary service.
@@ -500,6 +449,7 @@ pub enum AuthoredDeclarationSelectionFinalizationError {
     AlreadyResolved,
     LateBindingMismatch,
     InvalidSelectedSymbol,
+    StaticArgumentPositionMismatch,
 }
 
 /// Why a retained authored-selection prefix and one appended suffix could not
@@ -571,6 +521,7 @@ pub struct AuthoredDeclarationSelection {
     kind: AuthoredDeclarationSelectionKind,
     compiler_partition: Option<CompilerDerivedSelectionPartition>,
     target: AuthoredDeclarationSelectionTarget,
+    top_level_static_argument_position: Option<usize>,
 }
 
 impl AuthoredDeclarationSelection {
@@ -591,6 +542,7 @@ impl AuthoredDeclarationSelection {
             kind,
             compiler_partition,
             target: AuthoredDeclarationSelectionTarget::Resolved(selected),
+            top_level_static_argument_position: None,
         })
     }
 
@@ -609,6 +561,7 @@ impl AuthoredDeclarationSelection {
             kind,
             compiler_partition,
             target: AuthoredDeclarationSelectionTarget::LateBound(late_binding),
+            top_level_static_argument_position: None,
         }
     }
 
@@ -634,6 +587,12 @@ impl AuthoredDeclarationSelection {
 
     pub fn target(self) -> AuthoredDeclarationSelectionTarget {
         self.target
+    }
+
+    /// The authored call's operand slot, retained before identifiers lose their
+    /// source coordinates. Nested application operands have no top-level slot.
+    pub fn top_level_static_argument_position(self) -> Option<usize> {
+        self.top_level_static_argument_position
     }
 }
 
@@ -716,6 +675,8 @@ impl AuthoredDeclarationSelections {
                 || source.exposure != destination.exposure
                 || source.kind != destination.kind
                 || source.compiler_partition != destination.compiler_partition
+                || source.top_level_static_argument_position
+                    != destination.top_level_static_argument_position
             {
                 return Err(AuthoredDeclarationSelectionSuffixRebaseError::PrefixIdentityMismatch);
             }
@@ -876,6 +837,34 @@ impl AuthoredDeclarationSelections {
 
     pub fn len(&self) -> usize {
         self.rows.len()
+    }
+
+    /// Bind an operand occurrence independently of its current resolution and
+    /// selection kind. Repeated compiler copies must retain the same slot.
+    pub fn retain_top_level_static_argument_position(
+        &mut self,
+        occurrence: AuthoredDeclarationSelectionOccurrenceId,
+        position: usize,
+    ) -> Result<(), AuthoredDeclarationSelectionFinalizationError> {
+        let row = usize::try_from(occurrence.0)
+            .ok()
+            .and_then(|index| self.rows.get_mut(index))
+            .filter(|row| row.occurrence_id == occurrence)
+            .ok_or(AuthoredDeclarationSelectionFinalizationError::UnknownOccurrence)?;
+        if !matches!(
+            row.kind,
+            AuthoredDeclarationSelectionKind::StaticArgument
+                | AuthoredDeclarationSelectionKind::Conformance
+        ) || row
+            .top_level_static_argument_position
+            .is_some_and(|retained| retained != position)
+        {
+            return Err(
+                AuthoredDeclarationSelectionFinalizationError::StaticArgumentPositionMismatch,
+            );
+        }
+        row.top_level_static_argument_position = Some(position);
+        Ok(())
     }
 
     pub fn is_empty(&self) -> bool {

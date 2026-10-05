@@ -225,7 +225,10 @@ repair.
 ## Directional wire compatibility
 
 The authoritative Build may request
-`builder.require_wire_compatibility<Edge, Lineage, Local, Peer, ...>();`.
+`Build::require_wire_compatibility<Edge, Lineage, Local, Peer, ...>(builder);`.
+The explicit argument must borrow that activation's original Build. Requests
+are collected when executed, including through ordinary helper machines; an
+unexecuted call contributes no demand. The receiver-call spelling is retired.
 Only the directional facts named after the first four type arguments are required.
 Evaluate them against published schema, codec, unknown-member, canonicalization,
 and `FormatMigration` evidence; report every fact and reject unmet requests.

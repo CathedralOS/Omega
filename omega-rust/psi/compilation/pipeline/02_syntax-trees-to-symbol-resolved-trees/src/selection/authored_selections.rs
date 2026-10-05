@@ -46,6 +46,7 @@ struct CandidateGroup {
         Option<language_semantics::declaration_selection::CompilerDerivedSelectionPartition>,
     target: CandidateTarget,
     expressions: Vec<ExpressionHandle>,
+    top_level_static_argument_position: Option<usize>,
 }
 
 fn reconcile_copy_targets(
@@ -1424,6 +1425,18 @@ fn finalize_expression_groups(
             .expressions
             .compiler_selection_partition(expression);
         for candidate in expression_candidates(program, expression, &contract_clause_expressions)? {
+            let top_level_static_argument_position =
+                if matches!(candidate.kind, Kind::StaticArgument | Kind::Conformance) {
+                    match program.tables.bodies.expressions.expression(expression) {
+                        ExpressionNode::Call(call) => top_level_static_argument_position(
+                            &call.machine_arguments,
+                            candidate.source_span,
+                        ),
+                        _ => None,
+                    }
+                } else {
+                    None
+                };
             let key = (
                 candidate.source_span,
                 exposure,
@@ -1431,6 +1444,10 @@ fn finalize_expression_groups(
                 compiler_partition,
             );
             if let Some(group) = group_index.get(&key).map(|&index| &mut groups[index]) {
+                if group.top_level_static_argument_position != top_level_static_argument_position {
+                    return Err(Diagnostic::error("compiler-derived copies of a static operand disagree on its authored call position")
+                        .with_source_span(candidate.source_span));
+                }
                 group.target = reconcile_copy_targets(
                     program,
                     candidate.source_span,
@@ -1450,6 +1467,7 @@ fn finalize_expression_groups(
                     compiler_partition,
                     target: candidate.target,
                     expressions: vec![candidate.expression],
+                    top_level_static_argument_position,
                 });
             }
         }
@@ -1475,6 +1493,16 @@ fn finalize_expression_groups(
                 ),
         }
         .map_err(record_diagnostic)?;
+        if let Some(position) = group.top_level_static_argument_position {
+            program
+                .retain_top_level_static_argument_position(occurrence, position)
+                .map_err(|error| {
+                    Diagnostic::error(format!(
+                        "failed to retain static operand position: {error:?}"
+                    ))
+                    .with_source_span(group.source_span)
+                })?;
+        }
         for expression in group.expressions {
             program
                 .tables
@@ -1485,4 +1513,18 @@ fn finalize_expression_groups(
     }
 
     Ok(())
+}
+
+/// Match the authored operand token before typed lowering discards its source
+/// coordinates. Nested applications retain their own occurrences, not slots in
+/// the enclosing call; resolved declarations and omitted literal occurrences
+/// never change the positions of the call's remaining operands.
+fn top_level_static_argument_position(
+    arguments: &[symbol_resolved_trees::expression::StaticMachineArgument],
+    occurrence_span: SourceSpan,
+) -> Option<usize> {
+    arguments.iter().position(|argument| {
+        !argument.path.is_empty()
+            && path_span(&argument.path, SourceSpan::default()) == occurrence_span
+    })
 }

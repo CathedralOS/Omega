@@ -4,22 +4,7 @@ use crate::interpreter::evaluator::{
     TableTransition, TransitionDecision, TransitionGuardNode, TransitionTargetNode,
     TypeReferenceNode, Value, trap,
 };
-use language_semantics::declaration_selection::BuildOperation;
 use typed_trees::statement::TransitionExit;
-
-/// Whether a call target is a build declaration the build-config pass
-/// harvests statically, which evaluation serves as a no-op so the build
-/// machine runs through it: the wire-compatibility request marker.
-/// Provider selections and behavior exclusions are not among them: those
-/// are evaluated selections which record only when the call actually runs.
-pub(in crate::interpreter::evaluator) fn is_statically_harvested_build_declaration(
-    call_target: &str,
-) -> bool {
-    matches!(
-        BuildOperation::from_call_target(call_target),
-        Some(BuildOperation::WireCompatibilityRequest)
-    )
-}
 
 impl<'program> Evaluator<'program> {
     pub(in crate::interpreter::evaluator) fn exec_statement(
@@ -474,10 +459,6 @@ impl<'program> Evaluator<'program> {
             )
             .is_some()
         {
-            return Ok(Value::Unit);
-        }
-        // CH10 root grant (GR3) and its statically harvested siblings.
-        if is_statically_harvested_build_declaration(call.target.as_str()) {
             return Ok(Value::Unit);
         }
         // Exclusions include exact static Build calls: their authority is an

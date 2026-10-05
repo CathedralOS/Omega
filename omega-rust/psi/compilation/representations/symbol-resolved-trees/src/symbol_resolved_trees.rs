@@ -490,6 +490,19 @@ impl SymbolResolvedTrees {
         &self.tables.authored_declaration_selections
     }
 
+    pub fn retain_top_level_static_argument_position(
+        &mut self,
+        occurrence: AuthoredDeclarationSelectionOccurrenceId,
+        position: usize,
+    ) -> Result<
+        (),
+        language_semantics::declaration_selection::AuthoredDeclarationSelectionFinalizationError,
+    > {
+        self.tables
+            .authored_declaration_selections
+            .retain_top_level_static_argument_position(occurrence, position)
+    }
+
     pub fn data_payload_fields(&self, span: HandleSpan<data::DataField>) -> &[data::DataField] {
         self.tables
             .declarations

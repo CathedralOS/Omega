@@ -500,6 +500,7 @@ pub(in crate::symbols) fn build_operand_route(
         BuildOperation::ProviderSelection
         | BuildOperation::ServiceExclusion
         | BuildOperation::BoundaryAcceptance
+        | BuildOperation::WireCompatibilityRequest
         | BuildOperation::RepresentationSelection
             if target_symbol.is_valid() =>
         {
@@ -508,10 +509,10 @@ pub(in crate::symbols) fn build_operand_route(
         operation @ (BuildOperation::ProviderSelection
         | BuildOperation::ServiceExclusion
         | BuildOperation::BoundaryAcceptance
+        | BuildOperation::WireCompatibilityRequest
         | BuildOperation::RepresentationSelection) => Some(operation),
         BuildOperation::OptimizationSelection
         | BuildOperation::OptimizationReportRequest
-        | BuildOperation::WireCompatibilityRequest
         | BuildOperation::IncludedSourceHandoff
         | BuildOperation::LogWriteLine
         | BuildOperation::AssumedBindingContract => None,

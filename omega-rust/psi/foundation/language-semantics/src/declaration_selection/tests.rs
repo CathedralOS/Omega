@@ -15,6 +15,62 @@ fn source_span(start: usize, end: usize) -> SourceSpan {
     SourceSpan::new(SourceId(7), Span::new(start, end))
 }
 
+#[test]
+fn static_operand_positions_survive_resolution_and_reject_drift() {
+    let mut selections = AuthoredDeclarationSelections::default();
+    let conformance = selections
+        .record_resolved(
+            source_span(10, 17),
+            AuthoredDeclarationSelectionExposure::PrivateImplementation,
+            AuthoredDeclarationSelectionKind::Conformance,
+            SymbolHandle::from_arena_index(1),
+        )
+        .expect("conformance occurrence");
+    let argument = selections
+        .record_late_bound(
+            source_span(30, 37),
+            AuthoredDeclarationSelectionExposure::PrivateImplementation,
+            AuthoredDeclarationSelectionKind::StaticArgument,
+            AuthoredDeclarationSelectionLateBinding::CheckedStaticArgument,
+        )
+        .expect("static occurrence");
+    selections
+        .retain_top_level_static_argument_position(conformance, 1)
+        .expect("conformance slot");
+    selections
+        .retain_top_level_static_argument_position(argument, 4)
+        .expect("argument slot");
+    let original = selections.clone();
+    selections
+        .finalize_late_bound(
+            argument,
+            AuthoredDeclarationSelectionLateBinding::CheckedStaticArgument,
+            SymbolHandle::from_arena_index(2),
+        )
+        .expect("resolved argument");
+    assert_eq!(
+        selections
+            .get(argument)
+            .expect("retained occurrence")
+            .top_level_static_argument_position(),
+        Some(4)
+    );
+    assert_eq!(
+        selections.retain_top_level_static_argument_position(argument, 3),
+        Err(AuthoredDeclarationSelectionFinalizationError::StaticArgumentPositionMismatch)
+    );
+    let (rebased, _) = original
+        .replace_prefix_and_rebase_suffix(original.len(), &selections)
+        .expect("resolution preserves operand custody");
+    assert_eq!(
+        rebased
+            .get(conformance)
+            .expect("retained conformance")
+            .top_level_static_argument_position(),
+        Some(1)
+    );
+}
+
 fn record_fixture(selections: &mut AuthoredDeclarationSelections) {
     selections
         .record_resolved(
@@ -318,17 +374,9 @@ fn collection_measures_map_onto_their_intrinsic_selection_targets() {
 #[test]
 fn build_operation_spellings_round_trip() {
     for operation in BuildOperation::ALL {
-        let target = if operation.carries_marker_operands() {
-            format!(
-                "{}{}pkg::symbol",
-                operation.authored_spelling(),
-                BuildOperation::MARKER_OPERAND_SEPARATOR
-            )
-        } else {
-            operation.authored_spelling().to_owned()
-        };
+        let target = operation.authored_spelling();
         assert_eq!(
-            BuildOperation::from_call_target(&target),
+            BuildOperation::from_call_target(target),
             Some(operation),
             "`{target}` must select the operation it spells"
         );
@@ -347,15 +395,9 @@ fn build_operation_spellings_are_the_exact_authored_vocabulary() {
             "enable",
             "emit_report",
             "accept_boundary",
-            "wire_compatibility",
+            "require_wire_compatibility",
             "include_source",
             "write_line",
-        ]
-    );
-    assert_eq!(
-        BuildOperation::ALL.map(BuildOperation::carries_marker_operands),
-        [
-            false, false, false, false, false, false, false, true, false, false
         ]
     );
     assert_eq!(
@@ -363,16 +405,14 @@ fn build_operation_spellings_are_the_exact_authored_vocabulary() {
         Some(BuildOperation::BoundaryAcceptance)
     );
     assert_eq!(
-        BuildOperation::from_call_target("wire_compatibility#Edge#Lineage#Local#Peer#Readable"),
+        BuildOperation::from_call_target("require_wire_compatibility"),
         Some(BuildOperation::WireCompatibilityRequest)
     );
     for spelling in [
-        // A marker operation is never selected by its bare spelling, nor by
-        // the authored method name the parser desugars, nor by a marker with
-        // the wrong separator or a foreign spelling before it.
+        // Retired parser encodings and qualified near misses are not operations.
         "accept_boundary#pkg::Console",
         "wire_compatibility",
-        "require_wire_compatibility",
+        "wire_compatibility#Edge#Lineage#Local#Peer#Readable",
         "accept_boundary::Console",
         "select_provider#Console",
         "assume_binding_contract#WritableMemory::claim",
@@ -416,30 +456,5 @@ fn build_operations_map_onto_their_intrinsic_selection_targets() {
             Intrinsic::BuildIncludedSourceHandoff,
             Intrinsic::BuildLogWriteLine,
         ]
-    );
-}
-
-#[test]
-fn marker_operands_are_read_only_after_the_operation_spelling_and_separator() {
-    use super::BuildOperation;
-    assert_eq!(
-        BuildOperation::BoundaryAcceptance.marker_operands("accept_boundary#pkg::Root"),
-        None
-    );
-    assert_eq!(
-        BuildOperation::WireCompatibilityRequest.marker_operands("wire_compatibility#a#b"),
-        Some("a#b")
-    );
-    assert_eq!(
-        BuildOperation::BoundaryAcceptance.marker_operands("accept_boundary"),
-        None
-    );
-    assert_eq!(
-        BuildOperation::BoundaryAcceptance.marker_operands("wire_compatibility#x"),
-        None
-    );
-    assert_eq!(
-        BuildOperation::ProviderSelection.marker_operands("select_provider#x"),
-        None
     );
 }

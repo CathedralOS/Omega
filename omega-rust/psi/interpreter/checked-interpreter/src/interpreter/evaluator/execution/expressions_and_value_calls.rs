@@ -658,7 +658,8 @@ impl<'program> Evaluator<'program> {
             && matches!(
                 language_semantics::declaration_selection::BuildOperation::from_call_target(target),
                 Some(language_semantics::declaration_selection::BuildOperation::RepresentationSelection
-                    | language_semantics::declaration_selection::BuildOperation::BoundaryAcceptance)
+                    | language_semantics::declaration_selection::BuildOperation::BoundaryAcceptance
+                    | language_semantics::declaration_selection::BuildOperation::WireCompatibilityRequest)
             )
         {
             let [builder] = self.program.expression_table.expression_handles(call.arguments) else {
@@ -666,10 +667,11 @@ impl<'program> Evaluator<'program> {
             };
             let builder = self.eval_argument(*builder, frame)?;
             self.require_root_build_argument(self.deref_cell(builder), target)?;
-            return Ok(Value::Unit);
-        }
-        // Statically harvested wire request (see the statement-call twin).
-        if crate::interpreter::evaluator::execution::statements_and_calls::is_statically_harvested_build_declaration(target) {
+            if language_semantics::declaration_selection::BuildOperation::from_call_target(target)
+                == Some(language_semantics::declaration_selection::BuildOperation::WireCompatibilityRequest)
+            {
+                self.executed_wire_demands.push(handle);
+            }
             return Ok(Value::Unit);
         }
         if let Some(value) = self.try_provider_selection_value_call(handle, call, frame)? {

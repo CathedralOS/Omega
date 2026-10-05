@@ -463,6 +463,7 @@ fn evaluate_observed_arguments(
                             std::mem::take(&mut evaluator.executed_root_bindings),
                             std::mem::take(&mut evaluator.executed_behavior_exclusions),
                             std::mem::take(&mut evaluator.executed_provider_selections),
+                            std::mem::take(&mut evaluator.executed_wire_demands),
                         ))
                     }
                     Err(Halt::Exit(code)) => Err(format!(
@@ -607,6 +608,7 @@ fn evaluate_granted_arguments(
                             std::mem::take(&mut evaluator.executed_root_bindings),
                             std::mem::take(&mut evaluator.executed_behavior_exclusions),
                             std::mem::take(&mut evaluator.executed_provider_selections),
+                            std::mem::take(&mut evaluator.executed_wire_demands),
                         ))
                     }
                     Err(Halt::Exit(code)) => Err(BuildMachineEvaluationFailure::with_evidence(

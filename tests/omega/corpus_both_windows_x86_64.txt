@@ -19,3 +19,4 @@ pass/data/opaque_copy_selected built 3871ms exit:0 interpreter-exit:0 interprete
 pass/locals/static_local_field_names_exit built 2008ms exit:0 interpreter-exit:0 interpreter:agrees @105d2b8e6ff9+wt
 pass/providers/runtime_adapter_dispatch_exit built 5331ms exit:70 interpreter-exit:70 interpreter:agrees @944ee0efb38f+wt
 pass/structural/runtime_enum_equality_exit built 7520ms exit:70 interpreter-exit:70 interpreter:agrees @5b40b0f7256d
+pass/wire/wire_compatibility_migration_across_shapes built 2534ms exit:0 interpreter-exit:0 interpreter:agrees @8899cb25e748+wt

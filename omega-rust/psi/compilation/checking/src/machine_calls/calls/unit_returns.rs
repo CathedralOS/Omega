@@ -120,29 +120,34 @@ pub(super) fn admitted_build_declaration_call(
         match BuildOperation::from_call_target(call.target.as_str()) {
             Some(BuildOperation::ProviderSelection) => (
                 AuthoredDeclarationSelectionIntrinsic::BuildProviderSelection,
-                2,
+                2..=2,
                 1..=2,
             ),
             Some(BuildOperation::ServiceExclusion) => (
                 AuthoredDeclarationSelectionIntrinsic::BuildServiceExclusion,
-                1,
+                1..=1,
                 1..=1,
             ),
             Some(BuildOperation::BoundaryAcceptance) => (
                 AuthoredDeclarationSelectionIntrinsic::BuildBoundaryAcceptance,
-                1,
+                1..=1,
                 1..=1,
             ),
             Some(BuildOperation::RepresentationSelection) => (
                 AuthoredDeclarationSelectionIntrinsic::BuildRepresentationSelection,
-                2,
+                2..=2,
+                1..=1,
+            ),
+            Some(BuildOperation::WireCompatibilityRequest) => (
+                AuthoredDeclarationSelectionIntrinsic::BuildWireCompatibilityRequest,
+                5..=usize::MAX,
                 1..=1,
             ),
             _ => return false,
         };
     if call.target_symbol.is_valid()
         || !call.receiver.is_valid()
-        || call.machine_arguments.len() != static_count
+        || !static_count.contains(&call.machine_arguments.len())
         || !value_count.contains(
             &program
                 .expression_table

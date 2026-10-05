@@ -1,0 +1,5 @@
+data Edge {}
+data Lineage {}
+data Local {}
+data Peer {}
+machine main() {}

@@ -74,6 +74,8 @@ fn execute_admitted_build_occurrence(
     )?;
     let root_bindings = collect_root_bindings(typed, measured.executed_root_bindings())?;
     let executed_exclusions = measured.executed_behavior_exclusions().to_vec();
+    let wire_compatibility_demands =
+        harvest_wire_compatibility_demands(typed, measured.executed_wire_demands())?;
     let provider_selections = provider_planning::collect_executed_provider_selections(
         provider_planning::ProviderPlanningContext::new(typed, source::DependencyScope::Product),
         measured.executed_provider_selections(),
@@ -102,7 +104,7 @@ fn execute_admitted_build_occurrence(
     config.provider_selections = provider_selections;
     config.opaque_representation_selections =
         representation_planning::harvest_opaque_representation_selections(typed, machine)?;
-    config.wire_compatibility_demands = harvest_wire_compatibility_demands(typed, machine)?;
+    config.wire_compatibility_demands = wire_compatibility_demands;
     config.behavior_exclusions = harvest_behavior_exclusions(typed, &executed_exclusions)?;
     config.accepted_component_assumptions =
         harvest_component_assumption_acceptances(typed, machine)?;

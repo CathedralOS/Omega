@@ -105,6 +105,8 @@ pub struct AuthoredDeclarationSelectionSnapshot {
     pub kind: &'static str,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub compiler_partition: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub top_level_static_argument_position: Option<usize>,
     pub target: AuthoredDeclarationSelectionTargetSnapshot,
 }
 
@@ -188,6 +190,9 @@ fn authored_declaration_selection_intrinsic_name(
         Intrinsic::BuildOptimizationReportRequest => ("build_optimization_report_request", None),
         Intrinsic::BuildBoundaryAcceptance => ("build_boundary_acceptance", None),
         Intrinsic::BuildWireCompatibilityRequest => ("build_wire_compatibility_request", None),
+        Intrinsic::WireCompatibilityFact(fact) => {
+            ("wire_compatibility_fact", Some(format!("{fact:?}")))
+        }
         Intrinsic::BuildIncludedSourceHandoff => ("build_included_source_handoff", None),
         Intrinsic::BuildLogWriteLine => ("build_log_write_line", None),
         Intrinsic::WireEncode => ("wire_encode", None),
@@ -484,6 +489,7 @@ impl TypedTreesSnapshot {
                         }
                     },
                     kind: authored_declaration_selection_kind_name(selection.kind()),
+                    top_level_static_argument_position: selection.top_level_static_argument_position(),
                     compiler_partition: selection
                         .compiler_partition()
                         .map(|partition| partition.ordinal()),

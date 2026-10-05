@@ -1,0 +1,1 @@
+receiver-style wire compatibility is retired

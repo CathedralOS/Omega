@@ -151,7 +151,8 @@ helper that passes does not close an item.
     and facets such as test groups. Move their producers and consumers to
     namespace-qualified calls with explicit arguments, following `Build::bind`,
     `Build::select_provider`, `Build::exclude_service`, and
-      `Build::select_representation`, and `Build::accept_boundary`. Do not restore
+      `Build::select_representation`, `Build::accept_boundary`, and
+    `Build::require_wire_compatibility`. Do not restore
     implicit builder insertion.
   - Compiler remainder: receiver-specific signatures, lookup, argument
     insertion, state carry and evidence flags remain (`is_self` in stages

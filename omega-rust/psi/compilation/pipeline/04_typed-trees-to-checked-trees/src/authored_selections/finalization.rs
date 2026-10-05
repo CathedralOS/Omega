@@ -176,10 +176,34 @@ pub(crate) fn finalize_checked_authored_selections(
                 (
                     AuthoredDeclarationSelectionLateBinding::CheckedStaticArgument,
                     ExpressionNode::Call(call),
+                ) if checked_expression_call_intrinsic(program, call)
+                    == Some(AuthoredDeclarationSelectionIntrinsic::BuildWireCompatibilityRequest) =>
+                {
+                    let argument_index = selection.top_level_static_argument_position().ok_or_else(||
+                        Diagnostic::error("wire compatibility operand has no retained top-level call position")
+                            .with_source_span(selection.source_span()))?;
+                    let argument = call.machine_arguments.get(argument_index).ok_or_else(||
+                        Diagnostic::error("wire compatibility static operand is absent"))?;
+                    if argument_index < 4 {
+                        declaration_target(argument.symbol)
+                    } else {
+                        let fact = argument.path.first().filter(|_| argument.path.len() == 1)
+                            .and_then(|name| language_semantics::wire::WireCompatibilityFact::from_name(name.as_str()))
+                            .ok_or_else(|| Diagnostic::error(format!("unknown wire compatibility fact `{}`",
+                                argument.path.iter().map(|name| name.as_str()).collect::<Vec<_>>().join("::")))
+                                .with_source_span(selection.source_span()))?;
+                        Some(CheckedResolutionTarget::Intrinsic(AuthoredDeclarationSelectionIntrinsic::WireCompatibilityFact(fact)))
+                    }
+                }
+                (
+                    AuthoredDeclarationSelectionLateBinding::CheckedStaticArgument,
+                    ExpressionNode::Call(call),
                 ) if matches!(BuildOperation::from_call_target(call.target.as_str()),
                     Some(BuildOperation::ProviderSelection | BuildOperation::ServiceExclusion)) =>
                 {
-                    let argument_index = late_binding_ordinal(program, &occurrences[..occurrence_offset], binding);
+                    let Some(argument_index) = selection.top_level_static_argument_position() else {
+                        continue;
+                    };
                     let argument = call.machine_arguments.get(argument_index);
                     if super::provider_selection::is_build_declaration_selection(program, expression) {
                         let selected = super::provider_selection::resolve_build_declaration_operand(

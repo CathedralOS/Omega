@@ -229,6 +229,7 @@ pub(crate) fn lower_statement_node(
                     BuildOperation::ProviderSelection
                         | BuildOperation::ServiceExclusion
                         | BuildOperation::BoundaryAcceptance
+                        | BuildOperation::WireCompatibilityRequest
                         | BuildOperation::RepresentationSelection
                 )
             ) && !call.discards_result

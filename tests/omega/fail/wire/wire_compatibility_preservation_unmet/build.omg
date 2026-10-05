@@ -1,10 +1,10 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "wire_compatibility_preservation_unmet");
-    builder.require_wire_compatibility<
+    Build::require_wire_compatibility<
         RelayChannel,
         MessageLineage,
         LocalMessage,
         PeerMessage,
         PreserveUnknown
-    >();
+    >(builder);
 }

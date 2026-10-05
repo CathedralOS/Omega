@@ -1,3 +1,26 @@
+/// A requested compatibility property, not an executable declaration.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum WireCompatibilityFact {
+    Readable,
+    Writable,
+    PreserveUnknown,
+    Canonical,
+    CompleteMigration,
+}
+
+impl WireCompatibilityFact {
+    pub fn from_name(name: &str) -> Option<Self> {
+        match name {
+            "Readable" => Some(Self::Readable),
+            "Writable" => Some(Self::Writable),
+            "PreserveUnknown" => Some(Self::PreserveUnknown),
+            "Canonical" => Some(Self::Canonical),
+            "CompleteMigration" => Some(Self::CompleteMigration),
+            _ => None,
+        }
+    }
+}
+
 /// Directional facts requested for one channel/store edge and format lineage.
 /// Build supplies these declarations; Psi checking decides whether they hold.
 #[derive(Debug, Clone, PartialEq, Eq)]

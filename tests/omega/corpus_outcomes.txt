@@ -381,6 +381,8 @@ fail/build/retired_root_binding_receiver rejected 1ms expected @cb26b40f8674+wt
 	tests/omega/fail/build/retired_root_binding_receiver/main.omg:1:1: receiver-style root binding is retired; use Build::bind(builder, slot, entry)
 fail/build/retired_service_exclusion_receiver rejected 1ms expected @6fa34b94762b+wt
 	tests/omega/fail/build/retired_service_exclusion_receiver/main.omg:2:28: receiver-style service exclusion is retired; use Build::exclude_service<BoundaryTrait>(builder)
+fail/build/retired_wire_compatibility_receiver rejected 1ms expected @8899cb25e748+wt
+	tests/omega/fail/build/retired_wire_compatibility_receiver/main.omg:2:39: receiver-style wire compatibility is retired; use Build::require_wire_compatibility<Edge, Lineage, Local, Peer, Fact>(builder)
 fail/build/root_binding_foreign_helper_private_entry rejected 328ms expected @b09f66e07ebd+wt
 	root binding names `launch`, which is not a product declaration visible from this build source's package; borrowing Build does not grant the caller's product namespace
 fail/build/static_machine_parameter_contract_mismatch rejected 71ms expected @2d8ed253669f
@@ -399,6 +401,12 @@ fail/build/uefi_program_entry_missing_storage_roots rejected 1050ms expected @2d
 	target schema `ProgramStorageApplication` exposes exactly image and initial-storage roots, but `launch` declares 0 visible parameters
 fail/build/uefi_program_entry_wrong_calling_policy rejected 1360ms unexpected @2d8ed253669f
 	target root slot `uefi_x86_64::ProgramEntry` requires exactly one loaded `UefiApplication` boundary schema, but found 2
+fail/build/wire_compatibility_duplicate_fact rejected 567ms expected @8899cb25e748+wt
+	wire compatibility fact `Readable` is requested twice
+fail/build/wire_compatibility_fabricated_activation rejected 564ms expected @8899cb25e748+wt
+	the compiler-owned Build activation cannot be copied into local `counterfeit`
+fail/build/wire_compatibility_unknown_fact rejected 561ms expected @8899cb25e748+wt
+	unknown wire compatibility fact `Imaginary`
 fail/calls/affine_constructor_result_reuse rejected 635ms expected @2d8ed253669f
 	affine value `item` was already transferred or consumed; it cannot be moved here
 fail/calls/boundary_nested_argument_conflicting_loan rejected 1030ms expected @cfe60a3a242
