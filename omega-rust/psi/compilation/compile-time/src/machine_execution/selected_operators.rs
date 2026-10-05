@@ -1,6 +1,8 @@
 //! Admission of supplied operator semantics against the current typed graph.
 //! Omega retains provider authority; Psi independently checks the exact authored
 //! selection, operand carrier and operation before allowing semantic execution.
+//! The private execution graph substitutes implementation bodies, but retains
+//! the original declaration selection for package authority and const replay.
 use crate::SelectedBuildTimeBinaryOperator;
 use typed_trees::{
     TypedTrees,
@@ -114,6 +116,56 @@ pub(crate) fn prepare_selected_execution(
         return Ok(None);
     }
     let mut program = program.clone();
+    // The source selected a requirement, not its executable replacement. Both
+    // supplied rosters were checked against that exact source occurrence above.
+    // Retain that decision before replacing its syntax: re-checking a provider
+    // call or a primitive binary cannot rediscover the original declaration.
+    let mut selections = program.authored_declaration_selections().clone();
+    for (expression, requirement) in selected
+        .iter()
+        .map(|row| (row.expression, row.requirement))
+        .chain(
+            operators
+                .iter()
+                .map(|row| (row.expression, row.requirement)),
+        )
+    {
+        for occurrence in program
+            .expression_table
+            .authored_selection_occurrences(expression)
+        {
+            use language_semantics::declaration_selection::{
+                AuthoredDeclarationSelectionLateBinding, AuthoredDeclarationSelectionTarget,
+            };
+            let selection = selections.get(occurrence).ok_or_else(|| {
+                "selected build-time expression lost its authored selection".to_owned()
+            })?;
+            if let AuthoredDeclarationSelectionTarget::LateBound(
+                binding @ (AuthoredDeclarationSelectionLateBinding::CheckedOperator
+                | AuthoredDeclarationSelectionLateBinding::CheckedCall),
+            ) = selection.target()
+            {
+                // An already-bound named call selects the requirement entry;
+                // a checked operator selects its declaration. Keep the same
+                // identity that ordinary source-call finalization would use.
+                let target = match program.expression_table.expression(expression) {
+                    ExpressionNode::Call(call)
+                        if binding == AuthoredDeclarationSelectionLateBinding::CheckedCall
+                            && call.target_symbol.is_valid() =>
+                    {
+                        call.target_symbol
+                    }
+                    _ => requirement,
+                };
+                selections
+                    .finalize_late_bound(occurrence, binding, target)
+                    .map_err(|error| {
+                        format!("cannot retain selected build-time requirement: {error:?}")
+                    })?;
+            }
+        }
+    }
+    program.retain_authored_declaration_selections(selections);
     for row in selected {
         let provider_name = program
             .machines()

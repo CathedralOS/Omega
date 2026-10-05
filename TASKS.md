@@ -907,8 +907,7 @@ defines the complete product bar.
 
   Shared failures, by owner (rerun the unchanged fixture after each repair):
   - **OPERATOR-BOUNDARY-CALLS**: `pass/float/{x86_fma_plan_association,build_runtime_semantics_twins_x86_baseline,build_runtime_semantics_twins_windows_x64,named_provider_directed_divide_exit,named_provider_fused_multiply_add_exit,named_provider_multiply_then_add_exit}`,
-    `pass/expressions/match_float_{interpretation,patterns,subjects}`,
-    `pass/providers/checked_boundary_operator_const_application_alternate_exit`;
+    `pass/expressions/match_float_{interpretation,patterns,subjects}`;
     `pass/float/{float_saturating_arithmetic_exit,float_trapping_overflow_traps,float_trapping_propagated_nan_traps}`
     need their authored policies (`as f32` erases the subject). Exact-cast
     guards in `pass/float/float_to_int_exact_proofs_exit` need one comparison
@@ -1998,6 +1997,8 @@ crash and native exit behavior.
   `providers/{checked_boundary,checked_fixed}_operator_physical_custody`,
   `providers/specialized_mixed_structural_result_operator_hosted_native`,
   `comptime/provider_boundary_range_endpoint_exit`,
+  `providers/selected_const_provider_call_identity_exit` (named, token and
+  helper calls retain the authored requirement under one selected provider),
   `recast/runtime_mutable_equivalent_record_recast_exit`, and the `pass/float`
   named-provider, policy, conversion and FMA fixtures. Run `sensor_min_max`,
   `vector_distance`, `temperature_convert` and `fibonacci_golden` unchanged
@@ -2401,10 +2402,9 @@ crash and native exit behavior.
   `OperationId(27)`, `pass/borrows/borrow_returned_window_write_and_call` at
   `OperationId(28)`); two are one `Unsupported("structural argument has no
   established storage")` (`pass/borrows/mut_loan_local_write_through_exit`,
-  `run/borrows/local_mut_borrow`); and
-  `pass/providers/checked_boundary_operator_const_application_alternate_exit`
-  failed const evaluation of `limit` at Operator selection occurrence 1922.
-  Four distinct causes cover all eight, so claim a cause rather than a row.
+  `run/borrows/local_mut_borrow`). The selected-provider const evaluation
+  regression is repaired; keep its native and interpreter exit oracle at 70.
+  Claim a remaining cause rather than a row.
 
   Acceptance: `python3 tools/corpus_scoreboard.py` reports fewer `regressed`
   rows because the fixtures run again, not because a row was re-recorded.
