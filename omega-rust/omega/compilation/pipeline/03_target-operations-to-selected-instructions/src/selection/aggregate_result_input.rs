@@ -8,6 +8,9 @@
 //! `operation_result` joins produced storage to its exact declaration once.
 //! Consumers add their ownership and layout checks; producer computation is
 //! validated at its own instruction, not recognized again by each consumer.
+//! A home lookup preserves the result's domain metadata without interpreting
+//! it as a storage restriction: an authorized boundary result occupies the
+//! same home as any other value of its declared representation.
 use legalized_operations::{
     LegalizedScalarFunction, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
 };
@@ -1192,26 +1195,17 @@ pub(super) fn home(
     &terminal_psi::StructuralOperationResult,
 )> {
     let (operation, result) = operation_result(source, place)?;
-    // Claims ride the retained operation result; storage lookup grants no
-    // permission to consume them.
-    // Primitive predicates do not change a bounded owner's `{length,
-    // bytes}` home. Producer replay already authenticated the exact result
-    // roster; this storage query must not reclassify that roster by which
-    // operation happened to produce it. Other aggregate carriers retain
-    // their established unqualified-home boundary.
-    if (!result.qualifications.is_empty()
-        && (!bounded_owned_byte_type(source, result.structural_type)
-            || !result.qualification_establishments.is_empty()))
-        || !result.projected_qualifications.is_empty()
-    {
-        return None;
-    }
+    // Qualifications and their establishment routes describe the value's
+    // checked meaning, not a different storage home. In particular a boundary
+    // call can establish a domain on an ordinary record. Keep that metadata on
+    // the exact result instead of making storage depend on whether its producer
+    // establishes a predicate, a routed domain, or neither. Claims likewise
+    // remain on the result; finding its home grants no permission to consume it.
     let signature = source.structural.as_ref()?;
     if signature.structural_types.iter().any(|declaration| {
         declaration.id == result.structural_type
             && matches!(declaration.shape, StructuralTypeShape::Reference { .. })
-    }) && (result.multiplicity != terminal_psi::StructuralMultiplicity::Affine
-        || !result.qualification_establishments.is_empty())
+    }) && result.multiplicity != terminal_psi::StructuralMultiplicity::Affine
     {
         return None;
     }

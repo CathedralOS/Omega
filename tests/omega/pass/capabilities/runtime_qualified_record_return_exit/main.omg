@@ -1,0 +1,60 @@
+// Domain evidence follows the value; it does not change its stored payload.
+// Exercise both a produced home and an owned-parameter return with real bytes.
+use omega::language::core::binding;
+
+pub data Ticket {
+    amount: i32;
+    marker: i32;
+}
+
+pub domain Ticket::Issued
+established by Issuer::issue, IssuerProvider::issue;
+
+pub boundary trait Issuer {
+    machine issue(amount: i32) -> Ticket
+    ensures result in Ticket::Issued
+    reaches Issuer;
+}
+
+data IssuerProvider {}
+
+machine IssuerProvider::issue(amount: i32) -> Ticket
+satisfies Issuer::issue
+ensures result in Ticket::Issued
+{
+    Ticket { amount: amount, marker: 9 }
+}
+
+machine pass_through(ticket: Ticket) -> Ticket
+requires ticket in Ticket::Issued
+ensures result in Ticket::Issued
+{
+    ticket
+}
+
+machine relay(ticket: Ticket) -> Ticket
+requires ticket in Ticket::Issued
+ensures result in Ticket::Issued
+{
+    pass_through(ticket)
+}
+
+data Main { issuer: Binding<Issuer>; }
+
+machine acquire(main: &mut Main) -> Ticket
+ensures result in Ticket::Issued
+reaches Issuer
+{
+    main.issuer.issue(41)
+}
+
+machine Main::main(main: &mut Main) reaches Issuer crashes Trap {
+    let issued: Ticket = acquire(main);
+    let relayed: Ticket = relay(issued);
+    transition relayed.amount == 41 && relayed.marker == 9 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

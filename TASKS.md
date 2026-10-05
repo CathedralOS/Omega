@@ -2349,11 +2349,11 @@ crash and native exit behavior.
   then `--native` reaches exit 70.
 
 - **MACOS-NATIVE-LOST-SUCCESSES.** (new-scope)
-  `tests/omega/corpus_native_macos_arm64.txt` carries 21 rows with a
+  `tests/omega/corpus_native_macos_arm64.txt` carries 19 rows with a
   `regressed-from:` token: a success this host recorded and no longer reaches.
   They were invisible until the golden could say so -- sixteen claimed `built`
-  and twelve of those claimed an authored exit, which is why `authored` reads
-  799 rather than 813. Four lost a running program with an authored exit
+  and twelve of those claimed an authored exit. Revalidate each recorded loss
+  against current main before assigning a repair. Four lost a running program with an authored exit
   (`pass/text/local_bounded_text_case_result_loan_exit`,
   `pass/text/runtime_number_to_decimal_exit`,
   `pass/wire/wire_preserving_decode_relay_exit` at `exit:70`, and
@@ -2362,12 +2362,9 @@ crash and native exit behavior.
   (`pass/providers/specialized_mixed_structural_result_operator_hosted_native`
   on an ambiguous terminal body plan,
   `pass/traits/boundary_trait_effects_host_call` on an unconsumed
-  ConsoleExitProcessI32 binding). The other two that lost `built` name an
-  absent boundary provider (`pass/memory/secondary_processor_canary`, on
-  StartupEnvelope::confirm) and a `SourceCustodyMismatch` out of physical
-  staging (`pass/capabilities/acquires_through_helper_return`) -- the second
-  reads as a compiler internal rather than an authored-program refusal and is
-  the one to probe first.
+  ConsoleExitProcessI32 binding). Another lost `built` on an absent boundary
+  provider (`pass/memory/secondary_processor_canary`, on
+  StartupEnvelope::confirm).
 
   Five more lost `checked`: three on an absent boundary provider this host
   does not supply (`pass/core/interrupt_obligations_surface`,

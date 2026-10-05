@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": null, "load1_end": 12.7, "load1_start": 13.46, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": null, "load1_end": 8.89, "load1_start": 8.89, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 189ms
 pass/arithmetic/anonymous_rational_integer_landing checked 186ms
 pass/arithmetic/bounded_assignment checked 197ms
@@ -293,12 +293,12 @@ pass/calls/value_call_transition_argument built 16255ms exit:70 @f17a009cdd4b+wt
 pass/calls/value_tail_call_to_machine_exit built 1212ms exit:70 @d0cd22d4e92a+wt
 pass/calls/whole_byte_array_view_loans_exit built 4714ms exit:70 @45c8d6b8b1ce+wt
 pass/capabilities/aarch64_hfa_import_compile checked 819ms
-pass/capabilities/acquires_through_helper_return rejected 9149ms regressed-from:built @835baa6033eb+wt
-	native artifact identity physical pipeline failed: common physical staging failed: Selection(Selection(SourceCustodyMismatch { site: Location { file: "omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/selection/construction/scalar_graph/aggregate_return.rs", line: 41, column: 32 } }))
+pass/capabilities/acquires_through_helper_return built 1750ms exit:0 @e8239f945e82+wt
 pass/capabilities/boundary_trait_multiple_effects checked 164ms
 pass/capabilities/callback_direct_install_compile built 1442ms @56c7f12ecb90+wt
 pass/capabilities/derives_through_helper built 272ms
 pass/capabilities/external_leaf_binding_forms built 308ms
+pass/capabilities/runtime_qualified_record_return_exit built 1788ms exit:0 @e8239f945e82+wt
 pass/capabilities/sysv_small_aggregate_import_compile built 5929ms @4ffed225fc45+wt
 pass/capabilities/transitive_effect_inference checked 185ms
 pass/capabilities/uses_caller_folder checked 198ms

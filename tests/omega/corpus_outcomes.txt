@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": null, "load1_end": 13.46, "load1_start": 14.6, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": null, "load1_end": 8.42, "load1_start": 8.89, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -1854,12 +1854,12 @@ pass/calls/value_call_transition_argument checked 1269ms check-target:macos_arm6
 pass/calls/value_tail_call_to_machine_exit checked 3937ms check-target:macos_arm64 @d0cd22d4e92a+wt
 pass/calls/whole_byte_array_view_loans_exit checked 2901ms check-target:macos_arm64 @45c8d6b8b1ce+wt
 pass/capabilities/aarch64_hfa_import_compile checked 1316ms @2d8ed253669f
-pass/capabilities/acquires_through_helper_return rejected 2333ms check-target:macos_arm64 @c5d32a00863
-	native artifact identity physical pipeline failed: common physical staging failed: Selection(Selection(SourceCustodyMismatch { site: Location { file: "omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/selection/construction/scalar_graph/aggregate_return.rs", line: 41, column: 32 } }))
+pass/capabilities/acquires_through_helper_return checked 1724ms check-target:macos_arm64 @e8239f945e82+wt
 pass/capabilities/boundary_trait_multiple_effects checked 315ms @2d8ed253669f
 pass/capabilities/callback_direct_install_compile checked 2541ms check-target:linux_x86_64 @56c7f12ecb90+wt
 pass/capabilities/derives_through_helper checked 383ms check-target:macos_arm64 @2d8ed253669f
 pass/capabilities/external_leaf_binding_forms checked 488ms check-target:macos_arm64 @2d8ed253669f
+pass/capabilities/runtime_qualified_record_return_exit checked 1763ms check-target:macos_arm64 @e8239f945e82+wt
 pass/capabilities/sysv_small_aggregate_import_compile checked 1985ms check-target:linux_x86_64 @c78cb1e2053
 pass/capabilities/transitive_effect_inference checked 291ms @2d8ed253669f
 pass/capabilities/uses_caller_folder checked 281ms @2d8ed253669f
