@@ -450,3 +450,52 @@ A third fixture has since stopped elsewhere and is not part of this:
 `interrupt_table_canary` now reaches "cannot prove the `terminates by` ranking
 for machine `DescriptorTableValidation::run`", a 768-fuel bounded scan every
 working edge of which decrements, which is an engineering frontier.
+
+## Q9 — `entry-slot-schema-resolved-by-bare-name`
+
+`tests/omega/fail/build/uefi_program_entry_wrong_calling_policy` cannot reach
+the rule it exists to pin, and the reason is a language decision rather than a
+repair the fixture can make. The analysis is already written in the fixture's
+own header; it is recorded here because that is where decisions belong, and
+because the fixture is one of only two in the corpus that reject for the wrong
+reason — a condition `tools/corpus_gate.py` now names on every run
+(`d491b0cca86`), so it will be visible from here on.
+
+**What it pins and what stops it.** The fixture is the FAIL canary for the
+two-surface program entry's physical calling-convention check:
+`uefi_x86_64::ProgramEntry` declares MicrosoftX64, the package's
+`WrongUefiPolicy` plans SystemVAMD64, and admission must refuse the mismatch
+(`build-evaluation/src/admission/selection.rs`). It instead stops at "target
+root slot `uefi_x86_64::ProgramEntry` requires exactly one loaded
+`UefiApplication` boundary schema, but found 2".
+
+**Why two is unavoidable today.** The slot resolves its schema **by bare name**
+over every loaded boundary trait, and the bundled std declares an application
+schema for all six targets that name one: `UefiApplication`,
+`MacosApplication`, `LinuxX86_64Application`, `LinuxArm64Application`,
+`MacosX64Application`, `WindowsX86_64Application`. A package that declares its
+own therefore always makes two. The fixture's author measured that the
+duplicate does not come from its imports — dropping
+`use omega_language_std::calling;` leaves the count at 2, because the library's
+target entry loads with the target rather than with the import.
+
+**And the trap closes.** A package cannot instead supply a wrong policy from
+the library surface: `CallingPolicy` lives only in `std/calling.omg`, and the
+library's schema is bound to `Calling<UefiX86_64>`, which plans MicrosoftX64 on
+every route. So the only way to supply a wrong policy is to declare your own
+schema, and declaring your own schema is what stops you here.
+
+**The question.** What does a locally declared boundary schema MEAN against the
+target's own — does it shadow it, or conflict with it? And should the entry
+slot resolve by owning package or requirement identity rather than by bare
+name? Resolving by identity makes the local schema reachable and gives this
+rule a source-level customer; declaring it a conflict means the rule can only
+ever be exercised from a package that owns its target.
+
+**Do not repin the fixture onto the duplicate.** It stays `unexpected`
+deliberately: pinning the duplicate would cement one answer to this question.
+The rule has no Rust-side customer either — `BoundaryCallingPlanRealization`
+seals `exact_boundary_entry_plan` and `materialized_signature` to
+`provider-planning`, so a `build-evaluation` unit test cannot construct one.
+Until this is answered, the physical calling-convention check is unexercised by
+any program or test.

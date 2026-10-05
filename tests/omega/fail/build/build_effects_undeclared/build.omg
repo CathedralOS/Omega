@@ -9,8 +9,7 @@ use omega_language_std::console;
 machine write_build_log(builder: &mut Build)
 reaches Console
 {
-    let mut console: Console;
-    console.write_line("ordinary runtime boundary");
+    Console::write_line("ordinary runtime boundary");
 }
 
 machine build(builder: &mut Build) {

@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 24, "jobs": null, "load1_end": null, "load1_start": null, "machine": "amd64", "platform": "windows", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "3", "load1_end": 26.43, "load1_start": 26.43, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -280,8 +280,8 @@ fail/boundary/bare_field_value_rejected rejected 459ms expected @2d8ed253669f
 	field `console` on data `Main` names bare boundary trait `Console` in value position; the intrinsic `Binding<R>` carrier is the only service value spelling
 fail/build/boundary_acceptance_fabricated_activation rejected 877ms expected @b429d3348cac+wt
 	the compiler-owned Build activation cannot be copied into local `counterfeit`
-fail/build/build_effects_undeclared rejected 1118ms unexpected @c5d32a00863
-	cleanup effect dependency in `write_build_log` has no exact structural residual disposition
+fail/build/build_effects_undeclared rejected 97ms expected @d491b0cca867+wt
+	`build` reaches boundary service `Console` -- build.omg may not reach runtime boundary services; use the compiler-owned Build facets
 fail/build/build_machine_wrong_arity rejected 2ms expected @cb26b40f8674+wt
 	tests/omega/fail/build/build_machine_wrong_arity/build.omg: invalid project build declaration: package build machine must have exactly one parameter: `builder: &mut Build`
 fail/build/crash_exclusion_trapping_provider rejected 2041ms expected @5c302dd6d305
