@@ -1969,18 +1969,17 @@ pub(crate) fn field_read(
         return None;
     }
     // An element view is a descriptor, not the observed storage: its live
-    // extent — not a root record footprint — bounds the read. A fixed array
-    // roots its literal element's field read as a record roots its member's:
-    // every literal index selects its declared element, and the whole
-    // array footprint bounds the read.
+    // extent — not a root aggregate footprint — bounds the read. Every inline
+    // carrier uses its declared layout, including a mixed shape's common
+    // fields beside its tag. Requiring a record here would reject that layout
+    // before the exact field projection below can even identify the leaf.
     let root_shape = &declarations
         .iter()
         .find(|declaration| declaration.id == structural_type)?
         .shape;
     let root = match root_shape {
         StructuralTypeShape::ElementView { .. } => None,
-        StructuralTypeShape::FixedArray { .. } => Some(shape(structural_type, declarations)?),
-        _ => Some(plain_record_shape(structural_type, declarations)?),
+        _ => Some(shape(structural_type, declarations)?),
     };
     if let Some(read) = mixed_common_field_read(structural_type, path, field, scalar, declarations)
     {
