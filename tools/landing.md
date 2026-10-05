@@ -93,6 +93,15 @@ or covers fewer packages than the diff affects — that is the fourth publish
 guard, after empty, coordination-only, and unrecorded trusted-surface
 changes. There is no bypass flag; rebase and `verify` again.
 
+**Verify again after every rebase, not once before enqueue.** A rebase inside
+the claim iteration produces a NEW candidate sha, and the verify receipt is
+bound to the sha it was taken for, so the rebased candidate has none. Publish
+never builds inside the lease, so it refuses with `no build receipt at
+.../<sha>.json` and a granted claim is lost. Compare the base the claim
+returned against your candidate's parent; when they differ, rebase, `verify`
+again, then publish. A sibling lost a claim to exactly this, and its re-verify
+after the rebase took 0.90s because the build was warm.
+
 **Keep the build warm, or the re-verify cannot fit the lease.** When main moves
 under a held claim, the re-verify of the rebased sha has to finish inside the
 remaining 180 seconds. A cold `cargo check` of the affected packages takes
