@@ -76,6 +76,7 @@ pass/borrows/projected_reference_record_argument_exit rejected 1242ms @8735cafb4
 pass/borrows/projected_reference_record_residual_exit rejected 1134ms @8735cafb4cf
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable scalar target (`exercise`), which was itself omitted at local construction at `call operation: structural arguments: caller structural result`
 pass/borrows/projected_scalar_member_loan built 751ms @2d8ed253669f+wt
+pass/borrows/runtime_array_primitive_reference_capture_exit built 2933ms exit:0 @3f342b86d6b4
 pass/borrows/runtime_carrier_reference_reselection_exit built 4805ms exit:70 @362d09f71f3
 pass/borrows/runtime_carrier_reference_store_exit built 4917ms exit:70 @362d09f71f3
 pass/borrows/runtime_indexed_carrier_bounded_reference_read_exit built 3537ms exit:70 @15c77983aab0
@@ -84,6 +85,7 @@ pass/borrows/runtime_mutable_primitive_reference_exit built 3423ms exit:0 @944fb
 pass/borrows/runtime_nested_carrier_bounded_reference_read_exit built 3535ms exit:70 @b5d8c6882a8
 pass/borrows/runtime_nested_carrier_reference_read_exit built 3996ms exit:70 @b5d8c6882a8
 pass/borrows/runtime_record_byte_region_loan_exit built 21745ms exit:50 @c773c4ad3c34
+pass/borrows/runtime_record_primitive_reference_capture_exit built 2936ms exit:0 @3f342b86d6b4
 pass/borrows/runtime_released_loan_with_forwarded_view_exit built 1431ms exit:70 @34627c25182b
 pass/borrows/runtime_stored_reference_array_constructor_transfer_exit built 5240ms exit:70 @835baa6033e
 pass/borrows/runtime_stored_reference_array_leaf_retirement_exit built 4870ms exit:70 @835baa6033e

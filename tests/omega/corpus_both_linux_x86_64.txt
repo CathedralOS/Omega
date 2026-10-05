@@ -10,7 +10,9 @@
 pass/atomics/runtime_atomic_bitwise_widths_exit built 5472ms exit:70 interpreter-exit:70 interpreter:agrees @8ed2986d3282
 pass/atomics/shared_receiver_atomic_store built 5511ms exit:70 interpreter-exit:70 interpreter:agrees @8ed2986d3282
 pass/borrows/mut_loan_local_write_through_exit built 4818ms exit:9 interpreter-exit:9 interpreter:agrees @944fb1232f17
+pass/borrows/runtime_array_primitive_reference_capture_exit built 5953ms exit:0 interpreter-exit:0 interpreter:agrees @3f342b86d6b4
 pass/borrows/runtime_mutable_primitive_reference_exit built 6934ms exit:0 interpreter-exit:0 interpreter:agrees @944fb1232f17
+pass/borrows/runtime_record_primitive_reference_capture_exit built 5943ms exit:0 interpreter-exit:0 interpreter:agrees @3f342b86d6b4
 pass/contracts/ensures_saturating_field_arithmetic_exit built 1802ms exit:70 interpreter-exit:70 interpreter:agrees @c13c39a874dc+wt
 pass/control_flow/runtime_later_state_shared_array_loan built 1003ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @058b197aec1a+wt
 pass/control_flow/runtime_namespace_local_state_loan built 983ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @058b197aec1a+wt
