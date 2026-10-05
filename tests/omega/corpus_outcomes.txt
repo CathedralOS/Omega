@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 14, "jobs": null, "load1_end": 3.15, "load1_start": 3.15, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "3", "load1_end": 48.18, "load1_start": 32.09, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -1509,8 +1509,7 @@ pass/arrays/local_record_array_guard_exit checked 1631ms @cfe60a3a242
 pass/atomics/atomic_global_order_operations checked 290ms @2d8ed253669f
 pass/atomics/runtime_atomic_compare_exchange_exit checked 1305ms @2d8ed253669f
 pass/atomics/runtime_atomic_fetch_add_exit checked 1275ms @2d8ed253669f
-pass/atomics/shared_receiver_atomic_store rejected 2983ms @95e4e5c52dc
-	native artifact identity physical pipeline failed: common physical staging failed: FunctionRelativeRealization(Encoding(X86_64(UnsupportedAtomicForm)))
+pass/atomics/shared_receiver_atomic_store checked 18519ms @89e29450ebe3+wt
 pass/blockexec/blocking_executor_custody_claims_compile checked 693ms @2d8ed253669f
 pass/borrow/copyable_array_view_survives_owner_pass_compile checked 291ms @2d8ed253669f
 pass/borrow/explicit_aggregate_lifetime_selects_source checked 293ms @2d8ed253669f
@@ -2200,9 +2199,7 @@ pass/float/named_ieee_truncations_exit checked 18313ms @2d8ed253669f
 pass/float/named_infinity_classification_exit checked 4472ms @2d8ed253669f
 pass/float/named_nan_semantic_only_exit checked 23555ms @2d8ed253669f
 pass/float/named_provider_directed_divide_exit checked 22722ms @cb6b089b27de+wt
-pass/float/named_provider_fused_multiply_add_exit rejected 3749ms @95e4e5c52dc
-	selected x86 scalar FMA ProviderPlan `<selected target>::FloatNativeProvider::satisfies::operator::F32::fused_multiply_add(named(name(f32)),named(name(f32)),named(name(f32)))->named(name(f32))` requires explicit AVX+FMA3 admission for slot `F32::fused_multiply_add`
-	selected x86 scalar FMA ProviderPlan `<selected target>::FloatNativeProvider::satisfies::operator::F64::fused_multiply_add(named(name(f64)),named(name(f64)),named(name(f64)))->named(name(f64))` requires explicit AVX+FMA3 admission for slot `F64::fused_multiply_add`
+pass/float/named_provider_fused_multiply_add_exit checked 50298ms @89e29450ebe3+wt
 pass/float/named_provider_min_max_sqrt_exit checked 7600ms @2d8ed253669f
 pass/float/named_provider_multiply_then_add_exit checked 4722ms @2d8ed253669f
 pass/float/named_provider_negate_is_nan_exit checked 5868ms @2d8ed253669f
