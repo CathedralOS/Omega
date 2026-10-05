@@ -526,6 +526,7 @@ pub(super) fn selected_interrupt_completion_for(
         }],
         origin_package_identity: None,
         origin_package: "test".into(),
+        digest_memo: Default::default(),
     };
     let identity = plan.report_fingerprint();
     effects::SelectedProviderPlanFacts::from_selection(

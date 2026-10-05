@@ -278,6 +278,7 @@ pub fn mint_canonical_filesystem_host_plan(
         rows,
         origin_package_identity: None,
         origin_package: "omega toolchain".to_owned(),
+        digest_memo: Default::default(),
     };
     let errors = plan.validate_candidate_against_schema();
     if !errors.is_empty() {

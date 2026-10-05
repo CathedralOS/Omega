@@ -477,9 +477,8 @@ fail/capabilities/native_slice_external_leaf_rejected rejected 120ms unexpected 
 	cannot evaluate compatibility calling plan for `NativeSlice::send`: aggregate integer classification is not normalized for this calling policy
 fail/capabilities/provider_widens_requirement_ceiling rejected 284ms expected @2d8ed253669f
 	machine `sneaky` state `entry` does not satisfy trait `Meter` machine `read_value`: service `Filesystem` is not allowed by the trait requirement
-fail/capabilities/undeclared_synchronous_invocation rejected 90ms expected @2d8ed253669f
-	adapter `named-callable(path(EventProvider::fire_checked),parameters(parameter\\(self\\(no\\)\\,mutable\\(yes\\)\\,const\\(no\\)\\,ref-mut\\(named\\(name\\(Handler\\)\\)\\)\\)),result-dispatch())` does not refine `EventSource::fire`: its body may synchronously invoke boundary binding(s) [Handler], but the requirement omits those `invokes` edges
-	adapter `named-callable(path(EventProvider::fire_checked),parameters(parameter\\(self\\(no\\)\\,mutable\\(yes\\)\\,const\\(no\\)\\,ref-mut\\(named\\(name\\(Handler\\)\\)\\)\\)),result-dispatch())` does not refine `EventSource::fire`: its body reaches boundary service(s) [Handler] outside the requirement's declared service ceiling [EventSource] -- the satisfied requirement is the public contract; widen it or drop the service reach
+fail/capabilities/undeclared_synchronous_invocation rejected 214ms expected @fea536d0a672+wt
+	machine `EventProvider::fire_checked` does not refine `EventSource::fire`: its body may synchronously invoke binding `Handler`, but the requirement omits `invokes Handler;` (requirement invokes: [])
 fail/collections/authored_index_guard_bound rejected 667ms expected @2d8ed253669f
 	cannot prove index `index` is within unknown slice length of `items` in read::entry
 fail/collections/declared_range_index_too_wide rejected 291ms expected @c08960bee2b1+wt

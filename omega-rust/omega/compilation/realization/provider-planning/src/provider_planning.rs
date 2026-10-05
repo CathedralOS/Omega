@@ -36,9 +36,9 @@ pub(crate) use external_binding_rows::extract_native_external_binding_rows;
 pub use operator_provider_evidence::{selected_requirement_plan, selected_use_plan};
 pub use provenance_replay::{
     DerivedProviderPlan, ProviderPlanDerivation, ProviderPlanProvenance, ProviderSchemaDeclaration,
-    SelectedTargetMachineOrigin, derive_satisfies_plans, exact_checked_adapter, same_semantic_name,
-    satisfies_plan_name, selected_requirement_checked_adapter,
-    validate_derived_provider_plan_candidates,
+    SelectedTargetMachineOrigin, derive_satisfies_plans, exact_checked_adapter,
+    replay_selected_provider_provenance, same_semantic_name, satisfies_plan_name,
+    selected_requirement_checked_adapter,
 };
 pub use selected_plan_bindings::SelectedProviderPlanBinding;
 pub use selection_provenance::{

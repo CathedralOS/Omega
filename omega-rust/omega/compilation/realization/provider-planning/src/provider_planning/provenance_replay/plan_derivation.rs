@@ -175,6 +175,7 @@ pub(crate) fn derive_provider_plans(
                                 rows: Vec::new(),
                                 origin_package_identity,
                                 origin_package: String::new(),
+                                digest_memo: Default::default(),
                             },
                             provenance: ProviderPlanProvenance {
                                 schema: schema_declaration,
@@ -377,6 +378,7 @@ fn derive_top_level_requirement_plans(
                             rows: Vec::new(),
                             origin_package_identity,
                             origin_package: String::new(),
+                            digest_memo: Default::default(),
                         },
                         provenance: ProviderPlanProvenance {
                             schema: ProviderSchemaDeclaration::BoundaryRequirement(
@@ -606,6 +608,7 @@ fn derive_boundary_operator_plans(
                             rows: Vec::new(),
                             origin_package_identity,
                             origin_package: String::new(),
+                            digest_memo: Default::default(),
                         },
                         provenance: ProviderPlanProvenance {
                             schema: ProviderSchemaDeclaration::BoundaryOperator(operator.symbol),

@@ -12,11 +12,17 @@ handoff; relocating the owner does not complete that boundary.
 [Provider selection](../../../../../wiki/spec/build/provider_selection.md) and
 [opaque representation selection](../../../../../wiki/spec/build/opaque_representations.md)
 own the public contract. Start at [provider_settlement.rs](src/provider_settlement.rs)
-for typed provider settlement: consume prepared target defaults, derive and
-validate candidates, select plans, construct canonical host-service plans, verify
-independent components, and retain aligned facts and provenance. Build admission
-prepares target declarations before this operation; it does not implement it.
-Package review replays host-service and component admission through the same owner.
+for typed provider settlement: consume prepared target defaults, derive
+candidates, select plans, construct canonical host-service plans, verify
+independent components, and retain aligned facts and provenance. Derivation is
+the one producer of each candidate: settlement does not re-validate what it just
+derived ([verification placement](../../../../pipeline.md#verification-placement)),
+and adapter refinement of a requirement's service and invocation ceilings is
+Psi conformance checking. Build admission prepares target declarations before
+this operation; it does not implement it. Package review replays host-service
+and component admission through the same owner, and replays selected provenance
+against the typed program with
+[selection replay](src/provider_planning/provenance_replay/selection_replay.rs).
 
 [provider_planning.rs](src/provider_planning.rs) binds selected plans to a checked program. The binding
 operation resolves grants, plans receipt and operator evidence, resolves

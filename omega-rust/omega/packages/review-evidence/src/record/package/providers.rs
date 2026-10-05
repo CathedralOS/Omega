@@ -242,6 +242,7 @@ impl CheckedPackageProviderReview {
             rows: self.rows.clone(),
             origin_package_identity: self.realizing_package,
             origin_package: String::new(),
+            digest_memo: Default::default(),
         }
         .identity_digest()
     }

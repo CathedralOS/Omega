@@ -58,21 +58,14 @@ pub(crate) fn prepare_checked_build(
         execution_profile,
         packages,
     )?;
-    let derivation = provider_planning::ProviderPlanDerivation::evaluated(
-        context,
-        execution_profile.map(target::TargetProfile::target_name),
-        &bindings,
-        &declarations.origins,
-    )?;
-    let candidates = provider_planning::derive_satisfies_plans(derivation);
-    let diagnostics = provider_planning::validate_derived_provider_plan_candidates(
-        context,
-        &bindings,
-        &candidates,
+    let candidates = provider_planning::derive_satisfies_plans(
+        provider_planning::ProviderPlanDerivation::evaluated(
+            context,
+            execution_profile.map(target::TargetProfile::target_name),
+            &bindings,
+            &declarations.origins,
+        ),
     );
-    if !diagnostics.is_empty() {
-        return Err(diagnostics);
-    }
     let (selected_provider_plan_facts, provenance) =
         if candidates.is_empty() && declarations.provider_defaults.is_empty() {
             (effects::SelectedProviderPlanFacts::default(), Vec::new())
@@ -88,7 +81,7 @@ pub(crate) fn prepare_checked_build(
                 &declarations.provider_defaults,
                 &[],
             )?;
-            provider_planning::selected_provider_plan_facts(context, &bindings, selected)?
+            provider_planning::selected_provider_plan_facts(context, selected)?
         };
     if !pending.is_empty() {
         selected_dispatch::SelectedConstantEvaluation::prepare(

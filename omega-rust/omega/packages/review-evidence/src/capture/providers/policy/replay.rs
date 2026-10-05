@@ -58,7 +58,21 @@ pub(super) fn validate(
             },
             selected_by: retained.selected_by.clone(),
         })
-        .collect();
+        .collect::<Vec<_>>();
+    let context = provider_planning::ProviderPlanningContext::new(
+        &compilation.typed,
+        source::DependencyScope::Product,
+    );
+    // Review replays each authored plan's retained provenance against the
+    // typed program before trusting the selection it projects.
+    let diagnostics = provider_planning::replay_selected_provider_provenance(
+        context,
+        &providers.evaluated_via_bindings,
+        &selected,
+    );
+    if !diagnostics.is_empty() {
+        return Err(diagnostics);
+    }
     // The component-closure join replays against the same components
     // settlement admitted: custody retains the attached descriptions, and
     // re-verifying them under the build's admission profile reproduces the
@@ -74,11 +88,7 @@ pub(super) fn validate(
     )?;
     let (replayed, _) =
         provider_planning::selected_provider_plan_facts_with_independent_components(
-            provider_planning::ProviderPlanningContext::new(
-                &compilation.typed,
-                source::DependencyScope::Product,
-            ),
-            &providers.evaluated_via_bindings,
+            context,
             selected,
             &independent_components,
         )?;

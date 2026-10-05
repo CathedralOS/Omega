@@ -1,6 +1,9 @@
-//! Provider settlement for the checked program: plans derived, validated
-//! and selected with provenance over the settled target machines, with every
+//! Provider settlement for the checked program: plans derived and selected
+//! with provenance over the settled target machines, with every
 //! `Independent` selection closed against the build's verified components.
+//! Derivation is the one producer of each candidate; settlement does not
+//! re-validate what it just derived, and adapter refinement of requirement
+//! ceilings belongs to Psi conformance checking.
 //!
 //! `settle_checked_providers` is the route. `independent_components` owns the
 //! one subordinate admission: re-verifying the component descriptions the
@@ -95,7 +98,7 @@ pub struct ProviderSettlement {
         Vec<package_compilation::IndependentComponentDescription>,
 }
 
-/// Settle the final authored/generated target roster, validate and select its
+/// Settle the final authored/generated target roster, derive and select its
 /// provider candidates, then bind fused erasure and exact invocation evidence.
 /// This must precede deferred const evaluation and typed-to-checked settlement.
 pub fn settle_checked_providers(
@@ -129,23 +132,14 @@ pub fn settle_checked_providers(
         planning_target,
         package_inputs,
     )?;
-    let derive_selected = |typed: &TypedTrees| {
+    let derive_selected = |typed: &TypedTrees| -> Result<_, Vec<Diagnostic>> {
         let context = crate::ProviderPlanningContext::new(typed, source::DependencyScope::Product);
-        let derived = crate::ProviderPlanDerivation::evaluated(
+        let derived = derive_satisfies_plans(crate::ProviderPlanDerivation::evaluated(
             context,
             target_name,
             &evaluated_via_bindings,
             &settled_target_machines.origins,
-        )
-        .map(derive_satisfies_plans)?;
-        let diagnostics = crate::validate_derived_provider_plan_candidates(
-            context,
-            &evaluated_via_bindings,
-            &derived,
-        );
-        if !diagnostics.is_empty() {
-            return Err(diagnostics);
-        }
+        ));
         let selected = crate::select_derived_provider_plans(
             &derived,
             provider_selection_target,
@@ -266,7 +260,6 @@ pub fn settle_checked_providers(
     let (mut selected_provider_plan_facts, mut selected_provider_provenance) =
         crate::selected_provider_plan_facts_with_independent_components(
             crate::ProviderPlanningContext::new(typed, source::DependencyScope::Product),
-            &evaluated_via_bindings,
             selected_provider_plans,
             &independent_components,
         )?;

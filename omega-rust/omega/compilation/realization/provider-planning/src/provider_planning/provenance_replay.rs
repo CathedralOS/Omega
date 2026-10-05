@@ -3,26 +3,28 @@
 //! This file owns the provenance carriers and the derivation entry points.
 //! `plan_derivation.rs` derives satisfies plans with provenance,
 //! `requirement_identities.rs` names satisfied requirements and their
-//! bindings, `adapter_conformance.rs` proves checked adapters conform to
-//! their schemas and `candidate_validation.rs` validates provider-plan
-//! candidates against replayed provenance.
+//! bindings, `adapter_conformance.rs` resolves checked adapters and their
+//! invocations, and `selection_replay.rs` replays selected provenance for
+//! package review. Derivation is the one producer of a plan and its
+//! provenance: the compile does not validate the candidates it just derived
+//! (pipeline.md, "Verification placement"), and adapter refinement of a
+//! requirement's service and invocation ceilings is Psi conformance checking.
 
 mod adapter_conformance;
-mod candidate_validation;
 mod plan_derivation;
 mod requirement_identities;
+mod selection_replay;
 mod specialization_rows;
 
 pub(crate) use adapter_conformance::{
     exact_authored_invocations, exact_checked_adapter_invocations, exact_row_for_schema_method,
 };
 pub use adapter_conformance::{exact_checked_adapter, selected_requirement_checked_adapter};
-pub use candidate_validation::validate_derived_provider_plan_candidates;
-pub(crate) use candidate_validation::validate_derived_provider_plan_provenance;
 pub(crate) use requirement_identities::{
     exact_satisfied_requirement_identity, satisfied_row_requirement,
 };
 pub use requirement_identities::{same_semantic_name, satisfies_plan_name};
+pub use selection_replay::replay_selected_provider_provenance;
 pub(crate) use specialization_rows::derive_selected_requirement_specializations;
 
 use super::ProviderPlan;
@@ -73,8 +75,8 @@ pub struct DerivedProviderPlan {
 /// One provider-plan derivation request: the selected target, and when the
 /// program's `via` bindings were evaluated, that table with the target-machine
 /// origins it selected. Build the evaluated form through
-/// [`ProviderPlanDerivation::evaluated`], which validates the table against
-/// the typed program and the target before any plan is derived.
+/// [`ProviderPlanDerivation::evaluated`] with the table this compile just
+/// evaluated for the same typed program and target.
 #[derive(Clone, Copy)]
 pub struct ProviderPlanDerivation<'a> {
     context: ProviderPlanningContext<'a>,
@@ -98,31 +100,21 @@ impl<'a> ProviderPlanDerivation<'a> {
         }
     }
 
-    /// Derive with an evaluated `via` binding table, which must belong to
-    /// this typed program and name the same target.
+    /// Derive with the evaluated `via` binding table this compile produced for
+    /// the same typed program and target. The table is not replayed against
+    /// the program it was just evaluated from.
     pub fn evaluated(
         context: ProviderPlanningContext<'a>,
         selected_target: Option<&'a str>,
         evaluated_bindings: &'a crate::evaluated_via_bindings::EvaluatedViaBindingTable,
         target_machine_origins: &'a [SelectedTargetMachineOrigin],
-    ) -> Result<Self, Vec<diagnostics::Diagnostic>> {
-        evaluated_bindings.validate_against_typed(context)?;
-        let retained_target = evaluated_bindings
-            .target()
-            .map(target::TargetProfile::target_name);
-        if retained_target != selected_target {
-            return Err(vec![diagnostics::Diagnostic::error(format!(
-                "evaluated `via` binding table target `{}` does not match provider derivation target `{}`",
-                retained_target.unwrap_or("<none>"),
-                selected_target.unwrap_or("<none>"),
-            ))]);
-        }
-        Ok(Self {
+    ) -> Self {
+        Self {
             context,
             selected_target,
             evaluated_bindings: Some(evaluated_bindings),
             target_machine_origins,
-        })
+        }
     }
 }
 

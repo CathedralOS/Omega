@@ -1,1 +1,1 @@
-requirement omits those `invokes` edges
+but the requirement omits `invokes Handler;`

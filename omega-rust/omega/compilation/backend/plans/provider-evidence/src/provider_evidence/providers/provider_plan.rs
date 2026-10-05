@@ -69,9 +69,9 @@ pub enum ProviderBinding {
     /// An ORDINARY CHECKED MACHINE realizing the requirement (the ruling's
     /// composite form: lowering sequences and argument adaptation are
     /// checked Omega code with an explicit satisfies edge, never authored
-    /// rows). Admission checks the adapter as a REFINEMENT: its transitive
-    /// effects must fit inside the satisfied requirement's declared
-    /// ceiling.
+    /// rows). Psi conformance checking enforces the adapter as a REFINEMENT:
+    /// its transitive effects must fit inside the satisfied requirement's
+    /// declared ceiling.
     CheckedAdapter {
         /// Canonical typed machine-overload identity, never a short name.
         machine_identity: String,
@@ -128,6 +128,37 @@ pub struct ProviderPlan {
     /// Legacy readable origin label. This is diagnostic data, not admission
     /// provenance, and must never repair a missing exact package identity.
     pub origin_package: String,
+    /// The plan's [`Self::identity_digest`], computed on first use and kept.
+    /// Construct with `ProviderPlanDigestMemo::default()`; a plan's fields
+    /// are construction data and are not mutated after its digest is read.
+    pub digest_memo: ProviderPlanDigestMemo,
+}
+
+/// Memoized [`ProviderPlan::identity_digest`]. It is not part of the plan's
+/// value: equality ignores it, debug output omits its state, and a clone
+/// starts empty, so a clone whose public fields are changed before its first
+/// digest cannot inherit the original's commitment.
+#[derive(Default)]
+pub struct ProviderPlanDigestMemo(std::sync::OnceLock<ProviderPlanDigest>);
+
+impl Clone for ProviderPlanDigestMemo {
+    fn clone(&self) -> Self {
+        Self::default()
+    }
+}
+
+impl PartialEq for ProviderPlanDigestMemo {
+    fn eq(&self, _: &Self) -> bool {
+        true
+    }
+}
+
+impl Eq for ProviderPlanDigestMemo {}
+
+impl std::fmt::Debug for ProviderPlanDigestMemo {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("ProviderPlanDigestMemo")
+    }
 }
 
 fn push_package_identity(
@@ -152,8 +183,15 @@ impl ProviderPlan {
     /// Domain-separated SHA-256 commitment to the complete normalized plan
     /// structure. Unlike [`Self::report_fingerprint`], this includes exact
     /// normalized foreign-locator coordinates and is suitable for retained
-    /// evidence identity.
+    /// evidence identity. Computed once per plan value.
     pub fn identity_digest(&self) -> ProviderPlanDigest {
+        *self
+            .digest_memo
+            .0
+            .get_or_init(|| self.encode_identity_digest())
+    }
+
+    fn encode_identity_digest(&self) -> ProviderPlanDigest {
         let mut encoder = ProviderPlanDigestEncoder::for_provider_plan();
         encoder.string(&self.name);
         encoder.string(&self.provider_type);

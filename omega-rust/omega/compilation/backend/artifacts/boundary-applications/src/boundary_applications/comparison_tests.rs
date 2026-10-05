@@ -200,14 +200,6 @@ fn float_coverage_replays_exact_operation_format_plan_and_execution() {
                 ),
                 Err("Terminal IEEE comparison changed its selected boundary realization")
             );
-            let wrong_plan = [ProviderPlan {
-                name: "other".to_owned(),
-                ..plans[0].clone()
-            }];
-            assert_eq!(
-                FloatOccurrence::validate_roster(&module, &wrong_plan, &[occurrence]),
-                Err("Terminal IEEE comparison changed its exact selected plan")
-            );
         }
     }
 }

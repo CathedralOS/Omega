@@ -359,6 +359,7 @@ pub(super) fn progress_installation_fixture() -> (
         }],
         origin_package_identity: None,
         origin_package: "omega::test".into(),
+        digest_memo: Default::default(),
     };
     let admission = ProviderPlan {
         name: "scheduler-admission-plan".into(),
@@ -392,6 +393,7 @@ pub(super) fn progress_installation_fixture() -> (
         }],
         origin_package_identity: None,
         origin_package: "omega::test".into(),
+        digest_memo: Default::default(),
     };
     let scheduler_identity = scheduler.report_fingerprint();
     let admission_identity = admission.report_fingerprint();

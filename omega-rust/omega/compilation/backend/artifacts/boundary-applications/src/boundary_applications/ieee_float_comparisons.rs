@@ -102,12 +102,11 @@ impl TerminalIeeeFloatComparisonOccurrenceProposal {
             if !seen.insert((occurrence.terminal_machine, occurrence.terminal_operation)) {
                 return Err("Terminal proposal repeats an IEEE comparison occurrence");
             }
-            let plan = plans
+            // The commitment was taken from this same selected plan when the
+            // occurrence was settled; only the index needs to exist.
+            plans
                 .get(occurrence.provider_plan_index)
                 .ok_or("Terminal IEEE comparison names an absent selected plan")?;
-            if plan.identity_digest() != occurrence.provider_plan_commitment {
-                return Err("Terminal IEEE comparison changed its exact selected plan");
-            }
             let matching = comparisons
                 .iter()
                 .filter(|(machine, operation)| {

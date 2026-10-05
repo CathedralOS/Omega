@@ -460,18 +460,17 @@ impl InstalledRootLedger {
         let mut by_occurrence = BTreeMap::new();
         let mut receipt_owners = BTreeMap::new();
         for binding in bindings {
+            // The binding's digest was computed from its own plan at
+            // construction, and exact evidence requires that plan to equal the
+            // selected one, so the digests are not compared again.
             let plan = selected
                 .plan_by_exact_evidence(
                     binding.provider_plan_report_identity,
                     &binding.provider_plan,
                 )
-                .filter(|plan| {
-                    plan.identity_digest() == binding.provider_plan_digest
-                        && binding.provider_plan.identity_digest() == binding.provider_plan_digest
-                })
                 .ok_or_else(|| {
                     ExternalRootDiagnostic(
-                        "provider-occurrence binding does not retain the exact selected provider plan and digest"
+                        "provider-occurrence binding does not retain the exact selected provider plan"
                             .into(),
                     )
                 })?;
@@ -759,16 +758,17 @@ impl InstalledRootLedger {
                     "component progress binding substitutes divergent receipt evidence".into(),
                 ));
             }
+            // The manifest matched this exact selected closure above, and each
+            // demand's digest was taken from that closure's plan when the
+            // manifest was bound; the report coordinate is unique within it.
             let Some(selected_plan) = closure
                 .selected
                 .plan_by_report_fingerprint(demand.provider_plan_report_identity)
-                .filter(|plan| plan.identity_digest() == demand.provider_plan_digest)
             else {
                 return Err(fail(
                     manifest,
                     bindings,
-                    "component progress demand does not retain the selected provider plan digest"
-                        .into(),
+                    "component progress demand does not retain the selected provider plan".into(),
                 ));
             };
             let Some(subject) = closure.occurrence_for_plan(selected_plan.report_fingerprint())

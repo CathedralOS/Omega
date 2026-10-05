@@ -1,7 +1,6 @@
 //! Provider selection keys, provenance, indices and slot resolution.
 
 use crate::provider_planning::independent_components::IndependentComponentJoin;
-use crate::provider_planning::provenance_replay::validate_derived_provider_plan_provenance;
 use crate::{DerivedProviderPlan, ProviderPlanProvenance};
 use component_description::VerifiedComponent;
 use effects::CompilerIntrinsicExecutionIdentity;
@@ -112,13 +111,12 @@ pub struct SelectedProviderReviewProvenance {
     pub row_compiler_intrinsic_executions: Vec<Option<CompilerIntrinsicExecutionIdentity>>,
 }
 
-/// Replay selected provider provenance on a route that supplies no verified
+/// Publish selected provider facts on a route that supplies no verified
 /// component descriptions. Every `Independent` selection rejects at the
 /// component-closure fence; routes that admit verified components call
 /// [`selected_provider_plan_facts_with_independent_components`].
 pub fn selected_provider_plan_facts(
     context: crate::ProviderPlanningContext<'_>,
-    evaluated_bindings: &crate::evaluated_via_bindings::EvaluatedViaBindingTable,
     selected: Vec<SelectedProviderPlanWithProvenance>,
 ) -> Result<
     (
@@ -127,16 +125,14 @@ pub fn selected_provider_plan_facts(
     ),
     Vec<diagnostics::Diagnostic>,
 > {
-    selected_provider_plan_facts_with_independent_components(
-        context,
-        evaluated_bindings,
-        selected,
-        &[],
-    )
+    selected_provider_plan_facts_with_independent_components(context, selected, &[])
 }
 
-/// Replay selected provider provenance and close every `Independent`
-/// selection against the build's verified component descriptions.
+/// Publish selected provider facts and close every `Independent` selection
+/// against the build's verified component descriptions. Each plan's
+/// provenance comes from the derivation this compile just ran and is not
+/// replayed here; package review replays it with
+/// [`crate::replay_selected_provider_provenance`].
 ///
 /// Each independently composed plan must be realized by exactly one
 /// `independent_components` entry (`VerifiedComponent::realizes_selected_plan`),
@@ -144,7 +140,6 @@ pub fn selected_provider_plan_facts(
 /// facts publish only when that join is complete.
 pub fn selected_provider_plan_facts_with_independent_components(
     context: crate::ProviderPlanningContext<'_>,
-    evaluated_bindings: &crate::evaluated_via_bindings::EvaluatedViaBindingTable,
     mut selected: Vec<SelectedProviderPlanWithProvenance>,
     independent_components: &[VerifiedComponent],
 ) -> Result<
@@ -176,16 +171,8 @@ pub fn selected_provider_plan_facts_with_independent_components(
             .then_with(|| left.report_fingerprint().cmp(&right.report_fingerprint()))
     });
 
-    let mut diagnostics = evaluated_bindings
-        .validate_against_typed(context)
-        .err()
-        .unwrap_or_default();
-    let retained_target = evaluated_bindings
-        .target()
-        .map(target::TargetProfile::target_name)
-        .unwrap_or_default();
+    let mut diagnostics = replay_operator_family_selections(context, &selected);
     let mut independent_join = IndependentComponentJoin::new(independent_components);
-    diagnostics.extend(replay_operator_family_selections(context, &selected));
     for selected_plan in &selected {
         let plan = &selected_plan.derived.plan;
         let provenance = &selected_plan.derived.provenance;
@@ -210,17 +197,6 @@ pub fn selected_provider_plan_facts_with_independent_components(
             diagnostics.push(diagnostic);
         }
         let schema_symbol = provenance.schema.symbol();
-        if plan.target != retained_target {
-            diagnostics.push(diagnostics::Diagnostic::error(format!(
-                "selected ProviderPlan `{}` target `{}` disagrees with evaluated-binding target `{retained_target}`",
-                plan.name, plan.target,
-            )));
-        }
-        diagnostics.extend(validate_derived_provider_plan_provenance(
-            context,
-            evaluated_bindings,
-            &selected_plan.derived,
-        ));
         let declarations = match &selected_plan.selected_by {
             ProviderSelectionProvenance::BuildOverride(declarations)
             | ProviderSelectionProvenance::TargetDefault(declarations) => declarations,

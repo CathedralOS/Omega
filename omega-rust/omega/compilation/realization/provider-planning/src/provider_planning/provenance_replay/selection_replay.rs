@@ -1,13 +1,11 @@
-//! Validation of provider-plan candidates and derived plans against
-//! replayed provenance in the caller's explicit declaration context. Retained
-//! symbols establish scope before any portable schema or binding comparison.
+//! Provenance replay of selected provider plans against the typed program,
+//! for package review. Review compiles a candidate package and then replays
+//! the retained provenance of every authored selected plan before it projects
+//! inert policy; the ordinary compile does not run this replay on the plans it
+//! just derived (pipeline.md, "Verification placement"). Retained symbols
+//! establish scope before any portable schema or binding comparison.
 
 use crate::ProviderPlanningContext;
-use crate::provider_planning::provenance_replay::adapter_conformance::{
-    checked_adapter_has_exact_conformance, exact_canonical_provider_schema,
-    exact_checked_adapter_invocations, exact_schema_method_for_row,
-    exact_top_level_external_realization, has_exact_top_level_ordinary_realization,
-};
 use crate::provider_planning::provenance_replay::requirement_identities::{
     external_provider_binding, inferred_compiler_leaf_binding, provider_boundary_arguments,
 };
@@ -17,174 +15,32 @@ use crate::provider_planning::provenance_replay::{
 };
 use crate::provider_planning::{ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceSchema};
 
-/// Validate every derived candidate before coverage and selection. A partial
-/// candidate may wait for more conformances, but duplicate/stray rows and
-/// malformed binding shapes are invalid in their own right. The freely
-/// constructible retained schema must first equal the canonical typed schema;
-/// only then may checked-adapter reach be compared with its public ceiling.
-/// Independent operational refinement is validated by the machine-conformance
-/// checker that produced the candidate.
-pub(crate) fn validate_provider_plan_candidates(
+/// Replay each selected plan's retained provenance: its schema, requirement
+/// kinds, realizations, satisfies edges and row bindings must rejoin the
+/// typed program, and its target must equal the evaluated-binding target.
+pub fn replay_selected_provider_provenance(
     context: ProviderPlanningContext<'_>,
-    plans: &[effects::provider_plan::ProviderPlan],
+    evaluated_bindings: &crate::evaluated_via_bindings::EvaluatedViaBindingTable,
+    selected: &[crate::SelectedProviderPlanWithProvenance],
 ) -> Vec<diagnostics::Diagnostic> {
-    let typed = context.typed;
+    let retained_target = evaluated_bindings
+        .target()
+        .map(target::TargetProfile::target_name)
+        .unwrap_or_default();
     let mut diagnostics = Vec::new();
-    let effect_plan = validation::infer_operational_may(typed);
-    let service_reach_plan = validation::infer_service_reaches(typed, &effect_plan);
-    let invocation_plan = validation::infer_synchronous_invocations(typed);
-    let mut top_level_symbols = None;
-    for plan in plans {
-        let structural_diagnostics = plan.validate_candidate_against_schema();
-        if structural_diagnostics.is_empty() {
-            let canonical_schema = match exact_canonical_provider_schema(context, plan) {
-                Ok(schema) => schema,
-                Err(diagnostic) => {
-                    diagnostics.push(diagnostic);
-                    continue;
-                }
-            };
-            if plan.schema != canonical_schema {
-                diagnostics.push(diagnostics::Diagnostic::error(format!(
-                    "ProviderPlan `{}` retained schema `{}` does not equal its exact canonical typed schema",
-                    plan.name, plan.schema.trait_name,
-                )));
-                continue;
-            }
+    for selected_plan in selected {
+        let plan = &selected_plan.derived.plan;
+        if plan.target != retained_target {
+            diagnostics.push(diagnostics::Diagnostic::error(format!(
+                "selected ProviderPlan `{}` target `{}` disagrees with evaluated-binding target `{retained_target}`",
+                plan.name, plan.target,
+            )));
         }
-        diagnostics.extend(
-            structural_diagnostics
-                .into_iter()
-                .map(diagnostics::Diagnostic::error),
-        );
-        for row in &plan.rows {
-            let ProviderBinding::CheckedAdapter {
-                machine_identity, ..
-            } = &row.binding
-            else {
-                let is_top_level_requirement_plan = typed.machines().iter().any(|requirement| {
-                    requirement.supply_mode
-                        == language_semantics::MachineSupplyMode::TopLevelRequirement
-                        && crate::service_schema::from_typed_boundary_requirement(
-                            context,
-                            requirement,
-                        )
-                        .as_ref()
-                            == Some(&plan.schema)
-                });
-                let is_retained_ordinary_binding =
-                    matches!(row.binding, ProviderBinding::Import { .. })
-                        || matches!(row.binding, ProviderBinding::Syscall { .. })
-                            && has_exact_top_level_ordinary_realization(context, plan, row);
-                if is_top_level_requirement_plan
-                    && !is_retained_ordinary_binding
-                    && let Err(diagnostic) =
-                        exact_top_level_external_realization(context, plan, row)
-                {
-                    diagnostics.push(diagnostic);
-                }
-                continue;
-            };
-            let method = match exact_schema_method_for_row(plan, row) {
-                Ok(method) => method,
-                Err(diagnostic) => {
-                    diagnostics.push(diagnostic);
-                    continue;
-                }
-            };
-            let adapter = match exact_checked_adapter(context, plan, row) {
-                Ok(adapter) => adapter,
-                Err(diagnostic) => {
-                    diagnostics.push(diagnostic);
-                    continue;
-                }
-            };
-            if typed.attached_data_path(adapter).as_deref() != Some(plan.provider_type.as_str()) {
-                diagnostics.push(diagnostics::Diagnostic::error(format!(
-                    "checked adapter `{machine_identity}` for `{}::{}` belongs to provider `{}`, not selected provider `{}`",
-                    plan.schema.trait_name,
-                    row.method,
-                    adapter
-                        .attached_data
-                        .as_ref()
-                        .map_or("<none>", |owner| owner.as_str()),
-                    plan.provider_type,
-                )));
-                continue;
-            }
-            if adapter.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
-                || typed.machine_states(adapter).is_empty()
-            {
-                diagnostics.push(diagnostics::Diagnostic::error(format!(
-                    "checked adapter `{machine_identity}` for `{}::{}` does not name a checked body with an entry state",
-                    plan.schema.trait_name, row.method,
-                )));
-                continue;
-            }
-            let has_exact_conformance = checked_adapter_has_exact_conformance(
-                context,
-                &mut top_level_symbols,
-                adapter,
-                plan,
-                row,
-            );
-            if !has_exact_conformance {
-                diagnostics.push(diagnostics::Diagnostic::error(format!(
-                    "checked adapter `{machine_identity}` for `{}::{}` has no exact checked satisfies edge for requirement identity `{}`",
-                    plan.schema.trait_name, row.method, row.requirement_identity,
-                )));
-                continue;
-            }
-            let service_ceiling = method.service_reach.as_slice();
-            let invocation_ceiling = method.synchronous_invocations.as_slice();
-            let hidden_invocations = match exact_checked_adapter_invocations(
-                context,
-                &invocation_plan,
-                plan,
-                method,
-                row,
-            ) {
-                Ok(invocations) => invocations
-                    .into_iter()
-                    .filter(|target| !invocation_ceiling.contains(target))
-                    .collect::<Vec<_>>(),
-                Err(diagnostic) => {
-                    diagnostics.push(diagnostic);
-                    Vec::new()
-                }
-            };
-            if !hidden_invocations.is_empty() {
-                diagnostics.push(diagnostics::Diagnostic::error(format!(
-                    "adapter `{}` does not refine `{}::{}`: its body may synchronously invoke boundary binding(s) [{}], but the requirement omits those `invokes` edges",
-                    machine_identity,
-                    plan.schema.trait_name,
-                    row.method,
-                    hidden_invocations.join(", "),
-                )));
-            }
-            let hidden_services = service_reach_plan
-                .for_machine(adapter.symbol)
-                .into_iter()
-                .flat_map(|summary| service_reach_plan.services(summary.effective).iter())
-                .filter_map(|service| typed.service_reaches.definition(*service))
-                .map(|definition| definition.name.as_str())
-                .filter(|name| {
-                    !service_ceiling
-                        .iter()
-                        .any(|allowed| allowed.as_str() == *name)
-                })
-                .collect::<Vec<_>>();
-            if !hidden_services.is_empty() {
-                diagnostics.push(diagnostics::Diagnostic::error(format!(
-                    "adapter `{}` does not refine `{}::{}`: its body reaches boundary service(s) [{}] outside the requirement's declared service ceiling [{}] -- the satisfied requirement is the public contract; widen it or drop the service reach",
-                    machine_identity,
-                    plan.schema.trait_name,
-                    row.method,
-                    hidden_services.join(", "),
-                    service_ceiling.join(", "),
-                )));
-            }
-        }
+        diagnostics.extend(validate_derived_provider_plan_provenance(
+            context,
+            evaluated_bindings,
+            &selected_plan.derived,
+        ));
     }
     diagnostics
 }
@@ -686,7 +542,7 @@ fn replay_provider_row_binding(
     Ok(())
 }
 
-pub(crate) fn validate_derived_provider_plan_provenance(
+fn validate_derived_provider_plan_provenance(
     context: ProviderPlanningContext<'_>,
     evaluated_bindings: &crate::evaluated_via_bindings::EvaluatedViaBindingTable,
     derived: &DerivedProviderPlan,
@@ -780,66 +636,6 @@ pub(crate) fn validate_derived_provider_plan_provenance(
             provenance.row_target_machine_origins[row_index].as_ref(),
         ) {
             diagnostics.push(diagnostic);
-        }
-    }
-    diagnostics
-}
-
-/// Strict production validation over semantic candidates and the exact
-/// derivation provenance/table custody that produced every row.
-pub fn validate_derived_provider_plan_candidates(
-    context: ProviderPlanningContext<'_>,
-    evaluated_bindings: &crate::evaluated_via_bindings::EvaluatedViaBindingTable,
-    plans: &[DerivedProviderPlan],
-) -> Vec<diagnostics::Diagnostic> {
-    let mut diagnostics = evaluated_bindings
-        .validate_against_typed(context)
-        .err()
-        .unwrap_or_default();
-    let retained_target = evaluated_bindings
-        .target()
-        .map(target::TargetProfile::target_name)
-        .unwrap_or_default();
-    diagnostics.extend(validate_provider_plan_candidates(
-        context,
-        &plans
-            .iter()
-            .map(|derived| derived.plan.clone())
-            .collect::<Vec<_>>(),
-    ));
-    for derived in plans {
-        if derived.plan.target != retained_target {
-            diagnostics.push(diagnostics::Diagnostic::error(format!(
-                "ProviderPlan `{}` target `{}` disagrees with evaluated-binding target `{retained_target}`",
-                derived.plan.name, derived.plan.target,
-            )));
-        }
-        diagnostics.extend(validate_derived_provider_plan_provenance(
-            context,
-            evaluated_bindings,
-            derived,
-        ));
-    }
-    for evaluated in evaluated_bindings.rows() {
-        let retained = plans.iter().any(|derived| {
-            derived
-                .plan
-                .rows
-                .iter()
-                .zip(&derived.provenance.row_requirements)
-                .zip(&derived.provenance.row_realizations)
-                .any(|((row, requirement), realization)| {
-                    *realization == evaluated.realization_machine()
-                        && *requirement == evaluated.requirement()
-                        && row.binding == evaluated.evaluated().provider_binding()
-                })
-        });
-        if !retained {
-            diagnostics.push(diagnostics::Diagnostic::error(format!(
-                "evaluated `via` row for realization {:?} and requirement {:?} was not retained by any exact derived ProviderPlan provenance row",
-                evaluated.realization_machine(),
-                evaluated.requirement(),
-            )));
         }
     }
     diagnostics
