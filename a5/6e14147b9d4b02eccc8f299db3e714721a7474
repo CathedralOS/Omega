@@ -1,0 +1,4 @@
+owner: devin-z4 / leaf/referee-scalar-read-regression
+provenance: model=devin-z4: probed tip 3eebfe9c3de on fresh runner b4fb98c29fae1099; verified diag+timing verbatim to probe output both legs; native_crud checked absorbed by upstream 46d467e1cd during rebase
+ticket: 9ad0ee78dc21a19306eb0c5df67280f1
+published_utc: 2026-10-05T03:43:55.742049+00:00
