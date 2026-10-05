@@ -322,6 +322,18 @@ reaches MachineControl
 // select a body. The envelope is opaque linear boundary data with no public
 // constructor, so no package-authored body can consume it, and the
 // confirmation is a machine-control handshake with the arriving processor.
+//
+// `CompilerIntrinsic` names a realization the compiler does not have. As
+// a top-level `boundary requirement` this row takes the requirement lane
+// of `selected-dispatch/src/compiler_intrinsic.rs`, which consults the
+// numeric intrinsic catalog alone and raises `selected overload ... has
+// no compiler-known intrinsic realization`. That is this fixture's
+// current frontier, owned by STATIC-BOUNDARY-REQUIREMENT-CALL-FORM. An
+// authored body is refused instead with `linear value `envelope` reaches
+// scope exit without being consumed or transferred`, and an
+// application-processor startup handshake is a Cathedral structure, so
+// teaching the compiler to realize it is an owner decision rather than a
+// mechanical repair.
 pub data StartupConfirmation {
 }
 

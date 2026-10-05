@@ -272,8 +272,18 @@ machine TimerProvider::enter(acknowledgement: InterruptAcknowledgement in Pendin
 }
 
 // The mask-guard provider the entry's `InterruptMaskGuard in Active`
-// claim names: the compiler lowers `save_and_mask` through its intrinsic
-// binding, so arrival masking is an operator, not package-authored code.
+// claim names. `InterruptMaskControl` is a `boundary trait`, so this row
+// takes the boundary-trait lane of
+// `selected-dispatch/src/compiler_intrinsic.rs`. That lane matches only the
+// four bundled hosted rows in `HOSTED_INTRINSIC_ROWS`
+// (`Console::exit_process`, `ProcessExit::exit_process`,
+// `Console::write_byte`, `Console::read_byte`) and otherwise answers
+// `Unsupported`, which is not a check-time error. Arrival masking is
+// therefore tolerated, not realized: the compiler lowers nothing for it,
+// and `external-roots/src/interrupts/interrupt_masks.rs` is an
+// external-world model whose only callers are that crate's own Rust tests.
+// Do not read this declaration as a precedent that an interrupt-family
+// operation has a compiler-known realization.
 pub data InterruptMaskProvider {
 }
 pub InterruptMaskProviderMaskControl: InterruptMaskProvider satisfies InterruptMaskControl;
@@ -288,8 +298,22 @@ machine InterruptMaskProvider::save_and_mask() -> InterruptMaskGuard in Active
 // argument supplies the operation's authority but does not select a body.
 // The acknowledgement is opaque linear boundary data with no public
 // constructor, so no package-authored body can consume it; the completion
-// is the LAPIC end-of-interrupt write, which is why this realization binds
-// through the compiler the same way `save_and_mask` does.
+// is the LAPIC end-of-interrupt write.
+//
+// This row is NOT the same shape as `save_and_mask` above.
+// `InterruptAcknowledgement::complete` is a top-level `boundary
+// requirement`, so its row takes the requirement lane, which consults the
+// numeric catalog (`provider-planning/src/intrinsic_requirements/`,
+// namespaces `F32`/`F64`/`I8`..`U64` plus fixed operator tokens) and raises
+// `selected overload ... has no compiler-known intrinsic realization`
+// instead of answering `Unsupported`. That diagnostic is this fixture's
+// current frontier; the realization does not exist for either row, and the
+// two lanes differ only in whether an unrecognized row is refused or
+// tolerated. `STATIC-BOUNDARY-REQUIREMENT-CALL-FORM` owns the open question
+// of who supplies a bare-metal realization: `via` admits only
+// `ForeignBinding::Syscall`, `DllImport`, `VtableField`, `TableFunction`
+// and `CompilerIntrinsic`, and none of the first four can express an
+// end-of-interrupt write.
 pub data AcknowledgementCompletion {
 }
 
