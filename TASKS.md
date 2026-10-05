@@ -160,16 +160,27 @@ helper that passes does not close an item.
   The authority question is settled: checked domain establishment and retained
   provenance travel with the qualified argument under ordinary transfer rules.
   Public boundary requirements still need a selected, admitted implementation.
-  - Customers: `pass/memory/address_translation_canary` calls
-    `Shootdown::discharge(owed)`; `pass/memory/secondary_processor_canary`
-    calls `StartupEnvelope::confirm(envelope)`; `pass/memory/interrupt_table_canary`
-    calls `InterruptAcknowledgement::complete`. Recorded failures name the
-    missing selected provider. Reproduce the current frontier for each.
-  - Trace each requirement through source selection and
-    `omega-rust/omega/compilation/realization/selected-dispatch/src/boundary_dispatch.rs`.
-    Supply a missing implementation/selection in the owning package, or repair
-    propagation where an existing selection is lost. Keep named implementations
-    separate from data; do not infer a body from the argument's domain.
+  - Two source gaps are closed. `pass/memory/interrupt_table_canary` and
+    `pass/memory/secondary_processor_canary` now declare and select providers
+    for `InterruptAcknowledgement::complete` and `StartupEnvelope::confirm`:
+    selection and admission both succeed, and each fixture's refusal moved to
+    one shared compiler gap, `selected overload ... has no compiler-known
+    intrinsic realization`. The remaining work is that realization, not source
+    selection. `save_and_mask` is the precedent that an interrupt-family
+    operation is compiler-realized
+    (`backend/runtime/external-roots/src/interrupts/interrupt_masks.rs`);
+    `discharge` and `confirm` have no backend mention at all.
+  - `pass/memory/address_translation_canary` is NOT in the same shape: it has
+    no `build.omg`, so it has nowhere to spell `Build::select_provider` for
+    `Shootdown::discharge`. Adding one changes how the fixture compiles, so
+    decide that before treating it as the same repair.
+  - Both providers bind `via ForeignBinding::CompilerIntrinsic` because the
+    obligations are opaque linear boundary data with no public constructor, so
+    no package-authored body can consume one. If the owner intends completion
+    to propagate from the installed entry route instead
+    (`InstalledInterruptCompletionRoute` exists in `external-roots`), these two
+    provider declarations are what to remove. A `reaches` clause between
+    `satisfies` and `via` does not parse; the grammar is `satisfies` then `via`.
   - Preserve checked domain preconditions, exact installation/token relationships
     required by the contract, and linear consumption. A recipient may forward
     established evidence without becoming an issuer. No new authority mechanism,

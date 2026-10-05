@@ -11,6 +11,10 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "interrupt_table_canary");
     Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
+    Build::select_provider<
+        InterruptAcknowledgement::complete,
+        AcknowledgementCompletion
+    >(builder);
     Build::select_representation<
         InterruptAcknowledgement,
         CriticalAcknowledgementRepresentation

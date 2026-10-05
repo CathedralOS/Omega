@@ -314,3 +314,17 @@ reaches MachineControl
 {
     StartupEnvelope::confirm(envelope);
 }
+
+// The startup-confirmation provider. `StartupEnvelope::confirm` is a public
+// boundary requirement, so under
+// [domain authority and separate implementation selection](../../../../../../wiki/spec/resources/authority.md#completion-authority-and-implementation-selection)
+// the qualified envelope supplies the operation's authority but does not
+// select a body. The envelope is opaque linear boundary data with no public
+// constructor, so no package-authored body can consume it, and the
+// confirmation is a machine-control handshake with the arriving processor.
+pub data StartupConfirmation {
+}
+
+machine StartupConfirmation::confirm(envelope: StartupEnvelope)
+    satisfies StartupEnvelope::confirm
+    via ForeignBinding::CompilerIntrinsic;

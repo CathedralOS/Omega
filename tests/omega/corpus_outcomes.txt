@@ -2,11 +2,12 @@
 # One fixture per line: <tier/group/name> <status> <milliseconds>ms, then
 # `expected` or `unexpected` when its expected.txt fragments were weighed,
 # then any execution facts such as exit:70 or stdout:match, then
-# `@<revision>` recording which commit measured the row (`+wt` = dirty
-# tree; rows measured before stamping have no token).
+# `regressed-from:<status>[+fact]*` when the row has lost a success it used
+# to record, then `@<revision>` recording which commit measured the row
+# (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 8, "jobs": null, "load1_end": 0.47, "load1_start": 0.47, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "2", "load1_end": 39.35, "load1_start": 38.92, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -2334,10 +2335,10 @@ pass/locals/static_local_field_names_exit checked 1406ms check-target:macos_arm6
 pass/memory/address_translation_canary rejected 992ms @cfe60a3a242
 	direct call `discharge` names public boundary requirement `Shootdown::discharge`, which has no selected provider; select an admitted provider whose checked machine `satisfies Shootdown::discharge` before calling it
 pass/memory/bump_allocator_canary checked 1011ms check-target:linux_x86_64 @2d8ed253669f
-pass/memory/interrupt_table_canary rejected 3074ms @8fcb2e7f049f+wt
-	direct call `complete` names public boundary requirement `InterruptAcknowledgement::complete`, which has no selected provider; select an admitted provider whose checked machine `satisfies InterruptAcknowledgement::complete` before calling it
-pass/memory/secondary_processor_canary rejected 5098ms check-target:macos_arm64 @5894026c3703+wt
-	direct call `confirm` names public boundary requirement `StartupEnvelope::confirm`, which has no selected provider; select an admitted provider whose checked machine `satisfies StartupEnvelope::confirm` before calling it
+pass/memory/interrupt_table_canary rejected 9751ms @9befc0d31f1a+wt
+	selected overload `named-callable(path(InterruptAcknowledgement::complete),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(InterruptAcknowledgement\\)\\)\\)),result-dispatch())` has no compiler-known intrinsic realization
+pass/memory/secondary_processor_canary rejected 11424ms check-target:macos_arm64 @9befc0d31f1a+wt
+	selected overload `named-callable(path(StartupEnvelope::confirm),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(StartupEnvelope\\)\\)\\)),result-dispatch())` has no compiler-known intrinsic realization
 pass/memory/weak_vacant_qualifier_satisfied checked 291ms @2d8ed253669f
 pass/modules/aggregate_machine_indices checked 308ms @2d8ed253669f
 pass/modules/boolean_equality_indices checked 354ms @2d8ed253669f

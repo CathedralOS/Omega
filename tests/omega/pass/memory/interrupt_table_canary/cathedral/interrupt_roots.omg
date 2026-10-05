@@ -281,3 +281,18 @@ pub InterruptMaskProviderMaskControl: InterruptMaskProvider satisfies InterruptM
 machine InterruptMaskProvider::save_and_mask() -> InterruptMaskGuard in Active
     satisfies InterruptMaskControl::save_and_mask
     via ForeignBinding::CompilerIntrinsic;
+
+// The acknowledgement-completion provider the two entry realizations call.
+// `InterruptAcknowledgement::complete` is a public boundary requirement, so
+// it needs a selected admitted implementation of its own: the qualified
+// argument supplies the operation's authority but does not select a body.
+// The acknowledgement is opaque linear boundary data with no public
+// constructor, so no package-authored body can consume it; the completion
+// is the LAPIC end-of-interrupt write, which is why this realization binds
+// through the compiler the same way `save_and_mask` does.
+pub data AcknowledgementCompletion {
+}
+
+machine AcknowledgementCompletion::complete(acknowledgement: InterruptAcknowledgement)
+    satisfies InterruptAcknowledgement::complete
+    via ForeignBinding::CompilerIntrinsic;
