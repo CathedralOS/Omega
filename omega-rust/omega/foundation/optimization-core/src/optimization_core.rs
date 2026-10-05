@@ -6,8 +6,9 @@
 //! their common publication records, `decisions` the baseline logs and the
 //! external decision wire schema (not candidate selection),
 //! `rollback` the subtractive exact-rule overlay and its receipt,
-//! `report_request` the auxiliary human projection request, and
-//! `mutation_matrix` the test-support substitution matrix custody families
+//! `report_request` the auxiliary human projection request,
+//! `refusal_site` the withheld compiler location of a stage's internal check,
+//! and `mutation_matrix` the test-support substitution matrix custody families
 //! reuse.
 
 pub(crate) mod contracts;
@@ -17,6 +18,7 @@ pub(crate) mod manifest;
 #[cfg(any(test, feature = "test-support"))]
 pub(crate) mod mutation_matrix;
 pub(crate) mod post_terminal;
+pub(crate) mod refusal_site;
 pub(crate) mod report_request;
 pub(crate) mod rollback;
 pub(crate) mod withheld;

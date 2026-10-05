@@ -60,6 +60,7 @@ pub use optimization_core::mutation_matrix::{
     MutationOutcome, OneFieldSubstitutionMatrix, custody_field_inventory,
     run_one_field_substitution_matrix,
 };
+pub use optimization_core::refusal_site::CompilerCheckSite;
 pub use optimization_core::report_request::OptimizationReportRequest;
 pub use optimization_core::rollback::{
     OptimizationRollback, OptimizationRollbackInputError, OptimizationRollbackReceipt,
