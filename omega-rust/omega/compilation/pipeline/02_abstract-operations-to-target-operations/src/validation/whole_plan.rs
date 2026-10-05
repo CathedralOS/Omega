@@ -64,8 +64,8 @@ pub fn validate_abstract_to_target_translation(
                 AbstractToTargetTranslationValidationError::FunctionMachineMismatch { position },
             );
         }
-        if (source_function.attachment != target_function.attachment
-            || source_function.nominal_cleanup_subject != target_function.nominal_cleanup_subject)
+        if source_function.attachment != target_function.attachment
+            || source_function.nominal_cleanup_subject != target_function.nominal_cleanup_subject
         {
             return Err(
                 AbstractToTargetTranslationValidationError::FunctionAttachmentMismatch {
