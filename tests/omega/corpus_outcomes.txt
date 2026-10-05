@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": null, "load1_end": 16.06, "load1_start": 16.67, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "3", "load1_end": 15.39, "load1_start": 15.78, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -1683,8 +1683,9 @@ pass/build/same_leaf_runner_entry_right_exit checked 1015ms check-target:macos_a
 pass/build/selected_const_array_length_exit checked 12131ms check-target:macos_arm64 @ae8939e231af+wt
 pass/build/static_assumed_binding_spelling_exit checked 2563ms check-target:macos_arm64 @63bca13481de+wt
 pass/build/uefi_entry_schema_same_leaf checked 1484ms check-target:uefi_x86_64 @55a23102ccd1+wt
-pass/build/uefi_os_handoff_invocation rejected 1774ms check-target:uefi_x86_64 @c47f8652484
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Loader::drive`), which was itself omitted at an unavailable callee (`UefiOsHandoffCycle::run`), which was itself omitted at an unavailable callee (`UefiOsHandoffCycle::acquire`), which was itself omitted at local construction at `call operation: projected operand support`
+pass/build/uefi_os_handoff_invocation rejected 2078ms check-target:uefi_x86_64 @057ea2e61cc9
+	selected compiler intrinsic `<selected target>::UefiOsHandoffNativeProvider::satisfies::UefiOsHandoffTermination` for Terminal boundary `named-callable(path(UefiOsHandoffTermination::firmware_return),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(u64\\)\\)\\)),result-dispatch())` has no closed native catalog identity
+	selected compiler intrinsic `<selected target>::UefiOsHandoffNativeProvider::satisfies::UefiOsHandoffTermination` for Terminal boundary `named-callable(path(UefiOsHandoffTermination::transfer),parameters(),result-dispatch())` has no closed native catalog identity
 pass/calls/ambient_receiver_scalar_return_exit checked 3170ms check-target:macos_arm64 @48d34a64a938+wt
 pass/calls/borrowed_case_dispatch_member_leaf_reads checked 1633ms check-target:macos_arm64 @2d8ed253669f
 pass/calls/borrowed_float_argument_scalar_result_exit checked 1288ms check-target:macos_arm64 @2d8ed253669f
@@ -2896,8 +2897,7 @@ pass/wire/runtime_wire_roundtrip_nested_and_repeated_exit checked 125343ms check
 pass/wire/runtime_wire_utf8_edge_verdicts_exit checked 29239ms check-target:macos_arm64 @58e4f6f8667
 pass/wire/wire_compatibility_migration_across_shapes checked 971ms check-target:macos_arm64 @2d8ed253669f
 pass/wire/wire_data_reserved_field checked 842ms check-target:macos_arm64 @2d8ed253669f
-pass/wire/wire_preserving_decode_relay_exit rejected 3286ms check-target:macos_arm64 @c5d32a00863
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: conditional successors: edge cleanup: no state plan` (state 2)
+pass/wire/wire_preserving_decode_relay_exit checked 2896ms check-target:macos_arm64 @057ea2e61cc9
 pass/write_only/state_forwarded_scalar_store_exit checked 999ms check-target:macos_arm64 @2bde2a770491
 run/borrows/direct_runtime_index_write checked 2883ms check-target:macos_arm64 @2d8ed253669f
 run/borrows/indexed_loan_element_write checked 748ms check-target:macos_arm64 @ca8c127c90c5

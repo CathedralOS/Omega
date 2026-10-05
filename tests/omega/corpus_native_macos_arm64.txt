@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": null, "load1_end": 15.49, "load1_start": 16.06, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "3", "load1_end": 15.39, "load1_start": 15.39, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 189ms
 pass/arithmetic/anonymous_rational_integer_landing checked 186ms
 pass/arithmetic/bounded_assignment checked 197ms
@@ -1259,8 +1259,7 @@ pass/wire/runtime_wire_roundtrip_nested_and_repeated_exit built 127821ms exit:70
 pass/wire/runtime_wire_utf8_edge_verdicts_exit built 32983ms exit:70 @4ffed225fc45+wt
 pass/wire/wire_compatibility_migration_across_shapes built 448ms
 pass/wire/wire_data_reserved_field built 242ms
-pass/wire/wire_preserving_decode_relay_exit rejected 2813ms regressed-from:built+exit:70 @835baa6033eb+wt
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: conditional successors: edge cleanup: no state plan` (state 2)
+pass/wire/wire_preserving_decode_relay_exit built 3087ms exit:70 @057ea2e61cc9
 pass/write_only/state_forwarded_scalar_store_exit built 1019ms exit:70 @2bde2a770491
 run/borrows/direct_runtime_index_write built 1114ms exit:9 @48008365d839
 run/borrows/indexed_loan_element_write built 1123ms exit:0 @48008365d839
