@@ -34,3 +34,6 @@ __pycache__/
 
 # Place for repos that we need to look at but don't want to include.
 /examples/
+
+# Local compiler crash reports are diagnostic artifacts, not source.
+rustc-ice-*.txt
