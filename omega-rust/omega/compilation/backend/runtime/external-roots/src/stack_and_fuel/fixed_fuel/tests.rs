@@ -467,6 +467,7 @@ fn ranked_terminal_fixture() -> TerminalModule {
                             target: decrement,
                             arguments: Vec::new(),
                             trivial_affine_discards: Vec::new(),
+                            residual_affine_discards: Vec::new(),
                         },
                         when_false: SuccessorEdge {
                             erased_arguments: Vec::new(),
@@ -476,6 +477,7 @@ fn ranked_terminal_fixture() -> TerminalModule {
                             target: done,
                             arguments: Vec::new(),
                             trivial_affine_discards: Vec::new(),
+                            residual_affine_discards: Vec::new(),
                         },
                     },
                 },

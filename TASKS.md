@@ -766,6 +766,13 @@ defines the complete product bar.
   operation.
 
   Samples that build no native program on macOS ARM64:
+  - `algorithms/longest_run`: Terminal production stops at the
+    `proof_search_integer_certificate_work` budget (65536) with obligation 41
+    unproved. That obligation is a `LessThan(u64, u64)` at the `text[index]`
+    read in state `read`. Its axioms carry nine-deep `index + 1 + ...` chains
+    for several values, which inflate the search scope. The same failure
+    occurs at 1e1e71dd791. The fix is checker-side under
+    **CHECKER-DISCHARGES-OPERATION-OBLIGATIONS**, not a larger search budget.
   - `systems/file_journal`: package review exits 200 because `Main::fs` /
     `Main::files::host` have no Darwin `FilesystemHost` provider
     (`omega-rust/omega/compilation/realization/provider-planning/src/provider_settlement/canonical_filesystem_host.rs`
@@ -3237,41 +3244,13 @@ of a check the same flow already performed, not the check itself.
   the three functions (stage 05 source-scanning guard); check and native
   corpus unchanged.
 
-- **IMAGE-SELF-REPLAY-DELETED.** (new-scope) Direct image emission, the
-  fragment and container stages and `NativeArtifact::from_emitted_parts`
-  now build and seal an image once. One rebuild remains, on a path this
-  macOS host cannot run:
-  `omega-rust/omega/compilation/backend/images/image-emission/src/dynamic_elf.rs`
-  `validate_dynamic_elf_image_emission` builds the final image a second time
-  (`image::build_final_image`) to compare against the writer bytes that
-  `emit_admitted_dynamic_elf_image` accepts from its caller. Pass the
-  emitted image through instead of rebuilding it, under
-  [verification placement](omega-rust/pipeline.md#verification-placement);
-  the comparison stays only where a retained artifact is read back.
-  Acceptance: dynamic ELF emission builds its image once, and the
-  `linux_x86_64` native corpus leg on a Linux host is unchanged.
-
-## Trust ceremony
-
-Owner ruling: keep security where it decides something, delete it where it
-only performs. Re-read the cited symbol before starting.
-
-These boundaries stay:
-- accepting new or changed foreign code: install, update, review and audit
-  commands;
-- authenticating fetched git objects against pins, and the lock-pin match;
-- `build.omg` confinement in the checked interpreter: `FsGrants`
-  authorization before each host call, fuel and cell limits, rejecting
-  runtime boundary services, and output alias and size checks;
-- receiver admission of authority (owned by
-  **TWO-AXIS-TERMINAL-AUTHORITY-REVIEW**);
-- Psi's checking of capability and effect reach, and of authored behavior
-  exclusions.
-
-Everything else is deleted: a component re-checking data the same process
-just produced, a guard against a writer who could equally rewrite the lock or
-the compiler, and re-deriving a fact that is already established. Each item
-lands alone with its corpus slice unchanged and no fallback path.
+- **IMAGE-SELF-REPLAY-DELETED.** (new-scope) Direct and dynamic ELF image
+  emission now each build their final image once. Only retained artifacts
+  read back through `DynamicElfNativeArtifact::from_replayed_parts` and bytes
+  admitted by another writer run (`emit_admitted_dynamic_elf_image`) rebuild
+  and compare it. The `linux_x86_64` build leg is unchanged. Acceptance still
+  owed: the `linux_x86_64` native corpus leg on a Linux host, with execution,
+  is unchanged.
 
 - **SOURCE-READ-ONCE.** (new-scope) An ordinary warm compile reads and hashes
   the root project's tree many times, more when the bound pass runs, and each
@@ -3623,6 +3602,20 @@ deletions, which its commit lists.
   search finds no backend reader. Stage 06 rewrites keep their own validity
   checks. Acceptance: no `ProofBundle` is produced, and the check and native
   corpus are unchanged.
+
+  Ordering gap: stage 00 native admission
+  (`00_terminal-psi-to-abstract-operations/src/artifact_admission/native.rs`)
+  and the terminal interpreter still run `verify_module` until
+  **OMEGA-READS-TERMINAL-UNVERIFIED**. `verify_validated_module`
+  (`terminal-psi/verification/src/verification.rs`) demands one evidence
+  route per reconstructed obligation and raises `MissingEvidence` otherwise.
+  Every operation obligation is reconstructed `Derivable`, so no
+  non-certificate route admits it. Without a `ProofBundle`, every compile
+  would therefore fail. This item must also stop requiring evidence for
+  operation-owned obligations there, or land together with
+  **OMEGA-READS-TERMINAL-UNVERIFIED**. The same applies to
+  **CHECKER-DISCHARGES-OPERATION-OBLIGATIONS** if it skips certificate search
+  for checker-decided obligations before this item lands.
 
 - **OMEGA-READS-TERMINAL-UNVERIFIED.** (new-scope) Depends on
   **PCC-CERTIFICATES-DELETED**. Stop every consumer from verifying Terminal:
