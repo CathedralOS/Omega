@@ -299,3 +299,38 @@ what a dispatch plan is keyed by, which is a language-level commitment and not
 an implementation detail. `pass/traits/runtime_local_named_dyn_devirtualized_exit`
 is the sibling fixture that does author a local coercion, is a **different**
 defect, and is tracked on DYN-CONTINUATION-ROOT-REJOIN.
+
+### Q5 - Is `&Self` inside a conformance body rejected everywhere?
+
+Named decision: `conformance-body-self-spelling`.
+
+**Customer:** `pass/proofs/named_witness_static_trait_plural_compile` declared
+`machine produce(subject: &Self)` in a conformance body, left by the mechanical
+self-retirement respell at `553022e1a1a`, whose own message records that the
+fixture stayed red on static conformance dispatch. It was respelled to the
+concrete type to close that row.
+
+**The hazard, measured:** `&Self` in a conformance body is **accepted** on the
+ordinary route and **silently mis-binds** through specialized static requirement
+dispatch, where the substitution binds only the template's declared type
+parameters. `pass/traits/runtime_local_named_dyn_devirtualized_exit` has
+`Primary: Item satisfies Shape { machine code(subject: &Self) -> i32 }` and gets
+past typing into lowering -- its recorded red is a unit-plan omission, not a type
+error. So one route accepts a retired spelling and the other quietly binds it
+wrongly.
+
+**Existing rules:** `wiki/spec/language/conformances.md` settles
+`trait-requirement-subject-binding` (2026-10-04): "A conformance has no data
+subject, carrier type, implicit first type parameter, or privileged implementing
+type. `Self` has no binding and is retired together with receiver `self`...
+remove the old paths rather than add compatibility inference, aliases or modes."
+Read literally, that rejects the spelling **everywhere**.
+
+**Decision needed:** confirm that reading before anyone repairs the dispatch
+path, because teaching the specializer a `Self`-to-subject binding would
+re-entrench the construct the decision retires. If rejection is confirmed, the
+work is a diagnostic plus a migration of the accepting fixtures and of
+`source/library/core/layout.omg`'s three `&Self` requirements together with the
+seven pass fixtures that match them -- `NAMED-IMPLEMENTATION-CONFORMANCE-MIGRATION`
+scope, not a local fix. This is recorded rather than done because the failing
+site invites exactly the local fix the spec forbids.
