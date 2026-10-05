@@ -1,0 +1,4 @@
+owner: devin-z4 / leaf/referee-scalar-read-regression
+provenance: model=devin-z4: probed tip ee58ca6633 on fresh runner 6b91d8ef281826bb; native leg showed built 27904ms exit:70 + fs_mtime Fused wall 6755ms verbatim to restamp
+ticket: 93ed72dee7ffba00460307595e8a4598
+published_utc: 2026-10-05T07:45:15.385685+00:00
