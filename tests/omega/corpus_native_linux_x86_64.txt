@@ -43,8 +43,8 @@ pass/arithmetic/wrapping_signed_divide_min_by_neg_one built 824ms exit:70 @233d3
 pass/atomics/atomic_global_order_operations checked 322ms @2d8ed253669f+wt
 pass/atomics/runtime_atomic_compare_exchange_exit built 873ms exit:70 @2d8ed253669f+wt
 pass/atomics/runtime_atomic_fetch_add_exit built 869ms exit:70 @2d8ed253669f+wt
-pass/atomics/shared_receiver_atomic_store rejected 753ms @2d8ed253669f+wt
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Cell::publish`), which was itself omitted at local construction at `atomic access: place: shared receiver without atomic cell identity`
+pass/atomics/shared_receiver_atomic_store rejected 5239ms @95e4e5c52dc
+	native artifact identity physical pipeline failed: common physical staging failed: FunctionRelativeRealization(Encoding(X86_64(UnsupportedAtomicForm)))
 pass/blockexec/blocking_executor_custody_claims_compile built 680ms @2d8ed253669f+wt
 pass/borrow/copyable_array_view_survives_owner_pass_compile checked 270ms @2d8ed253669f+wt
 pass/borrow/explicit_aggregate_lifetime_selects_source checked 273ms @2d8ed253669f+wt
@@ -72,8 +72,7 @@ pass/borrows/shared_recast_loan_member_read built 1743ms exit:0 @a3bac00e54bb
 pass/borrows/static_carrier_bounded_reference_read_exit built 2854ms exit:70 @15c77983aab0
 pass/borrows/static_carrier_reference_read_exit built 3056ms exit:70 @b5d8c6882a8
 pass/borrows/transition_shared_borrow_result built 2879ms exit:181 @15c77983aab0
-pass/boundary/static_foreign_scalar_result_locals_exit rejected 30612ms @3eebfe9c3de
-	terminal-artifact production failed: Lowering(Unsupported("boundary scalar return has no authored attachment"))
+pass/boundary/static_foreign_scalar_result_locals_exit built 27224ms @95e4e5c52dc
 pass/build/conditional_root_binding built 356ms @2d8ed253669f+wt
 pass/build/described_runner_entry_left_exit built 826ms exit:11 @233d30cb1ceb
 pass/build/described_runner_entry_right_exit built 873ms exit:37 @233d30cb1ceb
@@ -733,8 +732,7 @@ pass/proofs/quotient_lift_managed_compile rejected 476ms @2d8ed253669f+wt
 pass/proofs/ring_full_polynomial_compile built 766ms @2d8ed253669f+wt
 pass/proofs/ring_law_conformance built 772ms @2d8ed253669f+wt
 pass/proofs/runtime_decreases_u64_measure_exit built 932ms exit:70 @2d8ed253669f+wt
-pass/proofs/runtime_inductive_gauss_sum_exit rejected 1614ms @5fac9b57088
-	state `gauss_sum` receives `main` as both mutable and read-only
+pass/proofs/runtime_inductive_gauss_sum_exit built 4878ms exit:70 @95e4e5c52dc
 pass/proofs/runtime_nat_structural_recursion_exit built 754ms exit:70 @2d8ed253669f+wt
 pass/proofs/runtime_ranked_accumulator_early_exit built 1014ms exit:70 @2d8ed253669f+wt
 pass/proofs/runtime_ranked_accumulator_guarantee_exit built 990ms exit:70 @2d8ed253669f+wt
@@ -751,8 +749,7 @@ pass/providers/external_leaf_dllimport_compile built 783ms @2d8ed253669f+wt
 pass/providers/lifetime_boundary_requirement_dispatch_exit built 851ms exit:41 @2d8ed253669f+wt
 pass/providers/provider_type_target_default_override built 643ms @2d8ed253669f+wt
 pass/providers/runtime_adapter_dispatch_exit built 787ms exit:70 @2d8ed253669f+wt
-pass/providers/runtime_boundary_array_forwarding_exit rejected 1638ms @5fac9b57088
-	state `forward` receives `main` as both mutable and read-only
+pass/providers/runtime_boundary_array_forwarding_exit built 4879ms exit:70 @95e4e5c52dc
 pass/providers/runtime_boundary_primitive_array_argument_exit built 985ms exit:70 @2d8ed253669f+wt
 pass/providers/runtime_result_domain_requirement_overload_exit built 831ms exit:70 @2d8ed253669f+wt
 pass/providers/service_fused_root_establishment built 671ms @2d8ed253669f+wt
@@ -971,8 +968,8 @@ pass/time/runtime_checked_time_arith_exit built 19536ms exit:70 @9baafc0ace88
 pass/time/runtime_duration_core_exit built 12181ms exit:70 @233d30cb1ceb
 pass/time/runtime_fs_mtime_system_time_interop_exit rejected 2605ms @2d8ed253669f+wt
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `call operation: boundary receiver` (state 0, statement 2)
-pass/time/runtime_time_elapsed_since_exit rejected 2573ms @2d8ed253669f+wt
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Time::now`), which was itself omitted at local construction at `call operation: boundary receiver`
+pass/time/runtime_time_elapsed_since_exit rejected 13460ms @95e4e5c52dc
+	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(TimeHost::monotonic_ticks_per_second),parameters(),result-dispatch())` resolves to 0 selected provider rows
 pass/time/runtime_time_host_native_darwin_exit built 2494ms @9baafc0ace88
 pass/time/runtime_time_host_virtual_exit checked 1537ms @2d8ed253669f+wt
 pass/time/static_duration_accessors built 6269ms exit:70 @2d8ed253669f+wt
