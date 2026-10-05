@@ -1920,16 +1920,14 @@ the validation `src/` (written `omega-rust/psi/compilation/checking/src/`) unles
   `--filter generics,operators,traits/` unchanged.
 
 - **ONE-CHECKING-MODE.** (new-scope) `CheckingMode` Preliminary and Settled
-  differ only in whether pending opaque `[copy]` claims are tolerated, and
-  `allows_unresolved_toolchain_selections` is true for both, so the strict
-  finalization path (`omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/authored_selections/finalization.rs`
-  `finalize_checked_authored_selections` and its `!allow_unresolved_toolchain`
-  branch) never runs. `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checking/exact_input_memo.rs` exists because the same
+  differ only in tolerating pending opaque `[copy]` claims and deferred
+  constants (`omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checking.rs`).
+  `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checking/exact_input_memo.rs` exists because the same
   program is checked at both checkpoints and by package-review passes; its
   preliminary-to-settled patching and executed-check counters serve only
-  package review. Replace the mode with an opaque-copy parameter, delete the
-  dead strict path, and delete the memo unless a measured compile-time
-  admission probe still needs it (record the measurement in the commit).
+  package review. Replace the mode with an opaque-copy parameter and delete
+  the memo unless a measured compile-time admission probe still needs it
+  (record the measurement in the commit).
   Acceptance: one checking entry; the memo's review-only counters are gone;
   `omega --check` time on `samples/cli/basics/cli_mvp` does not regress.
 

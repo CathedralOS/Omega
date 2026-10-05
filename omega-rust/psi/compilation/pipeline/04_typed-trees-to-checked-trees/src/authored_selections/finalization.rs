@@ -1,4 +1,9 @@
-//! Finalizing checked authored selections under a policy.
+//! Finalizing checked authored selections.
+//!
+//! Every authored selection resolves to its checked target here, except a
+//! late-bound selection in compiler toolchain source, a target sibling's body
+//! or a build descriptor: those stay late-bound for the realization or build
+//! evaluation that binds them. Both package checkpoints apply this one rule.
 
 use crate::authored_selections::call_targets::{
     checked_call_conformance_targets, checked_call_target, checked_name_path_segment_target,
@@ -31,10 +36,9 @@ use symbols::{SymbolHandle, SymbolKind};
 use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionNode;
 
-pub(crate) fn finalize_checked_authored_selections_with_policy(
+pub(crate) fn finalize_checked_authored_selections(
     program: &mut TypedTrees,
     facts: &CheckFacts,
-    allow_unresolved_toolchain: bool,
 ) -> Result<(), Diagnostic> {
     let mut resolutions = Vec::new();
     let mut inferred_conformances = Vec::new();
@@ -490,11 +494,10 @@ pub(crate) fn finalize_checked_authored_selections_with_policy(
         {
             return false;
         }
-        !allow_unresolved_toolchain
-            || program
-                .symbols
-                .source_file(selection.source_span())
-                .is_none_or(|source| source.origin != source::SourceOrigin::Toolchain)
+        program
+            .symbols
+            .source_file(selection.source_span())
+            .is_none_or(|source| source.origin != source::SourceOrigin::Toolchain)
     }) {
         let AuthoredDeclarationSelectionTarget::LateBound(binding) = selection.target() else {
             unreachable!("guarded late-bound authored selection")

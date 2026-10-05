@@ -36,9 +36,9 @@ pub(crate) use provider_selection::{
 pub(crate) use review::derive_checked_collection_view_intrinsic;
 
 use crate::authored_selections::call_targets::{declaration_target, exact_named_operator_call};
+pub(crate) use crate::authored_selections::finalization::finalize_checked_authored_selections;
 use crate::authored_selections::finalization::{
-    finalization_diagnostic, finalize_checked_authored_selections_with_policy,
-    push_consistent_resolution,
+    finalization_diagnostic, push_consistent_resolution,
 };
 use crate::authored_selections::selection_collection::collect_checked_transition_target_selections;
 use checked_trees::CheckFacts;
@@ -261,18 +261,4 @@ pub(crate) fn bind_pre_specialization_authored_selections(
     }
     program.retain_authored_declaration_selections(selections);
     Ok(())
-}
-
-pub(crate) fn finalize_checked_authored_selections(
-    program: &mut TypedTrees,
-    facts: &CheckFacts,
-) -> Result<(), Diagnostic> {
-    finalize_checked_authored_selections_with_policy(program, facts, false)
-}
-
-pub(crate) fn finalize_preliminary_checked_authored_selections(
-    program: &mut TypedTrees,
-    facts: &CheckFacts,
-) -> Result<(), Diagnostic> {
-    finalize_checked_authored_selections_with_policy(program, facts, true)
 }

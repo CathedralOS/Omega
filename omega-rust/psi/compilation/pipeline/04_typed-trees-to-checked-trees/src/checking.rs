@@ -379,15 +379,8 @@ fn lower_typed_trees_uncached(
     crate::authored_selections::bind_checked_intrinsic_call_facts(&program, &mut facts)
         .map_err(|diagnostic| vec![diagnostic])?;
     drop(frozen_program_scope);
-    if mode.allows_unresolved_toolchain_selections() {
-        crate::authored_selections::finalize_preliminary_checked_authored_selections(
-            &mut program,
-            &facts,
-        )
-    } else {
-        crate::authored_selections::finalize_checked_authored_selections(&mut program, &facts)
-    }
-    .map_err(|diagnostic| vec![diagnostic])?;
+    crate::authored_selections::finalize_checked_authored_selections(&mut program, &facts)
+        .map_err(|diagnostic| vec![diagnostic])?;
     validation::validate_reserved_cleanup_selections(&program)?;
     validation::validate_declaration_visibility(&program)?;
 
@@ -408,10 +401,6 @@ enum CheckingMode {
 impl CheckingMode {
     fn allows_pending_opaque_copy(self) -> bool {
         matches!(self, Self::Preliminary)
-    }
-
-    fn allows_unresolved_toolchain_selections(self) -> bool {
-        matches!(self, Self::Preliminary | Self::Settled)
     }
 }
 
