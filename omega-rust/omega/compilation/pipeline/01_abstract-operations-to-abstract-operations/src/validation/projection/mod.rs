@@ -3,70 +3,34 @@
 //! Validation proceeds in one visible order: transformed unit and ledger,
 //! identity bundle, pass manifests, then reconstructible projection shape.
 
-use std::collections::{BTreeMap, BTreeSet};
 
-use abstract_operations::AbstractOperationPlan;
-use optimization_core::{BaselineDecisionLog, BaselineDecisionLogDecodeError};
 use optimization_core::{
-    OptimizationCandidateVerdict, OptimizationExecutionPhase, OptimizationIdentityBundle,
-    OptimizationPassManifestRecord, OptimizationRuleSetIdentity, OptimizationSelectionIdentity,
+    OptimizationIdentityBundle, OptimizationSelectionIdentity,
     OptimizationSelections, OptimizationUnitIdentity, OptimizationValidatorIdentity,
-    OptimizedAbstractPlanProjectionIdentity, TargetCostModelIdentity, TransformationLedgerIdentity,
+    OptimizedAbstractPlanProjectionIdentity, TransformationLedgerIdentity,
 };
 use optimization_unit::{
-    InvalidPsiTransformationLedger, ProvenanceDisposition, PsiOptimizationUnit, PsiProvenance,
-    PsiRealizationSite, PsiTransformationLedger,
+    PsiOptimizationUnit, PsiTransformationLedger,
 };
 use semantic_vocabulary::FuelScheduleIdentity;
 use terminal_psi::TerminalPsiIdentity;
-use terminal_psi_to_abstract_operations::VerifiedPsiOptimizationInput;
 
-use crate::validation::{
-    validate_transformed_psi_optimization_unit, validate_verified_psi_optimization_unit,
-};
-use optimization_unit_semantics::OptimizationUnitValidationError;
 
-mod custody;
-mod error;
-mod identity_bundle;
-mod initial_ledger;
-mod manifests;
-mod shape;
 
-pub use error::OptimizedAbstractPlanProjectionError;
-pub(super) use manifests::validate_manifests;
-
-#[allow(clippy::too_many_arguments)]
-pub fn validate_optimized_abstract_plan_projection(
-    input: &VerifiedPsiOptimizationInput,
+/// Seal the projection receipt of a run this compile produced. The ledger
+/// records the initial unit identity it started from; the rewrites were
+/// validated as the pass manager committed them.
+pub fn seal_optimized_abstract_plan_projection(
     final_unit: &PsiOptimizationUnit,
-    projected: &AbstractOperationPlan,
     selections: &OptimizationSelections,
     psi_selections: &OptimizationSelections,
-    expected_rule_set: OptimizationRuleSetIdentity,
-    expected_cost_model: TargetCostModelIdentity,
-    decisions: &BaselineDecisionLog,
-    pass_manifests: &[OptimizationPassManifestRecord],
     ledger: &PsiTransformationLedger,
     bundle: OptimizationIdentityBundle,
-) -> Result<ValidatedOptimizedAbstractPlanProjection, OptimizedAbstractPlanProjectionError> {
-    let initial_identity = initial_ledger::validate_initial_and_ledger(input, final_unit, ledger)?;
-    identity_bundle::validate_identity_bundle(
-        selections,
-        psi_selections,
-        expected_rule_set,
-        expected_cost_model,
-        decisions,
-        ledger,
-        bundle,
-    )?;
-    validate_manifests(pass_manifests, expected_rule_set, ledger)?;
-    shape::validate_projection_shape(input.plan(), final_unit, projected)?;
-
-    Ok(ValidatedOptimizedAbstractPlanProjection {
+) -> ValidatedOptimizedAbstractPlanProjection {
+    ValidatedOptimizedAbstractPlanProjection {
         psi: final_unit.psi,
         fuel_schedule: final_unit.fuel_schedule,
-        initial_unit: initial_identity,
+        initial_unit: ledger.input(),
         final_unit: final_unit.identity,
         selections: selections.identity(),
         psi_selections: psi_selections.identity(),
@@ -75,8 +39,9 @@ pub fn validate_optimized_abstract_plan_projection(
         validator: OptimizationValidatorIdentity::from_canonical_bytes(
             b"omega.validator.optimized-abstract-plan-projection.v33",
         ),
-    })
+    }
 }
+
 
 /// Validator-owned receipt for one optimized-unit to abstract-plan projection.
 ///

@@ -12,7 +12,6 @@ mod ordinary;
 mod replay;
 mod topology;
 
-pub use countdown_ranking::validate_psi_ranking_certificate_snapshot;
 
 use optimization_unit::{
     CycleComponentEdge, CycleComponentId, OptimizerCycleComponent, OptimizerCycleComponentSnapshot,

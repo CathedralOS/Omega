@@ -1,14 +1,12 @@
 use optimization_core::{
-    BaselineDecisionLog, BaselineDecisionOutcome, ExternalCandidateFeatures, ExternalDecisionLog,
+    BaselineDecisionLog, BaselineDecisionOutcome, ExternalCandidateFeatures,
     ExternalDecisionPoint,
 };
 use optimization_core::{
     OptimizationCandidateVerdict, OptimizationDecisionRecord, OptimizationReasonCode,
-    OptimizationRuleSetIdentity,
 };
 
-use super::super::{OptimizationRun, OptimizationRunError};
-use super::expected_context;
+use super::super::OptimizationRunError;
 
 pub(crate) fn external_points_from_manifest_decisions(
     decisions: &BaselineDecisionLog,
@@ -72,38 +70,3 @@ pub(crate) fn external_points_from_manifest_decisions(
     Ok(points)
 }
 
-/// Reconstruct the policy surface independently from the baseline log and
-/// validated manifests, then compare it with a strict wire round trip.
-pub(crate) fn validate_external_decision_recording(
-    run: &OptimizationRun,
-) -> Result<(), OptimizationRunError> {
-    let ordered_rules = run
-        .pass_manifests()
-        .iter()
-        .flat_map(|manifest| manifest.ordered_rules().iter().copied())
-        .collect::<Vec<_>>();
-    let ordered_rule_set = OptimizationRuleSetIdentity::from_ordered_rules(&ordered_rules)
-        .map_err(|_| OptimizationRunError::DuplicatePipelineRule)?;
-    let manifest_decisions = run
-        .pass_manifests()
-        .iter()
-        .flat_map(|manifest| manifest.decisions())
-        .collect::<Vec<_>>();
-    let points = external_points_from_manifest_decisions(run.decisions(), &manifest_decisions)?;
-    let expected = ExternalDecisionLog::new(
-        expected_context(
-            run.transformation_ledger().input(),
-            run.selections(),
-            run.psi_selections(),
-            ordered_rule_set,
-        ),
-        points,
-    )
-    .map_err(OptimizationRunError::ExternalDecisionSchema)?;
-    let decoded = ExternalDecisionLog::decode(&run.external_decisions().encode())
-        .map_err(OptimizationRunError::ExternalDecisionSchema)?;
-    if decoded != expected {
-        return Err(OptimizationRunError::ExternalDecisionManifestMismatch);
-    }
-    Ok(())
-}

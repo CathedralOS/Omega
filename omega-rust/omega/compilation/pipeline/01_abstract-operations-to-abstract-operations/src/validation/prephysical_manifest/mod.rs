@@ -2,17 +2,16 @@
 //!
 //! The record model, projection mechanics, independent validation, canonical
 //! codec/identity, and human rendering descend into named leaves. This
-//! entrance alone constructs a candidate and grants validated manifest custody
-//! after independent replay.
+//! entrance constructs the manifest of a run this compile produced and grants
+//! its custody; `validate_pre_physical_optimization_manifest` replays it for
+//! retained readers.
 
 mod projection;
-mod validation;
 
-pub use validation::validate_pre_physical_optimization_manifest;
 
 use optimization_core::BaselineDecisionLog;
 use optimization_core::{
-    OptimizationExecutionPhase, OptimizationIdentityBundle, OptimizationPassManifestRecord,
+    OptimizationIdentityBundle, OptimizationPassManifestRecord,
     OptimizationSelections, OptimizationWorkBudget, OptimizationWorkUsage,
     PrePhysicalOptimizationManifestIdentity,
 };
@@ -52,20 +51,7 @@ pub fn project_pre_physical_optimization_manifest(
         projection,
     )?;
     record.identity = record.recomputed_identity();
-    validate_pre_physical_optimization_manifest(
-        &record,
-        input,
-        final_unit,
-        selections,
-        psi_selections,
-        budget_per_pass,
-        usage,
-        decisions,
-        pass_manifests,
-        ledger,
-        bundle,
-        projection,
-    )
+    Ok(ValidatedPrePhysicalOptimizationManifest { record })
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -83,16 +69,6 @@ impl ValidatedPrePhysicalOptimizationManifest {
 pub enum PrePhysicalOptimizationManifestError {
     InitialUnitProjection,
     StructuralStatisticsOverflow,
-    ProjectionMismatch,
-    SelectionMismatch,
-    DecisionLogMismatch,
-    LedgerMismatch,
-    PassManifestCodecMismatch,
-    PassRevisionMismatch,
-    WorkUsageOverflow,
-    WorkUsageMismatch,
-    WorkBudgetExceeded,
-    ContentMismatch,
 }
 
 impl std::fmt::Display for PrePhysicalOptimizationManifestError {

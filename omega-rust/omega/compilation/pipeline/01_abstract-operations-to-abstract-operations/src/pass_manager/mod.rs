@@ -38,7 +38,6 @@ use crate::{
 pub(crate) use execution::run_registries;
 #[cfg(any(test, feature = "test-support"))]
 pub(crate) use execution::run_registries_with_external_decisions;
-pub(crate) use external_policy::validate_external_decision_recording;
 use optimization_core::{
     BaselineDecisionLog, BaselineDecisionLogDecodeError, BaselineDecisionRecordError,
     ExternalDecisionLog, ExternalDecisionSchemaError, InvalidOptimizationManifestRecord,
@@ -255,24 +254,12 @@ impl OptimizationRun {
         self.budget_per_pass
     }
 
-    pub fn commits(&self) -> &[PsiOptimizationCommit] {
-        &self.commits
-    }
-
-    pub fn validated_candidates(&self) -> &[PsiValidatedCandidateDeclaration] {
-        &self.validated_candidates
-    }
-
     pub const fn usage(&self) -> OptimizationRunUsage {
         self.usage
     }
 
     pub const fn decisions(&self) -> &BaselineDecisionLog {
         &self.decisions
-    }
-
-    pub const fn external_decisions(&self) -> &ExternalDecisionLog {
-        &self.external_decisions
     }
 
     pub fn pass_manifests(&self) -> &[OptimizationPassManifestRecord] {

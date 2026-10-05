@@ -16,32 +16,12 @@ mod immutable_custody;
 mod ranked_cycles;
 mod seed_projection;
 
-pub fn validate_verified_psi_optimization_unit(
-    verified: &terminal_psi_to_abstract_operations::VerifiedPsiOptimizationUnit,
-) -> Result<(), OptimizationUnitValidationError> {
-    validate_psi_optimization_unit_with_context(verified.input(), verified.unit(), true).map(drop)
-}
-
 /// Validate a verified optimizer seed and retain its independently derived
 /// cyclic-component analysis authority.
 pub fn validate_verified_psi_cycle_components(
     verified: &terminal_psi_to_abstract_operations::VerifiedPsiOptimizationUnit,
 ) -> Result<ranked_cycles::ValidatedOptimizerCycleComponents, OptimizationUnitValidationError> {
     validate_psi_optimization_unit_with_context(verified.input(), verified.unit(), true)
-}
-
-/// Validate a committed optimization revision while retaining the immutable
-/// verifier context that authorized its proof and ownership facts.
-///
-/// Unlike [`validate_verified_psi_optimization_unit`], this permits the unit's
-/// revision identity and executable shape to differ from the initial verified
-/// seed. The admitted-fact projection and every surviving provenance frontier
-/// must still match the original artifact exactly.
-pub fn validate_transformed_psi_optimization_unit(
-    input: &terminal_psi_to_abstract_operations::VerifiedPsiOptimizationInput,
-    unit: &PsiOptimizationUnit,
-) -> Result<(), OptimizationUnitValidationError> {
-    validate_psi_optimization_unit_with_context(input, unit, false).map(drop)
 }
 
 /// Validate a committed revision and retain its current canonical component
@@ -51,20 +31,6 @@ pub fn validate_transformed_psi_cycle_components(
     unit: &PsiOptimizationUnit,
 ) -> Result<ranked_cycles::ValidatedOptimizerCycleComponents, OptimizationUnitValidationError> {
     validate_psi_optimization_unit_with_context(input, unit, false)
-}
-
-/// Reauthenticate a replayable component snapshot against both Terminal and
-/// the current optimizer graph.
-pub fn validate_psi_cycle_component_snapshot(
-    input: &terminal_psi_to_abstract_operations::VerifiedPsiOptimizationInput,
-    unit: &PsiOptimizationUnit,
-    candidate: &optimization_unit::OptimizerCycleComponentSnapshot,
-) -> Result<ranked_cycles::ValidatedOptimizerCycleComponents, OptimizationUnitValidationError> {
-    let validated = validate_psi_optimization_unit_with_context(input, unit, false)?;
-    if candidate != validated.snapshot() {
-        return Err(OptimizationUnitValidationError::RankedCycleComponentSnapshotMismatch);
-    }
-    Ok(validated)
 }
 
 fn validate_psi_optimization_unit_with_context(
@@ -94,5 +60,4 @@ fn validate_psi_optimization_unit_with_context(
 
 pub use ranked_cycles::{
     ValidatedOptimizerCycleComponents, ValidatedOptimizerRankingCertificates,
-    validate_psi_ranking_certificate_snapshot,
-};
+    };

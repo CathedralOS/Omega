@@ -33,15 +33,13 @@ pub(crate) use scalar_case_frontiers::{
 
 pub use context::{
     ValidatedOptimizerCycleComponents, ValidatedOptimizerRankingCertificates,
-    validate_psi_cycle_component_snapshot, validate_psi_ranking_certificate_snapshot,
-    validate_transformed_psi_cycle_components, validate_transformed_psi_optimization_unit,
-    validate_verified_psi_cycle_components, validate_verified_psi_optimization_unit,
+    validate_transformed_psi_cycle_components, validate_verified_psi_cycle_components,
 };
 pub use prephysical_manifest::{
     PrePhysicalOptimizationManifestError, ValidatedPrePhysicalOptimizationManifest,
-    project_pre_physical_optimization_manifest, validate_pre_physical_optimization_manifest,
+    project_pre_physical_optimization_manifest,
 };
 pub use projection::{
-    OptimizedAbstractPlanProjectionError, ValidatedOptimizedAbstractPlanProjection,
-    validate_optimized_abstract_plan_projection,
+    ValidatedOptimizedAbstractPlanProjection,
+    seal_optimized_abstract_plan_projection,
 };

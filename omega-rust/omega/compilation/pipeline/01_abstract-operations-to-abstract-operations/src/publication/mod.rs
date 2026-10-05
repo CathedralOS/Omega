@@ -4,19 +4,19 @@
 //! executable abstract operations.
 //!
 //! This entrance owns the ordered join: exact Psi selection projection,
-//! independent run replay, source-shape projection, independent projection
-//! validation, and pre-physical manifest publication. Replay and source
-//! mechanics descend into their named subtrees.
+//! source-shape projection, the sealed projection receipt, and pre-physical
+//! manifest publication. The run is this compile's own output: each rewrite
+//! was validated when the pass manager committed it, so publication seals it
+//! rather than replaying the run. Source mechanics descend into their subtree.
 
 mod error;
-mod replay;
 mod source;
 
-use crate::{OptimizationRun, baseline_psi_cost_model_identity};
+use crate::OptimizationRun;
 use optimization_core::OptimizationExecutionPhase;
 
 use crate::validation::{
-    project_pre_physical_optimization_manifest, validate_optimized_abstract_plan_projection,
+    project_pre_physical_optimization_manifest, seal_optimized_abstract_plan_projection,
 };
 
 use crate::validation::{
@@ -24,8 +24,6 @@ use crate::validation::{
 };
 use crate::{OptimizationRunUsage, PsiOptimizationCommit, PsiValidatedCandidateDeclaration};
 use abstract_operations::AbstractOperationPlan;
-#[cfg(any(test, feature = "test-support"))]
-pub use error::AppliedDecisionCustodyAxis;
 pub use error::OptimizedAbstractProjectionError;
 use optimization_core::{
     BaselineDecisionLog, ExternalDecisionLog, OptimizationIdentityBundle,
@@ -43,29 +41,21 @@ pub fn publish_optimization_run(
     if run.psi_selections() != &run.selections().for_phase(OptimizationExecutionPhase::Psi) {
         return Err(OptimizedAbstractProjectionError::PsiSelectionProjectionMismatch);
     }
-    let replay = replay::validate(&run)?;
     let plan = source::project_plan(run.session().input().plan(), run.session().unit())?;
-    let validation = validate_optimized_abstract_plan_projection(
-        run.session().input(),
+    let validation = seal_optimized_abstract_plan_projection(
         run.session().unit(),
-        &plan,
         run.selections(),
         run.psi_selections(),
-        replay.ordered_rule_set,
-        baseline_psi_cost_model_identity(),
-        run.decisions(),
-        run.pass_manifests(),
         run.transformation_ledger(),
         run.identity_bundle(),
-    )
-    .map_err(OptimizedAbstractProjectionError::IndependentValidation)?;
+    );
     let pre_physical_manifest = project_pre_physical_optimization_manifest(
         run.session().input(),
         run.session().unit(),
         run.selections(),
         run.psi_selections(),
         run.budget_per_pass(),
-        replay::work_usage(run.usage()),
+        work_usage(run.usage()),
         run.decisions(),
         run.pass_manifests(),
         run.transformation_ledger(),
@@ -191,5 +181,15 @@ impl ValidatedOptimizedAbstractPlan {
     }
     pub const fn pre_physical_manifest(&self) -> &ValidatedPrePhysicalOptimizationManifest {
         &self.pre_physical_manifest
+    }
+}
+
+const fn work_usage(usage: OptimizationRunUsage) -> optimization_core::OptimizationWorkUsage {
+    optimization_core::OptimizationWorkUsage {
+        rule_evaluations: usage.rule_evaluations,
+        candidates: usage.candidates,
+        validation_steps: usage.validation_steps,
+        commits: usage.commits,
+        iterations: usage.iterations,
     }
 }

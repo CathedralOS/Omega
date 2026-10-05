@@ -3,24 +3,9 @@
 use super::{
     OptimizationUnitValidationError, OptimizerCycleComponentSnapshot,
     OptimizerRankingCertificateSnapshot, PsiOptimizationUnit,
-    ValidatedOptimizerRankingCertificates,
 };
 mod current;
 mod terminal;
-
-/// Reauthenticate replayable well-founded ranking evidence against separately
-/// reconstructed Terminal and current optimizer bodies.
-pub fn validate_psi_ranking_certificate_snapshot(
-    input: &terminal_psi_to_abstract_operations::VerifiedPsiOptimizationInput,
-    unit: &PsiOptimizationUnit,
-    candidate: &OptimizerRankingCertificateSnapshot,
-) -> Result<ValidatedOptimizerRankingCertificates, OptimizationUnitValidationError> {
-    let validated = super::super::validate_psi_optimization_unit_with_context(input, unit, false)?;
-    if candidate != validated.ranking_certificates().snapshot() {
-        return Err(OptimizationUnitValidationError::RankedCycleRankingCertificateSnapshotMismatch);
-    }
-    Ok(validated.ranking_certificates().clone())
-}
 
 pub(super) fn rederive_exact_certificates(
     module: &::terminal_psi::TerminalModule,

@@ -55,10 +55,9 @@ pub use pass_manager::OptimizationRunError;
 pub(crate) use pass_manager::PsiValidatedCandidateDeclaration;
 pub(crate) use pass_manager::VerifiedPsiOptimizationSession;
 pub(crate) use pass_manager::{
-    OptimizationRun, OptimizationRunUsage, PsiOptimizationCommit, baseline_psi_cost_model_identity,
+    OptimizationRun, OptimizationRunUsage, PsiOptimizationCommit,
 };
 pub use ranked_rewrites::LoopInvariantScalarMotionError;
-pub(crate) use rules::PsiPassStep;
 pub(crate) use rules::registry::{
     OrderedRuleRegistry, PsiOptimizationRule, RuleAnalysisView, RuleProposalError,
     RuleRegistryError,
@@ -87,7 +86,7 @@ pub mod test_support {
         OptimizationRun, OptimizationRunUsage, PsiOptimizationCommit,
         VerifiedPsiOptimizationSession, baseline_psi_cost_model_identity,
     };
-    pub use crate::publication::{AppliedDecisionCustodyAxis, publish_optimization_run};
+    pub use crate::publication::publish_optimization_run;
     pub use crate::ranked_rewrites::{
         CountdownInvariantConstantRelocationError, LoopInvariantScalarMotionError,
         apply_countdown_invariant_constant_relocation, apply_loop_invariant_scalar_motion,
