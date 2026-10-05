@@ -2324,25 +2324,6 @@ crash and native exit behavior.
   a fresh worktree as an environment artifact and re-measure in the warm
   checkout before recording anything.
 
-- **SELECTION-CUSTODY-DIAGNOSTIC-QUOTES-RUST-SOURCE.** (new-scope)
-  `SelectedInstructionError::custody()` is `#[track_caller]`, so a stage-03
-  refusal reaches the author as `SourceCustodyMismatch { site: Location { file:
-  "omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/selection/construction/scalar_graph/aggregate_return.rs",
-  line: 41 } }`. That is a compiler implementation path presented as a compile
-  error about an Omega program, and
-  `pass/capabilities/acquires_through_helper_return` printed it for 82 commits.
-  There are about 40 `custody()` sites in `selection/` and as many again in
-  `legalization/`, so any of them can surface a Rust path.
-
-  The `Location` is the right debugging aid and the wrong user-facing message.
-  The refusal already holds the authored coordinates it needs nearby -- machine,
-  operation, place -- so put those in the message and keep the Rust site behind
-  the developer channel, the way `UnsupportedSourceShape` already carries
-  `machine`/`operation`. Follow that convention rather than inventing a second
-  one, and route the sites through one `#[track_caller]` constructor rather than
-  annotating them individually.
-  Acceptance: no corpus diagnostic in any golden under `tests/omega/` contains
-  the string `omega-rust/`.
 
 - **UNSELECTED-DIRECT-REQUIREMENT-GATE-WIDENED.** (split-of:MACOS-NATIVE-LOST-SUCCESSES)
   `pass/core/interrupt_obligations_surface` has one blocking line, proved by
