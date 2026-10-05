@@ -2165,8 +2165,8 @@ pass/expressions/runtime_temporary_record_field_call_exit checked 501ms check-ta
 pass/expressions/runtime_widened_comparison_exit checked 1648ms check-target:macos_arm64 @2d8ed253669f
 pass/expressions/scalar_match_boundary_composition_exit checked 5240ms check-target:macos_arm64 @2d8ed253669f
 pass/filesystem/cross_linux_value_syscalls checked 17448ms @2d8ed253669f
-pass/filesystem/dir_walk_wrappers_exit rejected 21752ms check-target:macos_arm64 @c5fe05658cec+wt
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Filesystem::create_dir_all`), which was itself omitted at an unavailable callee (`Filesystem::mkall_walk`), which was itself omitted at local construction at `state graph: state signature: parameter custody shape: qualified non-linear parameter` (state 0)
+pass/filesystem/dir_walk_wrappers_exit rejected 86187ms check-target:macos_arm64 @8632b5713761
+	selected ProgramEntry Binding field `Main::fs::host` requires a selected Fused provider for boundary `FilesystemHost`
 pass/filesystem/native_canonicalize rejected 1980ms check-target:macos_arm64 @835baa6033e
 	selected ProgramEntry Binding field `Main::fs` requires a selected Fused provider for boundary `FilesystemHost`
 pass/filesystem/native_close rejected 9568ms check-target:macos_arm64 @a730a3a70c28+wt

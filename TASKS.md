@@ -2501,6 +2501,28 @@ check corpus and the native corpus unchanged on the slices it names.
     error;
   - no corpus outcome changes otherwise.
 
+  **Site map, measured at `4fa2d6d846eb`.** The phase string is the only
+  reliable pointer: it names the enum variant or literal at the refusing
+  `return None`, and the "rejoins 0 identities" wording is the downstream
+  symptom, not a location. Each row is a separate defect. One of the ten
+  closed (`qualified non-linear parameter`, see
+  **UNIT-PLAN-OMISSION-MKALL-WALK-PARAMETER-CUSTODY**); the rest stand.
+
+  | phase | fixture | refusing site |
+  | --- | --- | --- |
+  | `call operation: projected operand support` | `pass/build/uefi_os_handoff_invocation` | `terminal_unit/calls/call_operations.rs:433` — neither `ordinary_projected_call_is_supported` nor `projected_reference_record_operands_supported` admits the operands |
+  | `call operation: linear structural result` | `pass/core/content_conservation_contract` | `call_operations.rs:486` — design-blocked, see the conservation note below |
+  | `statement sequence: local data: structural call binding` | `pass/structs/runtime_nonzero_array_elements_exit` | `control/statement_sequence/local_data.rs:684` — a structural local whose initializer is not `ExpressionNode::Call` has no producer; the array-literal-with-a-call case is **UNIT-PLAN-OMISSION-PROJECTED-INITIALIZER-ROOT** |
+  | `structural field store: destination parameter` | `pass/text/runtime_local_struct_string_field_concat_exit`, `pass/text/runtime_string_stored_suffix_exit` | `structural_scalar_store/destination.rs:165` — `out_line` is a `let mut out_line: &[u8] in Utf8;`, so the parameter lane finds no destination, `borrowed_view_local_root` refuses the `mut` local and `owned_local_root` refuses a reference shell. The green sibling `runtime_bounded_carrier_alias_concat_exit` uses an owned `[u8; 16] in Utf8` carrier; a `&[u8]` destination has no storage for the concatenation, so this likely needs an owned carrier or a compiler-managed temporary, not a widened recognizer |
+  | `structural field store: target place` | `pass/traits/runtime_local_named_dyn_pass_through_exit` | `destination.rs:119`, inside `rejoin_loan_local` — `erased = &main.selected as &dyn Item::Primary` reseats a `let mut` reference local, and `&x as &T` is `CastForm::RecastShared`, so the rejoin peels to the `Borrow` and then refuses on `local.is_mutable`. A reseat is not a write *through* the loan; the helper conflates "cannot rejoin" with "unsupported". Note that returning the place unchanged only moves the phase — no lane plans a `&dyn` reseat yet |
+  | `call operation: structural arguments: alias and identity` | `pass/traits/runtime_dyn_two_impl_dispatch_exit` | `terminal_unit/calls/structural_arguments.rs:161` |
+  | `call operation: target state` | `pass/traits/runtime_local_named_dyn_devirtualized_exit` | `call_operations.rs:203` — `Shape::code` is a non-boundary trait signature, so `find_machine_head`/`find_state_with_machine` both miss it and the dyn route in `terminal_unit/dynamic_scalar_calls/` did not claim the call first |
+  | `state graph: terminator: conditional successors: edge cleanup: no state plan` | `pass/wire/wire_preserving_decode_relay_exit` | `state_graph/mod.rs:1939`, `SuccessorGuard::EdgeCleanupStatePlan` — `cleanups.for_state(machine, state)` is `None` |
+
+  `fail/build/placed_view_program_entry_input` also carries an omission phase
+  (`an unavailable scalar target (\`inspect\`)`) but is a `fail` fixture and is
+  expected to reject.
+
 - **TRANSPARENT-RECORD-RESULT-CARRIES-MEMBER-CLAIMS.** (split-of:PROJECTED-OWNED-LET-CONTINUATION)
   `pass/ownership/linear_transparent_record_frontier` now lowers both
   `let extracted_left: Receipt = forwarded.left;` statements and rejects in
@@ -2576,20 +2598,35 @@ check corpus and the native corpus unchanged on the slices it names.
   with one whole-root claim.
 
 - **UNIT-PLAN-OMISSION-MKALL-WALK-PARAMETER-CUSTODY.** (new-scope)
-  `tests/omega/pass/filesystem/dir_walk_wrappers_exit` compiles no unit plan
-  for `Filesystem::mkall_walk`, so `Filesystem::create_dir_all` is unavailable
-  and the entry rejoins 0 Terminal context identities. The omission is at state
-  0, phase `state graph: state signature: parameter custody shape: qualified
-  non-linear parameter`, raised at
-  `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/execution/terminal_unit/state_graph/mod.rs:809`.
-  This is the second of two stacked gaps on that fixture; the first, a returned
-  case payload from an owned structural state parameter carrying no consumption
-  plan, landed at `1f6a0c3c325` and is pinned by
-  `tests/omega/pass/errors/returned_case_payload_from_parameter_exit` (checked,
-  native exit 70). **Not** blocked on FilesystemHost — that provider cluster is
-  a separate owner question and this chain does not reach it. Acceptance:
-  `python3 tools/corpus_gate.py --native --filter filesystem/dir_walk_wrappers_exit`
-  reaches exit 70.
+  **The unit-plan omission is closed and the fixture is now blocked on the
+  FilesystemHost provider cluster.** `forwards_qualified_parameter`
+  (`04_typed-trees-to-checked-trees/src/execution/terminal_unit/state_graph/mod.rs`)
+  refused `target_index == 0` outright, so every re-entered entry carrying a
+  domain-qualified non-linear parameter compiled no unit plan --
+  `Filesystem::mkall_walk` recurses in its own entry with `path: &[u8] in
+  Path`, which is the only recursion shape `Nat::BoundedDistance` accepts.
+  That clause re-decided by hand, and narrower, the question the enclosing
+  gate already decides exactly: the gate exempts the invocation-only entry
+  because callers establish a formal's qualifications at the call, so a state
+  reaching the helper at index 0 is re-entered and only its reentry edges are
+  unproven -- which is precisely what the helper's walk covers, backedges
+  included. Removing the clause admits `mkall_walk` and
+  `Filesystem::create_dir_all`.
+  `tests/omega/pass/filesystem/dir_walk_wrappers_exit` now stops at "selected
+  ProgramEntry Binding field `Main::fs::host` requires a selected Fused
+  provider for boundary `FilesystemHost`", recorded in the golden at
+  `4fa2d6d846eb`. **The item's "Not blocked on FilesystemHost" claim is
+  disproved**: with `mkall_walk` planning, the chain reaches exactly that
+  cluster, so this fixture now waits on **Q1
+  `portable-service-per-family-binding-carrier`** in `OWNER_QUESTIONS.md`
+  together with the other `pass/filesystem` provider fixtures. Acceptance is
+  unchanged (`--native --filter filesystem/dir_walk_wrappers_exit` reaches
+  exit 70) and is no longer reachable from this lane.
+  Cost note: the fixture compiles 151031ms with the chain planned, against
+  21752ms when it aborted at state 0, so a default `OMEGA_CORPUS_FIXTURE_SECS`
+  of 120 reads its row as `timeout` on a loaded host. The golden row carries
+  the outcome class and diagnostic, measured with a 900s budget; a `timeout`
+  there is the budget, not a new refusal.
 
 - **UNIT-PLAN-OMISSION-PROJECTED-INITIALIZER-ROOT.** (new-scope) A structural
   local initialized by a field projection gets no structural-value root, so the

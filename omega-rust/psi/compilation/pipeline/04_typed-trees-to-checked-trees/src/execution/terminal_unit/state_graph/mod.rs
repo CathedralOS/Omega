@@ -1132,8 +1132,19 @@ fn retire_guarded_reference_completion(
 /// view, establishes an authored literal under those qualifications: each
 /// is then a byte-predicate domain without establishment routes, which
 /// Terminal verification decides from the literal's octets at the edge.
-/// The entry state keeps its invocation rule: a re-entered entry is a
-/// separate arrival.
+///
+/// A re-entered entry answers to this same rule, and the walk below is
+/// complete for it. An entry has two arrival kinds: its invocation, whose
+/// qualifications the caller establishes at the call, and its reentry edges.
+/// The caller's rule above exempts the invocation-only entry outright, so a
+/// state reaching here with index 0 is re-entered and the invocation
+/// arrival is already licensed; what remains unproven is exactly the edge
+/// transport this walk requires, because the walk visits every live edge
+/// whose target is that state, backedges into the entry included. Refusing
+/// index 0 outright instead re-decided the caller's rule by hand and
+/// refused a machine that recurses in its entry -- the only recursion shape
+/// `Nat::BoundedDistance` admits -- however exactly its edges forward the
+/// qualified parameter.
 fn forwards_qualified_parameter(
     shapes: &ShapeCollector<'_>,
     planned: &[CheckedComposedUnitControlStatePlan],
@@ -1147,8 +1158,7 @@ fn forwards_qualified_parameter(
     let Some(parameter) = target.structural_parameters.get(parameter_index) else {
         return false;
     };
-    if target_index == 0
-        || !(parameter.access == CheckedStructuralAccess::SharedBorrow
+    if !(parameter.access == CheckedStructuralAccess::SharedBorrow
             || (matches!(
                 parameter.access,
                 CheckedStructuralAccess::MutableBorrow | CheckedStructuralAccess::Owned
