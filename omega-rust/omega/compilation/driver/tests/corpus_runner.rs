@@ -25,6 +25,13 @@
 //! `timeout`, and the pool applies back-pressure so stragglers cannot multiply
 //! past the worker count).
 //!
+//! `OMEGA_CORPUS_MIGRATION_FIXTURES` contains newline-separated exact
+//! `pending/group/name` paths from the gate's reviewed migration roster. Only
+//! those pending roots join the ordinary jobs; their source and authored oracles
+//! are unchanged, and filter/shard/timeout/native/interpreted handling is shared.
+//! Missing or escaping designations fail collection instead of disappearing.
+//! This selects coverage, never semantic success or an unimplemented diagnostic.
+//!
 //! `OMEGA_CORPUS_NATIVE=1` switches to the native leg for the host target:
 //! every pass and run fixture is built as a published native executable
 //! (status `built`), fail fixtures are skipped, and run fixtures and pass
@@ -112,6 +119,56 @@ fn collect_mains(dir: &Path, mains: &mut Vec<PathBuf>) {
             }
         }
     }
+}
+
+/// Exact reviewed pending roots, not a recursive walk of every unfinished
+/// experiment. The gate validates capability/task/route metadata; this runner
+/// additionally confines source selection to the pending tree before compilation.
+fn migration_pending_mains(root: &Path) -> Result<Vec<PathBuf>, String> {
+    let Some(requested) = env::var_os("OMEGA_CORPUS_MIGRATION_FIXTURES") else {
+        return Ok(Vec::new());
+    };
+    let requested = requested
+        .into_string()
+        .map_err(|_| "migration fixture selection is not UTF-8".to_owned())?;
+    let corpus = root.join("tests/omega");
+    let mut mains = Vec::new();
+    for fixture in requested.split('\n').filter(|line| !line.is_empty()) {
+        let components: Vec<_> = fixture.split('/').collect();
+        if components.len() < 3
+            || components[0] != "pending"
+            || fixture
+                .chars()
+                .any(|character| character.is_whitespace() || character.is_control())
+            || components.iter().any(|component| {
+                component.is_empty()
+                    || matches!(*component, "." | "..")
+                    || component.contains(['\\', ':'])
+            })
+        {
+            return Err(format!(
+                "invalid pending migration fixture path `{fixture}`"
+            ));
+        }
+        let main = corpus.join(fixture).join("main.omg");
+        if mains.contains(&main) {
+            return Err(format!("duplicate pending migration fixture `{fixture}`"));
+        }
+        let canonical_pending = corpus
+            .join("pending")
+            .canonicalize()
+            .map_err(|error| format!("cannot read pending migration fixture tree: {error}"))?;
+        let canonical_main = main
+            .canonicalize()
+            .map_err(|error| format!("missing pending migration canary `{fixture}`: {error}"))?;
+        if !canonical_main.starts_with(&canonical_pending) || !canonical_main.is_file() {
+            return Err(format!(
+                "pending migration canary escapes its tree: `{fixture}`"
+            ));
+        }
+        mains.push(main);
+    }
+    Ok(mains)
 }
 
 /// One diagnostic on one line: the record format ends a diagnostic at the
@@ -913,6 +970,7 @@ fn run_one(tier: &str, base: &Path, main: &Path, sequence: usize) -> (String, u1
     let runnable = tier == "run"
         || rel.ends_with("_exit")
         || fixture_dir.join("expected_native_exit.txt").is_file()
+        || fixture_dir.join("expected_stdout.txt").is_file()
         || target::TargetProfile::host_if_supported().is_some_and(|host| {
             fixture_dir
                 .join(format!("expected_native_exit.{}.txt", host.target_name()))
@@ -1209,11 +1267,18 @@ fn main() {
         .unwrap_or(std::time::Duration::from_secs(120));
     let filter = fixture_filter();
     let prior = prior_millis();
+    let mut migration_mains = match migration_pending_mains(&root) {
+        Ok(mains) => mains,
+        Err(message) => {
+            eprintln!("corpus_runner: {message}");
+            process::exit(2);
+        }
+    };
     let mut jobs: Vec<(&'static str, PathBuf, PathBuf, std::time::Duration)> = Vec::new();
     let tiers: &[&'static str] = if native_target().is_some() {
-        &["pass", "run"]
+        &["pass", "run", "pending"]
     } else {
-        &["pass", "fail", "run"]
+        &["pass", "fail", "run", "pending"]
     };
     if env::var_os("OMEGA_CORPUS_NATIVE").is_some() && native_target().is_none() {
         eprintln!(
@@ -1224,8 +1289,13 @@ fn main() {
     }
     for &tier in tiers {
         let base = root.join("tests/omega").join(tier);
-        let mut mains = Vec::new();
-        collect_mains(&base, &mut mains);
+        let mut mains = if tier == "pending" {
+            std::mem::take(&mut migration_mains)
+        } else {
+            let mut discovered = Vec::new();
+            collect_mains(&base, &mut discovered);
+            discovered
+        };
         mains.sort();
         for main in mains {
             let candidate = format!(

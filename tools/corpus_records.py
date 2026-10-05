@@ -251,10 +251,18 @@ def migration_roster(path, corpus):
                 "fixture", "capability", "task", "route"}:
             raise ValueError("migration designation requires fixture/capability/task/route")
         fixture = entry["fixture"]
+        # Fixture IDs are whitespace-delimited records and newline-separated
+        # runner selections. Reject spelling that could change identity during
+        # either transport, before consulting host-specific filename behavior.
         if not isinstance(fixture, str) or any(
-                component in ("", ".", "..") for component in fixture.split("/")):
+                character.isspace() or ord(character) < 32 or 127 <= ord(character) <= 159
+                for character in fixture):
             raise ValueError("invalid migration fixture path")
-        if "\\" in fixture or fixture.split("/", 1)[0] not in ("pass", "run", "pending"):
+        components = fixture.split("/")
+        if (len(components) < 3 or "\\" in fixture or ":" in fixture
+                or any(component in ("", ".", "..") for component in components)):
+            raise ValueError("invalid migration fixture path")
+        if components[0] not in ("pass", "run", "pending"):
             raise ValueError("migration fixture must be pass/run/pending")
         directory = Path(corpus) / fixture
         if not (directory / "main.omg").is_file():

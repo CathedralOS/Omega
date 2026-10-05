@@ -1500,13 +1500,15 @@ then independent claimed restoration slices -> final closure.
   fails, and an unrelated checker rejection or timeout cannot satisfy the gap.
   Pending artifact-only Build fixtures remain separately attributed to their
   existing harness dependency; do not relabel that as interpreter coverage.
-  Current frontier: the gate accepts reviewed fixture/capability/task/route
-  designations with exact explicit producer refusals, retains authored oracles,
-  counts unresolved coverage separately and returns nonzero even when recorded.
-  Selected designations absent from runner output fail with the missing runner
-  hook instead of disappearing. The pending-canary collection hook in
-  `corpus_runner.rs` and a real preflight diagnostic producer/canary still need
-  implementation; do not designate arbitrary checker or runtime failures.
+  Current frontier: reviewed pending roots now enter the ordinary runner's
+  filtering, sharding, staging and execution routes without walking all pending
+  experiments. Exact selections reject missing, escaping or malformed paths;
+  restored execution must meet the original exit/stdout oracle. Explicit gap
+  records remain separate unresolved debt and never count as successful runs.
+  A real unsupported-operation preflight producer/canary and a Terminal runtime
+  driver carrying typed trap outcomes remain missing. The current checked-tree
+  runner cannot supply those facts; arbitrary checker failures or host signals
+  cannot substitute for them.
 
 - **INTERPRETER-CORE-ENTRY.** (new-scope) Make the existing Terminal engine's
   program/instance lifecycle the common execution entry, without checked-tree

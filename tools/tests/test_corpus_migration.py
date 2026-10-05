@@ -119,6 +119,20 @@ class MigrationEvidence(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.load([self.entry])
 
+    def test_roster_path_identity_is_validated_before_filesystem_access(self):
+        for fixture in ("pending/group/name\npending/other/canary",
+                        "pending/group/ name", " pending/group/name",
+                        "pending/group/name\t", "pending/group/name\r",
+                        "pending/group/name\x00", "pending/group/name\x80",
+                        "pending/group/name\u00a0", "pending/group/name\u2003",
+                        "pending/group:name", "pending/group\\name",
+                        "pending/group", "pending//name", "pending/./name",
+                        "pending/group/../name", "pending/group/name/"):
+            with self.subTest(fixture=fixture), \
+                 patch.object(Path, "is_file", side_effect=AssertionError("path reached filesystem")):
+                with self.assertRaisesRegex(ValueError, "invalid migration fixture path"):
+                    self.load([dict(self.entry, fixture=fixture)])
+
     def test_existing_route_failure_cannot_be_relabelled(self):
         roster = self.load([dict(self.entry, route="interpreter")])
         for outcome in ("declined", "unchecked", "disagrees", "trapped"):
@@ -203,6 +217,55 @@ class MigrationEvidence(unittest.TestCase):
         for value in ("70\n7", "2147483648", "", "made up"):
             (self.directory / "expected_native_exit.txt").write_text(value)
             self.assertTrue(corpus_gate.interpreter_exit_failures([record], self.corpus, "linux_x86_64"))
+
+    def test_reviewed_pending_paths_reach_runner_once(self):
+        self.load([self.entry, dict(self.entry, route="interpreter")])
+        record = self.record("built", {"exit": "70", "stdout": "match"}, [])
+        golden = self.root / "golden.txt"
+        golden.write_text(corpus_records.render([record]))
+
+        def run_selected(_binary):
+            self.assertEqual(corpus_gate.os.environ["OMEGA_CORPUS_MIGRATION_FIXTURES"], self.fixture)
+            return [record]
+
+        with patch.object(corpus_gate, "ROOT", self.root), \
+             patch.object(corpus_gate, "run_runner", side_effect=run_selected), \
+             patch.object(corpus_gate, "host_target", return_value="windows_x86_64"), \
+             patch.dict(corpus_gate.os.environ, {}, clear=True), \
+             patch.object(sys, "argv", ["corpus_gate", "--runner", "unused", "--native",
+                                       "--golden", str(golden), "--migration-roster", str(self.path)]), \
+             contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            self.assertEqual(corpus_gate.main(), 0)
+
+    def test_invalid_roster_fails_before_runner_or_build(self):
+        for contents in ("not JSON", "{}", json.dumps([dict(self.entry, fixture="pending/missing/canary")])):
+            self.path.write_text(contents)
+            with patch.object(corpus_gate, "ROOT", self.root), \
+                 patch.object(corpus_gate, "run_runner") as runner, \
+                 patch.object(corpus_gate, "build_runner") as build, \
+                 patch.dict(corpus_gate.os.environ, {}, clear=True), \
+                 patch.object(sys, "argv", ["corpus_gate", "--migration-roster", str(self.path)]), \
+                 contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                self.assertEqual(corpus_gate.main(), 4)
+                runner.assert_not_called()
+                build.assert_not_called()
+
+    def test_unreviewed_pending_environment_is_cleared(self):
+        record = self.record("built", {"exit": "70"}, [])
+        golden = self.root / "golden.txt"
+        golden.write_text(corpus_records.render([record]))
+
+        def run_selected(_binary):
+            self.assertEqual(corpus_gate.os.environ["OMEGA_CORPUS_MIGRATION_FIXTURES"], "")
+            return [record]
+
+        with patch.object(corpus_gate, "ROOT", self.root), \
+             patch.object(corpus_gate, "run_runner", side_effect=run_selected), \
+             patch.object(corpus_gate, "host_target", return_value="windows_x86_64"), \
+             patch.dict(corpus_gate.os.environ, {"OMEGA_CORPUS_MIGRATION_FIXTURES": "pending/unreviewed"}, clear=True), \
+             patch.object(sys, "argv", ["corpus_gate", "--runner", "unused", "--native", "--golden", str(golden)]), \
+             contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            self.assertEqual(corpus_gate.main(), 3)  # Authored stdout remains mandatory.
 
     def run_gate(self, record, extra):
         golden = self.root / "golden.txt"

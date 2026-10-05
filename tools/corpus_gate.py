@@ -850,6 +850,7 @@ def main() -> int:
                              "tests/omega/corpus_interpreted.txt")
     parser.add_argument("--migration-roster", type=Path, metavar="PATH",
                         help="reviewed capability/task/route canary designations; "
+                             "exact pending roots join the runner; "
                              "explicit unimplemented debt never counts as success")
     parser.add_argument("--both", action="store_true",
                         help="run the native and interpreted legs together, "
@@ -941,6 +942,21 @@ def main() -> int:
     # (adaptive max(cap, 3x golden millis) — the runner derives them).
     if options.golden.is_file():
         os.environ["OMEGA_CORPUS_TIMINGS"] = str(options.golden)
+    # Resolve the reviewed roster before launching the runner. Only its exact
+    # pending roots join collection; no canary is copied into a passing tier and
+    # the runner still produces the ordinary exit/stdout/diagnostic observations.
+    try:
+        roster = corpus_records.migration_roster(
+            options.migration_roster, ROOT / "tests" / "omega")
+    except (OSError, ValueError, TypeError) as error:
+        print(f"corpus_gate: invalid migration roster: {error}", file=sys.stderr)
+        code = 125 if options.bisect else 4
+        write_verdict(options, verdict_document(
+            options, leg, target, "infrastructure_failed", code, [], [],
+            [], str(error)))
+        return code
+    os.environ["OMEGA_CORPUS_MIGRATION_FIXTURES"] = "\n".join(sorted({
+        fixture for fixture, _route in roster if fixture.startswith("pending/")}))
     # Sampled before and after the run so the recorded context brackets the
     # measurement; millis answer the machine as much as the compiler.
     load_start = load_average()
@@ -956,15 +972,13 @@ def main() -> int:
             [], str(error)))
         return code
     try:
-        roster = corpus_records.migration_roster(
-            options.migration_roster, ROOT / "tests" / "omega")
         missing = corpus_records.missing_migration_canaries(
             records, roster, os.environ.get("OMEGA_CORPUS_FIXTURE_FILTER", ""),
             os.environ.get("OMEGA_CORPUS_SHARD", ""))
         if missing:
             raise ValueError("selected migration canaries absent from runner: "
                              + ", ".join(missing)
-                             + "; pending canaries require the corpus runner selection hook")
+                             + "; runner did not exercise the reviewed selection")
         corpus_records.classify_migration(records, roster)
     except (OSError, ValueError, TypeError) as error:
         print(f"corpus_gate: invalid migration evidence: {error}", file=sys.stderr)
