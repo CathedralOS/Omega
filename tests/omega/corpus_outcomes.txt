@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": "3", "load1_end": 8.12, "load1_start": 8.57, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 24, "jobs": "2", "load1_end": null, "load1_start": null, "machine": "amd64", "platform": "windows", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -1448,6 +1448,8 @@ fail/termination/stored_reference_endpoint_reseat rejected 775ms expected @81dd8
 	terminating machine walk: cannot prove rank range `0..=indirect.target.remaining` for the rank produced by the selected view
 fail/termination/unproved_state_rank_arrival_rejected rejected 345ms expected @68fba6a896c8+wt
 	cannot prove requires contract for call hold from Main::count: remaining > 0 && remaining <= 9 (needs fact `pending > 0 && pending <= 9` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/text/borrowed_bounded_byte_invariant_write rejected 710ms expected @a6dfddd40e94+wt
+	cannot prove default-domain field requirement for return from corrupt at statement 1: bytes requires [u8; N]::Ascii
 fail/text/bounded_carrier_growth_overflow_rejected rejected 216ms expected @c08960bee2b1+wt
 	the value assigned to `main.line` in Main::main can be up to 18 byte(s), exceeding the 16-byte capacity of its `[u8; 16]` carrier; a bounded text carrier requires every write to provably fit
 fail/text/carrier_length_cross_carrier_store rejected 322ms expected @2d8ed253669f

@@ -7,8 +7,8 @@
 //! additionally makes every declared field qualification an obligation at each
 //! value-returning exit, and a readable reference return owes them on
 //! the returned place. The return is also a default-domain consumption point
-//! for every readable `&mut` referent the machine received, `self`
-//! included: the declared field facts assumed on entry must hold again when
+//! for every readable `&mut` referent the machine received: declared root
+//! and field facts assumed on entry must hold again when
 //! the referent is handed back. All of these consume only live evidence: a
 //! write that retired a field's fact fails the proof, so a nominal
 //! annotation alone restores nothing.
@@ -1369,7 +1369,7 @@ pub(crate) fn mutable_referent_field_requirements(
 }
 
 /// A machine's normal return is a default-domain consumption point for every
-/// readable `&mut` referent it received, `self` included: the field facts
+/// readable `&mut` referent it received: the root and field facts
 /// assumed on entry must be provable again from the live evidence at the
 /// exit. A write through a bare alias (`&mut [u8; 4]` onto a `Utf8` field)
 /// retires the field's fact without establishing anything, so returning
@@ -1413,23 +1413,39 @@ pub(in crate::checks::contracts) fn check_mutable_referent_field_domains(
                     program,
                     parameter.type_reference,
                 )
-                .into_iter()
-                .filter(|(domain, _)| {
-                    crate::facts::field_domain::domain_requires_provenance(program, *domain)
-                })
             {
                 let subject = CanonicalPlace {
                     root: PlaceRoot::Symbol(parameter.symbol),
                     segments: Vec::new(),
                 };
-                if !exact_scalar_membership(
+                let established = exact_scalar_membership(
                     program,
                     facts,
                     &entry_contexts,
                     &subject,
                     domain_symbol,
                     semantic_domain,
-                ) {
+                );
+                // Predicate-only qualifications may be repaired inside the
+                // invariant window. At return they need live evidence just
+                // as routed qualifications do; their declaration is not a
+                // postcondition we may assume. Keep indexed applications on
+                // exact instance matching until their substituted predicates
+                // are available to the place prover.
+                let repaired = !established
+                    && value_provable_domain(program, domain_symbol)
+                    && program.domain_definitions().iter().any(|domain| {
+                        domain.symbol == domain_symbol
+                            && typed_trees::domain::index_parameters(program, domain).is_empty()
+                    })
+                    && super::super::prover::prove_domain_at_place(
+                        program,
+                        &facts.semantic,
+                        &entry_contexts,
+                        &subject,
+                        domain_symbol,
+                    );
+                if !established && !repaired {
                     diagnostics.push(Diagnostic::error(format!(
                         "cannot prove default-domain field requirement for return from {} at statement {}: {} requires {}",
                         crate::labels::machine_name(program, exit.machine_symbol), exit.statement_index,
