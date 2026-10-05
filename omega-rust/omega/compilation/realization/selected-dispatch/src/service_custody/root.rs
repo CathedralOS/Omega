@@ -600,8 +600,8 @@ fn describe_omission_stage(checked: &CheckedTrees, stage: CheckedUnitPlanOmissio
             }
             _ => format!("local construction at `{phase}`"),
         },
-        CheckedUnitPlanOmissionStage::ReceiverReconciliation => {
-            "receiver reconciliation".to_owned()
+        CheckedUnitPlanOmissionStage::NormalExitCleanup => {
+            "normal-exit cleanup planning".to_owned()
         }
         CheckedUnitPlanOmissionStage::CompetingCandidates => {
             "competing-candidate overlap resolution".to_owned()

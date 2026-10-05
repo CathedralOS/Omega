@@ -303,6 +303,16 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
         &mut shapes,
         &mut composed_machines,
     );
+    // Attribute the cleanup-planning drop before overlap resolution runs, so
+    // a row names the one stage that removed the machine. Overlap resolution
+    // below only chooses between two descriptions of the same entry; a
+    // machine it leaves with neither keeps the closure stage's
+    // competing-candidate row.
+    omissions.record_dropped(
+        &candidates,
+        &composed_machines,
+        CheckedUnitPlanOmissionStage::NormalExitCleanup,
+    );
     // Prefer a complete general state graph when both builders describe the
     // same structural-result body, including a returned parameter or call.
     // Otherwise both catalogs appear to define the same entry and closure
@@ -350,11 +360,6 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
                 }
         })
     });
-    omissions.record_dropped(
-        &candidates,
-        &composed_machines,
-        CheckedUnitPlanOmissionStage::ReceiverReconciliation,
-    );
     let dynamic_dispatch =
         build_checked_dynamic_dispatch_plans(program, facts, &mut shapes, &boundary_machines);
 
@@ -904,7 +909,9 @@ impl OmissionLedger {
     }
 
     /// Closure pruning reports its own rows; a machine it did not name but
-    /// that still vanished was one of two competing bodies for one entry.
+    /// that still vanished was one of two competing bodies for one entry --
+    /// either the ordinary/composed overlap resolution left it with neither
+    /// description, or closure pruning removed both.
     fn record_closure(
         &mut self,
         candidates: &[CheckedUnitEffectMachinePlan],

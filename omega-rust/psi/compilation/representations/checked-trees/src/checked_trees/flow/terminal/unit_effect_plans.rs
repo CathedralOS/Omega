@@ -80,10 +80,10 @@ pub enum CheckedUnitPlanOmissionStage {
         state_index: Option<u32>,
         statement_index: Option<u32>,
     },
-    /// The body was admitted, then dropped while receiver retention was
-    /// propagated along the call graph (the rebuilt caller no longer
-    /// retained `self`, or a receiver operand could not be rejoined).
-    ReceiverReconciliation,
+    /// The body was admitted, then dropped because one of its states had no
+    /// normal-exit cleanup plan: nothing could describe the affine cleanup
+    /// every normal edge out of that state owes.
+    NormalExitCleanup,
     /// Two builders described the same entry and neither survived the
     /// overlap resolution.
     CompetingCandidates,

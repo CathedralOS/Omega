@@ -42,8 +42,8 @@ pub(crate) fn unit_plan_omission_explanation(
                     name(current)
                 )
             }
-            CheckedUnitPlanOmissionStage::ReceiverReconciliation => format!(
-                "`{}` was dropped while reconciling retained receivers",
+            CheckedUnitPlanOmissionStage::NormalExitCleanup => format!(
+                "`{}` was dropped because one of its states had no normal-exit cleanup plan",
                 name(current)
             ),
             CheckedUnitPlanOmissionStage::CompetingCandidates => format!(
