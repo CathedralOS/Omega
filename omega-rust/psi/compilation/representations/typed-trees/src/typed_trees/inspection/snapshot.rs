@@ -298,14 +298,10 @@ pub struct MachineSpecializationSnapshot {
     pub operator_realization_count: usize,
     pub normalized_template_identity: String,
     pub canonical_template_contract_byte_count: usize,
-    pub template_contract_report_fingerprint: u64,
     pub template_contract_commitment: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub accepted_template_commitment: Option<String>,
-    pub machine_argument_contract_report_fingerprints: Vec<u64>,
     pub machine_argument_contract_commitments: Vec<String>,
-    pub conformance_argument_report_fingerprints: Vec<u64>,
-    pub report_fingerprint: u64,
     pub commitment: String,
 }
 
@@ -634,26 +630,17 @@ impl TypedTreesSnapshot {
                     canonical_template_contract_byte_count: specialization
                         .canonical_template_contract_bytes
                         .len(),
-                    template_contract_report_fingerprint: specialization
-                        .template_contract_report_fingerprint,
                     template_contract_commitment: hex_digest(
                         &specialization.template_contract_commitment.as_bytes(),
                     ),
                     accepted_template_commitment: specialization
                         .accepted_template_commitment
                         .clone(),
-                    machine_argument_contract_report_fingerprints: specialization
-                        .machine_argument_contract_report_fingerprints
-                        .clone(),
                     machine_argument_contract_commitments: specialization
                         .machine_argument_contract_commitments
                         .iter()
                         .map(hex_digest)
                         .collect(),
-                    conformance_argument_report_fingerprints: specialization
-                        .conformance_argument_report_fingerprints
-                        .clone(),
-                    report_fingerprint: specialization.report_fingerprint,
                     commitment: hex_digest(&specialization.commitment.as_bytes()),
                 })
                 .collect(),

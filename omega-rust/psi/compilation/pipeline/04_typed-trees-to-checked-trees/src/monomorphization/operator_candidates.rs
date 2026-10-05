@@ -4,8 +4,7 @@ use super::{
 };
 use crate::monomorphization::body_cloning::{clone_specialized_machine, copy_type_reference};
 use crate::monomorphization::identities::{
-    accepted_template_commitment, canonical_template_contract_bytes, fnv1a_report_fingerprint,
-    machine_template_commitment,
+    accepted_template_commitment, canonical_template_contract_bytes, machine_template_commitment,
 };
 use crate::monomorphization::selection::{
     approved_type_bounds, validate_candidate_conformance_bounds,
@@ -259,8 +258,6 @@ pub(crate) fn specialize_operator_candidates(
         let canonical_template_contract_bytes =
             canonical_template_contract_bytes(&source, machine_index, service_reaches)
                 .map_err(|diagnostic| vec![diagnostic])?;
-        let template_contract_report_fingerprint =
-            fnv1a_report_fingerprint(&canonical_template_contract_bytes);
         let template_contract_commitment =
             machine_template_commitment(&canonical_template_contract_bytes);
         let normalized_template_identity = normalized_machine_identity(&source, &template_machine)
@@ -273,7 +270,6 @@ pub(crate) fn specialize_operator_candidates(
                 program,
                 candidate,
                 ordinal,
-                template_contract_report_fingerprint,
                 template_contract_commitment,
                 canonical_template_contract_bytes.clone(),
                 normalized_template_identity.clone(),

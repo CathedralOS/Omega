@@ -21,8 +21,7 @@ use super::body_cloning::clone_specialized_machine;
 use super::candidate;
 use super::const_arguments;
 use super::identities::{
-    accepted_template_commitment, canonical_template_contract_bytes, fnv1a_report_fingerprint,
-    machine_template_commitment,
+    accepted_template_commitment, canonical_template_contract_bytes, machine_template_commitment,
 };
 use super::normalized_machine_identity;
 use super::selection::{approved_type_bounds, validate_candidate_conformance_bounds};
@@ -324,8 +323,6 @@ fn generate_tuple_specialization(
         service_reaches,
     )
     .map_err(|diagnostic| vec![diagnostic])?;
-    let template_contract_report_fingerprint =
-        fnv1a_report_fingerprint(&canonical_template_contract_bytes);
     let template_contract_commitment =
         machine_template_commitment(&canonical_template_contract_bytes);
     let normalized_template_identity = normalized_machine_identity(
@@ -345,7 +342,6 @@ fn generate_tuple_specialization(
         program,
         &candidate,
         ordinal,
-        template_contract_report_fingerprint,
         template_contract_commitment,
         canonical_template_contract_bytes,
         normalized_template_identity,

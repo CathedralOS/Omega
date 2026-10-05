@@ -340,7 +340,7 @@ pub(super) fn canonical_template_contract_bytes(
     Ok(bytes)
 }
 
-pub(super) fn fnv1a_report_fingerprint(bytes: &[u8]) -> u64 {
+fn fnv1a_report_fingerprint(bytes: &[u8]) -> u64 {
     const OFFSET: u64 = 0xcbf29ce484222325;
     const PRIME: u64 = 0x100000001b3;
     bytes.iter().fold(OFFSET, |hash, byte| {
@@ -413,11 +413,11 @@ pub(super) fn accepted_template_commitment(
 }
 
 /// MP5: specialization runs before checked contract plans exist, so it
-/// leaves each instance's selected machine-contract identities, conformance
-/// fingerprints, aggregate report fingerprint and commitment empty. This is
-/// their one computation: read the selected contracts from the plans and fold
-/// them, with the identities specialization recorded, into the instance
-/// fingerprint used by caches and artifacts.
+/// leaves each instance's selected machine-contract commitments and its
+/// specialization commitment empty. This is their one computation: read the
+/// selected contracts from the plans and fold them, with the identities
+/// specialization recorded, into the commitment Terminal Psi and package
+/// review carry.
 pub(crate) fn bind_specialization_contract_identities(
     program: &mut TypedTrees,
     contracts: &checked_trees::MachineContractPlans,
@@ -432,23 +432,15 @@ pub(crate) fn bind_specialization_contract_identities(
         .collect();
     let identities = identities.map_err(|diagnostic| vec![diagnostic])?;
     for (specialization, identity) in program.machine_specializations.iter_mut().zip(identities) {
-        specialization.machine_argument_contract_report_fingerprints =
-            identity.machine_contract_report_fingerprints;
         specialization.machine_argument_contract_commitments =
             identity.machine_contract_commitments;
-        specialization.conformance_argument_report_fingerprints =
-            identity.conformance_report_fingerprints;
-        specialization.report_fingerprint = identity.report_fingerprint;
         specialization.commitment = identity.commitment;
     }
     Ok(())
 }
 
 struct MachineSpecializationIdentity {
-    machine_contract_report_fingerprints: Vec<u64>,
     machine_contract_commitments: Vec<[u8; 32]>,
-    conformance_report_fingerprints: Vec<u64>,
-    report_fingerprint: u64,
     commitment: typed_trees::typed_trees::MachineSpecializationCommitment,
 }
 
@@ -470,7 +462,6 @@ fn machine_specialization_identity(
     })?;
 
     let mut machine_owner_identities = Vec::new();
-    let mut machine_contract_report_fingerprints = Vec::new();
     let mut machine_contract_commitments = Vec::new();
     for state_symbol in &specialization.machine_arguments {
         let owner = program
@@ -502,15 +493,8 @@ fn machine_specialization_identity(
         machine_owner_identities.push(format!(
             "{owner_identity}|selected={selected_state_identity}"
         ));
-        machine_contract_report_fingerprints.push(contract.report_fingerprint);
         machine_contract_commitments.push(contract.commitment.as_bytes());
     }
-
-    let conformance_report_fingerprints = specialization
-        .conformance_applications
-        .iter()
-        .map(|application| application.report_fingerprint)
-        .collect();
 
     let mut bytes = Vec::new();
     encode_identity_bytes(
@@ -551,15 +535,11 @@ fn machine_specialization_identity(
         }
         None => bytes.push(0),
     }
-    let report_fingerprint = machine_specialization_report_fingerprint(&bytes);
     let mut strong = Sha256::new();
     strong.update(b"omega.machine-specialization.v2\0");
     strong.update(&bytes);
     Ok(MachineSpecializationIdentity {
-        machine_contract_report_fingerprints,
         machine_contract_commitments,
-        conformance_report_fingerprints,
-        report_fingerprint,
         commitment: typed_trees::typed_trees::MachineSpecializationCommitment::from_digest(
             strong.finalize().into(),
         ),
@@ -580,12 +560,6 @@ pub(super) fn encode_identity_texts(values: &[String], bytes: &mut Vec<u8>) {
     for value in values {
         encode_identity_text(value, bytes);
     }
-}
-
-pub(super) fn machine_specialization_report_fingerprint(bytes: &[u8]) -> u64 {
-    let mut report_bytes = b"omega.machine-specialization.report.v2\0".to_vec();
-    report_bytes.extend(bytes);
-    fnv1a_report_fingerprint(&report_bytes)
 }
 
 pub(super) fn encode_data_properties(

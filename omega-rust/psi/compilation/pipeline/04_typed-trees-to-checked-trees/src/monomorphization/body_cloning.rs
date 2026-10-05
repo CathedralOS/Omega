@@ -20,7 +20,6 @@ pub(super) fn clone_specialized_machine(
     program: &mut TypedTrees,
     candidate: &Candidate,
     ordinal: usize,
-    template_contract_report_fingerprint: u64,
     template_contract_commitment: typed_trees::typed_trees::MachineTemplateCommitment,
     canonical_template_contract_bytes: Vec<u8>,
     normalized_template_identity: String,
@@ -657,15 +656,11 @@ pub(super) fn clone_specialized_machine(
                 .chain(candidate.selected_bound_applications.iter().cloned())
                 .collect(),
             operator_realizations,
-            template_contract_report_fingerprint,
             template_contract_commitment,
             canonical_template_contract_bytes,
             normalized_template_identity,
             accepted_template_commitment,
-            machine_argument_contract_report_fingerprints: Vec::new(),
             machine_argument_contract_commitments: Vec::new(),
-            conformance_argument_report_fingerprints: Vec::new(),
-            report_fingerprint: 0,
             commitment: typed_trees::typed_trees::MachineSpecializationCommitment::default(),
         });
 

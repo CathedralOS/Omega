@@ -24,8 +24,7 @@
 use crate::monomorphization::body_cloning::clone_specialized_machine;
 use crate::monomorphization::body_rewriting::rewrite_selected_call;
 use crate::monomorphization::identities::{
-    accepted_template_commitment, canonical_template_contract_bytes, fnv1a_report_fingerprint,
-    machine_template_commitment,
+    accepted_template_commitment, canonical_template_contract_bytes, machine_template_commitment,
 };
 use arena::{Handle, HandleSpan};
 use diagnostics::Diagnostic;
@@ -539,8 +538,6 @@ fn apply_call_specializations(
         service_reaches,
     )
     .map_err(|diagnostic| vec![diagnostic])?;
-    let template_contract_report_fingerprint =
-        fnv1a_report_fingerprint(&canonical_template_contract_bytes);
     let template_contract_commitment =
         machine_template_commitment(&canonical_template_contract_bytes);
     let normalized_template_identity = normalized_machine_identity(
@@ -589,7 +586,6 @@ fn apply_call_specializations(
                 program,
                 candidate,
                 ordinal,
-                template_contract_report_fingerprint,
                 template_contract_commitment,
                 canonical_template_contract_bytes.clone(),
                 normalized_template_identity.clone(),

@@ -46,10 +46,9 @@ impl BoundaryCallingPlanCommitment {
 
 /// One compile-time machine specialization. Const arguments are canonical
 /// proof-static identities and static machine arguments are symbols; neither
-/// becomes a runtime value. `report_fingerprint` is a compact diagnostic/cache
-/// coordinate only. Stage 04 computes `commitment` once; Terminal Psi and
-/// package review carry it as the specialization's portable identity, and no
-/// later stage recomputes it.
+/// becomes a runtime value. Stage 04 computes `commitment` once; Terminal Psi
+/// and package review carry it as the specialization's portable identity, and
+/// no later stage recomputes it.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct MachineSpecialization {
     pub template: symbols::SymbolHandle,
@@ -88,11 +87,8 @@ pub struct MachineSpecialization {
     /// is distinct from provider-authored conformance arguments and from
     /// checked use-site demand.
     pub operator_realizations: Vec<crate::operator::ClosedOperatorRealizationApplication>,
-    /// The normalized authored template identity captured before in-place
-    /// substitution consumes its generic parameter declarations.
-    pub template_contract_report_fingerprint: u64,
-    /// Domain-separated commitment to the same exact canonical universal-
-    /// template bytes represented by the adjacent compact report coordinate.
+    /// Domain-separated commitment to the exact canonical universal-template
+    /// bytes below.
     pub template_contract_commitment: MachineTemplateCommitment,
     /// Exact canonical universal-template encoding captured before in-place
     /// substitution consumes its generic parameter declarations. Stage 04
@@ -106,23 +102,12 @@ pub struct MachineSpecialization {
     /// instance points at the same template commitment; none spends a new
     /// grant. `None` for checked templates.
     pub accepted_template_commitment: Option<String>,
-    /// Checked contract identities of the selected static machine arguments.
-    /// Compact report coordinates populated after contract-plan construction.
-    /// Authority uses the adjacent exact commitments.
-    pub machine_argument_contract_report_fingerprints: Vec<u64>,
     /// Exact checked public-contract commitments of the selected static
     /// machine owners, in specialization argument order.
     /// Stored as the exact 32-byte digest because the typed representation
     /// cannot depend cyclically on the checked representation that owns the
     /// `MachineContractCommitment` newtype.
     pub machine_argument_contract_commitments: Vec<[u8; 32]>,
-    /// Semantic identities of the selected closed conformance maps. These
-    /// compact values are report coordinates only; exact authority is retained
-    /// by each `conformance_applications[*].commitment`.
-    pub conformance_argument_report_fingerprints: Vec<u64>,
-    /// Historical compact cache/report coordinate for the complete
-    /// specialization. It is never sufficient authority without `commitment`.
-    pub report_fingerprint: u64,
     /// Domain-separated SHA-256 commitment to the canonical template, exact
     /// argument identities, selected machine contracts, closed conformances,
     /// and accepted-template grant relied upon by this instance.
