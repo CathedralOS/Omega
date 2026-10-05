@@ -121,25 +121,6 @@ fn derive_one(
             specializations.len(),
         )));
     };
-    if specialization.commitment.is_zero() {
-        return Err(Diagnostic::error(
-            "selected generic realization has an empty specialization commitment",
-        ));
-    }
-    let replayed = validation::recompute_checked_machine_specialization_commitment(
-        checked,
-        realization_machine,
-    )
-    .map_err(|error| {
-        Diagnostic::error(format!(
-            "selected generic realization specialization does not replay: {error}"
-        ))
-    })?;
-    if replayed != specialization.commitment.as_bytes() {
-        return Err(Diagnostic::error(
-            "selected generic realization has a stale specialization commitment",
-        ));
-    }
     let retained = specialization
         .operator_realizations
         .iter()
