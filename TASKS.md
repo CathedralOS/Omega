@@ -2261,8 +2261,24 @@ crash and native exit behavior.
   cheap sweep that would catch it. The red set is swept by building a gate
   filter from the golden itself (`b40754519d5`), which costs 66 fixtures rather
   than 1959 but by construction examines only rows the golden already calls
-  red. So **the corpus red count is a lower bound and nobody knows by how
-  much.**
+  red. So **the corpus red count is a lower bound.**
+
+  **The macOS side of that bound is now measured at 1.** The per-host native
+  goldens DO carry the host dimension, so cross-referencing them against the
+  shared check golden finds candidates for free: a fixture the macOS native
+  golden calls `rejected` while the check golden calls `checked` never reached
+  native on this host, so its check row was written elsewhere. That yields 17
+  candidates, and running exactly those 17 shows **16 are genuinely `checked`
+  on macOS and only `pass/filesystem/native_close` is false-green.** So the
+  check golden's macOS-side error is one row, not many. The Linux side cannot
+  be bounded from a macOS host by this method, because a row green here and red
+  there leaves no local trace.
+
+  Those same 16 are the mirror-image defect and are worth their own pass: their
+  rows in `tests/omega/corpus_native_macos_arm64.txt` say `rejected` for
+  fixtures that now check, so the NATIVE golden is stale where the check golden
+  is right. Re-recording them costs a native run each (build plus execute), so
+  it is a separate measured sweep rather than a side effect of this item.
 
   Do not simply re-pin `native_close` on Darwin: the row is genuinely
   host-dependent, so that flips a coin the next Linux recorder flips back and
