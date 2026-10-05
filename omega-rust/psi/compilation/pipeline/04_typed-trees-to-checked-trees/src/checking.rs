@@ -429,8 +429,5 @@ pub(crate) fn specialize_static_machine_calls_with_selections(
         &mut selections,
         enforce_complete_concrete_selections,
     )?;
-    let operational = ::validation::infer_operational_may(program);
-    ::validation::validate_static_machine_call_contracts(program, &operational)
-        .map_err(|diagnostic| vec![diagnostic])?;
     Ok(selections)
 }

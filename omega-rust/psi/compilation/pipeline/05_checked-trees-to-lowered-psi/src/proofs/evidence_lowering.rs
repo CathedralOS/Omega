@@ -355,20 +355,6 @@ pub(crate) fn checked_evidence_machine_identity(
         if specializations.next().is_some() {
             return unsupported("evidence machine has ambiguous generic application identity");
         }
-        let replayed_commitment = validation::recompute_checked_machine_specialization_commitment(
-            checked,
-            machine.symbol,
-        )
-        .map_err(|_| {
-            LoweringError::Unsupported(
-                "evidence machine specialization commitment could not be replayed",
-            )
-        })?;
-        if specialization.commitment.is_zero()
-            || specialization.commitment.as_bytes() != replayed_commitment
-        {
-            return unsupported("evidence machine specialization commitment does not replay");
-        }
         identity = format!(
             "specialized-machine|callable={}:{}|application={}",
             identity.len(),

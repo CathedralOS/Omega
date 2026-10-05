@@ -25,8 +25,7 @@ pub use machine_calls::fact_only_citations::{
 };
 pub use machine_calls::static_machine_call_contracts::{
     static_machine_call_binding_bytes, static_machine_parameter_contract_bytes,
-    static_machine_template_reach_contract_bytes, validate_static_machine_call_contracts,
-    validate_static_machine_parameter_contracts,
+    static_machine_template_reach_contract_bytes,
 };
 pub use machine_calls::structural_call_custody::{
     DeclarationPredicateRow, StateScalarContractRow, declaration_facts_carried,
@@ -178,11 +177,7 @@ pub use machine_calls::machine_parameters::{
     ValidatedRequirementCallTypeBinding, ValidatedStaticMachineSelections,
     closed_static_call_type_bindings, validate_static_machine_selections_with_facts,
 };
-pub use machine_calls::machine_specialization_identity::{
-    machine_specialization_matches_template_identity,
-    recompute_checked_machine_specialization_commitment,
-    validate_checked_machine_specialization_commitments,
-};
+pub use machine_calls::machine_specialization_identity::machine_specialization_matches_template_identity;
 pub use machine_calls::result_overloads::{
     bind_float_conversion_casts, resolve_named_result_overloads,
 };

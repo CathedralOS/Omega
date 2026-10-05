@@ -20,7 +20,6 @@ pub(crate) mod float_meanings;
 pub(crate) mod guarded_exits;
 pub(crate) mod machine_dispatch;
 pub(crate) mod reborrow_handoffs;
-pub(crate) mod specialization_commitments;
 
 pub use bounded_callbacks::callback_lowering_receipt;
 
@@ -36,7 +35,6 @@ use crate::machine_lowering::machine_dispatch::{
     TerminalMachineSelection, lower_selected_machine, select_terminal_machine,
 };
 use crate::machine_lowering::reborrow_handoffs::retain_admitted_reborrow_root_handoffs;
-use crate::machine_lowering::specialization_commitments::selected_closure_specializations;
 use crate::producer_result::{DebugPublication, LoweredSelectedMachine, OperandProofCompletion};
 use crate::proofs::evidence_lowering::lower_and_install_evidence_artifacts;
 use crate::proofs::mathematical_declarations::admit_mathematical_declarations;
@@ -229,11 +227,6 @@ fn lower_terminal_selection(
         &mut lowered.semantic_module,
     )?;
     let projection_sources = source_mapping.projection_sources(&lowered, selection.machine)?;
-    validation::validate_checked_machine_specialization_commitments(
-        checked,
-        &selected_closure_specializations(checked, &source_machines, &lowered),
-    )
-    .map_err(LoweringError::Unsupported)?;
     closed_reach_applications::retain_closed_reach_applications(
         checked,
         &projection_sources,

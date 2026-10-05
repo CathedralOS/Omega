@@ -16,10 +16,7 @@ use super::{
     lookup_machine_id, unique_unit_boundary, unsupported,
 };
 use checked_trees::machine::{Machine, TraitConformance};
-use validation::{
-    TopLevelSymbols, resolve_closed_requirement_application,
-    validate_checked_machine_specialization_commitments,
-};
+use validation::{TopLevelSymbols, resolve_closed_requirement_application};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum ProviderBody {
@@ -106,7 +103,6 @@ fn satisfies_requirement<'program>(
     conformance: &TraitConformance,
     requirement: CatalogRequirement<'program>,
     symbols: &mut Option<TopLevelSymbols<'program>>,
-    specializations: &mut Vec<symbols::SymbolHandle>,
 ) -> Result<bool, LoweringError> {
     if conformance.external_binding.is_some() {
         return Ok(false);
@@ -175,11 +171,7 @@ fn satisfies_requirement<'program>(
                 "provider catalog cannot rejoin the exact closed requirement application",
             )
         })?;
-    if closed.symbol != requirement.symbol {
-        return Ok(false);
-    }
-    specializations.extend([machine.symbol, requirement.symbol]);
-    Ok(true)
+    Ok(closed.symbol == requirement.symbol)
 }
 
 pub(super) fn checked_unit_provider_candidates(
@@ -205,7 +197,6 @@ pub(super) fn checked_unit_provider_candidates(
     boundary_symbols.dedup();
     let mut output = Vec::new();
     let mut symbols = None;
-    let mut specializations = Vec::new();
     for boundary_symbol in boundary_symbols {
         let boundary = unique_unit_boundary(plans, boundary_symbol)?;
         let exact_requirements = checked
@@ -280,14 +271,8 @@ pub(super) fn checked_unit_provider_candidates(
         }) {
             let mut matches = false;
             for conformance in checked.typed.machine_trait_conformances(machine) {
-                if satisfies_requirement(
-                    checked,
-                    machine,
-                    conformance,
-                    requirement,
-                    &mut symbols,
-                    &mut specializations,
-                )? {
+                if satisfies_requirement(checked, machine, conformance, requirement, &mut symbols)?
+                {
                     matches = true;
                     break;
                 }
@@ -404,15 +389,6 @@ pub(super) fn checked_unit_provider_candidates(
                     ))?,
             });
         }
-    }
-    // Discovery never grants authority to self-consistent but substituted
-    // applications. Replay both sides once for this catalog batch before any
-    // candidate can be published or contribute its body closure.
-    if !specializations.is_empty() {
-        specializations.sort_by_key(|symbol| (symbol.arena_index(), symbol.generation()));
-        specializations.dedup();
-        validate_checked_machine_specialization_commitments(checked, &specializations)
-            .map_err(LoweringError::Unsupported)?;
     }
     output.sort_by(|left, right| {
         (

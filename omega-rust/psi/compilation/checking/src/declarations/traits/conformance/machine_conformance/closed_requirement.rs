@@ -19,8 +19,8 @@ use typed_trees::typed_trees::MachineSpecialization;
 /// Resolve the exact requirement application named by a checked provider.
 ///
 /// This joins retained specialization identities, not provider selection or
-/// execution authority. Consumers must still replay checked commitments and
-/// validate the provider's signature, body and conformance.
+/// execution authority. Consumers must still validate the provider's
+/// signature, body and conformance.
 pub fn resolve<'program>(
     program: &'program TypedTrees,
     provider: &Machine,
@@ -96,12 +96,9 @@ pub fn resolve<'program>(
     }
     // Uniqueness is instance-wide, not scoped to the expected template: an
     // extra receipt under another template must not lend this instance two
-    // incompatible origins. The retained tuple must also name the application
-    // reconstructed from its signature. Checked commitment replay remains the
-    // later authority for the rest of specialization custody.
-    let identity = program
-        .machine_callable_identity_text(requirement)
-        .ok_or_else(failure)?;
+    // incompatible origins. The receipt already names this requirement as its
+    // template symbol; the retained tuple must also name the application
+    // reconstructed from its signature.
     if program
         .machine_specializations
         .iter()
@@ -109,12 +106,6 @@ pub fn resolve<'program>(
         .count()
         != 1
         || closed_receipt.template_parameters != requirement.type_parameters
-        || !crate::machine_specialization_matches_template_identity(
-            program,
-            closed_receipt,
-            &identity,
-            program.symbols.symbol_package_identity(requirement.symbol),
-        )
         || !retains_application_tuple(program, closed_receipt, application)
     {
         return Err(failure());

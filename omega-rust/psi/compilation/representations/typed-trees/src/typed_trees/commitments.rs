@@ -47,8 +47,9 @@ impl BoundaryCallingPlanCommitment {
 /// One compile-time machine specialization. Const arguments are canonical
 /// proof-static identities and static machine arguments are symbols; neither
 /// becomes a runtime value. `report_fingerprint` is a compact diagnostic/cache
-/// coordinate only; authority-bearing consumers must replay `commitment` from
-/// the retained exact specialization inputs.
+/// coordinate only. Stage 04 computes `commitment` once; Terminal Psi and
+/// package review carry it as the specialization's portable identity, and no
+/// later stage recomputes it.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct MachineSpecialization {
     pub template: symbols::SymbolHandle,
@@ -94,14 +95,12 @@ pub struct MachineSpecialization {
     /// template bytes represented by the adjacent compact report coordinate.
     pub template_contract_commitment: MachineTemplateCommitment,
     /// Exact canonical universal-template encoding captured before in-place
-    /// substitution consumes its generic parameter declarations. This is
-    /// retained so later checked-to-terminal review can independently replay
-    /// the specialization commitment rather than trusting the compact
-    /// template coordinate above.
+    /// substitution consumes its generic parameter declarations. Stage 04
+    /// folds it into `commitment` once checked contract plans exist.
     pub canonical_template_contract_bytes: Vec<u8>,
     /// Package-qualified normalized overload identity of the authored generic
-    /// template before substitution. The concrete `instance` identity is
-    /// rederived from the retained typed program during commitment replay.
+    /// template before substitution. ProviderPlan checked-adapter joins and
+    /// Terminal Psi closed reach applications name the template by it.
     pub normalized_template_identity: String,
     /// The one accepted-fact commitment this instance relies upon. Every
     /// instance points at the same template commitment; none spends a new

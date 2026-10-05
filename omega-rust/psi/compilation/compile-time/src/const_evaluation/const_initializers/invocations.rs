@@ -66,14 +66,6 @@ impl CheckedInitializers {
             bodies,
             &typed_trees_to_checked_trees::CheckingRequest::settled(),
         )?;
-        let instances = checked
-            .typed
-            .machine_specializations
-            .iter()
-            .map(|specialization| specialization.instance)
-            .collect::<Vec<_>>();
-        validation::validate_checked_machine_specialization_commitments(&checked, &instances)
-            .map_err(|reason| super::failure(source::SourceSpan::default(), reason))?;
         let crash_causes = typed_trees_to_checked_trees::infer_checked_crash_causes(
             &checked.typed,
             &checked.facts,

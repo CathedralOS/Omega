@@ -38,8 +38,7 @@ pub(crate) fn retain_closed_reach_applications(
     }) {
         return Ok(());
     }
-    // One prepared graph serves the complete selected batch. The commitment
-    // replay immediately preceding this phase checks retained template custody.
+    // One prepared graph serves the complete selected batch.
     let operational = &checked.facts.operational;
     let inferred = &checked.facts.service_reaches;
     for specialization in &checked.machine_specializations {

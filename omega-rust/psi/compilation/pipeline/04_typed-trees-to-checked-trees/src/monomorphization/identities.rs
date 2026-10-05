@@ -423,8 +423,6 @@ pub(crate) fn bind_specialization_contract_identities(
     contracts: &checked_trees::MachineContractPlans,
 ) -> Result<(), Vec<Diagnostic>> {
     let operational = validation::infer_operational_may(program);
-    validation::validate_static_machine_call_contracts(program, &operational)
-        .map_err(|diagnostic| vec![diagnostic])?;
     let identities: Result<Vec<_>, _> = program
         .machine_specializations
         .iter()

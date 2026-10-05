@@ -1,12 +1,11 @@
-//! Exact custody of a static binder after its executable target is substituted.
+//! Static binder custody encoded into machine specialization identities.
 //!
 //! The template retains its inferred finite reach dependency, not the row of
-//! whichever application happens to be emitted. Private helper contributions
-//! therefore change the existing template commitment. Encoding and replay use
-//! the original telescope and a prepared whole-graph inference plan; neither
-//! selected callback bodies nor a self-consistent retained hash supply that
-//! original dependency. This is producer correspondence, not portable decoding
-//! of the complete generic contract.
+//! whichever application happens to be emitted, so private helper
+//! contributions change the template commitment. Each application also
+//! encodes which binder every rewritten call selected. Stage 04 folds these
+//! bytes into the template and specialization commitments once; no later
+//! stage recomputes them.
 
 use diagnostics::Diagnostic;
 use flow_effects::OperationalPlan;
@@ -120,8 +119,7 @@ pub fn static_machine_parameter_contract_bytes(
         };
         bytes.extend((ordinal as u64).to_le_bytes());
         let Some(contract) = program.machine_parameter_contract_view(contract) else {
-            // Invalid typed inputs receive a distinct encoding; validation
-            // rejects a retained call before using a missing contract.
+            // Invalid typed inputs receive a distinct encoding.
             bytes.push(0);
             continue;
         };
@@ -238,12 +236,6 @@ pub fn static_machine_call_binding_bytes(
             if !call.static_machine_parameter.is_valid() {
                 continue;
             }
-            validate_call_selection(
-                program,
-                owner.symbol,
-                call.static_machine_parameter,
-                call.target_state_symbol,
-            )?;
             let Some(binder_ordinal) = parameters
                 .iter()
                 .filter(|parameter| matches!(parameter.kind, TypeParameterKind::Machine { .. }))
@@ -271,166 +263,4 @@ pub fn static_machine_call_binding_bytes(
         }
     }
     Ok(bytes)
-}
-
-/// Compare the retained reader inputs with their committed template segment.
-pub fn validate_static_machine_parameter_contracts(program: &TypedTrees) -> Result<(), Diagnostic> {
-    for specialization in &program.machine_specializations {
-        let parameters = program
-            .data_type_parameters
-            .span_or_empty(specialization.template_parameters);
-        let expected = static_machine_parameter_contract_bytes(program, parameters);
-        if !specialization
-            .canonical_template_contract_bytes
-            .ends_with(&expected)
-        {
-            return Err(Diagnostic::error(
-                "retained static machine parameter contracts disagree with their canonical template",
-            ));
-        }
-    }
-    Ok(())
-}
-
-/// Rejoin retained call binders to their caller's exact specialization tuple.
-/// Operational traversal supplies owner and call coordinates; neither readable
-/// target names nor matching requirement shapes establish selection identity.
-pub fn validate_static_machine_call_contracts(
-    program: &TypedTrees,
-    operational: &OperationalPlan,
-) -> Result<(), Diagnostic> {
-    validate_static_machine_parameter_contracts(program)?;
-    if !program.machine_specializations.is_empty() {
-        let inferred = crate::infer_service_reaches(program, operational);
-        for specialization in &program.machine_specializations {
-            let template = program
-                .machines()
-                .iter()
-                .find(|machine| machine.symbol == specialization.template)
-                .ok_or_else(|| Diagnostic::error("generic reach dependency lost its template"))?;
-            let expected =
-                static_machine_template_reach_contract_bytes(program, &inferred, template)?;
-            if !specialization
-                .canonical_template_contract_bytes
-                .ends_with(&expected)
-            {
-                return Err(Diagnostic::error(
-                    "retained generic reach dependency differs from the original template graph",
-                ));
-            }
-        }
-    }
-    for machine in operational.machines() {
-        for state in operational.states.span_or_empty(machine.states) {
-            for call in operational.calls.span_or_empty(state.calls) {
-                if !call.static_machine_parameter.is_valid() {
-                    continue;
-                }
-                validate_call_selection(
-                    program,
-                    machine.symbol,
-                    call.static_machine_parameter,
-                    call.target_state_symbol,
-                )?;
-            }
-        }
-    }
-    Ok(())
-}
-
-fn validate_call_selection(
-    program: &TypedTrees,
-    caller: SymbolHandle,
-    binder: SymbolHandle,
-    target: SymbolHandle,
-) -> Result<(), Diagnostic> {
-    let mut specializations = program
-        .machine_specializations
-        .iter()
-        .filter(|specialization| specialization.instance == caller);
-    let Some(specialization) = specializations.next() else {
-        return Err(Diagnostic::error(
-            "retained static machine call has no owning specialization",
-        ));
-    };
-    if specializations.next().is_some() {
-        return Err(Diagnostic::error(
-            "retained static machine call has ambiguous owning specializations",
-        ));
-    }
-    let parameters = program
-        .data_type_parameters
-        .span_or_empty(specialization.template_parameters);
-    let mut matching_parameters = parameters
-        .iter()
-        .filter(|parameter| matches!(parameter.kind, TypeParameterKind::Machine { .. }))
-        .enumerate()
-        .filter(|(_, parameter)| parameter.symbol == binder);
-    let Some((ordinal, parameter)) = matching_parameters.next() else {
-        return Err(Diagnostic::error(
-            "retained static machine call binder is absent from its template parameters",
-        ));
-    };
-    if matching_parameters.next().is_some() {
-        return Err(Diagnostic::error(
-            "retained static machine call binder is duplicated in its template parameters",
-        ));
-    }
-    let TypeParameterKind::Machine { contract } = &parameter.kind else {
-        return Err(Diagnostic::error(
-            "retained static machine call lost its machine parameter contract",
-        ));
-    };
-    if program.machine_parameter_contract_view(contract).is_none() {
-        return Err(Diagnostic::error(
-            "retained static machine call has no exact requirement contract",
-        ));
-    }
-    let Some(selected) = specialization.machine_arguments.get(ordinal) else {
-        return Err(Diagnostic::error(
-            "retained static machine call has no selected argument at its binder ordinal",
-        ));
-    };
-    let selected_entry =
-        crate::declarations::transitions::resolved_transition_target_state(program, *selected);
-    let actual_entry =
-        crate::declarations::transitions::resolved_transition_target_state(program, target);
-    let matches = match (selected_entry, actual_entry) {
-        (Some((selected_machine, selected_state)), Some((actual_machine, actual_state))) => {
-            if selected_state.symbol == actual_state.symbol {
-                true
-            } else {
-                // A higher-order binder selects an authored generic schema.
-                // Its executable call selects a closed instance of that exact
-                // schema, not a different callable with a matching signature.
-                // The application commitment below also binds the concrete
-                // target; the template is never rewritten to the first tuple.
-                let mut applications = program
-                    .machine_specializations
-                    .iter()
-                    .filter(|application| application.instance == actual_machine.symbol);
-                let application = applications.next();
-                application.is_some_and(|application| {
-                    application.template == selected_machine.symbol
-                        && !program.machine_type_parameters(selected_machine).is_empty()
-                        && program.machine_type_parameters(actual_machine).is_empty()
-                        && program
-                            .machine_states(selected_machine)
-                            .iter()
-                            .position(|state| state.symbol == selected_state.symbol)
-                            == program
-                                .machine_states(actual_machine)
-                                .iter()
-                                .position(|state| state.symbol == actual_state.symbol)
-                }) && applications.next().is_none()
-            }
-        }
-        _ => false,
-    };
-    if !matches {
-        return Err(Diagnostic::error(
-            "retained static machine call target disagrees with its selected argument",
-        ));
-    }
-    Ok(())
 }

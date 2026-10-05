@@ -24,5 +24,4 @@ numerics = { path = "../../foundation/numerics" }
 source = { path = "../../foundation/source" }
 symbols = { path = "../../foundation/symbols" }
 typed-trees = { path = "../representations/typed-trees" }
-sha2 = "0.10"
 

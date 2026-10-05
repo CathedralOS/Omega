@@ -697,9 +697,6 @@ pub fn admit_prepared_program_effects(
         proof_embeddings::validate_integer_embedding_calls(program, &mut diagnostics);
     facts.fact_call_projections =
         fact_call_projections::validate_fact_call_projections(program, &mut diagnostics);
-    if let Err(error) = crate::validate_static_machine_call_contracts(program, operational) {
-        diagnostics.push(error);
-    }
     if let Err(mut errors) = crate::validate_behavior_plan(program, operational) {
         diagnostics.append(&mut errors);
     }
