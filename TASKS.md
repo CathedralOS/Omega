@@ -2328,6 +2328,76 @@ crash and native exit behavior.
   checkout before recording anything.
 
 
+- **COMPUTED-FLOAT-BARE-LITERAL-COMPARISON.** (new-scope)
+  A comparison between a **computed** f32/f64 value and an **unsuffixed** float
+  literal does not lower. Two-line repro:
+
+      use omega::language::core::float_operations;
+      machine code() -> bool { F64::square_root(64.0f64) == 8.0 }
+
+  → `terminal-artifact production failed: Lowering(Unsupported("scalar
+  computation needs one checked expression and one source binding"))`.
+
+  Measured across 13 probe programs at `a6dfddd40e9`: both operand orders fail,
+  every comparison operator fails, and both the local-initializer and return
+  roles fail. Integers are unaffected; a bare float **place** operand is
+  unaffected; suffixing the literal, `as f64`, or binding it to a typed local
+  each fix it. This is an authored spelling, not a synthetic one -- the owner's
+  own `pass/float/build_runtime_semantics_twins_*` fixtures are written exactly
+  this way (`product64 == 1.000...`, `one64 / 2.0 == 0.5`).
+
+  **Mechanism, measured with a stage-05 probe rather than inferred.** Both the
+  source-binding row and the expression row are absent at the coordinate. The
+  drop is the retention filter at `values/scalar/expression_plans.rs:185-193`,
+  whose comment says a pure payload tree "cannot carry an authored semantic
+  qualification transfer. Leave those exact source bindings to the computation
+  graph." But `semantic_casts::requires_custody`
+  (`values/scalar/semantic_casts.rs:98`) is **recursive over the whole
+  expression tree** -- true when any *descendant* is a custody-needing cast --
+  while the computation graph only claims the coordinate when the cast is the
+  **root** (`computations.rs:1180` fires `authored_cast` only for a root
+  `ExpressionNode::Cast`, and the pure fallback at `:1222` is gated behind
+  `!requires_custody`). For a custody cast sitting as a mere **operand**, both
+  sides decline and the coordinate ends up empty.
+
+  Blocked on the owner question `operand-level-float-landing-custody` in
+  `OWNER_QUESTIONS.md`: build order forecloses the obvious repair, since
+  `values.scalar_expressions` is built at `facts.rs:166` and
+  `values.scalar_computations` at `:227` consumes it, so the drop cannot consult
+  whether the computation graph claimed the coordinate. Fixture to add once
+  ruled: `tests/omega/pass/float/computed_float_bare_literal_comparison/`.
+
+- **FLOAT-OPERATOR-NOT-RECOGNIZED-AS-SCALAR-INTRINSIC.** (new-scope)
+  `scalar_intrinsic` (`terminal_unit/control/call_occurrences.rs:243`) reports
+  **false for every float operator and builtin** that
+  `pass/float/build_runtime_semantics_twins_*` use -- `F64::square_root`,
+  `F64::is_nan`, `F64::minimum`, `Float::add::add`, `Float::divide::divide` --
+  measured from the roster dump. Its own comment states the opposite: "A pure
+  scalar builtin (min/max/sqrt, float rounding and classification) ... is never
+  an outer or nested call to sequence." `builtin_function_for_symbol` does not
+  recognize the conformance-operator symbols these calls actually target, so the
+  predicate is narrower than its stated rule **by exactly the set the comment
+  names**. This is the twins' primary Psi wall.
+
+  **The twins are double-blocked; do not assign them as one repair.** Measured:
+  dropping the 64-bit half removes the unit-plan omission entirely and the
+  fixture then stops on a backend wall -- `selected compiler intrinsic
+  <selected target>::FloatNativeProvider::satisfies::operator::F64::is_subnormal
+  / ::classify / ::is_finite / ::is_normal has no native boundary realization`
+  on `linux_x86_64`. So a perfect Psi repair still leaves them behind the x86
+  float classification realization gap.
+
+- **RECEIVER-RECONCILIATION-STAGE-MISNAMED.** (new-scope)
+  `CheckedUnitPlanOmissionStage::ReceiverReconciliation` is **live but
+  describes deleted machinery**. It is recorded at `terminal_unit/mod.rs:353`,
+  reporting machines dropped by `cleanup::normal_edges::retain_planned` *and* by
+  builder-overlap resolution, while its doc comment, its stage-05 text ("was
+  dropped while reconciling retained receivers") and its omega rendering all
+  describe the receiver machinery `c4e69244207` deleted. No golden or wiki text
+  carries that wording, so the change is golden-neutral. **It conflates two
+  causes, so the honest repair is a split, not a one-word rename** -- a reader
+  currently cannot tell which of the two dropped a machine.
+
 - **UNSELECTED-DIRECT-REQUIREMENT-GATE-WIDENED.** (split-of:MACOS-NATIVE-LOST-SUCCESSES)
   `pass/core/interrupt_obligations_surface` has one blocking line, proved by
   measurement. `reject_unselected_direct_requirement_calls`
