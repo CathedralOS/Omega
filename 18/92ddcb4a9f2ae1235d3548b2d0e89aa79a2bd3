@@ -1,0 +1,4 @@
+owner: z1
+provenance: re-probe at b4389bab04: acquires_through_helper_return rejected->built 6643ms exit:0 interpreter:agrees (qualified-aggregate-homes-through-returns heal; corroborates darwin +wt)
+ticket: 0fbe1707cfaa40499ec6eb38baf87596
+published_utc: 2026-10-05T18:17:57.461619+00:00
