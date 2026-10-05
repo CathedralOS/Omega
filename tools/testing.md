@@ -150,6 +150,22 @@ restore the previous timing on any row whose status, expected-fragment
 verdict, facts and diagnostics are unchanged; otherwise a four-row movement
 lands as a forty-row diff in a file every lane edits.
 
+**A full run can exceed the harness background cap, and the way through is
+slices, not detaching.** At six concurrent sessions on a 10-cpu host a full
+`--baseline --record` took 19 minutes of runner build plus over 100 minutes of
+fixtures and did not finish inside a 2-hour cap; `nohup`/`disown` is not a way
+around it, and killing a gate's parent leaves its `corpus_runner` executing
+against a dead pipe. Accumulate the baseline from several `--filter <group>/`
+slices instead: a subset `--record` **merges** into the same baseline file, and
+`--baseline` compares only the fixtures that ran. Diff the after-run the same
+way, slice by slice. Use the trailing slash on each group -- a bare substring
+like `time` matches 510 fixtures, some already red, and their unmet exit
+promises abort the run before the golden diff.
+
+**Do not record a baseline in a worktree you are then editing.** The runner is
+built from the tree, so an edit that lands before the link step silently
+measures something other than the base.
+
 To measure what your own change moved, record a baseline once per base commit
 and diff against it, rather than running the corpus twice per measurement:
 
