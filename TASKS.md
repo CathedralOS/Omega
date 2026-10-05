@@ -2419,68 +2419,44 @@ crash and native exit behavior.
 - **MACOS-NATIVE-LOST-SUCCESSES.** (new-scope)
   `tests/omega/corpus_native_macos_arm64.txt` carries rows with a
   `regressed-from:` token: a success this host recorded and no longer reaches.
-  **Do not restate the count here -- it moved 21, 18, 17, 16, 15 in one day and
-  this paragraph was stale after every one.** Read it from
-  `python3 tools/corpus_scoreboard.py`, which prints the live roster and names
-  each row with the outcome it lost. The rows were invisible until the golden
-  could say so, and most claimed `built` with an authored exit. Revalidate each recorded loss
-  against current main before assigning a repair. Two lost a running program with an authored exit
-  (`pass/text/local_bounded_text_case_result_loan_exit` and
-  `pass/text/local_bounded_text_scalar_loan_exit`, now `incomplete` at the
-  proof-search provision). Another lost `built` on an absent boundary
-  provider (`pass/memory/secondary_processor_canary`, on
-  StartupEnvelope::confirm).
+  Read the live roster with `python3 tools/corpus_scoreboard.py`; do not copy
+  its count into this board. Reproduce the unchanged program on current main
+  before assigning a repair, and group failures by their current cause.
+  Re-record a stale row only after its authored execution oracle succeeds;
+  correcting the record is evidence of existing behavior, not a new compiler
+  capability.
 
-  More lost `checked`. **Re-measured at `c9eb93b5756`, the provider-absence
-  grouping is wrong and splits in two.** Only two rows are still held by the
-  unselected-direct-requirement gate, and both declare no provider anywhere in
-  the repo for any target, so neither is host-dependent:
-  `pass/core/interrupt_obligations_surface` and
-  `pass/memory/address_translation_canary`.
-  `pass/memory/interrupt_table_canary` and
-  `pass/memory/secondary_processor_canary` have moved **past** that gate -- they
-  do select providers and realize them `via ForeignBinding::CompilerIntrinsic`
-  -- and now reject with `selected overload ... has no compiler-known intrinsic
-  realization`, which belongs to whoever owns intrinsic realization rather than
-  to provider absence. Also here:
-  `pass/dependent/boundary_equality_recast_witness_compile` on a recast offset
-  of 4294967295 (see RECAST-OFFSET-EQUALITY-TRANSPORT).
-  Every diagnostic matches the
-  one the check golden already recorded, so none of these is native-only: the
-  native row had simply outlived the check-leg regression. Group them by
-  diagnostic before claiming any -- several belong to items that already own
-  that refusal, and the provider-absence rows may be reporting the host.
+  Remaining recorded failures route to their existing owners:
+  - `pass/text/local_bounded_text_{case_result,scalar}_loan_exit` stops at
+    operation proof production/search; **CHECKER-DISCHARGES-OPERATION-OBLIGATIONS**
+    owns those index decisions.
+  - `pass/borrows/borrow_domain_window_write_and_call` reproduces on
+    `c9eb93b5756`, macOS ARM64, after ordinary package preparation:
+    `omega run --both tests/omega/pass/borrows/borrow_domain_window_write_and_call/main.omg`
+    rejects with `BorrowedDescriptorLoanDisturbed` at operation 27/place 6.
+    Its returned-window sibling records operation 28/place 6 and still needs
+    a current recheck. The refusal is in Terminal's descriptor-loan replay,
+    which **OMEGA-READS-TERMINAL-UNVERIFIED** retires after its checker and
+    certificate prerequisites; do not add a new verifier special case.
+  - `pass/borrows/mut_loan_local_write_through_exit` and
+    `run/borrows/local_mut_borrow` record missing structural argument storage;
+    **REFERENCE-LOCAL-BINDING-ROUTES** owns the primitive-home repair.
+  - The provider cluster was re-measured at `c9eb93b5756`:
+    `pass/core/interrupt_obligations_surface` and
+    `pass/memory/address_translation_canary` remain at the unselected direct
+    requirement gate and declare no provider for any target; these are not
+    host-dependent refusals. `pass/memory/interrupt_table_canary` and
+    `pass/memory/secondary_processor_canary` select providers realized via
+    `ForeignBinding::CompilerIntrinsic` and now reject for a missing
+    compiler-known intrinsic realization. **STATIC-BOUNDARY-REQUIREMENT-CALL-FORM**
+    owns that split; do not collapse it back into provider absence.
+    **RECAST-OFFSET-EQUALITY-TRANSPORT** owns the dependent recast witness's
+    offset relation.
 
-  **Four rows have closed, and both diagnosed mechanisms had the same shape: a
-  predicate one step narrower than the rule its own comment stated.**
-  `pass/proofs/named_witness_static_trait_plural_compile` reached `checked`
-  when the specializer stopped promoting a static-requirement-dispatch call's
-  first argument into a receiver slot and stripping it from the operand roster
-  -- the authored site was always correct, only the specialized clone was
-  wrong. `pass/capabilities/acquires_through_helper_return` builds and exits 0
-  since `7643074136c` removed `aggregate_result_input::home`'s refusal of a
-  native home to any domain-qualified result that was not a bounded owned byte
-  sequence, where the comment directly above it already said the query must
-  not reclassify a roster by which operation produced it. Read the remaining
-  `SourceCustodyMismatch` rows that way before bisecting.
-  Eight more were recorded at `5eaadf22c0a` after `dce3e972eff` moved their
-  check rows, and they cluster tighter than the first thirteen: three are the
-  unit-plan omission family and belong to whoever owns that refusal
-  (`pass/float/runtime_total_order_satisfiers_exit` on `F32::TotalOrder`,
-  `pass/recast/runtime_scalar_parameter_shared_views_exit` on `read_bits64`,
-  `pass/recast/runtime_shared_parameter_view_calls_exit` on `inspect`, each
-  `InvalidUnitMachinePlan` with "scalar callee has no checked executable
-  body"); two are one `BorrowedDescriptorLoanDisturbed` at
-  `PlaceId(6)` (`pass/borrows/borrow_domain_window_write_and_call` at
-  `OperationId(27)`, `pass/borrows/borrow_returned_window_write_and_call` at
-  `OperationId(28)`); two are one `Unsupported("structural argument has no
-  established storage")` (`pass/borrows/mut_loan_local_write_through_exit`,
-  `run/borrows/local_mut_borrow`). The selected-provider const evaluation
-  regression is repaired; keep its native and interpreter exit oracle at 70.
-  Claim a remaining cause rather than a row.
-
-  Acceptance: `python3 tools/corpus_scoreboard.py` reports fewer `regressed`
-  rows because the fixtures run again, not because a row was re-recorded.
+  Acceptance: each remaining loss is restored through its original checked,
+  build or execution gate, preserving its authored exit/output oracles.
+  Host and implementation dependencies remain open; a missing result cannot
+  be blessed by changing a golden.
 
 - **NATIVE-GOLDEN-LINUX-BOUND-UNMEASURED.**
   (split-of:NATIVE-GOLDEN-CANNOT-RECORD-A-REGRESSION)

@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 14, "jobs": "3", "load1_end": 9.01, "load1_start": 9.53, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": "3", "load1_end": 5.16, "load1_start": 5.56, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 189ms
 pass/arithmetic/anonymous_rational_integer_landing checked 186ms
 pass/arithmetic/bounded_assignment checked 197ms
@@ -684,8 +684,7 @@ pass/float/runtime_named_fma_sequence_exit built 4765ms exit:70 @8b1dc72a53ca+wt
 pass/float/runtime_named_format_conversion_exit built 1813ms exit:70 @0d9777b52aee+wt
 pass/float/runtime_named_policy_result_exit built 5582ms exit:70 @fa2336e35cbc
 pass/float/runtime_std_is_finite_exit built 1831ms exit:70 @de54b0ba9fed+wt
-pass/float/runtime_total_order_satisfiers_exit rejected 49881ms regressed-from:built+exit:70 @d2121d578c46+wt
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "F32::TotalOrder", reason: "scalar callee has no checked executable body", omission: Some("`F32::TotalOrder` has no admitted body (local construction stopped at statement sequence: local data: reference capture, statement 0)") })
+pass/float/runtime_total_order_satisfiers_exit built 25204ms exit:70 @c9eb93b5756b
 pass/float/scalar_helper_boundary_sequence_exit built 1800ms exit:70 @de54b0ba9fed+wt
 pass/float/state_loop_field_refinement_restoration_exit built 1742ms exit:70 @163770eba39c+wt
 pass/float/x86_fma_plan_association rejected 3185ms @48008365d839
@@ -959,11 +958,9 @@ pass/recast/runtime_nested_record_byte_store_exit built 975ms exit:70 @2517a050d
 pass/recast/runtime_offset_byte_recast_mutable_write_exit built 1791ms exit:70 @48008365d839
 pass/recast/runtime_recast_record_view_indexed_write_exit built 1576ms exit:70 @3b624377ec31
 pass/recast/runtime_record_array_view_mutable_write_exit built 3951ms exit:70 @06ca7704be0a
-pass/recast/runtime_scalar_parameter_shared_views_exit rejected 12679ms regressed-from:built+exit:70 @d2121d578c46+wt
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "read_bits64", reason: "scalar callee has no checked executable body", omission: Some("`read_bits64` has no admitted body (local construction stopped at statement sequence: local data: reference capture, statement 0)") })
+pass/recast/runtime_scalar_parameter_shared_views_exit built 1658ms exit:70 @c9eb93b5756b
 pass/recast/runtime_shared_domain_weakening_recast_exit built 1610ms exit:70 @fb2178def922
-pass/recast/runtime_shared_parameter_view_calls_exit rejected 18416ms regressed-from:built+exit:0 @d2121d578c46+wt
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "inspect", reason: "scalar callee has no checked executable body", omission: Some("`inspect` has no admitted body (local construction stopped at statement sequence: local data: reference capture, state 0, statement 1)") })
+pass/recast/runtime_shared_parameter_view_calls_exit built 1658ms exit:0 @c9eb93b5756b
 pass/recast/runtime_shared_record_float_range_weakening_exit built 2419ms exit:70 @f3aa5908ce43
 pass/references/mutable_loan_member_read_initializes_local_exit built 1229ms exit:70 @a1e2cd93d1e7
 pass/references/runtime_shared_ref_param_guard_exit built 583ms exit:1
