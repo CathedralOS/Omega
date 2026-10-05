@@ -76,34 +76,36 @@ helper that passes does not close an item.
   If the regression no longer reproduces, remove this task with that evidence;
   do not invent a new language decision to justify keeping it open.
 
-- **ENTRY-SLOT-EXACT-SCHEMA-SELECTION.** (split-of:UEFI-PHYSICAL-SEMANTIC-ENTRY) Select a root slot's
-  boundary schema by its exact declaration/package identity, as already
-  required by [target slots](wiki/spec/build/entry_roots.md#slots).
-  `entry-slot-schema-resolved-by-bare-name` is an implementation defect, not
-  permission for an unrelated local schema to shadow a target's declaration.
-  - `omega-rust/omega/compilation/realization/provider-planning/src/program_entry.rs::validate_selected_program_entry_calling_plan`
-    scans all loaded boundary traits by `definition.name == schema_name`.
-    Join the slot's exact owner/schema or explicit accepted package binding,
-    retaining physical and semantic requirement identities. Remove the
-    global name scan, not just its duplicate-name diagnostic.
-  - Customer: a program binding the canonical UEFI entry while another loaded
-    package declares an unrelated `UefiApplication`. The latter must neither
-    redirect nor make the selected entry ambiguous. Preserve
-    `pass/build/uefi_os_handoff_invocation` and cover a same-leaf nonselected
-    schema plus wrong-owner/schema controls.
-  - Repair `fail/build/uefi_program_entry_wrong_calling_policy` to exercise the
-    actual physical-convention mismatch through the existing exact accepted
-    package/schema route. Its current same-leaf local declaration is not a
-    selection. If its advertised construction is unexpressible under that
-    contract, replace the fixture with a valid rejection customer; do not add
-    a shadowing feature or pin the accidental global duplicate as the rule.
-    Remove the fixture header's stale owner-decision claim during that repair.
-    Task-specific corpus coverage must still distinguish the plan mismatch
-    from schema selection failure.
-  Acceptance: `python tools/corpus_gate.py --filter build/uefi_` and new
-  same-leaf schema coverage exercise exact selection and physical/semantic
-  plan compatibility. The unrelated declaration leaves the valid program's
-  result unchanged, and invalid selected plans reject for their real contract.
+- **ENTRY-SLOT-EXACT-SCHEMA-SELECTION.** (split-of:UEFI-PHYSICAL-SEMANTIC-ENTRY)
+  Finish UEFI execution and alternate accepted-contract coverage after exact
+  [target-slot](wiki/spec/build/entry_roots.md#slots) selection.
+  - The slot now selects its bundled source owner or explicit accepted
+    package/declaration binding in
+    `omega-rust/omega/compilation/realization/provider-planning/src/program_entry.rs`.
+    Physical requirements follow resolved schema composition; semantic arrival
+    keeps core's exact requirement identity. Unrelated same-leaf declarations
+    neither shadow the selection nor create another candidate.
+  - On macOS ARM64, `omega run tests/omega/pass/build/entry_schema_same_leaf_exit/main.omg`
+    now exits 0; base `199028b84b4` rejected the same program for two loaded
+    `MacosApplication` declarations. `pass/build/uefi_entry_schema_same_leaf`
+    now reaches `Selection(Legalization(SourceCustodyMismatch))` at
+    `omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/legalization/scalar_graph_input/aggregate_results.rs::header`.
+    Base `199028b84b4` produces that same backend failure when the unrelated
+    declarations are renamed. Fix that producer/consumer mismatch, keeping
+    the authored image/storage roots; do not add a source-shape exception.
+    `pass/build/uefi_os_handoff_invocation` retains its separate omitted
+    `UefiOsHandoffCycle::acquire` lowering dependency.
+  - `fail/build/uefi_entry_schema_wrong_owner` rejects an unaccepted supplier
+    despite matching the contract's path/name. The old local-shadowing
+    construction in `fail/build/uefi_program_entry_wrong_calling_policy` is
+    replaced with a real invalid physical plan (AAPCS64 with x86 registers).
+    The corpus currently accepts only the bundled entry supplier. Add coverage
+    of a different explicitly accepted package/schema whose otherwise valid
+    physical convention mismatches the slot; do not invent local shadowing.
+  Acceptance: `python tools/corpus_gate.py --filter build/uefi_` plus native
+  `build/entry_schema_same_leaf_exit`; UEFI reaches its intended product,
+  unrelated declarations preserve it, and invalid selected plans reject for
+  their actual contract rather than an accidental name collision.
 
 - **STATIC-DUNGEON-NATIVE-BUILD-COST.** (split-of:STATIC-MACHINE-MIGRATION)
   The native build of `samples/cli/games/dungeon_crawler_cli` does not finish.
@@ -816,12 +818,10 @@ defines the complete product bar.
     `fail/expressions/token_bound_machine_duplicate_shape_rejected` and quotient
     rejections; attribute `fail/operators/selected_crash_invocation` to the
     authored operator invocation.
-  - `fail/build/uefi_program_entry_wrong_calling_policy` must reach the
-    MicrosoftX64 policy mismatch;
-    `omega-rust/omega/compilation/realization/provider-planning/src/program_entry.rs`
-    selects schemas by bare name, so the local `UefiApplication` collides first.
-    Exact schema identity: **ENTRY-SLOT-EXACT-SCHEMA-SELECTION**. Do not repin onto
-    the duplicate-schema error.
+  - **ENTRY-SLOT-EXACT-SCHEMA-SELECTION** owns the remaining accepted-package
+    physical-convention mismatch customer. The local-schema negative now
+    rejects its invalid register architecture; it does not select the target
+    entry contract or prove the selected-convention comparison.
   - `fail/providers/checked_boundary_operator_const_application_unselected`:
     recorded diagnostic and `expected.txt` disagree; it must reject for missing
     exact authored selection (**OPERATOR-BOUNDARY-CALLS**).

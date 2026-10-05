@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": "3", "load1_end": 24.34, "load1_start": 26.45, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": null, "load1_end": 3.04, "load1_start": 3.04, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 189ms
 pass/arithmetic/anonymous_rational_integer_landing checked 186ms
 pass/arithmetic/bounded_assignment checked 197ms
@@ -132,6 +132,7 @@ pass/build/const_index_dependency_order_exit built 1854ms exit:0 @467bec194212
 pass/build/crash_exclusion_untrapping_provider_exit built 2600ms exit:0 @5c302dd6d305
 pass/build/described_runner_entry_left_exit built 2356ms exit:11 @26b974b5cae7+wt
 pass/build/described_runner_entry_right_exit built 2175ms exit:37 @26b974b5cae7+wt
+pass/build/entry_schema_same_leaf_exit built 1503ms exit:0 @199028b84b44+wt
 pass/build/product_description_paths_exit built 953ms exit:0 @5d467687f505+wt
 pass/build/product_entry_named_user_machine_exit built 608ms exit:0 @d7dd90112d31
 pass/build/runtime_depend_mapping_exit built 612ms exit:70
@@ -140,6 +141,8 @@ pass/build/runtime_static_service_exclusion_exit built 2512ms exit:0 @5c302dd6d3
 pass/build/same_leaf_runner_entry_left_exit built 2715ms exit:11 @26b974b5cae7+wt
 pass/build/same_leaf_runner_entry_right_exit built 2443ms exit:37 @26b974b5cae7+wt
 pass/build/selected_const_array_length_exit built 12069ms exit:0 @467bec194212
+pass/build/uefi_entry_schema_same_leaf rejected 1327ms @199028b84b44+wt
+	native artifact identity physical pipeline failed: common physical staging failed: Selection(Legalization(SourceCustodyMismatch { site: Location { file: "omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/legalization/scalar_graph_input/aggregate_results.rs", line: 284, column: 20 } }))
 pass/build/uefi_os_handoff_invocation rejected 1352ms @48008365d839
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Loader::drive`), which was itself omitted at an unavailable callee (`UefiOsHandoffCycle::run`), which was itself omitted at an unavailable callee (`UefiOsHandoffCycle::acquire`), which was itself omitted at local construction at `call operation: projected operand support`
 pass/calls/ambient_receiver_scalar_return_exit built 3704ms exit:70 @48d34a64a938+wt

@@ -1,0 +1,1 @@
+requires one exact contract-owned boundary schema `UefiApplication`, but found 0

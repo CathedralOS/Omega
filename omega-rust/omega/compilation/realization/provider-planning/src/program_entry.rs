@@ -1,4 +1,12 @@
 //! Program-entry selection and validation of source and physical calling contracts.
+//!
+//! Entry slots select a contract owner before selecting declarations. Bundled
+//! contracts use their exact source custody; accepted packages use their explicit
+//! package/declaration binding. The physical requirement comes from that schema's
+//! resolved composition graph; the semantic requirement retains core's identity.
+//! Calling plans must join both exact requirement symbols to the selected schema.
+//! Unrelated same-leaf traits cannot redirect selection, including when Build and
+//! product retain separate package instances.
 
 use diagnostics::Diagnostic;
 use typed_trees::TypedTrees;
@@ -264,7 +272,7 @@ fn validate_program_entry_source_compatibility(
     if slot.visible_parameters == target::ProgramEntryVisibleParameters::ImageAndInitialStorage
         && visible.len() == 2
     {
-        match arrival_requirement_contract(typed, slot.semantic_arrival_requirement) {
+        match core_arrival_requirement_contract(typed, slot.semantic_arrival_requirement) {
             Ok(required) if required.parameters.len() == visible.len() => {
                 for (index, (actual, required)) in
                     visible.iter().zip(required.parameters.iter()).enumerate()
@@ -674,22 +682,12 @@ pub fn validate_selected_program_entry_calling_plan(
         }
         return Ok(None);
     };
-    let schemas = typed
-        .traits()
-        .iter()
-        .filter(|definition| definition.is_boundary && definition.name.as_str() == schema_name)
-        .collect::<Vec<_>>();
-    let [schema] = schemas.as_slice() else {
-        return Err(vec![Diagnostic::error(format!(
-            "target root slot `{}::{}` requires exactly one loaded `{schema_name}` boundary schema, but found {}",
-            selected.slot.owner.root_slot_owner_name(),
-            selected.slot.slot_name,
-            schemas.len(),
-        ))]);
-    };
-    let semantic = arrival_requirement_contract(typed, selected.slot.semantic_arrival_requirement)
+    let schema = selected_entry_schema(typed, selected.slot, schema_name, accepted_entry_binding)
         .map_err(|diagnostic| vec![diagnostic])?;
-    let physical = arrival_requirement_contract(typed, physical_requirement)
+    let semantic =
+        core_arrival_requirement_contract(typed, selected.slot.semantic_arrival_requirement)
+            .map_err(|diagnostic| vec![diagnostic])?;
+    let physical = arrival_requirement_contract(typed, schema, physical_requirement)
         .map_err(|diagnostic| vec![diagnostic])?;
     if semantic.signature == physical.signature
         || semantic.requirement_identity == physical.requirement_identity
@@ -849,6 +847,73 @@ pub fn validate_selected_program_entry_calling_plan(
         physical_calling_application: (*physical_realization).clone(),
         storage_entry,
     }))
+}
+
+/// Resolve only inside the slot's contract owner. Source custody identifies a
+/// bundled source unit; its leaf name selects a declaration inside that unit,
+/// never a candidate in the whole program. Package bindings already retain the
+/// complete declaration path and must not fall back to the bundled contract.
+fn selected_entry_schema<'program>(
+    typed: &'program TypedTrees,
+    slot: target::ProgramEntrySlotDeclaration,
+    schema_name: &str,
+    accepted_binding: Option<&package_compilation::AcceptedSemanticBinding>,
+) -> Result<&'program typed_trees::trait_definition::TraitDefinition, Diagnostic> {
+    let package = slot.physical_contract_package.ok_or_else(|| {
+        Diagnostic::error("target entry slot has no physical contract package identity")
+    })?;
+    let context = crate::ProviderPlanningContext::new(typed, source::DependencyScope::Product);
+    let mut selected_symbols = Vec::new();
+    if let Some(binding) = accepted_binding {
+        if binding.role() == program_entry_semantic_binding_role(package)
+            && binding.selected_provider_plan_digest().is_none()
+        {
+            selected_symbols.extend(typed.traits().iter().filter_map(|definition| {
+                (context.contains(definition.symbol)
+                    && typed.symbols.symbol_package_identity(definition.symbol)
+                        == Some(binding.package())
+                    && typed.symbols.display_path(definition.symbol, "::")
+                        == binding.declaration_path())
+                .then_some(definition.symbol)
+            }));
+        }
+    } else {
+        let expected_digest = exact_bundled_physical_contract_package_source_digest(package);
+        for source_file in typed.symbols.source_files().filter(|source_file| {
+            source_file.dependency_scope == source::DependencyScope::Product
+                && source_file.package_identity.is_none()
+                && source_file.path.strip_prefix(&source_file.package_root).ok()
+                    == Some(std::path::Path::new(package.package_relative_source()))
+                && program_entry_plan::ProgramEntryPhysicalContractPackageSourceDigest::from_package_source(
+                    package,
+                    source_file.source.as_bytes(),
+                ) == expected_digest
+        }) {
+            selected_symbols.extend(typed.traits().iter().filter_map(|definition| {
+                (typed.symbols.symbol_source_span(definition.symbol)
+                    .is_some_and(|span| span.source_id == source_file.source_id)
+                    && definition.name.as_str() == schema_name)
+                    .then_some(definition.symbol)
+            }));
+        }
+    }
+    let [symbol] = selected_symbols.as_slice() else {
+        return Err(Diagnostic::error(format!(
+            "target root slot `{}::{}` requires one exact contract-owned boundary schema `{schema_name}`, but found {}",
+            slot.owner.root_slot_owner_name(),
+            slot.slot_name,
+            selected_symbols.len(),
+        )));
+    };
+    typed
+        .traits()
+        .iter()
+        .find(|definition| definition.symbol == *symbol && definition.is_boundary)
+        .ok_or_else(|| {
+            Diagnostic::error(format!(
+                "target entry contract declaration `{schema_name}` is not a boundary schema"
+            ))
+        })
 }
 
 struct TargetOwnedPhysicalContractSource {
@@ -1013,11 +1078,55 @@ struct ArrivalRequirementContract {
     result_type_identity: Option<typed_trees::type_identity::NormalizedTypeIdentity>,
 }
 
-/// Resolve the target declaration back to its core-owned typed requirement.
+/// Source-shape queries run before package calling-plan selection. Their
+/// visible storage parameters belong to core's semantic arrival, independently
+/// of the eventual physical contract package and any local same-named trait.
+fn core_arrival_requirement_contract(
+    typed: &TypedTrees,
+    requirement: &str,
+) -> Result<ArrivalRequirementContract, Diagnostic> {
+    let Some((owner, _)) = requirement.split_once("::") else {
+        return Err(Diagnostic::error(
+            "target semantic arrival has no requirement owner",
+        ));
+    };
+    let mut declarations = typed
+        .symbols
+        .source_files()
+        .filter(|file| {
+            file.origin == source::SourceOrigin::Toolchain
+                && file.dependency_scope == source::DependencyScope::Product
+                && file.path.strip_prefix(&file.package_root).ok()
+                    == Some(std::path::Path::new("extent.omg"))
+        })
+        .flat_map(|file| {
+            typed.traits().iter().filter(move |definition| {
+                typed
+                    .symbols
+                    .symbol_source_span(definition.symbol)
+                    .is_some_and(|span| span.source_id == file.source_id)
+                    && definition.name.as_str() == owner
+            })
+        });
+    let Some(definition) = declarations.next() else {
+        return Err(Diagnostic::error(format!(
+            "target semantic arrival `{requirement}` has no exact core declaration"
+        )));
+    };
+    if declarations.next().is_some() {
+        return Err(Diagnostic::error(format!(
+            "target semantic arrival `{requirement}` has multiple core declaration instances"
+        )));
+    }
+    arrival_requirement_contract(typed, definition, requirement)
+}
+
+/// Resolve the target declaration through the selected schema's composition.
 /// The result is deliberately taken from Psi's normalized identities rather
 /// than reconstructed from display strings in the Omega orchestrator.
 fn arrival_requirement_contract(
     typed: &TypedTrees,
+    schema: &typed_trees::trait_definition::TraitDefinition,
     requirement: &str,
 ) -> Result<ArrivalRequirementContract, Diagnostic> {
     let Some((owner, method)) = requirement.split_once("::") else {
@@ -1025,14 +1134,33 @@ fn arrival_requirement_contract(
             "target entry arrival requirement `{requirement}` is not an exact `Trait::machine` identity"
         )));
     };
-    let definitions = typed
-        .traits()
-        .iter()
+    let mut inherited = vec![schema];
+    let mut position = 0;
+    while let Some(definition) = inherited.get(position).copied() {
+        for parent in typed.trait_requirements(definition) {
+            if inherited
+                .iter()
+                .any(|candidate| candidate.symbol == parent.symbol)
+            {
+                continue;
+            }
+            if let Some(parent) = typed
+                .traits()
+                .iter()
+                .find(|candidate| candidate.symbol == parent.symbol)
+            {
+                inherited.push(parent);
+            }
+        }
+        position += 1;
+    }
+    let definitions = inherited
+        .into_iter()
         .filter(|definition| definition.is_boundary && definition.name.as_str() == owner)
         .collect::<Vec<_>>();
     let [definition] = definitions.as_slice() else {
         return Err(Diagnostic::error(format!(
-            "target entry arrival requirement `{requirement}` resolves to {} boundary trait declarations instead of exactly one",
+            "target entry arrival requirement `{requirement}` resolves to {} boundary trait declarations in the selected schema instead of exactly one",
             definitions.len()
         )));
     };
