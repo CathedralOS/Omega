@@ -2219,80 +2219,22 @@ crash and native exit behavior.
   fixture compiles and refuses a nonempty release-rollback overlay without
   publishing partial outputs.
 
-- **CORPUS-GOLDEN-HAS-NO-HOST-DIMENSION.** (new-scope)
-  `tests/omega/corpus_outcomes.txt` is one shared golden with **no host
-  dimension**, while every fixture that binds a program entry has a
-  **host-dependent check-leg verdict**. Rows recorded on Linux and rows
-  recorded on macOS sit side by side, so reading two together manufactures
-  contradictions reproducible on neither host.
-  - `omega-rust/omega/compilation/driver/tests/corpus_runner.rs:837`
-    `check_leg_realization_target` -> `pass_realization_target` realizes a
-    program-entry-binding pass fixture for **the recording host's own target**
-    whenever the fixture binds it.
-  - `realization/provider-planning/src/provider_settlement/canonical_filesystem_host.rs:126-131`
-    `toolchain_filesystem_leaves` has exactly one arm, `"linux_x86_64"`, whose
-    11-leaf table (lines 76-121) contains `close` and **not** `errno`. On a
-    Linux realization the mint emits `ProviderBinding::Syscall { number: 3 }`
-    for `close`, `provider_settlement.rs:224` `bind_fused_service_erasures`
-    binds the `FilesystemHost` erasure,
-    `selected-dispatch/src/service_custody/root.rs:160` is satisfied, and the
-    fixture compiles.
-  - So `pass/filesystem/native_close checked` was recorded on Linux by
-    `3a37e6f8862`, whose own `# context:` line reads
-    `{"machine": "x86_64", "platform": "linux"}`, while the `native_errno` row
-    beside it is a Darwin recording. Measured with ten byte-identical probes at
-    two targets: 7 table members build under `--native-target linux_x86_64` and
-    all 7 refuse on `macos_arm64`; 3 non-members refuse on both. Greenness
-    tracks table membership exactly -- not signature shape, not arity, not the
-    release cohort.
-  - This is the **documented** toolchain-mint route, not a `covers_schema`
-    bypass: `canonical_filesystem_host.rs:26-36` states
-    `with_toolchain_settled_plan` "skips only the authored-conformance
-    full-coverage check" while uniqueness, nonzero-identity and boundary-slot
-    invariants still apply. No `satisfies FilesystemHost::` row exists in
-    `source/`, and a macOS leaf table has never existed.
-  - The per-host **native** goldens are already correct:
-    `corpus_native_linux_x86_64.txt` records `native_close built` and
-    `native_errno rejected`; `corpus_native_macos_arm64.txt` records both
-    rejected. Only the check-leg golden lacks the dimension.
+- **NATIVE-GOLDEN-CANNOT-RECORD-A-REGRESSION.**
+  (split-of:CORPUS-GOLDEN-HAS-NO-HOST-DIMENSION)
+  The check golden's host dimension is settled. `check_leg_realization_target`
+  reads the fixture's own `build.omg` -- the first of `macos_arm64`,
+  `linux_x86_64`, `windows_x86_64` it binds, else its first declared target --
+  and never the recording host, and every realized row names the result as a
+  `check-target:<target>` fact. The four self-identifying rows the diagnostic
+  detector found are recorded at their deterministic target, as is
+  `native_close`, which that detector could not see: its false green carried no
+  diagnostic at all, so a detector reading diagnostics finds host-dependent
+  refusals and never a host-dependent acceptance. What remains is the other half
+  of the same investigation.
 
-  **Why this outranks one wrong row:** a false-green row is invisible to the
-  cheap sweep that would catch it. The red set is swept by building a gate
-  filter from the golden itself (`b40754519d5`), which costs 66 fixtures rather
-  than 1959 but by construction examines only rows the golden already calls
-  red. So **the corpus red count is a lower bound.**
-
-  **The macOS side of that bound is now measured at 1.** The per-host native
-  goldens DO carry the host dimension, so cross-referencing them against the
-  shared check golden finds candidates for free: a fixture the macOS native
-  golden calls `rejected` while the check golden calls `checked` never reached
-  native on this host, so its check row was written elsewhere. That yields 17
-  candidates, and running exactly those 17 shows **16 are genuinely `checked`
-  on macOS and only `pass/filesystem/native_close` is false-green.** So the
-  check golden's macOS-side error is one row, not many. The Linux side cannot
-  be bounded from a macOS host by this method, because a row green here and red
-  there leaves no local trace.
-
-  Those same 16 were the mirror-image defect and are re-pinned at
-  `506354b3cca`: their rows in `corpus_native_macos_arm64.txt` had said
-  `rejected` for fixtures that build, and six of them execute with their
-  authored result, so the native leg had been understating itself by six
-  running programs.
-
-  **The native golden is unreliable in BOTH directions, for different reasons,
-  and only one is fixable.** Running the opposite comparison -- native `built`
-  while the check golden says `rejected` -- finds **8** macOS rows, and all 8
-  are real: the fixture's check leg refuses, so it never reaches native, while
-  the native row still claims an authored exit (six of the eight name one, four
-  of those `exit:70`). Those rows are a native verdict outliving a check-leg
-  regression.
-
-  **They cannot be corrected.** `corpus_gate.py` exits `regressed` and refuses
-  `--record` when an authored exit or stdout oracle fails (documented at
-  `tools/corpus_gate.py:109`), which is right -- recording would pin the
-  regression as the new truth -- but it leaves no honest way to say "this used
-  to build and now does not". The row stays false until the fixture is fixed.
-  The eight are
+  **Eight macOS rows claim native `built` for a fixture whose check leg
+  refuses**, so a native verdict outlives a check-leg regression, and six of
+  them still name an authored exit (four `exit:70`):
   `pass/capabilities/acquires_through_helper_return`,
   `pass/memory/secondary_processor_canary`,
   `pass/providers/specialized_mixed_structural_result_operator_hosted_native`,
@@ -2301,43 +2243,22 @@ crash and native exit behavior.
   `pass/traits/boundary_trait_effects_host_call` and
   `pass/wire/wire_preserving_decode_relay_exit`.
 
-  **So the reading rule is: never believe a native row without its check row.**
-  A native `built` row for a check-`rejected` fixture is stale by construction,
-  and these eight do not change the red count -- the check golden has them
-  right. What they change is that the native golden cannot be read as evidence
-  of health on its own. Giving the native leg a way to record a regression
-  honestly -- distinct from pinning it as expected -- is the open work.
+  **They cannot be corrected today.** `corpus_gate.py` exits `regressed` and
+  refuses `--record` when an authored exit or stdout oracle fails
+  (`tools/corpus_gate.py:109`), which is right -- recording would pin the
+  regression as the new truth -- but it leaves no way to say "this used to build
+  and now does not", so the row stays false until the fixture is fixed. These
+  eight do not change the red count; the check golden has them right. What they
+  change is that a native row cannot be read as evidence of health without its
+  check row. Acceptance: the native leg can record a regression distinctly from
+  pinning it as expected, and the eight stop claiming an exit they do not meet.
 
-  **Two more host-dependent rows, both self-identifying, and one of them caught
-  two lanes flipping it.** `pass/float/x86_fma_plan_association`'s message names
-  the realization target's object format and differs from the golden in exactly
-  that field (`Elf` against `Coff`), everything else byte-identical. Its sibling
-  `pass/float/named_provider_fused_multiply_add_exit` names the selected target
-  directly (`selected x86 scalar FMA ProviderPlan
-  `<selected target>::FloatNativeProvider::...` requires explicit AVX+FMA3
-  admission`) -- it measures `checked` on macOS arm64 and `rejected` where an
-  x86 target is realized, so it has been re-pinned in both directions by
-  successive lanes, each correctly reporting what it measured. **Neither should
-  be re-pinned again until the representation carries a host.**
-
-  So the detector is cheap: **a row whose diagnostic names a target, an object
-  format, a pointer width or an ISA feature set is host-dependent by
-  construction.** That is far less work than noticing a diagnostic contradicts a
-  landed change, which is how the first instance surfaced, and it is how these
-  two were found.
-
-  Do not simply re-pin either row on Darwin: both are genuinely host-dependent,
-  so re-pinning flips a coin the next Linux recorder flips back and erases the
-  only visible trace of the defect. Fix the representation first.
-  Acceptance: a row recorded on one host can never be silently read as a
-  verdict on another, `native_close` is representable honestly on both, and the
-  change states how many of the ~1900 existing rows churn and why.
-
-  Sequencing: sealed fixture source staging already landed in
-  `corpus_runner.rs` and the shared golden. It touches `sanitize`, the compile
-  legs, `run_one` and `main`, and `pass_realization_target` in zero lines, so
-  this item's edit site is clear; it also added 3 rows that need re-recording
-  in whatever host-dimensioned format replaces the golden.
+  Separately, the **Linux-side bound is now measurable rather than unknowable.**
+  It could not be taken from a macOS host because a row green here and red there
+  left no local trace; with the realized target deterministic, one Linux
+  recorder running the corpus and diffing answers it, and any row that still
+  differs is a genuine Linux/macOS compiler difference rather than a recording
+  artifact.
 
 - **BUILD-FACET-DEAD-SELECTION-RESIDUE.** (split-of:BUILD-FACET-RECEIVER-RESIDUE)
   No build operation is classified by receiver shape any more: stage 04's
@@ -2386,8 +2307,9 @@ crash and native exit behavior.
   `pass/` with its golden row.
 
   Sequencing: this is the same `corpus_runner.rs` and shared-golden surface as
-  **CORPUS-GOLDEN-HAS-NO-HOST-DIMENSION** and **CORPUS-SEALED-SOURCE-STAGING**,
-  so the three coordinate rather than race.
+  **CORPUS-SEALED-SOURCE-STAGING**, so the two coordinate rather than race. A
+  row it adds carries a `check-target:<target>` fact when the fixture binds a
+  program entry.
 
 ## Lowering simplification
 

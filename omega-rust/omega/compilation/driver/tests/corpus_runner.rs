@@ -5,12 +5,12 @@
 //! checked only — the suite's execution leg is not reproduced here), fail
 //! fixtures through `compile_to_checked` with reviewed repository package
 //! inputs. A pass or run fixture whose own `build.omg` binds a
-//! program-entry root is instead realized for the target the native leg
-//! would choose (its bound host target, else its first declared): the
-//! `Check` product establishes no program entry, so the unit-plan roster
-//! its root claims would never be demanded and an omitted plan would
-//! still record `checked`. `tools/corpus_gate.py` diffs those
-//! records against the recorded
+//! program-entry root is instead realized for one target that build binds
+//! (`CHECK_LEG_TARGET_PREFERENCE`, never the recording host) and the record
+//! names it as `check-target:<target>`: the `Check` product establishes no
+//! program entry, so the unit-plan roster its root claims would never be
+//! demanded and an omitted plan would still record `checked`.
+//! `tools/corpus_gate.py` diffs those records against the recorded
 //! golden so an agent's inner loop is one binary plus a corpus diff instead
 //! of a chain of per-crate assertion suites.
 //!
@@ -904,6 +904,12 @@ fn declared_realization_target(root_path: &Path) -> Option<String> {
 /// runs where the host can execute it; one binding only foreign targets is
 /// still realized, for its declared target, because target lowering and
 /// emission are most of what the leg measures.
+///
+/// Only the native leg may prefer the leg's own target, because its records
+/// go to that target's own golden, `tests/omega/corpus_native_<target>.txt`.
+/// The check leg deliberately does not share this chooser -- see
+/// [`CHECK_LEG_TARGET_PREFERENCE`] -- and unifying the two would put a
+/// target-scoped verdict back into the one golden every host shares.
 fn pass_realization_target(root_path: &Path, host: &str) -> Option<(String, bool)> {
     let declared = declared_realization_targets(root_path);
     if declared.iter().any(|target| target == host) {
@@ -912,18 +918,54 @@ fn pass_realization_target(root_path: &Path, host: &str) -> Option<(String, bool
     declared.into_iter().next().map(|target| (target, false))
 }
 
+/// The order the check leg prefers among the targets a fixture's own
+/// `build.omg` binds, so that one realized row is reproducible on every
+/// recording host.
+///
+/// The check leg realizes a bound program entry to answer a
+/// target-independent question -- is the entry's unit-plan roster actually
+/// produced, or did it record `checked` with nothing demanding it -- through
+/// a product that is unavoidably target-scoped: provider settlement, ABI and
+/// emission all differ per target, and the omission itself only surfaces in
+/// `realization/selected-dispatch`. So the leg needs one target and the
+/// choice is convention. The convention may not be the recording host.
+/// `tests/omega/corpus_outcomes.txt` is one golden shared by Linux, macOS and
+/// Windows developers with no target dimension, so a host-chosen target
+/// writes one host's target-scoped verdict as everyone's: provider planning's
+/// canonical `FilesystemHost` settlement table has a `linux_x86_64` arm and
+/// no other, which is how `pass/filesystem/native_close` came to record
+/// `checked` from a Linux recorder while the `native_errno` row beside it was
+/// a Darwin recording -- an impossible pair reproducible on neither host.
+///
+/// Two measurements pick the order among a fixture's declared targets. The
+/// chosen target's realization must be complete enough that a target gap does
+/// not mask the roster signal the leg carries: of the three hosted targets
+/// the repository keeps a native golden for, `macos_arm64` records 849 built
+/// against 63 rejected, `linux_x86_64` 588 against 73, and `windows_x86_64`
+/// 333 against 156. And adopting the order must not relabel the golden's
+/// existing rows, or the red this defect was hiding becomes unreadable
+/// against the churn: this order changes the realized target for 1 of the
+/// 1024 entry-binding fixtures relative to the golden's majority recordings,
+/// where declaration order would change 801 of them -- 765 fixtures declare
+/// `windows_x86_64` first.
+///
+/// A fixture binding none of these keeps its first declared target, which is
+/// already a property of its source. The row names whichever target was
+/// chosen, so revising this order is a visible per-row diff rather than a
+/// silent reinterpretation of rows nobody re-measured.
+const CHECK_LEG_TARGET_PREFERENCE: &[&str] = &["macos_arm64", "linux_x86_64", "windows_x86_64"];
+
 /// The target the check leg accounts a pass/run fixture's program-entry
-/// roster against: the same choice the native leg makes (its bound host
-/// target, else its first declared), so a fixture's row answers the demand
-/// `omega --check` on that root would make. `None` when the fixture binds
-/// no program-entry root at all -- nothing claims a realizable program.
+/// roster against, read from the fixture's own `build.omg` and never from
+/// the recording host. `None` when the fixture binds no program-entry root
+/// at all -- nothing claims a realizable program.
 fn check_leg_realization_target(root_path: &Path) -> Option<String> {
-    match target::TargetProfile::host_if_supported() {
-        Some(profile) => {
-            pass_realization_target(root_path, profile.target_name()).map(|(target, _)| target)
-        }
-        None => declared_realization_target(root_path),
-    }
+    let declared = declared_realization_targets(root_path);
+    CHECK_LEG_TARGET_PREFERENCE
+        .iter()
+        .find(|preferred| declared.iter().any(|target| target == *preferred))
+        .map(|preferred| (*preferred).to_owned())
+        .or_else(|| declared.into_iter().next())
 }
 
 /// Whether the fixture's expected fragments all appear in the diagnostics it
@@ -1017,42 +1059,49 @@ fn run_one(tier: &str, base: &Path, main: &Path, sequence: usize) -> (String, u1
             let _ = fs::remove_dir_all(&build_dir);
             built.map(|_| ())
         }
-        (_, _, _) => match &declared_rollback {
-            // A declared rollback runs the check leg as a Terminal-artifact
-            // pair whose facts pin the overlay contract, then still realizes
-            // the fixture's bound-entry roster the `Check` product never
-            // demands, under the same overlay the legs share.
-            Some(rollback) => {
-                let (pair_facts, pair) = rollback_pair_facts(main, rollback, sequence);
-                facts.extend(pair_facts);
-                match pair {
-                    Err(errors) => Err(errors),
-                    Ok(()) => match check_leg_realization_target(main) {
-                        Some(target) => realize_fixture(
+        // A pass or run fixture that binds a program-entry root claims an
+        // executable roster the targetless `Check` product never demands:
+        // `omega --check` on the same root selects that entry and refuses
+        // when its unit plan is omitted, while this route would record
+        // `checked`. Realize the fixture for one target its own build binds,
+        // so the roster is accounted before the row reads as executable, and
+        // record that target: the realization verdict is a verdict about it,
+        // and this golden has no other place to say so
+        // (`CHECK_LEG_TARGET_PREFERENCE`).
+        (_, _, _) => {
+            let check_target = check_leg_realization_target(main);
+            let check_outcome = match (&declared_rollback, &check_target) {
+                // A declared rollback runs the check leg as a Terminal-artifact
+                // pair whose facts pin the overlay contract, then still realizes
+                // the fixture's bound-entry roster the `Check` product never
+                // demands, under the same overlay the legs share.
+                (Some(rollback), target) => {
+                    let (pair_facts, pair) = rollback_pair_facts(main, rollback, sequence);
+                    facts.extend(pair_facts);
+                    match (pair, target) {
+                        (Err(errors), _) => Err(errors),
+                        (Ok(()), Some(target)) => realize_fixture(
                             main,
                             unique_build_dir(sequence),
-                            Some(target),
+                            Some(target.clone()),
                             Some(rollback),
                         ),
-                        None => Ok(()),
-                    },
+                        (Ok(()), None) => Ok(()),
+                    }
                 }
+                (None, Some(target)) => {
+                    realize_fixture(main, unique_build_dir(sequence), Some(target.clone()), None)
+                }
+                (None, None) => check_pass_fixture(main, unique_build_dir(sequence)),
+            };
+            // Named even when realization refused: the diagnostics below are
+            // this target's refusal, and a row that does not say which target
+            // it realized cannot be read as a verdict on any.
+            if let Some(target) = &check_target {
+                facts.push(format!("check-target:{target}"));
             }
-            // A pass or run fixture that binds a program-entry root claims an
-            // executable roster the targetless `Check` product never demands:
-            // `omega --check` on the same root selects that entry and refuses
-            // when its unit plan is omitted, while this route would record
-            // `checked`. Realize the fixture for the target the native leg
-            // would choose -- its bound host target when it declares one, else
-            // its first declared -- so the roster is accounted before the row
-            // reads as executable.
-            None => match check_leg_realization_target(main) {
-                Some(target) => {
-                    realize_fixture(main, unique_build_dir(sequence), Some(target), None)
-                }
-                None => check_pass_fixture(main, unique_build_dir(sequence)),
-            },
-        },
+            check_outcome
+        }
     };
     if tier == "fail" && outcome.is_ok() {
         outcome = realize_fixture(

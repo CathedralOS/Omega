@@ -107,21 +107,34 @@ so renaming a diagnostic's wording is not a move; golden rows stamped
 ### One golden, every host
 
 `tests/omega/corpus_outcomes.txt` is a single checked-in file shared by
-Linux, macOS and Windows developers, so a row whose recorded diagnostic
-depends on the recording host can never be clean everywhere. Do not pin a
-fixture whose diagnostic names the realized target, and watch for the
-indirect form: a fixture that reaches a provider only some hosts supply
-records that provider's absence on the others. Pin such a rule in a Rust
-unit test, which fixes the target explicitly, or keep the fixture on a
-route that does not select a provider.
+Linux, macOS and Windows developers, so a row whose recorded verdict depends
+on the recording host can never be clean everywhere -- and, worse, is clean
+on the host that recorded it, which makes it invisible. Reading a
+Linux-recorded row beside a Darwin-recorded one manufactures contradictions
+reproducible on neither host.
 
-The check-leg realization of entry-binding fixtures makes this easy to trip.
-A `pass/filesystem/native_*` fixture that recorded a unit-plan omission
-under the targetless route reports "selected ProgramEntry Binding field
-`Main::fs` requires a selected Fused provider for boundary `FilesystemHost`"
-on a host with no filesystem provider, and one row records
-`target: LinuxX64` outright. Re-record on the host you develop on and the
-other host's rows move instead; the gate cannot be clean on both.
+The check leg's realization of entry-binding fixtures is where a
+target-scoped verdict enters an otherwise target-neutral row, so the runner
+takes its realization target from the fixture's own `build.omg` -- the first
+of `macos_arm64`, `linux_x86_64`, `windows_x86_64` that the fixture binds,
+else its first declared target -- and never from the recording host. The row
+names the result as a `check-target:<target>` fact, so a realized row says
+which target it is a verdict about and a reintroduced host dependence shows
+up as a per-row diff rather than a silent false green. A row with no
+`check-target:` fact realized nothing and is target-neutral.
+
+Three rules follow. A target-scoped verdict belongs in that target's own
+golden, `tests/omega/corpus_native_<target>.txt`, not here: when the
+`linux_x86_64` filesystem provider table makes `pass/filesystem/native_close`
+build on Linux and refuse on macOS, the check row records the refusal for the
+target it names while `corpus_native_linux_x86_64.txt` records `built` and
+`corpus_native_macos_arm64.txt` records `rejected`. Do not pin a fixture
+whose diagnostic names the realized target, and watch for the indirect form:
+a fixture that reaches a provider only some targets supply. And do not teach
+the check leg to prefer the recording host the way the native leg does --
+`pass_realization_target` prefers the host because its records go to that
+host's own golden; `check_leg_realization_target` must not, and the two
+choosers stay separate for that reason.
 
 ### Attributing a move
 
