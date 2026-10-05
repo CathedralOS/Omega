@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": "3", "load1_end": 26.43, "load1_start": 26.43, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "3", "load1_end": 24.79, "load1_start": 24.77, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -2283,8 +2283,8 @@ pass/locals/static_local_field_names_exit checked 1406ms @cfe60a3a242
 pass/memory/address_translation_canary rejected 992ms @cfe60a3a242
 	direct call `discharge` names public boundary requirement `Shootdown::discharge`, which has no selected provider; select an admitted provider whose checked machine `satisfies Shootdown::discharge` before calling it
 pass/memory/bump_allocator_canary checked 1011ms @2d8ed253669f
-pass/memory/interrupt_table_canary rejected 4267ms @5894026c3703+wt
-	cannot prove the `terminates by` ranking for machine DescriptorTableValidation::run
+pass/memory/interrupt_table_canary rejected 3074ms @8fcb2e7f049f+wt
+	direct call `complete` names public boundary requirement `InterruptAcknowledgement::complete`, which has no selected provider; select an admitted provider whose checked machine `satisfies InterruptAcknowledgement::complete` before calling it
 pass/memory/secondary_processor_canary rejected 5098ms @5894026c3703+wt
 	direct call `confirm` names public boundary requirement `StartupEnvelope::confirm`, which has no selected provider; select an admitted provider whose checked machine `satisfies StartupEnvelope::confirm` before calling it
 pass/memory/weak_vacant_qualifier_satisfied checked 291ms @2d8ed253669f
@@ -2373,8 +2373,8 @@ pass/ownership/linear_branch_reconciliation checked 279ms @2d8ed253669f
 pass/ownership/linear_self_receiver_disposition checked 302ms @2d8ed253669f
 pass/ownership/linear_transfer_and_consume rejected 2366ms @b5d8c6882a8
 	terminal-artifact production failed: Lowering(InvalidTerminalModule(UnknownStructuralArgument { operation: OperationId(3), argument_index: 0, place: PlaceId(4) }))
-pass/ownership/linear_transparent_record_frontier rejected 6014ms @5798b57ae772+wt
-	terminal-artifact production failed: Lowering(Unsupported("nested record cannot create linear custody"))
+pass/ownership/linear_transparent_record_frontier rejected 4727ms @8fcb2e7f049f+wt
+	terminal-artifact production failed: Lowering(Unsupported("projected selection requires a structural continuation"))
 pass/ownership/move_keyword_field_assignment checked 1226ms @2d8ed253669f
 pass/ownership/read_owner_before_consumption_and_after_reassignment checked 269ms @0aa983f6af47+wt
 pass/ownership/runtime_borrowed_record_transform_exit checked 1261ms @2d8ed253669f
