@@ -22,9 +22,6 @@ mod report;
 mod terminal;
 
 pub use report::{CheckedProductReport, CompileReportSettlement};
-pub use terminal::{
-    validate_lowered_ieee_float_comparison_custody, validate_lowered_integer_comparison_custody,
-};
 
 /// Whole stage products supplied when sealing a checked compilation, each as
 /// the record its producing owner returned. These inputs are not an admission

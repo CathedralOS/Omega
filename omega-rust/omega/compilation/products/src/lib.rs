@@ -41,7 +41,6 @@ pub mod publication;
 
 pub use checked_compilation::{
     CheckedCompilation, CheckedCompilationInputs, CheckedProductReport, CompileReportSettlement,
-    validate_lowered_ieee_float_comparison_custody, validate_lowered_integer_comparison_custody,
 };
 pub use compilation_products::{CompileOutputKind, CompileReport};
 pub use compile_outcomes::{

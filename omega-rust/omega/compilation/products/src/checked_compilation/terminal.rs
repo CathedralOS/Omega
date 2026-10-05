@@ -3,14 +3,14 @@
 //! These projections supply existing stage inputs; they do not lower code,
 //! produce callback bodies, execute native proposal production, or assemble a
 //! report — `CompileReportSettlement` owns report construction.
-//! Omega stage 00 independently reconstructs occurrence and provider joins.
+//! Omega stage 00 joins the recorded occurrences to provider selection.
 
 use super::CheckedCompilation;
 use crate::TerminalCallbackThunkArtifact;
 use diagnostics::Diagnostic;
 use lowered_psi::{
-    LoweredPsi, LoweredSelectedIeeeFloatComparisonOccurrence,
-    LoweredSelectedIntegerComparisonOccurrence, LoweredSourceCallOccurrence,
+    LoweredSelectedIeeeFloatComparisonOccurrence, LoweredSelectedIntegerComparisonOccurrence,
+    LoweredSourceCallOccurrence,
 };
 use terminal_psi_to_abstract_operations::{
     BoundaryApplicationSettlement, TerminalNativeProposalRequest,
@@ -86,37 +86,4 @@ impl CheckedCompilation {
             selected_integer_comparison_occurrences,
         }
     }
-}
-
-/// Rejoin an inspection product to its exact selected IEEE comparison meanings.
-/// Portable verification cannot establish this source/provider association;
-/// successful reconstruction grants no native execution authority.
-pub fn validate_lowered_ieee_float_comparison_custody(
-    checked: &CheckedCompilation,
-    lowered: &LoweredPsi,
-) -> Result<(), Vec<Diagnostic>> {
-    terminal_psi_to_abstract_operations::settle_ieee_float_comparison_occurrences(
-        checked,
-        &lowered.semantic_module,
-        &checked.execution().selected_provider_plan_facts,
-        checked.execution().selected_provider_provenance.as_slice(),
-        &lowered.selected_ieee_float_comparison_occurrences,
-    )
-    .map(|_| ())
-}
-
-/// Rejoin integer comparison occurrences to the admitted authored emission
-/// triple. Swapped or negated recorded comparisons cannot substitute meanings.
-pub fn validate_lowered_integer_comparison_custody(
-    checked: &CheckedCompilation,
-    lowered: &LoweredPsi,
-) -> Result<(), Vec<Diagnostic>> {
-    terminal_psi_to_abstract_operations::settle_integer_comparison_occurrences(
-        checked,
-        &lowered.semantic_module,
-        &checked.execution().selected_provider_plan_facts,
-        checked.execution().selected_provider_provenance.as_slice(),
-        &lowered.selected_integer_comparison_occurrences,
-    )
-    .map(|_| ())
 }
