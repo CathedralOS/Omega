@@ -253,7 +253,7 @@ fn materialization_rejects_symlink_destination() {
     use std::os::unix::fs::symlink;
 
     let fixture = Fixture::new("symlink-destination");
-    let retained = empty();
+    let retained = crate::empty();
     let concrete = fixture.empty_destination("concrete");
     let destination = fixture.session.join("destination-link");
     symlink(&concrete, &destination).unwrap();
