@@ -2244,11 +2244,11 @@ crash and native exit behavior.
   publishing partial outputs.
 
 - **MACOS-NATIVE-LOST-SUCCESSES.** (new-scope)
-  `tests/omega/corpus_native_macos_arm64.txt` carries 13 rows with a
+  `tests/omega/corpus_native_macos_arm64.txt` carries 21 rows with a
   `regressed-from:` token: a success this host recorded and no longer reaches.
-  They were invisible until the golden could say so -- eight claimed `built`
-  and six of those claimed an authored exit, which is why `authored` reads
-  807 rather than 813. Four lost a running program with an authored exit
+  They were invisible until the golden could say so -- sixteen claimed `built`
+  and twelve of those claimed an authored exit, which is why `authored` reads
+  799 rather than 813. Four lost a running program with an authored exit
   (`pass/text/local_bounded_text_case_result_loan_exit`,
   `pass/text/runtime_number_to_decimal_exit`,
   `pass/wire/wire_preserving_decode_relay_exit` at `exit:70`, and
@@ -2276,6 +2276,23 @@ crash and native exit behavior.
   native row had simply outlived the check-leg regression. Group them by
   diagnostic before claiming any -- several belong to items that already own
   that refusal, and the provider-absence rows may be reporting the host.
+  Eight more were recorded at `5eaadf22c0a` after `dce3e972eff` moved their
+  check rows, and they cluster tighter than the first thirteen: three are the
+  unit-plan omission family and belong to whoever owns that refusal
+  (`pass/float/runtime_total_order_satisfiers_exit` on `F32::TotalOrder`,
+  `pass/recast/runtime_scalar_parameter_shared_views_exit` on `read_bits64`,
+  `pass/recast/runtime_shared_parameter_view_calls_exit` on `inspect`, each
+  `InvalidUnitMachinePlan` with "scalar callee has no checked executable
+  body"); two are one `BorrowedDescriptorLoanDisturbed` at
+  `PlaceId(6)` (`pass/borrows/borrow_domain_window_write_and_call` at
+  `OperationId(27)`, `pass/borrows/borrow_returned_window_write_and_call` at
+  `OperationId(28)`); two are one `Unsupported("structural argument has no
+  established storage")` (`pass/borrows/mut_loan_local_write_through_exit`,
+  `run/borrows/local_mut_borrow`); and
+  `pass/providers/checked_boundary_operator_const_application_alternate_exit`
+  failed const evaluation of `limit` at Operator selection occurrence 1922.
+  Four distinct causes cover all eight, so claim a cause rather than a row.
+
   Acceptance: `python3 tools/corpus_scoreboard.py` reports fewer `regressed`
   rows because the fixtures run again, not because a row was re-recorded.
 
