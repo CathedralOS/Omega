@@ -165,7 +165,13 @@ fn residual_cleanup(
     // declaration and overlap checks here. No executable destructor is needed.
     owned_root_type(live, function, discard.place).is_some_and(|root| {
         structural_types.subtree(root, &discard.path) == Some(discard.structural_type)
-    }) && !super::references::is_suspended_root(live, discard.place)
+    }) && !super::references::is_suspended_storage_region(
+        function,
+        live,
+        structural_types,
+        discard.place,
+        &discard.path,
+    )
 }
 
 pub(super) fn plain_home_cleanup(

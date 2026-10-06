@@ -1054,6 +1054,62 @@ pub(super) fn is_suspended_root(live: &LiveDefinitions, place: PlaceId) -> bool 
         .any(|reference| reference.root.place() == place)
 }
 
+/// Test the selected storage, not an ingress descriptor's external pointee.
+/// Ingress origins at reference leaves denote caller-backed referents; origins
+/// at ordinary fields denote that field's storage. Missing declarations cannot
+/// establish disjointness. Carrier relocation never changes these origins.
+pub(super) fn is_suspended_storage_region(
+    function: &AbstractFunction,
+    live: &LiveDefinitions,
+    types: &StructuralTypeLookup<'_>,
+    place: PlaceId,
+    path: &[StructuralPathSegment],
+) -> bool {
+    let origin_overlaps = |origin_path: &[StructuralPathSegment]| {
+        let Some(origin) = source_contract(function, live, place)
+            .and_then(|(root, _)| leaf_type(types, root, origin_path))
+            .and_then(|identity| types.get(&identity))
+        else {
+            return true;
+        };
+        !matches!(origin.shape, StructuralTypeShape::Reference { .. })
+            && terminal_semantics::structural_paths_may_overlap(path, origin_path)
+    };
+    live.references
+        .values()
+        .any(|reference| match &reference.root {
+            ReferenceRoot::Place(root) => *root == place,
+            ReferenceRoot::Ingress(root, origin) => *root == place && origin_overlaps(origin),
+            ReferenceRoot::Alternatives(root, origins) => {
+                *root == place && origins.iter().any(|origin| origin_overlaps(origin))
+            }
+        })
+}
+
+/// Moving a carrier preserves its loans, but cannot detach a suspended parent
+/// from a child that remains outside the selected subtree.
+pub(super) fn owned_transfer_is_suspended(
+    function: &AbstractFunction,
+    live: &LiveDefinitions,
+    types: &StructuralTypeLookup<'_>,
+    argument: &StructuralArgument,
+) -> bool {
+    let selected = |carrier: PlaceId, path: &[StructuralPathSegment]| {
+        carrier == argument.place && path.starts_with(&argument.path)
+    };
+    is_suspended_storage_region(function, live, types, argument.place, &argument.path)
+        || live.references.iter().any(|((carrier, path), leaf)| {
+            selected(*carrier, path)
+                && live
+                    .references
+                    .iter()
+                    .any(|((child_carrier, child_path), child)| {
+                        child.parent.as_ref() == Some(&leaf.identity)
+                            && !selected(*child_carrier, child_path)
+                    })
+        })
+}
+
 /// Reads, writes and establishments cannot touch a suspended referent, and a
 /// live carrier is never owned data for primitive or aggregate access.
 pub(super) fn check_root_access(live: &LiveDefinitions, place: PlaceId) -> bool {

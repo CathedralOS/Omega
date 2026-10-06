@@ -891,6 +891,39 @@ pub(in crate::legalization) fn is_suspended_root(custody: &Custody, place: Place
         .any(|reference| reference.root.place() == place)
 }
 
+/// Ingress reference leaves identify external pointees, not descriptor storage.
+/// Ordinary origin fields still suspend their exact storage regions; unresolved
+/// declarations cannot establish disjointness. This matches lowering's custody
+/// geometry without changing the identities retained across owned transfers.
+fn is_suspended_storage_region(
+    function: &PsiOptimizationFunction,
+    custody: &Custody,
+    types: &[StructuralTypeDeclaration],
+    place: PlaceId,
+    path: &[StructuralPathSegment],
+) -> bool {
+    let origin_overlaps = |origin_path: &[StructuralPathSegment]| {
+        let Some(origin) = source_contract(function, custody, place)
+            .and_then(|root| leaf_type(types, root, origin_path))
+            .and_then(|identity| types.iter().find(|declaration| declaration.id == identity))
+        else {
+            return true;
+        };
+        !matches!(origin.shape, StructuralTypeShape::Reference { .. })
+            && terminal_semantics::structural_paths_may_overlap(path, origin_path)
+    };
+    custody
+        .leaves
+        .values()
+        .any(|reference| match &reference.root {
+            Root::Place(root) => *root == place,
+            Root::Ingress(root, origin) => *root == place && origin_overlaps(origin),
+            Root::Alternatives(root, origins) => {
+                *root == place && origins.iter().any(|origin| origin_overlaps(origin))
+            }
+        })
+}
+
 /// Validate every structural call argument under reference custody. Owned
 /// carriers move their complete live leaf roster; a suspended root may only be
 /// spelled through a `.., Referent` projection; two reference-touching
@@ -1373,7 +1406,7 @@ fn discard_residual(
     let root = source_contract(function, custody, discard.place).ok_or_else(invalid)?;
     if discard.path.is_empty()
         || leaf_type(types, root, &discard.path) != Some(discard.structural_type)
-        || is_suspended_root(custody, discard.place)
+        || is_suspended_storage_region(function, custody, types, discard.place, &discard.path)
     {
         return Err(invalid());
     }

@@ -689,6 +689,12 @@ defines the complete product bar.
     `pass/drops/runtime_projected_transition_cleanup_exit` and
     `pass/drops/runtime_local_indexed_transition_cleanup_exit` as value-transfer
     controls while adding observable cleanup-order coverage.
+  - Abstract optimization validation still requires whole owned successor
+    arguments in
+    `omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/unit_validation/function_structure/structural_transfers.rs`.
+    Reconstruct the selected subtree's contract instead of comparing its
+    destination to the containing root. Coordinate the live static-maze loan
+    assignment on that file; this is not a native-emission blocker.
   - Generalize temporary cleanup beyond empty effect-free Unit consumers
     (other argument effects, non-Unit results, borrowed/owned mixtures,
     claims) on **STATE-LOCAL-VALUE-FRONTIER**'s evaluation path.
@@ -703,6 +709,9 @@ defines the complete product bar.
   duplicate, reordered, overlapping, wrong-root and post-transfer cleanup,
   and transfer after disposal, reject. Fuel exhaustion commits no disposal;
   retry cannot repeat one. No affine occurrence outlives its required edge.
+  Interpreted execution of these entry-bound controls currently requires
+  **TERMINAL-RUNTIME-DRIVERS**'s `program-entry-arrival-values` adapter; prior
+  checked-interpreter results do not establish the new Terminal route.
 
 - **ATOMIC-MEMORY-MODEL.** Complete atomic/fence semantics and native execution
   under [concurrency](wiki/spec/language/concurrency.md) and the

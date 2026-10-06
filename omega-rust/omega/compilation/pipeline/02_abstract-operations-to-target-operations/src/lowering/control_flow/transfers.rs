@@ -419,9 +419,17 @@ pub(super) fn validate_successors(
                     })
                     || binding.argument.access != parameter.access
                     || crosses_loan_leaf
+                    || (parameter.access == terminal_psi::StructuralAccess::Owned
+                        && references::owned_transfer_is_suspended(
+                            function,
+                            live,
+                            structural_types,
+                            &binding.argument,
+                        ))
                     || (!binding.argument.path.is_empty()
                         && (!abstract_operations::control_flow::address_joins::is_static_projection(&binding.argument.path)
-                            || references::is_suspended_root(live, place)
+                            || (parameter.access != terminal_psi::StructuralAccess::Owned
+                                && references::is_suspended_root(live, place))
                             || (parameter.access != terminal_psi::StructuralAccess::Owned
                                 && !structural_types.get(&parameter.structural_type).is_some_and(
                                     |declaration| {
