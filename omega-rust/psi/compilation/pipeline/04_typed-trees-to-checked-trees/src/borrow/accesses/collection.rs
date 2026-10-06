@@ -125,17 +125,12 @@ impl<'a> BorrowAccessCollection<'a> {
     }
 
     pub(super) fn finish_nested_call(&mut self, first_access: usize, expression: ExpressionHandle) {
-        // A completed call returning plain owned storage cannot carry its
-        // operand loans onward. Affine results still transfer ownership; that
-        // restriction is independent of whether their contents retain loans.
+        // Only the returned contents can carry operand loans onward. A nominal
+        // hook or linear ownership changes the value's later disposition, not
+        // whether it retains the loans of this completed invocation.
         if !self
             .expression_type_reference(expression)
-            .is_some_and(|reference| {
-                validation::has_plain_owned_contents_with_represented_constraints(
-                    self.program,
-                    reference,
-                )
-            })
+            .is_some_and(|reference| validation::has_borrow_free_contents(self.program, reference))
         {
             return;
         }

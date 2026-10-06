@@ -760,7 +760,10 @@ defines the complete product bar.
     with exact hook and live-claim dispositions; plain affine discard rows
     cannot discharge either. Preserve the selected transfer and ordered
     residual complement under the original owner, never a second whole
-    temporary for the selected field.
+    temporary for the selected field. Keep
+    `pass/drops/runtime_nested_nominal_producer_loans_exit` as the operand-loan
+    lifetime control: cleanup must not prolong a completed borrow-free
+    producer's input loans.
   Acceptance: add corpus fixtures where native runs and the Terminal
   interpreter preserve values and hook order across composed edges, including
   a projected-argument jump edge closing residuals in order. Missing,

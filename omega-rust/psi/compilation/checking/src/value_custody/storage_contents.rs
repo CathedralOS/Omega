@@ -60,6 +60,10 @@ enum ContentsRequirement {
     /// the transfer. Bounded byte predicates describe live contents as well as
     /// storage; accepting their shape does not prove a fresh initializer.
     RepresentedOwned,
+    /// Finite storage with no retained reference descriptors. Nominal cleanup,
+    /// linear custody and represented predicates are independent obligations;
+    /// none prolongs the loans used to produce this value.
+    BorrowFree,
     /// Finite owned storage whose linear claims and nominal cleanup remain
     /// explicit custody obligations of the consuming operation. Classifying
     /// whole storage grants neither partial moves nor automatic disposition;
@@ -172,6 +176,13 @@ pub fn has_plain_owned_contents_with_represented_constraints(
         &[],
         ContentsRequirement::RepresentedOwned,
     )
+}
+
+/// Whether a completed value cannot retain any of its producer's operand loans.
+/// This proves neither copy permission nor cleanup eligibility. Erased fields
+/// are classified too: unresolved or reference-bearing subjects stay opaque.
+pub fn has_borrow_free_contents(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {
+    check_contents_requirement(program, reference, &[], ContentsRequirement::BorrowFree)
 }
 
 /// Classify owned storage an affine caller may carry toward a consuming
@@ -460,6 +471,7 @@ fn resolve(
                     || (!matches!(
                         requirement,
                         ContentsRequirement::LinearOwned
+                            | ContentsRequirement::BorrowFree
                             | ContentsRequirement::CleanupOwned
                             | ContentsRequirement::StructuralConstruction
                             | ContentsRequirement::BorrowedStorage
@@ -585,6 +597,7 @@ fn resolve(
                             requirement,
                             ContentsRequirement::NumericOwned
                                 | ContentsRequirement::RepresentedOwned
+                                | ContentsRequirement::BorrowFree
                                 | ContentsRequirement::StructuralConstruction
                                 | ContentsRequirement::BorrowedStorage
                         ) && matches!(contents, ContentType::Scalar(_) | ContentType::Atomic(_))
@@ -594,6 +607,7 @@ fn resolve(
                                     if crate::scalar_field_domain_predicate(program, domain, primitive).is_some())))
                         || (matches!(requirement,
                                 ContentsRequirement::RepresentedOwned
+                                    | ContentsRequirement::BorrowFree
                                     | ContentsRequirement::StructuralConstruction
                                     | ContentsRequirement::BorrowedStorage)
                             && matches!(&contents, ContentType::Array(element, _)
@@ -732,7 +746,10 @@ fn check_contents(
     // A linear declaration is not plain owned storage, but under LinearOwned it
     // is still a finite carrier whose custody the caller tracks explicitly.
     if (data.properties.multiplicity == Multiplicity::Linear
-        && requirement != ContentsRequirement::LinearOwned)
+        && !matches!(
+            requirement,
+            ContentsRequirement::LinearOwned | ContentsRequirement::BorrowFree
+        ))
         || active.iter().any(|ancestor| {
             matches!(ancestor, ContentType::Data(owner, _)
             if owner == symbol && resolved.size() >= ancestor.size())
@@ -740,6 +757,7 @@ fn check_contents(
         || (!matches!(
             requirement,
             ContentsRequirement::LinearOwned
+                | ContentsRequirement::BorrowFree
                 | ContentsRequirement::CleanupOwned
                 | ContentsRequirement::StructuralConstruction
                 | ContentsRequirement::BorrowedStorage
@@ -759,6 +777,14 @@ fn check_contents(
     active.push(resolved.clone());
     let mut check_field = |field: &typed_trees::data::DataField| {
         if field.relevance.is_erased() {
+            if requirement == ContentsRequirement::BorrowFree {
+                // Do not infer absence of loans from erasure alone. Classify
+                // the complete subject conservatively, including descendants.
+                return resolve(program, field.type_reference, &substitutions, requirement)
+                    .is_some_and(|field| {
+                        check_contents(program, &field, active, complete, requirement)
+                    });
+            }
             // An erased member never materializes runtime contents; it still
             // must resolve to declared storage so the semantic member exists.
             // Runtime construction/storage and in-place loans do not execute,
