@@ -7,7 +7,9 @@ use super::super::{
     Multiplicity, Operation, OperationKind, OperationResult, PlaceId, ScalarType,
     StructuralMultiplicity, StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeId,
     StructuralTypeShape, Terminator, ValueDeclaration, allocate_dense, argument_evaluation,
-    edge_id, lookup_type_id, lower_structural_path, place_id, unsupported, value_id,
+    edge_id, lookup_type_id, lower_structural_path,
+    operation_frame::{allocate_structural_result, operation_result_declaration},
+    place_id, unsupported, value_id,
 };
 use super::CheckedTrees;
 use crate::emission::operation_emission::buffer::OperationBuffer;
@@ -1159,22 +1161,13 @@ impl Emission<'_, '_, '_> {
                     id: zero,
                     scalar_type,
                 });
-                let place = place_id(allocate_dense(self.next_place)?);
-                let operation = self.operations.allocate();
-                self.operations.push(Operation {
-                    static_reach_binding: None,
-                    suspension_crossing: None,
-                    id: operation,
-                    result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
-                        qualification_establishments: Vec::new(),
-                        place,
-                        structural_type: self.structural_type,
-                        multiplicity: self.multiplicity,
-                        qualifications: Vec::new(),
-                        projected_qualifications: Vec::new(),
-                        claims: Vec::new(),
-                    }),
-                    kind: OperationKind::EstablishScalarArray {
+                let (place, operation) = allocate_structural_result(
+                    self.operations,
+                    self.next_place,
+                    self.structural_type,
+                    self.multiplicity,
+                    Vec::new(),
+                    OperationKind::EstablishScalarArray {
                         elements: vec![
                             zero;
                             usize::try_from(element_count).map_err(|_| {
@@ -1184,14 +1177,12 @@ impl Emission<'_, '_, '_> {
                             })?
                         ],
                     },
-                });
-                self.temporary_places.push(StructuralPlaceDeclaration {
-                    id: place,
-                    kind: StructuralPlaceKind::OperationResult {
-                        producer: operation,
-                        structural_type: self.structural_type,
-                    },
-                });
+                )?;
+                self.temporary_places.push(operation_result_declaration(
+                    place,
+                    operation,
+                    self.structural_type,
+                ));
                 if let Some(continuation) = continuation {
                     self.complete_value(place, None, continuation)?;
                 }
@@ -1221,30 +1212,19 @@ impl Emission<'_, '_, '_> {
                     .map(|value| value.id)
                     .collect::<Vec<_>>();
                 self.values.truncate(source_count);
-                let place = place_id(allocate_dense(self.next_place)?);
-                let operation = self.operations.allocate();
-                self.operations.push(Operation {
-                    static_reach_binding: None,
-                    suspension_crossing: None,
-                    id: operation,
-                    result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
-                        qualification_establishments: Vec::new(),
-                        place,
-                        structural_type: self.structural_type,
-                        multiplicity: self.multiplicity,
-                        qualifications: Vec::new(),
-                        projected_qualifications: Vec::new(),
-                        claims: Vec::new(),
-                    }),
-                    kind: OperationKind::EstablishScalarArray { elements: leaves },
-                });
-                self.temporary_places.push(StructuralPlaceDeclaration {
-                    id: place,
-                    kind: StructuralPlaceKind::OperationResult {
-                        producer: operation,
-                        structural_type: self.structural_type,
-                    },
-                });
+                let (place, operation) = allocate_structural_result(
+                    self.operations,
+                    self.next_place,
+                    self.structural_type,
+                    self.multiplicity,
+                    Vec::new(),
+                    OperationKind::EstablishScalarArray { elements: leaves },
+                )?;
+                self.temporary_places.push(operation_result_declaration(
+                    place,
+                    operation,
+                    self.structural_type,
+                ));
                 if let Some(continuation) = continuation {
                     self.complete_value(place, None, continuation)?;
                 }
@@ -2496,33 +2476,19 @@ impl Emission<'_, '_, '_> {
                 self.start(selected);
             }
             self.values.truncate(source_count);
-            let place = place_id(allocate_dense(self.next_place)?);
-            let operation = self.operations.allocate();
-            self.operations.push(Operation {
-                static_reach_binding: None,
-                suspension_crossing: None,
-                id: operation,
-                result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
-                    qualification_establishments: Vec::new(),
-                    place,
-                    structural_type: leaf_type,
-                    multiplicity: self.multiplicity,
-                    qualifications: Vec::new(),
-                    projected_qualifications: Vec::new(),
-                    claims: Vec::new(),
-                }),
-                kind: OperationKind::EstablishScalarCase {
+            let (place, operation) = allocate_structural_result(
+                self.operations,
+                self.next_place,
+                leaf_type,
+                self.multiplicity,
+                Vec::new(),
+                OperationKind::EstablishScalarCase {
                     result_case: case.id,
                     fields: Vec::new(),
                 },
-            });
-            self.temporary_places.push(StructuralPlaceDeclaration {
-                id: place,
-                kind: StructuralPlaceKind::OperationResult {
-                    producer: operation,
-                    structural_type: leaf_type,
-                },
-            });
+            )?;
+            self.temporary_places
+                .push(operation_result_declaration(place, operation, leaf_type));
             self.complete_value(place, None, continuation)?;
             if let Some((next, values)) = fallback {
                 self.start(next);
@@ -2717,33 +2683,22 @@ impl Emission<'_, '_, '_> {
         } else {
             Vec::new()
         };
-        let place = place_id(allocate_dense(self.next_place)?);
-        let operation = self.operations.allocate();
-        self.operations.push(Operation {
-            static_reach_binding: None,
-            suspension_crossing: None,
-            id: operation,
-            result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
-                qualification_establishments: Vec::new(),
-                place,
-                structural_type: self.structural_type,
-                multiplicity: self.multiplicity,
-                qualifications,
-                projected_qualifications: Vec::new(),
-                claims: Vec::new(),
-            }),
-            kind: OperationKind::StructuralLeafCopy {
+        let (place, operation) = allocate_structural_result(
+            self.operations,
+            self.next_place,
+            self.structural_type,
+            self.multiplicity,
+            qualifications,
+            OperationKind::StructuralLeafCopy {
                 source: argument.place,
                 path,
             },
-        });
-        self.temporary_places.push(StructuralPlaceDeclaration {
-            id: place,
-            kind: StructuralPlaceKind::OperationResult {
-                producer: operation,
-                structural_type: self.structural_type,
-            },
-        });
+        )?;
+        self.temporary_places.push(operation_result_declaration(
+            place,
+            operation,
+            self.structural_type,
+        ));
         let Some(continuation) = continuation else {
             // At the value root the fresh place publishes directly — the copy
             // consumes nothing, so there is no custody edge to join.

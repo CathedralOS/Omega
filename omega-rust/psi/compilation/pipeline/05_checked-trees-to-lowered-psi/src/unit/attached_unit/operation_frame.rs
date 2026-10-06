@@ -82,6 +82,7 @@ use crate::unit::{
     lookup_service_id, lookup_type_id, place_id, terminal_scalar_type, unsupported,
 };
 use checked_trees::{CheckedComposedUnitControlStatePlan, CheckedUnitStructuralArgumentPlan};
+use semantic_vocabulary::OperationId;
 use std::borrow::Cow;
 
 mod atomic_access;
@@ -1768,33 +1769,19 @@ impl OperationFrame<'_, '_> {
         let source_place = self.evaluation.current_structural_place(value_root.place);
         // The copy reads the source where it lives: a shared loan or an owned
         // parameter both admit the leaf copy without moving anything.
-        let copied_place = place_id(allocate_dense(self.next_place)?);
-        let copy = self.operations.allocate();
-        self.operations.push(Operation {
-            static_reach_binding: None,
-            suspension_crossing: None,
-            id: copy,
-            result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
-                qualification_establishments: Vec::new(),
-                place: copied_place,
-                structural_type: hole_type,
-                multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
-                qualifications: Vec::new(),
-                projected_qualifications: Vec::new(),
-                claims: Vec::new(),
-            }),
-            kind: OperationKind::StructuralLeafCopy {
+        let (copied_place, copy) = allocate_structural_result(
+            self.operations,
+            self.next_place,
+            hole_type,
+            terminal_psi::StructuralMultiplicity::Unrestricted,
+            Vec::new(),
+            OperationKind::StructuralLeafCopy {
                 source: source_place,
                 path: lower_structural_path(&store.value.path)?,
             },
-        });
-        self.private_places.push(StructuralPlaceDeclaration {
-            id: copied_place,
-            kind: StructuralPlaceKind::OperationResult {
-                producer: copy,
-                structural_type: hole_type,
-            },
-        });
+        )?;
+        self.private_places
+            .push(operation_result_declaration(copied_place, copy, hole_type));
         let mut field_path = store.carrier_path.clone();
         field_path.push(checked_trees::CheckedUnitStructuralPathSegment::Field(
             store.field_identity.clone(),
@@ -2033,33 +2020,22 @@ impl OperationFrame<'_, '_> {
             ));
         }
         initialized.sort_by_key(|(position, _)| *position);
-        let copied_place = place_id(allocate_dense(self.next_place)?);
-        let establishment = self.operations.allocate();
-        self.operations.push(Operation {
-            static_reach_binding: None,
-            suspension_crossing: None,
-            id: establishment,
-            result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
-                qualification_establishments: Vec::new(),
-                place: copied_place,
-                structural_type: hole_type,
-                multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
-                qualifications: Vec::new(),
-                projected_qualifications: Vec::new(),
-                claims: Vec::new(),
-            }),
-            kind: OperationKind::EstablishStructuralCase {
+        let (copied_place, establishment) = allocate_structural_result(
+            self.operations,
+            self.next_place,
+            hole_type,
+            terminal_psi::StructuralMultiplicity::Unrestricted,
+            Vec::new(),
+            OperationKind::EstablishStructuralCase {
                 result_case: case.id,
                 fields: initialized.into_iter().map(|(_, field)| field).collect(),
             },
-        });
-        self.private_places.push(StructuralPlaceDeclaration {
-            id: copied_place,
-            kind: StructuralPlaceKind::OperationResult {
-                producer: establishment,
-                structural_type: hole_type,
-            },
-        });
+        )?;
+        self.private_places.push(operation_result_declaration(
+            copied_place,
+            establishment,
+            hole_type,
+        ));
         let mut field_path = store.carrier_path.clone();
         field_path.push(checked_trees::CheckedUnitStructuralPathSegment::Field(
             store.field_identity.clone(),
@@ -2776,31 +2752,18 @@ impl OperationFrame<'_, '_> {
             .collect::<Result<Vec<_>, _>>()?;
         qualifications.sort();
         qualifications.dedup();
-        let home = place_id(allocate_dense(self.next_place)?);
-        let producer = self.operations.allocate();
-        self.operations.push(Operation {
-            static_reach_binding: None,
-            suspension_crossing: None,
-            id: producer,
-            result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
-                qualification_establishments: Vec::new(),
-                place: home,
-                structural_type,
-                multiplicity,
-                qualifications,
-                projected_qualifications: Vec::new(),
-                claims: Vec::new(),
-            }),
-            kind: OperationKind::EstablishStructuralLocal {},
-        });
-        let declaration = StructuralPlaceDeclaration {
-            id: home,
-            kind: StructuralPlaceKind::OperationResult {
-                producer,
-                structural_type,
-            },
-        };
-        self.results.push(declaration, *discard_result_on_return);
+        let (home, producer) = allocate_structural_result(
+            self.operations,
+            self.next_place,
+            structural_type,
+            multiplicity,
+            qualifications,
+            OperationKind::EstablishStructuralLocal {},
+        )?;
+        self.results.push(
+            operation_result_declaration(home, producer, structural_type),
+            *discard_result_on_return,
+        );
         let produced = self
             .operations
             .operations
@@ -3049,4 +3012,52 @@ fn require_parameter_window_root(
         return unsupported("borrowed-window root was transported to a join parameter");
     }
     Ok(())
+}
+
+/// Mint the place and pushed operation for one structural result: every
+/// `Structural` result payload shares the same empty-establishment,
+/// empty-claim literal, varying only in type, multiplicity, and
+/// qualifications.
+pub(super) fn allocate_structural_result(
+    operations: &mut OperationBuffer,
+    next_place: &mut u64,
+    structural_type: StructuralTypeId,
+    multiplicity: terminal_psi::StructuralMultiplicity,
+    qualifications: Vec<StructuralDomainId>,
+    kind: OperationKind,
+) -> Result<(PlaceId, OperationId), LoweringError> {
+    let place = place_id(allocate_dense(next_place)?);
+    let producer = operations.allocate();
+    operations.push(Operation {
+        static_reach_binding: None,
+        suspension_crossing: None,
+        id: producer,
+        result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
+            qualification_establishments: Vec::new(),
+            place,
+            structural_type,
+            multiplicity,
+            qualifications,
+            projected_qualifications: Vec::new(),
+            claims: Vec::new(),
+        }),
+        kind,
+    });
+    Ok((place, producer))
+}
+
+/// The `OperationResult` place declaration pairing
+/// `allocate_structural_result`.
+pub(super) fn operation_result_declaration(
+    id: PlaceId,
+    producer: OperationId,
+    structural_type: StructuralTypeId,
+) -> StructuralPlaceDeclaration {
+    StructuralPlaceDeclaration {
+        id,
+        kind: StructuralPlaceKind::OperationResult {
+            producer,
+            structural_type,
+        },
+    }
 }
