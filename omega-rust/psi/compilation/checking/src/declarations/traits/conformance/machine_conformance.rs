@@ -7,8 +7,8 @@ mod closed_requirement;
 pub use closed_requirement::resolve as resolve_closed_requirement_application;
 
 use crate::declarations::traits::conformance::signature_matching::{
-    TraitTypeBinding, TraitTypeBindingTarget, parameter_shape_label,
-    type_reference_lifetimes_match_requirement_application,
+    TraitTypeBinding, TraitTypeBindingTarget, authored_satisfier_parameters, parameter_shape_label,
+    satisfier_parameter_correspondence, type_reference_lifetimes_match_requirement_application,
     type_references_match_with_trait_bindings,
     validate_machine_state_satisfies_trait_signature_with_arguments,
 };
@@ -327,12 +327,13 @@ fn validate_machine_top_level_requirement_conformance(
 
     let required_parameters = program.state_parameters(requirement_entry);
     let actual_parameters = program.state_parameters(provider_entry);
-    if required_parameters.len() != actual_parameters.len() {
-        diagnostics.push(Diagnostic::error(format!(
-            "{label} has {} value parameter(s); the requirement declares {}",
-            actual_parameters.len(),
-            required_parameters.len(),
-        )));
+    if let Err(diagnostic) = satisfier_parameter_correspondence(
+        &format!("machine `{}`", machine.name),
+        &format!("top-level boundary requirement `{requirement_identity}`"),
+        actual_parameters.len(),
+        required_parameters.len(),
+    ) {
+        diagnostics.push(diagnostic);
         return;
     }
     for (index, (required, actual)) in required_parameters
@@ -581,13 +582,22 @@ fn validate_machine_operator_conformance(
     };
     let namespace = conformance.name.as_str();
     let requirement_name = requirement.as_str();
-    let names_operator = program.operators().iter().any(|operator| {
-        let path = program.operator_path_members(operator.name);
-        matches!(path, [owner, member]
-            if owner.as_str() == namespace
-                && member.as_str() == requirement_name)
-    });
-    if !names_operator {
+    // Operators and token-bearing top-level requirements share one signature
+    // matcher, which selects the overload from the satisfier's own signature.
+    // An edge it could not settle still names that declaration path, so both
+    // declaration families are consulted before the edge counts as unknown.
+    let same_path_declarations = program
+        .operators()
+        .iter()
+        .chain(program.machine_token_bindings())
+        .filter(|operator| {
+            let path = program.operator_path_members(operator.name);
+            matches!(path, [owner, member]
+                if owner.as_str() == namespace
+                    && member.as_str() == requirement_name)
+        })
+        .collect::<Vec<_>>();
+    if same_path_declarations.is_empty() {
         return false;
     }
 
@@ -626,6 +636,20 @@ fn validate_machine_operator_conformance(
             requirement_name,
         );
         let Some((operator, retained)) = retained else {
+            // With one declaration on the path there is no overload to
+            // choose, so its parameter correspondence is the precise reason.
+            if let [declaration] = same_path_declarations.as_slice()
+                && let Some(entry) = program.machine_states(machine).first()
+                && let Err(diagnostic) = satisfier_parameter_correspondence(
+                    &format!("machine `{}`", machine.name),
+                    &format!("requirement `{namespace}::{requirement_name}`"),
+                    authored_satisfier_parameters(program, machine, entry).len(),
+                    program.operator_parameters(declaration).len(),
+                )
+            {
+                diagnostics.push(diagnostic);
+                return true;
+            }
             diagnostics.push(Diagnostic::error(format!(
                 "machine `{}` does not match one exact overload of operator requirement `{}::{}`; its entry parameter and result types must equal one declared requirement signature",
                 machine.name, namespace, requirement_name,

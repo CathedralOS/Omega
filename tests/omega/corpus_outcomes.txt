@@ -1386,6 +1386,14 @@ fail/providers/provider_type_slot_unknown rejected 749ms expected @2d8ed253669f
 	build selects provider `MissingProvider` for slot `Pick`, but no candidate exists in the loaded dependency closure
 fail/providers/provider_type_target_default_conflict rejected 113ms expected @2d8ed253669f
 	slot `Pick` has conflicting target-package defaults: `FirstProvider`, `SecondProvider` -- a target supplies at most one default provider type per slot
+fail/providers/satisfier_extra_parameter_rejected rejected 386ms expected @7c7699baf777+wt
+	machine `MappedTally::add` state `add` declares 2 parameter(s), but trait `Tally` machine `add` declares 1: a satisfier declares no parameter its requirement lacks; a provider holds no state, so state that outlives a call passes through the requirement's declared parameters
+	machine `stateful_reset` state `entry` declares 1 parameter(s), but trait `Tally` machine `reset` declares 0: a satisfier declares no parameter its requirement lacks; a provider holds no state, so state that outlives a call passes through the requirement's declared parameters
+	machine `DirectTally::add` state `add` declares 2 parameter(s), but trait `Tally` machine `add` declares 1: a satisfier declares no parameter its requirement lacks; a provider holds no state, so state that outlives a call passes through the requirement's declared parameters
+	machine `stateful_exit` state `entry` declares 2 parameter(s), but trait `Process` machine `exit` declares 1: a satisfier declares no parameter its requirement lacks; a provider holds no state, so state that outlives a call passes through the requirement's declared parameters
+	machine `stateful_count` declares 2 parameter(s), but top-level boundary requirement `Arithmetic::count` declares 1: a satisfier declares no parameter its requirement lacks; a provider holds no state, so state that outlives a call passes through the requirement's declared parameters
+	machine `stateful_offset` declares 2 parameter(s), but requirement `Arithmetic::offset` declares 1: a satisfier declares no parameter its requirement lacks; a provider holds no state, so state that outlives a call passes through the requirement's declared parameters
+	machine `stateful_select_left` declares 3 parameter(s), but requirement `Arithmetic::select_left` declares 2: a satisfier declares no parameter its requirement lacks; a provider holds no state, so state that outlives a call passes through the requirement's declared parameters
 fail/providers/service_nonboundary_requirement_rejected rejected 187ms expected @2d8ed253669f
 	data `Main` field `service` uses an invalid routed service carrier: `Binding<Local>` requires a boundary trait; ordinary traits are local interfaces
 fail/providers/via_signature_mismatch_rejected rejected 252ms expected @2d8ed253669f

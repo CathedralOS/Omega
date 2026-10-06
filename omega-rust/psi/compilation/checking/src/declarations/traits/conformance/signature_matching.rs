@@ -1,6 +1,7 @@
 //! Matching a machine state against a trait signature: effect ceilings,
 //! parameter matches, trait type bindings, lifetimes and fixed array
-//! lengths.
+//! lengths. `satisfier_parameter_correspondence` is the one parameter-count
+//! judgment that trait, top-level and operator conformance paths share.
 //!
 //! Whole conformances supply their declared subject explicitly. Exact
 //! satisfaction edges instead infer Self from the callable signature. A
@@ -94,6 +95,55 @@ fn specialized_instance_realized_tail(
     if matched == realized { realized } else { 0 }
 }
 
+/// Judge one satisfier's value-parameter list against its requirement's.
+///
+/// A satisfier declares exactly its requirement's parameters: none the
+/// requirement lacks and none fewer (`wiki/spec/language/machines.md`,
+/// "Static declarations and explicit state"). A provider is only its
+/// satisfier machines, so there is no provider value for a call to supply:
+/// state that outlives one call is a value the service returns and the caller
+/// passes back through the requirement's own declared parameters. Trait rows
+/// (exact edges, named maps, `via` leaves) and top-level and operator
+/// requirements all judge their parameter correspondence here, so no
+/// conformance path can admit an extra leading provider-state parameter that
+/// a caller would have to supply implicitly. Callers pass the authored
+/// parameter count; only parameters the compiler itself appended to a
+/// specialized instance are excluded beforehand.
+pub(crate) fn satisfier_parameter_correspondence(
+    satisfier: &str,
+    requirement: &str,
+    declared: usize,
+    required: usize,
+) -> Result<(), Diagnostic> {
+    if declared > required {
+        return Err(Diagnostic::error(format!(
+            "{satisfier} declares {declared} parameter(s), but {requirement} declares {required}: a satisfier declares no parameter its requirement lacks; a provider holds no state, so state that outlives a call passes through the requirement's declared parameters"
+        )));
+    }
+    if declared < required {
+        return Err(Diagnostic::error(format!(
+            "{satisfier} declares {declared} parameter(s), but {requirement} declares {required}: a satisfier declares every parameter its requirement declares"
+        )));
+    }
+    Ok(())
+}
+
+/// The parameters a satisfier state authored. A specialized instance appends
+/// one trailing ordinary parameter per runtime-bound `Value` binder, after the
+/// template's authored parameters in binder order (see monomorphization's
+/// realized-subject cloning). The realized subjects carry a declared binder
+/// carrier at runtime rather than declaring a new callable argument, so they
+/// are sliced off before arity and positional correspondence.
+pub(crate) fn authored_satisfier_parameters<'program>(
+    program: &'program TypedTrees,
+    machine: &Machine,
+    state: &State,
+) -> &'program [StateParameter] {
+    let parameters = program.state_parameters(state);
+    let realized_tail = specialized_instance_realized_tail(program, machine, state);
+    &parameters[..parameters.len() - realized_tail]
+}
+
 pub(crate) fn validate_machine_state_satisfies_trait_signature_with_arguments(
     program: &TypedTrees,
     service_reaches: &flow_effects::ServiceReachInferencePlan,
@@ -106,55 +156,18 @@ pub(crate) fn validate_machine_state_satisfies_trait_signature_with_arguments(
     explicit_type_arguments: &[TypeReferenceHandle],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let mut actual_parameters = program.state_parameters(state);
+    let actual_parameters = authored_satisfier_parameters(program, machine, state);
     let required_parameters = program.state_signature_parameters(requirement);
-    // A specialized instance appends one trailing ordinary parameter per
-    // runtime-bound `Value` binder, after the template's authored parameters
-    // in binder order (see monomorphization's realized-subject cloning). The
-    // realized subjects carry a declared binder carrier at runtime rather
-    // than declaring a new callable argument, so they are sliced off before
-    // the arity and positional checks below.
-    let realized_tail = specialized_instance_realized_tail(program, machine, state);
-    if realized_tail > 0 {
-        actual_parameters = &actual_parameters[..actual_parameters.len() - realized_tail];
-    }
-    // PRV4 self-forwarding adapters: a machine satisfying a BOUNDARY trait
-    // requirement may take the trait ITSELF as one extra LEADING parameter
-    // (adapter dispatch forwards the call's receiver there); the tail must
-    // match the requirement exactly. This includes nominal provider adapters:
-    // attachment groups rows into one provider closure but does not add a
-    // runtime provider receiver. Plain traits keep the strict positional
-    // match.
-    if trait_definition.is_boundary
-        && actual_parameters.len() == required_parameters.len() + 1
-        && actual_parameters.first().is_some_and(|parameter| {
-            let label = type_reference_label(program, parameter.type_reference);
-            let leaf = label
-                .rsplit("::")
-                .next()
-                .unwrap_or(label.as_str())
-                .to_owned();
-            let trait_leaf = trait_definition
-                .name
-                .as_str()
-                .rsplit("::")
-                .next()
-                .unwrap_or(trait_definition.name.as_str());
-            leaf == trait_leaf
-        })
-    {
-        actual_parameters = &actual_parameters[1..];
-    }
-    if actual_parameters.len() != required_parameters.len() {
-        diagnostics.push(Diagnostic::error(format!(
-            "machine `{}` state `{}` does not satisfy trait `{}` machine `{}`: expected {} parameter(s), got {}",
-            machine.name,
-            state.name,
-            trait_definition.name,
-            requirement.name,
-            required_parameters.len(),
-            actual_parameters.len()
-        )));
+    if let Err(diagnostic) = satisfier_parameter_correspondence(
+        &format!("machine `{}` state `{}`", machine.name, state.name),
+        &format!(
+            "trait `{}` machine `{}`",
+            trait_definition.name, requirement.name
+        ),
+        actual_parameters.len(),
+        required_parameters.len(),
+    ) {
+        diagnostics.push(diagnostic);
         return;
     }
 

@@ -85,32 +85,12 @@ fn validate_no_bare_boundary_trait_values(program: &TypedTrees) -> Result<(), Ve
             }
         }
     }
+    // A satisfier has no provider-receiver slot: its parameters are exactly
+    // its requirement's, so every machine parameter is an ordinary value
+    // position here, including a satisfier's first.
     for machine in program.machines() {
-        // A `satisfies` adapter on a boundary requirement may take the
-        // satisfied trait itself as one extra leading parameter — the
-        // self-forwarding receiver conformance slicing removes before
-        // arity/refinement. That slot is dispatch plumbing rather than a
-        // carried service, so its bare spelling stays admitted here.
-        let forwarding_receiver_symbols = program
-            .machine_trait_conformances(machine)
-            .iter()
-            .map(|conformance| conformance.symbol)
-            .filter(|symbol| {
-                program
-                    .traits()
-                    .iter()
-                    .any(|definition| definition.symbol == *symbol && definition.is_boundary)
-            })
-            .collect::<Vec<_>>();
         for state in program.machine_states(machine) {
-            for (parameter_index, parameter) in program.state_parameters(state).iter().enumerate() {
-                if parameter_index == 0
-                    && !forwarding_receiver_symbols.is_empty()
-                    && bare_boundary_trait_symbol(program, parameter.type_reference)
-                        .is_some_and(|symbol| forwarding_receiver_symbols.contains(&symbol))
-                {
-                    continue;
-                }
+            for parameter in program.state_parameters(state) {
                 check(
                     format!(
                         "parameter `{}` on `{}.{}`",
@@ -163,22 +143,8 @@ fn validate_no_bare_boundary_trait_values(program: &TypedTrees) -> Result<(), Ve
 
 fn bare_boundary_trait_name(
     program: &TypedTrees,
-    type_reference: TypeReferenceHandle,
-) -> Option<String> {
-    bare_boundary_trait_symbol_and_name(program, type_reference).map(|(_, name)| name)
-}
-
-fn bare_boundary_trait_symbol(
-    program: &TypedTrees,
-    type_reference: TypeReferenceHandle,
-) -> Option<symbols::SymbolHandle> {
-    bare_boundary_trait_symbol_and_name(program, type_reference).map(|(symbol, _)| symbol)
-}
-
-fn bare_boundary_trait_symbol_and_name(
-    program: &TypedTrees,
     mut type_reference: TypeReferenceHandle,
-) -> Option<(symbols::SymbolHandle, String)> {
+) -> Option<String> {
     loop {
         if !program
             .type_reference_table
@@ -186,7 +152,7 @@ fn bare_boundary_trait_symbol_and_name(
         {
             return None;
         }
-        let symbol_and_name = match program.type_reference_table.type_reference(type_reference) {
+        let (symbol, name) = match program.type_reference_table.type_reference(type_reference) {
             TypeReferenceNode::Constrained { base_type, .. } => {
                 type_reference = *base_type;
                 continue;
@@ -200,11 +166,10 @@ fn bare_boundary_trait_symbol_and_name(
             } => (*base_symbol, base_name.as_str()),
             _ => return None,
         };
-        let (symbol, name) = symbol_and_name;
         return program
             .traits()
             .iter()
             .any(|definition| definition.symbol == symbol && definition.is_boundary)
-            .then(|| (symbol, name.to_owned()));
+            .then(|| name.to_owned());
     }
 }

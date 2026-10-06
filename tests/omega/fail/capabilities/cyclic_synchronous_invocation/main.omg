@@ -1,34 +1,38 @@
 use omega::language::core::binding;
 // Both selected checked providers realize one direct synchronous edge. The
 // resulting Alpha -> Binding<Beta> -> Binding<Alpha> component-boundary graph is forbidden even
-// though ordinary service reach may remain cyclic.
+// though ordinary service reach may remain cyclic. Providers hold no state:
+// each requirement passes the caller's service bindings explicitly.
+
+pub data Services {
+    alpha: Binding<Alpha>;
+    beta: Binding<Beta>;
+}
 
 pub boundary trait Alpha {
-    machine alpha()
+    machine alpha(services: &Services)
     invokes Beta;
 }
 
 pub boundary trait Beta {
-    machine beta()
+    machine beta(services: &Services)
     invokes Alpha;
 }
 
-data AlphaProvider {
-    beta: Binding<Beta>;
-}
+data AlphaProvider {}
 
-machine AlphaProvider::alpha_checked(alpha_provider: &mut AlphaProvider)
+machine AlphaProvider::alpha_checked(services: &Services)
 satisfies Alpha::alpha
+reaches Beta
 {
-    alpha_provider.beta.beta();
+    services.beta.beta(services);
 }
 
-data BetaProvider {
-    alpha: Binding<Alpha>;
-}
+data BetaProvider {}
 
-machine BetaProvider::beta_checked(beta_provider: &mut BetaProvider)
+machine BetaProvider::beta_checked(services: &Services)
 satisfies Beta::beta
+reaches Alpha
 {
-    beta_provider.alpha.alpha();
+    services.alpha.alpha(services);
 }
