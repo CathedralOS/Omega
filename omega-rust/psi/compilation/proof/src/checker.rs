@@ -33,7 +33,7 @@ mod named_constraints;
 mod requires_conditions;
 mod return_arrival;
 
-pub use certificate::{CertificateVerdict, guarded_transition_integer_verdict};
+pub use certificate::CertificateVerdict;
 pub use derivation_cache::{DerivationCacheReport, ProofDerivationCache};
 pub use integer_ranges::{AssignmentRangeContext, proved_assignment_integer_range_with_context};
 pub use measurement::ProofPlanMeasurements;

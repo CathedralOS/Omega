@@ -449,25 +449,8 @@ fn collect_contract_bounds(
 /// Anonymous-owned arguments, non-exact arithmetic, `K - place` refolds,
 /// point exclusions, and the arrival rescue stay uncovered and keep the
 /// ordinary derivation.
-pub fn guarded_transition_integer_verdict(
-    proof_plan: &ProofPlan,
-    obligation: &BoundedTransitionArgumentObligation,
-    target: &IntegerRange,
-    seed: u64,
-) -> CertificateVerdict {
-    let mut measurements = ProofPlanMeasurements::default();
-    guarded_transition_integer_verdict_measured(
-        proof_plan,
-        obligation,
-        target,
-        seed,
-        &mut measurements,
-        None,
-    )
-}
-
-/// `guarded_transition_integer_verdict` with the run's measurements recorded
-/// into the caller's recorder.
+/// The same route with the run's measurements recorded into the caller's
+/// recorder.
 pub(crate) fn guarded_transition_integer_verdict_measured(
     proof_plan: &ProofPlan,
     obligation: &BoundedTransitionArgumentObligation,
