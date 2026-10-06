@@ -68,6 +68,9 @@ pub(in crate::execution::terminal_unit) fn state_cleanups(
             });
         }
     }
+    let reference_consumed = crate::execution::terminal_unit::types::reference_consumed_parameters(
+        &state_plan.operations,
+    );
     for (_, disposition) in facts
         .contextual_cleanup
         .dispositions
@@ -82,6 +85,11 @@ pub(in crate::execution::terminal_unit) fn state_cleanups(
             return None;
         }
         let source = owner_source(program, state, state_plan, disposition.root)?;
+        if matches!(source, CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index }
+            if reference_consumed.contains(&parameter_index))
+        {
+            continue;
+        }
         let actions = super::actions::disposition_actions(
             program,
             facts,

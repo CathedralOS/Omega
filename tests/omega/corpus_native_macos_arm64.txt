@@ -76,8 +76,7 @@ pass/borrows/borrow_domain_window_write_and_call built 11228ms exit:0 @51b2cebdd
 pass/borrows/borrow_guarded_window_write_and_call built 881ms exit:0 @f6c42bccfedd
 pass/borrows/borrow_returned_window_write_and_call built 11228ms exit:0 @51b2cebdd24f
 pass/borrows/borrow_stated_index_disequality_mut checked 163ms
-pass/borrows/branch_selected_record_composed_receiver_exit rejected 1082ms regressed-from:built+exit:70 @bf30e2cd0c13+wt
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable callee (`CommandSource::connect`), which was itself omitted at local construction at `outer calls: structural operands`
+pass/borrows/branch_selected_record_composed_receiver_exit built 3173ms exit:70 @53d5dde47ae5
 pass/borrows/branch_selected_record_receiver_exit built 1252ms exit:70 @011fd400e8c1+wt
 pass/borrows/case_payload_shared_transition_exit built 1109ms exit:70 @ecff27281052
 pass/borrows/case_payload_state_loan_exit built 1589ms exit:70 @b9ead894da43+wt
@@ -97,10 +96,8 @@ pass/borrows/projected_indexed_member_loan built 2120ms exit:0 @bed5f45e9185+wt
 pass/borrows/projected_local_member_loan built 2413ms exit:0 @bed5f45e9185+wt
 pass/borrows/projected_mut_member_loan built 786ms exit:0 @48008365d839
 pass/borrows/projected_param_member_loan built 839ms exit:0 @48008365d839
-pass/borrows/projected_reference_record_argument_exit rejected 1052ms regressed-from:built+exit:29 @bf30e2cd0c13+wt
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable scalar target (`exercise`), which was itself omitted at local construction at `call operation: structural arguments: caller structural result`
-pass/borrows/projected_reference_record_residual_exit rejected 677ms regressed-from:built+exit:29 @bf30e2cd0c13+wt
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable scalar target (`exercise`), which was itself omitted at local construction at `call operation: structural arguments: caller structural result`
+pass/borrows/projected_reference_record_argument_exit built 2896ms exit:29 @53d5dde47ae5
+pass/borrows/projected_reference_record_residual_exit built 2817ms exit:29 @53d5dde47ae5
 pass/borrows/projected_scalar_member_loan built 2224ms exit:0 @bed5f45e9185+wt
 pass/borrows/qualified_byte_owner_exclusive_call_exit built 1130ms exit:70 @e26439b2fe50+wt
 pass/borrows/qualified_byte_owner_shared_call_exit built 3053ms exit:70 @29448bf62fa8+wt
@@ -420,13 +417,11 @@ pass/capabilities/callback_direct_install_compile built 1442ms @56c7f12ecb90+wt
 pass/capabilities/derives_through_helper built 272ms
 pass/capabilities/external_leaf_binding_forms built 308ms
 pass/capabilities/runtime_qualified_record_return_exit built 1788ms exit:0 @e8239f945e82+wt
-pass/capabilities/sysv_small_aggregate_import_compile rejected 880ms regressed-from:built @bf30e2cd0c13+wt
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `call operation: boundary arguments`
+pass/capabilities/sysv_small_aggregate_import_compile built 3034ms @53d5dde47ae5
 pass/capabilities/transitive_effect_inference checked 185ms
 pass/capabilities/uses_caller_folder checked 198ms
 pass/capabilities/win64_large_aggregate_result_import_compile built 5916ms @4ffed225fc45+wt
-pass/capabilities/win64_pointer_length_vs_descriptor_compile rejected 950ms regressed-from:built @bf30e2cd0c13+wt
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `call operation: boundary arguments`
+pass/capabilities/win64_pointer_length_vs_descriptor_compile built 2970ms @53d5dde47ae5
 pass/capabilities/windows_provides_import_exit built 689ms @48008365d839
 pass/collections/array_local_control checked 213ms
 pass/collections/case_array_computed_index_match_exit built 1008ms exit:20 @48008365d839

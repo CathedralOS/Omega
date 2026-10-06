@@ -12,6 +12,29 @@ use super::*;
 /// Stage 05 completes their scheduled disposal from the emitted transfer
 /// frontier; this parameter roster must not reject those projections based on
 /// whether their producer was a call, construction, named local or temporary.
+/// Parameters a projected reference establishment consumes. It moves its
+/// carrier's leaf into the result and consumes the carrier whole, so the
+/// carrier owes no exit discard, although the permission ledger still records
+/// a whole-root exit drop for it. The whole-ingress lane keeps an empty path
+/// and leaves the borrowed parameter on the ordinary roster. Both the ordinary
+/// return and the composed state graph's normal exits subtract these.
+pub(in crate::execution::terminal_unit) fn reference_consumed_parameters(
+    operations: &[CheckedUnitEffectOperationPlan],
+) -> BTreeSet<u32> {
+    operations
+        .iter()
+        .flat_map(|operation| operation.with_value_calls())
+        .filter_map(|operation| match operation {
+            CheckedUnitEffectOperationPlan::EstablishReference { source, .. }
+                if !source.path.is_empty() =>
+            {
+                source.source_parameter_index()
+            }
+            _ => None,
+        })
+        .collect()
+}
+
 pub(in crate::execution::terminal_unit) fn return_unit_affine_discards(
     program: &TypedTrees,
     facts: &CheckFacts,
@@ -46,20 +69,9 @@ pub(in crate::execution::terminal_unit) fn return_unit_affine_discards(
                     }
                 }
             }
-        } else if let CheckedUnitEffectOperationPlan::EstablishReference { source, .. } = operation
-        {
-            // A projected reference establishment moves its carrier's
-            // leaf into the result and consumes the carrier whole; the
-            // carrier owes no separate exit discard. The whole-ingress
-            // lane keeps an empty path and leaves the borrowed parameter
-            // on the ordinary roster.
-            if !source.path.is_empty()
-                && let Some(parameter_index) = source.source_parameter_index()
-            {
-                transferred_parameters.insert(parameter_index);
-            }
         }
     }
+    transferred_parameters.extend(reference_consumed_parameters(operations));
     let mut residual_roots = BTreeSet::new();
     let mut residual_affine_discards = Vec::new();
     for (parameter_index, moved_paths) in &moved_parameter_paths {

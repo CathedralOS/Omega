@@ -1716,8 +1716,7 @@ pass/borrows/borrow_domain_window_write_and_call checked 11682ms check-target:ma
 pass/borrows/borrow_guarded_window_write_and_call checked 286ms check-target:macos_arm64 @2d8ed253669f
 pass/borrows/borrow_returned_window_write_and_call checked 11704ms check-target:macos_arm64 @51b2cebdd24f
 pass/borrows/borrow_stated_index_disequality_mut checked 278ms @2d8ed253669f
-pass/borrows/branch_selected_record_composed_receiver_exit rejected 1375ms check-target:macos_arm64 @8735cafb4cf
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable callee (`CommandSource::connect`), which was itself omitted at local construction at `outer calls: structural operands`
+pass/borrows/branch_selected_record_composed_receiver_exit checked 2717ms check-target:macos_arm64 @53d5dde47ae5
 pass/borrows/branch_selected_record_receiver_exit checked 1333ms check-target:macos_arm64 @011fd400e8c1+wt
 pass/borrows/case_payload_shared_transition_exit checked 2612ms check-target:macos_arm64 @e8505b71528
 pass/borrows/case_payload_state_loan_exit checked 2340ms check-target:macos_arm64 @e8505b71528
@@ -1737,10 +1736,8 @@ pass/borrows/projected_indexed_member_loan checked 1332ms check-target:macos_arm
 pass/borrows/projected_local_member_loan checked 1270ms check-target:macos_arm64 @2d8ed253669f
 pass/borrows/projected_mut_member_loan checked 2147ms check-target:macos_arm64 @8778c440081
 pass/borrows/projected_param_member_loan checked 1338ms check-target:macos_arm64 @2d8ed253669f
-pass/borrows/projected_reference_record_argument_exit rejected 1141ms check-target:macos_arm64 @8735cafb4cf
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable scalar target (`exercise`), which was itself omitted at local construction at `call operation: structural arguments: caller structural result`
-pass/borrows/projected_reference_record_residual_exit rejected 1208ms check-target:macos_arm64 @8735cafb4cf
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable scalar target (`exercise`), which was itself omitted at local construction at `call operation: structural arguments: caller structural result`
+pass/borrows/projected_reference_record_argument_exit checked 2542ms check-target:macos_arm64 @53d5dde47ae5
+pass/borrows/projected_reference_record_residual_exit checked 2593ms check-target:macos_arm64 @53d5dde47ae5
 pass/borrows/projected_scalar_member_loan checked 1316ms check-target:macos_arm64 @2d8ed253669f
 pass/borrows/qualified_byte_owner_exclusive_call_exit checked 7292ms check-target:macos_arm64 @cfe60a3a242
 pass/borrows/qualified_byte_owner_shared_call_exit checked 24307ms check-target:macos_arm64 @cfe60a3a242
@@ -2061,13 +2058,11 @@ pass/capabilities/callback_direct_install_compile checked 2541ms check-target:li
 pass/capabilities/derives_through_helper checked 383ms check-target:macos_arm64 @2d8ed253669f
 pass/capabilities/external_leaf_binding_forms checked 488ms check-target:macos_arm64 @2d8ed253669f
 pass/capabilities/runtime_qualified_record_return_exit checked 1763ms check-target:macos_arm64 @e8239f945e82+wt
-pass/capabilities/sysv_small_aggregate_import_compile rejected 1699ms check-target:linux_x86_64 @8735cafb4cf
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `call operation: boundary arguments`
+pass/capabilities/sysv_small_aggregate_import_compile checked 2865ms check-target:linux_x86_64 @53d5dde47ae5
 pass/capabilities/transitive_effect_inference checked 291ms @2d8ed253669f
 pass/capabilities/uses_caller_folder checked 281ms @2d8ed253669f
 pass/capabilities/win64_large_aggregate_result_import_compile checked 1189ms check-target:windows_x86_64 @3284f31163c
-pass/capabilities/win64_pointer_length_vs_descriptor_compile rejected 1791ms check-target:macos_arm64 @8735cafb4cf
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `call operation: boundary arguments`
+pass/capabilities/win64_pointer_length_vs_descriptor_compile checked 2847ms check-target:macos_arm64 @53d5dde47ae5
 pass/capabilities/windows_provides_import_exit checked 2179ms check-target:windows_x86_64 @8778c440081
 pass/collections/array_local_control checked 316ms @2d8ed253669f
 pass/collections/case_array_computed_index_match_exit checked 2057ms check-target:macos_arm64 @2d8ed253669f

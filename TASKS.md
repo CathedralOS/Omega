@@ -188,10 +188,14 @@ helper that passes does not close an item.
   300 s per-call timeout, preserving its runtime oracle. First remeasure on
   one host and compiler profile:
   `python3 tools/sample_native_gate.py --cli <debug omega> --jobs 1 --timeout 6600 --filter games/dungeon_crawler_cli`.
-  - Blocked: the sample does not build at `87238e4afb8`.
-    **CONSTRUCTED-ARGUMENT-SCHEDULE-REGRESSED-NINE** owns the Unit-plan
-    omission from `8735cafb4cf`, and **STATE-LOCAL-VALUE-FRONTIER** owns the
-    checking refusal from `6c0fd10e915`. Measure once both recover.
+  - The sample checks, produces Terminal Psi, builds natively and exits 0
+    on its closed-stdin route again. On macOS ARM64 the debug corpus runner,
+    given a copy of the sample as a fixture, took about 6 minutes for all four
+    steps at load 20, with the borrowed-argument field domain fix. The product
+    route cannot measure it yet: since `a6dfddd40e9`, every sample's
+    `omega run` refuses with "target root slot `macos_arm64::ProgramEntry`
+    requires one exact contract-owned boundary schema `MacosApplication`,
+    but found 0". Rerun the gate command above once that recovers.
   - Historical macOS ARM64 baseline at `8c2a6e8da58`: 2554 s including package
     review; 5-second stack samples every 5 minutes placed stage 00 verification
     in minutes 0–12 and spill recovery in minutes 13–36. This is a profiling
@@ -2348,43 +2352,6 @@ crash and native exit behavior.
   `omega run` reproduces them.
   Acceptance: the three reach `checked` and their authored native outcomes,
   each cleared by an observed corpus result rather than a re-pin.
-
-- **CONSTRUCTED-ARGUMENT-SCHEDULE-REGRESSED-NINE.** (new-scope)
-  Five customers still need the shared constructed-argument schedule completed:
-  `pass/borrows/{branch_selected_record_composed_receiver_exit,
-  projected_reference_record_argument_exit,
-  projected_reference_record_residual_exit}` and
-  `pass/capabilities/{sysv_small_aggregate_import_compile,
-  win64_pointer_length_vs_descriptor_compile}`. They lose a Unit plan at
-  structural operand preparation, result custody, or boundary argument
-  preparation. Finish the missing source-to-consumer joins without adding
-  constructor-kind or caller-shape admission gates.
-
-  Exact checked roots carry scalar arrays through structural operand validation.
-  Readable aggregate copies resolve their actual formal/local storage and typed
-  projection, then snapshot at the authored operand point before later effects.
-  Preserve native/interpreted exit 70 for
-  `pass/calls/runtime_nested_case_argument_exit`,
-  `pass/providers/runtime_boundary_array_construction_exit`, and
-  `pass/providers/direct_boundary_array_snapshot_exit`, plus the repeated
-  continuation control
-  `pass/control_flow/runtime_boolean_equality_copied_record_instances_exit` and
-  `pass/slices/runtime_view_index_copied_argument_exit`.
-  Owned qualified byte literals and completed values now consume their retained
-  producer under the same carrier and declared-qualification contract:
-  `pass/borrows/owned_byte_value_call_exit` runs native/interpreted exit 70.
-  Constructor-domain, affine-transfer and live-loan rejection controls remain
-  required. `samples/cli/games/dungeon_crawler_cli` regressed in `8735cafb4cf`:
-  on macOS ARM64 `omega update --project samples/cli/games/dungeon_crawler_cli
-  --target macos_arm64` reaches review at `8735cafb4cf^` and refuses at
-  `8735cafb4cf` through `e33842624a2`. `MazeBuilder::connect` loses its Unit
-  plan at "outer calls: structural operands" for `Room::append_exit(from_room,
-  MazeBuilder::direction_command(direction), direction, to)`: a call-result
-  `[u8; 8] in Utf8` passed by value beside a `&mut Room` local returned by
-  `Level::room_mut`. The dungeon meeting its README oracle again through
-  `tools/sample_native_gate.py` is part of this item's acceptance. Acceptance: the five remaining fixtures reach `checked` and their
-  authored native outcomes; remove each recovered `regressed-from:` token
-  through an observed corpus result, never a re-pin of the refusal.
 
 - **TWINS-GOLDEN-RECORDS-A-LOAD-ARTIFACT.** (split-of:OPERATOR-BOUNDARY-CALLS)
   Refresh the stale macOS native records for
