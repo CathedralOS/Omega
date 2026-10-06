@@ -4,7 +4,7 @@
 
 use crate::{BuildEvaluationSponsor, BuildEvaluationUsage};
 use semantic_vocabulary::FuelScheduleIdentity;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, MutexGuard};
 
 /// Resource category retained by a refused charge, not a parsed diagnostic.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -174,6 +174,32 @@ impl BuildEvaluationSponsor {
     }
 }
 
+impl InvocationAccount {
+    /// Locks this invocation's own and its sponsor's consumption counters; a
+    /// poisoned account fails the charge closed.
+    fn consumption(
+        &self,
+    ) -> Result<
+        (
+            MutexGuard<'_, crate::sponsor::BuildEvaluationSponsorConsumption>,
+            MutexGuard<'_, InvocationConsumption>,
+        ),
+        EvaluationAccountingError,
+    > {
+        let shared = self
+            .sponsor
+            .account
+            .consumed
+            .lock()
+            .map_err(|_| EvaluationAccountingError::AccountUnavailable)?;
+        let local = self
+            .consumed
+            .lock()
+            .map_err(|_| EvaluationAccountingError::AccountUnavailable)?;
+        Ok((shared, local))
+    }
+}
+
 impl EvaluationInvocationAccount {
     pub fn measurement(&self) -> EvaluationMeasurementIdentity {
         self.account.measurement
@@ -182,18 +208,7 @@ impl EvaluationInvocationAccount {
     /// Call only at the engine's admitted pre-site charge boundary. Failed
     /// payment changes neither account; semantic execution follows payment.
     pub fn charge_fuel(&self, units: u64) -> Result<(), EvaluationAccountingError> {
-        let mut shared = self
-            .account
-            .sponsor
-            .account
-            .consumed
-            .lock()
-            .map_err(|_| EvaluationAccountingError::AccountUnavailable)?;
-        let mut local = self
-            .account
-            .consumed
-            .lock()
-            .map_err(|_| EvaluationAccountingError::AccountUnavailable)?;
+        let (mut shared, mut local) = self.account.consumption()?;
         let aggregate = shared.fuel_units.checked_add(units).ok_or(
             EvaluationAccountingError::CounterOverflow(EvaluationResource::Fuel),
         )?;
@@ -215,18 +230,7 @@ impl EvaluationInvocationAccount {
     /// Charge compiler-owned host output before publication. It has a shared
     /// byte unit independent of the engine's storage schedule.
     pub fn charge_build_log_bytes(&self, bytes: u64) -> Result<(), EvaluationAccountingError> {
-        let mut shared = self
-            .account
-            .sponsor
-            .account
-            .consumed
-            .lock()
-            .map_err(|_| EvaluationAccountingError::AccountUnavailable)?;
-        let mut local = self
-            .account
-            .consumed
-            .lock()
-            .map_err(|_| EvaluationAccountingError::AccountUnavailable)?;
+        let (mut shared, mut local) = self.account.consumption()?;
         let aggregate = shared.build_log_bytes.checked_add(bytes).ok_or(
             EvaluationAccountingError::CounterOverflow(EvaluationResource::BuildLog),
         )?;
@@ -244,18 +248,7 @@ impl EvaluationInvocationAccount {
     }
 
     pub fn charge_filesystem_operation_attempt(&self) -> Result<(), EvaluationAccountingError> {
-        let mut shared = self
-            .account
-            .sponsor
-            .account
-            .consumed
-            .lock()
-            .map_err(|_| EvaluationAccountingError::AccountUnavailable)?;
-        let mut local = self
-            .account
-            .consumed
-            .lock()
-            .map_err(|_| EvaluationAccountingError::AccountUnavailable)?;
+        let (mut shared, mut local) = self.account.consumption()?;
         let aggregate = shared.filesystem_operation_attempts.checked_add(1).ok_or(
             EvaluationAccountingError::CounterOverflow(EvaluationResource::FilesystemAttempts),
         )?;
@@ -319,18 +312,7 @@ impl EvaluationInvocationAccount {
         cells: u64,
         payload_bytes: u64,
     ) -> Result<(), EvaluationAccountingError> {
-        let mut shared = self
-            .account
-            .sponsor
-            .account
-            .consumed
-            .lock()
-            .map_err(|_| EvaluationAccountingError::AccountUnavailable)?;
-        let mut local = self
-            .account
-            .consumed
-            .lock()
-            .map_err(|_| EvaluationAccountingError::AccountUnavailable)?;
+        let (mut shared, mut local) = self.account.consumption()?;
         let limits = self.account.sponsor.limits();
         let aggregate_fuel = shared.fuel_units.checked_add(fuel_units).ok_or(
             EvaluationAccountingError::CounterOverflow(EvaluationResource::Fuel),
@@ -411,18 +393,7 @@ impl EvaluationInvocationAccount {
         cells: u64,
         payload_bytes: u64,
     ) -> Result<(), EvaluationAccountingError> {
-        let mut shared = self
-            .account
-            .sponsor
-            .account
-            .consumed
-            .lock()
-            .map_err(|_| EvaluationAccountingError::AccountUnavailable)?;
-        let mut local = self
-            .account
-            .consumed
-            .lock()
-            .map_err(|_| EvaluationAccountingError::AccountUnavailable)?;
+        let (mut shared, mut local) = self.account.consumption()?;
         let aggregate_cells = shared.result_storage_cells.checked_add(cells).ok_or(
             EvaluationAccountingError::CounterOverflow(EvaluationResource::ResultCustody),
         )?;
@@ -457,18 +428,7 @@ impl EvaluationInvocationAccount {
     }
 
     pub fn snapshot(&self) -> Result<EvaluationInvocationUsage, EvaluationAccountingError> {
-        let shared = self
-            .account
-            .sponsor
-            .account
-            .consumed
-            .lock()
-            .map_err(|_| EvaluationAccountingError::AccountUnavailable)?;
-        let local = self
-            .account
-            .consumed
-            .lock()
-            .map_err(|_| EvaluationAccountingError::AccountUnavailable)?;
+        let (shared, local) = self.account.consumption()?;
         let limits = self.account.sponsor.limits();
         let (usage_schema_version, step_schedule_marker) = match self.account.measurement {
             EvaluationMeasurementIdentity::CheckedTree => (7, 1),
