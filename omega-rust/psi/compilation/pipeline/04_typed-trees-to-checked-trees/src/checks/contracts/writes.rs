@@ -957,6 +957,18 @@ fn value_proves_qualification(
     ) else {
         return false;
     };
+    let contexts = statement_semantic_contexts(facts, state, statement_index);
+    super::exits::exact_scalar_membership(program, facts, &contexts, &subject, domain, identity)
+}
+
+/// The semantic contexts whose membership evidence applies at one statement:
+/// the exit contexts of the call that owns it, or the statement's own entry
+/// contexts when no call does.
+fn statement_semantic_contexts(
+    facts: &CheckFacts,
+    state: &FlowStateFact,
+    statement_index: usize,
+) -> Vec<facts::FactContextHandle> {
     let contexts = facts
         .flow
         .control
@@ -973,15 +985,14 @@ fn value_proves_qualification(
                     statement.entry_semantic_contexts
                 })
         });
-    let contexts = facts
+    facts
         .flow
         .contexts
         .semantic_context_refs
         .span_or_empty(contexts)
         .iter()
         .map(|reference| reference.context)
-        .collect::<Vec<_>>();
-    super::exits::exact_scalar_membership(program, facts, &contexts, &subject, domain, identity)
+        .collect::<Vec<_>>()
 }
 
 /// Discharge a `requires` predicate domain against the initializer itself.
@@ -1647,30 +1658,7 @@ fn value_case_path_is_selected(
     {
         return true;
     }
-    let contexts = facts
-        .flow
-        .control
-        .calls
-        .span_or_empty(state.calls)
-        .iter()
-        .rfind(|call| call.statement_index == statement_index)
-        .map(|call| call.exit_semantic_contexts)
-        .unwrap_or_else(|| {
-            facts
-                .flow
-                .state_statement(state, statement_index)
-                .map_or(state.entry_semantic_contexts, |statement| {
-                    statement.entry_semantic_contexts
-                })
-        });
-    let contexts = facts
-        .flow
-        .contexts
-        .semantic_context_refs
-        .span_or_empty(contexts)
-        .iter()
-        .map(|reference| reference.context)
-        .collect::<Vec<_>>();
+    let contexts = statement_semantic_contexts(facts, state, statement_index);
     crate::flow::place_cases_are_selected(
         program,
         &facts.semantic,
