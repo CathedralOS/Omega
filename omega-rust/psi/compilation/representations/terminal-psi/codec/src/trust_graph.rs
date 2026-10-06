@@ -71,7 +71,7 @@ const PATH_FACTS_SOURCE: &[u8] =
 const DISCRETE_PATH_FACTS_SOURCE: &[u8] =
     include_bytes!("../../verification/src/verification/reconstruction/path_facts/discrete.rs");
 const SUBSTITUTION_SOURCE: &[u8] =
-    include_bytes!("../../verification/src/verification/substitution.rs");
+    include_bytes!("../../semantics/src/substitution.rs");
 const CRASH_OBLIGATION_RECONSTRUCTION_SOURCE: &[u8] =
     include_bytes!("../../verification/src/verification/reconstruction/crash_obligations.rs");
 const PROOF_ADMISSION_LIB_SOURCE: &[u8] = include_bytes!("../../../../proof/admission/src/lib.rs");

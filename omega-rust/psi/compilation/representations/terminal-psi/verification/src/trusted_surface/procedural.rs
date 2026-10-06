@@ -178,7 +178,7 @@ rows! {
         "the edge's argument values and the target block's declared parameters",
         "established facts are rewritten through the exact parameter substitution before joining the successor; unbound parameters keep no stale identity",
         &["scope:place-substitution"],
-        &[tv!( "verification/reconstruction/path_facts.rs"), tv!( "verification/substitution.rs")]
+        &[tv!( "verification/reconstruction/path_facts.rs"), ts!( "substitution.rs")]
     );
     SCOPE_ITERATION_CUT => (
         "scope:iteration-cut",
@@ -194,7 +194,7 @@ rows! {
         "a proposition and an exact place or value substitution",
         "the proposition with every observing place or value rewritten; substitutions are total maps over the proposition vocabulary",
         &["formation:proposition-context"],
-        &[tv!( "verification/substitution.rs")]
+        &[ts!( "substitution.rs")]
     );
     SCOPE_CALL_FRAME => (
         "scope:call-frame-rewrite",
@@ -202,7 +202,7 @@ rows! {
         "a callee proposition and the call's validated argument/receiver/result substitution",
         "the proposition rewritten into the caller frame; a callee fact enters the caller only through this substitution",
         &["scope:place-substitution"],
-        &[tv!( "verification/call_composition.rs"), tv!( "verification/substitution.rs")]
+        &[tv!( "verification/call_composition.rs"), ts!( "substitution.rs")]
     );
     SCOPE_CRASH_FILTER => (
         "scope:crash-origin-filter",

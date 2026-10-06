@@ -3885,9 +3885,9 @@ deletions, which its commit lists.
     `omega-rust/omega/compilation/pipeline/01_abstract-operations-to-abstract-operations/src/rules/proof_check_elision/`
     read "an Exact operation's canonical goal holds", which
     **CHECKER-DISCHARGES-OPERATION-OBLIGATIONS** makes true;
-  - move `substitute_crash_routes` into `terminal-psi`;
-  - move `control_cycle_members`/`identity` and `control_graph` into
-    `terminal-psi` semantics;
+  - `control_cycle_members` still runs its graph-shape check in the verifier;
+    the graph derivation, cycle identities and `substitute_crash_routes`
+    already live in `terminal_semantics` (`control_graph`, `substitution`);
   - move the structural ownership frontier reconstruction
     (`omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/frontier.rs`
     and `frontier/`) into an Omega analysis owned by stage 01;

@@ -35,7 +35,7 @@ mod proof_bundle;
 mod reconstruction;
 mod storage_observations;
 pub(crate) use reconstruction::reconstruct_validated_control_edge_axioms;
-mod substitution;
+use terminal_semantics::substitution;
 
 use evidence_provenance::validate_evidence_producer_provenance;
 pub use float_meaning_projection::{

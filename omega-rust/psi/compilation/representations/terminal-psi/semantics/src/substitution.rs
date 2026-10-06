@@ -3,12 +3,14 @@
 use std::collections::{BTreeMap, HashMap};
 use std::hash::{Hash, Hasher};
 
+use terminal_psi::{CrashPredicateTerm, CrashRouteBucket, CrashRouteGuard};
+
 use semantic_vocabulary::{
     CanonicalStructuralPathSegment, ContentConservation, ContentStructuralPlace, ContentTerm,
     IntegerMathTerm, PlaceId, Proposition, ScalarTerm, ValueId,
 };
 
-pub(crate) fn substitute_proposition_values(
+pub fn substitute_proposition_values(
     proposition: &Proposition,
     substitutions: &BTreeMap<ValueId, ScalarTerm>,
 ) -> Proposition {
@@ -110,14 +112,14 @@ pub(crate) fn substitute_proposition_values(
 /// materialize an additional rewritten fact when one of the edge arguments
 /// actually occurs in it. Keeping this query separate from substitution avoids
 /// cloning large, unrelated proof terms at every control-flow edge.
-pub(crate) fn proposition_mentions_substituted_value(
+pub fn proposition_mentions_substituted_value(
     proposition: &Proposition,
     substitutions: &BTreeMap<ValueId, ScalarTerm>,
 ) -> bool {
     proposition.any_value_id(|value| substitutions.contains_key(&value))
 }
 
-pub(crate) fn substitute_proposition_places(
+pub fn substitute_proposition_places(
     proposition: &Proposition,
     substitutions: &BTreeMap<PlaceId, PlaceId>,
 ) -> Proposition {
@@ -128,7 +130,7 @@ pub(crate) fn substitute_proposition_places(
     substitute_proposition_structural_places(proposition, &substitutions)
 }
 
-pub(crate) fn substitute_proposition_structural_places(
+pub fn substitute_proposition_structural_places(
     proposition: &Proposition,
     substitutions: &BTreeMap<PlaceId, (PlaceId, Vec<CanonicalStructuralPathSegment>)>,
 ) -> Proposition {
@@ -393,7 +395,7 @@ fn substitute_content_term_places(
 
 /// The position of `left = right` in the roster under either operand order.
 /// `Equal` is symmetric, so the twin form is the same rostered fact.
-pub(crate) fn roster_equation_position(
+pub fn roster_equation_position(
     axioms: &[Proposition],
     left: &ScalarTerm,
     right: &ScalarTerm,
@@ -409,7 +411,7 @@ pub(crate) fn roster_equation_position(
 /// is directed, so a roster storing both orders of one equation reads as a
 /// cyclic pair and fails conversion outright, while semantically they are one
 /// fact. The direction already written always wins.
-pub(crate) fn roster_has_fact(axioms: &[Proposition], proposition: &Proposition) -> bool {
+pub fn roster_has_fact(axioms: &[Proposition], proposition: &Proposition) -> bool {
     match proposition {
         Proposition::Equal(left, right)
             if matches!(left, ScalarTerm::Value { .. })
@@ -423,7 +425,7 @@ pub(crate) fn roster_has_fact(axioms: &[Proposition], proposition: &Proposition)
 
 /// Push `proposition` unless the roster already carries it under
 /// [`roster_has_fact`].
-pub(crate) fn push_unique_fact(axioms: &mut Vec<Proposition>, proposition: Proposition) {
+pub fn push_unique_fact(axioms: &mut Vec<Proposition>, proposition: Proposition) {
     if !roster_has_fact(axioms, &proposition) {
         axioms.push(proposition);
     }
@@ -433,13 +435,13 @@ pub(crate) fn push_unique_fact(axioms: &mut Vec<Proposition>, proposition: Propo
 /// [`SharedRoster`] sharing its spine. Positions number the roster in
 /// iteration order, so citation indexes mean the same thing under either
 /// representation.
-pub(crate) trait AxiomRoster {
+pub trait AxiomRoster {
     fn roster_len(&self) -> usize;
     fn roster_fact(&self, index: usize) -> &Proposition;
 }
 
 /// Append access to a proposition roster.
-pub(crate) trait AxiomRosterMut: AxiomRoster {
+pub trait AxiomRosterMut: AxiomRoster {
     fn push_fact(&mut self, proposition: Proposition);
 }
 
@@ -483,7 +485,7 @@ impl AxiomRosterMut for Vec<Proposition> {
 /// joins and exit rosters materialize to `Vec<Proposition>` at their
 /// boundaries, so exported obligation types are untouched.
 #[derive(Clone)]
-pub(crate) struct SharedRoster {
+pub struct SharedRoster {
     shared: std::rc::Rc<Vec<Proposition>>,
     tail: Vec<Proposition>,
 }
@@ -491,7 +493,7 @@ pub(crate) struct SharedRoster {
 impl SharedRoster {
     /// Wrap a materialized roster as the shared spine later edge views
     /// reference.
-    pub(crate) fn whole(axioms: Vec<Proposition>) -> Self {
+    pub fn whole(axioms: Vec<Proposition>) -> Self {
         Self {
             shared: std::rc::Rc::new(axioms),
             tail: Vec::new(),
@@ -499,7 +501,7 @@ impl SharedRoster {
     }
 
     /// An empty-tailed edge view over this roster's shared spine.
-    pub(crate) fn successor(&self) -> Self {
+    pub fn successor(&self) -> Self {
         Self {
             shared: self.shared.clone(),
             tail: Vec::new(),
@@ -507,22 +509,22 @@ impl SharedRoster {
     }
 
     /// The roster's fact count.
-    pub(crate) fn len(&self) -> usize {
+    pub fn len(&self) -> usize {
         self.shared.len() + self.tail.len()
     }
 
     /// Iterate shared facts then tail facts — roster order.
-    pub(crate) fn iter(&self) -> impl Iterator<Item = &Proposition> {
+    pub fn iter(&self) -> impl Iterator<Item = &Proposition> {
         self.shared.iter().chain(self.tail.iter())
     }
 
     /// Materialize the whole roster — the join and export boundary shape.
-    pub(crate) fn to_vec(&self) -> Vec<Proposition> {
+    pub fn to_vec(&self) -> Vec<Proposition> {
         self.iter().cloned().collect()
     }
 
     /// Append one fact to this edge's private tail.
-    pub(crate) fn push(&mut self, proposition: Proposition) {
+    pub fn push(&mut self, proposition: Proposition) {
         self.tail.push(proposition);
     }
 }
@@ -559,14 +561,14 @@ impl AxiomRosterMut for SharedRoster {
 /// positions stay in roster order so first-match semantics are unchanged.
 /// The index owns no roster borrow: callers fingerprint the roster once and
 /// record each later push, so reads and pushes interleave freely.
-pub(crate) struct FactIndex {
+pub struct FactIndex {
     positions: HashMap<u64, Vec<usize>>,
 }
 
 impl FactIndex {
     /// Fingerprint `axioms` once. Index construction is the same single
     /// roster pass one linear membership scan costs.
-    pub(crate) fn new(axioms: &(impl AxiomRoster + ?Sized)) -> Self {
+    pub fn new(axioms: &(impl AxiomRoster + ?Sized)) -> Self {
         let mut positions = HashMap::<u64, Vec<usize>>::new();
         for position in 0..axioms.roster_len() {
             positions
@@ -580,7 +582,7 @@ impl FactIndex {
     /// The position of `left = right` in the roster under either operand
     /// order, with the same first-match semantics as
     /// [`roster_equation_position`].
-    pub(crate) fn equation_position(
+    pub fn equation_position(
         &self,
         axioms: &(impl AxiomRoster + ?Sized),
         left: &ScalarTerm,
@@ -597,7 +599,7 @@ impl FactIndex {
     }
 
     /// The first roster position holding `proposition` exactly.
-    pub(crate) fn position_of(
+    pub fn position_of(
         &self,
         axioms: &(impl AxiomRoster + ?Sized),
         proposition: &Proposition,
@@ -610,7 +612,7 @@ impl FactIndex {
     }
 
     /// [`roster_has_fact`] answered through the index.
-    pub(crate) fn has_fact(
+    pub fn has_fact(
         &self,
         axioms: &(impl AxiomRoster + ?Sized),
         proposition: &Proposition,
@@ -628,7 +630,7 @@ impl FactIndex {
 
     /// Register `axioms[position] = proposition` after a push so later
     /// queries see it.
-    pub(crate) fn record(&mut self, position: usize, proposition: &Proposition) {
+    pub fn record(&mut self, position: usize, proposition: &Proposition) {
         self.positions
             .entry(index_key(proposition))
             .or_default()
@@ -636,7 +638,7 @@ impl FactIndex {
     }
 
     /// [`push_unique_fact`] answered through the index.
-    pub(crate) fn push_unique(
+    pub fn push_unique(
         &mut self,
         axioms: &mut impl AxiomRosterMut,
         proposition: Proposition,
@@ -1006,4 +1008,46 @@ pub(super) fn substitute_scalar_term_values(
             right: Box::new(recurse(right)),
         },
     }
+}
+
+/// Replace formal value identities inside published crash routes with the
+/// invocation's actual scalar terms. This is the one substitution the
+/// verifier reconstructs at boundary calls and operation-level contracts;
+/// producers reuse it so an emitted continuation roster cannot drift from
+/// what verification will recompute.
+pub fn substitute_crash_routes(
+    routes: &[CrashRouteBucket],
+    substitutions: &BTreeMap<ValueId, ScalarTerm>,
+) -> Vec<CrashRouteBucket> {
+    routes
+        .iter()
+        .filter_map(|bucket| {
+            let mut alternatives = bucket
+                .alternatives
+                .iter()
+                .filter_map(|guard| match guard {
+                    CrashRouteGuard::Truth => Some(CrashRouteGuard::Truth),
+                    CrashRouteGuard::Predicate(predicate) => {
+                        match substitute_proposition_values(predicate.proposition(), substitutions)
+                        {
+                            Proposition::Truth => Some(CrashRouteGuard::Truth),
+                            Proposition::Falsehood => None,
+                            proposition => Some(CrashRouteGuard::Predicate(
+                                CrashPredicateTerm::new(proposition),
+                            )),
+                        }
+                    }
+                })
+                .collect::<Vec<_>>();
+            alternatives.sort();
+            alternatives.dedup();
+            if alternatives.contains(&CrashRouteGuard::Truth) {
+                alternatives = vec![CrashRouteGuard::Truth];
+            }
+            (!alternatives.is_empty()).then_some(CrashRouteBucket {
+                cause: bucket.cause,
+                alternatives,
+            })
+        })
+        .collect()
 }

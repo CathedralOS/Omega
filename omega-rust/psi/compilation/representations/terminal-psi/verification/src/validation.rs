@@ -28,7 +28,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 pub use crash::{
-    BoundaryCrashOutcomeError, substitute_crash_routes, validate_boundary_crash_outcome,
+    BoundaryCrashOutcomeError, validate_boundary_crash_outcome,
 };
 
 use semantic_vocabulary::{
@@ -70,6 +70,7 @@ mod content;
 mod contracts;
 mod control_flow;
 pub(crate) mod crash;
+pub use terminal_semantics::substitution::substitute_crash_routes;
 mod dynamic_dispatch;
 pub(crate) mod element_view;
 mod error;

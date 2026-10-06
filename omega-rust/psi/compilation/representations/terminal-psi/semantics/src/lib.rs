@@ -17,6 +17,7 @@
 //! structural effects.
 
 pub mod control_graph;
+pub mod substitution;
 mod arrival_storage;
 pub mod borrowed_storage;
 mod byte_carriers;

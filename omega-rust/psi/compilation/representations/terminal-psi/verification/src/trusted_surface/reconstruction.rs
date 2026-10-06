@@ -33,7 +33,7 @@ const SHARED_MUTATION: &str =
     "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/shared_mutation.rs";
 const CRASH_PATHS: &str = "omega-rust/psi/compilation/representations/terminal-psi/verification/src/verification/reconstruction/crash_paths.rs";
 const BLOCK_INVARIANTS: &str = "omega-rust/psi/compilation/representations/terminal-psi/verification/src/verification/reconstruction/scalar_block_invariants.rs";
-const SUBSTITUTION: &str = "omega-rust/psi/compilation/representations/terminal-psi/verification/src/verification/substitution.rs";
+const SUBSTITUTION: &str = "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/substitution.rs";
 const CALL_COMPOSITION: &str = "omega-rust/psi/compilation/representations/terminal-psi/verification/src/verification/call_composition.rs";
 const TERMINATION: &str = "omega-rust/psi/compilation/representations/terminal-psi/src/terminal_module/control_flow/termination.rs";
 

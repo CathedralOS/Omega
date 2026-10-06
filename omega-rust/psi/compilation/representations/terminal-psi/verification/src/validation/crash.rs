@@ -8,6 +8,7 @@ use super::{
     TerminalModule, Terminator, ValueId, contracts, structural_leaf_type,
     substitute_proposition_values, view_extent_leaf_has_extent,
 };
+pub use terminal_semantics::substitution::substitute_crash_routes;
 use numerics::{
     arithmetic::ArithmeticDomain,
     integer_policy::{IntegerFormationCondition, IntegerPolicyPrimitive, integer_policy_bridge},
@@ -63,47 +64,6 @@ pub(super) fn validate_boundary_crash_routes(
     Ok(())
 }
 
-/// Replace formal value identities inside published crash routes with the
-/// invocation's actual scalar terms. This is the one substitution the
-/// verifier reconstructs at boundary calls and operation-level contracts;
-/// producers reuse it so an emitted continuation roster cannot drift from
-/// what verification will recompute.
-pub fn substitute_crash_routes(
-    routes: &[CrashRouteBucket],
-    substitutions: &BTreeMap<ValueId, ScalarTerm>,
-) -> Vec<CrashRouteBucket> {
-    routes
-        .iter()
-        .filter_map(|bucket| {
-            let mut alternatives = bucket
-                .alternatives
-                .iter()
-                .filter_map(|guard| match guard {
-                    CrashRouteGuard::Truth => Some(CrashRouteGuard::Truth),
-                    CrashRouteGuard::Predicate(predicate) => {
-                        match substitute_proposition_values(predicate.proposition(), substitutions)
-                        {
-                            Proposition::Truth => Some(CrashRouteGuard::Truth),
-                            Proposition::Falsehood => None,
-                            proposition => Some(CrashRouteGuard::Predicate(
-                                CrashPredicateTerm::new(proposition),
-                            )),
-                        }
-                    }
-                })
-                .collect::<Vec<_>>();
-            alternatives.sort();
-            alternatives.dedup();
-            if alternatives.contains(&CrashRouteGuard::Truth) {
-                alternatives = vec![CrashRouteGuard::Truth];
-            }
-            (!alternatives.is_empty()).then_some(CrashRouteBucket {
-                cause: bucket.cause,
-                alternatives,
-            })
-        })
-        .collect()
-}
 
 /// A checked provider may publish crash routes only where the boundary ceiling
 /// already permits them. Positional scalar formals translate the ceiling into
