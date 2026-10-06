@@ -1782,16 +1782,12 @@ impl OperationFrame<'_, '_> {
         )?;
         self.private_places
             .push(operation_result_declaration(copied_place, copy, hole_type));
-        let mut field_path = store.carrier_path.clone();
-        field_path.push(checked_trees::CheckedUnitStructuralPathSegment::Field(
-            store.field_identity.clone(),
-        ));
-        let window_place = CheckedUnitStructuralArgumentPlan {
+        let window_place = field_window_place(
             source,
-            path: field_path,
-            type_identity: store.value.type_identity.clone(),
-            access: checked_trees::CheckedStructuralAccess::Owned,
-        };
+            &store.carrier_path,
+            &store.field_identity,
+            store.value.type_identity.clone(),
+        );
         require_parameter_window_root(self.parameters, &window_place, self.evaluation)?;
         let moved = self.emit_window_move(
             store.statement_index,
@@ -2027,16 +2023,12 @@ impl OperationFrame<'_, '_> {
             establishment,
             hole_type,
         ));
-        let mut field_path = store.carrier_path.clone();
-        field_path.push(checked_trees::CheckedUnitStructuralPathSegment::Field(
-            store.field_identity.clone(),
-        ));
-        let window_place = CheckedUnitStructuralArgumentPlan {
+        let window_place = field_window_place(
             source,
-            path: field_path,
-            type_identity: store.type_identity.clone(),
-            access: checked_trees::CheckedStructuralAccess::Owned,
-        };
+            &store.carrier_path,
+            &store.field_identity,
+            store.type_identity.clone(),
+        );
         require_parameter_window_root(self.parameters, &window_place, self.evaluation)?;
         let moved = self.emit_window_move(
             store.statement_index,
@@ -2975,6 +2967,27 @@ impl OperationFrame<'_, '_> {
                 self.operations,
             )
             .map(|_| ())
+    }
+}
+
+/// The owned argument a field store's repair window names: the carrier
+/// path extended by the stored field under the value's declared type
+/// identity.
+fn field_window_place(
+    source: checked_trees::CheckedUnitStructuralArgumentSourcePlan,
+    carrier_path: &[checked_trees::CheckedUnitStructuralPathSegment],
+    field_identity: &str,
+    type_identity: String,
+) -> CheckedUnitStructuralArgumentPlan {
+    let mut path = carrier_path.to_vec();
+    path.push(checked_trees::CheckedUnitStructuralPathSegment::Field(
+        field_identity.to_owned(),
+    ));
+    CheckedUnitStructuralArgumentPlan {
+        source,
+        path,
+        type_identity,
+        access: checked_trees::CheckedStructuralAccess::Owned,
     }
 }
 
