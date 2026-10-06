@@ -27,7 +27,7 @@ use typed_trees::data::{DataDefinition, DataMember, DataShapeKind};
 use typed_trees::types::TypeReferenceNode;
 
 use super::const_materializable::{
-    hash_byte, hash_bytes, hash_text, hash_u64, hash_value, unique_data_by_name, validate_value,
+    hash_byte, hash_bytes, hash_text, hash_u64, hash_value, unique_data_by_name,
     value_kind,
 };
 use super::const_record_with_sum_materializable::{
@@ -35,8 +35,8 @@ use super::const_record_with_sum_materializable::{
     prepare_sum_array_field, validate_outer_layout, validate_outer_record_owner,
 };
 use super::{
-    BuildTimeValue, RepeatedFieldInfo, encode_typed_owned_value, exact_struct_fields,
-    normalized_schema_report_fingerprint, reflected_field_layout,
+    BuildTimeValue, RepeatedFieldInfo, exact_struct_fields,
+    normalized_schema_report_fingerprint,
     validate_const_materializable_conventional_sum,
     validate_const_materializable_record_with_conventional_sums,
 };

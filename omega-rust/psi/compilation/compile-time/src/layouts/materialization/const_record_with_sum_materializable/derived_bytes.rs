@@ -1,7 +1,7 @@
 //! Deriving the bytes of records with sums and sum arrays.
 
 use crate::layouts::materialization::const_materializable::{
-    unique_data_by_name, validate_value, value_kind,
+    unique_data_by_name, value_kind,
 };
 use crate::layouts::materialization::const_record_with_nested_sum_materializable::SumReachability;
 use crate::layouts::materialization::const_record_with_sum_materializable::outer_layouts::{
@@ -14,8 +14,8 @@ use crate::layouts::materialization::const_record_with_sum_materializable::{
     ValidatedConstRecordSumFieldMaterialization,
 };
 use crate::layouts::materialization::{
-    BuildTimeValue, RepeatedFieldInfo, encode_typed_owned_value, exact_struct_fields,
-    normalized_schema_report_fingerprint, reflected_field_layout,
+    BuildTimeValue, RepeatedFieldInfo, exact_struct_fields,
+    normalized_schema_report_fingerprint,
     validate_const_materializable_conventional_sum,
 };
 use layout_plans::{
@@ -330,45 +330,14 @@ pub(crate) fn derive_record_with_sum_bytes(
             });
             continue;
         }
-        validate_value(
+        crate::layouts::materialization::encode_plain_outer_field(
             typed,
-            field.type_reference,
-            field_value,
-            &format!("value.{}", field.name),
-            &mut active,
-        )?;
-        if field.relevance.is_erased() {
-            continue;
-        }
-        let (size, align, _, _, _, _, repeated) =
-            reflected_field_layout(typed, field.type_reference).ok_or_else(|| {
-                MaterializationDiagnostic(format!(
-                    "value.{} is outside the target-independent fixed aggregate subset",
-                    field.name
-                ))
-            })?;
-        let bytes = encode_typed_owned_value(
-            typed,
-            field.type_reference,
+            field,
             field_value,
             byte_order,
             &mut active,
+            &mut encoded_fields,
         )?;
-        if bytes.len() as u64 != size {
-            return Err(MaterializationDiagnostic(format!(
-                "value.{} encoded to {} bytes, expected {size}",
-                field.name,
-                bytes.len()
-            )));
-        }
-        encoded_fields.push(EncodedOuterField {
-            name: field.name.to_string(),
-            identity: field.identity,
-            size,
-            align,
-            repeated,
-            bytes,
-        });
     }
     validate_outer_layout(layout, &encoded_fields)?;
     let byte_len = usize::try_from(layout.size.expect("validated fixed extent")).map_err(|_| {
@@ -705,45 +674,14 @@ pub(crate) fn derive_record_with_sum_arrays_bytes(
             prepared_index += 1;
             continue;
         }
-        validate_value(
+        crate::layouts::materialization::encode_plain_outer_field(
             typed,
-            field.type_reference,
-            field_value,
-            &format!("value.{}", field.name),
-            &mut active,
-        )?;
-        if field.relevance.is_erased() {
-            continue;
-        }
-        let (size, align, _, _, _, _, repeated) =
-            reflected_field_layout(typed, field.type_reference).ok_or_else(|| {
-                MaterializationDiagnostic(format!(
-                    "value.{} is outside the target-independent fixed aggregate subset",
-                    field.name
-                ))
-            })?;
-        let bytes = encode_typed_owned_value(
-            typed,
-            field.type_reference,
+            field,
             field_value,
             byte_order,
             &mut active,
+            &mut encoded_fields,
         )?;
-        if bytes.len() as u64 != size {
-            return Err(MaterializationDiagnostic(format!(
-                "value.{} encoded to {} bytes, expected {size}",
-                field.name,
-                bytes.len()
-            )));
-        }
-        encoded_fields.push(EncodedOuterField {
-            name: field.name.to_string(),
-            identity: field.identity,
-            size,
-            align,
-            repeated,
-            bytes,
-        });
     }
     if prepared_index != prepared_arrays.len() {
         return Err(MaterializationDiagnostic(

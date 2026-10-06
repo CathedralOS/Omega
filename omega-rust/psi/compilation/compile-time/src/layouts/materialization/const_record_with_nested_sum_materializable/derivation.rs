@@ -12,14 +12,14 @@ use super::{
     ValidatedConstRecordArrayElementSelection, ValidatedConstRecordArrayFieldMaterialization,
     ValidatedConstRecordSumArrayFieldMaterialization, ValidatedConstRecordSumChildMaterialization,
     ValidatedConstRecordSumFieldMaterialization,
-    ValidatedConstRecursiveNestedSumOccurrenceMaterialization, encode_typed_owned_value,
+    ValidatedConstRecursiveNestedSumOccurrenceMaterialization,
     exact_named_data, exact_struct_fields, field_occurrence_matches,
     flatten_literal_array_elements, materialize_aggregate_layout_into,
     normalized_schema_report_fingerprint, prepare_sum_array_field, record_sum_profile, recursive,
-    reflected_field_layout, reject_sum_array_type, unique_data_by_name,
+    reject_sum_array_type, unique_data_by_name,
     validate_const_materializable_conventional_sum,
     validate_const_materializable_record_with_conventional_sums, validate_outer_layout,
-    validate_outer_record_owner, validate_value, value_kind,
+    validate_outer_record_owner, value_kind,
 };
 use typed_trees::types::{FixedArrayLength, TypeReferenceNode};
 
@@ -422,45 +422,14 @@ pub(super) fn stage_record_level_fields(
             staged_index += 1;
             continue;
         }
-        validate_value(
+        crate::layouts::materialization::encode_plain_outer_field(
             typed,
-            field.type_reference,
-            field_value,
-            &format!("value.{}", field.name),
-            &mut active,
-        )?;
-        if field.relevance.is_erased() {
-            continue;
-        }
-        let (size, align, _, _, _, _, repeated) =
-            reflected_field_layout(typed, field.type_reference).ok_or_else(|| {
-                MaterializationDiagnostic(format!(
-                    "value.{} is outside the target-independent fixed aggregate subset",
-                    field.name
-                ))
-            })?;
-        let field_bytes = encode_typed_owned_value(
-            typed,
-            field.type_reference,
+            field,
             field_value,
             byte_order,
             &mut active,
+            &mut encoded_fields,
         )?;
-        if u64::try_from(field_bytes.len()).ok() != Some(size) {
-            return Err(MaterializationDiagnostic(format!(
-                "value.{} encoded to {} bytes, expected {size}",
-                field.name,
-                field_bytes.len()
-            )));
-        }
-        encoded_fields.push(EncodedOuterField {
-            name: field.name.to_string(),
-            identity: field.identity,
-            size,
-            align,
-            repeated,
-            bytes: field_bytes,
-        });
     }
     if staged_index != staged_children.len() {
         return Err(MaterializationDiagnostic(
@@ -1058,45 +1027,14 @@ pub(super) fn derive_nested_record_sums_bytes_with_reachability(
             });
             continue;
         }
-        validate_value(
+        crate::layouts::materialization::encode_plain_outer_field(
             typed,
-            field.type_reference,
-            field_value,
-            &format!("value.{}", field.name),
-            &mut active,
-        )?;
-        if field.relevance.is_erased() {
-            continue;
-        }
-        let (size, align, _, _, _, _, repeated) =
-            reflected_field_layout(typed, field.type_reference).ok_or_else(|| {
-                MaterializationDiagnostic(format!(
-                    "value.{} is outside the target-independent fixed aggregate subset",
-                    field.name
-                ))
-            })?;
-        let bytes = encode_typed_owned_value(
-            typed,
-            field.type_reference,
+            field,
             field_value,
             byte_order,
             &mut active,
+            &mut encoded_fields,
         )?;
-        if bytes.len() as u64 != size {
-            return Err(MaterializationDiagnostic(format!(
-                "value.{} encoded to {} bytes, expected {size}",
-                field.name,
-                bytes.len()
-            )));
-        }
-        encoded_fields.push(EncodedOuterField {
-            name: field.name.to_string(),
-            identity: field.identity,
-            size,
-            align,
-            repeated,
-            bytes,
-        });
     }
     if occurrence_index != inner_records.len() {
         return Err(MaterializationDiagnostic(

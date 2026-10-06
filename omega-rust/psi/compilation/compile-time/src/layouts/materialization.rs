@@ -11,6 +11,7 @@ use layout_plans::{
     MaterializationDiagnostic, materialize_aggregate_layout_into,
 };
 use typed_trees::TypedTrees;
+use typed_trees::data::DataField;
 
 use super::schema_reflection::{
     RepeatedFieldInfo, checked_align_up, normalized_schema_report_fingerprint, primitive_byte_size,
@@ -43,6 +44,7 @@ pub use const_record_with_sum_materializable::{
 pub use const_sum_materializable::{
     ValidatedConstSumMaterialization, validate_const_materializable_conventional_sum,
 };
+use const_record_with_sum_materializable::EncodedOuterField;
 use owned_value_encoding::{encode_typed_owned_value, exact_struct_fields};
 
 /// Materializes one compiler-checked, source-owned record through a normalized
@@ -244,4 +246,57 @@ pub fn evaluate_and_materialize_typed_owned_layout_into(
         ))
     })?;
     materialize_typed_owned_layout_into(typed, schema_data, layout, &value, byte_order, destination)
+}
+
+/// Validate and encode one ordinary outer-record field into
+/// `encoded_fields`; erased members contribute nothing. The nested-sum and
+/// nested-record arms stage their own payload before reaching here.
+pub(super) fn encode_plain_outer_field(
+    typed: &TypedTrees,
+    field: &DataField,
+    field_value: &BuildTimeValue,
+    byte_order: ByteOrder,
+    active: &mut Vec<symbols::SymbolHandle>,
+    encoded_fields: &mut Vec<EncodedOuterField>,
+) -> Result<(), MaterializationDiagnostic> {
+    const_materializable::validate_value(
+        typed,
+        field.type_reference,
+        field_value,
+        &format!("value.{}", field.name),
+        active,
+    )?;
+    if field.relevance.is_erased() {
+        return Ok(());
+    }
+    let (size, align, _, _, _, _, repeated) =
+        reflected_field_layout(typed, field.type_reference).ok_or_else(|| {
+            MaterializationDiagnostic(format!(
+                "value.{} is outside the target-independent fixed aggregate subset",
+                field.name
+            ))
+        })?;
+    let bytes = encode_typed_owned_value(
+        typed,
+        field.type_reference,
+        field_value,
+        byte_order,
+        active,
+    )?;
+    if bytes.len() as u64 != size {
+        return Err(MaterializationDiagnostic(format!(
+            "value.{} encoded to {} bytes, expected {size}",
+            field.name,
+            bytes.len()
+        )));
+    }
+    encoded_fields.push(EncodedOuterField {
+        name: field.name.to_string(),
+        identity: field.identity,
+        size,
+        align,
+        repeated,
+        bytes,
+    });
+    Ok(())
 }
