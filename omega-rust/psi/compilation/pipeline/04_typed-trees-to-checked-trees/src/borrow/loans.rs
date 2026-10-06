@@ -596,26 +596,16 @@ fn literal_indexed_recast_borrow_place(
     machine_symbol: SymbolHandle,
     local_data: &checked_trees::statement::TableLocalData,
 ) -> Option<accesses::BorrowAccessPlace> {
-    let typed_trees::types::TypeReferenceNode::Reference {
-        referee, access, ..
-    } = program
-        .type_reference_table
-        .type_reference(local_data.type_reference)
-    else {
-        return None;
-    };
-    let machine = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == machine_symbol)?;
+    let (machine, referee, access) =
+        indexed_recast_loan_parts(program, machine_symbol, local_data)?;
     let footprint = validation::validate_literal_indexed_recast_footprint(
         program,
         machine,
         state,
         statement_index,
         local_data.initial_value,
-        *referee,
-        *access,
+        referee,
+        access,
     )?;
     let mut place = borrow_access_place(
         program,
@@ -645,26 +635,16 @@ fn runtime_indexed_recast_borrow_place(
     machine_symbol: SymbolHandle,
     local_data: &checked_trees::statement::TableLocalData,
 ) -> Option<accesses::BorrowAccessPlace> {
-    let typed_trees::types::TypeReferenceNode::Reference {
-        referee, access, ..
-    } = program
-        .type_reference_table
-        .type_reference(local_data.type_reference)
-    else {
-        return None;
-    };
-    let machine = program
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == machine_symbol)?;
+    let (machine, referee, access) =
+        indexed_recast_loan_parts(program, machine_symbol, local_data)?;
     let source = validation::validate_runtime_indexed_recast_source(
         program,
         machine,
         state,
         statement_index,
         local_data.initial_value,
-        *referee,
-        *access,
+        referee,
+        access,
     )?;
     borrow_access_place(
         program,
@@ -1440,4 +1420,31 @@ fn retained_reference_lineage(
     } else {
         checked_trees::BorrowLoanLineage::UnretainedDerived
     }
+}
+
+/// The recast reference's `referee`/`access` and the machine `machine_symbol`
+/// names — the shared prologue both indexed-recast borrow places peel before
+/// validating their source.
+fn indexed_recast_loan_parts<'a>(
+    program: &'a typed_trees::TypedTrees,
+    machine_symbol: SymbolHandle,
+    local_data: &checked_trees::statement::TableLocalData,
+) -> Option<(
+    &'a typed_trees::machine::Machine,
+    typed_trees::types::TypeReferenceHandle,
+    language_semantics::ReferenceAccess,
+)> {
+    let typed_trees::types::TypeReferenceNode::Reference {
+        referee, access, ..
+    } = program
+        .type_reference_table
+        .type_reference(local_data.type_reference)
+    else {
+        return None;
+    };
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == machine_symbol)?;
+    Some((machine, *referee, *access))
 }
