@@ -16,7 +16,6 @@ use register_homes::{
     AllocationLegalityIdentity, AllocatorAvailabilityIdentity, SpillChoiceIdentity, SpillChoicePlan,
 };
 use selected_instructions::LiveRangeIdentity;
-pub use validate::validate_spill_choices;
 
 /// Select the deterministic recovery victim at each first supported local
 /// pressure point without materializing spill or recovery instructions.

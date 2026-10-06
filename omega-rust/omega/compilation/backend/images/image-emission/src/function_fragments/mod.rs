@@ -18,8 +18,7 @@ pub use production::{
 };
 pub use validation::{
     validate_function_fragment_object_artifact,
-    validate_function_fragment_object_artifact_with_private_functions,
-};
+    };
 
 #[derive(Debug)]
 pub enum FunctionFragmentObjectArtifactError {

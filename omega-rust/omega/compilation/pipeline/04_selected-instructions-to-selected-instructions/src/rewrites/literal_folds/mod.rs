@@ -26,7 +26,7 @@ use crate::{
 };
 pub use execution::{
     stage_first_optimized_literal_fold, stage_next_optimized_literal_fold,
-    validate_optimized_literal_fold_custody, validate_selected_lowering_optimization_custody,
+    validate_selected_lowering_optimization_custody,
 };
 
 impl From<crate::SelectedLoweringRuleCatalogError> for OptimizedLiteralFoldCustodyError {

@@ -39,36 +39,6 @@ impl TerminalIeeeFloatComparisonOccurrenceProposal {
         }
     }
 
-    /// Replay the complete Terminal roster and each exact realization companion.
-    /// The caller separately validates the companion's artifact and demand custody.
-    pub fn validate_coverage(
-        module: &terminal_psi::TerminalModule,
-        plans: &[effects::provider_plan::ProviderPlan],
-        occurrences: &[Self],
-        realizations: &crate::TerminalBoundaryApplicationRealizations,
-    ) -> Result<(), &'static str> {
-        Self::validate_roster(module, plans, occurrences)?;
-        for occurrence in occurrences {
-            let matching = realizations
-                .rows()
-                .iter()
-                .filter(|row| row.terminal_operation() == occurrence.terminal_operation)
-                .collect::<Vec<_>>();
-            let [realization] = matching.as_slice() else {
-                return Err(
-                    "Terminal IEEE comparison requires one exact boundary realization companion",
-                );
-            };
-            if realization.selected_plan_digest() != occurrence.provider_plan_commitment.as_bytes()
-                || !matches!(realization.realization(),
-                    crate::BoundaryApplicationRealization::ExactCompilerIntrinsic { execution }
-                    if *execution == occurrence.execution_identity())
-            {
-                return Err("Terminal IEEE comparison changed its selected boundary realization");
-            }
-        }
-        Ok(())
-    }
 
     /// Check complete one-to-one association with the independently verified
     /// Terminal operation roster. This does not establish source custody.

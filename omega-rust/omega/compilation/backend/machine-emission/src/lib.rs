@@ -81,7 +81,6 @@ pub use exit_contract::{
     stage_whole_function_exit_contract_after_x86_branch_relaxation,
     stage_whole_function_exit_contract_for_layout, stage_whole_function_exit_contract_with_frame,
     validate_whole_function_exit_contract_after_x86_branch_relaxation,
-    validate_whole_function_exit_contract_for_layout,
     validate_whole_function_exit_contract_with_frame,
 };
 

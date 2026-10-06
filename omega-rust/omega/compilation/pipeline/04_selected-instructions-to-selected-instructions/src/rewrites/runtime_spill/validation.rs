@@ -1906,28 +1906,6 @@ fn physical_definition(
     Ok(definition)
 }
 
-/// Independently consume the proposed instruction stream, checking every private
-/// access and rewritten operand against its original use. Stripping these exact
-/// additions must restore the entire admitted source, including calls and fuel.
-/// Replays under the bounded span policy the default rewrite produces.
-pub fn validate_runtime_spill(
-    source: &impl ValidatedSelectedAnalysis,
-    function_index: usize,
-    register: VirtualRegisterId,
-    environment: &ValidatedTargetRegisterEnvironment,
-    budget: OptimizationWorkBudget,
-    proposed: SelectedInstructionPlan,
-) -> Result<ValidatedRuntimeSpill, RuntimeSpillError> {
-    validate_runtime_spill_with_span_policy(
-        source,
-        function_index,
-        register,
-        environment,
-        budget,
-        proposed,
-        RuntimeSpillSpanPolicy::UnitWriteBounded,
-    )
-}
 
 /// The same independent consumption under an explicit span policy: replay
 /// must follow the producer's own open/close decision exactly, so a plan

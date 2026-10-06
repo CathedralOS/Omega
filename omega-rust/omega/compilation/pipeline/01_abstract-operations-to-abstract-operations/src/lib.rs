@@ -91,7 +91,7 @@ pub mod test_support {
         CountdownInvariantConstantRelocationError, LoopInvariantScalarMotionError,
         apply_countdown_invariant_constant_relocation, apply_loop_invariant_scalar_motion,
         propose_countdown_invariant_constant_relocations, propose_loop_invariant_scalar_motion,
-        validate_countdown_invariant_constant_relocation, validate_loop_invariant_scalar_motion,
+        validate_loop_invariant_scalar_motion,
     };
     pub use crate::rules::{
         PSI_PASS_CATALOG, WrappingIntegerAddConstantsRule, built_in_psi_registry,

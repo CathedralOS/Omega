@@ -16,7 +16,6 @@ use register_homes::{
 use register_model::TargetRegisterEnvironmentIdentity;
 use selected_instructions::{LiveRangeIdentity, SelectedInstructionPlanIdentity};
 use semantic_vocabulary::FuelScheduleIdentity;
-pub use validate::validate_recovery_classifications;
 
 /// Classify an already selected pressure victim under one exact recovery
 /// eligibility policy without selecting or applying a recovery strategy.

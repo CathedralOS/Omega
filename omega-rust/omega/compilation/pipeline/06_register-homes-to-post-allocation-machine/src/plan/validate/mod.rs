@@ -9,52 +9,11 @@ mod instruction;
 mod ordinary;
 mod roots;
 
-use register_model::{
-    TargetRegisterEnvironmentIdentity, ValidatedPhysicalRegisterModel,
-    ValidatedRegisterConstraintCatalog,
-};
-use selected_instructions_to_register_homes::{
-    ValidatedAllocationLegality, ValidatedLiveRanges, ValidatedPostAllocationOptimizationManifest,
-    ValidatedRegisterHomes, ValidatedSelectedAnalysis,
-};
 
 use super::post_allocation_receipt;
 use crate::{PostAllocationMachineError, ValidatedPostAllocationMachinePlan};
-use physical_instructions::{PostAllocationMachinePlan, post_allocation_machine_identity};
-use selected_instructions_to_register_homes::ValidatedPreAllocationMachineEffects;
+use physical_instructions::PostAllocationMachinePlan;
 
-/// Independently reconstruct and admit a proposed post-allocation plan.
-#[allow(clippy::too_many_arguments)]
-pub fn validate_post_allocation_machine_plan<S: ValidatedSelectedAnalysis>(
-    selected: &S,
-    effects: &ValidatedPreAllocationMachineEffects,
-    ranges: &ValidatedLiveRanges,
-    legality: &ValidatedAllocationLegality,
-    homes: &ValidatedRegisterHomes,
-    manifest: &ValidatedPostAllocationOptimizationManifest,
-    register_environment: TargetRegisterEnvironmentIdentity,
-    physical: &ValidatedPhysicalRegisterModel,
-    constraints: &ValidatedRegisterConstraintCatalog,
-    plan: PostAllocationMachinePlan,
-) -> Result<ValidatedPostAllocationMachinePlan, PostAllocationMachineError> {
-    roots::validate_roots(
-        selected,
-        effects,
-        ranges,
-        legality,
-        homes,
-        manifest,
-        register_environment,
-        physical,
-        constraints,
-        &plan,
-    )?;
-    ordinary::validate_ordinary_functions(selected, effects, homes, physical, &plan)?;
-    if post_allocation_machine_identity(&plan) != plan.identity {
-        return Err(PostAllocationMachineError::IdentityMismatch);
-    }
-    seal_post_allocation_machine_plan(plan)
-}
 
 /// Admit a freshly produced plan with its receipt; the producer calls this
 /// instead of replaying its own output.

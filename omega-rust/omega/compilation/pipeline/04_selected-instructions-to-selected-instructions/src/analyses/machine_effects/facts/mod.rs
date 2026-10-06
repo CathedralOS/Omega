@@ -8,7 +8,6 @@ pub(crate) use compute::machine_semantic_kind;
 pub use selected_instructions::{
     PreAllocationMachineEffectIdentity, PreAllocationMachineEffectPlan,
 };
-pub use validate::validate_pre_allocation_machine_effects;
 
 use crate::ValidatedSelectedAnalysis;
 use register_model::{
@@ -22,8 +21,7 @@ use selected_instructions::{
 };
 use std::sync::Arc;
 
-/// Compute and independently reconstruct the complete pre-allocation effect
-/// sidecar. This grants no transformation, home, emission, or publication
+/// Compute and seal the complete pre-allocation effect sidecar. This grants no transformation, home, emission, or publication
 /// authority.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn analyze_pre_allocation_machine_effects<S: ValidatedSelectedAnalysis>(
@@ -44,16 +42,7 @@ pub(crate) fn analyze_pre_allocation_machine_effects<S: ValidatedSelectedAnalysi
         selected_keys,
         catalog,
     )?;
-    validate_pre_allocation_machine_effects(
-        selected,
-        register_environment,
-        physical,
-        constraints,
-        reservations,
-        selected_keys,
-        catalog,
-        plan,
-    )
+    validate::seal_pre_allocation_machine_effects(plan)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

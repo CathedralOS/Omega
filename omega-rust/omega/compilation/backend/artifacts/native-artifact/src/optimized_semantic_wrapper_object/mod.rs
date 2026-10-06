@@ -32,8 +32,7 @@ pub use error::{
 pub use validation::{bind_semantic_contract, receiver_layout};
 pub use validation::{
     validate_installed_program_storage_continuation_evidence,
-    validate_optimized_program_storage_semantic_wrapper_object,
-};
+    };
 
 use object::construct_object;
 use validation::validate_entry_shape;

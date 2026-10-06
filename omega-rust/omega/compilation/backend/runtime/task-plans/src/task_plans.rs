@@ -329,15 +329,6 @@ impl ValidatedActivationPlan {
     }
 }
 
-pub fn validate_activation_plan(
-    candidate: ActivationPlanCandidate,
-) -> Result<ValidatedActivationPlan, TaskPlanDiagnostic> {
-    validate_activation_plan_shape(&candidate)?;
-    Ok(ValidatedActivationPlan {
-        candidate,
-        wcsu_stack_projection: None,
-    })
-}
 
 /// Validate an activation whose fixed-stack shape is projected from sealed
 /// whole-call-graph WCSU evidence.

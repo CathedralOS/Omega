@@ -38,8 +38,7 @@ pub use callable_entry::{
     OptimizedOrdinaryCallableEntryUnavailableData, OptimizedOrdinaryCallableParameter,
     OptimizedOrdinaryCallableResult, OptimizedOrdinaryCallableReturn,
     StagedValidatedOptimizedOrdinaryCallableEntry, ValidatedOptimizedOrdinaryCallableEntryManifest,
-    stage_validated_optimized_ordinary_callable_entry, validate_optimized_ordinary_callable_entry,
-};
+    stage_validated_optimized_ordinary_callable_entry, };
 pub use entry_receiver::admit_executable_entry_receiver;
 pub use fragment_object_publication::{
     FragmentObjectPublicationRequest, PublishedFragmentObject, publish_fragment_object,

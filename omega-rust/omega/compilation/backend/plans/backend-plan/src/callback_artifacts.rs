@@ -146,60 +146,6 @@ pub struct NativeCallbackThunkSettlement<'artifact> {
     pub boundary_entry_plan: &'artifact calling_conventions::BoundaryEntryPlan,
 }
 
-/// Rejoin each retained occurrence to one canonical registrar operation.
-/// Several distinct callback slots may legitimately share that operation.
-pub fn validate_callback_occurrences_for_module(
-    module: &terminal_psi::TerminalModule,
-    occurrences: &[TerminalCallbackOccurrenceProposal],
-) -> Result<(), &'static str> {
-    let mut placement_indices = std::collections::BTreeSet::new();
-    let mut callback_thunk_identities = std::collections::HashSet::new();
-    for occurrence in occurrences {
-        if !placement_indices.insert(occurrence.placement_index) {
-            return Err("Terminal native proposal repeats a callback placement occurrence");
-        }
-        if !occurrence.callback_thunk_identity.is_valid()
-            || occurrence
-                .callback_thunk_identity
-                .callback_thunk_placement_index()
-                != Some(occurrence.placement_index)
-        {
-            return Err(
-                "Terminal callback occurrence has an invalid callback-thunk role or placement index",
-            );
-        }
-        if !callback_thunk_identities.insert(occurrence.callback_thunk_identity) {
-            return Err("Terminal native proposal repeats a callback-thunk identity");
-        }
-        occurrence
-            .callback_thunk_artifact
-            .artifact()
-            .validate()
-            .map_err(|_| "Terminal callback occurrence contains an invalid thunk artifact")?;
-        // One authored registrar call can materialize several private
-        // callback slots at once (one nominal binder per slot), so
-        // distinct placements legitimately join to the same Terminal
-        // operation. The join itself is still replayed per occurrence:
-        // each row must name one exact canonical boundary call.
-        let matching = module
-            .machines
-            .iter()
-            .flat_map(|machine| &machine.blocks)
-            .flat_map(|block| &block.operations)
-            .filter(|operation| operation.id == occurrence.terminal_operation)
-            .collect::<Vec<_>>();
-        let [operation] = matching.as_slice() else {
-            return Err("Terminal callback occurrence does not name one exact canonical operation");
-        };
-        if !matches!(
-            operation.kind,
-            terminal_psi::OperationKind::BoundaryCall { .. }
-        ) {
-            return Err("Terminal callback occurrence does not name a boundary call");
-        }
-    }
-    Ok(())
-}
 
 /// Replay complete retained placement coverage, native destinations and exact
 /// source-selection custody before a retained product can be realized.

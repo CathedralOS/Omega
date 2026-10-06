@@ -55,7 +55,6 @@ use selected_instructions::{SelectedInstructionPlan, SelectedInstructionPlanIden
 use semantic_vocabulary::FuelScheduleIdentity;
 
 pub use rewrite::split_selected_runtime_value;
-pub use validation::validate_runtime_split;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValidatedRuntimeSplit {

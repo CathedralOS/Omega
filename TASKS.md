@@ -3550,7 +3550,13 @@ of a check the same flow already performed, not the check itself.
   - stage 01's pass manager obtains cycle components through
     `validate_verified_psi_cycle_components` and
     `validate_transformed_psi_cycle_components`, which re-validate the whole
-    unit to compute them; split the computation from the validation.
+    unit to compute them; split the computation from the validation;
+  - uncalled verifiers kept only because tests construct through them:
+    `validate_final_placement` (executable-installation),
+    `validate_installed_segment_fuel` and `_catalog` (external-roots), the
+    four calling-convention `validate_*_footprint` functions, and
+    `validate_target_register_environment` and `_with_reservations`. Give
+    those tests a constructor and delete the verifiers.
 
   A verifier stays only where a retained-artifact reader calls it; one with no
   caller is deleted with the replay. Acceptance: no producer calls a replay or

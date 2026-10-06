@@ -496,29 +496,6 @@ impl NativeArtifact {
         Ok(())
     }
 
-    /// Replay the complete D45 receiving-policy join. Both policies and the
-    /// result of the receiver's actual closure review are independently
-    /// accepted inputs; structural validation of freely constructible receipt
-    /// data cannot confer receiving authority by itself.
-    ///
-    /// An artifact realized without a receiving permission policy carries no
-    /// receiver-admission claim: this explicit admission replay rejects it
-    /// rather than treating absence as an empty or implied policy.
-    pub fn validate_for_terminal_authority_policies(
-        &self,
-        accepted_physical: TerminalAuthorityPolicyIdentity,
-        accepted_permission: TerminalAuthorityPermissionPolicyIdentity,
-        accepted_closure_review: [u8; 32],
-    ) -> Result<(), &'static str> {
-        self.validate_for_terminal_authority_policy(accepted_physical)?;
-        if self.terminal_authority_permission_policy_identity != Some(accepted_permission) {
-            return Err("native artifact terminal-authority permission policy is not accepted");
-        }
-        if self.terminal_authority_closure_review.identity() != accepted_closure_review {
-            return Err("native artifact terminal-authority closure review is not accepted");
-        }
-        Ok(())
-    }
 
     pub fn physical_evidence_scope(&self) -> NativePhysicalEvidenceScope {
         self.physical_evidence_scope.clone()

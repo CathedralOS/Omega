@@ -16,8 +16,7 @@ mod post_allocation_machine;
 
 pub use plan::{
     PostAllocationMachineError, PostAllocationMachineReceipt, ValidatedPostAllocationMachinePlan,
-    validate_post_allocation_machine_plan,
-};
+    };
 pub use post_allocation_machine::{
     OptimizedPostAllocationMachinePipelineError,
     StagedOptimizedPostAllocationMachineCustodyReceipt, StagedOptimizedPostAllocationMachinePlan,

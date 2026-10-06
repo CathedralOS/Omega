@@ -68,5 +68,5 @@ pub use task_plans::stack_leases::{
 pub use task_plans::{
     ActivationCarryObligations, ActivationPlanCandidate, CanonicalSuspensionCrossing,
     LiveCarryDemand, LiveCarryStorage, StackPlan, TaskArgumentExtent, TaskArgumentLayout,
-    ValidatedActivationPlan, validate_activation_plan, validate_wcsu_activation_plan,
+    ValidatedActivationPlan, validate_wcsu_activation_plan,
 };

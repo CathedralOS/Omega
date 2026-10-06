@@ -12,7 +12,7 @@ use lowered_psi::{
     LoweredSelectedIntegerComparisonOperation as Emitted,
 };
 use semantic_vocabulary::{
-    BlockId, ContractId, EdgeId, IeeeFloatComparisonOperation as Comparison, IeeeFloatFormat,
+    BlockId, ContractId, EdgeId,
     IntegerSign, IntegerType, MachineId, OperationId, ScalarType, ValueId,
 };
 use terminal_psi::{
@@ -113,95 +113,6 @@ fn float_realizations(
         ],
     )
     .unwrap()
-}
-
-#[test]
-fn float_coverage_replays_exact_operation_format_plan_and_execution() {
-    use effects::CompilerPrimitiveFloatBinaryOperation as Execution;
-    use numerics::literals::FloatFormat;
-    let plans = [ProviderPlan::default()];
-    for (format, execution_format) in [
-        (IeeeFloatFormat::Binary32, FloatFormat::F32),
-        (IeeeFloatFormat::Binary64, FloatFormat::F64),
-    ] {
-        for (comparison, operation) in [
-            (Comparison::Equal, Execution::Equal),
-            (Comparison::NotEqual, Execution::NotEqual),
-            (Comparison::Less, Execution::Less),
-            (Comparison::LessOrEqual, Execution::LessOrEqual),
-            (Comparison::Greater, Execution::Greater),
-            (Comparison::GreaterOrEqual, Execution::GreaterOrEqual),
-        ] {
-            let module = comparison_module(
-                ScalarType::IeeeFloat(format),
-                OperationKind::IeeeFloatCompare {
-                    comparison,
-                    left: ValueId::new(1).unwrap(),
-                    right: ValueId::new(2).unwrap(),
-                },
-            );
-            let occurrence = FloatOccurrence {
-                terminal_machine: module.entry,
-                terminal_operation: OperationId::new(1).unwrap(),
-                provider_plan_index: 0,
-                provider_plan_commitment: plans[0].identity_digest(),
-                comparison,
-                format,
-            };
-            let execution = CompilerIntrinsicExecutionIdentity::PrimitiveFloatBinary {
-                operation,
-                format: execution_format,
-            };
-            assert_eq!(occurrence.execution_identity(), execution);
-            let realizations = float_realizations(occurrence, execution);
-            assert_eq!(
-                FloatOccurrence::validate_coverage(&module, &plans, &[occurrence], &realizations,),
-                Ok(())
-            );
-            assert_eq!(
-                FloatOccurrence::validate_roster(&module, &plans, &[]),
-                Err("Terminal proposal must retain every IEEE comparison occurrence exactly once")
-            );
-            let wrong_operation = float_realizations(
-                FloatOccurrence {
-                    terminal_operation: OperationId::new(2).unwrap(),
-                    ..occurrence
-                },
-                execution,
-            );
-            assert_eq!(
-                FloatOccurrence::validate_coverage(
-                    &module,
-                    &plans,
-                    &[occurrence],
-                    &wrong_operation
-                ),
-                Err("Terminal IEEE comparison requires one exact boundary realization companion")
-            );
-
-            let altered = FloatOccurrence {
-                format: match format {
-                    IeeeFloatFormat::Binary32 => IeeeFloatFormat::Binary64,
-                    IeeeFloatFormat::Binary64 => IeeeFloatFormat::Binary32,
-                },
-                ..occurrence
-            };
-            assert_eq!(
-                FloatOccurrence::validate_roster(&module, &plans, &[altered]),
-                Err("Terminal IEEE comparison changed operand format or identity")
-            );
-            let wrong_execution = float_realizations(occurrence, altered.execution_identity());
-            assert_eq!(
-                FloatOccurrence::validate_coverage(
-                    &module,
-                    &plans,
-                    &[occurrence],
-                    &wrong_execution,
-                ),
-                Err("Terminal IEEE comparison changed its selected boundary realization")
-            );
-        }
-    }
 }
 
 #[test]

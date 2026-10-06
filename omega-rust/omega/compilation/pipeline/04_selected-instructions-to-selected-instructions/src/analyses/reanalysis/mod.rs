@@ -9,7 +9,6 @@ mod custody;
 mod invariants;
 mod validation;
 
-pub use validation::validate_optimized_selected_reanalysis_custody;
 
 use crate::StagedOptimizedFixedViewCopies;
 use crate::{

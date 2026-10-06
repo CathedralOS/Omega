@@ -57,27 +57,6 @@ pub fn stage_whole_function_exit_contract_for_layout<S: ValidatedSelectedAnalysi
     })
 }
 
-/// Replay source layout, optional transformation, and the claimed exit record.
-/// Reading the current layout never selects a path from optimization history.
-#[allow(clippy::too_many_arguments)]
-pub fn validate_whole_function_exit_contract_for_layout<S: ValidatedSelectedAnalysis>(
-    selected: &S,
-    machine: &StagedOptimizedPostAllocationMachinePlan,
-    physical: &ValidatedPhysicalRegisterModel,
-    encoding: &StagedOptimizedSelectedFormEncoding,
-    baseline: &StagedOptimizedResolvedSelectedFormLayout,
-    layout: &ResolvedLayoutOptimization,
-    frame: Option<(
-        &ValidatedTargetFrameLayout,
-        &ValidatedTargetFrameProtocolEncoding,
-    )>,
-    contract: &ValidatedWholeFunctionExitContract,
-) -> Result<(), Error> {
-    validate_layout(selected, machine, physical, encoding, baseline, layout)?;
-    validate_exit_record_for_replayed_layout(
-        selected, machine, physical, encoding, layout, frame, contract,
-    )
-}
 
 /// Check the exit record after this invocation has replayed the exact borrowed
 /// selected/machine/encoding/layout tuple. Fixed-frame admission additionally

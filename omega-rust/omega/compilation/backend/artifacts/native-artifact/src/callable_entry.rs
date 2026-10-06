@@ -39,7 +39,6 @@ use machine_code::{
 };
 use object_file::{
     OptimizedObjectArtifactError, StagedValidatedOptimizedObjectArtifact,
-    validate_optimized_object_artifact,
 };
 
 const RECORD_MAGIC: &[u8; 8] = b"OMGOER\0\0";
@@ -73,25 +72,6 @@ pub fn stage_validated_optimized_ordinary_callable_entry(
     })
 }
 
-pub fn validate_optimized_ordinary_callable_entry(
-    staged: &StagedValidatedOptimizedOrdinaryCallableEntry,
-) -> Result<OptimizedOrdinaryCallableEntryCustodyReceipt, OptimizedOrdinaryCallableEntryError> {
-    validate_optimized_object_artifact(&staged.source)
-        .map_err(OptimizedOrdinaryCallableEntryError::Source)?;
-    let entry = reconstruct(&staged.source)?;
-    if entry != staged.entry {
-        return Err(OptimizedOrdinaryCallableEntryError::RecordMismatch);
-    }
-    let manifest = manifest(&entry)?;
-    if manifest != staged.manifest.record {
-        return Err(OptimizedOrdinaryCallableEntryError::ManifestMismatch);
-    }
-    let receipt = receipt(&entry, &manifest);
-    if receipt != staged.custody {
-        return Err(OptimizedOrdinaryCallableEntryError::ReceiptMismatch);
-    }
-    Ok(receipt)
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OptimizedOrdinaryCallableEntryStage {

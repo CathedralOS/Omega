@@ -184,7 +184,7 @@ use selected_instructions::{
 use semantic_vocabulary::{EdgeId, FuelScheduleIdentity, PlaceId, ValueId};
 
 pub use rewrite::{spill_selected_runtime_value, spill_selected_runtime_value_with_span_policy};
-pub use validation::{validate_runtime_spill, validate_runtime_spill_with_span_policy};
+pub use validation::{validate_runtime_spill_with_span_policy};
 
 /// How far a block's still-open shared reload interval may reach. The
 /// entrypoint fixes this once per rewrite so the proposal and the

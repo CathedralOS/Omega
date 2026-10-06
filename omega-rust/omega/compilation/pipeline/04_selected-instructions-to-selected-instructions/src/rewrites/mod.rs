@@ -123,7 +123,7 @@ pub use literal_folds::{
     StagedOptimizedLiteralFolds, StagedSelectedLoweringOptimizationCustodyReceipt,
     StagedSelectedLoweringOptimizationRun, run_selected_lowering_optimizations,
     stage_first_optimized_literal_fold, stage_next_optimized_literal_fold,
-    validate_optimized_literal_fold_custody, validate_selected_lowering_optimization_custody,
+    validate_selected_lowering_optimization_custody,
 };
 pub use pre_allocation::{
     OptimizedPreAllocationCustodyError, PRE_ALLOCATION_RULE_CATALOG, PreAllocationPolicy,
@@ -141,17 +141,14 @@ pub(crate) use redundant_extension::{
 };
 pub use runtime_rematerialization::{
     RuntimeRematerializationError, ValidatedRuntimeRematerialization,
-    rematerialize_selected_runtime_value, validate_runtime_rematerialization,
-};
+    rematerialize_selected_runtime_value, };
 pub use runtime_spill::{
     RuntimeSpillError, RuntimeSpillSpanPolicy, ValidatedRuntimeSpill, spill_selected_runtime_value,
-    spill_selected_runtime_value_with_span_policy, validate_runtime_spill,
-    validate_runtime_spill_with_span_policy,
+    spill_selected_runtime_value_with_span_policy, validate_runtime_spill_with_span_policy,
 };
 pub use runtime_split::{
     RuntimeSplitError, RuntimeSplitReceipt, ValidatedRuntimeSplit, split_selected_runtime_value,
-    validate_runtime_split,
-};
+    };
 pub(crate) use selected_lowering::enabled_pair_rules;
 pub(crate) use selected_lowering::fold_selected_incoming_literal;
 pub(crate) use selected_lowering::literal_fold_identity;
@@ -177,5 +174,4 @@ pub enum RegisterAllocationRuleTargetApplicability {
 
 pub use load_forwarding::{
     StoredLoadForwardingError, StoredLoadForwardingReceipt, ValidatedStoredLoadForwarding,
-    forward_selected_stored_load, validate_stored_load_forwarding,
-};
+    forward_selected_stored_load, };

@@ -44,7 +44,6 @@ use selected_instructions::{SelectedInstructionPlan, SelectedInstructionPlanIden
 use semantic_vocabulary::FuelScheduleIdentity;
 
 pub use rewrite::rematerialize_selected_runtime_value;
-pub use validation::validate_runtime_rematerialization;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValidatedRuntimeRematerialization {

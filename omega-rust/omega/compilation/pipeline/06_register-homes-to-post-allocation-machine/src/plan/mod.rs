@@ -10,7 +10,6 @@ use selected_instructions::PreAllocationMachineEffectIdentity;
 use selected_instructions::SelectedInstructionPlanIdentity;
 use selected_instructions_to_register_homes::RegisterHomeIdentity;
 use std::sync::Arc;
-pub use validate::validate_post_allocation_machine_plan;
 
 /// Join one validated selected CFG, its pre-allocation machine effects, and
 /// its independently validated physical homes. Target applicability must

@@ -1,31 +1,8 @@
-use super::super::error::{
-    InstalledProgramStorageContinuationEvidenceError,
-    OptimizedProgramStorageSemanticWrapperObjectError,
-};
+use super::super::error::InstalledProgramStorageContinuationEvidenceError;
 use legalized_operations::{LegalizedScalarArgument, NativeCallOrigin};
-use object_file::StagedValidatedOptimizedObjectArtifact;
 use selected_instructions::SelectedInstructionPlan;
 use semantic_vocabulary::MachineId;
 use terminal_psi_to_abstract_operations::AdmittedProviderInstallation;
-
-/// Replay the checked-provider half of the ProgramStorage join whenever the
-/// canonical child owns an installation. Synthetic encoding fixtures retain
-/// their existing no-installation route, while a real installed child cannot
-/// reach wrapper composition unless its selected call, provider body, claim
-/// completions, and opaque installation are one exact continuation.
-pub fn validate_retained_installed_provider_continuation(
-    source: &StagedValidatedOptimizedObjectArtifact,
-) -> Result<(), OptimizedProgramStorageSemanticWrapperObjectError> {
-    let Some(installation) = source.provider_installation() else {
-        return Ok(());
-    };
-    validate_installed_program_storage_continuation_evidence(
-        installation,
-        source.selected_plan(),
-        source.artifact().semantic_entry,
-    )
-    .map_err(OptimizedProgramStorageSemanticWrapperObjectError::InstalledProviderContinuation)
-}
 
 /// Independently compare one immutable admitted installation with a selected
 /// ProgramStorage continuation. This function is intentionally

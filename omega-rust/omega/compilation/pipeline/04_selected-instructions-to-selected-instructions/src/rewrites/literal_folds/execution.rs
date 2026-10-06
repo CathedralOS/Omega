@@ -7,7 +7,6 @@ use crate::LiteralFoldPolicy;
 use crate::OptimizedLiteralFoldCustodyError;
 use crate::StagedOptimizedAllocationLegality;
 use crate::StagedOptimizedLiteralFoldAttempt;
-use crate::StagedOptimizedLiteralFoldCustodyReceipt;
 use crate::StagedOptimizedLiteralFoldStep;
 use crate::StagedOptimizedLiteralFolds;
 use crate::StagedSelectedLoweringOptimizationCustodyReceipt;
@@ -300,40 +299,6 @@ pub fn validate_selected_lowering_optimization_custody(
     Ok(receipt)
 }
 
-pub fn validate_optimized_literal_fold_custody(
-    sequence: &StagedOptimizedLiteralFolds,
-) -> Result<StagedOptimizedLiteralFoldCustodyReceipt, OptimizedLiteralFoldCustodyError> {
-    let upstream = sequence.source.custody();
-    let Some(first) = sequence.steps.first() else {
-        return Err(OptimizedLiteralFoldCustodyError::EmptySequence);
-    };
-    let selected = sequence.source.selected();
-    let mut replayed = vec![replay_step(
-        0,
-        selected,
-        sequence.source.ranges(),
-        sequence.source.legality(),
-        &sequence.source,
-        first,
-    )?];
-    for step_index in 1..sequence.steps.len() {
-        let previous = replayed.last().expect("first replayed step exists");
-        let step = replay_step(
-            step_index,
-            previous.fold(),
-            previous.ranges(),
-            previous.legality(),
-            &sequence.source,
-            &sequence.steps[step_index],
-        )?;
-        replayed.push(step);
-    }
-    let receipt = custody_receipt(upstream, &replayed);
-    if replayed != sequence.steps || receipt != sequence.custody {
-        return Err(OptimizedLiteralFoldCustodyError::StepMismatch { step: 0 });
-    }
-    Ok(receipt)
-}
 
 #[allow(clippy::too_many_arguments)]
 fn build_step<S: ValidatedSelectedAnalysis>(

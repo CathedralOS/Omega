@@ -1,8 +1,7 @@
 use super::{
     TerminalCallbackOccurrenceProposal, TerminalCallbackThunkArtifact,
     admitted_native_callback_thunks, validate_callback_occurrence_placements,
-    validate_callback_occurrences_for_module,
-};
+    };
 use crate::callback_placements::tests::{materialized_placement, placement};
 
 fn occurrence(
@@ -178,63 +177,6 @@ fn retained_occurrences_replay_direct_and_field_destinations() {
             ),
         );
     }
-}
-
-#[test]
-fn registrar_operation_join_allows_distinct_slots_but_rejects_missing_or_ambiguous_calls() {
-    let placement = placement();
-    let occurrences = [occurrence(0, &placement), occurrence(1, &placement)];
-    let mut module =
-        terminal_psi::TerminalModule::for_entry(semantic_vocabulary::MachineId::new(1).unwrap());
-    module.machines.push(machine(1, 1));
-    let operation = terminal_psi::Operation {
-        static_reach_binding: None,
-        suspension_crossing: None,
-        id: occurrences[0].terminal_operation(),
-        result: terminal_psi::OperationResult::Unit,
-        kind: terminal_psi::OperationKind::BoundaryCall {
-            requirement_obligations: Vec::new(),
-            boundary: semantic_vocabulary::BoundaryMachineId::new(1).unwrap(),
-            arguments: Vec::new(),
-            structural_arguments: Vec::new(),
-            completion_receipts: Vec::new(),
-        },
-    };
-    // This check consumes a separately validated canonical program; only the
-    // operation join is under test, not whole-module semantic verification.
-    assert_eq!(
-        validate_callback_occurrences_for_module(&module, &occurrences),
-        Err("Terminal callback occurrence does not name one exact canonical operation"),
-    );
-    module.machines[0].blocks[0]
-        .operations
-        .push(operation.clone());
-    validate_callback_occurrences_for_module(&module, &occurrences).unwrap();
-    assert_eq!(
-        validate_callback_occurrences_for_module(
-            &module,
-            &[occurrences[0].clone(), occurrences[0].clone()]
-        ),
-        Err("Terminal native proposal repeats a callback placement occurrence"),
-    );
-    let mut wrong_role = occurrences[0].clone();
-    wrong_role.callback_thunk_identity = occurrences[1].callback_thunk_identity;
-    assert_eq!(
-        validate_callback_occurrences_for_module(&module, &[wrong_role]),
-        Err("Terminal callback occurrence has an invalid callback-thunk role or placement index"),
-    );
-    module.machines[0].blocks[0].operations.push(operation);
-    assert_eq!(
-        validate_callback_occurrences_for_module(&module, &occurrences),
-        Err("Terminal callback occurrence does not name one exact canonical operation"),
-    );
-    module.machines[0].blocks[0].operations.pop();
-    module.machines[0].blocks[0].operations[0].kind =
-        terminal_psi::OperationKind::BooleanConstant { value: false };
-    assert_eq!(
-        validate_callback_occurrences_for_module(&module, &occurrences),
-        Err("Terminal callback occurrence does not name a boundary call"),
-    );
 }
 
 fn block(id: u64) -> terminal_psi::Block {

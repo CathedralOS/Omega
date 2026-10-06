@@ -3,57 +3,15 @@ use object_file::StagedValidatedOptimizedObjectArtifact;
 use program_entry_plan::{
     OptimizedProgramStorageSemanticCallingApplication,
     OptimizedProgramStorageSemanticEntryContract, OptimizedProgramStorageSemanticReceiverLayout,
-    ProgramEntrySourceReceiverSignature, StagedOptimizedProgramStorageSemanticWrapperEncoding,
+    ProgramEntrySourceReceiverSignature,
     bind_optimized_program_storage_semantic_entry_contract,
-    plan_optimized_program_storage_semantic_wrapper,
 };
 use semantic_vocabulary::{IntegerSign, ScalarType, StructuralPlaceKind};
 use terminal_psi::{
     BindingRelevance, ByteSequenceCarrier, StructuralAccess, StructuralFieldType,
     StructuralMultiplicity, StructuralTypeShape, TerminalMachineResult,
 };
-use terminal_psi_to_abstract_operations::{
-    NativeProgramEntrySettlement, NativeProgramEntrySettlementError,
-    ValidatedNativeProgramEntrySettlement, validate_native_program_entry_settlement,
-};
-
-pub fn replay_settlement(
-    settlement: &ValidatedNativeProgramEntrySettlement,
-    source: &StagedValidatedOptimizedObjectArtifact,
-) -> Result<(), OptimizedProgramStorageSemanticWrapperObjectError> {
-    let calling_plans = match (
-        settlement.semantic_calling_application(),
-        settlement.physical_calling_application(),
-        settlement.storage_entry(),
-    ) {
-        (Some(semantic), Some(physical), Some(storage)) => Some((semantic, physical, storage)),
-        (None, None, None) => None,
-        _ => {
-            return Err(
-                OptimizedProgramStorageSemanticWrapperObjectError::MissingPairedCallingPlans,
-            );
-        }
-    };
-    let replayed = validate_native_program_entry_settlement(
-        source.terminal(),
-        settlement.checked_entry(),
-        NativeProgramEntrySettlement::new(
-            settlement.source(),
-            calling_plans,
-            settlement.fused_service_establishments(),
-        ),
-        settlement.target(),
-    )
-    .map_err(OptimizedProgramStorageSemanticWrapperObjectError::Settlement)?;
-    if &replayed != settlement {
-        return Err(
-            OptimizedProgramStorageSemanticWrapperObjectError::Settlement(
-                NativeProgramEntrySettlementError::CallingPlanPairingDrift,
-            ),
-        );
-    }
-    Ok(())
-}
+use terminal_psi_to_abstract_operations::ValidatedNativeProgramEntrySettlement;
 
 /// Re-bind the semantic entry contract from the settlement's retained calling
 /// application. The schema commits to the application identity (requirement,
@@ -94,26 +52,6 @@ pub fn bind_semantic_contract(
         &application,
     )
     .map_err(|_| OptimizedProgramStorageSemanticWrapperObjectError::SemanticContract)
-}
-
-pub fn replay_semantic_contract(
-    settlement: &ValidatedNativeProgramEntrySettlement,
-    encoding: &StagedOptimizedProgramStorageSemanticWrapperEncoding,
-    source: &StagedValidatedOptimizedObjectArtifact,
-) -> Result<
-    OptimizedProgramStorageSemanticEntryContract,
-    OptimizedProgramStorageSemanticWrapperObjectError,
-> {
-    let contract = bind_semantic_contract(settlement)?;
-    let expected = plan_optimized_program_storage_semantic_wrapper(
-        contract.clone(),
-        receiver_layout(source, settlement, &contract)?,
-    )
-    .map_err(|_| OptimizedProgramStorageSemanticWrapperObjectError::SemanticContract)?;
-    if &expected != encoding.source() {
-        return Err(OptimizedProgramStorageSemanticWrapperObjectError::SemanticWrapperPlanMismatch);
-    }
-    Ok(contract)
 }
 
 /// The wrapper provisions the entry context, so its checked referent layout is a

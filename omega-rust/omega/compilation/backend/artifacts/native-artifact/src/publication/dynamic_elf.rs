@@ -118,15 +118,6 @@ impl DynamicElfPublicationReceipt {
             )
     }
 
-    /// Replay the published file against this receipt: length, content digest
-    /// and executable mode must still match.
-    pub fn validate_published_file(&self) -> Result<(), String> {
-        super::validate_published_container(
-            &self.output_path,
-            self.container_byte_count,
-            self.container_digest,
-        )
-    }
 }
 
 /// Domain-separated installation commitment. The dynamic domain keeps equal

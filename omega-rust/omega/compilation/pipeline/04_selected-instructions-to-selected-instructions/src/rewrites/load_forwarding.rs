@@ -84,7 +84,6 @@ use selected_instructions::{
 use semantic_vocabulary::FuelScheduleIdentity;
 
 pub use rewrite::forward_selected_stored_load;
-pub use validation::validate_stored_load_forwarding;
 
 /// An accepted store-to-load forwarding with its replay receipt.
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -40,8 +40,7 @@ pub use intrinsic_requirements::{IntrinsicRequirement, IntrinsicRequirementKind}
 pub use planning_context::ProviderPlanningContext;
 pub use provider_declarations::{
     collect_executed_provider_selections, harvest_provider_selections,
-    validate_executed_provider_selection_declaration,
-};
+    };
 pub use provider_planning::selection::{
     CompositionMode, ProviderOperatorFamilyCoordinate, ProviderOperatorFamilySelection,
     ProviderSelection, ProviderSelectionIdentity, ProviderSelectionSubject,

@@ -16,16 +16,6 @@ pub fn validate_function_fragment_object_artifact(
     validate(source, artifact, None)
 }
 
-/// Replay the same admission with an expected compiler-private roster: each
-/// materialized record must bind one private symbol row, one function-symbol
-/// join row, and one carrier whose bytes follow the program text in order.
-pub fn validate_function_fragment_object_artifact_with_private_functions(
-    source: &StagedOptimizedRelocationFreeObjectContainer,
-    artifact: &ObjectArtifact,
-    private_functions: &[machine_code::CompilerPrivateMachineCodeFunction],
-) -> Result<(), Error> {
-    validate(source, artifact, Some(private_functions))
-}
 
 fn validate(
     source: &StagedOptimizedRelocationFreeObjectContainer,
