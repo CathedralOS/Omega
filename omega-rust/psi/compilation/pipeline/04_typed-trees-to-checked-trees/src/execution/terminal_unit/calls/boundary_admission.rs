@@ -133,32 +133,11 @@ pub(crate) fn boundary_value_result_matches(
 /// storage rather than materializing a view local.
 pub(crate) fn fixed_array_slice_view_is_admitted(
     program: &TypedTrees,
-    mut source: typed_trees::types::TypeReferenceHandle,
+    source: typed_trees::types::TypeReferenceHandle,
     target: typed_trees::types::TypeReferenceHandle,
 ) -> bool {
-    if let TypeReferenceNode::Reference { referee, .. } =
-        program.type_reference_table.type_reference(source)
-    {
-        source = *referee;
-    }
-    let TypeReferenceNode::FixedArray {
-        element_type,
-        length: typed_trees::types::FixedArrayLength::Literal(_),
-    } = program.type_reference_table.type_reference(source)
-    else {
-        return false;
-    };
-    let TypeReferenceNode::Reference {
-        access: language_core::ReferenceAccess::Mutable | language_core::ReferenceAccess::Shared,
-        referee,
-        ..
-    } = program.type_reference_table.type_reference(target)
-    else {
-        return false;
-    };
-    let TypeReferenceNode::Slice {
-        element_type: target_element,
-    } = program.type_reference_table.type_reference(*referee)
+    let Some((source, element_type, target_element)) =
+        fixed_array_slice_view_parts(program, source, target)
     else {
         return false;
     };
@@ -170,9 +149,35 @@ pub(crate) fn fixed_array_slice_view_is_admitted(
 /// A fixed byte array lends initialized elements without becoming a bounded owner.
 pub(crate) fn fixed_byte_array_view_is_admitted(
     program: &TypedTrees,
-    mut source: typed_trees::types::TypeReferenceHandle,
+    source: typed_trees::types::TypeReferenceHandle,
     target: typed_trees::types::TypeReferenceHandle,
 ) -> bool {
+    let Some((source, element_type, target_element)) =
+        fixed_array_slice_view_parts(program, source, target)
+    else {
+        return false;
+    };
+    [*element_type, *target_element].into_iter().all(|element| {
+        matches!(
+            program.type_reference_table.type_reference(element),
+            TypeReferenceNode::Named { .. }
+        ) && program.primitive_type_reference(element) == Some(PrimitiveType::U8)
+    }) && crate::checks::type_multiplicity(program, source) == Multiplicity::Unrestricted
+}
+
+/// Peels one reference layer off `source` and destructures it as a literal
+/// fixed array while `target` destructures as a shared-or-mutable reference to
+/// a slice. Returns the peeled source and both element types when the source/
+/// target shape is the fixed-array-to-slice view both admissions test.
+fn fixed_array_slice_view_parts<'a>(
+    program: &'a TypedTrees,
+    mut source: typed_trees::types::TypeReferenceHandle,
+    target: typed_trees::types::TypeReferenceHandle,
+) -> Option<(
+    typed_trees::types::TypeReferenceHandle,
+    &'a typed_trees::types::TypeReferenceHandle,
+    &'a typed_trees::types::TypeReferenceHandle,
+)> {
     if let TypeReferenceNode::Reference { referee, .. } =
         program.type_reference_table.type_reference(source)
     {
@@ -183,7 +188,7 @@ pub(crate) fn fixed_byte_array_view_is_admitted(
         length: typed_trees::types::FixedArrayLength::Literal(_),
     } = program.type_reference_table.type_reference(source)
     else {
-        return false;
+        return None;
     };
     let TypeReferenceNode::Reference {
         access: language_core::ReferenceAccess::Mutable | language_core::ReferenceAccess::Shared,
@@ -191,20 +196,15 @@ pub(crate) fn fixed_byte_array_view_is_admitted(
         ..
     } = program.type_reference_table.type_reference(target)
     else {
-        return false;
+        return None;
     };
     let TypeReferenceNode::Slice {
         element_type: target_element,
     } = program.type_reference_table.type_reference(*referee)
     else {
-        return false;
+        return None;
     };
-    [*element_type, *target_element].into_iter().all(|element| {
-        matches!(
-            program.type_reference_table.type_reference(element),
-            TypeReferenceNode::Named { .. }
-        ) && program.primitive_type_reference(element) == Some(PrimitiveType::U8)
-    }) && crate::checks::type_multiplicity(program, source) == Multiplicity::Unrestricted
+    Some((source, element_type, target_element))
 }
 
 /// The `self.<field>` receiver a boundary call site routes through, when the
