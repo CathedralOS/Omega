@@ -15,6 +15,7 @@ use super::proof_fact_identity::{
 };
 use super::runtime_correspondence::{
     DefineRuntimeCorrespondence, DirectLiftArgumentSource, DirectLiftRuntimeCorrespondence,
+    landed_primitive,
 };
 use super::theorem_schema::{
     ExpectedTheoremSchema, TheoremApplicationSide, TheoremContractFactLocation,
@@ -28,7 +29,6 @@ use crate::proof_contracts::contract_entailment::{
     StrictArithmeticSymbolBinding, strict_arithmetic_expression_implication,
 };
 use numerics::arithmetic::ArithmeticDomain;
-use numerics::literals::LandedIntegerType;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::domain::ProofFact;
@@ -612,20 +612,6 @@ fn exact_integer_parameter(
         return None;
     }
     Some((primitive, !primitive.is_signed_integer()))
-}
-
-fn landed_primitive(landed: LandedIntegerType) -> PrimitiveType {
-    match landed {
-        LandedIntegerType::I8 => PrimitiveType::I8,
-        LandedIntegerType::I16 => PrimitiveType::I16,
-        LandedIntegerType::I32 => PrimitiveType::I32,
-        LandedIntegerType::I64 => PrimitiveType::I64,
-        LandedIntegerType::U8 => PrimitiveType::U8,
-        LandedIntegerType::U16 => PrimitiveType::U16,
-        LandedIntegerType::U32 => PrimitiveType::U32,
-        LandedIntegerType::U64 => PrimitiveType::U64,
-        LandedIntegerType::Addr => PrimitiveType::Addr,
-    }
 }
 
 fn integer_spelling_value(spelling: &str) -> Option<numerics::bignum::BigInt> {

@@ -944,7 +944,7 @@ fn exact_float_landing(
     Ok(landing)
 }
 
-fn landed_primitive(landed: LandedIntegerType) -> PrimitiveType {
+pub(super) fn landed_primitive(landed: LandedIntegerType) -> PrimitiveType {
     match landed {
         LandedIntegerType::I8 => PrimitiveType::I8,
         LandedIntegerType::I16 => PrimitiveType::I16,
