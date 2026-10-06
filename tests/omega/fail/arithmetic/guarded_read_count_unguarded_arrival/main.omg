@@ -1,0 +1,17 @@
+// One possible arrival with a representable nonnegative count bypasses the joint capacity guard.
+data Reader { received: u64 [0..=16384]; count: i64 [0..=16384]; }
+machine Reader::advance(reader: &mut Reader, check: bool) {
+    transition check { true -> room(reader) _ -> bypass(reader) }
+    state room(reader: &mut Reader) {
+        transition reader.count as u64 <= 16384 - reader.received {
+            true -> store(reader)
+            _ -> done()
+        }
+    }
+    state bypass(reader: &mut Reader) { transition { _ -> store(reader) } }
+    state store(reader: &mut Reader) {
+        reader.received = reader.received + reader.count as u64;
+        transition { _ -> done() }
+    }
+    state done() { }
+}

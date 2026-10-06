@@ -57,8 +57,8 @@ pub(super) fn proves_range(
     state: &State,
     environment: &ValueEnvironment,
     expression: ExpressionHandle,
-    minimum: &BigInt,
-    maximum: &BigInt,
+    minimum: Option<&BigInt>,
+    maximum: Option<&BigInt>,
 ) -> bool {
     let Some(operand) = super::ordered_values::operand(program, machine, state, expression) else {
         return false;
@@ -68,6 +68,7 @@ pub(super) fn proves_range(
         (BinaryOperator::Greater, maximum),
     ]
     .into_iter()
+    .filter_map(|(operator, bound)| bound.map(|bound| (operator, bound)))
     .all(|(operator, bound)| {
         let mut observations = Observations::default();
         let Some(left) = observations.value(&operand) else {

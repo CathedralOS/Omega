@@ -104,14 +104,17 @@ pub fn occurrence_integer_expression_fits_range(
     ) else {
         return false;
     };
-    if observation.interval.is_some_and(|interval| {
+    let lower_proven = observation.interval.is_some_and(|interval| {
         interval
             .low
             .is_some_and(|low| numerics::bignum::BigInt::from_i64(low) >= *minimum)
-            && interval
-                .high
-                .is_some_and(|high| numerics::bignum::BigInt::from_i64(high) <= *maximum)
-    }) {
+    });
+    let upper_proven = observation.interval.is_some_and(|interval| {
+        interval
+            .high
+            .is_some_and(|high| numerics::bignum::BigInt::from_i64(high) <= *maximum)
+    });
+    if lower_proven && upper_proven {
         return true;
     }
     let Some(environment) = observation.environment else {
@@ -137,8 +140,8 @@ pub fn occurrence_integer_expression_fits_range(
         state,
         &environment,
         expression,
-        minimum,
-        maximum,
+        (!lower_proven).then_some(minimum),
+        (!upper_proven).then_some(maximum),
     )
 }
 
