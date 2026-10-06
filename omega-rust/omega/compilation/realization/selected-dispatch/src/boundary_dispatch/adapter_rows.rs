@@ -250,51 +250,8 @@ pub(crate) fn resolve_selected_adapter_row(
         );
     }
 
-    if plan.provider_type.is_empty() {
-        return Err(Diagnostic::error(format!(
-            "selected checked-adapter ProviderPlan `{}` has no nominal provider type",
-            plan.name,
-        )));
-    }
-    let adapter = provider_planning::exact_checked_adapter(
-        provider_planning::ProviderPlanningContext::new(typed, source::DependencyScope::Product),
-        plan,
-        row,
-    )?;
-    if !provider_planning::provider_row_matches(
-        provider_planning::ProviderPlanningContext::new(typed, source::DependencyScope::Product),
-        plan,
-        row,
-        adapter,
-    ) {
-        return Err(Diagnostic::error(format!(
-            "selected checked adapter `{machine_identity}` does not belong to nominal provider `{}`",
-            plan.provider_type,
-        )));
-    }
-    if !adapter.supply_mode.is_checked_body() {
-        return Err(Diagnostic::error(format!(
-            "selected checked adapter `{machine_identity}` is not a checked body",
-        )));
-    }
-    // A generic machine cannot be the exact realization of a nongeneric
-    // requirement: its unbound binders have no tuple to close them.
-    if !typed.machine_type_parameters(adapter).is_empty() {
-        return Err(Diagnostic::error(format!(
-            "selected checked adapter `{machine_identity}` is generic over {} machine binders; only an exact nongeneric realization can settle a boundary row",
-            typed.machine_type_parameters(adapter).len(),
-        )));
-    }
-    let Some(entry) = typed.machine_states(adapter).first() else {
-        return Err(Diagnostic::error(format!(
-            "selected checked adapter `{machine_identity}` has no executable entry state",
-        )));
-    };
-    if !entry.symbol.is_valid() {
-        return Err(Diagnostic::error(format!(
-            "selected checked adapter `{machine_identity}` has no exact entry-state symbol",
-        )));
-    }
+    let adapter = planned_checked_adapter(typed, plan, row, machine_identity)?;
+    let entry = exact_adapter_entry(typed, adapter, machine_identity)?;
 
     if !provider_planning::provider_trait_requirement_matches(
         provider_planning::ProviderPlanningContext::new(typed, source::DependencyScope::Product),
@@ -393,33 +350,7 @@ fn resolve_top_level_requirement_adapter_row(
             "selected top-level boundary requirement `{requirement_name}` has no exact entry-state symbol",
         )));
     }
-    if plan.provider_type.is_empty() {
-        return Err(Diagnostic::error(format!(
-            "selected checked-adapter ProviderPlan `{}` has no nominal provider type",
-            plan.name,
-        )));
-    }
-    let adapter = provider_planning::exact_checked_adapter(
-        provider_planning::ProviderPlanningContext::new(typed, source::DependencyScope::Product),
-        plan,
-        row,
-    )?;
-    if !provider_planning::provider_row_matches(
-        provider_planning::ProviderPlanningContext::new(typed, source::DependencyScope::Product),
-        plan,
-        row,
-        adapter,
-    ) {
-        return Err(Diagnostic::error(format!(
-            "selected checked adapter `{machine_identity}` does not belong to nominal provider `{}`",
-            plan.provider_type,
-        )));
-    }
-    if !adapter.supply_mode.is_checked_body() {
-        return Err(Diagnostic::error(format!(
-            "selected checked adapter `{machine_identity}` is not a checked body",
-        )));
-    }
+    let adapter = planned_checked_adapter(typed, plan, row, machine_identity)?;
     if !typed.machine_type_parameters(requirement).is_empty() {
         return resolve_specialized_top_level_requirement_adapter_rows(
             typed,
@@ -432,22 +363,7 @@ fn resolve_top_level_requirement_adapter_row(
             specialization_rows,
         );
     }
-    if !typed.machine_type_parameters(adapter).is_empty() {
-        return Err(Diagnostic::error(format!(
-            "selected checked adapter `{machine_identity}` is generic over {} machine binders; only an exact nongeneric realization can settle a boundary row",
-            typed.machine_type_parameters(adapter).len(),
-        )));
-    }
-    let Some(adapter_entry) = typed.machine_states(adapter).first() else {
-        return Err(Diagnostic::error(format!(
-            "selected checked adapter `{machine_identity}` has no executable entry state",
-        )));
-    };
-    if !adapter_entry.symbol.is_valid() {
-        return Err(Diagnostic::error(format!(
-            "selected checked adapter `{machine_identity}` has no exact entry-state symbol",
-        )));
-    }
+    let adapter_entry = exact_adapter_entry(typed, adapter, machine_identity)?;
     let conformances = typed
         .machine_trait_conformances(adapter)
         .iter()
@@ -718,33 +634,7 @@ fn resolve_family_adapter_row(
         }
     };
 
-    if plan.provider_type.is_empty() {
-        return Err(Diagnostic::error(format!(
-            "selected checked-adapter ProviderPlan `{}` has no nominal provider type",
-            plan.name,
-        )));
-    }
-    let adapter = provider_planning::exact_checked_adapter(
-        provider_planning::ProviderPlanningContext::new(typed, source::DependencyScope::Product),
-        plan,
-        row,
-    )?;
-    if !provider_planning::provider_row_matches(
-        provider_planning::ProviderPlanningContext::new(typed, source::DependencyScope::Product),
-        plan,
-        row,
-        adapter,
-    ) {
-        return Err(Diagnostic::error(format!(
-            "selected checked adapter `{machine_identity}` does not belong to nominal provider `{}`",
-            plan.provider_type,
-        )));
-    }
-    if !adapter.supply_mode.is_checked_body() {
-        return Err(Diagnostic::error(format!(
-            "selected checked adapter `{machine_identity}` is not a checked body",
-        )));
-    }
+    let adapter = planned_checked_adapter(typed, plan, row, machine_identity)?;
     // A family provider must be generic over exactly the requirement's
     // enumerable value binders; other binder kinds have no `where` equality
     // to close them and mixed static arguments cannot key a value tuple.
@@ -890,4 +780,71 @@ fn resolve_family_adapter_row(
         )));
     }
     Ok(rows)
+}
+
+/// The exact checked adapter a boundary row's ProviderPlan names: the plan
+/// must carry a nominal provider type, the resolved adapter must belong to
+/// it, and the adapter must be a checked body.
+fn planned_checked_adapter<'typed>(
+    typed: &'typed TypedTrees,
+    plan: &effects::provider_plan::ProviderPlan,
+    row: &effects::provider_plan::ProviderPlanRow,
+    machine_identity: &str,
+) -> Result<&'typed typed_trees::machine::Machine, Diagnostic> {
+    if plan.provider_type.is_empty() {
+        return Err(Diagnostic::error(format!(
+            "selected checked-adapter ProviderPlan `{}` has no nominal provider type",
+            plan.name,
+        )));
+    }
+    let adapter = provider_planning::exact_checked_adapter(
+        provider_planning::ProviderPlanningContext::new(typed, source::DependencyScope::Product),
+        plan,
+        row,
+    )?;
+    if !provider_planning::provider_row_matches(
+        provider_planning::ProviderPlanningContext::new(typed, source::DependencyScope::Product),
+        plan,
+        row,
+        adapter,
+    ) {
+        return Err(Diagnostic::error(format!(
+            "selected checked adapter `{machine_identity}` does not belong to nominal provider `{}`",
+            plan.provider_type,
+        )));
+    }
+    if !adapter.supply_mode.is_checked_body() {
+        return Err(Diagnostic::error(format!(
+            "selected checked adapter `{machine_identity}` is not a checked body",
+        )));
+    }
+    Ok(adapter)
+}
+
+/// The executable entry state of an exact checked adapter: a generic
+/// adapter cannot be the exact realization of a nongeneric requirement —
+/// its unbound binders have no tuple to close them — and the adapter must
+/// declare a first state with a valid symbol.
+fn exact_adapter_entry<'typed>(
+    typed: &'typed TypedTrees,
+    adapter: &'typed typed_trees::machine::Machine,
+    machine_identity: &str,
+) -> Result<&'typed typed_trees::state::State, Diagnostic> {
+    if !typed.machine_type_parameters(adapter).is_empty() {
+        return Err(Diagnostic::error(format!(
+            "selected checked adapter `{machine_identity}` is generic over {} machine binders; only an exact nongeneric realization can settle a boundary row",
+            typed.machine_type_parameters(adapter).len(),
+        )));
+    }
+    let Some(entry) = typed.machine_states(adapter).first() else {
+        return Err(Diagnostic::error(format!(
+            "selected checked adapter `{machine_identity}` has no executable entry state",
+        )));
+    };
+    if !entry.symbol.is_valid() {
+        return Err(Diagnostic::error(format!(
+            "selected checked adapter `{machine_identity}` has no exact entry-state symbol",
+        )));
+    }
+    Ok(entry)
 }
