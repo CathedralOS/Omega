@@ -2080,86 +2080,36 @@ fn successor_bindings(
                     if let Some((source_index, source_parameter)) = parameter_subject
                     {
                         if loan_permitted(source_parameter.access)
-                            && let Some((projected_type, path)) =
-                                calls::projected_borrowed_path(
-                                    program,
-                                    machine.symbol,
-                                    source.symbol,
-                                    ordinal as usize,
-                                    &place,
-                                )
-                            // A projected loan keeps its original storage
-                            // root and exact path across the edge. Case steps
-                            // use this same route, including deeper payload
-                            // fields; receiving verification must prove each
-                            // selected case active before rebinding the loan.
-                            // Reference-bearing storage still needs its own
-                            // carrier custody and is not admitted here.
-                            && path.iter().all(|segment| {
-                                matches!(
-                                    segment,
-                                    CheckedUnitStructuralPathSegment::Field(_)
-                                        | CheckedUnitStructuralPathSegment::Case(_)
-                                        | CheckedUnitStructuralPathSegment::FixedIndex(_)
-                                )
-                            })
-                            && calls::argument_presentation::is_admitted(
+                            && let Some(transfer) = projected_loan_transfer(
                                 program,
-                                projected_type,
-                                target_parameters.get(target.position as usize)?.type_reference,
-                                &target.type_identity,
-                                &[],
-                            )
-                            && {
-                                // Owned roots lend only the projected subtree.
+                                shapes,
+                                machine.symbol,
+                                source.symbol,
+                                ordinal,
+                                &place,
+                                CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                                    parameter_index: u32::try_from(source_index).ok()?,
+                                },
                                 // Borrowed roots retain their existing referent
                                 // custody: inspect that storage, not the outer
                                 // reference shell representing the parameter's
-                                // loan. References stored inside the referent
-                                // still make it ineligible for this transfer.
-                                // The shape table keys storage identities, so
-                                // an owned projection names its peeled base.
-                                let identity = match source_parameter.access {
+                                // loan. Owned roots lend only the peeled
+                                // projected subtree.
+                                match source_parameter.access {
                                     CheckedStructuralAccess::SharedBorrow
                                     | CheckedStructuralAccess::MutableBorrow
                                     | CheckedStructuralAccess::WriteOnlyBorrow => {
                                         Some(source_parameter.type_identity.clone())
                                     }
-                                    _ => super::types::base_type_identity(
-                                        program,
-                                        projected_type,
-                                        &[],
-                                    ),
-                                };
-                                identity.is_some_and(|identity| {
-                                    !declared_contains_reference(shapes, &identity)
-                                })
-                            }
-                        {
-                            let carrier_identity = if path.is_empty() {
-                                String::new()
-                            } else {
-                                shapes.add_reference_type(
-                                    target_parameters
-                                        .get(target.position as usize)?
-                                        .type_reference,
-                                    &[],
-                                )?
-                            };
-                            return Some(CheckedStructuralControlTransferPlan {
-                                source: checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedLoan {
-                                    subject: CheckedUnitStructuralArgumentPlan {
-                                        source: CheckedUnitStructuralArgumentSourcePlan::Parameter {
-                                            parameter_index: u32::try_from(source_index).ok()?,
-                                        },
-                                        path,
-                                        type_identity: target.type_identity.clone(),
-                                        access: expected_access,
-                                    },
-                                    carrier_identity,
+                                    _ => None,
                                 },
-                                target_parameter_index: u32::try_from(target_index).ok()?,
-                            });
+                                expected_access,
+                                target,
+                                target_parameters,
+                                target_index,
+                            )
+                        {
+                            return Some(transfer);
                         }
                     } else if let Some((local, result)) = local_subject() {
                         // A mutable loan keeps the local's exact constrained
@@ -2183,68 +2133,24 @@ fn successor_bindings(
                                     local.type_reference,
                                 ));
                         if mutable_local_loan
-                            && let Some((projected_type, path)) =
-                                calls::projected_borrowed_path(
-                                    program,
-                                    machine.symbol,
-                                    source.symbol,
-                                    ordinal as usize,
-                                    &place,
-                                )
-                            && path.iter().all(|segment| {
-                                matches!(
-                                    segment,
-                                    CheckedUnitStructuralPathSegment::Field(_)
-                                        | CheckedUnitStructuralPathSegment::Case(_)
-                                        | CheckedUnitStructuralPathSegment::FixedIndex(_)
-                                )
-                            })
-                            // A state argument has the same presentation as a
-                            // call argument. Fixed byte references retain a
-                            // reference identity while their local backing is
-                            // an array; normalized-string equality incorrectly
-                            // rejected that ordinary loan. Access, live-home
-                            // and reference-content checks remain independent.
-                            && calls::argument_presentation::is_admitted(
+                            && let Some(transfer) = projected_loan_transfer(
                                 program,
-                                projected_type,
-                                target_parameters.get(target.position as usize)?.type_reference,
-                                &target.type_identity,
-                                &[],
-                            )
-                            && super::types::base_type_identity(
-                                program,
-                                projected_type,
-                                &[],
-                            )
-                            .is_some_and(|identity| {
-                                !declared_contains_reference(shapes, &identity)
-                            })
-                        {
-                            let carrier_identity = if path.is_empty() {
-                                String::new()
-                            } else {
-                                shapes.add_reference_type(
-                                    target_parameters
-                                        .get(target.position as usize)?
-                                        .type_reference,
-                                    &[],
-                                )?
-                            };
-                            return Some(CheckedStructuralControlTransferPlan {
-                                source: checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedLoan {
-                                    subject: CheckedUnitStructuralArgumentPlan {
-                                        source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-                                            binding_ordinal: result.binding_ordinal,
-                                        },
-                                        path,
-                                        type_identity: target.type_identity.clone(),
-                                        access: expected_access,
-                                    },
-                                    carrier_identity,
+                                shapes,
+                                machine.symbol,
+                                source.symbol,
+                                ordinal,
+                                &place,
+                                CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                                    binding_ordinal: result.binding_ordinal,
                                 },
-                                target_parameter_index: u32::try_from(target_index).ok()?,
-                            });
+                                None,
+                                expected_access,
+                                target,
+                                target_parameters,
+                                target_index,
+                            )
+                        {
+                            return Some(transfer);
                         }
                     }
                 }
@@ -2500,6 +2406,80 @@ fn projected_value_subject(
         path,
         type_identity: target.type_identity.clone(),
         access,
+    })
+}
+
+/// A projected-loan edge transfer against an already-admitted place:
+/// `subject_source` is the parameter or earlier result the loan rides on
+/// and `borrowed_identity` is the borrowed storage's referent identity —
+/// `None` computes the peeled base identity of the projected type.
+///
+/// A projected loan keeps its original storage root and exact path across
+/// the edge. Case steps use this same route, including deeper payload
+/// fields; receiving verification must prove each selected case active
+/// before rebinding the loan. Reference-bearing storage still needs its own
+/// carrier custody and is not admitted here: the shape table keys storage
+/// identities, so an owned projection names its peeled base while a
+/// borrowed root inspects the referent. A state argument has the same
+/// presentation as a call argument; access, live-home and reference-content
+/// checks remain independent.
+#[allow(clippy::too_many_arguments)]
+fn projected_loan_transfer(
+    program: &TypedTrees,
+    shapes: &mut ShapeCollector<'_>,
+    machine: symbols::SymbolHandle,
+    source: symbols::SymbolHandle,
+    ordinal: u32,
+    place: &crate::flow::CanonicalPlace,
+    subject_source: CheckedUnitStructuralArgumentSourcePlan,
+    borrowed_identity: Option<String>,
+    expected_access: CheckedStructuralAccess,
+    target: &CheckedUnitStructuralParameterPlan,
+    target_parameters: &[typed_trees::signature::StateParameter],
+    target_index: usize,
+) -> Option<CheckedStructuralControlTransferPlan> {
+    let (projected_type, path) =
+        calls::projected_borrowed_path(program, machine, source, ordinal as usize, place)?;
+    let target_type_reference = target_parameters
+        .get(target.position as usize)?
+        .type_reference;
+    if !path.iter().all(|segment| {
+        matches!(
+            segment,
+            CheckedUnitStructuralPathSegment::Field(_)
+                | CheckedUnitStructuralPathSegment::Case(_)
+                | CheckedUnitStructuralPathSegment::FixedIndex(_)
+        )
+    }) || !calls::argument_presentation::is_admitted(
+        program,
+        projected_type,
+        target_type_reference,
+        &target.type_identity,
+        &[],
+    ) {
+        return None;
+    }
+    let identity = borrowed_identity
+        .or_else(|| super::types::base_type_identity(program, projected_type, &[]));
+    if identity.is_some_and(|identity| declared_contains_reference(shapes, &identity)) {
+        return None;
+    }
+    let carrier_identity = if path.is_empty() {
+        String::new()
+    } else {
+        shapes.add_reference_type(target_type_reference, &[])?
+    };
+    Some(CheckedStructuralControlTransferPlan {
+        source: checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedLoan {
+            subject: CheckedUnitStructuralArgumentPlan {
+                source: subject_source,
+                path,
+                type_identity: target.type_identity.clone(),
+                access: expected_access,
+            },
+            carrier_identity,
+        },
+        target_parameter_index: u32::try_from(target_index).ok()?,
     })
 }
 
