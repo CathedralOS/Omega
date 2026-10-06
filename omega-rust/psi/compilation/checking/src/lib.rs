@@ -90,12 +90,12 @@ pub use value_custody::atomic_operations::{
     AtomicCarrierAccess, atomic_assignment_carrier, atomic_load_carrier, place_is_atomic_storage,
 };
 pub use value_custody::places::{
-    AttachedStorageRoot, StructuralScalarField, assignment_target_selectors, attached_storage_root,
-    canonical_storage_label, collection_length_receiver, declaration_storage_label,
-    declared_collection_extent, exact_attached_field, exact_attached_storage_field,
-    exact_data_member_field, exact_self_field, expression_names_attached_storage,
-    has_builtin_subslice_meaning, place_has_builtin_coordinates, saved_dispatch_call,
-    saved_dispatch_subject, structural_scalar_field, subslice_expression,
+    AttachedStorageRoot, StructuralScalarField, assignment_target_indexes,
+    assignment_target_selectors, attached_storage_root, canonical_storage_label,
+    collection_length_receiver, declaration_storage_label, declared_collection_extent,
+    exact_attached_field, exact_attached_storage_field, exact_data_member_field, exact_self_field,
+    expression_names_attached_storage, has_builtin_subslice_meaning, place_has_builtin_coordinates,
+    saved_dispatch_call, saved_dispatch_subject, structural_scalar_field, subslice_expression,
 };
 
 pub use proof_contracts::bound_expression_meaning::{

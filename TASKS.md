@@ -3768,13 +3768,16 @@ deletions, which its commit lists.
     inferred rows stay certificate-proved. `IndexedPrimitiveRead` row roots
     (fixed arrays) take the read mark as well.
     Reads lowered as operation arguments (`Evaluation::source_value`) take
-    the mark too. `samples/cli/collections/heat_grid` (reproducible as a
-    corpus fixture copy with the same `build.omg` shape) now stops at
-    obligation 2^63+2, `index < 12` for the store
-    `grid.cells[y * 4 + x] = next` into a fixed `[u8; 12]` field of a
-    `&mut Grid`: an indexed write, which the byte-write decisions
-    (`CheckFacts.proven_byte_writes`, `emission/indexed_write.rs`) do not
-    yet reach for this fixed-array shape.
+    the mark too. Primitive stores now join each assignment-index depth to
+    its exact checked indexed occurrence and carry only that completed
+    RuntimeIndex bound as `SourceChecked`; stored-value domains and custody
+    remain separate. The unchanged `samples/cli/collections/heat_grid`
+    returns 45 through ordinary native execution after local measurement
+    package review, and the nested 2-by-3 control returns 70. Generated
+    selectors retain certificate search. An indexed store whose right-hand
+    side calls a machine still needs assignment-computation call accounting
+    under **WRITE-ONLY-BORROW** / **STATE-LOCAL-VALUE-FRONTIER**; its current
+    stage 04 call-count refusal precedes this bounds transport.
     Exact add, subtract and multiply representability and
     Exact casts now also travel as `SourceChecked` (only the cast stage 04
     builds from a checker fact; synthesized index widenings and scalar-graph

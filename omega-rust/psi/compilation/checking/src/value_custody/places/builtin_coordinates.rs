@@ -4,7 +4,7 @@ use super::{declared_indexed_projection_type, declared_place_type_raw};
 use language_core::OperatorSpelling;
 use language_semantics::declaration_selection::CollectionMeasure;
 use typed_trees::TypedTrees;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
 
@@ -138,19 +138,39 @@ pub fn assignment_target_selectors(
     program: &TypedTrees,
     target: ExpressionHandle,
 ) -> Vec<ExpressionHandle> {
-    let mut selectors = Vec::new();
+    assignment_target_indexes(&program.expression_table, target)
+        .into_iter()
+        .filter_map(
+            |expression| match program.expression_table.expression(expression) {
+                ExpressionNode::Indexed(indexed) => Some(indexed.index),
+                _ => None,
+            },
+        )
+        .collect()
+}
+
+/// The scalar indexed occurrences along an assignment's destination, in its
+/// outside-in coordinate order. An occurrence identifies its own collection
+/// and bound, even when two steps use the same selector. The selector walk and
+/// checked-decision consumers use this same ordering; `a[i][j]` retains the
+/// outer `a[i][j]` occurrence at depth zero and `a[i]` at depth one.
+pub fn assignment_target_indexes(
+    expressions: &ExpressionTable,
+    target: ExpressionHandle,
+) -> Vec<ExpressionHandle> {
+    let mut indexes = Vec::new();
     let mut cursor = target;
     for _ in 0..128 {
-        if !program.expression_table.expression_is_valid(cursor) {
+        if !expressions.expression_is_valid(cursor) {
             break;
         }
-        match program.expression_table.expression(cursor) {
+        match expressions.expression(cursor) {
             ExpressionNode::Indexed(indexed) => {
                 if !matches!(
-                    program.expression_table.expression(indexed.index),
+                    expressions.expression(indexed.index),
                     ExpressionNode::Range(_)
                 ) {
-                    selectors.push(indexed.index);
+                    indexes.push(cursor);
                 }
                 cursor = indexed.collection;
             }
@@ -158,7 +178,7 @@ pub fn assignment_target_selectors(
             _ => break,
         }
     }
-    selectors
+    indexes
 }
 
 /// Check only the operation meaning of a place spine. Consumers separately
