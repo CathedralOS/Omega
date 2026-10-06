@@ -150,19 +150,8 @@ pub(super) fn expression_has_exclusive_borrow(
             continue;
         }
         match program.expression_table.expression(expression) {
-            ExpressionNode::Match(dispatch) => {
-                for arm in program
-                    .expression_table
-                    .match_arms(dispatch.arms)
-                    .iter()
-                    .rev()
-                {
-                    pending.push(arm.value);
-                    if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
-                        pending.push(pattern);
-                    }
-                }
-                pending.push(dispatch.subject);
+            node @ ExpressionNode::Match(_) => {
+                crate::expression_traversal::push_children_reversed(program, node, &mut pending)
             }
             ExpressionNode::Borrow(inner) => {
                 if inner.access.is_exclusive() && is_reference_binding(inner.target) {
@@ -170,34 +159,9 @@ pub(super) fn expression_has_exclusive_borrow(
                 }
                 pending.push(inner.target);
             }
-            ExpressionNode::Atomic(atomic) => pending.extend([atomic.value, atomic.result]),
-            ExpressionNode::Call(call) => {
-                pending.push(call.receiver);
-                pending.extend(program.expression_table.expression_handles(call.arguments));
-            }
-            ExpressionNode::Binary(binary) => pending.extend([binary.left, binary.right]),
-            ExpressionNode::Unary(unary) => pending.push(unary.operand),
-            ExpressionNode::Cast(cast) => pending.push(cast.value),
-            ExpressionNode::Indexed(indexed) => pending.extend([indexed.collection, indexed.index]),
-            ExpressionNode::Member(member) => pending.push(member.receiver),
-            ExpressionNode::ArrayLiteral(elements) => {
-                pending.extend(program.expression_table.expression_handles(*elements))
-            }
-            ExpressionNode::StructLiteral(literal) => pending.extend(
-                program
-                    .expression_table
-                    .struct_fields(literal.fields)
-                    .iter()
-                    .map(|field| field.value),
-            ),
-            ExpressionNode::Range(range) => pending.extend([range.start, range.end]),
-            ExpressionNode::Boolean(_)
-            | ExpressionNode::Float(_)
-            | ExpressionNode::UndeterminedNaN(_)
-            | ExpressionNode::Integer(_)
-            | ExpressionNode::Name(_)
-            | ExpressionNode::String(_)
-            | ExpressionNode::ZeroValue(_) => {}
+            other => crate::expression_traversal::children(program, other, |child| {
+                pending.push(child);
+            }),
         }
     }
     false
@@ -326,49 +290,12 @@ pub(super) fn expression_mentions_place_roots(
             return true;
         }
         match program.expression_table.expression(expression) {
-            ExpressionNode::Match(dispatch) => {
-                for arm in program
-                    .expression_table
-                    .match_arms(dispatch.arms)
-                    .iter()
-                    .rev()
-                {
-                    pending.push(arm.value);
-                    if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
-                        pending.push(pattern);
-                    }
-                }
-                pending.push(dispatch.subject);
+            node @ ExpressionNode::Match(_) => {
+                crate::expression_traversal::push_children_reversed(program, node, &mut pending)
             }
-            ExpressionNode::Borrow(inner) => pending.push(inner.target),
-            ExpressionNode::Atomic(atomic) => pending.extend([atomic.value, atomic.result]),
-            ExpressionNode::Call(call) => {
-                pending.push(call.receiver);
-                pending.extend(program.expression_table.expression_handles(call.arguments));
-            }
-            ExpressionNode::Binary(binary) => pending.extend([binary.left, binary.right]),
-            ExpressionNode::Unary(unary) => pending.push(unary.operand),
-            ExpressionNode::Cast(cast) => pending.push(cast.value),
-            ExpressionNode::Indexed(indexed) => pending.extend([indexed.collection, indexed.index]),
-            ExpressionNode::Member(member) => pending.push(member.receiver),
-            ExpressionNode::ArrayLiteral(elements) => {
-                pending.extend(program.expression_table.expression_handles(*elements))
-            }
-            ExpressionNode::StructLiteral(literal) => pending.extend(
-                program
-                    .expression_table
-                    .struct_fields(literal.fields)
-                    .iter()
-                    .map(|field| field.value),
-            ),
-            ExpressionNode::Range(range) => pending.extend([range.start, range.end]),
-            ExpressionNode::Boolean(_)
-            | ExpressionNode::Float(_)
-            | ExpressionNode::UndeterminedNaN(_)
-            | ExpressionNode::Integer(_)
-            | ExpressionNode::Name(_)
-            | ExpressionNode::String(_)
-            | ExpressionNode::ZeroValue(_) => {}
+            other => crate::expression_traversal::children(program, other, |child| {
+                pending.push(child);
+            }),
         }
     }
     false

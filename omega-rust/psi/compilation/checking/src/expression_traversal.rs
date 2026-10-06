@@ -73,6 +73,18 @@ pub fn children(
     }
 }
 
+/// Push every value edge in reverse source order so a stack `pop` yields
+/// source-order traversal.
+pub fn push_children_reversed(
+    program: &TypedTrees,
+    node: &ExpressionNode,
+    pending: &mut Vec<ExpressionHandle>,
+) {
+    let mut edges = Vec::new();
+    children(program, node, |child| edges.push(child));
+    pending.extend(edges.into_iter().rev());
+}
+
 /// Structural readers visit every source edge, not just executable arms.
 pub(crate) fn match_children(
     program: &TypedTrees,
