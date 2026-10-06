@@ -544,8 +544,6 @@ fn component_interior(
             block.terminator,
             Terminator::Return { .. }
                 | Terminator::ReturnUnit { .. }
-                | Terminator::ReturnUnitPartialAffine { .. }
-                | Terminator::ReturnUnitNominalAffine { .. }
                 | Terminator::ReturnStructural { .. }
         ) {
             return_frontier.insert(member);
@@ -839,8 +837,6 @@ fn successor_arguments(terminator: &Terminator) -> Vec<(EdgeId, BlockId, Option<
             .collect(),
         Terminator::Return { .. }
         | Terminator::ReturnUnit { .. }
-        | Terminator::ReturnUnitPartialAffine { .. }
-        | Terminator::ReturnUnitNominalAffine { .. }
         | Terminator::ReturnStructural { .. }
         | Terminator::Crash { .. } => Vec::new(),
     }
@@ -2445,8 +2441,6 @@ fn natural_condensed_bound_returned(
                     block.terminator,
                     Terminator::Return { .. }
                         | Terminator::ReturnUnit { .. }
-                        | Terminator::ReturnUnitPartialAffine { .. }
-                        | Terminator::ReturnUnitNominalAffine { .. }
                         | Terminator::ReturnStructural { .. }
                 ) {
                     returns_internally = true;
@@ -2745,7 +2739,7 @@ pub(super) fn block_crash_visit_units(
         }
         Terminator::Return { .. }
         | Terminator::ReturnStructural { .. }
-        | Terminator::ReturnUnitNominalAffine { .. } => {
+        | Terminator::ReturnUnit { .. } => {
             // The committed edge suspends into each nominal cleanup machine
             // in order; a crash inside one is a machine crash after the
             // completed prefix — the same crash column
@@ -2959,8 +2953,6 @@ pub(super) fn terminator_targets(terminator: &Terminator) -> Vec<BlockId> {
         Terminator::StructuralCase { cases, .. } => cases.iter().map(|case| case.target).collect(),
         Terminator::Return { .. }
         | Terminator::ReturnUnit { .. }
-        | Terminator::ReturnUnitPartialAffine { .. }
-        | Terminator::ReturnUnitNominalAffine { .. }
         | Terminator::ReturnStructural { .. }
         | Terminator::Crash { .. } => Vec::new(),
     }
@@ -2985,8 +2977,6 @@ pub(super) fn terminator_edge_targets(terminator: &Terminator) -> Vec<(EdgeId, B
         }
         Terminator::Return { .. }
         | Terminator::ReturnUnit { .. }
-        | Terminator::ReturnUnitPartialAffine { .. }
-        | Terminator::ReturnUnitNominalAffine { .. }
         | Terminator::ReturnStructural { .. }
         | Terminator::Crash { .. } => Vec::new(),
     }
@@ -2994,10 +2984,13 @@ pub(super) fn terminator_edge_targets(terminator: &Terminator) -> Vec<(EdgeId, B
 
 /// The nominal cleanup machines a terminator's edge suspends into, in the
 /// terminator's own execution order. Scalar and structural action returns,
-/// and `ReturnUnitNominalAffine`, all use the same invocation composition.
+/// and Unit returns, all use the same invocation composition.
 pub(super) fn terminator_cleanup_machines(terminator: &Terminator) -> Vec<MachineId> {
     match terminator {
         Terminator::Return {
+            cleanup_actions, ..
+        }
+        | Terminator::ReturnUnit {
             cleanup_actions, ..
         }
         | Terminator::ReturnStructural {
@@ -3011,10 +3004,6 @@ pub(super) fn terminator_cleanup_machines(terminator: &Terminator) -> Vec<Machin
                 TerminalAffineCleanupAction::DiscardRoot(_)
                 | TerminalAffineCleanupAction::DiscardResidual(_) => None,
             })
-            .collect(),
-        Terminator::ReturnUnitNominalAffine { cleanups, .. } => cleanups
-            .iter()
-            .map(|cleanup| cleanup.cleanup_machine)
             .collect(),
         _ => Vec::new(),
     }
@@ -3088,18 +3077,10 @@ fn outcome_bounds_from(
     let continued = match (&block.terminator, normal_units) {
         (_, None) => OutcomeBounds::default(),
         (
-            Terminator::ReturnUnit { .. } | Terminator::ReturnUnitPartialAffine { .. },
-            Some(prefix),
-        ) => OutcomeBounds {
-            returned: Some(
-                prefix
-                    .checked_add(terminator_units)
-                    .ok_or(FixedFuelError::BoundOverflow)?,
-            ),
-            crashed: None,
-        },
-        (
             Terminator::Return {
+                cleanup_actions, ..
+            }
+            | Terminator::ReturnUnit {
                 cleanup_actions, ..
             }
             | Terminator::ReturnStructural {
@@ -3130,26 +3111,6 @@ fn outcome_bounds_from(
             memoized_machines,
             active_machines,
         )?,
-        (Terminator::ReturnUnitNominalAffine { cleanups, .. }, Some(prefix)) => {
-            compose_cleanup_outcomes(
-                cleanups.iter().map(|cleanup| cleanup.cleanup_machine),
-                OutcomeBounds {
-                    returned: Some(
-                        prefix
-                            .checked_add(terminator_units)
-                            .ok_or(FixedFuelError::BoundOverflow)?,
-                    ),
-                    crashed: None,
-                },
-                machines,
-                dynamic_call_targets,
-                provider_candidates,
-                invariants,
-                schedule,
-                memoized_machines,
-                active_machines,
-            )?
-        }
         (Terminator::Crash { .. }, Some(prefix)) => OutcomeBounds {
             returned: None,
             crashed: Some(

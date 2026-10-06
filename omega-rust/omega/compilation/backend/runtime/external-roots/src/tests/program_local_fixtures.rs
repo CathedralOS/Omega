@@ -185,7 +185,7 @@ pub(super) fn program_local_root_module() -> TerminalModule {
                 operations: Vec::new(),
                 terminator: terminal_psi::Terminator::ReturnUnit {
                     edge: semantic_vocabulary::EdgeId::new(1).expect("edge identity"),
-                    trivial_affine_discards: Vec::new(),
+                    cleanup_actions: Vec::new(),
                 },
             }],
             contract: terminal_psi::MachineContract {

@@ -41,11 +41,6 @@ pub(super) fn reconstruct(
                 trivial_affine_discards,
                 residual_affine_discards,
                 ..
-            }
-            | Terminator::ReturnUnitPartialAffine {
-                trivial_affine_discards,
-                residual_affine_discards,
-                ..
             } => {
                 for place in trivial_affine_discards
                     .iter()
@@ -93,19 +88,10 @@ pub(super) fn reconstruct(
                     }
                 }
             }
-            Terminator::ReturnUnit {
-                trivial_affine_discards,
-                ..
-            } => {
-                for place in trivial_affine_discards
-                    .iter()
-                    .copied()
-                    .filter(|place| disposal(*place))
-                {
-                    observe(place);
-                }
-            }
             Terminator::Return {
+                cleanup_actions, ..
+            }
+            | Terminator::ReturnUnit {
                 cleanup_actions, ..
             }
             | Terminator::ReturnStructural {
@@ -124,11 +110,6 @@ pub(super) fn reconstruct(
                             observe(cleanup.place)
                         }
                     }
-                }
-            }
-            Terminator::ReturnUnitNominalAffine { cleanups, .. } => {
-                for cleanup in cleanups {
-                    observe(cleanup.place);
                 }
             }
             Terminator::Crash { .. } => {}

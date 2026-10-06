@@ -11,11 +11,8 @@ use super::{
 use crate::codec_error::{CodecError, malformed};
 use crate::sections::semantic_module::structural_result_wire;
 use semantic_vocabulary::StructuralPlaceKind;
-use std::collections::BTreeSet;
 use terminal_psi::Block;
-use terminal_psi::{
-    StructuralMultiplicity, TerminalMachine, TerminalMachineResult, TerminalModule, Terminator,
-};
+use terminal_psi::{StructuralMultiplicity, TerminalMachine, TerminalModule, Terminator};
 
 /// One machine's structural foundation: its attachment, parameters and
 /// reference sources, then each block's parameters, the places those
@@ -46,7 +43,6 @@ pub(super) fn validate_machine(
     }
     validate_operation_result_places(machine)?;
     for block in &machine.blocks {
-        validate_nominal_affine_cleanup(machine, block)?;
         validate_partial_affine_discards(module, machine, block)?;
     }
     Ok(())
@@ -181,75 +177,6 @@ fn validate_operation_result_places(machine: &TerminalMachine) -> Result<(), Cod
 /// A nominal cleanup terminator covers every structural parameter in reverse
 /// order, retaining each exact whole owner and its consumed claim roster.
 /// The verifier separately authenticates owner designation and live custody.
-fn validate_nominal_affine_cleanup(
-    machine: &TerminalMachine,
-    block: &Block,
-) -> Result<(), CodecError> {
-    if let Terminator::ReturnUnitNominalAffine { cleanups, .. } = &block.terminator {
-        if !matches!(machine.result, TerminalMachineResult::Unit) {
-            return malformed("nominal affine cleanup requires a Unit result");
-        }
-        if cleanups.is_empty() {
-            return malformed("nominal affine cleanup list is empty");
-        }
-        if cleanups.len() != machine.structural_parameters.len() {
-            return malformed(
-                "nominal affine cleanup list does not cover every structural parameter",
-            );
-        }
-        if cleanups.iter().any(|cleanup| {
-            !machine
-                .structural_parameters
-                .iter()
-                .any(|parameter| parameter.place == cleanup.place)
-        }) {
-            return malformed("nominal affine cleanup root is not a structural parameter");
-        }
-        let mut places = BTreeSet::new();
-        for (cleanup, parameter) in cleanups
-            .iter()
-            .zip(machine.structural_parameters.iter().rev())
-        {
-            if cleanup.place != parameter.place {
-                return malformed("nominal affine cleanup list is not in reverse parameter order");
-            }
-            let claims = machine
-                .entry_claims
-                .iter()
-                .filter(|claim| claim.input == cleanup.place)
-                .collect::<Vec<_>>();
-            let complete_custody = match parameter.multiplicity {
-                StructuralMultiplicity::Affine => {
-                    claims.is_empty() && cleanup.consumed_claims.is_empty()
-                }
-                StructuralMultiplicity::Linear => matches!(claims.as_slice(), [claim]
-                    if claim.path.is_empty() && cleanup.consumed_claims.as_slice() == [claim.claim]),
-                StructuralMultiplicity::Unrestricted => false,
-            };
-            if !places.insert(cleanup.place)
-                || !complete_custody
-                || parameter.access != terminal_psi::StructuralAccess::Owned
-                || !parameter.qualifications.is_empty()
-                || !parameter.projected_qualifications.is_empty()
-                || machine
-                    .content_entry_claims
-                    .iter()
-                    .any(|claim| claim.input.root == cleanup.place)
-            {
-                return malformed(
-                    "nominal cleanup is duplicated or differs from its complete owned custody",
-                );
-            }
-            if parameter.structural_type != cleanup.structural_type {
-                return malformed(
-                    "nominal affine cleanup type does not match its structural parameter",
-                );
-            }
-        }
-    }
-    Ok(())
-}
-
 /// The residual affine discards of a selected edge or partial return name
 /// distinct claim-free affine paths whose leaf type matches the path.
 fn validate_partial_affine_discards(
@@ -258,20 +185,6 @@ fn validate_partial_affine_discards(
     block: &Block,
 ) -> Result<(), CodecError> {
     let rosters = match &block.terminator {
-        Terminator::ReturnUnitPartialAffine {
-            trivial_affine_discards,
-            residual_affine_discards,
-            ..
-        } => {
-            if !matches!(machine.result, TerminalMachineResult::Unit)
-                || residual_affine_discards.is_empty()
-            {
-                return malformed(
-                    "partial affine cleanup requires a Unit result and a residual action",
-                );
-            }
-            vec![(trivial_affine_discards, residual_affine_discards)]
-        }
         Terminator::Jump {
             trivial_affine_discards,
             residual_affine_discards,

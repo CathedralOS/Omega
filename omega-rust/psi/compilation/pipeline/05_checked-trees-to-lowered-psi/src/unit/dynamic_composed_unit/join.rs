@@ -613,7 +613,7 @@ fn branch_block(
         }],
         terminator: Terminator::ReturnUnit {
             edge,
-            trivial_affine_discards: Vec::new(),
+            cleanup_actions: Vec::new(),
         },
     }
 }

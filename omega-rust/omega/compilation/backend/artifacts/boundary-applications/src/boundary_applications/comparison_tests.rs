@@ -12,8 +12,8 @@ use lowered_psi::{
     LoweredSelectedIntegerComparisonOperation as Emitted,
 };
 use semantic_vocabulary::{
-    BlockId, ContractId, EdgeId,
-    IntegerSign, IntegerType, MachineId, OperationId, ScalarType, ValueId,
+    BlockId, ContractId, EdgeId, IntegerSign, IntegerType, MachineId, OperationId, ScalarType,
+    ValueId,
 };
 use terminal_psi::{
     Block, MachineContract, Operation, OperationKind, OperationResult, TerminalMachine,
@@ -56,7 +56,7 @@ fn comparison_module(operand_type: ScalarType, kind: OperationKind) -> TerminalM
                 }],
                 terminator: Terminator::ReturnUnit {
                     edge: EdgeId::new(1).unwrap(),
-                    trivial_affine_discards: Vec::new(),
+                    cleanup_actions: Vec::new(),
                 },
             }],
             contract: MachineContract {

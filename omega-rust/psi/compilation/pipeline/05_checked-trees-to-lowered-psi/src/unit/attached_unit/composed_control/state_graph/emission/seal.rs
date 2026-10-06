@@ -87,18 +87,27 @@ impl StateGraphEmission<'_, '_> {
         }
         if !is_guarded_return && !evaluation.selection_cleanups.is_empty() {
             match &mut terminator {
-                Terminator::ReturnStructural { .. } | Terminator::ReturnUnit { .. } => {
+                Terminator::ReturnStructural { .. }
+                | Terminator::ReturnUnit { .. }
+                | Terminator::Return { .. } => {
                     let discards = match &terminator {
                         Terminator::ReturnStructural {
                             cleanup_actions, ..
-                        } => cleanup_actions
-                            .iter()
-                            .map(terminal_psi::TerminalAffineCleanupAction::place)
-                            .collect::<Vec<_>>(),
-                        Terminator::ReturnUnit {
-                            trivial_affine_discards,
-                            ..
-                        } => trivial_affine_discards.clone(),
+                        }
+                        | Terminator::ReturnUnit {
+                            cleanup_actions, ..
+                        }
+                        | Terminator::Return {
+                            cleanup_actions, ..
+                        } => {
+                            let mut roots = Vec::new();
+                            for action in cleanup_actions {
+                                if !roots.contains(&action.place()) {
+                                    roots.push(action.place());
+                                }
+                            }
+                            roots
+                        }
                         _ => unreachable!(),
                     };
                     let mut local_discards = Vec::new();
@@ -141,27 +150,31 @@ impl StateGraphEmission<'_, '_> {
                     match &mut terminator {
                         Terminator::ReturnStructural {
                             cleanup_actions, ..
+                        }
+                        | Terminator::ReturnUnit {
+                            cleanup_actions, ..
+                        }
+                        | Terminator::Return {
+                            cleanup_actions, ..
                         } => {
                             let previous = std::mem::take(cleanup_actions);
-                            *cleanup_actions = selected
-                                .into_iter()
-                                .map(|place| {
-                                    previous
-                                        .iter()
-                                        .find(|action| action.place() == place)
-                                        .cloned()
-                                        .unwrap_or(
-                                            terminal_psi::TerminalAffineCleanupAction::DiscardRoot(
-                                                place,
-                                            ),
-                                        )
-                                })
-                                .collect();
+                            // A residual root can own several ordered actions.
+                            // Splice its complete group, never just the first
+                            // action with that root identity.
+                            for place in selected {
+                                let retained =
+                                    previous.iter().filter(|action| action.place() == place);
+                                if retained.clone().next().is_some() {
+                                    cleanup_actions.extend(retained.cloned());
+                                } else {
+                                    cleanup_actions.push(
+                                        terminal_psi::TerminalAffineCleanupAction::DiscardRoot(
+                                            place,
+                                        ),
+                                    );
+                                }
+                            }
                         }
-                        Terminator::ReturnUnit {
-                            trivial_affine_discards,
-                            ..
-                        } => *trivial_affine_discards = selected,
                         _ => unreachable!(),
                     }
                 }

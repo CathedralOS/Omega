@@ -1,10 +1,8 @@
 //! Ordinary-machine control-flow and terminal-edge projection.
-use super::{LoweredAffineLocal, LoweringError};
-use abstract_operations::{
-    AbstractOperation, AbstractStructuralCallResult, AbstractSuccessor, ValueBinding,
-};
-use semantic_vocabulary::{BlockId, OperationId};
-use std::collections::{BTreeMap, BTreeSet};
+use super::LoweringError;
+use abstract_operations::{AbstractOperation, AbstractSuccessor, ValueBinding};
+use semantic_vocabulary::BlockId;
+use std::collections::BTreeMap;
 use terminal_psi::{TerminalAffineCleanupAction, TerminalMachine, Terminator};
 
 #[allow(clippy::too_many_arguments)]
@@ -14,27 +12,8 @@ pub(super) fn lower_terminator(
     machine: &TerminalMachine,
     blocks: &BTreeMap<BlockId, &terminal_psi::Block>,
     result: Option<terminal_psi::ValueDeclaration>,
-    lowered_unit_affine_locals: &[LoweredAffineLocal],
     operations: &mut Vec<AbstractOperation>,
 ) -> Result<(), LoweringError> {
-    // Entry-established locals stay live until a return consumes or
-    // disposes them, so their return-time roster section is the exact
-    // reverse-declaration remainder. A local established inside a cyclic
-    // member carries edge-scoped custody — the verifier's frontier replay
-    // already proved its disposal positions — and is exempt from the entry
-    // sequence's return-roster obligation.
-    let entry_establishments = machine
-        .blocks
-        .iter()
-        .find(|candidate| candidate.id == machine.entry)
-        .map(|entry| {
-            entry
-                .operations
-                .iter()
-                .map(|operation| operation.id)
-                .collect::<BTreeSet<OperationId>>()
-        })
-        .unwrap_or_default();
     match &block.terminator {
         Terminator::Jump {
             edge,
@@ -212,130 +191,23 @@ pub(super) fn lower_terminator(
         }
         Terminator::ReturnUnit {
             edge,
-            trivial_affine_discards,
+            cleanup_actions,
         } => {
             if result.is_some() {
                 return Err(LoweringError::UnitReturnFromScalarMachine(machine.id));
             }
-            let consumed_locals = operations
-                .iter()
-                .flat_map(|operation| match operation {
-                    // Only a Unit call that forwards no descriptors consumes
-                    // a trivial affine local here.
-                    AbstractOperation::CallStructural {
-                        structural_arguments,
-                        dynamic_arguments,
-                        result: AbstractStructuralCallResult::Unit,
-                        ..
-                    } if dynamic_arguments.is_empty() => structural_arguments
-                        .iter()
-                        .filter(|argument| {
-                            argument.path.is_empty()
-                                && argument.access == terminal_psi::StructuralAccess::Owned
-                        })
-                        .map(|argument| argument.place)
-                        .collect::<Vec<_>>(),
-                    _ => Vec::new(),
-                })
-                .collect::<BTreeSet<_>>();
-            let entry_places = lowered_unit_affine_locals
-                .iter()
-                .filter(|(operation, _, _)| entry_establishments.contains(operation))
-                .map(|(_, place, _)| place.id)
-                .collect::<BTreeSet<_>>();
-            let expected_locals = lowered_unit_affine_locals
-                .iter()
-                .rev()
-                .filter(|(_, place, _)| {
-                    entry_places.contains(&place.id) && !consumed_locals.contains(&place.id)
-                })
-                .map(|(_, place, _)| place.id)
-                .collect::<Vec<_>>();
-            if trivial_affine_discards
-                .iter()
-                .filter(|place| entry_places.contains(place))
-                .copied()
-                .collect::<Vec<_>>()
-                != expected_locals
-            {
-                return Err(LoweringError::UnsupportedStructuralReturn {
-                    machine: machine.id,
-                    edge: *edge,
-                });
-            }
             operations.push(AbstractOperation::ReturnUnit {
                 psi_edge: *edge,
-                cleanup_actions: trivial_affine_discards
-                    .iter()
-                    .copied()
-                    .map(TerminalAffineCleanupAction::DiscardRoot)
-                    .collect(),
-            });
-        }
-        Terminator::ReturnUnitPartialAffine {
-            edge,
-            trivial_affine_discards,
-            residual_affine_discards,
-        } => {
-            if result.is_some() {
-                return Err(LoweringError::UnitReturnFromScalarMachine(machine.id));
-            }
-            let entry_places = lowered_unit_affine_locals
-                .iter()
-                .filter(|(operation, _, _)| entry_establishments.contains(operation))
-                .map(|(_, place, _)| place.id)
-                .collect::<BTreeSet<_>>();
-            let expected_locals = lowered_unit_affine_locals
-                .iter()
-                .rev()
-                .filter(|(_, place, _)| entry_places.contains(&place.id))
-                .map(|(_, place, _)| place.id)
-                .collect::<Vec<_>>();
-            if trivial_affine_discards
-                .iter()
-                .filter(|place| entry_places.contains(place))
-                .copied()
-                .collect::<Vec<_>>()
-                != expected_locals
-            {
-                return Err(LoweringError::UnsupportedStructuralReturn {
-                    machine: machine.id,
-                    edge: *edge,
-                });
-            }
-            operations.push(AbstractOperation::ReturnUnit {
-                psi_edge: *edge,
-                cleanup_actions: trivial_affine_discards
-                    .iter()
-                    .copied()
-                    .map(TerminalAffineCleanupAction::DiscardRoot)
-                    .chain(
-                        residual_affine_discards
-                            .iter()
-                            .cloned()
-                            .map(TerminalAffineCleanupAction::DiscardResidual),
-                    )
-                    .collect(),
-            });
-        }
-        Terminator::ReturnUnitNominalAffine { edge, cleanups } => {
-            if result.is_some() || !lowered_unit_affine_locals.is_empty() {
-                return Err(LoweringError::UnsupportedStructuralReturn {
-                    machine: machine.id,
-                    edge: *edge,
-                });
-            }
-            operations.push(AbstractOperation::ReturnUnit {
-                psi_edge: *edge,
-                cleanup_actions: cleanups
+                cleanup_actions: cleanup_actions
                     .iter()
                     .cloned()
-                    .map(|mut cleanup| {
-                        // Derive runtime receiver custody from the verified declaration;
-                        // contextual-only roots and proof obligations stay in Psi.
-                        cleanup.cleanup_receiver = runtime_cleanup_receiver(module, &cleanup);
-                        cleanup.requirement_obligations.clear();
-                        TerminalAffineCleanupAction::InvokeNominal(cleanup)
+                    .map(|action| match action {
+                        TerminalAffineCleanupAction::InvokeNominal(mut cleanup) => {
+                            cleanup.cleanup_receiver = runtime_cleanup_receiver(module, &cleanup);
+                            cleanup.requirement_obligations.clear();
+                            TerminalAffineCleanupAction::InvokeNominal(cleanup)
+                        }
+                        action => action,
                     })
                     .collect(),
             });

@@ -26,8 +26,6 @@ pub(crate) fn successors(machine: &TerminalMachine) -> BTreeMap<BlockId, Vec<(Ed
                     .collect(),
                 Terminator::Return { .. }
                 | Terminator::ReturnUnit { .. }
-                | Terminator::ReturnUnitPartialAffine { .. }
-                | Terminator::ReturnUnitNominalAffine { .. }
                 | Terminator::ReturnStructural { .. }
                 | Terminator::Crash { .. } => Vec::new(),
             };

@@ -664,11 +664,7 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
                     validate_canonical_proposition(predicate.proposition(), 0)?;
                 }
             }
-            if let Terminator::ReturnUnitPartialAffine {
-                residual_affine_discards,
-                ..
-            }
-            | Terminator::Jump {
+            if let Terminator::Jump {
                 residual_affine_discards,
                 ..
             } = &block.terminator

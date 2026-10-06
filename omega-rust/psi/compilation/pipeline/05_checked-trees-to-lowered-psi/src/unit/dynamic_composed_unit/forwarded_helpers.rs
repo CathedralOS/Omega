@@ -529,7 +529,7 @@ pub(crate) fn materialize_helper_body(
         }
         ForwardedHelperCompletion::Unit => Terminator::ReturnUnit {
             edge: ids.edge,
-            trivial_affine_discards: Vec::new(),
+            cleanup_actions: Vec::new(),
         },
     };
     // Pure expressions may expand to branches, but must not invent additional

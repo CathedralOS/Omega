@@ -5,7 +5,6 @@ use super::{
     CheckedStructuralControlSuccessorPlan, Multiplicity, StatementNode, TypeReferenceNode,
     TypedTrees,
 };
-use crate::execution::terminal_unit::types::type_graph_requires_nominal_drop;
 
 /// A state-exit receipt permits disposal only on successors that do not move
 /// this local. Keep the operation's global discard flag false: scalar edge
@@ -89,11 +88,11 @@ fn validate(
         || !(result.type_identity == expected_identity
             || referent_identity.as_ref() == Some(&result.type_identity))
         || result.multiplicity != carrier_multiplicity
-        // Unrestricted results carry no owned custody; the owned-contents and
-        // nominal-drop gates only bound results that hold storage. A borrowed
+        // Unrestricted results carry no owned custody; storage-content gates
+        // only bound results that hold storage. A borrowed
         // view's death is the end of the loan, not a disposal.
         || (source_multiplicity != Multiplicity::Unrestricted
-            && (!(validation::has_plain_owned_contents_with_represented_constraints(
+            && !(validation::has_structural_construction_contents(
                 program,
                 local.type_reference,
             ) || validation::has_owned_or_shared_view_contents(
@@ -101,7 +100,7 @@ fn validate(
                 local.type_reference,
             ) || validation::reference_result_custody::is_reference_record(
                 program, local.type_reference,
-            )) || type_graph_requires_nominal_drop(program, local.type_reference)))
+            )))
     {
         return None;
     }
@@ -130,7 +129,9 @@ fn validate(
         return Some(());
     }
     // Permission eligibility has one producer owner. Here it is rejoined to
-    // this operation's result identity and selected successor partition.
+    // this operation's result identity and selected successor partition. The
+    // normal-edge planner subsequently selects no-code or executable disposal;
+    // nominal hooks must not be mistaken for missing ownership receipts here.
     (result.multiplicity == Multiplicity::Affine && disposable_locals.contains(&local.symbol))
         .then_some(())
 }

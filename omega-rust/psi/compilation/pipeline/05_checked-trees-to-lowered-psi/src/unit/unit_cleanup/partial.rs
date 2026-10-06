@@ -239,12 +239,12 @@ pub(super) fn lower_partial_affine_unit_cleanup_machine(
     };
     let Terminator::ReturnUnit {
         edge,
-        trivial_affine_discards: lowered_trivial_discards,
+        cleanup_actions: lowered_cleanup,
     } = &block.terminator
     else {
         return unsupported("partial affine Unit terminal return drifted");
     };
-    if !lowered_trivial_discards.is_empty() {
+    if !lowered_cleanup.is_empty() {
         return unsupported("partial affine Unit return acquired root-only cleanup");
     }
     if partial.residual_affine_discards.is_empty() {
@@ -267,10 +267,12 @@ pub(super) fn lower_partial_affine_unit_cleanup_machine(
             })
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
-    block.terminator = Terminator::ReturnUnitPartialAffine {
+    block.terminator = Terminator::ReturnUnit {
         edge: *edge,
-        trivial_affine_discards: Vec::new(),
-        residual_affine_discards,
+        cleanup_actions: residual_affine_discards
+            .into_iter()
+            .map(terminal_psi::TerminalAffineCleanupAction::DiscardResidual)
+            .collect(),
     };
     Ok(source_mapped)
 }
@@ -462,7 +464,7 @@ fn lower_general_partial_affine_unit_cleanup_machine(
         ))?;
     let Terminator::ReturnUnit {
         edge,
-        trivial_affine_discards: lowered_trivial_discards,
+        cleanup_actions: lowered_cleanup,
     } = &block.terminator
     else {
         return unsupported("partial affine Unit terminal return drifted");
@@ -484,13 +486,19 @@ fn lower_general_partial_affine_unit_cleanup_machine(
             })
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
-    block.terminator = Terminator::ReturnUnitPartialAffine {
+    block.terminator = Terminator::ReturnUnit {
         edge: *edge,
-        // Whole-root discards for the other dying roots keep their place on
-        // the same edge; only the residual root closes through the
-        // path-sensitive list.
-        trivial_affine_discards: lowered_trivial_discards.clone(),
-        residual_affine_discards,
+        // Preserve the existing whole-root schedule before the checked
+        // residual tail, exactly as the previous return partition executed.
+        cleanup_actions: lowered_cleanup
+            .iter()
+            .cloned()
+            .chain(
+                residual_affine_discards
+                    .into_iter()
+                    .map(terminal_psi::TerminalAffineCleanupAction::DiscardResidual),
+            )
+            .collect(),
     };
     Ok(source_mapped)
 }

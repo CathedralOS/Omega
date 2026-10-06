@@ -421,9 +421,10 @@ pub(crate) fn lower_structural_unit_control_machine(
                 trivial_affine_discard_parameter_positions,
             } => Terminator::ReturnUnit {
                 edge,
-                trivial_affine_discards: lower_discards(
-                    trivial_affine_discard_parameter_positions,
-                )?,
+                cleanup_actions: lower_discards(trivial_affine_discard_parameter_positions)?
+                    .into_iter()
+                    .map(terminal_psi::TerminalAffineCleanupAction::DiscardRoot)
+                    .collect(),
             },
             CheckedStructuralUnitControlTerminatorPlan::Jump {
                 statement_ordinal,
@@ -962,10 +963,12 @@ fn lower_ranked_structural_unit_countdown(
                 operations: Vec::new(),
                 terminator: Terminator::ReturnUnit {
                     edge: return_edge,
-                    trivial_affine_discards: structural_parameters
+                    cleanup_actions: structural_parameters
                         .iter()
                         .rev()
-                        .map(|parameter| parameter.place)
+                        .map(|parameter| {
+                            terminal_psi::TerminalAffineCleanupAction::DiscardRoot(parameter.place)
+                        })
                         .collect(),
                 },
             },

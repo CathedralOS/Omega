@@ -1223,14 +1223,11 @@ fn inspect_machine<'module>(
 /// independently replayed module needs no second checker to see that a
 /// cleanup edge runs code.
 fn nominal_cleanup_machines(terminator: &Terminator) -> Vec<MachineId> {
-    let collect = |cleanups: &[terminal_psi::NominalAffineCleanup]| {
-        cleanups
-            .iter()
-            .map(|cleanup| cleanup.cleanup_machine)
-            .collect()
-    };
     match terminator {
         Terminator::Return {
+            cleanup_actions, ..
+        }
+        | Terminator::ReturnUnit {
             cleanup_actions, ..
         }
         | Terminator::ReturnStructural {
@@ -1245,7 +1242,6 @@ fn nominal_cleanup_machines(terminator: &Terminator) -> Vec<MachineId> {
                 | terminal_psi::TerminalAffineCleanupAction::DiscardResidual(_) => None,
             })
             .collect(),
-        Terminator::ReturnUnitNominalAffine { cleanups, .. } => collect(cleanups),
         _ => Vec::new(),
     }
 }

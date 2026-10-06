@@ -108,8 +108,6 @@ pub(super) fn propagate(
             }
             Terminator::Return { .. }
             | Terminator::ReturnUnit { .. }
-            | Terminator::ReturnUnitPartialAffine { .. }
-            | Terminator::ReturnUnitNominalAffine { .. }
             | Terminator::ReturnStructural { .. } => {}
         }
     }

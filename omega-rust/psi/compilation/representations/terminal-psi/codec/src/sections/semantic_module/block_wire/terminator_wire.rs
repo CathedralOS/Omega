@@ -12,18 +12,13 @@ use crate::sections::semantic_module::scalar_term_wire::{
 };
 use crate::sections::semantic_module::structural_place_wire::{
     decode_affine_cleanup_action, decode_structural_path, encode_affine_cleanup_action,
-    encode_obligation_ids, encode_structural_path,
+    encode_structural_path,
 };
 use crate::sections::semantic_module::structural_place_wire::{
     decode_structural_arguments, encode_structural_arguments,
 };
-use crate::sections::semantic_module::wire::{
-    decode_counted, decode_ids, decode_optional_id, encode_optional_id,
-};
-use terminal_psi::{
-    CrashCause, NominalAffineCleanup, StructuralAffineDiscard, StructuralCaseSuccessorEdge,
-    Terminator,
-};
+use crate::sections::semantic_module::wire::{decode_counted, decode_ids};
+use terminal_psi::{CrashCause, StructuralAffineDiscard, StructuralCaseSuccessorEdge, Terminator};
 
 pub(super) fn encode_terminator(
     writer: &mut Writer,
@@ -89,59 +84,14 @@ pub(super) fn encode_terminator(
         }
         Terminator::ReturnUnit {
             edge,
-            trivial_affine_discards,
+            cleanup_actions,
         } => {
-            writer.u8(5);
+            // Tag 13 replaces the retired split Unit cleanup envelopes (5, 7, 8).
+            writer.u8(13);
             writer.id(*edge);
-            writer.len(
-                "return Unit trivial affine discards",
-                trivial_affine_discards.len(),
-            )?;
-            for place in trivial_affine_discards {
-                writer.id(*place);
-            }
-        }
-        Terminator::ReturnUnitPartialAffine {
-            edge,
-            trivial_affine_discards,
-            residual_affine_discards,
-        } => {
-            writer.u8(7);
-            writer.id(*edge);
-            writer.len(
-                "partial Unit return trivial affine discards",
-                trivial_affine_discards.len(),
-            )?;
-            for place in trivial_affine_discards {
-                writer.id(*place);
-            }
-            writer.len(
-                "partial Unit return residual affine discards",
-                residual_affine_discards.len(),
-            )?;
-            for discard in residual_affine_discards {
-                writer.id(discard.place);
-                encode_structural_path(writer, "partial affine discard path", &discard.path)?;
-                writer.id(discard.structural_type);
-            }
-        }
-        Terminator::ReturnUnitNominalAffine { edge, cleanups } => {
-            writer.u8(8);
-            writer.id(*edge);
-            writer.len("nominal affine cleanups", cleanups.len())?;
-            for cleanup in cleanups {
-                writer.id(cleanup.place);
-                writer.id(cleanup.structural_type);
-                writer.id(cleanup.cleanup_machine);
-                writer.len(
-                    "nominal cleanup consumed claims",
-                    cleanup.consumed_claims.len(),
-                )?;
-                for claim in &cleanup.consumed_claims {
-                    writer.id(*claim);
-                }
-                encode_optional_id(writer, cleanup.cleanup_receiver);
-                encode_obligation_ids(writer, &cleanup.requirement_obligations)?;
+            writer.len("Unit return cleanup actions", cleanup_actions.len())?;
+            for action in cleanup_actions {
+                encode_affine_cleanup_action(writer, action)?;
             }
         }
         Terminator::ReturnStructural {
@@ -317,39 +267,15 @@ pub(super) fn decode_terminator(reader: &mut Reader<'_>) -> Result<Terminator, C
                 frontier_lower_bound,
             }
         }
-        5 => Terminator::ReturnUnit {
-            edge: reader.id("EdgeId")?,
-            trivial_affine_discards: decode_counted(reader, |reader| reader.id("PlaceId"))?,
-        },
         6 => Terminator::ReturnStructural {
             edge: reader.id("EdgeId")?,
             source: reader.id("PlaceId")?,
             returned_claims: decode_counted(reader, |reader| reader.id("ClaimId"))?,
             cleanup_actions: decode_counted(reader, decode_affine_cleanup_action)?,
         },
-        7 => Terminator::ReturnUnitPartialAffine {
+        13 => Terminator::ReturnUnit {
             edge: reader.id("EdgeId")?,
-            trivial_affine_discards: decode_counted(reader, |reader| reader.id("PlaceId"))?,
-            residual_affine_discards: decode_counted(reader, |reader| {
-                Ok(StructuralAffineDiscard {
-                    place: reader.id("PlaceId")?,
-                    path: decode_structural_path(reader)?,
-                    structural_type: reader.id("StructuralTypeId")?,
-                })
-            })?,
-        },
-        8 => Terminator::ReturnUnitNominalAffine {
-            edge: reader.id("EdgeId")?,
-            cleanups: decode_counted(reader, |reader| {
-                Ok(NominalAffineCleanup {
-                    place: reader.id("PlaceId")?,
-                    structural_type: reader.id("StructuralTypeId")?,
-                    cleanup_machine: reader.id("MachineId")?,
-                    consumed_claims: decode_ids(reader, "ClaimId")?,
-                    cleanup_receiver: decode_optional_id(reader, "PlaceId")?,
-                    requirement_obligations: decode_ids(reader, "ObligationId")?,
-                })
-            })?,
+            cleanup_actions: decode_counted(reader, decode_affine_cleanup_action)?,
         },
         tag @ (9 | 12) => {
             let source = reader.id("PlaceId")?;

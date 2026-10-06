@@ -660,8 +660,6 @@ fn reconstruct_machine_semantics_with_crash_facts(
                 block.terminator,
                 Terminator::Return { .. }
                     | Terminator::ReturnUnit { .. }
-                    | Terminator::ReturnUnitNominalAffine { .. }
-                    | Terminator::ReturnUnitPartialAffine { .. }
                     | Terminator::ReturnStructural { .. }
             )
         {

@@ -692,14 +692,29 @@ defines the complete product bar.
   invented rollback.
 
 - **CLEANUP-HOOK-SELECTION-AND-ERASED-OWNERSHIP.** Run nominal cleanup for
-  dying local owners at return, composed with contextual hooks and ordinary
-  consuming `drop<T>`, under
+  dying local owners on selected state successors, composed with contextual
+  hooks and ordinary consuming `drop<T>`, under
   [nominal cleanup](wiki/spec/terminal-psi/ownership.md#nominal-cleanup).
-  - Where: stage 04's
-    `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/execution/terminal_unit/control/checked_machine.rs`
-    still declines locals whose type needs a nominal drop
-    (`type_graph_requires_nominal_drop`) at return. Stage 05 already retains
-    exact caller/hook prerequisites through ordinary consuming helpers.
+  - Local return cleanup runs: `pass/drops/runtime_local_nominal_return_exit`
+    interleaves a Console write between two local establishments, then prints
+    `SBA` with exit 0 natively and in the checked interpreter on macOS ARM64.
+    Unit, scalar and structural returns share ordered cleanup actions;
+    `fail/drops/local_cleanup_unmet_prerequisite` still rejects a false hook
+    prerequisite. The corpus harness supplies explicit custom-Console provider
+    acceptance; bare CLI execution does not supply that test policy.
+    At `c255111f1a9`, `python3 tools/corpus_gate.py --both --filter
+    drops/runtime_local_nominal_return_exit` observes matching output and
+    interpreter/native exit 0. Eleven selected runtime controls pass.
+  - Remaining implementation: preserve those actions through Terminal and
+    Abstract jumps/selected successors, checked-interpreter continuation and
+    native edge-transfer blocks. Stage 05's
+    `.../unit/attached_unit/composed_control/state_graph/emission/successor_edge.rs`
+    explicitly refuses executable cleanup on named successors. Keep the
+    unchanged return-plus-transition witness under
+    `tests/omega/pending/drops/runtime_local_nominal_cleanup_exit/` (`BADCE`,
+    exit 0); graduate it when both engines execute the hook before `done`.
+    Scalar `Exits` completions also need selected cleanup before their result
+    reconvergence; no-code cleanup remains supported there.
   - Keep exact selected-exit, named-transition and operand-time ownership,
     exact-place premises without invented caller demands, and outgoing result
     homes. **CML4** owns residual partitions and mixed-root order;
@@ -707,8 +722,8 @@ defines the complete product bar.
   - Cleanup prerequisites are call contracts, distinct from primitive
     operation conditions. **CHECKER-DISCHARGES-OPERATION-OBLIGATIONS** owns
     the remaining operation gate; add no cleanup-specific proof machinery.
-  Acceptance: add a corpus fixture where a local owner with a nominal hook
-  dies at return and at a named transition, running its hook once in order
+  Acceptance: graduate the pending corpus fixture where local owners with
+  nominal hooks die at return and at a named transition, running once in order
   natively and in the checked interpreter. Keep the passing controls
   `pass/drops/{core_drop_explicit_consume,core_drop_owner_hook,core_drop_owner_hook_body}`,
   `pass/drops/erased_record_initializer_exit` (70),
@@ -735,12 +750,12 @@ defines the complete product bar.
     parameter and mixed dying roots; keep machine parameter custody distinct
     from edge cleanup. No runtime liveness flags, untouched-array leaf
     expansion or deferral to final return.
-  - Add residual cleanup to conditional/structural-case successors and
-    structural returns: `SuccessorEdge`, `StructuralCaseSuccessorEdge` and
-    `ReturnStructural`
+  - Add ordered residual cleanup to conditional/structural-case successors:
+    `SuccessorEdge` and `StructuralCaseSuccessorEdge`
     (`omega-rust/psi/compilation/representations/terminal-psi/src/terminal_module/control_flow/termination.rs`)
-    carry only whole-root discards; `ReturnUnitPartialAffine` exists. Change
-    producer, representation, interpreter and native consumers together.
+    retain separate root/residual lists; normal Unit, scalar and structural
+    returns now share ordered actions. Change successor producers,
+    representations, interpreter and native consumers together.
   - Generalize temporary cleanup beyond empty effect-free Unit consumers
     (other argument effects, non-Unit results, borrowed/owned mixtures,
     claims) on **STATE-LOCAL-VALUE-FRONTIER**'s evaluation path.

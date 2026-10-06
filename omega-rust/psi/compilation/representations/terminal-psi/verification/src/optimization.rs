@@ -457,6 +457,9 @@ fn machine_transitions(machine: &terminal_psi::TerminalMachine) -> Vec<MachineId
         match &block.terminator {
             terminal_psi::Terminator::Return {
                 cleanup_actions, ..
+            }
+            | terminal_psi::Terminator::ReturnUnit {
+                cleanup_actions, ..
             } => {
                 for action in cleanup_actions {
                     if let terminal_psi::TerminalAffineCleanupAction::InvokeNominal(cleanup) =
@@ -464,11 +467,6 @@ fn machine_transitions(machine: &terminal_psi::TerminalMachine) -> Vec<MachineId
                     {
                         targets.push(cleanup.cleanup_machine);
                     }
-                }
-            }
-            terminal_psi::Terminator::ReturnUnitNominalAffine { cleanups, .. } => {
-                for cleanup in cleanups {
-                    targets.push(cleanup.cleanup_machine);
                 }
             }
             _ => {}

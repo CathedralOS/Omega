@@ -279,7 +279,7 @@ fn terminal_fixture() -> TerminalModule {
                     operations: Vec::new(),
                     terminator: Terminator::ReturnUnit {
                         edge: EdgeId::new(0x7204).expect("return edge identity"),
-                        trivial_affine_discards: Vec::new(),
+                        cleanup_actions: Vec::new(),
                     },
                 },
             ],
@@ -535,7 +535,7 @@ fn ranked_terminal_fixture() -> TerminalModule {
                     operations: Vec::new(),
                     terminator: Terminator::ReturnUnit {
                         edge: return_edge,
-                        trivial_affine_discards: Vec::new(),
+                        cleanup_actions: Vec::new(),
                     },
                 },
             ],

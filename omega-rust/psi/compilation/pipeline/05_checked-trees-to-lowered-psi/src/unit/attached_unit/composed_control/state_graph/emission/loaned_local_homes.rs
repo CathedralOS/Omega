@@ -67,49 +67,18 @@ pub(super) fn finish(
                 }
                 merge_home_actions(cleanup_actions, homes, &producers);
             }
-            Terminator::ReturnUnit {
-                trivial_affine_discards,
-                ..
-            } => {
-                merge_homes(trivial_affine_discards, homes, &producers);
-            }
             Terminator::Return {
+                cleanup_actions, ..
+            }
+            | Terminator::ReturnUnit {
                 cleanup_actions, ..
             } => {
                 merge_home_actions(cleanup_actions, homes, &producers);
-            }
-            Terminator::ReturnUnitPartialAffine { .. }
-            | Terminator::ReturnUnitNominalAffine { .. } => {
-                return Err(LoweringError::Unsupported(
-                    "state loan backing requires plain return cleanup",
-                ));
             }
             _ => {}
         }
     }
     Ok(())
-}
-
-fn merge_homes(
-    discards: &mut Vec<PlaceId>,
-    homes: &BTreeMap<u32, PlaceId>,
-    producers: &BTreeMap<PlaceId, semantic_vocabulary::OperationId>,
-) {
-    for home in homes.values() {
-        if !discards.contains(home) {
-            discards.push(*home);
-        }
-    }
-    // Match the frontier's existing canonical roster: completed operation
-    // results newest first, before the retained local/parameter cleanup tail.
-    discards.sort_by(
-        |first, second| match (producers.get(first), producers.get(second)) {
-            (Some(first), Some(second)) => second.cmp(first),
-            (Some(_), None) => std::cmp::Ordering::Less,
-            (None, Some(_)) => std::cmp::Ordering::Greater,
-            (None, None) => std::cmp::Ordering::Equal,
-        },
-    );
 }
 
 fn merge_home_actions(

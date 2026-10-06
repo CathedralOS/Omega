@@ -1,7 +1,7 @@
 use super::{
     TerminalCallbackOccurrenceProposal, TerminalCallbackThunkArtifact,
     admitted_native_callback_thunks, validate_callback_occurrence_placements,
-    };
+};
 use crate::callback_placements::tests::{materialized_placement, placement};
 
 fn occurrence(
@@ -189,7 +189,7 @@ fn block(id: u64) -> terminal_psi::Block {
         operations: Vec::new(),
         terminator: terminal_psi::Terminator::ReturnUnit {
             edge: semantic_vocabulary::EdgeId::new(id).expect("nonzero edge id"),
-            trivial_affine_discards: Vec::new(),
+            cleanup_actions: Vec::new(),
         },
     }
 }

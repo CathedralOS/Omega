@@ -970,9 +970,3 @@ pub(crate) fn complete_claims(
     }
     Ok(remaining)
 }
-
-pub(crate) fn has_live_linear_claims(claims: &BTreeMap<ClaimId, LiveClaim>) -> bool {
-    claims
-        .values()
-        .any(|claim| claim.multiplicity == Some(StructuralMultiplicity::Linear))
-}

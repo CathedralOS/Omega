@@ -29,7 +29,7 @@ use crate::execution::terminal_unit::calls::{
 use crate::execution::terminal_unit::providers::checked_composed_provider_attachment_requirements;
 use crate::execution::terminal_unit::returns::checked_boolean_contains_short_circuit;
 use crate::execution::terminal_unit::types::{
-    ShapeCollector, is_reference, machine_binders, return_unit_affine_discards, state_flow,
+    ShapeCollector, is_reference, machine_binders, state_flow,
 };
 use crate::execution::terminal_unit::types::{borrowed_slice_view_element, byte_sequence_carrier};
 use crate::execution::terminal_unit::{composed_control, control};
@@ -1161,37 +1161,6 @@ fn forwards_qualified_parameter(
                     })
                 })
         })
-}
-
-fn return_cleanup_is_whole(
-    program: &TypedTrees,
-    facts: &CheckFacts,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    structural: &[CheckedUnitStructuralParameterPlan],
-    operations: &[CheckedUnitEffectOperationPlan],
-    shapes: &ShapeCollector<'_>,
-) -> Option<()> {
-    if facts.flow.ownership.permissions.iter().any(|(_, event)| {
-        event.machine_symbol == machine.symbol
-            && event.state_symbol == state.symbol
-            && event.kind == PermissionEventKind::AffineDrop
-            && !event.segments.is_empty()
-    }) {
-        return None;
-    }
-    let (_, residual_affine_discards, _) = return_unit_affine_discards(
-        program,
-        facts,
-        machine.symbol,
-        state.symbol,
-        structural,
-        program.state_parameters(state),
-        operations,
-        &[],
-        &shapes.types,
-    )?;
-    residual_affine_discards.is_empty().then_some(())
 }
 
 /// The exact Boolean value one authored guard retains at its `Guard`

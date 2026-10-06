@@ -61,10 +61,7 @@ pub(super) fn eliminate(
             Terminator::StructuralCase { cases, .. } => {
                 structural_case_targets.extend(cases.iter().map(|case| case.target));
             }
-            Terminator::ReturnUnit { .. }
-            | Terminator::ReturnUnitPartialAffine { .. }
-            | Terminator::ReturnUnitNominalAffine { .. }
-            | Terminator::ReturnStructural { .. } => {}
+            Terminator::ReturnUnit { .. } | Terminator::ReturnStructural { .. } => {}
         }
     }
     // Block parameters survive removal only outside covered component member

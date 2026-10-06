@@ -324,8 +324,6 @@ fn reconstruct_steps(machine: &TerminalMachine) -> Option<Vec<Step>> {
                 .collect::<Option<Vec<_>>>()?,
             Terminator::Return { .. }
             | Terminator::ReturnUnit { .. }
-            | Terminator::ReturnUnitPartialAffine { .. }
-            | Terminator::ReturnUnitNominalAffine { .. }
             | Terminator::ReturnStructural { .. }
             | Terminator::Crash { .. } => Vec::new(),
         };

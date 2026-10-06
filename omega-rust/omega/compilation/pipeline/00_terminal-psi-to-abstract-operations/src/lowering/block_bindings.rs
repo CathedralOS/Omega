@@ -114,8 +114,6 @@ pub(super) fn validate_structural_block_bindings(
                 Terminator::StructuralCase { .. }
                 | Terminator::Return { .. }
                 | Terminator::ReturnUnit { .. }
-                | Terminator::ReturnUnitPartialAffine { .. }
-                | Terminator::ReturnUnitNominalAffine { .. }
                 | Terminator::ReturnStructural { .. }
                 | Terminator::Crash { .. } => None,
             };

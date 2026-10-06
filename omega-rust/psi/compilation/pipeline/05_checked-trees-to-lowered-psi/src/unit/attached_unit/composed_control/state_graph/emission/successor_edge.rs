@@ -53,6 +53,31 @@ impl StateGraphEmission<'_, '_> {
             consumed_case_subjects,
         } = *frame;
         let state = &plan.states[position];
+        // Successors still carry the existing no-code root/residual lists.
+        // Source admission may now retain nominal local cleanup as an exact
+        // normal-edge action; that hook cannot become a root discard merely
+        // because this consumer has no executable successor-action stream yet.
+        // Returning siblings and residual-only successors keep their own
+        // existing routes.
+        let exit = checked_trees::FlowClaimJoinExit {
+            state_symbol: state.state,
+            statement_index: edge.statement_ordinal as usize,
+            kind: checked_trees::FlowClaimJoinExitKind::TransitionTarget,
+        };
+        if state
+            .normal_exit_cleanups
+            .iter()
+            .filter(|cleanup| cleanup.exit == exit)
+            .flat_map(|cleanup| &cleanup.actions)
+            .any(|action| {
+                matches!(
+                    action,
+                    checked_trees::CheckedNormalCleanupAction::InvokeNominal(_)
+                )
+            })
+        {
+            return unsupported("named successor requires executable normal-edge cleanup actions");
+        }
         let arrival_decided = checked.facts.call_requires_decided(
             state.state,
             edge.statement_ordinal,

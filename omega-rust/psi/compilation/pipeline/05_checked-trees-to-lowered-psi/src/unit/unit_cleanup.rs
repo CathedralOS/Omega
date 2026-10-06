@@ -236,7 +236,13 @@ fn finalize_nominal_cleanup_machine(
         return unsupported("nominal affine Unit member terminal control drifted");
     };
     let edge = block.terminator.edge();
-    block.terminator = Terminator::ReturnUnitNominalAffine { edge, cleanups };
+    block.terminator = Terminator::ReturnUnit {
+        edge,
+        cleanup_actions: cleanups
+            .into_iter()
+            .map(terminal_psi::TerminalAffineCleanupAction::InvokeNominal)
+            .collect(),
+    };
     Ok(())
 }
 

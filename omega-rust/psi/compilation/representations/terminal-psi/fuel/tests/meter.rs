@@ -140,7 +140,7 @@ fn current_vocabulary_has_explicit_costs_and_attribution() {
     };
     let unit_return_edge = Terminator::ReturnUnit {
         edge: edge_id(4),
-        trivial_affine_discards: Vec::new(),
+        cleanup_actions: Vec::new(),
     };
     let scalar_cleanup_edge = Terminator::Return {
         edge: edge_id(5),

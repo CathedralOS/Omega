@@ -12,16 +12,13 @@
 //! diagnostic surfaces first is pinned by each close's check order and by
 //! the structural field tests.
 
-use super::super::references::validate_normal_return;
 use super::super::{
     BTreeMap, BlockId, ModuleError, OperationKind, PlaceId, StructuralAccess,
-    StructuralMultiplicity, StructuralPlaceKind, Terminator, partial_affine_residuals,
-    partial_affine_root_type,
+    StructuralMultiplicity, StructuralPlaceKind, Terminator,
 };
 use super::{
     FrontierWalk, StructuralOwnershipFrontier, VerifiedMachineStructuralFrontiers,
     apply_continuation_residual_discards, apply_edge_trivial_affine_discards,
-    consume_nominal_cleanup, expected_trivial_affine_discards, release_reference_discards,
     validate_return_cleanup_actions,
 };
 
@@ -44,22 +41,9 @@ pub(super) fn close_block(
         block.terminator,
         Terminator::Return { .. }
             | Terminator::ReturnUnit { .. }
-            | Terminator::ReturnUnitPartialAffine { .. }
-            | Terminator::ReturnUnitNominalAffine { .. }
             | Terminator::ReturnStructural { .. }
     ) {
         super::forget_empty_partial_storage(module, machine, &mut frontier);
-    }
-    // Disposal closes owned loans, never borrowed ingress. The ordinary
-    // ownership checks below independently validate the cleanup roster.
-    let closing = match &block.terminator {
-        Terminator::ReturnUnitNominalAffine { .. } => Some(Vec::new()),
-        _ => None,
-    };
-    if let Some(discards) = closing {
-        let mut remaining = frontier.references.clone();
-        release_reference_discards(module, machine, &mut remaining, &discards)?;
-        validate_normal_return(machine, walk.borrowed_references, &remaining)?;
     }
     match &block.terminator {
         Terminator::Jump { .. } => close_jump(walk, block, frontier, snapshots, incoming),
@@ -69,13 +53,7 @@ pub(super) fn close_block(
         Terminator::StructuralCase { .. } => {
             close_structural_case(walk, block, frontier, snapshots, incoming)
         }
-        Terminator::ReturnUnit { .. } => close_return_unit(walk, block, frontier),
-        Terminator::ReturnUnitPartialAffine { .. } => {
-            close_return_unit_partial_affine(walk, block, frontier)
-        }
-        Terminator::ReturnUnitNominalAffine { .. } => {
-            close_return_unit_nominal_affine(walk, block, frontier)
-        }
+        Terminator::ReturnUnit { .. } => close_return(walk, block, frontier),
         Terminator::Return { .. } => close_return(walk, block, frontier),
         Terminator::ReturnStructural { .. } => {
             close_return_structural(walk, block, frontier, returned_reference_sources)
@@ -355,236 +333,7 @@ fn pending_reseat(frontier: &StructuralOwnershipFrontier) -> Option<PlaceId> {
         .map(|(place, _)| *place)
 }
 
-/// Closes a block whose terminator is `ReturnUnit`.
-fn close_return_unit(
-    walk: &FrontierWalk<'_>,
-    block: &terminal_psi::Block,
-    mut frontier: StructuralOwnershipFrontier,
-) -> Result<(), ModuleError> {
-    let FrontierWalk {
-        module,
-        machine,
-        parameter_order,
-        ..
-    } = *walk;
-    let Terminator::ReturnUnit {
-        trivial_affine_discards,
-        ..
-    } = &block.terminator
-    else {
-        unreachable!("dispatched close_return_unit")
-    };
-    if let Some(place) = frontier.partial_custody_paths.keys().next() {
-        return Err(ModuleError::PartialStructuralCustodyAtUnitReturn {
-            machine: machine.id,
-            block: block.id,
-            place: *place,
-        });
-    }
-    if let Some(place) = pending_reseat(&frontier) {
-        return Err(ModuleError::BorrowedStorageRestorationPending {
-            machine: machine.id,
-            block: block.id,
-            place,
-        });
-    }
-    let expected_affine_discards =
-        expected_trivial_affine_discards(machine, parameter_order, &frontier);
-    if *trivial_affine_discards != expected_affine_discards {
-        return Err(ModuleError::UnitReturnAffineDiscardsMismatch {
-            machine: machine.id,
-            block: block.id,
-        });
-    }
-    release_reference_discards(
-        module,
-        machine,
-        &mut frontier.references,
-        trivial_affine_discards,
-    )?;
-    validate_normal_return(machine, walk.borrowed_references, &frontier.references)?;
-    if let Some((claim, _)) = frontier
-        .claims
-        .iter()
-        .find(|(_, claim)| claim.multiplicity == Some(StructuralMultiplicity::Linear))
-    {
-        return Err(ModuleError::LiveLinearClaimAtUnitReturn {
-            machine: machine.id,
-            block: block.id,
-            claim: *claim,
-        });
-    }
-    Ok(())
-}
-
-/// Closes a block whose terminator is `ReturnUnitPartialAffine`.
-fn close_return_unit_partial_affine(
-    walk: &FrontierWalk<'_>,
-    block: &terminal_psi::Block,
-    mut frontier: StructuralOwnershipFrontier,
-) -> Result<(), ModuleError> {
-    let FrontierWalk {
-        module,
-        machine,
-        parameter_order,
-        ..
-    } = *walk;
-    let Terminator::ReturnUnitPartialAffine {
-        trivial_affine_discards,
-        residual_affine_discards,
-        ..
-    } = &block.terminator
-    else {
-        unreachable!("dispatched close_return_unit_partial_affine")
-    };
-    let Some(first_residual) = residual_affine_discards.first() else {
-        return Err(ModuleError::InvalidPartialAffineCleanup {
-            machine: machine.id,
-            block: block.id,
-        });
-    };
-    let root_place = first_residual.place;
-    if residual_affine_discards
-        .iter()
-        .any(|residual| residual.place != root_place)
-    {
-        return Err(ModuleError::InvalidPartialAffineCleanup {
-            machine: machine.id,
-            block: block.id,
-        });
-    }
-    let Some(moved) = frontier.partial_custody_paths.remove(&root_place) else {
-        return Err(ModuleError::InvalidPartialAffineCleanup {
-            machine: machine.id,
-            block: block.id,
-        });
-    };
-    let expected_residuals =
-        partial_affine_root_type(machine, root_place).and_then(|structural_type| {
-            partial_affine_residuals(
-                module,
-                structural_type,
-                &moved,
-                residual_affine_discards.len(),
-            )
-        });
-    if moved.is_empty()
-        || expected_residuals.as_ref().is_none_or(|expected| {
-            residual_affine_discards.len() != expected.len()
-                || residual_affine_discards.iter().zip(expected).any(
-                    |(residual, (path, structural_type))| {
-                        residual.path != *path || residual.structural_type != *structural_type
-                    },
-                )
-        })
-        || frontier.owned_places.remove(&root_place) != Some(StructuralMultiplicity::Affine)
-    {
-        return Err(ModuleError::InvalidPartialAffineCleanup {
-            machine: machine.id,
-            block: block.id,
-        });
-    }
-    // The partially moved root's one disposition is the residual cleanup
-    // above. Naming it again as a whole no-code discard is a forged partial
-    // cleanup, not an ordinary roster mismatch, so it is refused as such
-    // before the remaining roster is compared.
-    if trivial_affine_discards.contains(&root_place) {
-        return Err(ModuleError::InvalidPartialAffineCleanup {
-            machine: machine.id,
-            block: block.id,
-        });
-    }
-    let expected_affine_discards =
-        expected_trivial_affine_discards(machine, parameter_order, &frontier);
-    if *trivial_affine_discards != expected_affine_discards {
-        return Err(ModuleError::UnitReturnAffineDiscardsMismatch {
-            machine: machine.id,
-            block: block.id,
-        });
-    }
-    if !frontier.partial_custody_paths.is_empty() {
-        return Err(ModuleError::InvalidPartialAffineCleanup {
-            machine: machine.id,
-            block: block.id,
-        });
-    }
-    if let Some(place) = pending_reseat(&frontier) {
-        return Err(ModuleError::BorrowedStorageRestorationPending {
-            machine: machine.id,
-            block: block.id,
-            place,
-        });
-    }
-    if let Some((claim, _)) = frontier
-        .claims
-        .iter()
-        .find(|(_, claim)| claim.multiplicity == Some(StructuralMultiplicity::Linear))
-    {
-        return Err(ModuleError::LiveLinearClaimAtUnitReturn {
-            machine: machine.id,
-            block: block.id,
-            claim: *claim,
-        });
-    }
-    release_reference_discards(
-        module,
-        machine,
-        &mut frontier.references,
-        trivial_affine_discards,
-    )?;
-    for residual in residual_affine_discards {
-        super::super::references::discard_residual(
-            module,
-            machine,
-            &mut frontier.references,
-            residual.place,
-            &residual.path,
-            residual.structural_type,
-        )?;
-    }
-    validate_normal_return(machine, walk.borrowed_references, &frontier.references)?;
-
-    Ok(())
-}
-
-/// Closes a block whose terminator is `ReturnUnitNominalAffine`.
-fn close_return_unit_nominal_affine(
-    walk: &FrontierWalk<'_>,
-    block: &terminal_psi::Block,
-    mut frontier: StructuralOwnershipFrontier,
-) -> Result<(), ModuleError> {
-    let FrontierWalk {
-        module,
-        machine,
-        machines,
-        ..
-    } = *walk;
-    let Terminator::ReturnUnitNominalAffine { cleanups, .. } = &block.terminator else {
-        unreachable!("dispatched close_return_unit_nominal_affine")
-    };
-    for cleanup in cleanups {
-        consume_nominal_cleanup(module, machine, machines, block.id, &mut frontier, cleanup)?;
-    }
-    if let Some(place) = pending_reseat(&frontier) {
-        return Err(ModuleError::BorrowedStorageRestorationPending {
-            machine: machine.id,
-            block: block.id,
-            place,
-        });
-    }
-    if !frontier.partial_custody_paths.is_empty()
-        || !frontier.claims.is_empty()
-        || !frontier.owned_places.is_empty()
-    {
-        return Err(ModuleError::InvalidNominalAffineCleanup {
-            machine: machine.id,
-            block: block.id,
-        });
-    }
-    Ok(())
-}
-
-/// Closes a block whose terminator is `Return`.
+/// Closes a scalar or Unit return through its ordered owner actions.
 fn close_return(
     walk: &FrontierWalk<'_>,
     block: &terminal_psi::Block,
@@ -597,9 +346,12 @@ fn close_return(
         parameter_order,
         ..
     } = *walk;
-    let Terminator::Return {
+    let (Terminator::Return {
         cleanup_actions, ..
-    } = &block.terminator
+    }
+    | Terminator::ReturnUnit {
+        cleanup_actions, ..
+    }) = &block.terminator
     else {
         unreachable!("dispatched close_return")
     };
@@ -625,11 +377,21 @@ fn close_return(
         .iter()
         .find(|(_, claim)| claim.multiplicity == Some(StructuralMultiplicity::Linear))
     {
-        return Err(ModuleError::LiveLinearClaimAtScalarReturn {
-            machine: machine.id,
-            block: block.id,
-            claim: *claim,
-        });
+        return Err(
+            if matches!(block.terminator, Terminator::ReturnUnit { .. }) {
+                ModuleError::LiveLinearClaimAtUnitReturn {
+                    machine: machine.id,
+                    block: block.id,
+                    claim: *claim,
+                }
+            } else {
+                ModuleError::LiveLinearClaimAtScalarReturn {
+                    machine: machine.id,
+                    block: block.id,
+                    claim: *claim,
+                }
+            },
+        );
     }
     Ok(())
 }

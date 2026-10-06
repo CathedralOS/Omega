@@ -703,10 +703,6 @@ impl ChainExit<'_> {
                 }
                 Ok(())
             }
-            Terminator::ReturnUnit {
-                trivial_affine_discards,
-                ..
-            } => self.insert(trivial_affine_discards),
             Terminator::ReturnStructural {
                 source,
                 cleanup_actions,
@@ -721,11 +717,10 @@ impl ChainExit<'_> {
             }
             Terminator::Return {
                 cleanup_actions, ..
+            }
+            | Terminator::ReturnUnit {
+                cleanup_actions, ..
             } => self.insert_actions(cleanup_actions),
-            Terminator::ReturnUnitPartialAffine { .. }
-            | Terminator::ReturnUnitNominalAffine { .. } => Err(LoweringError::Unsupported(
-                "Unit graph state loan chain requires plain return cleanup",
-            )),
             Terminator::Crash { .. } => Ok(()),
         }
     }

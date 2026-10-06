@@ -752,10 +752,7 @@ fn exact_shared_cohort_observation(
         && observer_block.operations.is_empty()
         && matches!(
             &observer_block.terminator,
-            Terminator::ReturnUnit {
-                trivial_affine_discards,
-                ..
-            } if trivial_affine_discards.is_empty()
+            Terminator::ReturnUnit { cleanup_actions, .. } if cleanup_actions.is_empty()
         )
 }
 

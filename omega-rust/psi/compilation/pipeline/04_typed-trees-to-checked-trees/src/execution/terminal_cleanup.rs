@@ -1065,18 +1065,16 @@ pub(super) fn state_exit_result_locals(
             || program.type_multiplicity(local.type_reference) != Multiplicity::Affine
             // Disposal preserves the established value until its death. Its
             // represented predicates do not add a cleanup operation; the exact
-            // permission ledger and nominal-drop checks still own that decision.
-            || !(validation::has_plain_owned_contents_with_represented_constraints(
+            // permission ledger owns that decision. Normal-edge planning must
+            // retain the selected nominal action and its prerequisites before
+            // publishing the graph; a hook does not change the local's custody.
+            || !(validation::has_structural_construction_contents(
                 program,
                 local.type_reference,
             ) || validation::has_owned_or_shared_view_contents(program, local.type_reference)
                 // Stored reference leaves own descriptors, not their backing.
                 // Their exact loan roster supports the same whole disposal.
                 || validation::reference_result_custody::is_reference_record(program, local.type_reference))
-            || super::terminal_unit::types::type_graph_requires_nominal_drop(
-                program,
-                local.type_reference,
-            )
         {
             return None;
         }

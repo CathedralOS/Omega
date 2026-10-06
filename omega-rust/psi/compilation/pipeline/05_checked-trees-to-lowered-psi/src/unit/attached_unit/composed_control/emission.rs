@@ -185,7 +185,10 @@ pub(crate) fn emit_call_leaf(
         operations: operations[evaluation.operation_start..].to_vec(),
         terminator: Terminator::ReturnUnit {
             edge: edge_id(allocate_dense(next_edge)?),
-            trivial_affine_discards: discards,
+            cleanup_actions: discards
+                .into_iter()
+                .map(terminal_psi::TerminalAffineCleanupAction::DiscardRoot)
+                .collect(),
         },
     });
     crate::scalar_graph::scalar_computations::literals::retain_declarations(

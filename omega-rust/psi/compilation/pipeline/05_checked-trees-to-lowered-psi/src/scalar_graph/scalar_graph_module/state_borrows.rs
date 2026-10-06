@@ -129,8 +129,6 @@ fn successors(terminator: &Terminator) -> Vec<BlockId> {
         Terminator::StructuralCase { cases, .. } => cases.iter().map(|case| case.target).collect(),
         Terminator::Return { .. }
         | Terminator::ReturnUnit { .. }
-        | Terminator::ReturnUnitPartialAffine { .. }
-        | Terminator::ReturnUnitNominalAffine { .. }
         | Terminator::ReturnStructural { .. }
         | Terminator::Crash { .. } => Vec::new(),
     }

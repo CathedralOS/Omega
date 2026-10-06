@@ -233,8 +233,21 @@ pub(super) fn append_terminator(
             }
             exits.push(SharedRoster::whole(axioms));
         }
-        Terminator::ReturnUnitNominalAffine { edge, cleanups } => {
-            for (cleanup_position, cleanup) in cleanups.iter().enumerate() {
+        Terminator::ReturnUnit {
+            edge,
+            cleanup_actions,
+        } => {
+            for (cleanup_position, cleanup) in
+                cleanup_actions
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(position, action)| match action {
+                        terminal_psi::TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
+                            Some((position, cleanup))
+                        }
+                        _ => None,
+                    })
+            {
                 append_nominal_cleanup_obligations(
                     cleanup,
                     machine.id,
@@ -246,9 +259,6 @@ pub(super) fn append_terminator(
                 );
             }
             exits.push(SharedRoster::whole(axioms));
-        }
-        Terminator::ReturnUnit { .. } | Terminator::ReturnUnitPartialAffine { .. } => {
-            exits.push(SharedRoster::whole(axioms))
         }
         Terminator::ReturnStructural {
             edge,

@@ -366,23 +366,14 @@ fn terminator_leaves_custody(
         }
         Terminator::Return {
             cleanup_actions, ..
+        }
+        | Terminator::ReturnUnit {
+            cleanup_actions, ..
         } => cleanup_actions.iter().all(|action| match action {
             TerminalAffineCleanupAction::DiscardRoot(place) => clears(place),
             TerminalAffineCleanupAction::DiscardResidual(discard) => clears(&discard.place),
             TerminalAffineCleanupAction::InvokeNominal(cleanup) => clears(&cleanup.place),
         }),
-        Terminator::ReturnUnit {
-            trivial_affine_discards,
-            ..
-        } => trivial_affine_discards.iter().all(clears),
-        Terminator::ReturnUnitPartialAffine {
-            trivial_affine_discards,
-            residual_affine_discards,
-            ..
-        } => edge_leaves_custody(&[], trivial_affine_discards, residual_affine_discards),
-        Terminator::ReturnUnitNominalAffine { cleanups, .. } => {
-            cleanups.iter().all(|cleanup| clears(&cleanup.place))
-        }
         Terminator::ReturnStructural {
             source,
             returned_claims,
@@ -514,11 +505,6 @@ fn terminator_discards(terminator: &Terminator) -> Vec<PlaceId> {
             trivial_affine_discards,
             residual_affine_discards,
             ..
-        }
-        | Terminator::ReturnUnitPartialAffine {
-            trivial_affine_discards,
-            residual_affine_discards,
-            ..
         } => trivial_affine_discards
             .iter()
             .copied()
@@ -539,6 +525,9 @@ fn terminator_discards(terminator: &Terminator) -> Vec<PlaceId> {
         Terminator::Return {
             cleanup_actions, ..
         }
+        | Terminator::ReturnUnit {
+            cleanup_actions, ..
+        }
         | Terminator::ReturnStructural {
             cleanup_actions, ..
         } => cleanup_actions
@@ -549,13 +538,6 @@ fn terminator_discards(terminator: &Terminator) -> Vec<PlaceId> {
                 TerminalAffineCleanupAction::InvokeNominal(cleanup) => Some(cleanup.place),
             })
             .collect(),
-        Terminator::ReturnUnit {
-            trivial_affine_discards,
-            ..
-        } => trivial_affine_discards.clone(),
-        Terminator::ReturnUnitNominalAffine { cleanups, .. } => {
-            cleanups.iter().map(|cleanup| cleanup.place).collect()
-        }
         Terminator::Crash { .. } => Vec::new(),
     }
 }

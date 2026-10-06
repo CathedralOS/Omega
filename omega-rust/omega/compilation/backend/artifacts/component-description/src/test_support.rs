@@ -87,7 +87,7 @@ pub fn bare_module() -> TerminalModule {
                 operations: Vec::new(),
                 terminator: Terminator::ReturnUnit {
                     edge: EdgeId::new(1).expect("edge identity"),
-                    trivial_affine_discards: Vec::new(),
+                    cleanup_actions: Vec::new(),
                 },
             }],
             contract: MachineContract {
@@ -149,7 +149,7 @@ pub fn provider_module(
     candidate.blocks[0].id = candidate.entry;
     candidate.blocks[0].terminator = Terminator::ReturnUnit {
         edge: EdgeId::new(2).expect("edge identity"),
-        trivial_affine_discards: Vec::new(),
+        cleanup_actions: Vec::new(),
     };
     module.machines.push(candidate);
     module

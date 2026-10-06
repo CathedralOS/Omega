@@ -1,6 +1,5 @@
 use crate::{
-    CrashPredicateTerm, NominalAffineCleanup, StructuralAffineDiscard, StructuralArgument,
-    TerminalAffineCleanupAction,
+    CrashPredicateTerm, StructuralAffineDiscard, StructuralArgument, TerminalAffineCleanupAction,
 };
 use semantic_vocabulary::{
     BlockId, ClaimId, EdgeId, PlaceId, ProofTerm, ScalarTerm, StructuralCaseId, StructuralFieldId,
@@ -56,26 +55,9 @@ pub enum Terminator {
     /// Finish normally without producing or binding a runtime value.
     ReturnUnit {
         edge: EdgeId,
-        /// Exact no-code affine discards performed after outgoing-value
-        /// materialization and before control returns to the caller.
-        /// Entries are structural places in reverse declaration order.
-        trivial_affine_discards: Vec<PlaceId>,
-    },
-    /// Finish normally after committing an exact projected transfer and then
-    /// disposing only the remaining live affine structural places. This is a
-    /// distinct pre-release variant so root-only consumers cannot silently
-    /// erase path-sensitive cleanup.
-    ReturnUnitPartialAffine {
-        edge: EdgeId,
-        trivial_affine_discards: Vec<PlaceId>,
-        residual_affine_discards: Vec<StructuralAffineDiscard>,
-    },
-    /// Finish normally after executing the exact ordered nominal cleanups for
-    /// whole affine structural parameters. Entries are in reverse parameter
-    /// declaration order.
-    ReturnUnitNominalAffine {
-        edge: EdgeId,
-        cleanups: Vec<NominalAffineCleanup>,
+        /// Exact semantic action order, shared with scalar and structural
+        /// returns. Result absence does not change owner disposal semantics.
+        cleanup_actions: Vec<TerminalAffineCleanupAction>,
     },
     /// Transfer one structural value and its complete live claim set to the
     /// machine result. Fuel is charged before any transfer or cleanup commits.
@@ -117,8 +99,6 @@ impl Terminator {
             Self::Jump { edge, .. }
             | Self::Return { edge, .. }
             | Self::ReturnUnit { edge, .. }
-            | Self::ReturnUnitPartialAffine { edge, .. }
-            | Self::ReturnUnitNominalAffine { edge, .. }
             | Self::ReturnStructural { edge, .. }
             | Self::Crash { edge, .. } => *edge,
             Self::Conditional { .. } | Self::StructuralCase { .. } => {
@@ -132,8 +112,6 @@ impl Terminator {
             Self::Jump { edge, .. }
             | Self::Return { edge, .. }
             | Self::ReturnUnit { edge, .. }
-            | Self::ReturnUnitPartialAffine { edge, .. }
-            | Self::ReturnUnitNominalAffine { edge, .. }
             | Self::ReturnStructural { edge, .. }
             | Self::Crash { edge, .. } => vec![*edge],
             Self::Conditional {
@@ -179,8 +157,6 @@ impl Terminator {
             }
             Self::StructuralCase { .. }
             | Self::ReturnUnit { .. }
-            | Self::ReturnUnitPartialAffine { .. }
-            | Self::ReturnUnitNominalAffine { .. }
             | Self::ReturnStructural { .. }
             | Self::Crash { .. } => {}
         }

@@ -10,9 +10,8 @@ mod completion;
 mod structural_return;
 
 use crate::custody::{
-    commit_cleanup_action, consume_affine_projection, has_live_linear_claims,
-    rebind_structural_result_claims, remove_affine_root, resolve_structural_path_type,
-    validate_nominal_cleanup_action,
+    commit_cleanup_action, consume_affine_projection, rebind_structural_result_claims,
+    remove_affine_root, resolve_structural_path_type,
 };
 use crate::errors::TerminalInterpretError;
 use crate::execution::{
@@ -46,197 +45,6 @@ struct SelectedSuccessor<'edge> {
 }
 
 impl TerminalExecution {
-    pub(crate) fn settle_return_unit_nominal_affine(
-        &mut self,
-        terminator: &Terminator,
-        meter: &mut TerminalFuelMeter,
-    ) -> Result<TerminatorFlow, TerminalInterpretError> {
-        let Terminator::ReturnUnitNominalAffine { cleanups, .. } = terminator else {
-            unreachable!("dispatched settle_return_unit_nominal_affine")
-        };
-        let machine = self.program.machines.get(&self.current_machine).ok_or(
-            TerminalInterpretError::VerifiedCallTargetMissing(self.current_machine),
-        )?;
-        if machine.result != TerminalMachineResult::Unit || cleanups.is_empty() {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
-        }
-        let mut expected_frontier = BTreeSet::new();
-        let mut consumed_claims = BTreeSet::new();
-        let mut consumed_places = BTreeSet::new();
-        let mut cleanup_values = Vec::with_capacity(cleanups.len());
-        for cleanup in cleanups {
-            let value = self.structural_values.get(&cleanup.place).cloned().ok_or(
-                TerminalInterpretError::VerifiedStructuralPlaceMissing(cleanup.place),
-            )?;
-            validate_nominal_cleanup_action(
-                &self.program.structural_types,
-                &self.program.machines,
-                &self.structural_values,
-                &self.live_affine_frontier,
-                &self.live_claims,
-                cleanup,
-            )?;
-            if !consumed_places.insert(cleanup.place)
-                || cleanup
-                    .consumed_claims
-                    .iter()
-                    .any(|claim| !consumed_claims.insert(*claim))
-            {
-                return Err(TerminalInterpretError::AffineFrontierMismatch);
-            }
-            if cleanup.consumed_claims.is_empty() {
-                expected_frontier.insert(StructuralAffineDiscard {
-                    place: cleanup.place,
-                    path: Vec::new(),
-                    structural_type: cleanup.structural_type,
-                });
-            }
-            cleanup_values.push((cleanup.clone(), value));
-        }
-        if self.structural_values.len() != cleanup_values.len() + self.primitive_local_count()
-            || self.live_affine_frontier != expected_frontier
-            || consumed_claims != self.live_claims.keys().copied().collect::<BTreeSet<_>>()
-        {
-            return Err(TerminalInterpretError::AffineFrontierMismatch);
-        }
-        if let Err(error) = meter.charge_terminator(terminator) {
-            return meter_status(error).map(TerminatorFlow::Yield);
-        }
-        self.retire_plain_locals();
-        self.continue_cleanup_actions(
-            cleanups
-                .iter()
-                .cloned()
-                .map(terminal_psi::TerminalAffineCleanupAction::InvokeNominal)
-                .collect::<Vec<_>>()
-                .into_iter(),
-            CompletedReturn::plain(TerminalExecutionResult::Unit),
-        )
-    }
-
-    pub(crate) fn settle_return_unit_partial_affine(
-        &mut self,
-        terminator: &Terminator,
-        meter: &mut TerminalFuelMeter,
-    ) -> Result<TerminatorFlow, TerminalInterpretError> {
-        let Terminator::ReturnUnitPartialAffine {
-            trivial_affine_discards,
-            residual_affine_discards,
-            ..
-        } = terminator
-        else {
-            unreachable!("dispatched settle_return_unit_partial_affine")
-        };
-        let machine = self.program.machines.get(&self.current_machine).ok_or(
-            TerminalInterpretError::VerifiedCallTargetMissing(self.current_machine),
-        )?;
-        if machine.result != TerminalMachineResult::Unit
-            || has_live_linear_claims(&self.live_claims)
-        {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
-        }
-
-        // Validate the entire cleanup transaction before charging or
-        // mutating state. In particular, a projected cleanup may not
-        // be approximated by deleting its root-addressed carrier.
-        let mut expected_frontier = BTreeSet::new();
-        for place in trivial_affine_discards {
-            let structural_type = self
-                .structural_values
-                .get(place)
-                .map(|value| value.structural_type)
-                .or_else(|| {
-                    self.scalar_case_values
-                        .get(place)
-                        .map(|value| value.structural_type)
-                })
-                .ok_or(TerminalInterpretError::VerifiedStructuralPlaceMissing(
-                    *place,
-                ))?;
-            if !expected_frontier.insert(StructuralAffineDiscard {
-                place: *place,
-                path: Vec::new(),
-                structural_type,
-            }) {
-                return Err(TerminalInterpretError::AffineFrontierMismatch);
-            }
-        }
-        for discard in residual_affine_discards {
-            let root = self.structural_values.get(&discard.place).ok_or(
-                TerminalInterpretError::VerifiedStructuralPlaceMissing(discard.place),
-            )?;
-            let actual_type = resolve_structural_path_type(
-                &self.program.structural_types,
-                root.structural_type,
-                &discard.path,
-            )?;
-            if actual_type != discard.structural_type
-                || discard.path.is_empty()
-                || !expected_frontier.insert(discard.clone())
-            {
-                return Err(TerminalInterpretError::AffineFrontierMismatch);
-            }
-        }
-        if expected_frontier != self.live_affine_frontier {
-            return Err(TerminalInterpretError::AffineFrontierMismatch);
-        }
-        if let Err(error) = meter.charge_terminator(terminator) {
-            return meter_status(error).map(TerminatorFlow::Yield);
-        }
-
-        // The edge is now committed. Root cleanup may release its
-        // root-addressed carrier; projected cleanup removes only the
-        // exact semantic paths and leaves the opaque root untouched.
-        for place in trivial_affine_discards {
-            reference::discard_structural_value(
-                &mut self.structural_values,
-                &mut self.reference_referents,
-                &mut self.structural_element_view_fields,
-                *place,
-            );
-            self.scalar_case_values.remove(place);
-            self.live_affine_frontier.remove(&StructuralAffineDiscard {
-                place: *place,
-                path: Vec::new(),
-                structural_type: expected_frontier
-                    .iter()
-                    .find(|entry| entry.place == *place && entry.path.is_empty())
-                    .expect("validated root affine cleanup")
-                    .structural_type,
-            });
-        }
-        for discard in residual_affine_discards {
-            self.live_affine_frontier.remove(discard);
-        }
-        debug_assert!(self.live_affine_frontier.is_empty());
-
-        if let Some(caller) = self.call_stack.pop() {
-            if !matches!(caller.result, SuspendedCallResult::Unit) {
-                return Err(TerminalInterpretError::VerifiedOperationMalformed);
-            }
-            self.values = caller.values;
-            self.retire_plain_locals();
-            self.structural_values = caller.structural_values;
-            self.scalar_case_values = caller.scalar_case_values;
-            self.scalar_array_values = caller.scalar_array_values;
-            self.element_view_values = caller.element_view_values;
-            self.byte_sequence_values = caller.byte_sequence_values;
-            self.live_affine_frontier = caller.live_affine_frontier;
-            self.live_claims = caller.live_claims;
-            self.dynamic_parameters = caller.dynamic_parameters;
-            self.current_machine = caller.current_machine;
-            self.current = caller.current;
-            self.next_operation = caller.next_operation;
-            return Ok(TerminatorFlow::Continue);
-        }
-        let result = TerminalExecutionResult::Unit;
-        self.retire_plain_locals();
-        self.result = Some(result.clone());
-        Ok(TerminatorFlow::Yield(TerminalExecutionStatus::Complete(
-            result,
-        )))
-    }
-
     pub(crate) fn settle_jump(
         &mut self,
         terminator: &Terminator,
@@ -597,8 +405,7 @@ impl TerminalExecution {
         meter: &mut TerminalFuelMeter,
     ) -> Result<TerminatorFlow, TerminalInterpretError> {
         let Terminator::ReturnUnit {
-            trivial_affine_discards,
-            ..
+            cleanup_actions, ..
         } = terminator
         else {
             unreachable!("dispatched settle_return_unit")
@@ -606,31 +413,17 @@ impl TerminalExecution {
         let machine = self.program.machines.get(&self.current_machine).ok_or(
             TerminalInterpretError::VerifiedCallTargetMissing(self.current_machine),
         )?;
-        if machine.result != TerminalMachineResult::Unit
-            || has_live_linear_claims(&self.live_claims)
-        {
+        if machine.result != TerminalMachineResult::Unit {
             return Err(TerminalInterpretError::VerifiedOperationMalformed);
         }
         if let Err(error) = meter.charge_terminator(terminator) {
             return meter_status(error).map(TerminatorFlow::Yield);
         }
-        for place in trivial_affine_discards {
-            if reference::discard_structural_value(
-                &mut self.structural_values,
-                &mut self.reference_referents,
-                &mut self.structural_element_view_fields,
-                *place,
-            )
-            .is_none()
-                && self.scalar_case_values.remove(place).is_none()
-            {
-                return Err(TerminalInterpretError::VerifiedStructuralPlaceMissing(
-                    *place,
-                ));
-            }
-            remove_affine_root(&mut self.live_affine_frontier, *place);
-        }
-        self.finish_return(CompletedReturn::plain(TerminalExecutionResult::Unit))
+        self.retire_return_inputs();
+        self.continue_cleanup_actions(
+            cleanup_actions.clone().into_iter(),
+            CompletedReturn::plain(TerminalExecutionResult::Unit),
+        )
     }
 
     /// Installs the claims a boundary result declaration mints on the

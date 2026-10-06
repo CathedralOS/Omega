@@ -265,32 +265,13 @@ fn complete_carriers(
             }
             | Terminator::ReturnStructural {
                 cleanup_actions, ..
+            }
+            | Terminator::ReturnUnit {
+                cleanup_actions, ..
             } if cleanup_actions.iter().all(|action| match action {
                 TerminalAffineCleanupAction::DiscardRoot(place) => !affine.contains(place),
                 _ => !managed.contains(&action.place()),
             }) =>
-            {
-                Vec::new()
-            }
-            Terminator::ReturnUnit {
-                trivial_affine_discards,
-                ..
-            } if trivial_affine_discards
-                .iter()
-                .all(|place| !affine.contains(place)) =>
-            {
-                Vec::new()
-            }
-            Terminator::ReturnUnitPartialAffine {
-                trivial_affine_discards,
-                residual_affine_discards,
-                ..
-            } if trivial_affine_discards
-                .iter()
-                .all(|place| !affine.contains(place))
-                && residual_affine_discards
-                    .iter()
-                    .all(|discard| !managed.contains(&discard.place)) =>
             {
                 Vec::new()
             }
@@ -442,26 +423,13 @@ fn complete_carriers(
                     );
                 }
             }
-            Terminator::ReturnUnit {
-                trivial_affine_discards,
-                ..
-            }
-            | Terminator::ReturnUnitPartialAffine {
-                trivial_affine_discards,
-                ..
-            } => {
-                replace_managed_discards(
-                    trivial_affine_discards,
-                    exits[position].clone(),
-                    &managed,
-                    &producers,
-                    &parameter_order,
-                );
-            }
             Terminator::Return {
                 cleanup_actions, ..
             }
             | Terminator::ReturnStructural {
+                cleanup_actions, ..
+            }
+            | Terminator::ReturnUnit {
                 cleanup_actions, ..
             } => {
                 cleanup_actions.retain(|action| !managed.contains(&action.place()));
@@ -588,14 +556,6 @@ fn scheduled_discards(terminator: &Terminator) -> Vec<semantic_vocabulary::Place
         Terminator::Jump {
             trivial_affine_discards,
             ..
-        }
-        | Terminator::ReturnUnit {
-            trivial_affine_discards,
-            ..
-        }
-        | Terminator::ReturnUnitPartialAffine {
-            trivial_affine_discards,
-            ..
         } => trivial_affine_discards.clone(),
         Terminator::Conditional {
             when_true,
@@ -609,6 +569,9 @@ fn scheduled_discards(terminator: &Terminator) -> Vec<semantic_vocabulary::Place
             cleanup_actions, ..
         }
         | Terminator::ReturnStructural {
+            cleanup_actions, ..
+        }
+        | Terminator::ReturnUnit {
             cleanup_actions, ..
         } => cleanup_actions
             .iter()

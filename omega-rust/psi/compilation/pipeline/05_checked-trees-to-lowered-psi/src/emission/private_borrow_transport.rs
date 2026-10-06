@@ -262,28 +262,10 @@ pub(crate) fn forward_private_state_borrows(
                 *source = mapped(names, *source);
                 remap_cleanup_actions(cleanup_actions, names);
             }
-            Terminator::ReturnUnit {
-                trivial_affine_discards,
-                ..
-            } => {
-                remap_roots(trivial_affine_discards, names);
-            }
-            Terminator::ReturnUnitPartialAffine {
-                trivial_affine_discards,
-                residual_affine_discards,
-                ..
-            } => {
-                remap_roots(trivial_affine_discards, names);
-                for discard in residual_affine_discards {
-                    discard.place = mapped(names, discard.place);
-                }
-            }
-            Terminator::ReturnUnitNominalAffine { cleanups, .. } => {
-                for cleanup in cleanups {
-                    cleanup.place = mapped(names, cleanup.place);
-                }
-            }
             Terminator::Return {
+                cleanup_actions, ..
+            }
+            | Terminator::ReturnUnit {
                 cleanup_actions, ..
             } => {
                 remap_cleanup_actions(cleanup_actions, names);

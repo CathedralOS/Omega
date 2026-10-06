@@ -107,8 +107,10 @@ impl CallAccesses {
                 }
             }
             match &block.terminator {
-                Terminator::ReturnUnitNominalAffine { .. } => return,
                 Terminator::Return {
+                    cleanup_actions, ..
+                }
+                | Terminator::ReturnUnit {
                     cleanup_actions, ..
                 }
                 | Terminator::ReturnStructural {

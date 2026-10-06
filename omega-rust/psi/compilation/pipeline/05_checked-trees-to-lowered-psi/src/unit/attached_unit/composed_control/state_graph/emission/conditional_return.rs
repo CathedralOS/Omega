@@ -70,7 +70,7 @@ impl StateGraphEmission<'_, '_> {
             }
             checked_trees::CheckedConditionalReturnArm::Unit { .. } => Terminator::ReturnUnit {
                 edge: edge_id(allocate_dense(next_edge)?),
-                trivial_affine_discards: Vec::new(),
+                cleanup_actions: Vec::new(),
             },
             checked_trees::CheckedConditionalReturnArm::Structural(operation) => {
                 super::super::guarded::emit_return(
@@ -159,7 +159,7 @@ impl StateGraphEmission<'_, '_> {
                     }
                     checked_trees::CheckedUnitCallResult::Unit => Terminator::ReturnUnit {
                         edge: edge_id(allocate_dense(next_edge)?),
-                        trivial_affine_discards: Vec::new(),
+                        cleanup_actions: Vec::new(),
                     },
                     checked_trees::CheckedUnitCallResult::Scalar(binding) => {
                         let value = arm_call_result(
@@ -230,8 +230,6 @@ impl StateGraphEmission<'_, '_> {
         // the result and moved any operands. This uses the same checked
         // disposition schedule as structural returns; neither result type nor
         // a sibling arm's consumption changes the current edge's remainder.
-        // Unit retains its existing whole-root cleanup vocabulary rather than
-        // silently losing an action that requires a richer terminator.
         if matches!(
             terminator,
             Terminator::Return { .. } | Terminator::ReturnUnit { .. }
@@ -260,22 +258,11 @@ impl StateGraphEmission<'_, '_> {
             match &mut terminator {
                 Terminator::Return {
                     cleanup_actions, ..
+                }
+                | Terminator::ReturnUnit {
+                    cleanup_actions, ..
                 } => {
                     *cleanup_actions = selected_cleanup;
-                }
-                Terminator::ReturnUnit {
-                    trivial_affine_discards,
-                    ..
-                } => {
-                    *trivial_affine_discards = selected_cleanup
-                        .into_iter()
-                        .map(|action| match action {
-                            terminal_psi::TerminalAffineCleanupAction::DiscardRoot(place) => {
-                                Ok(place)
-                            }
-                            _ => unsupported("selected Unit return requires non-root cleanup"),
-                        })
-                        .collect::<Result<Vec<_>, LoweringError>>()?;
                 }
                 _ => {}
             }
@@ -290,6 +277,9 @@ impl StateGraphEmission<'_, '_> {
             }
             | Terminator::ReturnStructural {
                 cleanup_actions, ..
+            }
+            | Terminator::ReturnUnit {
+                cleanup_actions, ..
             } => {
                 cleanup_actions.retain(|action| {
                     !matches!(
@@ -298,12 +288,6 @@ impl StateGraphEmission<'_, '_> {
                             if predecessor_discards.contains(place)
                     )
                 });
-            }
-            Terminator::ReturnUnit {
-                trivial_affine_discards,
-                ..
-            } => {
-                trivial_affine_discards.retain(|place| !predecessor_discards.contains(place));
             }
             Terminator::Crash { .. } => {}
             _ => return unsupported("return arm did not produce a completion terminator"),

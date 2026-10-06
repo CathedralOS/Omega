@@ -1,12 +1,11 @@
 //! Validates exact partial affine and owner-authorized nominal cleanup custody.
 
 use super::{
-    BTreeMap, BTreeSet, BlockId, CanonicalStructuralPathSegment, MachineId, ModuleError,
-    OperationKind, PlaceId, Proposition, ScalarTerm, ScalarType, StructuralAccess,
-    StructuralFieldType, StructuralMultiplicity, StructuralPathSegment, StructuralPlaceKind,
-    StructuralTypeId, StructuralTypeShape, TerminalAffineCleanupAction, TerminalMachine,
-    TerminalMachineResult, TerminalModule, Terminator, partial_affine_root_type,
-    resolve_structural_path,
+    BTreeMap, BTreeSet, CanonicalStructuralPathSegment, MachineId, ModuleError, OperationKind,
+    PlaceId, Proposition, ScalarTerm, ScalarType, StructuralAccess, StructuralFieldType,
+    StructuralMultiplicity, StructuralPathSegment, StructuralPlaceKind, StructuralTypeId,
+    StructuralTypeShape, TerminalAffineCleanupAction, TerminalMachine, TerminalMachineResult,
+    TerminalModule, Terminator, partial_affine_root_type, resolve_structural_path,
 };
 mod continuation;
 
@@ -43,8 +42,10 @@ pub(crate) fn nominal_cleanups(
     terminator: &Terminator,
 ) -> Box<dyn Iterator<Item = &terminal_psi::NominalAffineCleanup> + '_> {
     match terminator {
-        Terminator::ReturnUnitNominalAffine { cleanups, .. } => Box::new(cleanups.iter()),
         Terminator::Return {
+            cleanup_actions, ..
+        }
+        | Terminator::ReturnUnit {
             cleanup_actions, ..
         }
         | Terminator::ReturnStructural {
@@ -168,32 +169,8 @@ pub(super) fn validate_partial_affine_cleanup_shape(
                 moved.remove(&result.place);
             }
         }
-        let Terminator::ReturnUnitPartialAffine {
-            residual_affine_discards,
-            ..
-        } = &block.terminator
-        else {
-            continue;
-        };
-        let first = residual_affine_discards.first().ok_or_else(invalid)?;
-        let root_type = partial_affine_root_type(machine, first.place).ok_or_else(invalid)?;
-        let mut paths = BTreeSet::new();
-        for residual in residual_affine_discards {
-            if residual.place != first.place
-                || residual.path.is_empty()
-                || resolve_structural_path(module, root_type, &residual.path)
-                    != Some(residual.structural_type)
-                || paths.iter().any(|path: &Vec<StructuralPathSegment>| {
-                    path.starts_with(&residual.path) || residual.path.starts_with(path)
-                })
-            {
-                return Err(invalid());
-            }
-            paths.insert(residual.path.clone());
-        }
-        // Ordering, missing siblings, already moved children, other live roots,
-        // and whole-root disposal are checked against this return's live frontier
-        // by close_return_unit_partial_affine, not against another block's moves.
+        // The common ordered return-action frontier validates every residual
+        // against this exact exit, including mixed roots and nominal actions.
     }
     Ok(())
 }
@@ -228,9 +205,9 @@ fn exact_fixed_array_element_sink(callee: &TerminalMachine, moved_type: Structur
         && matches!(
             &block.terminator,
             Terminator::ReturnUnit {
-                trivial_affine_discards,
+                cleanup_actions,
                 ..
-            } if trivial_affine_discards.as_slice() == [parameter.place]
+            } if cleanup_actions.as_slice() == [TerminalAffineCleanupAction::DiscardRoot(parameter.place)]
         )
         && callee.contract.requires.is_empty()
         && callee.contract.ensures.is_empty()
@@ -284,109 +261,6 @@ pub(super) fn validate_nominal_affine_cleanup_shape(
                     block: block.id,
                 });
             }
-        }
-    }
-    let nominal_returns = machine
-        .blocks
-        .iter()
-        .filter_map(|block| match &block.terminator {
-            Terminator::ReturnUnitNominalAffine { cleanups, .. } => Some((block, cleanups)),
-            _ => None,
-        })
-        .collect::<Vec<_>>();
-    if nominal_returns.is_empty() {
-        return Ok(());
-    }
-    let invalid = |block: BlockId| ModuleError::InvalidNominalAffineCleanup {
-        machine: machine.id,
-        block,
-    };
-    let [(block, cleanups)] = nominal_returns.as_slice() else {
-        return Err(invalid(machine.entry));
-    };
-    // The exact shape is what matters: one empty block, one cleanup per
-    // structural parameter and exact owned claims. A generic consuming
-    // member (`drop<T>`) carries the same terminator inside a caller's module
-    // while the entry machine keeps the dispatched-cleanup shape.
-    if machine.result != TerminalMachineResult::Unit
-        || machine.blocks.len() != 1
-        || block.id != machine.entry
-        || !block.parameters.is_empty()
-        || !block.operations.is_empty()
-        || !machine.parameters.is_empty()
-        || cleanups.is_empty()
-        || machine.structural_parameters.len() != cleanups.len()
-        || machine.structural_places.len() != cleanups.len()
-        || !machine.content_entry_claims.is_empty()
-        || !machine.content_identity_reshuffles.is_empty()
-        || !machine.content_partition_compositions.is_empty()
-        || !machine.contract.crash_routes.is_empty()
-        || !machine.contract.ensures.is_empty()
-    {
-        return Err(invalid(block.id));
-    }
-    let expected_parameters = machine
-        .structural_parameters
-        .iter()
-        .rev()
-        .collect::<Vec<_>>();
-    let mut target_ids = BTreeSet::new();
-    for (cleanup, parameter) in cleanups.iter().zip(expected_parameters) {
-        if parameter.place != cleanup.place
-            || parameter.structural_type != cleanup.structural_type
-            || !matches!(
-                parameter.multiplicity,
-                StructuralMultiplicity::Affine | StructuralMultiplicity::Linear
-            )
-            || parameter.access != StructuralAccess::Owned
-            || !parameter.qualifications.is_empty()
-        {
-            return Err(invalid(block.id));
-        }
-        let Some(source_type) = module
-            .structural_types
-            .iter()
-            .find(|declaration| declaration.id == cleanup.structural_type)
-        else {
-            return Err(invalid(block.id));
-        };
-        if !bounded_nominal_cleanup_receiver_shape(&source_type.shape) {
-            return Err(invalid(block.id));
-        }
-        let Some(target) = machines.get(&cleanup.cleanup_machine).copied() else {
-            return Err(invalid(block.id));
-        };
-        target_ids.insert(target.id);
-        if !valid_nominal_cleanup_target(module, machine.id, target, cleanup) {
-            return Err(invalid(block.id));
-        }
-    }
-    // On the dispatched entry lane the module is the transitive call closure
-    // of the entry machine plus each cleanup target: whatever ordinary
-    // machines the hook bodies reach are carried with them. A `drop<T>`
-    // specialization member shares its caller's module, so the closure check
-    // applies only to the entry.
-    if machine.id == module.entry {
-        let mut reachable = BTreeSet::new();
-        reachable.insert(machine.id);
-        reachable.extend(target_ids.iter().copied());
-        let mut pending: Vec<MachineId> = reachable.iter().copied().collect();
-        while let Some(current) = pending.pop() {
-            let Some(current_machine) = machines.get(&current).copied() else {
-                return Err(invalid(block.id));
-            };
-            for callee in super::call_graph::executable_callees(module, current_machine) {
-                if reachable.insert(callee) {
-                    pending.push(callee);
-                }
-            }
-        }
-        if module
-            .machines
-            .iter()
-            .any(|candidate| !reachable.contains(&candidate.id))
-        {
-            return Err(invalid(block.id));
         }
     }
     Ok(())

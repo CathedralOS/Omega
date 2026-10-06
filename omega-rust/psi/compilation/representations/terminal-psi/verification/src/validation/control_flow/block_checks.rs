@@ -342,14 +342,6 @@ pub(super) fn validate_block(
                 });
             }
         }
-        Terminator::ReturnUnitPartialAffine { .. } | Terminator::ReturnUnitNominalAffine { .. } => {
-            if !matches!(machine.result, TerminalMachineResult::Unit) {
-                return Err(ModuleError::UnitReturnFromScalarMachine {
-                    machine: machine.id,
-                    block: block.id,
-                });
-            }
-        }
         Terminator::ReturnStructural { source, .. } => {
             let block_parameter = crate::validation::block_views::parameter(machine, *source);
             // A result can be copyable without being available on this path.

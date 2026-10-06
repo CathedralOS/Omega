@@ -33,8 +33,6 @@ pub(super) fn deterministic_block_order(
             }
             Terminator::Return { .. }
             | Terminator::ReturnUnit { .. }
-            | Terminator::ReturnUnitPartialAffine { .. }
-            | Terminator::ReturnUnitNominalAffine { .. }
             | Terminator::ReturnStructural { .. }
             | Terminator::Crash { .. } => Vec::new(),
         };

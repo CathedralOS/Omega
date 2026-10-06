@@ -153,8 +153,6 @@ impl<'prepared, 'module> PreparedSegments<'prepared, 'module> {
                 }
                 Terminator::Return { .. }
                 | Terminator::ReturnUnit { .. }
-                | Terminator::ReturnUnitPartialAffine { .. }
-                | Terminator::ReturnUnitNominalAffine { .. }
                 | Terminator::ReturnStructural { .. }
                 | Terminator::Crash { .. } => {}
             }
@@ -322,8 +320,6 @@ impl<'prepared, 'module> PreparedSegments<'prepared, 'module> {
                 }
                 Terminator::Return { edge, .. }
                 | Terminator::ReturnUnit { edge, .. }
-                | Terminator::ReturnUnitPartialAffine { edge, .. }
-                | Terminator::ReturnUnitNominalAffine { edge, .. }
                 | Terminator::ReturnStructural { edge, .. }
                 | Terminator::Crash { edge, .. } => {
                     walk.remember_dead_end(FixedFuelError::SegmentEndNotReached {
@@ -614,8 +610,6 @@ impl<'prepared, 'module> PreparedSegments<'prepared, 'module> {
             }
             Terminator::Return { edge, .. }
             | Terminator::ReturnUnit { edge, .. }
-            | Terminator::ReturnUnitPartialAffine { edge, .. }
-            | Terminator::ReturnUnitNominalAffine { edge, .. }
             | Terminator::ReturnStructural { edge, .. }
             | Terminator::Crash { edge, .. } => {
                 walk.remember_dead_end(FixedFuelError::SegmentEndNotReached {

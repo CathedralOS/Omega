@@ -728,6 +728,60 @@ impl StateGraphEmission<'_, '_> {
             } else {
                 None
             };
+        // Ordinary completion has one exact authored exit. Lower its checked
+        // action stream after result evaluation, before successor emission
+        // borrows the current value namespace. Multiple scalar exits still
+        // use the existing no-code graph scheduler: executable or residual
+        // actions must remain at their selected exit before reconvergence.
+        let mut ordinary_return_cleanup = match &state.terminator {
+            CheckedComposedUnitControlTerminatorPlan::ReturnScalar {
+                completion: checked_trees::CheckedScalarReturnPlan::Exits(_),
+            } => {
+                if state.normal_exit_cleanups.iter().flat_map(|exit| &exit.actions).any(|action| {
+                    !matches!(action, checked_trees::CheckedNormalCleanupAction::Discard(discard) if discard.path.is_empty())
+                }) {
+                    return unsupported("scalar exit cleanup requires selected actions before the result join");
+                }
+                Some(
+                    scalar_exit_root_discards(
+                        checked,
+                        state,
+                        &operations,
+                        &evaluation,
+                        &state_parameters,
+                    )?
+                    .into_iter()
+                    .map(terminal_psi::TerminalAffineCleanupAction::DiscardRoot)
+                    .collect(),
+                )
+            }
+            CheckedComposedUnitControlTerminatorPlan::ReturnUnit
+            | CheckedComposedUnitControlTerminatorPlan::ReturnScalar { .. } => {
+                let [cleanup] = state.normal_exit_cleanups.as_slice() else {
+                    return unsupported("ordinary return has no unique source cleanup coordinate");
+                };
+                let exit = super::super::cleanup::coordinate(
+                    checked,
+                    state,
+                    cleanup.exit.statement_index,
+                    cleanup.exit.kind
+                        == checked_trees::FlowClaimJoinExitKind::TransitionContinuation,
+                )?;
+                if exit != cleanup.exit {
+                    return unsupported("ordinary return cleanup coordinate drifted");
+                }
+                Some(super::super::cleanup::for_exit(
+                    checked,
+                    state,
+                    exit,
+                    self.catalogs,
+                    &state_parameters,
+                    &evaluation,
+                    &operations,
+                )?)
+            }
+            _ => None,
+        };
         // A case test on a whole owned parameter consumes it, as the checked
         // cleanup records by leaving it out of the arm's discards: each tested
         // arm's edge and the dispatch's closing `_` edge dispose of it where
@@ -928,16 +982,14 @@ impl StateGraphEmission<'_, '_> {
             }
             CheckedComposedUnitControlTerminatorPlan::ReturnUnit
             | CheckedComposedUnitControlTerminatorPlan::ReturnScalar { .. } => {
-                let local_discards = return_root_discards(
-                    checked,
-                    state,
-                    &operations,
-                    &evaluation,
-                    &state_parameters,
-                )?;
+                let cleanup_actions =
+                    ordinary_return_cleanup
+                        .take()
+                        .ok_or(LoweringError::Unsupported(
+                            "ordinary return lost its selected cleanup actions",
+                        ))?;
                 let edge = edge_id(allocate_dense(&mut next_edge)?);
-                // A scalar return disposes the same whole roots a Unit return
-                // does, after the returned value is established.
+                // Result shape does not change the selected cleanup schedule.
                 match (&state.terminator, scalar_return) {
                     (
                         CheckedComposedUnitControlTerminatorPlan::ReturnScalar { .. },
@@ -945,15 +997,12 @@ impl StateGraphEmission<'_, '_> {
                     ) => Terminator::Return {
                         edge,
                         value: value.id,
-                        cleanup_actions: local_discards
-                            .into_iter()
-                            .map(terminal_psi::TerminalAffineCleanupAction::DiscardRoot)
-                            .collect(),
+                        cleanup_actions,
                     },
                     (CheckedComposedUnitControlTerminatorPlan::ReturnUnit, None) => {
                         Terminator::ReturnUnit {
                             edge,
-                            trivial_affine_discards: local_discards,
+                            cleanup_actions,
                         }
                     }
                     _ => return unsupported("Unit graph return lost its scalar value"),
@@ -1290,12 +1339,10 @@ impl StateGraphEmission<'_, '_> {
     }
 }
 
-/// Plan one short-circuit guard as a Boolean decision whose case dispatches
-/// allocate payload values. Returns the plan and the scalar namespace its true
-/// outcome reads, which includes the payloads its dispatches established.
-/// The whole roots a returning exit of this state disposes: its dying local
-/// results, then the parameters its exit drops.
-pub(super) fn return_root_discards(
+/// The existing no-code scalar-exit scheduler rejoins whole-root custody after
+/// evaluating the selected value. It cannot move executable or projected
+/// cleanup across that join; callers reject those checked action streams.
+fn scalar_exit_root_discards(
     checked: &checked_trees::CheckedTrees,
     state: &checked_trees::CheckedComposedUnitControlStatePlan,
     operations: &OperationBuffer,

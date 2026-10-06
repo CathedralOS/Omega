@@ -207,42 +207,11 @@ pub(super) fn complete(
             }
             Terminator::Return {
                 cleanup_actions, ..
+            }
+            | Terminator::ReturnUnit {
+                cleanup_actions, ..
             } => {
                 complete_actions(&mut frontier, cleanup_actions, &roots, types)?;
-            }
-            Terminator::ReturnUnit {
-                edge,
-                trivial_affine_discards,
-            } => {
-                let mut residuals = Vec::new();
-                rewrite_discards(
-                    &mut frontier,
-                    trivial_affine_discards,
-                    &mut residuals,
-                    &roots,
-                    types,
-                )?;
-                if !residuals.is_empty() {
-                    completed[position] = Terminator::ReturnUnitPartialAffine {
-                        edge: *edge,
-                        trivial_affine_discards: std::mem::take(trivial_affine_discards),
-                        residual_affine_discards: residuals,
-                    };
-                }
-            }
-            Terminator::ReturnUnitPartialAffine {
-                trivial_affine_discards,
-                residual_affine_discards,
-                ..
-            } => {
-                close_existing(&mut frontier, residual_affine_discards, &roots, types)?;
-                rewrite_discards(
-                    &mut frontier,
-                    trivial_affine_discards,
-                    residual_affine_discards,
-                    &roots,
-                    types,
-                )?;
             }
             Terminator::ReturnStructural {
                 source,
@@ -254,22 +223,10 @@ pub(super) fn complete(
                 }
                 complete_actions(&mut frontier, cleanup_actions, &roots, types)?;
             }
-            Terminator::ReturnUnitNominalAffine { cleanups, .. } => {
-                if cleanups
-                    .iter()
-                    .any(|cleanup| frontier.iter().any(|root| root.place == cleanup.place))
-                {
-                    return unsupported("nominal cleanup consumes a partially transferred root");
-                }
-            }
             Terminator::Crash { .. } => {}
         }
         let residual_rosters = match &mut completed[position] {
             Terminator::Jump {
-                residual_affine_discards,
-                ..
-            }
-            | Terminator::ReturnUnitPartialAffine {
                 residual_affine_discards,
                 ..
             } => vec![residual_affine_discards],
@@ -486,7 +443,7 @@ fn close_existing(
     Ok(())
 }
 
-/// Whole and scalar results share the same ordered residual disposal. A
+/// All normal returns share the same ordered residual disposal. A
 /// nominal owner cannot be partially moved before its whole-value hook.
 fn complete_actions(
     frontier: &mut Frontier,
@@ -494,6 +451,14 @@ fn complete_actions(
     roots: &[(PlaceId, StructuralTypeId)],
     types: &[StructuralTypeDeclaration],
 ) -> Result<(), LoweringError> {
+    let scheduled = cleanup_actions
+        .iter()
+        .filter_map(|action| match action {
+            TerminalAffineCleanupAction::DiscardResidual(discard) => Some(discard.clone()),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    close_existing(frontier, &scheduled, roots, types)?;
     let mut actions = Vec::new();
     for action in cleanup_actions.iter() {
         match action {

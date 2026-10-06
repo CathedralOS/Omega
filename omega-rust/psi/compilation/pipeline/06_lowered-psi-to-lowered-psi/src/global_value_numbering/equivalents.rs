@@ -165,8 +165,6 @@ fn reverse_postorder(machine: &TerminalMachine) -> Vec<BlockId> {
                 }
                 Terminator::Return { .. }
                 | Terminator::ReturnUnit { .. }
-                | Terminator::ReturnUnitPartialAffine { .. }
-                | Terminator::ReturnUnitNominalAffine { .. }
                 | Terminator::ReturnStructural { .. }
                 | Terminator::Crash { .. } => Vec::new(),
             };
@@ -220,8 +218,6 @@ fn dominators(machine: &TerminalMachine) -> BTreeMap<BlockId, BTreeSet<BlockId>>
             }
             Terminator::Return { .. }
             | Terminator::ReturnUnit { .. }
-            | Terminator::ReturnUnitPartialAffine { .. }
-            | Terminator::ReturnUnitNominalAffine { .. }
             | Terminator::ReturnStructural { .. }
             | Terminator::Crash { .. } => Vec::new(),
         };

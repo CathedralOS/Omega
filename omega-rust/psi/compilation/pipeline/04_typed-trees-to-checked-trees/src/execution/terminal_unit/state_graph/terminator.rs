@@ -6,13 +6,17 @@
 //! successors, or a terminal machine call. Every successor edge is built by
 //! `successor` against the state signatures; a terminal call completes the
 //! machine instead (`terminal_calls`); an unsupported tail names its shape.
+//! Normal returns do not independently require whole-root no-code cleanup:
+//! `cleanup::normal_edges` retains each selected exit's exact disposition
+//! after the graph is built, before it can enter the published call closure.
+//! That owner admits residual and nominal actions and refuses missing plans.
 use super::{
     CheckFacts, CheckedComposedUnitControlTerminatorPlan, CheckedGuardedJumpPlan,
     CheckedScalarExpressionRole, CheckedStructuralControlSuccessorPlan,
     CheckedUnitEffectOperationPlan, CheckedUnitStructuralParameterPlan, EdgeCalls, FusedStates,
     ScalarCalleePlans, ShapeCollector, Signature, StatementNode, SuccessorEdge, SuccessorGuard,
     TransitionExit, TransitionGuardNode, TransitionTargetNode, TypedTrees, closed_sum, control,
-    guard_is_boolean, retained_guard, return_cleanup_is_whole, returns, successor, terminal_calls,
+    guard_is_boolean, retained_guard, returns, successor, terminal_calls,
 };
 
 /// The terminator one state's authored tail plans, after its operations.
@@ -103,9 +107,6 @@ pub(super) fn build(
         )
     {
         trace.phase("state graph: terminator: scalar return cleanup");
-        return_cleanup_is_whole(
-            program, facts, machine, state, structural, operations, shapes,
-        )?;
         CheckedComposedUnitControlTerminatorPlan::ReturnScalar { completion }
     } else if let Some((terminator, operand_calls)) = returns::guarded(
         program,
@@ -126,9 +127,6 @@ pub(super) fn build(
         match typed_trees::statement::reachable_transition_prefix(&statements[terminator_index..]) {
             [] if result == checked_trees::CheckedControlResultPlan::Unit => {
                 trace.phase("state graph: terminator: unit tail cleanup");
-                return_cleanup_is_whole(
-                    program, facts, machine, state, structural, operations, shapes,
-                )?;
                 CheckedComposedUnitControlTerminatorPlan::ReturnUnit
             }
             [StatementNode::Expression(expression)]
@@ -241,9 +239,6 @@ pub(super) fn build(
                         }) {
                             return None;
                         }
-                        return_cleanup_is_whole(
-                            program, facts, machine, state, structural, operations, shapes,
-                        )?;
                         CheckedComposedUnitControlTerminatorPlan::ReturnUnit
                     }
                     _ => {
@@ -307,9 +302,6 @@ pub(super) fn build(
                         && transition.exit == TransitionExit::Ordinary
                         && !transition.continuation.is_valid()
                     {
-                        return_cleanup_is_whole(
-                            program, facts, machine, state, structural, operations, shapes,
-                        )?;
                         return Some(Err((
                             checked_trees::CheckedConditionalReturnArm::Unit {
                                 statement_ordinal: edge_ordinal,
@@ -806,9 +798,6 @@ fn guarded_return_arm(
         TransitionTargetNode::Terminal
             if *result == checked_trees::CheckedControlResultPlan::Unit =>
         {
-            return_cleanup_is_whole(
-                program, facts, machine, state, structural, operations, shapes,
-            )?;
             return Some(checked_trees::CheckedConditionalReturnArm::Unit { statement_ordinal });
         }
         TransitionTargetNode::Value(expression) => *expression,

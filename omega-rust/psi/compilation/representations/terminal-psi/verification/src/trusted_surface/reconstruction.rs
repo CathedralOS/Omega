@@ -192,38 +192,11 @@ static TERMINATOR_RETURN_UNIT: TrustedSurfaceEntry = TrustedSurfaceEntry {
     id: "terminator:return-unit",
     family: LedgerFamily::ReconstructedFactKind,
     binding: terminator(),
-    premises: "a validated unit return with trivial affine discards",
-    conclusion: "the exit set carries incoming axioms plus exact current-storage facts rejoined to invocation parameters",
+    premises: "a validated Unit return with exact ordered cleanup actions",
+    conclusion: "the exit set carries incoming axioms, exact current-storage facts and each selected nominal cleanup prerequisite",
     dependencies: &[
         "scope:borrowed-storage-observations",
         "fact:semantic-axiom-roster",
-    ],
-    implementation: &[TERMINATOR_FACTS, TERMINATION],
-    soundness: TRUSTED,
-};
-
-static TERMINATOR_RETURN_UNIT_PARTIAL_AFFINE: TrustedSurfaceEntry = TrustedSurfaceEntry {
-    id: "terminator:return-unit-partial-affine",
-    family: LedgerFamily::ReconstructedFactKind,
-    binding: terminator(),
-    premises: "a validated unit return with trivial and residual affine discards",
-    conclusion: "the exit set carries incoming axioms plus exact current-storage facts rejoined to invocation parameters",
-    dependencies: &[
-        "scope:borrowed-storage-observations",
-        "fact:semantic-axiom-roster",
-    ],
-    implementation: &[TERMINATOR_FACTS, TERMINATION],
-    soundness: TRUSTED,
-};
-
-static TERMINATOR_RETURN_UNIT_NOMINAL_AFFINE: TrustedSurfaceEntry = TrustedSurfaceEntry {
-    id: "terminator:return-unit-nominal-affine",
-    family: LedgerFamily::ReconstructedFactKind,
-    binding: terminator(),
-    premises: "a validated unit return whose nominal affine cleanups each target a cleanup machine with requires clauses",
-    conclusion: "the exit set carries the incoming axioms and one cleanup-requires obligation per clause under the cleanup receiver substitution",
-    dependencies: &[
-        "scope:borrowed-storage-observations",
         "owner:nominal-cleanup-requires",
     ],
     implementation: &[TERMINATOR_FACTS, TERMINATION],
@@ -831,8 +804,6 @@ pub static ENTRIES: &[TrustedSurfaceEntry] = &[
     TERMINATOR_STRUCTURAL_CASE,
     TERMINATOR_RETURN,
     TERMINATOR_RETURN_UNIT,
-    TERMINATOR_RETURN_UNIT_PARTIAL_AFFINE,
-    TERMINATOR_RETURN_UNIT_NOMINAL_AFFINE,
     TERMINATOR_RETURN_STRUCTURAL,
     TERMINATOR_CRASH,
     FACT_SEMANTIC_AXIOM_ROSTER,
@@ -895,8 +866,6 @@ pub fn terminator_fact_entry(terminator: &Terminator) -> &'static TrustedSurface
         Terminator::StructuralCase { .. } => &TERMINATOR_STRUCTURAL_CASE,
         Terminator::Return { .. } => &TERMINATOR_RETURN,
         Terminator::ReturnUnit { .. } => &TERMINATOR_RETURN_UNIT,
-        Terminator::ReturnUnitPartialAffine { .. } => &TERMINATOR_RETURN_UNIT_PARTIAL_AFFINE,
-        Terminator::ReturnUnitNominalAffine { .. } => &TERMINATOR_RETURN_UNIT_NOMINAL_AFFINE,
         Terminator::ReturnStructural { .. } => &TERMINATOR_RETURN_STRUCTURAL,
         Terminator::Crash { .. } => &TERMINATOR_CRASH,
     }

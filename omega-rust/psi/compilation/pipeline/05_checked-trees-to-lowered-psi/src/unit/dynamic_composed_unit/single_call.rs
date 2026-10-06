@@ -248,7 +248,7 @@ pub(super) fn lower<Call: DynamicCall>(
             operations: caller_operations,
             terminator: Terminator::ReturnUnit {
                 edge: edge_id(1),
-                trivial_affine_discards: Vec::new(),
+                cleanup_actions: Vec::new(),
             },
         }],
         contract: empty_terminal_contract(caller_machine.get()),

@@ -790,7 +790,10 @@ pub(super) fn emit(
         } else {
             Terminator::ReturnUnit {
                 edge,
-                trivial_affine_discards,
+                cleanup_actions: trivial_affine_discards
+                    .into_iter()
+                    .map(terminal_psi::TerminalAffineCleanupAction::DiscardRoot)
+                    .collect(),
             }
         },
     });

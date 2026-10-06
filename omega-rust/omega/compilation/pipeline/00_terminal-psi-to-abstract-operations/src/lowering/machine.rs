@@ -121,15 +121,7 @@ pub(super) fn lower_machine(
                 &mut operations,
             )?;
         }
-        lower_terminator(
-            module,
-            block,
-            machine,
-            &blocks,
-            result,
-            &lowered_unit_affine_locals,
-            &mut operations,
-        )?;
+        lower_terminator(module, block, machine, &blocks, result, &mut operations)?;
     }
 
     Ok(AbstractFunction {

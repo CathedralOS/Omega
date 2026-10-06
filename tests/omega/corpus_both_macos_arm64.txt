@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 14, "jobs": "2", "load1_end": 6.35, "load1_start": 5.95, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": "4", "load1_end": 3.79, "load1_start": 3.69, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/runtime_exact_dispatch_divisor_exit built 1233ms exit:70 interpreter-exit:70 interpreter:agrees @01974e342562+wt
 pass/arithmetic/runtime_exact_projection_sibling_exit built 1644ms exit:70 stdout:match interpreter-exit:70 interpreter-stdout:match interpreter:agrees @ffe8db2ea9e9
 pass/arithmetic/runtime_exact_signed_divisor_exclusions_exit built 1455ms exit:70 interpreter-exit:70 interpreter:agrees @d9720a4fa49b+wt
@@ -165,6 +165,7 @@ pass/drops/core_drop_explicit_consume built 701ms exit:0 interpreter-exit:0 inte
 pass/drops/core_drop_owner_hook built 622ms exit:0 interpreter-exit:0 interpreter:agrees @302faee005ee
 pass/drops/core_drop_owner_hook_body built 831ms exit:0 interpreter-exit:0 interpreter:agrees @302faee005ee
 pass/drops/erased_record_initializer_exit built 1121ms exit:70 interpreter-exit:70 interpreter:agrees @302faee005ee
+pass/drops/runtime_local_nominal_return_exit built 3142ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @3ff24ec6504a+wt
 pass/expressions/borrow_carrying_data_field_exit built 1274ms exit:70 interpreter-exit:70 interpreter:agrees @efc0f5f0f7a9+wt
 pass/expressions/declared_operator_match_result built 3170ms exit:70 interpreter-exit:70 interpreter:agrees @dfece6e7f6a1+wt
 pass/expressions/runtime_float_record_field_reads_exit built 5654ms exit:70 interpreter-exit:70 interpreter:agrees @ffe8db2ea9e9

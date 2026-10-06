@@ -363,8 +363,6 @@ fn demand_blocks(
                         block.terminator,
                         Terminator::Return { .. }
                             | Terminator::ReturnUnit { .. }
-                            | Terminator::ReturnUnitPartialAffine { .. }
-                            | Terminator::ReturnUnitNominalAffine { .. }
                             | Terminator::ReturnStructural { .. }
                     )
                 }

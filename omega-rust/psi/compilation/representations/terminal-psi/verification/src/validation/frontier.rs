@@ -732,18 +732,6 @@ fn forget_empty_partial_storage(
     }
 }
 
-fn release_reference_discards(
-    module: &TerminalModule,
-    machine: &TerminalMachine,
-    references: &mut Vec<super::references::LiveReference>,
-    discards: &[PlaceId],
-) -> Result<(), ModuleError> {
-    for place in discards {
-        super::references::discard_owned(module, machine, references, *place)?;
-    }
-    Ok(())
-}
-
 fn require_snapshot_match(
     block: BlockId,
     expected: &VerifiedStructuralOwnershipFrontier,
@@ -832,6 +820,11 @@ fn validate_return_cleanup_actions(
                 machine: machine.id,
                 block,
             }
+        } else if machine.result == terminal_psi::TerminalMachineResult::Unit {
+            ModuleError::UnitReturnAffineDiscardsMismatch {
+                machine: machine.id,
+                block,
+            }
         } else {
             ModuleError::ScalarReturnAffineDiscardsMismatch {
                 machine: machine.id,
@@ -870,10 +863,16 @@ fn validate_return_cleanup_actions(
             frontier.owned_places.remove(&place);
             continue;
         }
-        if actions.next() != Some(&TerminalAffineCleanupAction::DiscardRoot(place)) {
-            return Err(mismatch());
-        }
-        super::references::discard_owned(module, machine, &mut frontier.references, place)?;
+        let action = actions.next().ok_or_else(mismatch)?;
+        consume_return_owner_action(
+            module,
+            machine,
+            machines,
+            block,
+            &mut frontier,
+            place,
+            action,
+        )?;
         frontier.owned_places.remove(&place);
     }
 
@@ -892,10 +891,16 @@ fn validate_return_cleanup_actions(
         .collect::<Vec<_>>();
     locals.sort_by_key(|(ordinal, _)| std::cmp::Reverse(*ordinal));
     for (_, place) in locals {
-        if actions.next() != Some(&TerminalAffineCleanupAction::DiscardRoot(place)) {
-            return Err(mismatch());
-        }
-        super::references::discard_owned(module, machine, &mut frontier.references, place)?;
+        let action = actions.next().ok_or_else(mismatch)?;
+        consume_return_owner_action(
+            module,
+            machine,
+            machines,
+            block,
+            &mut frontier,
+            place,
+            action,
+        )?;
         frontier.owned_places.remove(&place);
     }
 
@@ -936,42 +941,15 @@ fn validate_return_cleanup_actions(
             let Some(action) = actions.next() else {
                 return Err(mismatch());
             };
-            match action {
-                TerminalAffineCleanupAction::DiscardRoot(place)
-                    if *place == parameter.place
-                        && parameter.multiplicity == StructuralMultiplicity::Affine
-                        && !frontier
-                            .claims
-                            .values()
-                            .any(|claim| claim.input == Some(*place)) =>
-                {
-                    // Whole-owner disposal has the same reference effect for
-                    // an incoming parameter as for a constructed result.
-                    // The shared check still refuses live descendants and
-                    // requires every contained loan before releasing any.
-                    super::references::discard_owned(
-                        module,
-                        machine,
-                        &mut frontier.references,
-                        *place,
-                    )?;
-                }
-                TerminalAffineCleanupAction::InvokeNominal(cleanup)
-                    if cleanup.place == parameter.place
-                        && cleanup.structural_type == parameter.structural_type
-                        && valid_return_nominal_cleanup(module, machine, machines, cleanup) =>
-                {
-                    consume_nominal_cleanup(
-                        module,
-                        machine,
-                        machines,
-                        block,
-                        &mut frontier,
-                        cleanup,
-                    )?;
-                }
-                _ => return Err(mismatch()),
-            }
+            consume_return_owner_action(
+                module,
+                machine,
+                machines,
+                block,
+                &mut frontier,
+                parameter.place,
+                action,
+            )?;
         }
         frontier.owned_places.remove(&parameter.place);
     }
@@ -996,6 +974,42 @@ fn validate_return_cleanup_actions(
     Ok(frontier)
 }
 
+/// Whole-owner actions consume the same custody whether storage arrived as a
+/// parameter or was established by an operation. The caller owns static order.
+#[allow(clippy::too_many_arguments)]
+fn consume_return_owner_action(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    machines: &BTreeMap<MachineId, &TerminalMachine>,
+    block: BlockId,
+    frontier: &mut StructuralOwnershipFrontier,
+    place: PlaceId,
+    action: &TerminalAffineCleanupAction,
+) -> Result<(), ModuleError> {
+    match action {
+        TerminalAffineCleanupAction::DiscardRoot(discarded)
+            if *discarded == place
+                && frontier.owned_places.get(&place) == Some(&StructuralMultiplicity::Affine)
+                && !frontier
+                    .claims
+                    .values()
+                    .any(|claim| claim.input == Some(place)) =>
+        {
+            super::references::discard_owned(module, machine, &mut frontier.references, place)?;
+        }
+        TerminalAffineCleanupAction::InvokeNominal(cleanup) if cleanup.place == place => {
+            consume_nominal_cleanup(module, machine, machines, block, frontier, cleanup)?;
+        }
+        _ => {
+            return Err(ModuleError::InvalidNominalAffineCleanup {
+                machine: machine.id,
+                block,
+            });
+        }
+    }
+    Ok(())
+}
+
 /// Whole and projected results follow the same lifetime order. A projected
 /// disposal must name the complete remaining subtree roster, never the root.
 fn validate_return_residual_cleanup(
@@ -1009,6 +1023,11 @@ fn validate_return_residual_cleanup(
     let mismatch = || {
         if machine.result.structural().is_some() {
             ModuleError::StructuralReturnAffineDiscardsMismatch {
+                machine: machine.id,
+                block,
+            }
+        } else if machine.result == terminal_psi::TerminalMachineResult::Unit {
+            ModuleError::UnitReturnAffineDiscardsMismatch {
                 machine: machine.id,
                 block,
             }

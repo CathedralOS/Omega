@@ -891,18 +891,6 @@ impl TerminalExecution {
         Ok(())
     }
 
-    pub(crate) fn primitive_local_count(&self) -> usize {
-        self.program
-            .machines
-            .get(&self.current_machine)
-            .map_or(0, |machine| {
-                self.structural_values
-                    .keys()
-                    .filter(|place| local_type(machine, **place).is_some())
-                    .count()
-            })
-    }
-
     pub(crate) fn retire_plain_locals(&mut self) {
         self.retire_unrestricted_views();
         let Some(machine) = self.program.machines.get(&self.current_machine) else {

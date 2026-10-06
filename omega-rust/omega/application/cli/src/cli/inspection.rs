@@ -213,19 +213,12 @@ fn terminal_summary(
                 );
             }
             match &block.terminator {
-                Terminator::ReturnUnit {
-                    edge,
-                    trivial_affine_discards,
-                } => writeln!(
+                Terminator::ReturnUnit { edge, cleanup_actions } => writeln!(
                     output,
-                    "terminator machine=machine:{} block=block:{} kind=ReturnUnit edge=edge:{} trivial_affine_discards={:?}",
+                    "terminator machine=machine:{} block=block:{} kind=ReturnUnit edge=edge:{} cleanup_actions={cleanup_actions:?}",
                     machine.id.get(),
                     block.id.get(),
                     edge.get(),
-                    trivial_affine_discards
-                        .iter()
-                        .map(|place| place.get())
-                        .collect::<Vec<_>>()
                 ),
                 other => writeln!(
                     output,

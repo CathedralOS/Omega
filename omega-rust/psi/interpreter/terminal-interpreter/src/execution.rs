@@ -717,12 +717,6 @@ impl TerminalExecution {
                 .ok_or(TerminalInterpretError::VerifiedBlockMissing)?
                 .terminator;
             let flow = match &terminator {
-                Terminator::ReturnUnitNominalAffine { .. } => {
-                    self.settle_return_unit_nominal_affine(terminator, meter)?
-                }
-                Terminator::ReturnUnitPartialAffine { .. } => {
-                    self.settle_return_unit_partial_affine(terminator, meter)?
-                }
                 Terminator::Jump { .. } => self.settle_jump(terminator, meter)?,
                 Terminator::Conditional { .. } => self.settle_conditional(terminator, meter)?,
                 Terminator::StructuralCase { .. } => {
