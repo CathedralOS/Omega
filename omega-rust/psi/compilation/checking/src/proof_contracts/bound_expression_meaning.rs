@@ -394,20 +394,8 @@ fn sealed_float_comparison_for_operands(
     {
         return false;
     }
-    let [namespace, name] = program.operator_path_members(operator.name) else {
-        return false;
-    };
-    program
-        .normalized_hermetic_symbol_identity(operator.symbol)
-        .is_ok_and(|identity| {
-            identity == format!("toolchain::{}::{}", namespace.as_str(), name.as_str())
-        })
-        && crate::proof_contracts::float_projection_bindings::semantic_operations::
-            symbol_is_declared_in_sealed_source(
-                program,
-                operator.symbol,
-                numerics::float_projection::FLOAT_PROJECTION_CORE_SOURCE,
-            )
+    crate::proof_contracts::float_projection_bindings::semantic_operations::
+        is_sealed_toolchain_float_operator(program, operator)
         && program
             .expression_table
             .authored_selection_occurrences(expression)
