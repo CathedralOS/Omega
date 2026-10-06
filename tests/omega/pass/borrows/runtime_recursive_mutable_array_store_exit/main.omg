@@ -1,0 +1,48 @@
+// A machine that stores through a borrowed byte array and then calls itself
+// in tail position. Runtime recursion is a backedge into the entry state, so
+// the store's write frame and its native block-parameter destination are the
+// loop's, for a fixed array loan and for a byte slice alike.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Main { console: Binding<Console>; bytes: [u8; 8]; more: [u8; 6]; }
+
+machine fill(bytes: &mut [u8; 8], index: u64) -> u64
+terminates by (index, 8) -> Nat::BoundedDistance;
+requires index < 8
+{
+    bytes[index] = 7;
+    transition index + 1 < 8 {
+        true -> fill(bytes, index + 1)
+        _ -> (index + 1)
+    }
+}
+
+machine fill_slice(bytes: &mut [u8], index: u64) -> u64
+terminates by (index, bytes.len) -> Nat::BoundedDistance;
+requires index < bytes.len
+{
+    bytes[index] = 5;
+    transition index + 1 < bytes.len {
+        true -> fill_slice(bytes, index + 1)
+        _ -> (index + 1)
+    }
+}
+
+machine Main::main(main: &mut Main) reaches Console {
+    let filled: u64 = fill(&mut main.bytes, 0);
+    let view: &mut [u8] = main.more.as_mut_slice();
+    let sliced: u64 = fill_slice(view, 0);
+    transition filled == 8 && main.bytes[0] == 7 && main.bytes[7] == 7 {
+        true -> slices(main, sliced)
+        _ -> missed(main)
+    }
+    state slices(main: &mut Main, sliced: u64) {
+        transition sliced == 6 && main.more[0] == 5 && main.more[5] == 5 {
+            true -> reached(main)
+            _ -> missed(main)
+        }
+    }
+    state reached(main: &mut Main) { main.console.exit_process(70); }
+    state missed(main: &mut Main) { main.console.exit_process(71); }
+}

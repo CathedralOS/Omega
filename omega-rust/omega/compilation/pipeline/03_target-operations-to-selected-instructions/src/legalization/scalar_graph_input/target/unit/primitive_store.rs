@@ -47,6 +47,10 @@ pub(super) fn validate(
                     parameter.place == destination.place() && &parameter.placement == placement
                 })
         }
+        // A mutable arrival is admitted by its access, not its transport: a
+        // byte view arrives as its backing pointer or descriptor rather than
+        // an address join, and selection resolves the store through the same
+        // geometry's pointer slots.
         (
             abstract_operations::StructuralScalarStoreDestination::Parameter(parameter),
             target_operations::TargetStructuralArgumentSource::BlockParameter { block, place },
@@ -56,10 +60,6 @@ pub(super) fn validate(
                 && optimized.blocks.iter().any(|entry| {
                     entry.id == *block && entry.structural_parameters.contains(parameter)
                 })
-                && abstract_operations::control_flow::address_joins::is_address_join_in(
-                    parameter,
-                    &unit.structural_types,
-                )
         }
         (
             abstract_operations::StructuralScalarStoreDestination::OwnedResult { producer, result },

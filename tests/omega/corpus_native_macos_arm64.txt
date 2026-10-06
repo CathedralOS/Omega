@@ -139,6 +139,7 @@ pass/borrows/runtime_nested_reference_record_direct_payload_restoration_exit bui
 pass/borrows/runtime_qualified_byte_argument_snapshot_exit built 1955ms exit:70 @cfbb6c8709b4+wt
 pass/borrows/runtime_record_byte_region_loan_exit built 30261ms exit:50 @48008365d839
 pass/borrows/runtime_record_primitive_reference_capture_exit built 1607ms exit:0 @104c2da31081
+pass/borrows/runtime_recursive_mutable_array_store_exit built 1300ms exit:70 @ad65d2640206+wt
 pass/borrows/runtime_reference_array_pressure_exit built 2056ms exit:70 @a195e6cdf066+wt
 pass/borrows/runtime_reference_local_constructor_leaf_retirement_exit built 1162ms exit:70 @104c2da31081
 pass/borrows/runtime_reference_record_array_field_read_exit built 1171ms exit:70 @104c2da31081

@@ -1725,6 +1725,7 @@ pass/borrows/runtime_nested_reference_record_direct_payload_restoration_exit che
 pass/borrows/runtime_qualified_byte_argument_snapshot_exit checked 2197ms check-target:macos_arm64 @cfbb6c8709b4+wt
 pass/borrows/runtime_record_byte_region_loan_exit checked 40006ms check-target:macos_arm64 @cfe60a3a242
 pass/borrows/runtime_record_primitive_reference_capture_exit checked 1590ms check-target:macos_arm64 @104c2da31081
+pass/borrows/runtime_recursive_mutable_array_store_exit checked 1300ms check-target:macos_arm64 @ad65d2640206+wt
 pass/borrows/runtime_reference_array_pressure_exit checked 2021ms check-target:macos_arm64 @a195e6cdf066+wt
 pass/borrows/runtime_reference_local_constructor_leaf_retirement_exit checked 1148ms check-target:macos_arm64 @104c2da31081
 pass/borrows/runtime_reference_record_array_field_read_exit checked 1156ms check-target:macos_arm64 @104c2da31081
