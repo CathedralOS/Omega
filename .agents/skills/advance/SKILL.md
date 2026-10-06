@@ -205,11 +205,18 @@ Validate before entering the queue. Follow the protocol for the local wait,
 claim, rebase, exact verified candidate, and release on an affected failure.
 Hold the lease only for the publish itself.
 
-Delete the board item when its program runs. If it does not yet, replace the
-item's evidence paragraph with the current state: tested revision,
-repository-relative command and host, observed result, owning implementation
-path, and next acceptance. Board edits ride with the code change that earned
-them.
+Read the entire owning item and apply [board update discipline](../../../TASKS.md#updating-the-boards).
+Subtract completed requirements; do not replace them with a success narrative.
+If work remains, retain its current failure, reproduction and host, owning
+implementation, dependencies and acceptance. Keep a revision only when needed
+to reproduce or qualify that unresolved observation. Preserve regression commands
+that constrain the remaining repair, not a ledger of passing runs. Delete the
+item only when its full acceptance is satisfied, not merely the chosen subcase.
+Search all three boards for the repaired capability and affected program, and
+reconcile stale references. Before committing, ask which unfinished requirement
+the change removed; explain any growth by new unfinished work or necessary
+context, not by the amount of work performed. Board edits ride with the code
+change that earned them.
 
 After publication, return to the recorded starting checkout and recheck its
 branch and status. If it is still clean and on main, fetch and run

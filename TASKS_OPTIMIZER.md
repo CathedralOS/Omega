@@ -1,5 +1,8 @@
 # Optimizer tasks
 
+Follow [board update discipline](TASKS.md#updating-the-boards): retain unfinished
+work and its necessary context, not a history of completed milestones.
+
 **Parked.** This board is not open for assignment until the owner reopens it.
 Do not claim or start these items; native correctness work that a program
 needs stays on [TASKS.md](TASKS.md#immediate-product-closure).

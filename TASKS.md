@@ -30,6 +30,23 @@ Workflow is in [AGENTS.md](AGENTS.md), live assignments in the
 [claims registry](tools/claims.md), semantic decisions in
 [OWNER_QUESTIONS.md](OWNER_QUESTIONS.md).
 
+## Updating the boards
+
+Update by subtraction, not accumulation. This applies to all three task boards.
+
+- Read the entire owning item before editing. Remove completed work rather than
+  replacing it with a success report; delete the item when no work remains.
+- Retain the remaining failure, owning mechanism, necessary context, dependencies
+  and acceptance. Keep passing regression commands only where they constrain the
+  remaining repair. Run histories and success totals belong in commit messages
+  and test records, not the board. Keep a revision only when needed to reproduce
+  or qualify an unresolved observation.
+- Search the boards for the repaired capability and affected program; reconcile
+  stale claims elsewhere. A passing narrower example does not close a wider task.
+- Review the diff: what unfinished requirement did this change remove? If the
+  item grew, what newly established unfinished work or necessary context explains
+  the growth? There is no line quota and no requirement to invent a deletion.
+
 ## Ownership firewall
 
 Follow the [connected pipeline](omega-rust/pipeline.md): Psi owns source
@@ -415,24 +432,16 @@ helper that passes does not close an item.
     its local-buffer migration still needs native and interpreted validation
     on a host supplying its Clock provider. Temporary-scoping design is
     deferred and not a prerequisite.
-    `samples/cli/algorithms/maze_flood` now keeps only its Console binding in
-    Main; search storage and row/input buffers are local. Its composed byte
-    loan regression executes natively and interpreted on Windows (exit 70),
-    including creation in a later state and repeated shared state transfers.
-    Full sample acceptance remains `omega run --both` with exit 0 and the
-    documented 235-byte output after fresh package review.
+    Validate `samples/cli/algorithms/maze_flood` with `omega run --both`:
+    exit 0 and its documented 235-byte output. Keep search and row/input
+    storage local, with only the Console binding in Main. Preserve the
+    later-state/repeated-loan control
+    `pass/text/borrowed_bounded_byte_indexed_write_exit` (70).
   - A case dispatch over a computed call subject evaluates it once
     (`pass/control_flow/runtime_computed_case_subject_single_evaluation_exit`),
     but the state graph still declines it when the subject's operands call or
     the subject is a boundary call.
-  - Open sample legs: `samples/cli/collections/heat_grid` now carries its running
-    maximum as a state parameter rather than a `Grid` field. On Windows at
-    `c252be7fa2d1`, package review and `omega --check` succeed; the native gate
-    stops at stage 05's integer certificate search capacity (65,536), also red
-    before this scratch migration. Follow **CHECKER-DISCHARGES-OPERATION-OBLIGATIONS**
-    and **PCC-CERTIFICATES-DELETED**, not another certificate-search extension;
-    native and interpreted exit 45 remain required.
-    `samples/cli/basics/generic_counters` (exit 16) needs matching-host runs
+  - `samples/cli/basics/generic_counters` (exit 16) needs matching-host runs
     on its other declared targets.
   Acceptance: static customers execute with their authored exit/output; the
   migrated corpus and sample gates pass; no accepted receiver syntax,
@@ -502,49 +511,34 @@ defines the complete product bar.
     still refuses "scalar and Unit dynamic joins compete for one caller";
     `.../src/unit/structural_unit_control.rs` still refuses checked
     expressions in its scalar-successor route. Remove those through ordinary
-    argument evaluation, not another whole-body plan. Preserve record-field
-    calls and computed comparisons exercised by
-    `pass/float/computed_comparison_literal_landing_exit`: after public package
-    update, `omega run --both tests/omega/pass/float/computed_comparison_literal_landing_exit/main.omg`
-    exits 0 in both engines on macOS ARM64. Its runtime short circuit keeps
-    effects selective, and anonymous operands take the computed result's format.
-    Constructed records, cases (including structural payloads) and
-    primitive-array operands share the ordinary value schedule inside scalar
-    computations. After package update,
-    `omega run --both tests/omega/pass/calls/runtime_constructed_payload_arguments_exit/main.omg`
-    exits 0 in both engines on macOS ARM64: authored field order executes
-    once, short-circuit effects remain selective, and checked affine cleanup
-    follows the selected transfers. The copyable mixed-case counterpart
-    `runtime_constructed_copy_payload_arguments_exit` also exits 0 in both
-    engines, including omitted common-field zero initialization. Selected
-    payload returns use ordinary expression continuations, not raw jump
-    arguments. Preserve `pass/operators/runtime_constructed_operand_result_exit`.
+    argument evaluation, not another whole-body plan. Preserve once-only
+    field/operand order, selective short-circuit effects, computed-result float
+    format, selected affine cleanup and omitted common-field zero initialization:
+    `pass/float/computed_comparison_literal_landing_exit`,
+    `pass/calls/runtime_constructed_payload_arguments_exit`,
+    `pass/calls/runtime_constructed_copy_payload_arguments_exit` and
+    `pass/operators/runtime_constructed_operand_result_exit` (exit 0 in both
+    engines). Use ordinary expression continuations for selected payload returns,
+    not raw jump arguments.
     Structural arrays and value dispatch still need their full construction
     schedule. Retain each constructor child's completion facts when a later
     field writes its source: the issued ticket in
     `pending/calls/runtime_constructor_child_membership_snapshot_exit` is
     copied before replacement, but whole-constructor evidence drops its
     membership. The opposite order must not retroactively issue the saved child.
-    Explicit and implicit shared arguments retain the completed
-    owner, lend its referent and retire eligible affine owners on the checked
-    normal call continuation. Copyable temporaries carry no affine disposal
-    debt. On macOS ARM64 after package update,
-    `omega run --both tests/omega/pass/calls/runtime_constructed_borrowed_payload_arguments_exit/main.omg`
-    exits 0 in both engines. `runtime_temporary_lending_order_exit` exits 0
-    natively, including nested borrowing calls, mixed operand order and Unit
-    consumers; its interpreter still declines explicit borrowing of an owned
-    call result in `checked-interpreter/.../names_recasts_and_places.rs::resolve_place`
-    (unchanged from base `988b7227595`). Preserve selected local ownership with
-    `pass/calls/runtime_selected_trivial_local_cleanup_exit` and
-    `runtime_selected_local_owner_exit`: both engines exit 0 on macOS ARM64
-    at `6db1b9eb18d+wt`, including nonempty/nonprefix locals, mutually exclusive
-    consuming calls, direct value returns and Unit-return cleanup. Each selected completion owns
-    its transfer/disposal partition; a producer's return-discard flag is not
-    liveness authority. Runtime-indexed observations below case payloads still reject
-    an unsupported case path before emission.
-    Structural values with nominal
-    cleanup hooks or reference debt need the ordinary disposal schedule;
-    nontrivial cleanup must not become a trivial affine discard.
+    The checked interpreter still declines explicit borrowing of an owned call
+    result in `checked-interpreter/.../names_recasts_and_places.rs::resolve_place`;
+    exercise `pass/calls/runtime_temporary_lending_order_exit` (native exit 0)
+    with nested borrowing calls, mixed operand order and Unit consumers.
+    Keep `runtime_constructed_borrowed_payload_arguments_exit`,
+    `runtime_selected_trivial_local_cleanup_exit` and
+    `runtime_selected_local_owner_exit` (exit 0): completed owners must outlive
+    their shared calls, copyable temporaries owe no affine disposal, and each
+    selected completion owns its transfer/disposal partition. A producer's
+    return-discard flag is not liveness authority. Runtime-indexed observations
+    below case payloads still reject an unsupported case path before emission.
+    **CML4** owns remaining residual cleanup. Reference debt must
+    follow ordinary disposal, not a trivial affine discard.
     Keep: `pass/expressions/runtime_temporary_record_field_call_exit` (a
     call-produced plain-owned record supports immediate field observation,
     its call effect performed once),
@@ -588,15 +582,7 @@ defines the complete product bar.
     `pass/borrows/stored_reference_projection_exit`,
     `pass/borrows/nested_reference_crossings_exit`,
     `pass/borrows/runtime_reference_array_pressure_exit` (70; call-free
-    frames preserve allocated link-register writes as well as call effects;
-    at `870548dcfe2` on macOS ARM64, the direct command
-    `omega run --both tests/omega/pass/borrows/runtime_reference_array_pressure_exit/main.omg`
-    also exits 70 in both engines after ordinary `omega update` review and
-    acceptance. The earlier missing `MacosApplication` was an unlocked
-    package's absent accepted binding, not missing compiler implementation.
-    A changed source still rejects with `omega update` guidance; restoring
-    the original source restores execution. Follow the
-    [CLI fixture workflow](omega-rust/omega/compilation/driver/tests/README.md#running-a-fixture-through-the-cli)),
+    frames must preserve allocated link-register writes as well as call effects),
     `pass/collections/runtime_whole_array_value_copy_exit` (70),
     `pass/collections/{empty_record_array_borrow_exit,nested_empty_record_array_borrow_exit}` (0),
     and rejections `fail/borrows/{stored_reference_live_source_write,nested_reference_live_source_write}`.
@@ -619,21 +605,13 @@ defines the complete product bar.
     case/index/generic/reference/float identity. Share capture with
     **CRASH-CONTRACT**; loop invariants must cover backedges. Exclusive computed
     ranges use ordinary view formation and call/state-edge evaluation:
-    the four `pass/slices/runtime_call_endpoint_*` fixtures return 70 in both
-    engines on macOS ARM64 (stored view, direct argument, ordered endpoint
-    effects and projected state transfer). Keep
-    `python3 tools/corpus_gate.py --both --filter runtime_call_endpoint`.
-    Keep the same route's inclusive controls with
-    `--filter runtime_inclusive_call_endpoint` (both return 70), plus
-    `fail/slices/inclusive_*` for bounds and overlapping loans. Public acceptance is
-    `omega run tests/omega/pass/slices/runtime_inclusive_call_endpoint_view_exit/main.omg`
-    after the project's package review. Explicit reborrows
-    now preserve address origins across shared-value and write-prefix queries;
-    `layouts/runtime_reborrow_preserves_store_origin_exit` returns 70 in both
-    engines. The public stored-view command checks the standard library, then
-    awaits 52 fresh project package-review decisions, not a compiler waiver.
-    Direct collection extents now compose through borrow and range formation
-    in `omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/ranking_range/lengths.rs`.
+    keep `python3 tools/corpus_gate.py --both --filter
+    runtime_call_endpoint,runtime_inclusive_call_endpoint` (70),
+    `fail/slices/inclusive_*` for bounds/overlap rejection, and
+    `layouts/runtime_reborrow_preserves_store_origin_exit` (70) for address
+    origins across shared-value and write-prefix queries. Public acceptance is
+    `omega run tests/omega/pass/slices/runtime_inclusive_call_endpoint_view_exit/main.omg`;
+    distinguish package-policy refusal from missing compiler behavior.
     At the `45782ade0cb`-based repair on macOS ARM64,
     `pass/slices/runtime_direct_view_requires_index_exit` passes source
     checking and interprets to 70 unchanged, but `python3 tools/corpus_gate.py
@@ -3669,123 +3647,62 @@ These stay:
 Each item lands alone with its corpus slice unchanged, except for intended
 deletions, which its commit lists.
 
-- **CHECKER-DISCHARGES-OPERATION-OBLIGATIONS.** (new-scope) Checking must
-  discharge every primitive operation condition and lowering must consume
-  those decisions; today PCC machinery is the compile-time soundness gate.
-  Stage 05 reconstructs each Exact operation's obligation through the verifier
-  (`omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/proofs/operation_proofs.rs`,
-  `validate_module` + `reconstruct_execution_terminal_obligations`) and
-  searches for a certificate (`src/proofs/nonzero_divisor_certificate/`);
-  when none is found, `OperationProofUnavailable` fails the compile. This
-  lands first.
+- **CHECKER-DISCHARGES-OPERATION-OBLIGATIONS.** (new-scope) Complete checking-time
+  discharge of primitive operation conditions and consume those decisions in
+  stage 05 without certificate search. Owners: stage 04 arithmetic/range
+  checking and `CheckFacts`; stage 05
+  `src/proofs/operation_proofs.rs` and operation emission. This precedes
+  **PCC-CERTIFICATES-DELETED**: do not delete a late gate until source checking
+  owns its obligation.
 
-  Conditions in scope: nonzero divisor, Exact representability, shift counts,
-  Boolean landing, byte/element indices and ranges, representation-region
-  geometry, capacities and bounded field stores. Source checking already
-  decides most of these (Exact division/remainder definedness from intervals,
-  unequal relations, scalar predicates and integer constraints; stored integer
-  writes via `CheckFacts::stored_integer_writes`; shift counts, overflow,
-  index/range bounds, recast geometry, domain field writes, Boolean recast
-  admission). Remaining work:
-  - retain each successful occurrence decision in `CheckFacts` and have stage
-    05 consume it without proof search; do not add duplicate provers. Arithmetic
-    checking now retains exact-cast decisions from the original statement
-    walk, including short-circuit and dispatch environments, instead of
-    re-analyzing expressions to collect them. The guarded cast/call witness
-    `arithmetic/runtime_short_circuit_cast_decisions_exit` runs natively and
-    interpreted with exit 70; wrong-path, escaped and mutated-subject facts
-    reject. Division and remainder now go end to end: that walk's
-    `ArithmeticDecisions` records `defined_divisions`
-    (`CheckFacts.operators`), stage 04 sets `formation_decided` on the checked
-    `IntegerBinary`, stage 05 emission publishes the operation's obligation as
-    `EvidenceRoute::SourceChecked` evidence (attached-unit and scalar-graph
-    routes; other routes drop it and keep certificate search), and the
-    verifier admits that route only for an operation-owned derivable
-    obligation (ledger entry `route:source-checked`). Extend the same path to
-    the remaining primitive conditions, rather than rebuilding decisions with
-    a separate syntax traversal. Scalar index reads follow: stage 04's range
-    checks keep each occurrence every check proved as
-    `CheckFacts.proven_scalar_indexes`, and stage 05 marks the read at the row
-    boundary (`prepare_expression::mark_checked_index_read`) when the row's
-    authored root is that occurrence and it lowers to one
-    `ByteSequenceRead`, `ByteSequenceFieldRead` or `ElementViewRead`. Byte
-    writes join that bounds verdict with declared byte predicates retained
-    by the exact completed statement (`CheckFacts.proven_byte_writes`);
-    emission rejoins the authored assignment after execution-plan construction.
-    A bounds verdict alone cannot authorize a predicate-breaking byte write.
-    Still uncovered: element-view writes and reads that are not a row's root
-    (they need a provenance handle on the checked read).
-    Authored state arrivals now follow too: `CheckFacts.decided_call_requires`
-    records each call whose `requires` checking discharged, the composed state
-    graph publishes the matching arrivals of an authored row as
-    `SourceChecked`, and `strip_extended_source_checked_arrivals` withdraws
-    them wherever the invariant pass conjoined inferred members into that
-    row. Invocation-entry and scalar-graph arrivals, local refinement rows and
-    inferred rows stay certificate-proved. `IndexedPrimitiveRead` row roots
-    (fixed arrays) take the read mark as well.
-    Reads lowered as operation arguments (`Evaluation::source_value`) take
-    the mark too. Primitive stores now join each assignment-index depth to
-    its exact checked indexed occurrence and carry only that completed
-    RuntimeIndex bound as `SourceChecked`; stored-value domains and custody
-    remain separate. The unchanged `samples/cli/collections/heat_grid`
-    returns 45 through ordinary native execution after local measurement
-    package review, and the nested 2-by-3 control returns 70. Generated
-    selectors retain certificate search. Assignment call accounting now
-    consumes exact retained `AssignmentIndex` and `AssignmentValue` roots for
-    every destination. The captured-selector and effectful-selector fixtures
-    (`collections/runtime_fixed_array_{captured_selector,selector_call}_store_exit`)
-    each return their authored 70 through ordinary Windows native execution;
-    the selectors run before the stored value and both calls run once. The
-    old checked-tree interpreter declines the former and returns 77 for the
-    latter. Preserve those disagreements for **TERMINAL-RUNTIME-DRIVERS**;
-    native success does not establish common-core execution.
-    Exact add, subtract and multiply representability and
-    Exact casts now also travel as `SourceChecked` (only the cast stage 04
-    builds from a checker fact; synthesized index widenings and scalar-graph
-    cast replays keep search). With `OMEGA_DUMP_OBLIGATIONS` over the `pass/`
-    corpus, 3857 obligations still reach certificate search before the cast
-    change: index `LessThan` bounds of writes, non-root reads, selectors and
-    shift counts (1267); scalar block invariant conjunctions (656); operation
-    conjunctions such as UTF-8 byte stores whose goal adds `byte <= 127` to the
-    index bound (486); and Exact cast windows (482). Concrete contract
-    arithmetic uses that same formation walk; abstract declaration contracts
-    still have a separate carrier-resolution path to unify;
-  - cover nested expressions, compiler-generated semantic-to-storage casts,
-    assignment targets, abstract proposition carrier resolution, and the
-    formation audit across aggregate and proposition positions before
-    claiming full traversal;
-  - replace conditional cleanup proof search before deleting any late gate;
-  - preserve policy distinctions: non-Exact division may still owe a nonzero
-    divisor; keep call contracts, cleanup prerequisites and mathematical
-    proofs distinct from primitive operation conditions; opaque operators
-    cannot substitute a final value contract for evidence about every
-    intermediate write; public layout literals remain separate unsupported
-    syntax.
+  Reuse occurrence-bound `ArithmeticDecisions`, `proven_scalar_indexes`,
+  `proven_byte_writes` and `decided_call_requires`, carried through
+  `formation_decided`/`SourceChecked`. Bounds alone do not establish a byte
+  domain, and inferred additions to an arrival withdraw its source-checked mark.
+  Remaining:
+  - Carry decisions through every emission route, including nested/non-root
+    expressions, element-view writes, generated selectors and semantic-to-storage
+    casts. Synthesized widenings and scalar-graph cast replays still use search.
+    Join the exact checked occurrence rather than performing another syntax walk
+    or extending certificate search.
+  - Cover shift counts, Boolean landing, representation geometry, capacities
+    and bounded stores wherever their existing checking decisions are not yet
+    retained. Finish the formation audit across aggregate and proposition
+    positions; unify abstract declaration-contract carrier resolution with the
+    ordinary formation walk.
+  - Replace search for invocation-entry, scalar-graph, local-refinement and
+    inferred arrival obligations, and conditional cleanup prerequisites, before
+    deleting those gates. Keep call/cleanup contracts and mathematical proofs
+    distinct from primitive operation conditions.
+  - Preserve non-Exact division's nonzero obligation, domain and custody
+    checks, and intermediate-write requirements; a final value contract cannot
+    authorize opaque intermediate operations. Public layout literals remain
+    unsupported independently of this work.
   - Encoded-storage references:
-    `tests/omega/pass/layouts/runtime_callee_integer_at_fitting_write_exit`
-    (helpers write -128 and 127 through a legal `&mut i64` loan to signed
-    eight-bit storage; neighboring byte 85 must survive) fails in stage 05
-    call emission: stage 04 plans `set(leaf, -128)`'s argument as a
-    `StructuralLocal` naming `leaf`, which has no storage home because it is
-    an exclusive place loan derived from the recast `view`, so
-    `attached_unit/parameters.rs` refuses "Unit structural argument is
-    neither a parameter nor a supported literal". Reference formation
-    and transport must carry the actual backing address together with its
-    canonical storage encoding, correlated through calls, joins, returns,
-    recursion and reference-bearing records (specialization alone cannot
-    handle a runtime choice of encodings). Extend the shared reference
-    representation, its internal ABI, native accesses, the checked
-    interpreter and the terminal interpreter consistently, preserving logical
-    carrier type and permissions. A raw carrier-width pointer or delayed
-    copy-out cannot establish this contract; foreign raw-pointer boundaries
-    need a compatible checked adapter.
+    `pass/layouts/runtime_callee_integer_at_fitting_write_exit` requires a
+    helper's `&mut i64` writes of -128 and 127 to use signed eight-bit storage
+    without changing neighboring byte 85. Stage 04 represents the derived
+    `leaf` loan as a `StructuralLocal` with no storage home; stage 05
+    `attached_unit/parameters.rs` rejects it as neither parameter nor literal.
+    Carry actual backing and canonical encoding through the shared reference
+    representation, internal ABI, calls, joins, returns, recursion and stored
+    references in native and both interpreters. Runtime encoding choices cannot
+    be solved by specialization; raw carrier-width pointers and delayed copy-out
+    are not substitutes. Foreign pointers need compatible checked adapters.
 
-  Acceptance: every corpus fail fixture that rejects with
-  `OperationProofUnavailable` rejects from `omega --check` with a checking
-  diagnostic, and the check corpus is otherwise unchanged;
+  Regression controls: `arithmetic/runtime_short_circuit_cast_decisions_exit`
+  (70), `samples/cli/collections/heat_grid` (45), nested projected stores and
+  `collections/runtime_fixed_array_{captured_selector,selector_call}_store_exit`
+  (70). Wrong-path, escaped, stale-index and mutated-subject facts and byte-domain
+  corruption must still reject. The checked-tree interpreter declines the
+  captured-selector case and returns 77 for the selector-call case;
+  **TERMINAL-RUNTIME-DRIVERS** owns those disagreements, not this checking repair.
+
+  Acceptance: corpus failures currently rejected by `OperationProofUnavailable`
+  reject from `omega --check` with checking diagnostics, without weakening
+  other check outcomes; the encoded-storage fixture runs with exit 0 under
   `python tools/corpus_gate.py --both --filter
-  layouts/runtime_callee_integer_at_fitting_write_exit` exits 0 in native and
-  interpreter.
+  layouts/runtime_callee_integer_at_fitting_write_exit`.
 
 - **PCC-CERTIFICATES-DELETED.** (new-scope) Depends on
   **CHECKER-DISCHARGES-OPERATION-OBLIGATIONS**. Delete certificate production

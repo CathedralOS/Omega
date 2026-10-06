@@ -1,5 +1,8 @@
 # Bootstrap tasks
 
+Follow [board update discipline](TASKS.md#updating-the-boards): retain unfinished
+work and its necessary context, not a history of completed milestones.
+
 Build the smallest **human-auditable proof chain to self-hosted Omega**.
 Runnable compilers and checked edge evidence are both required; neither replaces
 the other. Minimize the total human audit burden of semantics, admitted seeds,
