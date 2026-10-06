@@ -476,12 +476,11 @@ fn derive_top_level_requirement_plans(
                     },
                     None,
                 ) if !machine.body_is_present && clause.via_expression.is_valid() => {
-                    let Some(row) = evaluated_bindings.and_then(|table| {
-                        table.exact(machine.symbol, clause.symbol, clause.requirement_symbol)
-                    }) else {
+                    let Some(binding) = evaluated_via_binding(evaluated_bindings, machine, clause)
+                    else {
                         continue;
                     };
-                    row.evaluated().provider_binding()
+                    binding
                 }
                 _ => continue,
             };
@@ -690,12 +689,11 @@ fn derive_boundary_operator_plans(
                     },
                     None,
                 ) if !machine.body_is_present && clause.via_expression.is_valid() => {
-                    let Some(row) = evaluated_bindings.and_then(|table| {
-                        table.exact(machine.symbol, clause.symbol, clause.requirement_symbol)
-                    }) else {
+                    let Some(binding) = evaluated_via_binding(evaluated_bindings, machine, clause)
+                    else {
                         continue;
                     };
-                    row.evaluated().provider_binding()
+                    binding
                 }
                 (language_semantics::MachineSupplyMode::CheckedBody, None)
                     if machine.body_is_present && !clause.via_expression.is_valid() =>
@@ -787,4 +785,17 @@ fn checked_adapter_binding(
             .unwrap_or_default(),
         machine_package_identity: typed.symbols.symbol_package_identity(machine.symbol),
     }
+}
+
+/// The provider binding an exact evaluated via-binding row supplies for a
+/// machine's `via` conformance clause: the evaluated table's recorded
+/// binding when the row exists.
+fn evaluated_via_binding(
+    evaluated_bindings: Option<&crate::evaluated_via_bindings::EvaluatedViaBindingTable>,
+    machine: &typed_trees::machine::Machine,
+    clause: &typed_trees::machine::TraitConformance,
+) -> Option<ProviderBinding> {
+    let row = evaluated_bindings
+        .and_then(|table| table.exact(machine.symbol, clause.symbol, clause.requirement_symbol))?;
+    Some(row.evaluated().provider_binding())
 }
