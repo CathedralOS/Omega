@@ -9,8 +9,9 @@ use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::unit::attached_unit::argument_evaluation::{Evaluation, ScalarReturnCleanup};
 use checked_trees::{
     CheckedComposedUnitControlStatePlan, CheckedNormalCleanupAction,
-    CheckedScalarBranchDestination, CheckedUnitStructuralArgumentSourcePlan, FlowClaimJoinExit,
-    FlowClaimJoinExitKind,
+    CheckedScalarBranchDestination, CheckedUnitEffectOperationPlan,
+    CheckedUnitPartialAffineDiscardPlan, CheckedUnitStructuralArgumentSourcePlan,
+    FlowClaimJoinExit, FlowClaimJoinExitKind,
 };
 use semantic_vocabulary::{PlaceId, StructuralTypeId};
 use terminal_psi::{
@@ -204,6 +205,32 @@ pub(super) fn coordinate(
     })
 }
 
+/// Dispositions a continuation cleanup in the body already committed.
+///
+/// Stage 04 records the state's whole dying complement on every normal exit
+/// and separately records the cleanup each body boundary runs, so an exit's
+/// action stream repeats what the body already discharged before control
+/// reached any exit. Only a disposition whose last use belongs to the exit
+/// remains for its edge to commit; repeating one disposes the same owner
+/// twice. The ordinary return and selection routes subtract the same rows
+/// through `result_custody::retired_in_body` and
+/// `result_custody::statement_discards`.
+fn discharged_in_body(
+    state: &CheckedComposedUnitControlStatePlan,
+) -> Vec<&CheckedUnitPartialAffineDiscardPlan> {
+    state
+        .operations
+        .iter()
+        .filter_map(|operation| match operation {
+            CheckedUnitEffectOperationPlan::ContinuationCleanup {
+                affine_discards, ..
+            } => Some(affine_discards),
+            _ => None,
+        })
+        .flatten()
+        .collect()
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(super) fn for_exit(
     checked: &CheckedTrees,
@@ -235,7 +262,16 @@ pub(super) fn for_exit(
                 .map(|receiver| (signature.source, receiver))
         })
         .collect::<Vec<_>>();
-    selected_exit.actions.iter().map(|action| {
+    let discharged = discharged_in_body(state);
+    selected_exit.actions.iter().filter(|action| match action {
+        // A body continuation cleanup already committed this exact
+        // disposition, so the exit retains only the obligation whose last use
+        // is the exit itself. A nominal hook is never a body discard.
+        CheckedNormalCleanupAction::Discard(discard) => !discharged
+            .iter()
+            .any(|committed| committed.source == discard.source && committed.path == discard.path),
+        CheckedNormalCleanupAction::InvokeNominal(_) => true,
+    }).map(|action| {
         let (place, root_type) = source(action.source(), parameters, evaluation, operations)?;
         match action {
             CheckedNormalCleanupAction::Discard(discard) => {
