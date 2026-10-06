@@ -179,7 +179,10 @@ pub(super) fn accepts(
                 || target.access == terminal_psi::StructuralAccess::SharedBorrow
                     && parameter.access == terminal_psi::StructuralAccess::MutableBorrow)
             && parameter.multiplicity == StructuralMultiplicity::Unrestricted
-            && parameter.qualifications.is_empty()
+            // A shared loan's qualifications describe bytes it freezes; they
+            // add no carrier. An exclusive qualified loan keeps the refusal.
+            && (parameter.qualifications.is_empty()
+                || parameter.access == terminal_psi::StructuralAccess::SharedBorrow)
             && parameter.projected_qualifications.is_empty()
             && signature.structural_places.iter().any(|candidate| {
                 candidate.id == place

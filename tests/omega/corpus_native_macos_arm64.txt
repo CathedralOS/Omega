@@ -155,6 +155,7 @@ pass/borrows/runtime_returned_nested_reference_array_bounded_read_exit built 235
 pass/borrows/runtime_returned_reference_array_bounded_read_exit built 1712ms exit:70 @6ba9c43af356+wt
 pass/borrows/runtime_returned_reference_array_restoration_exit built 1759ms exit:70 @b5d8c6882a8b+wt
 pass/borrows/runtime_returned_reference_constructor_leaf_retirement_exit built 1177ms exit:70 @104c2da31081
+pass/borrows/runtime_shared_qualified_view_cycle_exit built 1799ms exit:70 @954364ed064e
 pass/borrows/runtime_shared_qualified_view_scalar_choice_exit built 2800ms exit:70 @fb52befd538a
 pass/borrows/runtime_shared_reference_array_cohort_restoration_exit built 1342ms exit:70 @b5d8c6882a8b+wt
 pass/borrows/runtime_shared_reference_record_direct_payload_restoration_exit built 1171ms exit:70 @104c2da31081

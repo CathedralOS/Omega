@@ -17,6 +17,27 @@ use crate::validation::{
 };
 use crate::validation::{block_views, primitive_storage};
 
+/// A shared byte view's qualifications are predicates over bytes the loan
+/// freezes: no write in the cycle can falsify them, so the invocation's facts
+/// are loop invariants rather than entry facts a feedback cut must drop.
+fn shared_qualified_view(
+    module: &TerminalModule,
+    parameter: &StructuralParameterDeclaration,
+) -> bool {
+    parameter.access == StructuralAccess::SharedBorrow
+        && parameter.multiplicity == StructuralMultiplicity::Unrestricted
+        && parameter.projected_qualifications.is_empty()
+        && module.structural_types.iter().any(|declaration| {
+            declaration.id == parameter.structural_type
+                && matches!(
+                    declaration.shape,
+                    StructuralTypeShape::ByteSequence(
+                        terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
+                    )
+                )
+        })
+}
+
 /// Eligibility carries no proof or dominance authority. The caller runs the
 /// ordinary operand, view, successor, result, and frontier checks after this
 /// fence for every block. Invocation result shape does not classify cyclic work.
@@ -58,6 +79,7 @@ pub(super) fn ineligibility(
             // write and call. Cyclic use needs the same loan contract as an
             // acyclic state edge, not a shared-only frozen-content exception.
             && !block_views::bounded_owner_loan(module, parameter)
+            && !shared_qualified_view(module, parameter)
             && (parameter.multiplicity != StructuralMultiplicity::Unrestricted
                 || !parameter.qualifications.is_empty()
                 || !parameter.projected_qualifications.is_empty()

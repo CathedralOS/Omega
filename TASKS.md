@@ -854,13 +854,12 @@ defines the complete product bar.
     covers limited Linux x86-64 leaves). Owned by
     **FILESYSTEM-PLATFORM-SERVICES**. Acceptance: the seven-step workflow,
     exit 7.
-  - `systems/note_vault`: stops in `Filesystem::create_dir_all` ->
-    `Filesystem::mkall_walk` state 0 with "qualified non-linear parameter":
-    stage 04 `forwards_qualified_loan`
-    (`omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/execution/terminal_unit/state_graph/mod.rs`)
-    refuses a qualified loan (`path: &[u8] in Path`) re-entering state 0. Then
-    the same `FilesystemHost` provider. Result custody and nested-field
-    initialization stay with **STATE-LOCAL-VALUE-FRONTIER**.
+  - `systems/note_vault`: needs the same `FilesystemHost` provider. Its
+    `Filesystem::create_dir_all` -> `Filesystem::mkall_walk` loop forwards a
+    shared `path: &[u8] in Path` into its own entry, which now lowers
+    natively (`pass/borrows/runtime_shared_qualified_view_cycle_exit`).
+    Result custody and nested-field initialization stay with
+    **STATE-LOCAL-VALUE-FRONTIER**.
 
   Host coverage still owed:
   - std `Clock` on Linux (`rendering/{bouncing_ball_2d,mandelbrot_zoom,bouncing_particles}`):

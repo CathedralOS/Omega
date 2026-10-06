@@ -1329,42 +1329,41 @@ fn forwards_qualified_parameter(
     let Some(parameter) = target.structural_parameters.get(parameter_index) else {
         return false;
     };
-    if target_index == 0
-        || !(parameter.access == checked_trees::CheckedStructuralAccess::SharedBorrow
-            || (matches!(
-                parameter.access,
-                checked_trees::CheckedStructuralAccess::MutableBorrow
-                    | checked_trees::CheckedStructuralAccess::Owned
-            ) && parameter.projected_qualifications.is_empty()
-                && checked
+    if !(parameter.access == checked_trees::CheckedStructuralAccess::SharedBorrow
+        || (matches!(
+            parameter.access,
+            checked_trees::CheckedStructuralAccess::MutableBorrow
+                | checked_trees::CheckedStructuralAccess::Owned
+        ) && parameter.projected_qualifications.is_empty()
+            && checked
+                .facts
+                .flow
+                .terminal_unit_effects
+                .structural_types
+                .iter()
+                .any(|declaration| {
+                    declaration.identity == parameter.type_identity
+                        && matches!(
+                            declaration.shape,
+                            checked_trees::CheckedUnitStructuralTypeShape::ByteSequence(
+                                checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. }
+                            )
+                        )
+                })
+            && parameter.qualifications.iter().all(|qualification| {
+                checked
                     .facts
                     .flow
                     .terminal_unit_effects
-                    .structural_types
+                    .structural_domains
                     .iter()
-                    .any(|declaration| {
-                        declaration.identity == parameter.type_identity
-                            && matches!(
-                                declaration.shape,
-                                checked_trees::CheckedUnitStructuralTypeShape::ByteSequence(
-                                    checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. }
-                                )
-                            )
+                    .any(|domain| {
+                        domain.domain == *qualification
+                            && domain.carrier_type_identity == parameter.type_identity
+                            && domain.byte_predicate.is_some()
+                            && domain.establishment_routes.is_empty()
                     })
-                && parameter.qualifications.iter().all(|qualification| {
-                    checked
-                        .facts
-                        .flow
-                        .terminal_unit_effects
-                        .structural_domains
-                        .iter()
-                        .any(|domain| {
-                            domain.domain == *qualification
-                                && domain.carrier_type_identity == parameter.type_identity
-                                && domain.byte_predicate.is_some()
-                                && domain.establishment_routes.is_empty()
-                        })
-                })))
+            })))
         || parameter.multiplicity != Multiplicity::Unrestricted
     {
         return false;

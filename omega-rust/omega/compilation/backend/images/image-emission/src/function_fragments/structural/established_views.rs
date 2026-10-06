@@ -132,7 +132,10 @@ pub(super) fn block_location(
             )
         )
         || parameter.multiplicity != StructuralMultiplicity::Unrestricted
-        || !parameter.qualifications.is_empty()
+        // A shared loan's qualifications describe the bytes it freezes and
+        // add no carrier; an exclusive qualified loan keeps the refusal.
+        || !(parameter.qualifications.is_empty()
+            || parameter.access == StructuralAccess::SharedBorrow)
         || !parameter.projected_qualifications.is_empty()
     {
         return Err(invalid());
