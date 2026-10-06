@@ -226,9 +226,9 @@ impl<'a> Expansion<'a> {
                 LoweringError::Unsupported("scalar call argument ordinal exceeds u32")
             })?;
             operands.push(match argument {
-                checked_trees::CheckedCallScalarArgument::Pure(expression) => {
-                    Argument::Value(bindings.expression(expression)?)
-                }
+                checked_trees::CheckedCallScalarArgument::Pure(expression) => Argument::Value(
+                    bindings.expression(&self.checked.facts.proven_scalar_indexes, expression)?,
+                ),
                 checked_trees::CheckedCallScalarArgument::Computation(root) => {
                     Argument::Computation(*root)
                 }
@@ -885,7 +885,9 @@ impl<'a> Expansion<'a> {
                 active,
             )?,
             CheckedScalarComputationKind::Value(expression) => {
-                let expression = site.bindings.expression(&expression)?;
+                let expression = site
+                    .bindings
+                    .expression(&self.checked.facts.proven_scalar_indexes, &expression)?;
                 if expression.value_type(input_types)? != result_type {
                     return unsupported("scalar computation value carrier disagrees");
                 }
@@ -1025,7 +1027,7 @@ impl<'a> Expansion<'a> {
                         .iter()
                         .map(|value| value.scalar_type),
                 )
-                .expression(&expression)?;
+                .expression(&self.checked.facts.proven_scalar_indexes, &expression)?;
                 if expression.value_type(&operand_types)? != result_type {
                     return unsupported("scalar computation application carrier disagrees");
                 }

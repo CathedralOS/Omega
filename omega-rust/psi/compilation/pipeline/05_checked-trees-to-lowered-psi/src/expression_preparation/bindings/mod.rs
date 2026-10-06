@@ -711,16 +711,18 @@ impl ScalarBindings {
 
     pub(crate) fn byte_record_observation(
         &self,
+        proven_indexes: &[checked_trees::expression::ExpressionHandle],
         symbol: symbols::SymbolHandle,
         path: &[checked_trees::CheckedStructuralPredicatePathSegment],
         index: &CheckedScalarExpression,
-        inner_indexes: &[CheckedScalarExpression],
+        inner_indexes: &[checked_trees::CheckedScalarSelector],
         element_path: &[checked_trees::CheckedStructuralPredicatePathSegment],
         primitive: PrimitiveType,
     ) -> Result<Option<LoweredDirectExpression>, LoweringError> {
         crate::expression_preparation::bindings::place_observations::byte_record_observation(
             &self.place_observations,
             self,
+            proven_indexes,
             symbol,
             path,
             index,
@@ -1185,9 +1187,9 @@ impl ScalarBindings {
                 inner_indexes,
                 ..
             } => {
-                self.scalar(index)?;
+                self.scalar(&mut index.expression)?;
                 for selector in inner_indexes {
-                    self.scalar(selector)?;
+                    self.scalar(&mut selector.expression)?;
                 }
             }
             CheckedScalarExpression::Parameter { position, .. }
@@ -1319,7 +1321,7 @@ impl ScalarBindings {
         statement: u32,
         role: CheckedScalarExpressionRole,
     ) -> Result<LoweredDirectExpression, LoweringError> {
-        let (binding, expression) = checked
+        let (_, expression) = checked
             .facts
             .values
             .scalar_expressions
@@ -1327,15 +1329,7 @@ impl ScalarBindings {
             .ok_or(LoweringError::Unsupported(
                 "scalar computation needs one checked expression and one source binding",
             ))?;
-        let lowered = self.expression(expression)?;
-        Ok(
-            crate::expression_preparation::prepare_expression::mark_checked_index_read(
-                checked,
-                binding.expression,
-                expression,
-                lowered,
-            ),
-        )
+        self.expression(&checked.facts.proven_scalar_indexes, expression)
     }
 
     /// A selected dispatch copied this scalar payload before the arm began.
@@ -1416,6 +1410,7 @@ impl ScalarBindings {
 
     pub(crate) fn expression(
         &self,
+        proven_indexes: &[checked_trees::expression::ExpressionHandle],
         expression: &CheckedScalarExpression,
     ) -> Result<LoweredDirectExpression, LoweringError> {
         let mut expression = expression.clone();
@@ -1430,6 +1425,7 @@ impl ScalarBindings {
             &self.view_locals,
             &self.structural_locals,
             Some(self),
+            proven_indexes,
         )
     }
 }

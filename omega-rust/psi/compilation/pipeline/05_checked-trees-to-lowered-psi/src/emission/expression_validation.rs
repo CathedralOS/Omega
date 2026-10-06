@@ -106,9 +106,9 @@ pub(crate) fn validate_direct_parameter_types(
             ..
         } => {
             validate_direct_parameter_types(index, parameter_types)?;
-            inner_indexes
-                .iter()
-                .try_for_each(|inner| validate_direct_parameter_types(inner, parameter_types))?;
+            inner_indexes.iter().try_for_each(|inner| {
+                validate_direct_parameter_types(&inner.expression, parameter_types)
+            })?;
             validate_path_parameter_types(element_path, parameter_types)
         }
         LoweredDirectExpression::ByteSequenceFieldLength { path, .. } => {

@@ -48,6 +48,17 @@ impl CheckedStorageRoot {
     }
 }
 
+/// One evaluated selector and the authored indexing occurrence it selects for.
+/// The occurrence names `collection[index]`, not its index operand: equal
+/// operands can select different extents. Generated selectors use the zero
+/// handle and cannot consume an authored bounds decision. Source plans retain
+/// these rows without interning them by value.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedScalarSelector {
+    pub expression: CheckedScalarExpression,
+    pub occurrence: typed_trees::expression::ExpressionHandle,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CheckedScalarExpression {
     /// Exact u64 live length of one borrowed view or bounded byte field. A
@@ -108,8 +119,8 @@ pub enum CheckedScalarExpression {
     StructuralParameterIndexedRead {
         root: CheckedStorageRoot,
         path: Vec<CheckedStructuralPredicatePathSegment>,
-        index: Box<CheckedScalarExpression>,
-        inner_indexes: Vec<CheckedScalarExpression>,
+        index: Box<CheckedScalarSelector>,
+        inner_indexes: Vec<CheckedScalarSelector>,
         element_path: Vec<CheckedStructuralPredicatePathSegment>,
         primitive_type: typed_trees::types::PrimitiveType,
     },
@@ -211,10 +222,10 @@ impl CheckedScalarExpression {
                 inner_indexes,
                 ..
             } => {
-                index.contains_trapping_operation()
+                index.expression.contains_trapping_operation()
                     || inner_indexes
                         .iter()
-                        .any(CheckedScalarExpression::contains_trapping_operation)
+                        .any(|selector| selector.expression.contains_trapping_operation())
             }
             Self::Boolean(expression) => expression.contains_trapping_operation(),
             Self::StructuralParameterByteLength { .. }

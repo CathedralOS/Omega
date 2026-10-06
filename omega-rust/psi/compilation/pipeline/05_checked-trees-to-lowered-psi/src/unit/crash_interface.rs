@@ -172,8 +172,15 @@ fn contract_scoped_scalar(expression: &CheckedScalarExpression) -> bool {
         | CheckedScalarExpression::StructuralParameterByteLength { .. }
         | CheckedScalarExpression::StructuralParameterField { .. }
         | CheckedScalarExpression::IntegerLiteral { .. } => true,
-        CheckedScalarExpression::StructuralParameterIndexedRead { index, .. } => {
-            contract_scoped_scalar(index)
+        CheckedScalarExpression::StructuralParameterIndexedRead {
+            index,
+            inner_indexes,
+            ..
+        } => {
+            contract_scoped_scalar(&index.expression)
+                && inner_indexes
+                    .iter()
+                    .all(|selector| contract_scoped_scalar(&selector.expression))
         }
         CheckedScalarExpression::IntegerBinary { left, right, .. } => {
             contract_scoped_scalar(left) && contract_scoped_scalar(right)

@@ -148,7 +148,7 @@ pub(super) fn lower(
         lower_exact_application(checked, &view, caller_machine, &lowered_realizations)?;
     let initial_application =
         lower_changed_initial_application(checked, &view, lane, caller_machine)?;
-    let guard = lower_checked_scalar_expression(&continuation.guard)?;
+    let guard = lower_checked_scalar_expression(&continuation.guard, &[])?;
     validate_direct_parameter_types(&guard, &[call_result_type])?;
     let mut guard_operations = OperationBuffer::new(call_operation.get());
     let condition = emit_direct_expression(

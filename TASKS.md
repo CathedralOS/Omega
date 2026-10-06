@@ -3297,8 +3297,8 @@ deletions, which the commit lists.
   `formation_decided`/`SourceChecked`. Bounds alone do not establish a byte
   domain, and inferred additions to an arrival withdraw its source-checked mark.
   Remaining:
-  - Carry decisions through every emission route, including nested/non-root
-    expressions, generated selectors and remaining
+  - Carry decisions through remaining runtime element-path selectors,
+    generated selectors and remaining
     semantic-to-storage casts. Synthesized widenings and generated scalar-graph
     casts still use search.
     Join the exact checked occurrence rather than performing another syntax walk

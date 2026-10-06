@@ -92,7 +92,7 @@ fn integer(
             element_path,
             primitive_type,
         } => {
-            let index = evaluate(index, source);
+            let index = evaluate(&index.expression, source);
             (
                 *primitive_type,
                 match root.parameter() {

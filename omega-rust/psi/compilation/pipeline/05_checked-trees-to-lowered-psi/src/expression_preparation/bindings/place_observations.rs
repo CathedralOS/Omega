@@ -161,10 +161,11 @@ pub(crate) struct PrimitiveObservation {
 pub(crate) fn byte_record_observation(
     loans: &[PlaceObservation],
     bindings: &super::ScalarBindings,
+    proven_indexes: &[checked_trees::expression::ExpressionHandle],
     symbol: symbols::SymbolHandle,
     path: &[checked_trees::CheckedStructuralPredicatePathSegment],
     index: &checked_trees::CheckedScalarExpression,
-    inner_indexes: &[checked_trees::CheckedScalarExpression],
+    inner_indexes: &[checked_trees::CheckedScalarSelector],
     element_path: &[checked_trees::CheckedStructuralPredicatePathSegment],
     primitive: PrimitiveType,
 ) -> Result<Option<LoweredDirectExpression>, LoweringError> {
@@ -187,14 +188,16 @@ pub(crate) fn byte_record_observation(
     let mut selectors = Vec::new();
     let mut leaf_path = Vec::new();
     append_observation_path(bindings, path, &mut leaf_path, &mut selectors)?;
-    for selector in std::iter::once(index).chain(inner_indexes) {
+    for selector in
+        std::iter::once(index).chain(inner_indexes.iter().map(|selector| &selector.expression))
+    {
         if let CheckedScalarExpression::IntegerLiteral { literal } = selector {
             leaf_path.push(Projection::FixedIndex(literal.value_u64().ok_or(
                 LoweringError::Unsupported("record byte observation has an invalid array index"),
             )?));
         } else {
             append_coordinate(
-                bindings.expression(selector)?,
+                bindings.expression(proven_indexes, selector)?,
                 &mut leaf_path,
                 &mut selectors,
             )?;

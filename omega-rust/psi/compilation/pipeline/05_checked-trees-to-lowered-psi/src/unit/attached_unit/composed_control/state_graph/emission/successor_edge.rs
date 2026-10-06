@@ -642,10 +642,13 @@ impl StateGraphEmission<'_, '_> {
                 ))?;
             let expression = match transfer.source {
                 checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter { index } => {
-                    bindings.expression(&CheckedScalarExpression::Parameter {
-                        position: index as usize,
-                        primitive_type: transfer.primitive_type,
-                    })?
+                    bindings.expression(
+                        &checked.facts.proven_scalar_indexes,
+                        &CheckedScalarExpression::Parameter {
+                            position: index as usize,
+                            primitive_type: transfer.primitive_type,
+                        },
+                    )?
                 }
                 checked_trees::CheckedStructuralScalarArgumentSourcePlan::Expression => {
                     let value = scalars::successor_value(checked, state, edge, transfer)?;

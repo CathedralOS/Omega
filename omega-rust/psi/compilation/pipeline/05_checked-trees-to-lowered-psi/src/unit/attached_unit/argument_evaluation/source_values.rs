@@ -64,7 +64,7 @@ impl Evaluation {
             // A short-circuit guard may read a case payload after its own
             // case test; the guard's case dispatch binds or refuses each read.
             .with_deferred_case_payloads();
-        let expression = bindings.expression(value)?;
+        let expression = bindings.expression(&checked.facts.proven_scalar_indexes, value)?;
         // A short-circuit guard is always a planned decision. So is a whole-root
         // case test whose successor may read that case's payload: only the
         // decision's dispatch establishes the payload for it.
@@ -238,26 +238,8 @@ impl Evaluation {
             .map(|value| value.value_type())
             .collect::<Vec<_>>();
         if let CheckedCallScalarArgument::Pure(value) = value {
-            let lowered = bindings.expression(value)?;
-            // A pure argument is its row's checked expression; the row's
-            // authored root joins the range checker's verdict exactly as a
-            // row lowered at its boundary does.
-            let expression = match checked
-                .facts
-                .values
-                .scalar_expressions
-                .bound_expression_at(state, statement, role)
-            {
-                Some((binding, bound)) if bound == value => {
-                    crate::expression_preparation::prepare_expression::mark_checked_index_read(
-                        checked,
-                        binding.expression,
-                        value,
-                        lowered,
-                    )
-                }
-                _ => lowered,
-            };
+            let lowered = bindings.expression(&checked.facts.proven_scalar_indexes, value)?;
+            let expression = lowered;
             if !direct_expression_contains_short_circuit(&expression) {
                 validate_direct_parameter_types(&expression, &scalar_carriers(&source_types))?;
                 return Ok(ValueDeclaration {

@@ -180,7 +180,7 @@ pub(crate) fn emit(
     if !direct_literal && !direct_parameter && !direct_result_home {
         return unsupported("write-only store value is outside the admitted direct scalar rung");
     }
-    let value = lower_checked_scalar_expression(value)?;
+    let value = lower_checked_scalar_expression(value, &[])?;
     if value.scalar_type() != *destination_type {
         return unsupported("write-only store value type disagrees with its destination");
     }

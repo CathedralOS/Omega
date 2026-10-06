@@ -272,6 +272,7 @@ pub(crate) fn checked_proof_term(
         CheckedProofTerm::Scalar(expression) => Ok(LoweredProofTerm::Scalar(
             crate::expression_preparation::prepare_expression::lower_checked_scalar_expression(
                 expression,
+                &[],
             )?,
         )),
     }

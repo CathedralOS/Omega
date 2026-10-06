@@ -2648,7 +2648,7 @@ impl Emission<'_, '_, '_> {
             {
                 return unsupported("view element copy reordered or renamed a field");
             }
-            let lowered = bindings.expression(read)?;
+            let lowered = bindings.expression(&self.checked.facts.proven_scalar_indexes, read)?;
             let value = crate::emission::operation_emission::expressions::emit_direct_expression(
                 &lowered,
                 self.values,

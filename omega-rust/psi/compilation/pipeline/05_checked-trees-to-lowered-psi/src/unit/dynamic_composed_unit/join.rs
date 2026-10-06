@@ -804,6 +804,7 @@ fn lower_join_guard(
         &[],
         &[],
         Some(&scalar_bindings),
+        &[],
     )?;
     if lowered.scalar_type() != ScalarType::Boolean {
         return unsupported("joined dynamic control guard is not a Boolean scalar");

@@ -57,7 +57,7 @@ fn consume_pure_call_argument(
     argument_ordinal: u32,
     operand: &checked_trees::CheckedScalarExpression,
 ) -> Result<(), LoweringError> {
-    let operand_expression = bindings.expression(operand)?;
+    let operand_expression = bindings.expression(&checked.facts.proven_scalar_indexes, operand)?;
     let plans = &checked.facts.values.scalar_expressions;
     let mut retained = false;
     for role in [
@@ -215,7 +215,7 @@ pub(crate) fn lower_inline_call(
         let CheckedScalarComputationKind::Value(value) = &plans.nodes.get(*operand).kind else {
             return Ok(None);
         };
-        let argument = bindings.expression(value)?;
+        let argument = bindings.expression(&checked.facts.proven_scalar_indexes, value)?;
         if direct_expression_contains_short_circuit(&argument) {
             return Ok(None);
         }

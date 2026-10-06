@@ -149,6 +149,7 @@ pub(crate) fn lower_realization_operations(
         &[],
         &[],
         None,
+        &[],
     )?;
     if expression.scalar_type() != expected {
         return unsupported("dynamic realization result drifted from its checked return type");

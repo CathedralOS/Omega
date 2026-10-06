@@ -113,8 +113,10 @@ impl Expansion<'_> {
         if negated {
             comparison = CheckedBooleanExpression::Not(Box::new(comparison));
         }
-        let mut value =
-            bindings.expression(&CheckedScalarExpression::Boolean(Box::new(comparison)))?;
+        let mut value = bindings.expression(
+            &self.checked.facts.proven_scalar_indexes,
+            &CheckedScalarExpression::Boolean(Box::new(comparison)),
+        )?;
         // The template asks several questions of one already evaluated operand.
         // Capture its selectors before the length guard, then carry their exact
         // SSA identities through the selected byte observations. This also keeps
@@ -257,8 +259,10 @@ impl Expansion<'_> {
             root,
             path,
         };
-        let mut value =
-            bindings.expression(&CheckedScalarExpression::Boolean(Box::new(evaluation)))?;
+        let mut value = bindings.expression(
+            &self.checked.facts.proven_scalar_indexes,
+            &CheckedScalarExpression::Boolean(Box::new(evaluation)),
+        )?;
         // The evaluated view can carry runtime selectors the predicate itself
         // depends on; capture their SSA identities before the verdict leaf so
         // each selector is read once.

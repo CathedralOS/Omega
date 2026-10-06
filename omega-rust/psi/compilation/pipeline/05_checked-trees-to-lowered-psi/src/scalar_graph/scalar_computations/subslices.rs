@@ -291,9 +291,10 @@ impl super::Expansion<'_> {
                 continue;
             };
             let argument = match endpoint {
-                checked_trees::CheckedCallScalarArgument::Pure(value) => {
-                    super::Argument::Value(site.bindings.expression(&value)?)
-                }
+                checked_trees::CheckedCallScalarArgument::Pure(value) => super::Argument::Value(
+                    site.bindings
+                        .expression(&self.checked.facts.proven_scalar_indexes, &value)?,
+                ),
                 checked_trees::CheckedCallScalarArgument::Computation(handle) => {
                     super::Argument::Computation(handle)
                 }

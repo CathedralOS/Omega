@@ -170,10 +170,12 @@ fn project_scalar_expression(
         } => PackageReviewScalarExpression::StructuralParameterIndexedRead {
             parameter_position: root.parameter()?,
             path: project_structural_path(path),
-            index: Box::new(project_scalar_expression(index)?),
+            // Review records describe behavior, not producer-local source
+            // occurrences or the bounds decisions those occurrences consume.
+            index: Box::new(project_scalar_expression(&index.expression)?),
             inner_indexes: inner_indexes
                 .iter()
-                .map(project_scalar_expression)
+                .map(|selector| project_scalar_expression(&selector.expression))
                 .collect::<Option<_>>()?,
             element_path: project_structural_path(element_path),
             primitive_type: project_primitive_type(*primitive_type),

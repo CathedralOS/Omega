@@ -956,7 +956,7 @@ impl Evaluation {
             .iter()
             .map(|argument| match argument {
                 CheckedCallScalarArgument::Pure(expression) => source_bindings
-                    .expression(expression)?
+                    .expression(&checked.facts.proven_scalar_indexes, expression)?
                     .value_type(&source_types),
                 CheckedCallScalarArgument::Computation(root) => {
                     let nodes = &checked.facts.values.scalar_computations.nodes;
@@ -976,7 +976,7 @@ impl Evaluation {
         let needs_control = arguments.iter().any(|argument| match argument {
             CheckedCallScalarArgument::Computation(_) => true,
             CheckedCallScalarArgument::Pure(expression) => source_bindings
-                .expression(expression)
+                .expression(&checked.facts.proven_scalar_indexes, expression)
                 .is_ok_and(|expression| direct_expression_contains_short_circuit(&expression)),
         });
         if !needs_control {
@@ -984,11 +984,12 @@ impl Evaluation {
                 .iter()
                 .zip(&argument_types)
                 .map(|(argument, scalar_type)| {
-                    let expression = source_bindings.expression(argument.as_pure().ok_or(
-                        LoweringError::Unsupported(
+                    let expression = source_bindings.expression(
+                        &checked.facts.proven_scalar_indexes,
+                        argument.as_pure().ok_or(LoweringError::Unsupported(
                             "computed call argument requires ordered control",
-                        ),
-                    )?)?;
+                        ))?,
+                    )?;
                     validate_direct_parameter_types(&expression, &scalar_carriers(&source_types))?;
                     Ok(ValueDeclaration {
                         qualifications: scalar_type.qualifications,

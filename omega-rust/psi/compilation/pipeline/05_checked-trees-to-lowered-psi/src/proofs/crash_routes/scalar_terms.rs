@@ -104,7 +104,7 @@ pub(crate) fn checked_scalar_term(
     values: &[ValueDeclaration],
     erased: &[ValueDeclaration],
 ) -> Result<ScalarTerm, LoweringError> {
-    let expression = lower_checked_scalar_expression(expression)?;
+    let expression = lower_checked_scalar_expression(expression, &[])?;
     lowered_direct_scalar_term(&expression, values, erased)
 }
 
@@ -131,6 +131,7 @@ pub(crate) fn checked_scalar_term_with_views(
         &[],
         &[],
         Some(&scalar_bindings),
+        &[],
     )?;
     lowered_direct_scalar_term(&expression, values, erased)
 }

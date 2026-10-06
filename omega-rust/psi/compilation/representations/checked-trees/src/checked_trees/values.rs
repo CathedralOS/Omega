@@ -27,8 +27,8 @@ use typed_trees::types::TypeReferenceHandle;
 pub use facts::{
     CheckedBooleanExpression, CheckedIeeeFloatComparisonKind, CheckedIntegerBinaryKind,
     CheckedIntegerComparisonKind, CheckedIntegerMathExpression, CheckedIntegerMathTerm,
-    CheckedScalarExpression, CheckedStorageRoot, CheckedStructuralParameterField,
-    CheckedStructuralPredicatePathSegment,
+    CheckedScalarExpression, CheckedScalarSelector, CheckedStorageRoot,
+    CheckedStructuralParameterField, CheckedStructuralPredicatePathSegment,
 };
 
 mod computations;

@@ -1374,7 +1374,7 @@ pub(super) struct ElementSelection {
     pub(super) path: Vec<checked_trees::CheckedStructuralPredicatePathSegment>,
     pub(super) element_type: typed_trees::types::TypeReferenceHandle,
     pub(super) through_view: bool,
-    pub(super) index: CheckedScalarExpression,
+    pub(super) index: checked_trees::CheckedScalarSelector,
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1471,7 +1471,10 @@ pub(super) fn selected_element(
         path,
         element_type,
         through_view,
-        index,
+        index: checked_trees::CheckedScalarSelector {
+            expression: index,
+            occurrence: expression,
+        },
     })
 }
 
@@ -1595,7 +1598,10 @@ fn nested_element_read(
         if !is_integer(index_type) || index_type == PrimitiveType::Addr {
             return None;
         }
-        inner_indexes.push(index);
+        inner_indexes.push(checked_trees::CheckedScalarSelector {
+            expression: index,
+            occurrence: enclosing_expression,
+        });
     }
     let primitive_type = program.primitive_type_reference(element_type)?;
     if !is_integer(primitive_type)

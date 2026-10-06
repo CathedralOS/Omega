@@ -25,7 +25,10 @@ impl CheckedBooleanExpression {
             let read = CheckedScalarExpression::StructuralParameterIndexedRead {
                 root,
                 path: path.clone(),
-                index: Box::new(literal(u64::try_from(index).ok()?, PrimitiveType::U64)?),
+                index: Box::new(super::CheckedScalarSelector {
+                    expression: literal(u64::try_from(index).ok()?, PrimitiveType::U64)?,
+                    occurrence: typed_trees::expression::ExpressionHandle::invalid(),
+                }),
                 inner_indexes: Vec::new(),
                 element_path: Vec::new(),
                 primitive_type: PrimitiveType::U8,

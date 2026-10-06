@@ -244,7 +244,9 @@ pub(in crate::unit::attached_unit::composed_control) fn flat_case_payload_reads<
             | Scalar::IntegerSaturatingCast { operand, .. }
             | Scalar::IntegerWrappingCast { operand, .. }
             | Scalar::IntegerTrappingCast { operand, .. } => scalar(operand, reads),
-            Scalar::StructuralParameterIndexedRead { index, .. } => scalar(index, reads),
+            Scalar::StructuralParameterIndexedRead { index, .. } => {
+                scalar(&index.expression, reads)
+            }
             Scalar::Boolean(expression) => boolean(expression, reads),
             _ => {}
         }

@@ -1221,7 +1221,7 @@ impl OperationFrame<'_, '_> {
             )?,
             // A `&mut collection[index]` view local's index coordinate was
             // already checked against its establishment: it lowers directly.
-            None => bindings.expression(leaf.index())?,
+            None => bindings.expression(&self.checked.facts.proven_scalar_indexes, leaf.index())?,
         };
         // A completed call-result source must be joined before adding private
         // staging slots to the scalar namespace. Pure source expressions name

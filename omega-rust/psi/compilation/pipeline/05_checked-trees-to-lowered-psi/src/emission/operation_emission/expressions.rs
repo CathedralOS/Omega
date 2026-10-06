@@ -92,6 +92,14 @@ pub(crate) enum LoweredElementPathSegment {
     },
 }
 
+/// Each inner selector retains its own bound verdict; an outer selection's
+/// decision never authorizes another dimension.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct LoweredScalarSelector {
+    pub(crate) expression: LoweredDirectExpression,
+    pub(crate) bound_decided: bool,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum LoweredDirectExpression {
     PrimitiveRead {
@@ -149,12 +157,12 @@ pub(crate) enum LoweredDirectExpression {
         source: PlaceId,
         path: Vec<terminal_psi::StructuralPathSegment>,
         index: Box<LoweredDirectExpression>,
-        inner_indexes: Vec<LoweredDirectExpression>,
+        inner_indexes: Vec<LoweredScalarSelector>,
         element_path: Vec<LoweredElementPathSegment>,
         scalar_type: ScalarType,
         /// Checking proved the outer `[]` index within the declared extent;
         /// emission records that selector's obligation as source-checked.
-        /// Inner selectors keep their own searched obligations.
+        /// Inner selectors carry their own independent bound decisions.
         bound_decided: bool,
     },
     ElementViewLength {
@@ -691,7 +699,15 @@ pub(crate) fn emit_direct_expression(
             let inner_indexes = inner_indexes
                 .iter()
                 .map(|inner| {
-                    emit_direct_expression(inner, parameters, next_value_identity, operations)
+                    (
+                        emit_direct_expression(
+                            &inner.expression,
+                            parameters,
+                            next_value_identity,
+                            operations,
+                        ),
+                        inner.bound_decided,
+                    )
                 })
                 .collect::<Vec<_>>();
             // The certificate proves `index < declared extent` against the
@@ -709,8 +725,11 @@ pub(crate) fn emit_direct_expression(
             let mut path = path.clone();
             path.push(terminal_psi::StructuralPathSegment::RuntimeIndex { index, obligation });
             let inner_count = inner_indexes.len();
-            for (ordinal, index) in inner_indexes.into_iter().enumerate() {
+            for (ordinal, (index, bound_decided)) in inner_indexes.into_iter().enumerate() {
                 let obligation = selector_obligation(operations.next_identity, ordinal);
+                if bound_decided {
+                    operations.source_checked_obligations.push(obligation);
+                }
                 path.push(terminal_psi::StructuralPathSegment::RuntimeIndex { index, obligation });
             }
             path.extend(emit_prepared_path(

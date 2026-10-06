@@ -169,8 +169,10 @@ impl CrashPlan {
                     inner_indexes,
                     ..
                 } => {
-                    scalar_uses_proof_gated_arithmetic(index)
-                        || inner_indexes.iter().any(scalar_uses_proof_gated_arithmetic)
+                    scalar_uses_proof_gated_arithmetic(&index.expression)
+                        || inner_indexes.iter().any(|selector| {
+                            scalar_uses_proof_gated_arithmetic(&selector.expression)
+                        })
                 }
                 crate::CheckedScalarExpression::IntegerBinary {
                     kind, left, right, ..

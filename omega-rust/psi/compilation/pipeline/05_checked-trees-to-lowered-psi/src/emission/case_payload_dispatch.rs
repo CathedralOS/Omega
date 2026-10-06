@@ -517,7 +517,12 @@ pub(crate) fn substitute_direct(
             index: Box::new(substitute_direct(*index, bound)),
             inner_indexes: inner_indexes
                 .into_iter()
-                .map(|inner| substitute_direct(inner, bound))
+                .map(|inner| {
+                    crate::emission::operation_emission::expressions::LoweredScalarSelector {
+                        expression: substitute_direct(inner.expression, bound),
+                        bound_decided: inner.bound_decided,
+                    }
+                })
                 .collect(),
             element_path: substitute_path(element_path, bound),
             scalar_type,
@@ -791,7 +796,7 @@ fn collect_direct_case_reads(
         } => {
             collect_direct_case_reads(index, reads);
             for selector in inner_indexes {
-                collect_direct_case_reads(selector, reads);
+                collect_direct_case_reads(&selector.expression, reads);
             }
             collect_path_case_reads(element_path, reads);
         }

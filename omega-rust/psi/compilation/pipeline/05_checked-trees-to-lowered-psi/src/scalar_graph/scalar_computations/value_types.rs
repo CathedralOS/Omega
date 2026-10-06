@@ -51,9 +51,9 @@ fn value_type(
         CheckedScalarComputationKind::Call { target_state, .. } => {
             qualifications.scalar_state_types(checked, *target_state)?.1
         }
-        CheckedScalarComputationKind::Value(expression) => {
-            bindings.expression(expression)?.value_type(source_types)?
-        }
+        CheckedScalarComputationKind::Value(expression) => bindings
+            .expression(&checked.facts.proven_scalar_indexes, expression)?
+            .value_type(source_types)?,
         CheckedScalarComputationKind::BooleanToInteger { operand, .. } => {
             // The conversion result is a bare fixed-integer carrier; the
             // Boolean operand must be unqualified, matching Select's

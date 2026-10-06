@@ -364,7 +364,10 @@ fn byte_carrier_pair_equality(
             CheckedScalarExpression::StructuralParameterIndexedRead {
                 root,
                 path: path.clone(),
-                index: Box::new(integer_literal(index, PrimitiveType::U64)?),
+                index: Box::new(checked_trees::CheckedScalarSelector {
+                    expression: integer_literal(index, PrimitiveType::U64)?,
+                    occurrence: ExpressionHandle::invalid(),
+                }),
                 inner_indexes: Vec::new(),
                 element_path: Vec::new(),
                 primitive_type: PrimitiveType::U8,
