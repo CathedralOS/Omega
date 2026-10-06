@@ -2256,49 +2256,44 @@ crash and native exit behavior.
   a failed measurement.
 
 
-- **TERMINAL-SUCCESSOR-CLEANUP-REGRESSED-TWELVE.** (split-of:TERMINAL-EDGE-VALIDATION-REGRESSED-FORTY)
-  Twelve of `cfc85e2c592`'s forty regressions remain. **Twenty-eight were one
-  defect, attributed by bisect and not by the stamp:** `6c0fd10e915` compiles
-  `pass/borrows/nested_reference_crossings_exit` to `checked`, and its child
-  `93ef77dfc41` ("compiler: preserve ordered cleanup on selected successors")
-  refuses it with `EdgeAffineDiscardsInvalid { edge: EdgeId(9) }`. The
-  `@74a22511782` stamp was only where the loss got measured, three commits
-  later.
+- **TERMINAL-SUCCESSOR-CLEANUP-REGRESSED-SEVEN.** (split-of:TERMINAL-EDGE-VALIDATION-REGRESSED-FORTY)
+  Seven of `cfc85e2c592`'s forty regressions remain. **Thirty-three were two
+  producer defects, both lost in the same commit.** `93ef77dfc41` ("compiler:
+  preserve ordered cleanup on selected successors") replaced the successor
+  edge's `result_custody::local_discards` roster with `cleanup::for_exit` over
+  stage 04's whole dying complement when the root and residual lists became one
+  ordered action stream, and **dropped two subtractions** the old route
+  performed. The `@74a22511782` stamp was only where the losses got measured.
+  **This item previously guessed the five successor-argument rows "may predate
+  the batch" -- that was wrong: same batch, same commit, same defect class.**
 
-  **The mechanism is the inverse of the usual lens, and that matters for the
-  next lane.** The refusing predicate was **not** narrower than its rule -- the
-  *producer* was **wider** than the spec rule. `ownership.md` requires every
-  incoming owned obligation to occur *exactly once* across an edge's transfer
-  map, terminal consumption, eligible cleanup or validated discard, and the
-  module genuinely emitted a second `DiscardRoot` for a root a
-  `ContinuationCleanup` had already disposed in a dominating block. Patching the
-  validator would have been the "make a validator tolerate what it cannot
-  describe" mistake. **Read the spec rule and decide which side violates it
-  before assuming the predicate is at fault.**
+  **Both were the inverse of the usual lens: the producer was wider than the
+  rule, not the predicate narrower.** `8ed612f5cc6` restored the
+  body-discharged subtraction in `cleanup::for_exit` (29 rows). `d3c790def04`
+  restored the lent-home subtraction in `loan_chains::finish` (5 rows): the
+  lender of an exclusive state-loan chain is **not a chain member**, so `finish`
+  never reached the lender's exits, and the lending edge both carried a
+  `MutableBorrow` of the home *and* emitted `DiscardRoot` of it -- handing out a
+  `&mut` to a root while destroying that root on the same edge.
+  `loan_chains`'s own module header already stated the rule the producer broke
+  ("its home stays in place, members keep their exclusive views, and the chain's
+  ends discard the home"), and `block_views::mutable_records::validate_terminator`
+  was right to refuse ("a loan carried on this edge still needs its home"); the
+  spec sentence is `lifetimes.md`, "transitions may transport references only
+  while their storage outlives the target path". The repair is keyed on the
+  edge's own argument, so a lender that lends on one arm and lets the local die
+  on another keeps the dying arm's disposal, and transferred chain storage (an
+  `Owned` argument that genuinely dies on the moving edge) is untouched.
+  **No firewall twin of either judgment exists** -- both live only in the Psi
+  terminal verifier, confirmed by grep across `omega-rust/omega` and `source/`.
 
-  `8ed612f5cc6` repaired it in one filter in the shared `cleanup::for_exit`:
-  stage 04 records a state's whole dying complement on every normal exit and
-  separately records each body boundary's cleanup, and `for_exit` lowered the
-  exit roster verbatim after `93ef77dfc41` dropped the subtraction the previous
-  successor route performed. Placed in `for_exit` rather than at one call site
-  because all six callers consume the same roster -- and one of them also
-  repeated a body disposition, which is where a twenty-ninth recovered row came
-  from. The Omega-side twin validator needed no change: **repairing the producer
-  is what makes a duplicated firewall harmless.**
+  All five reach `checked` and run natively at their authored exits (three at
+  70, one at 1, one at 0 with matching stdout); four `regressed-from` tokens
+  dropped through the observed run, and one fixture that had **no** native row
+  gained a true one where `corpus_both_macos_arm64.txt` had been claiming a
+  false green.
 
-  Twenty-nine rows reach `checked` and all twenty-nine build and run on macOS
-  ARM64 (28 at `exit:70`, one at `0`); ten native `regressed-from` tokens
-  dropped through the observed run rather than by hand.
-
-  The twelve remaining split by what actually refuses, none of it edge-affine
-  cleanup:
-  - `InvalidStructuralSuccessorArgument` (5):
-    `pass/collections/runtime_double_indexed_rmw_exit`,
-    `pass/control_flow/{runtime_later_state_shared_array_loan,
-    runtime_nonentry_state_local_loan_forwarded_exit,
-    runtime_nonentry_state_local_loan_held_at_return_exit,
-    runtime_nonentry_state_local_record_loan_exit}`. A long-known wall; these
-    may predate the batch and need their own representative bisect.
+  The seven remaining split by what actually refuses, none of it edge cleanup:
   - native `UnsupportedControlFlow` during artifact target lowering (4):
     `pass/borrows/transition_shared_borrow_result`,
     `pass/calls/{runtime_guarded_reference_return_crash,
@@ -2311,19 +2306,12 @@ crash and native exit behavior.
     `pass/recast/runtime_interior_slice_view_mutable_write_exit`
     (`InvalidNominalAffineCleanup`).
 
-  Three rows the re-pin touched -- `pass/drops/{runtime_local_nominal_cleanup_exit,
-  runtime_local_nominal_return_exit, runtime_nominal_successor_argument_order_exit}`
-  -- were already `checked` and are not losses. 28 recovered + 12 still red + 3
-  never lost accounts for all 43 rows the re-pin added.
-  Acceptance: the twelve reach `checked` and their authored native outcomes,
+  Other hosts' goldens still carry two of the five recovered rows as `rejected`
+  (`corpus_native_linux_x86_64.txt`, `corpus_native_windows_x86_64.txt`); the
+  repair is host-neutral but only macOS ARM64 was measurable here, and a row
+  re-recorded from the wrong host is worse than a stale one.
+  Acceptance: the seven reach `checked` and their authored native outcomes,
   each cleared by an observed corpus result rather than a re-pin.
-
-  Division-of-labour follow-up, flagged and deliberately not taken: stage 04
-  publishes the exit roster as the union of all roots dying at the exit and
-  three lowering consumers now subtract the body-discharged ones. Publishing the
-  already-net roster and deleting all three subtractions is the alternative; it
-  is a much larger change than the red programs needed, and two of the
-  subtractions document the current division in their own comments.
 
 - **GUARDED-TRANSITION-ARGUMENT-PROOF-REGRESSED.** (new-scope)
   `pass/calls/runtime_guarded_effectful_transition_argument_exit` moved
