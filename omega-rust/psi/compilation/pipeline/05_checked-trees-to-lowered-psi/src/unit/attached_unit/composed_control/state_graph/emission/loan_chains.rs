@@ -74,8 +74,12 @@ struct LoanChain {
 #[derive(Debug, PartialEq, Eq)]
 enum ChainBacking {
     /// One lender's local stays in its own place. `home` is that place,
-    /// recorded when a lending edge emits.
-    LenderHome { home: Option<PlaceId> },
+    /// recorded when a lending edge emits; `lender` is the lending state's
+    /// position.
+    LenderHome {
+        home: Option<PlaceId>,
+        lender: usize,
+    },
     /// Members are owned block parameters over the moved storage.
     Transferred,
 }
@@ -347,7 +351,10 @@ impl LoanChains {
                     if lenders.len() == 1
                         && !members.iter().any(|(position, _, _)| position == lender) =>
                 {
-                    ChainBacking::LenderHome { home: None }
+                    ChainBacking::LenderHome {
+                        home: None,
+                        lender: *lender,
+                    }
                 }
                 _ => ChainBacking::Transferred,
             };
@@ -386,7 +393,7 @@ impl LoanChains {
         else {
             return Ok(());
         };
-        if let ChainBacking::LenderHome { home: recorded } = &mut chain.backing
+        if let ChainBacking::LenderHome { home: recorded, .. } = &mut chain.backing
             && *recorded.get_or_insert(home) != home
         {
             return Err(LoweringError::Unsupported(
@@ -458,8 +465,13 @@ impl LoanChains {
             if chain.multiplicity != StructuralMultiplicity::Affine {
                 continue;
             }
-            if let ChainBacking::LenderHome { home: Some(home) } = chain.backing {
+            if let ChainBacking::LenderHome {
+                home: Some(home),
+                lender,
+            } = chain.backing
+            {
                 retain_lent_home(&mut machine.blocks, home);
+                end_on_lender_exits(machine, state_ids[lender], &headers, home, &producers)?;
             }
             let member_headers = chain
                 .members
@@ -477,7 +489,7 @@ impl LoanChains {
                 }
                 let header = state_ids[position];
                 let exit = match chain.backing {
-                    ChainBacking::LenderHome { home } => {
+                    ChainBacking::LenderHome { home, .. } => {
                         let home = home.ok_or(LoweringError::Unsupported(
                             "Unit graph state loan chain lost its lender's home",
                         ))?;
@@ -553,6 +565,62 @@ fn retain_lent_home(blocks: &mut [terminal_psi::Block], home: PlaceId) {
             _ => {}
         }
     }
+}
+
+/// End a lender home on each exit of its own state that does not lend it.
+///
+/// `retain_lent_home` keeps whatever disposal stage 04 recorded on a sibling
+/// arm, but stage 04 records cleanup only for owners it tracks. A view or
+/// reference carrier the lender forms has no checked cleanup row, and
+/// `affine_cleanup::complete` leaves it alone once the chain schedules its
+/// disposal at the members' exits. A lender that lends its view on one arm and
+/// lets it die on another therefore reached the other successor, and every
+/// return after it, still owning the view. The home dies on that arm exactly
+/// as it dies at a member's non-forwarding exit. Exits that the home's
+/// establishment does not precede keep their roster.
+fn end_on_lender_exits(
+    machine: &mut TerminalMachine,
+    header: BlockId,
+    headers: &BTreeSet<BlockId>,
+    home: PlaceId,
+    producers: &BTreeMap<PlaceId, OperationId>,
+) -> Result<(), LoweringError> {
+    let producer = *producers.get(&home).ok_or(LoweringError::Unsupported(
+        "Unit graph state loan chain home has no producer",
+    ))?;
+    let region = private_region(machine, header, headers);
+    let birth = machine
+        .blocks
+        .iter()
+        .find(|block| {
+            region.contains(&block.id)
+                && block
+                    .operations
+                    .iter()
+                    .any(|operation| operation.id == producer)
+        })
+        .map(|block| block.id)
+        .ok_or(LoweringError::Unsupported(
+            "Unit graph state loan chain home is not established by its lender",
+        ))?;
+    let established = private_region(machine, birth, headers);
+    let exit = ChainExit {
+        headers,
+        storage: home,
+        forwarded: Forwarding::ByLoan,
+        position: DisposalPosition::OperationResult {
+            producer,
+            producers,
+        },
+    };
+    for block in machine
+        .blocks
+        .iter_mut()
+        .filter(|block| established.contains(&block.id))
+    {
+        exit.dispose(&mut block.terminator)?;
+    }
+    Ok(())
 }
 
 /// Transferred chain storage moves as an `Owned` argument and still dies on
@@ -701,6 +769,9 @@ enum Forwarding<'a> {
     IntoMember(&'a BTreeSet<BlockId>),
     /// An edge naming the owned member parameter as an argument.
     ByArgument,
+    /// The lender's own exits: an edge naming the home lends it onward, and
+    /// a disposal the lender already scheduled stands.
+    ByLoan,
 }
 
 /// Where the storage's discard joins an exit's existing cleanup roster.
@@ -762,6 +833,9 @@ impl ChainExit<'_> {
                 ..
             } => {
                 if *source == self.storage {
+                    if matches!(self.forwarded, Forwarding::ByLoan) {
+                        return Ok(());
+                    }
                     return Err(LoweringError::Unsupported(
                         "Unit graph state loan chain storage cannot escape as an owned return",
                     ));
@@ -805,6 +879,14 @@ impl ChainExit<'_> {
                     return Ok(());
                 }
             }
+            Forwarding::ByLoan => {
+                if arguments
+                    .iter()
+                    .any(|argument| argument.place == self.storage)
+                {
+                    return Ok(());
+                }
+            }
             Forwarding::IntoMember(_) => {}
         }
         self.insert_actions(discards)
@@ -814,6 +896,11 @@ impl ChainExit<'_> {
         &self,
         actions: &mut Vec<TerminalAffineCleanupAction>,
     ) -> Result<(), LoweringError> {
+        if matches!(self.forwarded, Forwarding::ByLoan)
+            && actions.iter().any(|action| action.place() == self.storage)
+        {
+            return Ok(());
+        }
         let mut places = actions
             .iter()
             .map(TerminalAffineCleanupAction::place)

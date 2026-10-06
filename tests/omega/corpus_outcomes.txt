@@ -2812,8 +2812,7 @@ pass/ranges/subject_guard_compound_index_successor checked 126ms @34bff3b8a5fe
 pass/ranges/subject_unsigned_computed_index_lower_bound checked 145ms @92c4e14e5396+wt
 pass/ranges/sum_payload_range_arith_narrowed_exit checked 618ms check-target:macos_arm64 @ca8c127c90c5
 pass/recast/nested_operand_view_compile checked 373ms @a3bac00e54bb+wt
-pass/recast/runtime_aggregate_slice_representation_recast_exit rejected 2308ms check-target:macos_arm64 @74a22511782
-	terminal-artifact production failed: Lowering(InvalidTerminalModule(OwnedStructuralFrontierJoinMismatch(BlockId(7))))
+pass/recast/runtime_aggregate_slice_representation_recast_exit checked 3846ms check-target:macos_arm64 @5a7ed5b57d00+wt
 pass/recast/runtime_bool_representation_recast_exit checked 1642ms check-target:macos_arm64 @a3bac00e54bb+wt
 pass/recast/runtime_field_precondition_capture_exit checked 10152ms check-target:macos_arm64 @cfe60a3a242
 pass/recast/runtime_float_range_representation_recast_exit checked 4057ms check-target:macos_arm64 @a3bac00e54bb+wt
@@ -2822,8 +2821,7 @@ pass/recast/runtime_inline_shared_slice_record_read_exit checked 2196ms check-ta
 pass/recast/runtime_inline_slice_view_mutable_write_exit checked 1981ms check-target:macos_arm64 @3b624377ec31
 pass/recast/runtime_integer_bit_view_recast_exit checked 1553ms check-target:macos_arm64 @a3bac00e54bb+wt
 pass/recast/runtime_interior_slice_congruent_offset_exit checked 911ms check-target:macos_arm64 @57fc72937714+wt
-pass/recast/runtime_interior_slice_view_mutable_write_exit rejected 2301ms check-target:macos_arm64 @74a22511782
-	terminal-artifact production failed: Lowering(InvalidTerminalModule(InvalidNominalAffineCleanup { machine: MachineId(1), block: BlockId(10) }))
+pass/recast/runtime_interior_slice_view_mutable_write_exit checked 3745ms check-target:macos_arm64 @5a7ed5b57d00+wt
 pass/recast/runtime_mutable_equivalent_domain_recast_exit checked 1046ms check-target:macos_arm64 @a3bac00e54bb+wt
 pass/recast/runtime_mutable_equivalent_range_recast_exit checked 1194ms check-target:macos_arm64 @a3bac00e54bb+wt
 pass/recast/runtime_mutable_equivalent_record_recast_exit checked 5307ms check-target:macos_arm64 @a3bac00e54bb+wt

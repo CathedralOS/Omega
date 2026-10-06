@@ -466,34 +466,3 @@ provider declarations, or (4) retiring both fixtures as not-yet-authorable.
 `Unsupported` the way the trait lane does.** Measured: that moves both fixtures
 off this diagnostic and plausibly to `built` while neither program can run. It
 is an admission-policy change disguised as a cleanup.
-
-### Q9 - Does a `&mut [T]` view's element projection carry the element's domain?
-
-Named decision: `slice-view-element-domain-evidence`.
-
-**Customer:** `pass/borrows/qualified_record_view_call_exit`, which refuses
-twice with "cannot prove default-domain field requirement for call fill ...
-parameter `cell.label` requires `[u8; N]::Utf8`"
-(`04_typed-trees-to-checked-trees/src/checks/contracts/nominal_inputs.rs:256`).
-
-**The measured gap.** The actual argument is `&mut view[0]`, where
-`view: &mut [Cell]` came from `main.cells.as_mut_slice()`. The `Utf8`
-qualification is established by literal stores on `main.cells[0].label`, and
-none of the three satisfaction routes reaches it: `prove_declared_field_domain`
-on the slice-element place, `captured_values`, nor
-`candidate_referents_prove_domain` -- whose own doc comment scopes it to "a
-`&mut` local bound from a **checked reference result**", enumerating finitely
-many referents. `as_mut_slice()` plus `view[0]` indexing is not that shape, so
-no field-domain evidence crosses the reborrow.
-
-**Decision needed:** should a `&mut [T]` view's element projection enumerate
-referents the way a checked reference result does, or should the slice view
-instead **carry the element domain as a view qualification**?
-
-**Why this is not an engineering call.** Enumerating referents through an
-`as_mut_slice()` plus dynamic index has no finite referent set to enumerate, so
-the first option is not a widening of the existing route but a different kind of
-evidence. The second changes what a view qualification means and therefore what
-a reborrow must preserve. The lane that measured this declined to guess, which
-was right: either answer is a statement about how domain evidence crosses a
-reborrow, not a local repair.

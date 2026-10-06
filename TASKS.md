@@ -2252,39 +2252,6 @@ crash and native exit behavior.
   a failed measurement.
 
 
-- **TERMINAL-SUCCESSOR-CLEANUP-REGRESSED-THREE.** (split-of:TERMINAL-EDGE-VALIDATION-REGRESSED-FORTY)
-  Three regressions remain, each with a distinct cause diagnosed to a site:
-  - `pass/recast/runtime_aggregate_slice_representation_recast_exit`:
-    `frontier/block_entry.rs::joined_frontier` refuses `BlockId(7)`, whose
-    **five** incoming frontiers agree on references, partial custody and
-    restoration debt but not owned places -- four arrive `{}` and the fifth
-    `{PlaceId(11): Affine}`. One predecessor edge omits a disposal its four
-    siblings perform, or the four perform it early. Next step: identify which.
-  - `pass/recast/runtime_interior_slice_view_mutable_write_exit`:
-    `consume_return_owner_action`'s `_ =>` arm refuses `BlockId(10)`'s return.
-    The expected reverse-producer roster is `[PlaceId(15), PlaceId(14)]` with
-    both owned affine; the module's roster is only `[DiscardRoot(PlaceId(14))]`,
-    so `PlaceId(15)` (the forwarded `&mut [Exact]` view from `OperationId(22)`)
-    has **no disposal at all**. A missing disposal on a *return* roster rather
-    than an ordering fault, reached by state forwarding rather than a deferred
-    release -- so `for_exit` is the wrong lever.
-  - `pass/borrows/qualified_record_view_call_exit`: **design-blocked on
-    `slice-view-element-domain-evidence`** in `OWNER_QUESTIONS.md`.
-    `checks/contracts/nominal_inputs.rs` cannot prove `[u8; N]::Utf8` for
-    `fill`'s `cell.label` because the actual is `&mut view[0]` through
-    `main.cells.as_mut_slice()`, and `candidate_referents_prove_domain`
-    enumerates referents only for a `&mut` local bound from a checked reference
-    result. A slice-view element projection carries no field-domain evidence.
-
-  **Reproduction note for all three:** they need the package-review accept dance
-  (`omega update --offline`, rewrite `decision row ... pending` to `accept` in
-  `build/package-manager/review-macos_arm64.txt`, `omega update --resume
-  --offline`), **redone after every compiler rebuild** because the accepted lock
-  pins the compiler identity. `--check` passes for both `recast/` rows; only
-  `omega run` reproduces them.
-  Acceptance: the three reach `checked` and their authored native outcomes,
-  each cleared by an observed corpus result rather than a re-pin.
-
 - **TWINS-GOLDEN-RECORDS-A-LOAD-ARTIFACT.** (split-of:OPERATOR-BOUNDARY-CALLS)
   Refresh the stale macOS native records for
   `pass/float/build_runtime_semantics_twins_{x86_baseline,windows_x64}`.
