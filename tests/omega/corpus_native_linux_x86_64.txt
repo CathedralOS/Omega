@@ -223,6 +223,8 @@ pass/calls/runtime_nested_case_subject_operand_order_exit built 3600ms exit:0 @8
 pass/calls/runtime_nested_value_call_guard_exit built 4782ms exit:70 @233d30cb1ceb
 pass/calls/runtime_option_value_call_exit built 1177ms exit:70 @2d8ed253669f+wt
 pass/calls/runtime_owned_case_temporaries_exhaustive_dispatch_exit built 1085ms exit:70 @2d8ed253669f+wt
+pass/calls/runtime_owned_parameter_primitive_borrow_exit rejected 6878ms @527bb17dc5
+	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "main", reason: "machine has no source-independent checked scalar control plan (terminator)", omission: Some("`main` has no admitted body (local construction stopped at state graph: result custody accounting, state 0)") })
 pass/calls/runtime_param_receiver_second_instance_exit built 1243ms exit:70 @2d8ed253669f+wt
 pass/calls/runtime_qualified_tail_recursion_exit built 1001ms exit:70 @2d8ed253669f+wt
 pass/calls/runtime_reference_returned_slice_element_write_exit built 1624ms exit:181 @bd26d3a01ac1
@@ -300,7 +302,9 @@ pass/collections/runtime_declared_range_index_write_exit built 921ms exit:30 @2d
 pass/collections/runtime_double_indexed_rmw_exit rejected 2139ms regressed-from:built+exit:1 @faca6c5c7f5
 	terminal-artifact production failed: Lowering(InvalidTerminalModule(InvalidStructuralSuccessorArgument { edge: EdgeId(5), place: PlaceId(10) }))
 pass/collections/runtime_dutch_flag_partition_exit built 2751ms exit:70 @2d8ed253669f+wt
+pass/collections/runtime_fixed_array_captured_selector_store_exit built 5332ms exit:70 @527bb17dc5
 pass/collections/runtime_fixed_array_projected_write_exit built 43683ms exit:45 @74a22511782
+pass/collections/runtime_fixed_array_selector_call_store_exit built 4648ms exit:70 @527bb17dc5
 pass/collections/runtime_fixed_vec_round_trip_exit built 1341ms exit:70 @9baafc0ace88
 pass/collections/runtime_frame_indexed_param_read_exit built 919ms exit:1 @2d8ed253669f+wt
 pass/collections/runtime_hoisted_index_write_exit built 1072ms exit:7 @2d8ed253669f+wt
@@ -340,6 +344,8 @@ pass/contracts/ensures_named_parameter_arithmetic_exit built 620ms exit:0 @5a10c
 pass/contracts/proof_fact_indexed_domain_application checked 314ms @2d8ed253669f+wt
 pass/contracts/requires_narrow_ceiling_unproven built 927ms @2d8ed253669f+wt
 pass/contracts/requires_u8_ceiling_below_carrier built 1164ms @2d8ed253669f+wt
+pass/control_flow/affine_call_result_state_transfer_exit rejected 5088ms @527bb17dc5
+	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "main", reason: "attached Unit closure is missing a checked transitive machine plan", omission: Some("`main` has no admitted body (local construction stopped at state graph: result custody accounting, state 0)") })
 pass/control_flow/arm_pattern_rest_optout_exit built 1097ms exit:70 @9baafc0ace88
 pass/control_flow/borrowed_state_argument built 1139ms exit:5 @9baafc0ace88
 pass/control_flow/case_arm_payload_receiver_call rejected 819ms @2d8ed253669f+wt
@@ -467,6 +473,7 @@ pass/drops/core_drop_owner_hook_body checked 452ms @2d8ed253669f+wt
 pass/drops/runtime_local_nominal_cleanup_exit built 6798ms exit:0 stdout:match @faca6c5c7f5
 pass/drops/runtime_local_nominal_return_exit built 6511ms exit:0 stdout:match @faca6c5c7f5
 pass/drops/runtime_nominal_successor_argument_order_exit built 6307ms exit:0 stdout:match @faca6c5c7f5
+pass/drops/runtime_scalar_exit_nominal_cleanup_exit built 13255ms exit:0 stdout:match @527bb17dc5
 pass/drops/transfer_cleanup_into_state checked 343ms @2d8ed253669f+wt
 pass/dungeon/runtime_ordered_room_dispatch_exit built 1159ms exit:73 @2d8ed253669f+wt
 pass/dungeon/runtime_threaded_mut_arg_interrupt_soak_exit built 1190ms exit:70 @2d8ed253669f+wt
