@@ -287,6 +287,32 @@ pub(in crate::legalization) fn contains_reference(
     false
 }
 
+/// Push one field's reference-bearing child as a leaf-path continuation:
+/// non-structural fields and children without a reference contribute no
+/// pending leaf, and exceeding the bounded worklist declines reconstruction.
+fn push_field_leaf(
+    pending: &mut Vec<(StructuralTypeId, Vec<StructuralPathSegment>)>,
+    path: &[StructuralPathSegment],
+    leaves: usize,
+    maximum_leaves: usize,
+    types: &[StructuralTypeDeclaration],
+    field: &terminal_psi::StructuralFieldDeclaration,
+) -> Option<()> {
+    let StructuralFieldType::Structural(child) = field.field_type else {
+        return Some(());
+    };
+    if !contains_reference(types, child) {
+        return Some(());
+    }
+    if pending.len().checked_add(leaves)? >= maximum_leaves {
+        return None;
+    }
+    let mut child_path = path.to_vec();
+    child_path.push(StructuralPathSegment::Field(field.identity.clone()));
+    pending.push((child, child_path));
+    Some(())
+}
+
 /// Exact declaration-order reference leaves of the supported owned shape.
 /// `maximum_leaves` bounds reconstruction exactly like the verified rule.
 fn leaf_paths(
@@ -312,19 +338,7 @@ fn leaf_paths(
             }
             StructuralTypeShape::Record { fields } => {
                 for field in fields.iter().rev() {
-                    if let StructuralFieldType::Structural(child) = field.field_type {
-                        if !contains_reference(types, child) {
-                            continue;
-                        }
-                        // Every pending owned subtree owes at least one leaf.
-                        // Bound the worklist before a wide DAG can amplify it.
-                        if pending.len().checked_add(output.len())? >= maximum_leaves {
-                            return None;
-                        }
-                        let mut child_path = path.clone();
-                        child_path.push(StructuralPathSegment::Field(field.identity.clone()));
-                        pending.push((child, child_path));
-                    }
+                    push_field_leaf(&mut pending, &path, output.len(), maximum_leaves, types, field)?;
                 }
             }
             StructuralTypeShape::FixedArray { element, length }
@@ -350,17 +364,7 @@ fn leaf_paths(
             // the authored path names.
             StructuralTypeShape::Sum { cases } => {
                 for field in cases.iter().flat_map(|case| &case.fields).rev() {
-                    if let StructuralFieldType::Structural(child) = field.field_type {
-                        if !contains_reference(types, child) {
-                            continue;
-                        }
-                        if pending.len().checked_add(output.len())? >= maximum_leaves {
-                            return None;
-                        }
-                        let mut child_path = path.clone();
-                        child_path.push(StructuralPathSegment::Field(field.identity.clone()));
-                        pending.push((child, child_path));
-                    }
+                    push_field_leaf(&mut pending, &path, output.len(), maximum_leaves, types, field)?;
                 }
             }
             StructuralTypeShape::Mixed { fields, cases } => {
@@ -370,17 +374,7 @@ fn leaf_paths(
                     .chain(fields)
                     .rev()
                 {
-                    if let StructuralFieldType::Structural(child) = field.field_type {
-                        if !contains_reference(types, child) {
-                            continue;
-                        }
-                        if pending.len().checked_add(output.len())? >= maximum_leaves {
-                            return None;
-                        }
-                        let mut child_path = path.clone();
-                        child_path.push(StructuralPathSegment::Field(field.identity.clone()));
-                        pending.push((child, child_path));
-                    }
+                    push_field_leaf(&mut pending, &path, output.len(), maximum_leaves, types, field)?;
                 }
             }
             _ => {}
