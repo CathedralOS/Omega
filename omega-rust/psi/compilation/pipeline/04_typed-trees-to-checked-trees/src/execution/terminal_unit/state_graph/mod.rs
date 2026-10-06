@@ -1373,9 +1373,10 @@ fn call_argument_admitted(
         return false;
     };
     producers.next().is_none()
-        && argument.path.is_empty()
-        && result.type_identity == argument.type_identity
         && retained_structural_result(producer).is_some()
+        // The argument planner matched the selected subtree's declaration
+        // and exact transfer. Graph custody retains its owner binding; a
+        // projection does not turn that binding into a whole-value argument.
         // Copies leave the original for its existing state-exit accounting;
         // affine/linear transfers use the same consumption rule as that
         // accounting, which independently requires exactly one disposition.

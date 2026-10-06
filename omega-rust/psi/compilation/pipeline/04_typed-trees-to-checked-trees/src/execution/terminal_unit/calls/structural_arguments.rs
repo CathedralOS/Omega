@@ -260,8 +260,7 @@ pub(crate) fn structural_call_arguments(
                 target,
                 &target_identity,
                 allow_field_path_projection
-                    && target_machine.supply_mode == MachineSupplyMode::CheckedBody
-                    && is_unit(program, target_state.return_type),
+                    && target_machine.supply_mode == MachineSupplyMode::CheckedBody,
             )?);
             continue;
         }

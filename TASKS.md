@@ -755,9 +755,14 @@ defines the complete product bar.
     Preserve selected-subtree contracts as **OMEGA-READS-TERMINAL-UNVERIFIED**
     moves ownership analysis out of the retiring verifier; do not add a second
     independent replay. Coordinate the static-maze loan outcome.
-  - Generalize temporary cleanup beyond empty effect-free Unit consumers
-    (other argument effects, non-Unit results, borrowed/owned mixtures,
-    claims) on **STATE-LOCAL-VALUE-FRONTIER**'s evaluation path.
+  - Complete temporary cleanup for computed non-Unit calls, nominal hooks and
+    claim-bearing values on **STATE-LOCAL-VALUE-FRONTIER**'s evaluation path.
+    The scalar schedule in
+    `omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/scalar_graph/scalar_graph_lowering/structural_values.rs`
+    still rejects projected structural argument values with
+    `structural construction requires aggregate value custody`. Retain the
+    selected transfer and residual complement on the actual scalar-call
+    continuation; do not mint a second whole temporary for the selected field.
   Acceptance: add corpus fixtures where native runs and the Terminal
   interpreter preserve values and hook order across composed edges, including
   a projected-argument jump edge closing residuals in order. Missing,

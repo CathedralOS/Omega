@@ -5,8 +5,7 @@ use crate::execution::terminal_unit::ScalarCalleePlans;
 
 use crate::execution::terminal_unit::calls::argument_paths::{
     checked_call_erased_proof_arguments, checked_call_erased_scalar_arguments,
-    checked_call_scalar_arguments, ordinary_projected_call_is_supported,
-    target_contract_mentions_projected_parameter,
+    checked_call_scalar_arguments, projected_call_contracts_are_represented,
 };
 use crate::execution::terminal_unit::calls::boundary_admission::boundary_value_result_matches;
 use crate::execution::terminal_unit::calls::service_forward;
@@ -14,9 +13,9 @@ use crate::execution::terminal_unit::calls::structural_arguments::{
     call_claim_transfers, exact_integer_at, structural_call_arguments,
 };
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
-use crate::execution::terminal_unit::types::{base_type_identity, is_unit, machine_binders};
+use crate::execution::terminal_unit::types::{is_unit, machine_binders};
 use crate::execution::terminal_unit::{
-    BuiltinFunction, CheckFacts, CheckedStructuralAccess, CheckedStructuralScalarParameterPlan,
+    BuiltinFunction, CheckFacts, CheckedStructuralScalarParameterPlan,
     CheckedTrivialAffineStructuralLocalPlan, CheckedUnitCallCoordinate,
     CheckedUnitEffectOperationPlan, CheckedUnitEntryClaimPlan, CheckedUnitStructuralArgumentPlan,
     CheckedUnitStructuralParameterPlan, CheckedUnitStructuralResultBindingPlan, Multiplicity,
@@ -427,39 +426,16 @@ pub(in crate::execution) fn build_call_operation(
         } else {
             "call operation: projected operand support"
         });
-        let supported = if carries_routed_service {
-            service_forward::fused_service_arguments_match(
+        let supported = (!carries_routed_service
+            || service_forward::fused_service_arguments_match(
                 program,
                 state,
                 caller_parameters,
                 target_state,
                 call.statement_index,
                 &structural_arguments,
-            ) && ordinary_projected_call_is_supported(
-                program,
-                facts,
-                machine,
-                state,
-                caller_parameters,
-                target_machine,
-                target_state,
-                &call_site,
-                &structural_arguments,
-                allow_field_path_projection,
-            )
-        } else {
-            ordinary_projected_call_is_supported(
-                program,
-                facts,
-                machine,
-                state,
-                caller_parameters,
-                target_machine,
-                target_state,
-                &call_site,
-                &structural_arguments,
-                allow_field_path_projection,
-            ) || projected_reference_record_operands_supported(
+            ))
+            && projected_call_contracts_are_represented(
                 program,
                 facts,
                 machine,
@@ -467,8 +443,7 @@ pub(in crate::execution) fn build_call_operation(
                 target_machine,
                 target_state,
                 &structural_arguments,
-            )
-        };
+            );
         if !supported {
             return None;
         }
@@ -595,92 +570,4 @@ pub(in crate::execution) fn build_call_operation(
         })
         .map(CheckedUnitEffectOperationPlan::Call)
     }
-}
-
-/// A projected owned operand may select one declared-field subtree out of an
-/// earlier structural result when the target parameter is a reference-bearing
-/// record. Argument construction already replayed every captured leaf loan
-/// under that edge, and the bare reference result's loan re-derives the same
-/// ingress at the consuming call, so the projected path admits here.
-fn projected_reference_record_operands_supported(
-    program: &TypedTrees,
-    facts: &CheckFacts,
-    caller_machine: &typed_trees::machine::Machine,
-    caller_state: &typed_trees::state::State,
-    target_machine: &typed_trees::machine::Machine,
-    target_state: &typed_trees::state::State,
-    arguments: &[CheckedUnitStructuralArgumentPlan],
-) -> bool {
-    if !target_machine.supplies_checked_body() {
-        return false;
-    }
-    let target_parameters = program
-        .state_parameters(target_state)
-        .iter()
-        .filter(|parameter| {
-            !parameter.relevance.is_erased()
-                && program
-                    .primitive_type_reference(parameter.type_reference)
-                    .is_none()
-        })
-        .collect::<Vec<_>>();
-    if target_parameters.len() != arguments.len()
-        || arguments.iter().all(|argument| argument.path.is_empty())
-    {
-        return false;
-    }
-    let has_content_evidence = |machine, state| {
-        facts
-            .qualifications
-            .content
-            .identity_reshuffles
-            .iter()
-            .any(|fact| fact.machine_symbol == machine && fact.state_symbol == state)
-            || facts
-                .qualifications
-                .content
-                .partition_compositions
-                .iter()
-                .any(|fact| fact.machine_symbol == machine && fact.state_symbol == state)
-    };
-    if has_content_evidence(caller_machine.symbol, caller_state.symbol)
-        || has_content_evidence(target_machine.symbol, target_state.symbol)
-        || arguments
-            .iter()
-            .zip(&target_parameters)
-            .any(|(argument, parameter)| {
-                !argument.path.is_empty()
-                    && target_contract_mentions_projected_parameter(
-                        program,
-                        facts,
-                        target_machine,
-                        target_state,
-                        parameter,
-                    )
-            })
-    {
-        return false;
-    }
-    arguments
-        .iter()
-        .zip(&target_parameters)
-        .all(|(argument, target)| {
-            argument.path.is_empty()
-                || ((argument
-                    .source_structural_result_binding_ordinal()
-                    .is_some()
-                    && argument.access == CheckedStructuralAccess::Owned
-                    && argument.path.iter().all(|segment| {
-                        matches!(
-                            segment,
-                            checked_trees::CheckedUnitStructuralPathSegment::Field(_)
-                        )
-                    }))
-                    && validation::reference_result_custody::is_reference_record(
-                        program,
-                        target.type_reference,
-                    )
-                    && base_type_identity(program, target.type_reference, &[])
-                        .is_some_and(|identity| identity == argument.type_identity))
-        })
 }

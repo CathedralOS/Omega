@@ -1,178 +1,20 @@
-//! Anonymous result roots use the existing nested schedule and partial plan.
+//! Anonymous argument owners die at the consuming call's normal continuation.
+//! The nested schedule establishes each owner once; a projected argument names
+//! its subtree without establishing another owner. Borrowed owners retire whole,
+//! while partial transfers retire the maximal untouched complement, in reverse
+//! establishment order. Callee effects and result shape do not alter that debt.
+//! Partial transfers still require the captured permission partition; automatic
+//! affine disposal does not discharge a live linear obligation or nominal hook.
 use super::super::CheckedUnitStructuralResultBindingPlan;
 use super::{
     CheckFacts, CheckedStructuralAccess, CheckedUnitEffectOperationPlan,
-    CheckedUnitPartialAffineDiscardPlan, CheckedUnitStructuralArgumentSourcePlan,
-    CheckedUnitStructuralPathSegment, MachineSupplyMode, Multiplicity, PermissionAccess,
-    PermissionClaimIdentity, PermissionEventKind, PermissionEventSource, StatementNode, TypedTrees,
-    control,
+    CheckedUnitPartialAffineDiscardPlan, CheckedUnitStructuralArgumentSourcePlan, Multiplicity,
+    PermissionAccess, PermissionClaimIdentity, PermissionEventKind, PermissionEventSource,
+    TypedTrees,
 };
 use crate::execution::terminal_unit::calls::projected_argument_path;
-use crate::execution::terminal_unit::cleanup::cleanup_evidence::{
-    machine_has_content_evidence, service_reach_is_empty, service_reach_plan_is_empty,
-};
 use crate::execution::terminal_unit::cleanup::partial_affine_cleanup::partial_affine_residuals;
-use crate::execution::terminal_unit::types::{
-    ShapeCollector, base_type_identity, machine_binders, state_flow,
-};
-use checked_trees::CheckedUnitCallResult;
-
-pub(in crate::execution::terminal_unit) fn binding(
-    program: &TypedTrees,
-    facts: &CheckFacts,
-    shapes: &mut ShapeCollector<'_>,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-) -> Option<(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)> {
-    // The temporary dies at this call's continuation. With no later statements,
-    // the existing Unit return edge owns that cleanup; do not extend its life.
-    let [StatementNode::Call(_)] = program.statement_table.statements(state.statement_nodes) else {
-        return None;
-    };
-    let flow = state_flow(facts, machine.symbol, state.symbol)?;
-    let calls = facts.flow.control.calls.span(flow.calls)?;
-    let calls = calls
-        .iter()
-        .filter(|call| call.statement_index == 0)
-        .collect::<Vec<_>>();
-    if calls.len() != 2 {
-        return None;
-    }
-    let outer = calls.iter().find(|call| call.call_ordinal == 0)?;
-    let nested = control::structural_operands::for_call(program, facts, machine, state, outer)?;
-    let [producer] = nested.as_slice() else {
-        return None;
-    };
-    if producer.call_ordinal != 1 {
-        return None;
-    }
-    // This lane retains exactly one consumer operand. Wider argument lists and
-    // multiple producers belong to the shared statement sequencer, where each
-    // temporary's exact dying continuation is its own cleanup row.
-    let source =
-        crate::semantic::calls::find_call_site(program, machine.symbol, state.symbol, 0, 0)?;
-    if crate::semantic::calls::call_site_argument_expressions(program, &source).len() != 1 {
-        return None;
-    }
-    binding_at(
-        program,
-        facts,
-        shapes,
-        machine,
-        state,
-        0,
-        0,
-        facts::PlaceRoot::Expression(producer.authored_expression),
-    )
-}
-
-/// Identify the anonymous temporary `root` projected by one operand of the
-/// `call_ordinal == 0` consumer at `statement_index`. The producer is the
-/// nested call that authored the operand's expression root; any number of
-/// sibling producers or unrelated arguments may share the same consumer.
-pub(in crate::execution::terminal_unit) fn binding_at(
-    program: &TypedTrees,
-    facts: &CheckFacts,
-    shapes: &mut ShapeCollector<'_>,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    statement_index: usize,
-    binding_ordinal: u32,
-    root: facts::PlaceRoot,
-) -> Option<(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)> {
-    if !matches!(
-        program
-            .statement_table
-            .statements(state.statement_nodes)
-            .get(statement_index),
-        Some(StatementNode::Call(_))
-    ) {
-        return None;
-    }
-    let facts::PlaceRoot::Expression(expression) = root else {
-        return None;
-    };
-    let flow = state_flow(facts, machine.symbol, state.symbol)?;
-    let calls = facts.flow.control.calls.span(flow.calls)?;
-    let calls = calls
-        .iter()
-        .filter(|call| call.statement_index == statement_index)
-        .collect::<Vec<_>>();
-    if calls.len() < 2 {
-        return None;
-    }
-    if calls.iter().all(|call| call.call_ordinal != 0) {
-        return None;
-    }
-    let mut producers = calls
-        .iter()
-        .filter(|call| call.call_ordinal != 0 && call.authored_expression == expression);
-    let producer = producers.next()?;
-    if producers.next().is_some() {
-        return None;
-    }
-    let _ = producer;
-    let source = crate::semantic::calls::find_call_site(
-        program,
-        machine.symbol,
-        state.symbol,
-        statement_index,
-        0,
-    )?;
-    // Exactly one operand may project this temporary's root; a second use would
-    // leave part of the residual without a checked owner.
-    let mut projected = crate::semantic::calls::call_site_argument_expressions(program, &source)
-        .iter()
-        .filter_map(|argument| {
-            crate::flow::canonical_place_from_expression_in_state(
-                program,
-                state.symbol,
-                statement_index,
-                *argument,
-            )
-        })
-        .filter(|place| place.root == root && !place.segments.is_empty());
-    if projected.next().is_none() || projected.next().is_some() {
-        return None;
-    }
-    let root_place = crate::flow::CanonicalPlace {
-        root,
-        segments: Vec::new(),
-    };
-    let reference = crate::flow::canonical_place_type_reference(
-        program,
-        state.symbol,
-        statement_index,
-        &root_place,
-    )?;
-    let type_identity =
-        shapes.add_partial_affine_type(reference, &machine_binders(program, machine))?;
-    let result =
-        control::structural_operands::result(program, facts, machine.symbol, expression, shapes)?;
-    if result.type_identity != type_identity {
-        return None;
-    }
-    Some((
-        CheckedUnitStructuralResultBindingPlan {
-            statement_index: u32::try_from(statement_index).ok()?,
-            binding_ordinal,
-            type_identity,
-            multiplicity: Multiplicity::Affine,
-        },
-        root,
-    ))
-}
-
-pub(super) fn validate_permissions(
-    program: &TypedTrees,
-    facts: &CheckFacts,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    root: facts::PlaceRoot,
-    residuals: &[CheckedUnitPartialAffineDiscardPlan],
-) -> Option<()> {
-    validate_permissions_at(program, facts, machine, state, root, 0, 0, residuals)
-}
+use crate::execution::terminal_unit::types::{ShapeCollector, base_type_identity, state_flow};
 
 #[allow(clippy::too_many_arguments)]
 pub(in crate::execution::terminal_unit) fn validate_permissions_at(
@@ -182,6 +24,7 @@ pub(in crate::execution::terminal_unit) fn validate_permissions_at(
     state: &typed_trees::state::State,
     root: facts::PlaceRoot,
     statement_index: usize,
+    call_ordinal: usize,
     binding_ordinal: u32,
     residuals: &[CheckedUnitPartialAffineDiscardPlan],
 ) -> Option<()> {
@@ -197,13 +40,15 @@ pub(in crate::execution::terminal_unit) fn validate_permissions_at(
     if calls.len() < 2 {
         return None;
     }
-    let consumer = calls.iter().find(|call| call.call_ordinal == 0)?;
+    let consumer = calls
+        .iter()
+        .find(|call| call.call_ordinal == call_ordinal)?;
     // The temporary's producer is the nested call that authored its
     // expression root, not a fixed ordinal: wider argument lists admit
     // producers at any later ordinal in the same statement.
     let mut producers = calls
         .iter()
-        .filter(|call| call.call_ordinal != 0 && call.authored_expression == expression);
+        .filter(|call| call.call_ordinal > call_ordinal && call.authored_expression == expression);
     let producer = producers.next()?;
     if producers.next().is_some() {
         return None;
@@ -213,7 +58,7 @@ pub(in crate::execution::terminal_unit) fn validate_permissions_at(
         machine.symbol,
         state.symbol,
         statement_index,
-        0,
+        call_ordinal,
     )?;
     let mut selected =
         crate::semantic::calls::call_site_argument_expressions(program, &consumer_site)
@@ -309,11 +154,12 @@ pub(in crate::execution::terminal_unit) fn validate_permissions_at(
     .then_some(())
 }
 
-/// Dispose each expression owner's maximal complement at its actual call.
-/// One consumer may die for several temporaries at once: every projected
-/// owned operand names its own producer's result binding, and the residual
-/// groups run latest-established first — operand order is not the cleanup
-/// schedule, while each root's own complement keeps its checked path order.
+/// Dispose anonymous argument owners at the call's normal continuation.
+/// The argument's access determines whether the whole owner or its maximal
+/// complement dies. The callee's effects and return shape do not change that
+/// lifetime; its already admitted call owns those independent obligations.
+/// Results follow establishment order, so reverse traversal also orders mixed
+/// borrowed owners and partially transferred owners without regrouping them.
 #[allow(clippy::too_many_arguments)]
 pub(in crate::execution::terminal_unit) fn append_continuation(
     program: &TypedTrees,
@@ -321,142 +167,100 @@ pub(in crate::execution::terminal_unit) fn append_continuation(
     shapes: &ShapeCollector<'_>,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
-    temporaries: &[(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)],
+    coordinate: checked_trees::CheckedUnitCallCoordinate,
+    results: &[(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)],
     operations: &mut Vec<CheckedUnitEffectOperationPlan>,
 ) -> Option<()> {
-    // Only an ordinary Unit call owns an anonymous-temporary continuation.
-    let call = operations
-        .last()?
-        .call()
-        .filter(|call| !call.is_boundary() && *call.result() == CheckedUnitCallResult::Unit)?;
-    let coordinate = &call.coordinate;
-    let target_machine = &call.target.machine;
-    let target_state = &call.target.state;
-    let structural_arguments = &call.structural_arguments;
-    if coordinate.call_ordinal != 0
-        || machine_has_content_evidence(facts, machine.symbol, state.symbol)
-        || facts
-            .qualifications
-            .for_machine(machine.symbol)
-            .is_some_and(|fact| !fact.body_committed.is_empty())
-    {
-        return None;
+    let call = operations.iter().rev().find_map(|operation| {
+        operation
+            .call()
+            .filter(|call| call.coordinate == coordinate)
+    })?;
+    if call.is_boundary() {
+        return Some(());
     }
-    // Every projected owned operand must belong to a dying temporary, and
-    // every temporary must own exactly one of them. Whole moves and scalar
-    // operands keep their own custody outside this cleanup row.
-    let mut residual_rows: Vec<Option<Vec<CheckedUnitPartialAffineDiscardPlan>>> =
-        temporaries.iter().map(|_| None).collect();
-    for argument in structural_arguments {
-        let Some(binding_ordinal) = argument.source_structural_result_binding_ordinal() else {
-            continue;
-        };
-        if argument.access != CheckedStructuralAccess::Owned {
-            // A borrowed anonymous operand owns the separate shared-temporary
-            // continuation; mixing it into this row is not admitted here.
-            return None;
-        }
-        if argument.path.is_empty() {
-            continue;
-        }
-        let (position, (result, root)) = temporaries
-            .iter()
-            .enumerate()
-            .find(|(_, (result, _))| result.binding_ordinal == binding_ordinal)?;
-        if residual_rows[position].is_some()
-            || coordinate.statement_index != result.statement_index
+    let mut dying = Vec::new();
+    let mut affine_discards = Vec::new();
+    for (result, root) in results.iter().rev() {
+        if result.statement_index != coordinate.statement_index
             || !matches!(root, facts::PlaceRoot::Expression(_))
+            || result.multiplicity == Multiplicity::Unrestricted
         {
+            continue;
+        }
+        let arguments = call
+            .structural_arguments
+            .iter()
+            .filter(|argument| {
+                argument.source_structural_result_binding_ordinal() == Some(result.binding_ordinal)
+            })
+            .collect::<Vec<_>>();
+        if arguments.is_empty() {
+            continue;
+        }
+        let transfers = arguments
+            .iter()
+            .filter(|argument| argument.access == CheckedStructuralAccess::Owned)
+            .collect::<Vec<_>>();
+        if transfers.iter().any(|argument| argument.path.is_empty()) {
+            // Whole transfers carry custody into the callee, including claims.
+            continue;
+        }
+        if result.multiplicity != Multiplicity::Affine {
+            // Automatic disposal cannot discharge a live linear obligation.
             return None;
         }
-        let residuals = partial_affine_residuals(
-            &shapes.types,
-            &argument.source,
-            &result.type_identity,
-            &[(argument.path.clone(), argument.type_identity.clone())],
-        )?;
-        validate_permissions_at(
-            program,
-            facts,
-            machine,
-            state,
-            *root,
-            usize::try_from(result.statement_index).ok()?,
-            result.binding_ordinal,
-            &residuals,
-        )?;
-        residual_rows[position] = Some(residuals);
+        let source = CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+            binding_ordinal: result.binding_ordinal,
+        };
+        if transfers.is_empty() {
+            affine_discards.push(CheckedUnitPartialAffineDiscardPlan {
+                source,
+                path: Vec::new(),
+                type_identity: result.type_identity.clone(),
+            });
+        } else {
+            let [argument] = transfers.as_slice() else {
+                return None;
+            };
+            let residuals = partial_affine_residuals(
+                &shapes.types,
+                &source,
+                &result.type_identity,
+                &[(argument.path.clone(), argument.type_identity.clone())],
+            )?;
+            validate_permissions_at(
+                program,
+                facts,
+                machine,
+                state,
+                *root,
+                usize::try_from(coordinate.statement_index).ok()?,
+                usize::try_from(coordinate.call_ordinal).ok()?,
+                result.binding_ordinal,
+                &residuals,
+            )?;
+            affine_discards.extend(residuals);
+        }
+        dying.push(result);
     }
-    if residual_rows.iter().any(Option::is_none) {
-        return None;
+    if dying.is_empty() {
+        return Some(());
     }
-    // `temporaries` follows producer order, and independent dying roots clean
-    // in reverse establishment order: each temporary's residual group runs
-    // latest-established first while its own complement keeps checked order.
-    let affine_discards: Vec<CheckedUnitPartialAffineDiscardPlan> = residual_rows
-        .into_iter()
-        .rev()
-        .flat_map(Option::unwrap_or_default)
-        .collect();
-    let target = crate::lookup::machine_by_symbol(program, *target_machine)?;
-    let [callee] = program.machine_states(target) else {
-        return None;
-    };
-    let callee_flow = state_flow(facts, target.symbol, callee.symbol)?;
-    if callee.symbol != *target_state
-        || target.supply_mode != MachineSupplyMode::CheckedBody
-        || !program
-            .statement_table
-            .statements(callee.statement_nodes)
-            .is_empty()
-        || !service_reach_is_empty(facts, callee_flow.service_reach)
-        || !service_reach_plan_is_empty(
-            facts,
-            facts.service_reaches.plan_for_machine(target.symbol)?,
-        )
-    {
-        return None;
-    }
-    if structural_arguments.iter().any(|argument| {
-        argument
-            .source_structural_result_binding_ordinal()
-            .is_some()
-            && argument
-                .path
-                .iter()
-                .any(|segment| matches!(segment, CheckedUnitStructuralPathSegment::FixedIndex(_)))
-    }) && (!program.machine_contracts(machine).is_empty()
-        || !program.state_contracts(state).is_empty()
-        || !program.machine_contracts(target).is_empty()
-        || !program.state_contracts(callee).is_empty())
-    {
-        return None;
-    }
-    let coordinate = *coordinate;
-    for (result, _) in temporaries {
-        // Any call with a structural result, ordinary or boundary.
+    for result in dying {
+        // Establishments and calls publish the same disposal debt. Move it
+        // to this continuation exactly once, never leave a second return drop.
         let mut producers = operations.iter_mut().filter_map(|operation| {
-            let call = operation.call_mut()?;
-            let coordinate = call.coordinate;
-            let (produced, discard_result_on_return) = call.structural_result_mut()?;
-            (produced.binding_ordinal == result.binding_ordinal).then_some((
-                coordinate,
-                produced,
-                discard_result_on_return,
-            ))
+            operation
+                .discardable_structural_result_mut()
+                .filter(|(produced, _)| produced.binding_ordinal == result.binding_ordinal)
         });
-        let (producer_coordinate, produced, discard_on_return) = producers.next()?;
-        if producers.next().is_some()
-            || producer_coordinate.statement_index != coordinate.statement_index
-            || producer_coordinate.call_ordinal == 0
-            || *produced != *result
-            || !*discard_on_return
-        {
+        let (produced, discard_on_return) = producers.next()?;
+        if producers.next().is_some() || *produced != *result || !*discard_on_return {
             return None;
         }
         *discard_on_return = false;
     }
-    // Keep even an empty complement: it records the exact dying continuation.
     operations.push(CheckedUnitEffectOperationPlan::ContinuationCleanup {
         boundary: checked_trees::CheckedUnitCleanupBoundary::Call(coordinate),
         affine_discards,

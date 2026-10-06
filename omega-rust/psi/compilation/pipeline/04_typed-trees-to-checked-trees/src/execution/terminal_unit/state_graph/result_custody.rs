@@ -90,22 +90,25 @@ pub(super) fn account(
                 } => Some(affine_discards),
                 _ => None,
             })
-            .flatten()
-            .filter(|discard| {
-                matches!(
-                    discard.source,
-                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-                        binding_ordinal
-                    } if binding_ordinal == result.binding_ordinal
-                )
-            })
-            .fold((0, false), |(count, retired_whole), discard| {
-                (
-                    count + 1,
-                    retired_whole
-                        || (discard.path.is_empty()
-                            && discard.type_identity == result.type_identity),
-                )
+            .fold((0, false), |(count, retired_whole), discards| {
+                let mut matched = false;
+                let mut whole = false;
+                for discard in discards {
+                    if matches!(discard.source,
+                        CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                            binding_ordinal
+                        } if binding_ordinal == result.binding_ordinal)
+                    {
+                        matched = true;
+                        whole |= discard.path.is_empty()
+                            && discard.type_identity == result.type_identity;
+                    }
+                }
+                // One continuation closes one owner's exact partition. Its
+                // maximal complement may contain several sibling subtrees;
+                // those are not competing dispositions of the whole root.
+                // Separate cleanup continuations still count independently.
+                (count + usize::from(matched), retired_whole || whole)
             });
         // A partially transferring successor partition must not hide a move
         // after unconditional retirement merely because it has another exit.

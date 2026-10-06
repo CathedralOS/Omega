@@ -92,9 +92,12 @@ fn evaluated_value_root<'a>(
     // A call already owns a producer operation and result binding. Retaining
     // its value for computed consumers does not turn that operation into an
     // aggregate establishment; collect it through the ordinary call route.
+    // A projection likewise selects storage from its canonical owner; minting
+    // a second whole operand here would erase the owner's residual complement.
     if matches!(
         facts.values.structural_values.nodes.get(root.root).kind,
         checked_trees::CheckedStructuralValueKind::Call { .. }
+            | checked_trees::CheckedStructuralValueKind::Projection { .. }
     ) {
         return None;
     }
@@ -397,7 +400,6 @@ pub(in crate::execution::terminal_unit) fn operations_for_call<'a>(
                 && !facts.flow.control.is_retired(state.symbol, nested)
                 && result(
                     program,
-                    facts,
                     machine.symbol,
                     nested.authored_expression,
                     &mut ShapeCollector::new(program),
@@ -499,7 +501,6 @@ fn collect<'a>(
         };
         result(
             program,
-            facts,
             machine.symbol,
             expression,
             &mut ShapeCollector::new(program),
@@ -538,7 +539,6 @@ fn collect<'a>(
 /// the complete target contract, arguments, and ownership events.
 pub(in crate::execution::terminal_unit) fn result(
     program: &TypedTrees,
-    facts: &CheckFacts,
     caller: SymbolHandle,
     expression: typed_trees::expression::ExpressionHandle,
     shapes: &mut ShapeCollector<'_>,
@@ -556,105 +556,34 @@ pub(in crate::execution::terminal_unit) fn result(
         };
         (state.symbol == call.target_symbol).then_some((owner, state))
     });
-    let binders = if let Some((owner, state)) = owners.next() {
-        if owners.next().is_some() {
-            return None;
-        }
-        if !owner.supply_mode.is_boundary_declaration() {
-            if owner.supply_mode == MachineSupplyMode::CheckedBody
-                && program.type_multiplicity(return_type) == Multiplicity::Unrestricted
-                && (validation::has_plain_owned_contents(program, return_type)
-                    || (validation::bounded_byte_buffer_capacity(program, return_type).is_some()
-                        && validation::has_plain_owned_contents_with_represented_constraints(
-                            program,
-                            return_type,
-                        )))
-                && machine_binders(program, owner).is_empty()
-            {
+    let binders =
+        if let Some((owner, _)) = owners.next() {
+            if owners.next().is_some() {
+                return None;
+            }
+            if !owner.supply_mode.is_boundary_declaration() {
+                if owner.supply_mode != MachineSupplyMode::CheckedBody
+                    || !machine_binders(program, owner).is_empty()
+                {
+                    return None;
+                }
+                // Binding and anonymous operand production classify the same
+                // declared storage. Neither classifier decides whether this call's
+                // body/effects/custody are executable; build_call_operation owns that.
+                let binding = checked_structural_result_type(program, shapes, return_type, &[])?;
                 return Some(CheckedStructuralResultPlan {
-                    type_identity: shapes.add_type(return_type, &[], &[])?,
-                    multiplicity: Multiplicity::Unrestricted,
-                    // An anonymous result carries the same declared domains
-                    // as a named result; scheduling it establishes none of
-                    // them. Callee completion and receiving replay own that proof.
+                    type_identity: binding.type_identity,
+                    multiplicity: binding.multiplicity,
                     qualifications: parameter_qualifications(program, shapes, return_type, &[])?,
                     projected_qualifications:
                         validation::structural_result_projected_qualifications(program, return_type)
                             .ok()?,
                 });
             }
-            // An owned record carrying borrowed referents is affine through
-            // its captured leaf loans, not through claim-free contents. The
-            // operand's own call operation replays that leaf custody; the
-            // anonymous result only needs its declared identity here.
-            if owner.supply_mode == MachineSupplyMode::CheckedBody
-                && validation::reference_result_custody::is_reference_record(program, return_type)
-                && machine_binders(program, owner).is_empty()
-            {
-                return Some(CheckedStructuralResultPlan {
-                    type_identity: shapes.add_type(return_type, &[], &[])?,
-                    multiplicity: Multiplicity::Affine,
-                    qualifications: Vec::new(),
-                    projected_qualifications: Vec::new(),
-                });
-            }
-            // A borrowed-view result (`&[u8]`, `&'a V`) lends caller-frame
-            // storage through a shared loan rather than owned contents: the
-            // operand's own call operation replays that loan custody, and
-            // the anonymous result only needs its declared identity — the
-            // same story as the reference-record arm above.
-            if owner.supply_mode == MachineSupplyMode::CheckedBody
-                && (crate::execution::terminal_unit::types::borrowed_slice_view(
-                    program,
-                    return_type,
-                ) || crate::execution::terminal_unit::types::borrowed_named_view(
-                    program,
-                    return_type,
-                ))
-                && machine_binders(program, owner).is_empty()
-            {
-                return Some(CheckedStructuralResultPlan {
-                    type_identity: shapes.add_type(return_type, &[], &[])?,
-                    multiplicity: Multiplicity::Affine,
-                    qualifications: Vec::new(),
-                    projected_qualifications: Vec::new(),
-                });
-            }
-            let mut targets = facts
-                .flow
-                .terminal_structural_returns
-                .claim_free_affine_machines
-                .iter()
-                .filter(|target| target.machine == owner.symbol && target.state == state.symbol);
-            if let Some(target) = targets.next() {
-                return (targets.next().is_none()
-                    && target.result.multiplicity == Multiplicity::Affine
-                    && target.result.qualifications.is_empty())
-                .then(|| target.result.clone());
-            }
-            // A checked-body producer whose result is affine plain owned
-            // storage carries no claims inside the value for the operand's own
-            // call operation to replay; the anonymous result only needs the
-            // declared identity, exactly as the closed-array and
-            // reference-record arms above.
-            if owner.supply_mode == MachineSupplyMode::CheckedBody
-                && program.type_multiplicity(return_type) == Multiplicity::Affine
-                && validation::has_plain_owned_contents(program, return_type)
-                && machine_binders(program, owner).is_empty()
-            {
-                return Some(CheckedStructuralResultPlan {
-                    type_identity: shapes.add_type(return_type, &[], &[])?,
-                    multiplicity: Multiplicity::Affine,
-                    qualifications: Vec::new(),
-                    projected_qualifications: Vec::new(),
-                });
-            }
-            return None;
-        }
-        machine_binders(program, owner)
-    } else {
-        Vec::new()
-    };
+            machine_binders(program, owner)
+        } else {
+            Vec::new()
+        };
     let CheckedBoundaryMachineResultPlan::Structural {
         type_identity,
         multiplicity: Multiplicity::Affine,
@@ -769,13 +698,7 @@ pub(in crate::execution::terminal_unit) fn plan_call_operands(
         }) {
             continue;
         }
-        let target = result(
-            program,
-            facts,
-            machine.symbol,
-            nested.authored_expression,
-            shapes,
-        )?;
+        let target = result(program, machine.symbol, nested.authored_expression, shapes)?;
         let result = CheckedUnitStructuralResultBindingPlan {
             statement_index,
             binding_ordinal: u32::try_from(*structural_count).ok()?,

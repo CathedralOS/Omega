@@ -62,17 +62,6 @@ fn scalar_parameter_signature(
     })
 }
 
-pub(crate) fn partial_affine_structural_signature(
-    program: &TypedTrees,
-    shapes: &mut ShapeCollector<'_>,
-    state: &typed_trees::state::State,
-    binders: &[(SymbolHandle, String)],
-) -> Option<(Option<String>, Vec<CheckedUnitStructuralParameterPlan>)> {
-    let (attachment, structural, scalar) =
-        structural_signature_with_partial_affine(program, shapes, state, binders, true, false)?;
-    scalar.is_empty().then_some((attachment, structural))
-}
-
 /// The authored parameters of one state as a structural plan, with the
 /// scalar formals separated out. A qualified machine contributes no implicit
 /// receiver parameter, so the roster is exactly the authored telescope and the

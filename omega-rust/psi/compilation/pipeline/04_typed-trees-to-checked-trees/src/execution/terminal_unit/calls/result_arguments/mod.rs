@@ -731,7 +731,6 @@ pub(super) fn argument(
             };
             let completed = super::super::control::structural_operands::result(
                 program,
-                facts,
                 machine,
                 source,
                 &mut ShapeCollector::new(program),

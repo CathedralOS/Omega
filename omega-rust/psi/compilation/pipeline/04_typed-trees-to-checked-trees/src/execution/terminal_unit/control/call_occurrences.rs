@@ -606,8 +606,11 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
         trace.statement(u32::try_from(call.statement_index).ok());
         let owner = crate::lookup::machine_by_symbol(program, machine)?;
         for nested in structural_operands::for_call(program, facts, owner, state, call)? {
+            // The value graph and canonical-place operand can name the same
+            // captured occurrence. This is one catalog entry, not a second
+            // invocation: the operand sequencer establishes its binding once.
             if structural.iter().any(|prior| std::ptr::eq(*prior, nested)) {
-                return None;
+                continue;
             }
             structural.push(nested);
         }

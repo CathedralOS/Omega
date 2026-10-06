@@ -27,7 +27,6 @@ pub(super) use call_occurrences::{
 };
 pub(crate) use call_results::{
     bind_scalar_call_result, bind_structural_call_result, checked_structural_result_type,
-    checked_unit_structural_result_local,
 };
 pub(crate) use checked_machine::{
     build_checked_machine_residual_parts, build_checked_machine_traced,

@@ -4,16 +4,15 @@
 use crate::execution::terminal_unit::types::byte_sequence_carrier;
 use crate::execution::terminal_unit::types::{
     base_type_identity, byte_sequence_type_identity, structural_access_for_type_reference,
-    terminal_field_identity, type_graph_requires_nominal_drop,
+    terminal_field_identity,
 };
 use crate::execution::terminal_unit::{
     CheckFacts, CheckedScalarExpressionRole, CheckedStructuralAccess,
     CheckedStructuralScalarParameterPlan, CheckedUnitCallCoordinate,
     CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralArgumentSourcePlan,
-    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment, ExpressionNode,
-    Multiplicity, PermissionAccess, PermissionClaimIdentity, PermissionEventKind,
-    PermissionEventSource, ProofFact, SignatureContractKind, StateParameter, StatementNode,
-    SymbolHandle, TypeReferenceHandle, TypeReferenceNode, TypedTrees,
+    CheckedUnitStructuralPathSegment, ExpressionNode, Multiplicity, ProofFact,
+    SignatureContractKind, StateParameter, StatementNode, SymbolHandle, TypeReferenceHandle,
+    TypeReferenceNode, TypedTrees,
 };
 
 pub(crate) fn checked_call_scalar_arguments(
@@ -167,30 +166,6 @@ pub(crate) fn checked_call_erased_scalar_arguments(
                 .then(|| checked_trees::CheckedCallScalarArgument::Pure(expression.clone()))
         })
         .collect()
-}
-
-fn checked_nonempty_field_path(path: &[CheckedUnitStructuralPathSegment]) -> bool {
-    !path.is_empty()
-        && path
-            .iter()
-            .all(|segment| matches!(segment, CheckedUnitStructuralPathSegment::Field(_)))
-}
-
-fn checked_literal_index_path(
-    path: &[CheckedUnitStructuralPathSegment],
-) -> Option<&[CheckedUnitStructuralPathSegment]> {
-    let field_count = path
-        .iter()
-        .position(|segment| matches!(segment, CheckedUnitStructuralPathSegment::FixedIndex(_)))?;
-    let (fields, indexes) = path.split_at(field_count);
-    (!indexes.is_empty()
-        && fields
-            .iter()
-            .all(|segment| matches!(segment, CheckedUnitStructuralPathSegment::Field(_)))
-        && indexes
-            .iter()
-            .all(|segment| matches!(segment, CheckedUnitStructuralPathSegment::FixedIndex(_))))
-    .then_some(fields)
 }
 
 /// Translate an authored place into the checked structural path a call
@@ -887,30 +862,28 @@ fn byte_array_range_path(
     Some(path)
 }
 
-pub(crate) fn ordinary_projected_call_is_supported(
+/// Argument formation owns storage identity, path geometry, exact access and
+/// transfer/loan custody. Do not classify them again by the caller's state
+/// count, sibling arguments, or the callee's result/body shape here. This join
+/// retains the remaining content-contract limitation: executing a projection
+/// cannot invent the missing correspondence for a content-qualified contract.
+pub(crate) fn projected_call_contracts_are_represented(
     program: &TypedTrees,
     facts: &CheckFacts,
     caller_machine: &typed_trees::machine::Machine,
     caller_state: &typed_trees::state::State,
-    caller_parameters: &[CheckedUnitStructuralParameterPlan],
     target_machine: &typed_trees::machine::Machine,
     target_state: &typed_trees::state::State,
-    _call_site: &crate::semantic::calls::CallSite<'_>,
     arguments: &[CheckedUnitStructuralArgumentPlan],
-    allow_field_path_projection: bool,
 ) -> bool {
-    // A range descriptor's path selects its backing collection, already
-    // checked by range admission. The callee receives the descriptor itself,
-    // not a projected subloan, regardless of how the collection was reached.
     let projected = |argument: &CheckedUnitStructuralArgumentPlan| {
         !argument.path.is_empty() && !super::view_subslice::is_view_subslice(argument)
     };
     if !arguments.iter().any(projected) {
         return true;
     }
-    let caller_source_parameters = program.state_parameters(caller_state);
-    let target_source_parameters = program.state_parameters(target_state);
-    let target_parameters = target_source_parameters
+    let parameters = program
+        .state_parameters(target_state)
         .iter()
         .filter(|parameter| {
             !parameter.relevance.is_erased()
@@ -919,43 +892,8 @@ pub(crate) fn ordinary_projected_call_is_supported(
                     .is_none()
         })
         .collect::<Vec<_>>();
-    if target_parameters.len() != arguments.len() {
+    if parameters.len() != arguments.len() || !target_machine.supplies_checked_body() {
         return false;
-    }
-    // Argument construction joins the exact source and authored loan before
-    // this admission. A live result lends its typed path, whether it selects
-    // owned storage or crosses stored references. Do not distinguish returned
-    // records from local carriers or require one particular crossing position.
-    // Receiving custody independently checks each descriptor and attenuates
-    // access; this query grants neither a new loan nor escaping authority.
-    let retained_result_projection =
-        |argument: &CheckedUnitStructuralArgumentPlan, target: &StateParameter| {
-            argument
-                .source_structural_result_binding_ordinal()
-                .is_some()
-                && argument.path.iter().all(|segment| {
-                    matches!(
-                        segment,
-                        CheckedUnitStructuralPathSegment::Field(_)
-                            | CheckedUnitStructuralPathSegment::FixedIndex(_)
-                            | CheckedUnitStructuralPathSegment::FixedByteRange { .. }
-                            | CheckedUnitStructuralPathSegment::RuntimeIndex(_)
-                            | CheckedUnitStructuralPathSegment::Referent
-                    )
-                })
-                && argument.access != CheckedStructuralAccess::Owned
-                && structural_access_for_type_reference(program, target.type_reference)
-                    == Some(argument.access)
-        };
-    if target_machine.supplies_checked_body()
-        && arguments
-            .iter()
-            .zip(&target_parameters)
-            .all(|(argument, target)| {
-                !projected(argument) || retained_result_projection(argument, target)
-            })
-    {
-        return true;
     }
     let has_content_evidence = |machine, state| {
         facts
@@ -971,369 +909,32 @@ pub(crate) fn ordinary_projected_call_is_supported(
                 .iter()
                 .any(|fact| fact.machine_symbol == machine && fact.state_symbol == state)
     };
-    if has_content_evidence(caller_machine.symbol, caller_state.symbol)
-        || has_content_evidence(target_machine.symbol, target_state.symbol)
-        || arguments
-            .iter()
-            .zip(&target_parameters)
-            .any(|(argument, parameter)| {
-                projected(argument)
-                    && target_contract_mentions_projected_parameter(
-                        program,
-                        facts,
-                        target_machine,
-                        target_state,
-                        parameter,
-                    )
-            })
-    {
-        return false;
-    }
-
-    // Argument construction has already rejoined each canonical place, exact
-    // referent type, and authored loan. Borrowed projections compose per
-    // argument; neither the number of sibling loans nor the caller's state
-    // count grants or removes access to those places.
-    if target_machine.supplies_checked_body()
-        && arguments
-            .iter()
-            .zip(&target_parameters)
-            .all(|(argument, target)| {
-                if !projected(argument) {
-                    return true;
-                }
-                // An argument the result-binding rule already admits composes
-                // beside a parameter projection. Requiring every projected
-                // argument to reach THIS rule is what made a mixed call
-                // unsupported even though each of its arguments is supported.
-                if retained_result_projection(argument, target) {
-                    return true;
-                }
-                let Some(source) = argument
-                    .source_parameter_index()
-                    .and_then(|index| caller_parameters.get(index as usize))
-                else {
-                    return false;
-                };
-                if !source.qualifications.is_empty()
-                    || caller_source_parameters
-                        .get(source.position as usize)
-                        .is_none()
-                    || structural_access_for_type_reference(program, target.type_reference)
-                        != Some(argument.access)
-                {
-                    return false;
-                }
-                let field_path = checked_nonempty_field_path(&argument.path);
-                let indexed_fields = checked_literal_index_path(&argument.path);
-                let static_path = argument.path.iter().all(|segment| {
-                    matches!(
-                        segment,
-                        CheckedUnitStructuralPathSegment::Field(_)
-                            | CheckedUnitStructuralPathSegment::Case(_)
-                            | CheckedUnitStructuralPathSegment::FixedIndex(_)
-                            | CheckedUnitStructuralPathSegment::FixedByteRange { .. }
-                    )
-                });
-                // Both readable loan kinds share geometry. Runtime selectors
-                // retain their own bounds contract; static case selection keeps
-                // the exact case and field for membership verification.
-                let borrow_path = static_path
-                    || (argument.path.iter().all(|segment| {
-                        matches!(
-                            segment,
-                            CheckedUnitStructuralPathSegment::Field(_)
-                                | CheckedUnitStructuralPathSegment::FixedIndex(_)
-                                | CheckedUnitStructuralPathSegment::RuntimeIndex(_)
-                        )
-                    }) && argument.path.iter().any(|segment| {
-                        matches!(segment, CheckedUnitStructuralPathSegment::RuntimeIndex(_))
-                    }));
-                match argument.access {
-                    CheckedStructuralAccess::SharedBorrow => {
-                        // A shared subloan replays statically or through a
-                        // runtime index: the verifier re-proves each
-                        // selector's bound against the array it selects in.
-                        if source.multiplicity == Multiplicity::Unrestricted {
-                            crate::checks::type_multiplicity(program, target.type_reference)
-                                == Multiplicity::Unrestricted
-                                && borrow_path
-                        } else {
-                            // An affine source lends a shared view of one
-                            // subtree: custody of the root stays with the
-                            // caller's place, so the loan presents
-                            // unrestricted. Terminal verification admits the
-                            // subloan only when the source is a borrow or an
-                            // owned affine root.
-                            source.multiplicity == Multiplicity::Affine
-                                && matches!(
-                                    source.access,
-                                    CheckedStructuralAccess::SharedBorrow
-                                        | CheckedStructuralAccess::MutableBorrow
-                                        | CheckedStructuralAccess::Owned
-                                )
-                                && crate::checks::type_multiplicity(program, target.type_reference)
-                                    == Multiplicity::Unrestricted
-                                && borrow_path
-                        }
-                    }
-                    CheckedStructuralAccess::MutableBorrow => {
-                        // An exclusive subloan replays statically or through
-                        // a runtime index over the same element the
-                        // verification resolves; the selector's bound is
-                        // re-proven against its owning array.
-                        source.access == CheckedStructuralAccess::MutableBorrow
-                            && ((source.multiplicity == Multiplicity::Unrestricted && borrow_path)
-                                || ((field_path
-                                    || indexed_fields.is_some_and(|fields| !fields.is_empty()))
-                                    && byte_sequence_carrier(program, target.type_reference, &[])
-                                        .is_some_and(|carrier| {
-                                            carrier.is_borrowed()
-                                                // A bounded owner field can be lent out of an
-                                                // affine record without moving its siblings.
-                                                // Argument construction retains the exact loan;
-                                                // receiving replay checks capacity and restores
-                                                // both directions of its predicate contract.
-                                                || (source.multiplicity == Multiplicity::Affine
-                                                    && matches!(
-                                                        carrier,
-                                                        checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. }
-                                                    ))
-                                        })))
-                    }
-                    CheckedStructuralAccess::WriteOnlyBorrow => {
-                        matches!(
-                            source.access,
-                            CheckedStructuralAccess::MutableBorrow
-                                | CheckedStructuralAccess::WriteOnlyBorrow
-                        ) && source.multiplicity == Multiplicity::Unrestricted
-                            && static_path
-                    }
-                    CheckedStructuralAccess::Owned => false,
-                }
-            })
-    {
-        return true;
-    }
-    // A dying-continuation consumer may mix several projected operands with
-    // ordinary whole operands. Each projected anonymous temporary rejoins its
-    // own result through `binding_ordinal`, and the appended call
-    // continuation keeps each owner's residual rows separately. A projected
-    // owned parameter joins the same operand shape; its untouched complement
-    // stays with the caller and publishes on the caller's return edge
-    // instead of the call continuation.
-    if allow_field_path_projection
-        && target_machine.supplies_checked_body()
-        && arguments.iter().any(|argument| {
-            (argument
-                .source_structural_result_binding_ordinal()
-                .is_some()
-                || argument.source_parameter_index().is_some())
-                && argument.access == CheckedStructuralAccess::Owned
-                && !argument.path.is_empty()
-        })
-        && arguments
-            .iter()
-            .zip(&target_parameters)
-            .all(|(argument, target)| {
-                let result_projection = argument
-                    .source_structural_result_binding_ordinal()
-                    .is_some();
-                // The projected parameter root must itself be claim-free
-                // owned affine: its complement publishes residual rows on
-                // the caller's return edge, which has no vocabulary for
-                // borrowed or qualified custody.
-                let parameter_projection = !result_projection
-                    && !argument.path.is_empty()
-                    && argument.source_parameter_index().is_some_and(|index| {
-                        caller_parameters.get(index as usize).is_some_and(|source| {
-                            source.access == CheckedStructuralAccess::Owned
-                                && source.multiplicity == Multiplicity::Affine
-                                && source.qualifications.is_empty()
-                        })
-                    });
-                if result_projection || parameter_projection {
-                    return (argument.access == CheckedStructuralAccess::Owned
-                        && !argument.path.is_empty()
-                        && argument.path.iter().all(|segment| {
-                            matches!(
-                                segment,
-                                CheckedUnitStructuralPathSegment::Field(_)
-                                    | CheckedUnitStructuralPathSegment::FixedIndex(_)
-                            )
-                        }))
-                        && crate::checks::type_multiplicity(program, target.type_reference)
-                            == Multiplicity::Affine
-                        && !type_graph_requires_nominal_drop(program, target.type_reference);
-                }
-                !projected(argument)
-            })
-        && program.machine_states(caller_machine).len() == 1
-        && program.machine_states(target_machine).len() == 1
-        && facts
-            .contract_plans
-            .for_machine(caller_machine.symbol)
-            .is_some()
-        && facts
-            .contract_plans
-            .for_machine(target_machine.symbol)
-            .is_some()
-    {
-        return true;
-    }
-    if arguments.len() != 1 {
-        return false;
-    }
-    // Only the partial-cleanup owner enables projections from its exact
-    // earlier result roster. Ordinary whole-value sequencing leaves it off.
-    let result_projection = allow_field_path_projection
-        && arguments[0]
-            .source_structural_result_binding_ordinal()
-            .is_some()
-        && arguments[0].access == CheckedStructuralAccess::Owned;
-    let caller_parameter = if result_projection {
-        None
-    } else {
-        // A projected owned parameter names its root by index; the caller
-        // may carry any number of structural siblings because the residual
-        // complement publishes on the caller's return edge, not the call.
-        let Some(parameter_index) = arguments[0].source_parameter_index() else {
-            return false;
-        };
-        caller_parameters.get(parameter_index as usize)
-    };
-    if !result_projection
-        && caller_parameter
-            .and_then(|parameter| {
-                usize::try_from(parameter.position)
-                    .ok()
-                    .and_then(|position| caller_source_parameters.get(position))
-            })
-            .is_none()
-    {
-        return false;
-    };
-
-    let owned_affine_projection = allow_field_path_projection
-        && (result_projection
-            || caller_parameter.is_some_and(|parameter| {
-                parameter.access == CheckedStructuralAccess::Owned
-                    && parameter.multiplicity == Multiplicity::Affine
-            }))
-        && arguments[0].access == CheckedStructuralAccess::Owned
-        && !arguments[0].path.is_empty()
-        && arguments[0].path.iter().all(|segment| {
-            matches!(
-                segment,
-                CheckedUnitStructuralPathSegment::Field(_)
-                    | CheckedUnitStructuralPathSegment::FixedIndex(_)
-            )
-        });
-    // Naming the projected root by index among siblings is the affine
-    // carrier's privilege: only it can publish the untouched complement on
-    // the caller's return edge. The legacy indexed cohort — a linear or
-    // otherwise non-affine root — has no residual lane, so its caller must
-    // still carry exactly one structural parameter and project that one.
-    if !result_projection
-        && !owned_affine_projection
-        && (caller_parameters.len() != 1
-            || caller_source_parameters.len() != 1
-            || arguments[0].source_parameter_index() != Some(0))
-    {
-        return false;
-    }
-    let field_path = checked_nonempty_field_path(&arguments[0].path);
-    let literal_index_fields = checked_literal_index_path(&arguments[0].path);
-    let literal_index_path = literal_index_fields.is_some();
-    let literal_indexed_field_path = literal_index_fields.is_some_and(|fields| !fields.is_empty());
-    if field_path && !allow_field_path_projection {
-        return false;
-    }
-    if literal_indexed_field_path && !owned_affine_projection {
-        return false;
-    }
-    if !field_path && !literal_index_path && !owned_affine_projection {
-        return false;
-    }
-
-    if field_path || owned_affine_projection {
-        let [target_parameter] = target_parameters.as_slice() else {
-            return false;
-        };
-        return (program.machine_states(caller_machine).len() == 1
-            && program.machine_states(target_machine).len() == 1
-            && (result_projection
-                || caller_parameter.is_some_and(|parameter| {
-                    parameter.multiplicity == Multiplicity::Affine
-                        && parameter.qualifications.is_empty()
-                })))
-            && crate::checks::type_multiplicity(program, target_parameter.type_reference)
-                == Multiplicity::Affine
-            && !type_graph_requires_nominal_drop(program, target_parameter.type_reference)
-            && facts
-                .contract_plans
-                .for_machine(caller_machine.symbol)
-                .is_some()
-            && facts
-                .contract_plans
-                .for_machine(target_machine.symbol)
-                .is_some();
-    }
-
+    let content_evidence = has_content_evidence(caller_machine.symbol, caller_state.symbol)
+        || has_content_evidence(target_machine.symbol, target_state.symbol);
     arguments
         .iter()
-        .zip(target_parameters)
-        .filter(|(argument, _)| !argument.path.is_empty())
-        .all(|(_, parameter)| {
-            let mut type_reference = parameter.type_reference;
-            loop {
-                match program.type_reference_table.type_reference(type_reference) {
-                    TypeReferenceNode::Constrained {
-                        base_type,
-                        constraints,
-                    } => {
-                        if !program
-                            .type_reference_table
-                            .constraints(*constraints)
-                            .is_empty()
-                        {
-                            return false;
-                        }
-                        type_reference = *base_type;
-                    }
-                    TypeReferenceNode::Reference { referee, .. } => type_reference = *referee,
-                    _ => break,
-                }
+        .zip(parameters)
+        .all(|(argument, parameter)| {
+            if !projected(argument) {
+                return true;
             }
-
-            let expected_root = facts::PlaceRoot::Symbol(parameter.symbol);
-            let matching = facts
-                .flow
-                .ownership
-                .permissions
-                .iter()
-                .filter(|(_, event)| {
-                    event.machine_symbol == target_machine.symbol
-                        && event.state_symbol == target_state.symbol
-                        && event.source == PermissionEventSource::StateEntry
-                        && event.kind == PermissionEventKind::Establish
-                        && event.access == PermissionAccess::Owned
-                        && event.multiplicity == Multiplicity::Linear
-                        && event.obligation_live
-                        && event.root == expected_root
-                })
-                .map(|(_, event)| event)
-                .collect::<Vec<_>>();
-            let [claim] = matching.as_slice() else {
-                return false;
-            };
-            claim.claim_identity != PermissionClaimIdentity::Unknown
-                && facts
-                    .flow
-                    .ownership
-                    .segments
-                    .span_or_empty(claim.segments)
-                    .is_empty()
+            // A retained result loan keeps its represented referent predicates;
+            // it does not transfer the content-qualified owner's value.
+            let retained_loan = argument
+                .source_structural_result_binding_ordinal()
+                .is_some()
+                && argument.access != CheckedStructuralAccess::Owned;
+            structural_access_for_type_reference(program, parameter.type_reference)
+                == Some(argument.access)
+                && (retained_loan
+                    || (!content_evidence
+                        && !target_contract_mentions_projected_parameter(
+                            program,
+                            facts,
+                            target_machine,
+                            target_state,
+                            parameter,
+                        )))
         })
 }
 

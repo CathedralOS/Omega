@@ -10,8 +10,8 @@ use checked_trees::{CheckedUnitCallPlan, CheckedUnitCallResult, CheckedUnitCallR
 
 use crate::execution::terminal_unit::{
     CheckFacts, CheckedUnitEffectOperationPlan, CheckedUnitScalarResultBindingPlan,
-    CheckedUnitStructuralResultBindingPlan, ExpressionNode, Multiplicity, StatementNode,
-    SymbolHandle, TypeReferenceHandle, TypedTrees, is_reference,
+    CheckedUnitStructuralResultBindingPlan, Multiplicity, SymbolHandle, TypeReferenceHandle,
+    TypedTrees, is_reference,
 };
 
 /// Rebind a Unit call's result to the scalar local its statement declares.
@@ -73,29 +73,6 @@ pub(crate) fn bind_structural_call_result(
         }
         _ => None,
     }
-}
-
-pub(crate) fn checked_unit_structural_result_local(
-    program: &TypedTrees,
-    shapes: &mut ShapeCollector<'_>,
-    statements: &[StatementNode],
-    binders: &[(SymbolHandle, String)],
-) -> Option<(CheckedUnitStructuralResultBindingPlan, SymbolHandle)> {
-    let StatementNode::LocalData(local) = statements.first()? else {
-        return None;
-    };
-    if !local.initial_value.is_valid()
-        || !matches!(
-            program.expression_table.expression(local.initial_value),
-            ExpressionNode::Call(_)
-        )
-    {
-        return None;
-    }
-    Some((
-        checked_structural_result_type(program, shapes, local.type_reference, binders)?,
-        local.symbol,
-    ))
 }
 
 /// An independently replayed copy preserves the established leaf's complete

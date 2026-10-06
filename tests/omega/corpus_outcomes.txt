@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": null, "load1_end": 8.03, "load1_start": 8.21, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": "4", "load1_end": 15.59, "load1_start": 12.69, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -2255,10 +2255,12 @@ pass/drops/core_drop_owner_hook checked 2599ms check-target:macos_arm64 @9beb2be
 pass/drops/core_drop_owner_hook_body checked 2629ms check-target:macos_arm64 @9beb2be72f2d+wt
 pass/drops/erased_record_initializer_exit checked 2276ms check-target:macos_arm64 @9beb2be72f2d+wt
 pass/drops/runtime_computed_call_owner_retirement_exit checked 2434ms check-target:macos_arm64 @9beb2be72f2d+wt
+pass/drops/runtime_effectful_projected_temporary_cleanup_exit checked 3581ms check-target:macos_arm64 @e28fa01a1e73+wt
 pass/drops/runtime_indexed_nominal_cleanup_exit checked 2774ms check-target:macos_arm64 @9beb2be72f2d+wt
 pass/drops/runtime_local_indexed_transition_cleanup_exit checked 1537ms check-target:macos_arm64 @9beb2be72f2d+wt
 pass/drops/runtime_local_nominal_cleanup_exit checked 2404ms check-target:macos_arm64 @9beb2be72f2d+wt
 pass/drops/runtime_local_nominal_return_exit checked 2225ms check-target:macos_arm64 @9beb2be72f2d+wt
+pass/drops/runtime_mixed_temporary_effects_continuation_exit checked 3671ms check-target:macos_arm64 @e28fa01a1e73+wt
 pass/drops/runtime_nominal_successor_argument_order_exit checked 2265ms check-target:macos_arm64 @9beb2be72f2d+wt
 pass/drops/runtime_projected_nominal_cleanup_exit checked 2301ms check-target:macos_arm64 @9beb2be72f2d+wt
 pass/drops/runtime_projected_nominal_core_exit checked 2218ms check-target:macos_arm64 @9beb2be72f2d+wt

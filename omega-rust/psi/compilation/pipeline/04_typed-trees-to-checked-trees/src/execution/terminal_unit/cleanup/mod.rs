@@ -34,13 +34,12 @@ use super::{
     CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralFieldType,
     CheckedUnitStructuralPathSegment, CheckedUnitStructuralTypePlan,
     CheckedUnitStructuralTypeShape, Diagnostic, MachineSupplyMode, Multiplicity, PermissionAccess,
-    PermissionClaimIdentity, PermissionEventKind, PermissionEventSource, StatementNode,
-    TypeReferenceNode, TypedTrees,
+    PermissionClaimIdentity, PermissionEventKind, PermissionEventSource, TypeReferenceNode,
+    TypedTrees,
 };
 use crate::execution::terminal_unit::calls::{
     entry_claims, free_structural_scalar_signature, structural_signature,
 };
-use crate::execution::terminal_unit::control;
 use crate::execution::terminal_unit::types::{
     ShapeCollector, is_unit, machine_binders, state_flow,
 };

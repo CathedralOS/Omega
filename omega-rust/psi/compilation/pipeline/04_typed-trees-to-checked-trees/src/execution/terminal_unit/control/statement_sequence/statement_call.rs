@@ -15,8 +15,8 @@ use super::{
     CheckedUnitStructuralParameterPlan, CheckedUnitStructuralResultBindingPlan,
     ExpectedCallValueResult, ExpressionNode, LocalConstructionTrace, Multiplicity,
     ScalarCalleePlans, ShapeCollector, StatementNode, SymbolHandle, TypedTrees,
-    append_call_cleanup, bind_scalar_call_result, bind_structural_call_result,
-    build_call_operation, consume_results, structural_operands,
+    bind_scalar_call_result, bind_structural_call_result, build_call_operation, consume_results,
+    structural_operands,
 };
 
 /// The sequence state a statement's call reads and extends.
@@ -234,46 +234,6 @@ pub(super) fn plan(
         }
         result.binding_ordinal = binding_ordinal;
     }
-    // The existing sole-call partial-return route remains available to
-    // native consumers. Wider statement schedules use a dying continuation;
-    // every anonymous operand of this consumer owns one row in it.
-    let anonymous_lane_claims = program
-        .statement_table
-        .statements(state.statement_nodes)
-        .len()
-        == 1
-        && super::super::super::cleanup::anonymous::binding(program, facts, shapes, machine, state)
-            .is_some();
-    // Claim-free calls admit owned projections from structural
-    // parameters as well as same-statement anonymous temporaries. A
-    // projected parameter's untouched complement stays with the caller
-    // and dies on its return edge as residual cleanup; the anonymous
-    // lane keeps its own dedicated vocabulary and stays excluded.
-    let allow_owned_projections = entry_claims.is_empty() && !anonymous_lane_claims;
-    let partial_temporaries = if allow_owned_projections {
-        structural_results
-            .iter()
-            .filter(|(result, root)| {
-                result.statement_index == statement_index
-                    && matches!(root, facts::PlaceRoot::Expression(_))
-            })
-            .filter_map(|(result, root)| {
-                let candidate = super::super::super::cleanup::anonymous::binding_at(
-                    program,
-                    facts,
-                    shapes,
-                    machine,
-                    state,
-                    index,
-                    result.binding_ordinal,
-                    *root,
-                )?;
-                (candidate.0 == *result && candidate.1 == *root).then_some(candidate)
-            })
-            .collect::<Vec<_>>()
-    } else {
-        Vec::new()
-    };
     call_phase("statement sequence: call: call operation");
     let mut operation = build_call_operation(
         program,
@@ -285,7 +245,7 @@ pub(super) fn plan(
         trivial_affine_locals,
         entry_claims,
         call,
-        allow_owned_projections,
+        true,
         result
             .as_ref()
             .map(|result| ExpectedCallValueResult::Scalar(result.primitive_type))
@@ -297,6 +257,7 @@ pub(super) fn plan(
         structural_results,
         trace,
     )?;
+    let coordinate = operation.call()?.coordinate;
     call_phase("statement sequence: call: result binding");
     if let Some((result, None)) = &structural_result
         && !completes_machine
@@ -326,6 +287,16 @@ pub(super) fn plan(
                 }],
             });
         }
+        super::super::super::cleanup::anonymous::append_continuation(
+            program,
+            facts,
+            shapes,
+            machine,
+            state,
+            coordinate,
+            structural_results,
+            operations,
+        )?;
         *structural_count = structural_count.checked_add(1)?;
         return Some(());
     }
@@ -380,18 +351,15 @@ pub(super) fn plan(
             affine_discards: vec![discard],
         });
     }
-    if !partial_temporaries.is_empty() {
-        super::super::super::cleanup::anonymous::append_continuation(
-            program,
-            facts,
-            shapes,
-            machine,
-            state,
-            &partial_temporaries,
-            &mut *operations,
-        )?;
-    } else {
-        append_call_cleanup(&mut *operations, statement_index, structural_results)?;
-    }
+    super::super::super::cleanup::anonymous::append_continuation(
+        program,
+        facts,
+        shapes,
+        machine,
+        state,
+        coordinate,
+        structural_results,
+        operations,
+    )?;
     Some(())
 }
