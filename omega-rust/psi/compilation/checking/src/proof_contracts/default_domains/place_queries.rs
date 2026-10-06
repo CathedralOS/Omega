@@ -340,14 +340,7 @@ pub(super) fn fact_mentions_any_field(
 }
 
 pub(super) fn membership_field_name(program: &TypedTrees, value: ExpressionHandle) -> Option<&str> {
-    let ExpressionNode::Name(path) = program.expression_table.expression(value) else {
-        return None;
-    };
-    program
-        .expression_table
-        .name_path_members(path.members)
-        .last()
-        .map(|member| member.as_str())
+    crate::expression_traversal::name_path_last_member(program, value)
 }
 
 fn expression_mentions_name(

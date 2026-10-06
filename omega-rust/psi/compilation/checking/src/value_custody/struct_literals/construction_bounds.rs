@@ -499,7 +499,7 @@ fn fold_literal_facts(
                 }
             }
             typed_trees::domain::ProofFact::Membership(membership) => {
-                let field_name = membership_field_name(program, membership.value);
+                let field_name = crate::expression_traversal::name_path_last_member(program, membership.value);
                 let authored_value = field_name.and_then(|wanted| {
                     program
                         .expression_table
@@ -540,17 +540,6 @@ fn fold_literal_facts(
             }
         }
     }
-}
-
-fn membership_field_name(program: &TypedTrees, value: ExpressionHandle) -> Option<&str> {
-    let ExpressionNode::Name(path) = program.expression_table.expression(value) else {
-        return None;
-    };
-    program
-        .expression_table
-        .name_path_members(path.members)
-        .last()
-        .map(|member| member.as_str())
 }
 
 fn membership_domain_label(

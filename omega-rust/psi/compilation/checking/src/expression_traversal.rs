@@ -73,6 +73,21 @@ pub fn children(
     }
 }
 
+/// The last member of the `Name` path `value` names, when it names one.
+pub fn name_path_last_member<'a>(
+    program: &'a TypedTrees,
+    value: ExpressionHandle,
+) -> Option<&'a str> {
+    let ExpressionNode::Name(path) = program.expression_table.expression(value) else {
+        return None;
+    };
+    program
+        .expression_table
+        .name_path_members(path.members)
+        .last()
+        .map(|member| member.as_str())
+}
+
 /// Strip `Atomic` wrappers: an atomically-evaluated step is still a step.
 pub fn unwrapped(program: &TypedTrees, mut expression: ExpressionHandle) -> ExpressionHandle {
     while let ExpressionNode::Atomic(atomic) = program.expression_table.expression(expression) {
