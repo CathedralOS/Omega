@@ -1107,6 +1107,39 @@ impl MachineEmitter<'_> {
         );
     }
 
+    /// One guarded store per varint tag byte: `label(index)` names each state
+    /// and the chain continues to `next` after the last byte.
+    fn enc_tag_bytes(&mut self, tag_bytes: &[u8], label: impl Fn(usize) -> String, next: &str) {
+        for (index, byte) in tag_bytes.iter().enumerate() {
+            let byte_next = if index + 1 == tag_bytes.len() {
+                next.to_string()
+            } else {
+                label(index + 1)
+            };
+            self.enc_byte(&label(index), *byte, &byte_next);
+        }
+    }
+
+    /// The decode twin of `enc_tag_bytes`: `expect_byte` per tag byte with
+    /// the caller's `carry` extras threaded through each state.
+    fn dec_tag_bytes(
+        &mut self,
+        tag_bytes: &[u8],
+        label: impl Fn(usize) -> String,
+        next: &str,
+        carry: &str,
+        carry_arg: &str,
+    ) {
+        for (index, byte) in tag_bytes.iter().enumerate() {
+            let byte_next = if index + 1 == tag_bytes.len() {
+                next.to_string()
+            } else {
+                label(index + 1)
+            };
+            self.dec_byte(&label(index), *byte, &byte_next, carry, carry_arg);
+        }
+    }
+
     /// Canonical LEB128 emission of u64 `bits`, entering with `bits` already a
     /// state parameter (`name` is the loop state).
     fn enc_varint_loop(&mut self, name: &str, next: &str) {
@@ -1575,15 +1608,11 @@ impl MachineEmitter<'_> {
             let after_sub = sub_next(sub_index);
             let tag_bytes = varint_bytes(sub.number);
             let content = format!("{name}_subcontent_{sub_index}");
-            for (index, byte) in tag_bytes.iter().enumerate() {
-                let label = format!("{name}_subtag_{sub_index}_{index}");
-                let byte_next = if index + 1 == tag_bytes.len() {
-                    content.clone()
-                } else {
-                    format!("{name}_subtag_{sub_index}_{}", index + 1)
-                };
-                self.enc_byte(&label, *byte, &byte_next);
-            }
+            self.enc_tag_bytes(
+                &tag_bytes,
+                |index| format!("{name}_subtag_{sub_index}_{index}"),
+                &content,
+            );
             let MemberShape::Scalar(kind) = &sub.shape else {
                 continue;
             };
@@ -1986,15 +2015,13 @@ impl MachineEmitter<'_> {
             let content = format!("{name}_subcontent_{sub_index}");
             let store = format!("{name}_substore_{sub_index}");
             let tag_bytes = varint_bytes(sub.number);
-            for (index, byte) in tag_bytes.iter().enumerate() {
-                let label = format!("{name}_subtag_{sub_index}_{index}");
-                let byte_next = if index + 1 == tag_bytes.len() {
-                    content.clone()
-                } else {
-                    format!("{name}_subtag_{sub_index}_{}", index + 1)
-                };
-                self.dec_byte(&label, *byte, &byte_next, "end: u64", ", end");
-            }
+            self.dec_tag_bytes(
+                &tag_bytes,
+                |index| format!("{name}_subtag_{sub_index}_{index}"),
+                &content,
+                "end: u64",
+                ", end",
+            );
             let after_sub = if sub_index + 1 == sub_members.len() {
                 close.clone()
             } else {
@@ -2308,15 +2335,7 @@ fn emit_encode_machine(
         .cloned()
         .unwrap_or_else(|| "encode_finish".to_string());
     let era_bytes = varint_bytes(0);
-    for (index, byte) in era_bytes.iter().enumerate() {
-        let name = format!("era_{index}");
-        let next = if index + 1 == era_bytes.len() {
-            era_next.clone()
-        } else {
-            format!("era_{}", index + 1)
-        };
-        emitter.enc_byte(&name, *byte, &next);
-    }
+    emitter.enc_tag_bytes(&era_bytes, |index| format!("era_{index}"), &era_next);
 
     for (member_index, member) in members.iter().enumerate() {
         let content_label = format!("field_{}_content", member.number);
@@ -2326,15 +2345,11 @@ fn emit_encode_machine(
             format!("field_{}_tag_0", members[member_index + 1].number)
         };
         let tag_bytes = varint_bytes(member.number);
-        for (index, byte) in tag_bytes.iter().enumerate() {
-            let name = format!("field_{}_tag_{index}", member.number);
-            let next = if index + 1 == tag_bytes.len() {
-                content_label.clone()
-            } else {
-                format!("field_{}_tag_{}", member.number, index + 1)
-            };
-            emitter.enc_byte(&name, *byte, &next);
-        }
+        emitter.enc_tag_bytes(
+            &tag_bytes,
+            |index| format!("field_{}_tag_{index}", member.number),
+            &content_label,
+        );
         match &member.shape {
             MemberShape::Scalar(ScalarKind::Bool) => {
                 emitter.state(
@@ -2520,15 +2535,13 @@ fn emit_decode_machine(
         .first()
         .map(|member| format!("field_{}_tag_0", member.number))
         .unwrap_or_else(|| "decode_finish".to_string());
-    for (index, byte) in era_bytes.iter().enumerate() {
-        let name = format!("era_{index}");
-        let next = if index + 1 == era_bytes.len() {
-            first_tag.clone()
-        } else {
-            format!("era_{}", index + 1)
-        };
-        emitter.dec_byte(&name, *byte, &next, "", "");
-    }
+    emitter.dec_tag_bytes(
+        &era_bytes,
+        |index| format!("era_{index}"),
+        &first_tag,
+        "",
+        "",
+    );
 
     for (member_index, member) in members.iter().enumerate() {
         let content_label = format!("field_{}_content", member.number);
@@ -2538,15 +2551,13 @@ fn emit_decode_machine(
             format!("field_{}_tag_0", members[member_index + 1].number)
         };
         let tag_bytes = varint_bytes(member.number);
-        for (index, byte) in tag_bytes.iter().enumerate() {
-            let name = format!("field_{}_tag_{index}", member.number);
-            let next = if index + 1 == tag_bytes.len() {
-                content_label.clone()
-            } else {
-                format!("field_{}_tag_{}", member.number, index + 1)
-            };
-            emitter.dec_byte(&name, *byte, &next, "", "");
-        }
+        emitter.dec_tag_bytes(
+            &tag_bytes,
+            |index| format!("field_{}_tag_{index}", member.number),
+            &content_label,
+            "",
+            "",
+        );
         match &member.shape {
             MemberShape::Scalar(kind) => {
                 let store = format!("field_{}_store", member.number);
