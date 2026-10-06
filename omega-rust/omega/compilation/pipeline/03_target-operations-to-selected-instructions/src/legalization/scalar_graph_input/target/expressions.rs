@@ -132,8 +132,16 @@ impl Checker<'_> {
                         AbstractOperation::ElementViewLength { psi_operation: operation, result, source: expected }
                         if operation == psi_operation && result.value == resolved && expected == source))
             }
+            // A bounded view's length observation lowers to its static
+            // capacity, so its immediate stands for that exact observation.
             Expression::Immediate {source_value,value:literal} => *source_value == value && self.optimized.blocks.iter().flat_map(|block|&block.nodes).any(|node|
-                matches!(&node.operation,AbstractOperation::IntegerConstant {result,value:actual,..} if *result == resolved && actual == literal)),
+                match &node.operation {
+                    AbstractOperation::IntegerConstant {result,value:actual,..} => *result == resolved && actual == literal,
+                    AbstractOperation::ByteSequenceLength {result,source,..} => result.value == resolved
+                        && super::super::byte_views::bounded_view_capacity(self.optimized, *source, self.types)
+                            .is_some_and(|capacity| *literal == semantic_vocabulary::IntegerValue::Unsigned(u128::from(capacity))),
+                    _ => false,
+                }),
             Expression::Parameter {source_value,parameter_index,location} => {
                 let Some(parameter) = self.scalar_parameters().get(*parameter_index) else {return false;};
                 *source_value == value && parameter.value == resolved && location_matches(*location,&parameter.placement)

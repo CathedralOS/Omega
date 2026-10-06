@@ -1995,6 +1995,7 @@ pass/collections/record_array_literal_field_store_exit checked 1646ms check-targ
 pass/collections/runtime_argmax_index_exit checked 1390ms check-target:macos_arm64 @2d8ed253669f
 pass/collections/runtime_borrowed_element_float_guard_exit checked 6010ms check-target:macos_arm64 @bea382792161+wt
 pass/collections/runtime_borrowed_fixed_array_state_reads_exit checked 791ms check-target:macos_arm64 @e94b9f79576e+wt
+pass/collections/runtime_bounded_byte_reference_read_exit checked 1463ms check-target:macos_arm64 @8351bf5ebf1b
 pass/collections/runtime_case_array_element_write_exit checked 2347ms check-target:macos_arm64 @2d8ed253669f
 pass/collections/runtime_computed_index_direct_exit checked 1505ms check-target:macos_arm64 @2d8ed253669f
 pass/collections/runtime_constant_expression_index_stores_exit checked 830ms check-target:macos_arm64 @c864ec75728c+wt

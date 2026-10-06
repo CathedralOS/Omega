@@ -280,6 +280,9 @@ pub(in crate::legalization) fn reads_owner_layout(
         })
 }
 
+/// Readable byte storage: a descriptor view, a bounded view over a fixed
+/// array (`&[u8; N]`, a bare pointer whose length target lowering supplies
+/// as the static capacity), or an owner read through its layout.
 pub(super) fn contains_readable_bytes(
     function: &PsiOptimizationFunction,
     place: semantic_vocabulary::PlaceId,
@@ -289,7 +292,36 @@ pub(super) fn contains_readable_bytes(
         types
             .iter()
             .any(|row| row.id == identity && row.shape.is_borrowed_byte_view())
-    }) || reads_owner_layout(function, place, types)
+    }) || bounded_view_arrival(function, place, types)
+        || reads_owner_layout(function, place, types)
+}
+
+fn bounded_view_arrival(
+    function: &PsiOptimizationFunction,
+    place: semantic_vocabulary::PlaceId,
+    types: &[terminal_psi::StructuralTypeDeclaration],
+) -> bool {
+    bounded_view_capacity(function, place, types).is_some()
+}
+
+/// The static extent of a bounded view arriving at `place`. Target lowering
+/// answers that view's length observation with this capacity as an
+/// immediate, never a descriptor load.
+pub(super) fn bounded_view_capacity(
+    function: &PsiOptimizationFunction,
+    place: semantic_vocabulary::PlaceId,
+    types: &[terminal_psi::StructuralTypeDeclaration],
+) -> Option<u64> {
+    let parameter = function.arrival_parameter(place)?;
+    types
+        .iter()
+        .find(|declaration| declaration.id == parameter.structural_type)
+        .and_then(|declaration| match declaration.shape {
+            terminal_psi::StructuralTypeShape::ByteSequence(
+                terminal_psi::ByteSequenceCarrier::BoundedView { capacity, .. },
+            ) => Some(capacity),
+            _ => None,
+        })
 }
 
 /// Exact completed descriptor home; it carries no ownership of borrowed bytes.
