@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": "4", "load1_end": 8.12, "load1_start": 8.39, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": "2", "load1_end": 4.46, "load1_start": 4.42, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 189ms
 pass/arithmetic/anonymous_rational_integer_landing checked 186ms
 pass/arithmetic/bounded_assignment checked 197ms
@@ -37,6 +37,7 @@ pass/arithmetic/runtime_nested_unsigned_witness_exit built 750ms exit:70
 pass/arithmetic/runtime_observed_call_bound_exit built 963ms exit:42 @f85b70aa567c+wt
 pass/arithmetic/runtime_payload_range_narrowing_exit built 570ms exit:70
 pass/arithmetic/runtime_pressure_trapping_add_exit built 4287ms exit:70 @9beb2be72f2d+wt
+pass/arithmetic/runtime_qualified_cast_decision_exit built 1601ms exit:0 @3031abcffbe7
 pass/arithmetic/runtime_remainder_result_cast_exit built 841ms exit:70 @7c72db8f2645+wt
 pass/arithmetic/runtime_requires_one_sided_bound_exit built 628ms exit:42
 pass/arithmetic/runtime_shift_count_domain_exit built 657ms exit:70
