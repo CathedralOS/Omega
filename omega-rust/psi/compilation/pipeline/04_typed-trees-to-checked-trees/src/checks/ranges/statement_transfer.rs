@@ -30,7 +30,7 @@ use super::statements::aliases::{
 };
 use super::statements::{
     assigned_local_declared_type, bound_reference_referent_extent, expression_member_name,
-    seed_boundary_call_ensures_facts, seed_offset_index_bound,
+    offset_index_bound, seed_boundary_call_ensures_facts,
 };
 
 /// The pass-specific work a statement performs around the shared fact
@@ -136,6 +136,16 @@ pub(super) fn transfer_statement_facts<'program>(
                 assignment.target,
                 assignment.value,
             );
+            let offset_bound = expression_member_name(program, assignment.target).and_then(|_| {
+                offset_index_bound(
+                    program,
+                    machine,
+                    state,
+                    facts,
+                    assignment.target,
+                    assignment.value,
+                )
+            });
             facts.invalidate_assignment_bounds(program, machine, state, statement);
             if let Some((symbol, name)) = expression_name(program, assignment.target) {
                 facts.assign_local(symbol, name, next_length, next_integer);
@@ -175,7 +185,9 @@ pub(super) fn transfer_statement_facts<'program>(
                 // display label — `-> load(self.slot)` transports all
                 // three into the destination parameter's merged facts.
                 facts.assign_field_integer(symbol, name, next_integer);
-                seed_offset_index_bound(program, facts, assignment.target, assignment.value);
+                if let Some((target, bound)) = offset_bound {
+                    facts.prove_index_upper_bound(target, bound);
+                }
                 seed_ensured_call_result_bounds(
                     program,
                     facts,

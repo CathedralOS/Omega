@@ -607,6 +607,8 @@ fail/collections/vec_invalidated_loan_after_growth rejected 315ms expected @c089
 	statement 2 mutates `main.b8.e[0]` while local borrow `slots` is still active (borrowed at statement 0; its last use is at statement 3 and it is released at state exit)
 fail/collections/wrapping_loop_increment_bound rejected 289ms expected @c08960bee2b1+wt
 	cannot prove index `main.index` is within length 4 in Main::run::fill
+fail/collections/wrapping_member_decrement_index_unproven rejected 641ms expected @6d05c993ca61
+	cannot prove index `stack.count` is within length 8 in take::entry
 fail/collections/wrapping_range_index_unproven rejected 386ms expected @2d8ed253669f
 	data `Main` field `i` declares a range constraint together with the `Wrapping` domain: ranges are only enforced under Exact arithmetic, so the combination is ill-formed (a store outside the range would be silently accepted). Keep the range and drop the domain, or keep the domain and drop the range
 fail/comptime/const_array_length_dependency_cycle rejected 79ms expected @aeb3a47a1e0
@@ -2105,6 +2107,7 @@ pass/collections/runtime_indexed_struct_field_rmw_exit checked 1315ms check-targ
 pass/collections/runtime_indexed_successor_argument_exit checked 1468ms check-target:macos_arm64 @2d8ed253669f
 pass/collections/runtime_initialized_array_state_loan_exit checked 1135ms check-target:macos_arm64 @89d265022a73+wt
 pass/collections/runtime_maze_pathfind_exit checked 4147ms check-target:macos_arm64 @2d8ed253669f
+pass/collections/runtime_member_decrement_index_bound_exit checked 3012ms check-target:macos_arm64 @6d05c993ca61
 pass/collections/runtime_nested_const_row_indexed_read_exit checked 1481ms check-target:macos_arm64 @2d8ed253669f
 pass/collections/runtime_nested_fixed_array_projected_write_exit checked 1900ms check-target:macos_arm64 @3ff24ec6504a+wt
 pass/collections/runtime_parameter_nested_literal_index_read_exit checked 731ms check-target:macos_arm64 @5f978f80e84b+wt

@@ -7,6 +7,7 @@ use super::facts::RangeFacts;
 use super::indexes::{IndexVerdicts, check_expression};
 use super::statement_transfer::{StatementTransferSink, transfer_statement_facts};
 use diagnostics::Diagnostic;
+use numerics::arithmetic::ArithmeticDomain;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
@@ -233,55 +234,71 @@ pub(super) fn expression_member_name(
     Some((member.member_symbol, Some(member.member.as_str())))
 }
 
-/// When `target` is assigned `source + positiveConst`, carry `source`'s exclusive
-/// upper bound across the offset: `target < source_bound + const`. This is sound
-/// because `target = source + const` exactly (an overflowing add traps under
-/// Trapping and is a proof obligation under Exact), so whenever `source` is
-/// in-bounds at runtime `target` stays within `source_bound + const`. It proves
-/// the derived-index pattern `arr[i + 1]` -- a `jp = self.i + 1` field then
+/// The exclusive upper bound a member store `target = source + c` or
+/// `target = source - c` gives its target: `target < source_bound + offset`,
+/// from `source`'s bound before the store invalidates the target, so
+/// `count = count - 1` takes its own former bound one lower. It proves the
+/// derived-index pattern `arr[i + 1]` -- a `jp = self.i + 1` field then
 /// `arr[self.jp]` inside a loop where `self.i` is bounded by the loop guard
-/// (sorts, sliding windows, reversals).
-pub(super) fn seed_offset_index_bound(
+/// (sorts, sliding windows, reversals) -- and the pop pattern
+/// `count = count - 1; items[count]`.
+///
+/// An addition is sound in every domain: Exact makes overflow a proof
+/// obligation, Trapping never completes it, and a wrapped or saturated sum is
+/// no larger than the exact one. A subtraction needs the exact difference on
+/// normal completion, so only Exact and Trapping stores carry it: a wrapped
+/// `0 - 1` is the maximum and a saturated one stays at the old bound.
+pub(super) fn offset_index_bound(
     program: &typed_trees::TypedTrees,
-    facts: &mut RangeFacts<'_>,
+    machine: &Machine,
+    state: &State,
+    facts: &RangeFacts<'_>,
     target: ExpressionHandle,
     value: ExpressionHandle,
-) {
-    let Some((source_name, offset)) = field_plus_positive_constant(program, value) else {
-        return;
-    };
-    let Some(source_bound) = facts.proven_index_upper_bound(&source_name) else {
-        return;
-    };
-    let Some(new_bound) = source_bound.checked_add(offset) else {
-        return;
-    };
-    let target_name = program.expression_table.display_name(target);
-    facts.prove_index_upper_bound(target_name, new_bound);
+) -> Option<(String, i64)> {
+    let (source_name, offset) = field_plus_constant(program, value)?;
+    if offset < 0 {
+        let domain = program.arithmetic_domain_for_type_reference(
+            super::types::expression_type_reference(program, machine, state, target)?,
+        );
+        if !matches!(domain, ArithmeticDomain::Exact | ArithmeticDomain::Trapping) {
+            return None;
+        }
+    }
+    let source_bound = facts.proven_index_upper_bound(&source_name)?;
+    let new_bound = source_bound.checked_add(offset)?;
+    Some((program.expression_table.display_name(target), new_bound))
 }
 
-/// Recognize `field + positiveConst` (either operand order), returning the
-/// field's display name and the constant.
-fn field_plus_positive_constant(
+/// Recognize `field + c` (either operand order) or `field - c` for a positive
+/// constant `c`, returning the field's display name and the signed offset.
+fn field_plus_constant(
     program: &typed_trees::TypedTrees,
     value: ExpressionHandle,
 ) -> Option<(String, i64)> {
     let ExpressionNode::Binary(binary) = program.expression_table.expression(value) else {
         return None;
     };
-    if !matches!(binary.operator, BinaryOperator::Add) {
-        return None;
+    let positive_constant = |side: ExpressionHandle| match program.expression_table.expression(side)
+    {
+        ExpressionNode::Integer(constant) => constant.value_i64().filter(|constant| *constant > 0),
+        _ => None,
+    };
+    match binary.operator {
+        BinaryOperator::Add => [(binary.left, binary.right), (binary.right, binary.left)]
+            .into_iter()
+            .find_map(|(field_side, constant_side)| {
+                Some((
+                    program.expression_table.display_name(field_side),
+                    positive_constant(constant_side)?,
+                ))
+            }),
+        BinaryOperator::Subtract => Some((
+            program.expression_table.display_name(binary.left),
+            positive_constant(binary.right)?.checked_neg()?,
+        )),
+        _ => None,
     }
-    for (field_side, constant_side) in [(binary.left, binary.right), (binary.right, binary.left)] {
-        if let ExpressionNode::Integer(constant) =
-            program.expression_table.expression(constant_side)
-            && let Some(constant) = constant.value_i64()
-            && constant > 0
-        {
-            return Some((program.expression_table.display_name(field_side), constant));
-        }
-    }
-    None
 }
 
 /// Resolve a call statement's BOUNDARY-TRAIT callee signature from the typed

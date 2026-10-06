@@ -1,0 +1,58 @@
+// A member store `count = count - 1` carries the field's former exclusive
+// bound one lower, so the stack's pop reads `items[count]` after the
+// decrement without a separate guard. The bound is read before the store
+// replaces the field's facts.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Stack { items: [u32; 8]; count: u64; }
+
+data Main { console: Binding<Console>; stack: Stack; }
+
+data Popped { case Empty; case Value(value: u32); }
+
+machine push(stack: &mut Stack, value: u32) -> bool {
+    transition stack.count < 8 {
+        true -> store(stack, value)
+        _ -> (false)
+    }
+    state store(stack: &mut Stack, value: u32) -> bool
+    requires stack.count < 8
+    {
+        stack.items[stack.count] = value;
+        stack.count = stack.count + 1;
+        transition { _ -> (true) }
+    }
+}
+
+machine pop(stack: &mut Stack) -> Popped {
+    transition stack.count > 0 && stack.count <= 8 {
+        true -> take(stack)
+        _ -> (Popped::Empty)
+    }
+    state take(stack: &mut Stack) -> Popped
+    requires stack.count > 0 && stack.count <= 8
+    {
+        stack.count = stack.count - 1;
+        let value: u32 = stack.items[stack.count];
+        transition { _ -> (Popped::Value { value: value }) }
+    }
+}
+
+machine Main::main(main: &mut Main) reaches Console {
+    let first: bool = push(&mut main.stack, 10);
+    let second: bool = push(&mut main.stack, 30);
+    let top: Popped = pop(&mut main.stack);
+    transition top {
+        Popped::Value { value } -> popped(main, value)
+        Popped::Empty -> missed(main)
+    }
+    state popped(main: &mut Main, value: u32) {
+        transition value == 30 && main.stack.count == 1 {
+            true -> reached(main)
+            _ -> missed(main)
+        }
+    }
+    state reached(main: &mut Main) { main.console.exit_process(70); }
+    state missed(main: &mut Main) { main.console.exit_process(71); }
+}
