@@ -115,7 +115,9 @@ data RegisterClassOutcome {
 // telescope discipline.
 data User32Policy {
 }
-User32PolicyCalling: User32Policy satisfies CallingPolicy;
+User32PolicyCalling satisfies CallingPolicy {
+    CallingPolicy::plan = User32Policy::plan;
+}
 
 machine User32Policy::plan(signature: BoundarySignature) -> BoundaryPlanResult
     satisfies CallingPolicy::plan

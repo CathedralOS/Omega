@@ -3,7 +3,9 @@ use omega_language_std::calling;
 use omega::language::core::external_binding;
 
 pub data HookProcedurePolicy { }
-HookProcedurePolicyCallingPolicy: HookProcedurePolicy satisfies CallingPolicy;
+HookProcedurePolicyCallingPolicy satisfies CallingPolicy {
+    CallingPolicy::plan = HookProcedurePolicy::plan;
+}
 
 machine HookProcedurePolicy::plan(signature: BoundarySignature) -> BoundaryPlanResult
     satisfies CallingPolicy::plan
@@ -89,7 +91,9 @@ pub boundary trait HookProcedure: Calling<HookProcedurePolicy> {
 }
 
 pub data RegistrarPolicy { }
-RegistrarPolicyCallingPolicy: RegistrarPolicy satisfies CallingPolicy;
+RegistrarPolicyCallingPolicy satisfies CallingPolicy {
+    CallingPolicy::plan = RegistrarPolicy::plan;
+}
 
 machine RegistrarPolicy::plan(signature: BoundarySignature) -> BoundaryPlanResult
     satisfies CallingPolicy::plan

@@ -121,8 +121,9 @@ pub StartupEnvelopeCarrierRepresentation satisfies OpaqueRepresentation<
 pub data FirstSecondaryProcessorStackPolicy {
 }
 
-pub FirstSecondaryProcessorStackCalling:
-    FirstSecondaryProcessorStackPolicy satisfies CallingPolicy;
+pub FirstSecondaryProcessorStackCalling satisfies CallingPolicy {
+    CallingPolicy::plan = FirstSecondaryProcessorStackPolicy::plan;
+}
 
 machine FirstSecondaryProcessorStackPolicy::plan(
     signature: BoundarySignature
@@ -230,8 +231,9 @@ reaches MachineControl
 pub data SecondSecondaryProcessorStackPolicy {
 }
 
-pub SecondSecondaryProcessorStackCalling:
-    SecondSecondaryProcessorStackPolicy satisfies CallingPolicy;
+pub SecondSecondaryProcessorStackCalling satisfies CallingPolicy {
+    CallingPolicy::plan = SecondSecondaryProcessorStackPolicy::plan;
+}
 
 machine SecondSecondaryProcessorStackPolicy::plan(
     signature: BoundarySignature

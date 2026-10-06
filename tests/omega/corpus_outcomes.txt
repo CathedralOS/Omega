@@ -371,6 +371,8 @@ fail/build/build_log_counterfeit_facet_refused rejected 781ms expected @d116b779
 	build-time evaluation of `build` failed: build logging requires the activation's compiler-issued BuildLog facet
 fail/build/build_machine_wrong_arity rejected 2ms expected @cb26b40f8674+wt
 	tests/omega/fail/build/build_machine_wrong_arity/build.omg: invalid project build declaration: package build machine must have exactly one parameter: `builder: &mut Build`
+fail/build/calling_policy_plan_requires_exact_edge rejected 81ms expected @f9e3cc7163ae+wt
+	calling-policy machine `LocalPolicy::plan` must satisfy `CallingPolicy::plan`
 fail/build/crash_exclusion_trapping_provider rejected 2041ms expected @5c302dd6d305
 	1 authored behavior exclusion(s) could not be satisfied
 	behavior exclusion violated: crash cause Trap is reachable in Terminal machine 4, reached through machine `CheckingAssert::check` (Terminal machine 2) at crash terminator in block 12884901891

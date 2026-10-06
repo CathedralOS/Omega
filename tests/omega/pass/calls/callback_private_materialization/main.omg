@@ -50,7 +50,9 @@ data ForeignRecord {
 }
 
 pub data RegistrarPolicy { }
-RegistrarPolicyCallingPolicy: RegistrarPolicy satisfies CallingPolicy;
+RegistrarPolicyCallingPolicy satisfies CallingPolicy {
+    CallingPolicy::plan = RegistrarPolicy::plan;
+}
 
 machine RegistrarPolicy::plan(signature: BoundarySignature) -> BoundaryPlanResult
     satisfies CallingPolicy::plan

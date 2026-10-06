@@ -15,7 +15,9 @@ boundary trait LinuxX86_64PhysicalEntry {
 }
 
 data LinuxX86_64 {}
-LinuxX86_64CallingPolicy: LinuxX86_64 satisfies CallingPolicy;
+LinuxX86_64CallingPolicy satisfies CallingPolicy {
+    CallingPolicy::plan = LinuxX86_64::plan;
+}
 
 machine LinuxX86_64::plan(signature: BoundarySignature) -> BoundaryPlanResult
     satisfies CallingPolicy::plan

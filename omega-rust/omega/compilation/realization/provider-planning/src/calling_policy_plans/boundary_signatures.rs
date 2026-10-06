@@ -464,9 +464,8 @@ pub(crate) fn boundary_policy_instances(
         .iter()
         .filter(|conformance| names_match(conformance.trait_name.as_str(), boundary.name.as_str()))
     {
-        let Some(carrier_name) = conformance.carrier_name() else {
-            continue;
-        };
+        // Every named implementation of the generic boundary trait is one
+        // concrete application; its trait arguments carry every data type.
         let arguments = typed
             .type_reference_table
             .type_reference_handles(conformance.arguments)
@@ -474,7 +473,7 @@ pub(crate) fn boundary_policy_instances(
         if arguments.len() != parameters.len() {
             return Err(format!(
                 "conformance `{} satisfies {}` supplies {} argument(s), expected {}",
-                carrier_name,
+                typed.symbols.display_path(conformance.symbol, "::"),
                 conformance.trait_name,
                 arguments.len(),
                 parameters.len()

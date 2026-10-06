@@ -27,7 +27,9 @@ boundary trait UefiPhysicalEntry {
 }
 
 data UefiX86_64 { }
-UefiX86_64CallingPolicy: UefiX86_64 satisfies CallingPolicy;
+UefiX86_64CallingPolicy satisfies CallingPolicy {
+    CallingPolicy::plan = UefiX86_64::plan;
+}
 
 machine UefiX86_64::plan(
     signature: BoundarySignature

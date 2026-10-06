@@ -2,7 +2,9 @@
 use calling;
 
 data HookProcedurePolicy { }
-HookProcedurePolicyCallingPolicy: HookProcedurePolicy satisfies CallingPolicy;
+HookProcedurePolicyCallingPolicy satisfies CallingPolicy {
+    CallingPolicy::plan = HookProcedurePolicy::plan;
+}
 
 machine HookProcedurePolicy::plan(signature: BoundarySignature) -> BoundaryPlanResult
     satisfies CallingPolicy::plan
@@ -71,7 +73,9 @@ boundary trait HookProcedure: Calling<HookProcedurePolicy> {
 }
 
 data RegistrarPolicy { }
-RegistrarPolicyCallingPolicy: RegistrarPolicy satisfies CallingPolicy;
+RegistrarPolicyCallingPolicy satisfies CallingPolicy {
+    CallingPolicy::plan = RegistrarPolicy::plan;
+}
 
 machine RegistrarPolicy::plan(signature: BoundarySignature) -> BoundaryPlanResult
     satisfies CallingPolicy::plan

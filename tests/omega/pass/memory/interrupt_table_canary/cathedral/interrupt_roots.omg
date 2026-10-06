@@ -58,7 +58,9 @@ pub CriticalAcknowledgementRepresentation satisfies OpaqueRepresentation<
 // machine-state column must stay inside.
 pub data CriticalStackPolicy {
 }
-pub CriticalStackPolicyCalling: CriticalStackPolicy satisfies CallingPolicy;
+pub CriticalStackPolicyCalling satisfies CallingPolicy {
+    CallingPolicy::plan = CriticalStackPolicy::plan;
+}
 
 machine CriticalStackPolicy::plan(
     signature: BoundarySignature
@@ -169,7 +171,9 @@ machine FatalExceptionProvider::enter(acknowledgement: InterruptAcknowledgement 
 // class, and the table profile refuses two members sharing one class.
 pub data TimerStackPolicy {
 }
-pub TimerStackPolicyCalling: TimerStackPolicy satisfies CallingPolicy;
+pub TimerStackPolicyCalling satisfies CallingPolicy {
+    CallingPolicy::plan = TimerStackPolicy::plan;
+}
 
 machine TimerStackPolicy::plan(
     signature: BoundarySignature
