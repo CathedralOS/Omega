@@ -306,6 +306,29 @@ fn collect_provider_selections<'a>(
             )));
             return;
         }
+        if let Some(implementation) = typed.conformances().iter().find(|implementation| {
+            implementation.symbol == provider_type.symbol
+                && crate::provider_identity::eligible(implementation)
+        }) && let typed_trees::trait_definition::ConformanceImplementation::Closed { rows } =
+            &implementation.implementation
+        {
+            for row in rows {
+                if crate::provider_identity::named_requirement_lifetime_arguments(
+                    typed,
+                    implementation,
+                    row.declaring_trait,
+                )
+                .is_none()
+                {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "named provider `{}` requires an unsupported inherited declaring-trait lifetime application for `{}`; the exact parent substitution is not retained",
+                        provider_type.authored_path,
+                        row.requirement_name,
+                    )));
+                    return;
+                }
+            }
+        }
         if let Some(existing) = selections
             .iter()
             .find(|selection| selection.subject.same_declaration_as(&subject))

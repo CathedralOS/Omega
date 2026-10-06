@@ -339,8 +339,10 @@ pub(crate) fn resolve_selected_adapter_row(
 /// requirement`. A public requirement carrying no static generic binders
 /// (`pub boundary requirement Owner::name(...);`, optionally with an erased
 /// lifetime telescope `Owner::name<'a>(...)`) settles through a checked-body
-/// adapter with no static generic binders whose sole `satisfies` edge rejoins
-/// that exact requirement symbol with the same explicit arity. A generic
+/// adapter with no static generic binders whose exact `satisfies` edge rejoins
+/// that requirement symbol with the same explicit arity. Unlike the trait
+/// rows above, top-level machine requirements are not slots in named trait
+/// implementation maps. A generic
 /// token-machine requirement instead settles through its selected
 /// specialization roster: the plan row stays keyed by the authored template
 /// and every demanded closed requirement instance emits one row naming the
@@ -511,10 +513,10 @@ fn resolve_specialized_top_level_requirement_adapter_rows(
     machine_identity: &str,
     specialization_rows: &[effects::SelectedRequirementSpecialization],
 ) -> Result<Vec<ResolvedAdapterRow>, Diagnostic> {
-    // The template's `satisfies` edge is checked once: specialization
-    // instantiates the conformance on every closed instance, so the roster
-    // already carries each instance's join and only the authored edge needs
-    // the exact count here.
+    // This is a top-level machine requirement, not a named trait-map row.
+    // Its template owns the authored satisfaction edge; specialization
+    // instantiates that conformance on each closed instance. The roster
+    // carries the instance join, while this check authenticates its origin.
     let conformances = typed
         .machine_trait_conformances(adapter)
         .iter()

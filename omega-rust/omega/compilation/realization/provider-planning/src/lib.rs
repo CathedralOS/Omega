@@ -23,7 +23,10 @@ mod planning_context;
 pub mod program_entry;
 mod provider_declarations;
 mod provider_identity;
-pub use provider_identity::{provider_row_matches, provider_trait_requirement_matches};
+pub use provider_identity::{
+    ProviderTraitApplication, provider_row_matches, provider_trait_application,
+    provider_trait_requirement_matches,
+};
 mod provider_planning;
 mod provider_settlement;
 pub mod service_schema;

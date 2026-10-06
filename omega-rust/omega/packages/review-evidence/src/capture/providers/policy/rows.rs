@@ -64,7 +64,8 @@ pub(super) fn project(
                     declaring_schema,
                     requirement_symbol,
                     realization_symbol,
-                    &row.requirement_lifetime_partition,
+                    plan,
+                    row,
                 )?;
                 Some(realization)
             };
@@ -108,8 +109,10 @@ fn validate_lifetime_partition(
     schema: ProviderSchemaDeclaration,
     requirement: SymbolHandle,
     realization: SymbolHandle,
-    retained: &[u32],
+    plan: &effects::provider_plan::ProviderPlan,
+    row: &effects::provider_plan::ProviderPlanRow,
 ) -> Result<(), Vec<Diagnostic>> {
+    let retained = row.requirement_lifetime_partition.as_slice();
     let ProviderSchemaDeclaration::BoundaryTrait(trait_symbol) = schema else {
         return if retained.is_empty() {
             Ok(())
@@ -127,20 +130,20 @@ fn validate_lifetime_partition(
             "lifetime partition has no exact realization machine",
         ));
     };
-    let applications = compilation
-        .machine_trait_conformances(machine)
-        .iter()
-        .filter(|conformance| {
-            conformance.symbol == trait_symbol && conformance.requirement_symbol == requirement
-        })
-        .collect::<Vec<_>>();
-    let [application] = applications.as_slice() else {
-        return Err(rejected(
-            "lifetime partition has no unique declaring-trait application",
-        ));
-    };
+    let application = provider_planning::provider_trait_application(
+        provider_planning::ProviderPlanningContext::new(
+            &compilation.typed,
+            source::DependencyScope::Product,
+        ),
+        plan,
+        row,
+        machine,
+        trait_symbol,
+        requirement,
+    )
+    .ok_or_else(|| rejected("lifetime partition has no exact selected provider application"))?;
     if typed_trees::machine::normalize_requirement_lifetime_partition(
-        &application.trait_lifetime_arguments,
+        application.lifetime_arguments(),
     ) != retained
     {
         return Err(rejected(

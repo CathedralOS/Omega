@@ -42,42 +42,100 @@ pub(crate) fn named_provider<'a>(
     matching.next().is_none().then_some(result)
 }
 
-/// Authenticate the selected trait association at its declaration owner.
-/// A closed map owns its rows; a nominal provider owns authored machine edges.
-pub fn provider_trait_requirement_matches(
-    context: ProviderPlanningContext<'_>,
+/// Retain only a declaring-trait lifetime application the map actually owns.
+/// Parent lifetime composition is not retained on closed rows. An empty parent
+/// telescope needs no substitution; a nonempty one needs that missing evidence.
+pub(crate) fn named_requirement_lifetime_arguments<'a>(
+    typed: &'a TypedTrees,
+    implementation: &'a Conformance,
+    declaring_trait: SymbolHandle,
+) -> Option<&'a [u32]> {
+    let root = typed
+        .traits()
+        .iter()
+        .find(|definition| definition.symbol == implementation.trait_symbol)?;
+    let arguments = implementation.trait_lifetime_arguments.as_slice();
+    if arguments.len() != root.lifetime_parameters.len()
+        || arguments.iter().any(|ordinal| {
+            usize::try_from(*ordinal).map_or(true, |ordinal| {
+                ordinal >= implementation.lifetime_parameters.len()
+            })
+        })
+    {
+        return None;
+    }
+    if root.symbol == declaring_trait {
+        return Some(arguments);
+    }
+    let declaring = typed
+        .traits()
+        .iter()
+        .find(|definition| definition.symbol == declaring_trait)?;
+    declaring.lifetime_parameters.is_empty().then_some(&[])
+}
+
+/// Borrow the declaration that owns one exact provider requirement application.
+/// This view retains the original lifetime substitution without inventing a
+/// machine edge for a closed implementation map.
+pub enum ProviderTraitApplication<'a> {
+    Named {
+        declaration: &'a Conformance,
+        lifetime_arguments: &'a [u32],
+    },
+    Machine(&'a typed_trees::machine::TraitConformance),
+}
+
+impl ProviderTraitApplication<'_> {
+    pub fn lifetime_arguments(&self) -> &[u32] {
+        match self {
+            Self::Named {
+                lifetime_arguments, ..
+            } => lifetime_arguments,
+            Self::Machine(application) => &application.trait_lifetime_arguments,
+        }
+    }
+}
+
+pub fn provider_trait_application<'a>(
+    context: ProviderPlanningContext<'a>,
     plan: &ProviderPlan,
     row: &ProviderPlanRow,
     machine: &typed_trees::machine::Machine,
     declaring_trait: SymbolHandle,
     requirement: SymbolHandle,
-) -> bool {
+) -> Option<ProviderTraitApplication<'a>> {
     let typed = context.typed;
-    if !context.contains(declaring_trait)
+    if !context.contains(machine.symbol)
+        || !context.contains(declaring_trait)
         || !context.contains(requirement)
-        || !provider_row_matches(context, plan, row, machine)
     {
-        return false;
+        return None;
     }
     if let Some(implementation) = named_provider(context, plan) {
+        if !provider_row_matches(context, plan, row, machine) {
+            return None;
+        }
         let ConformanceImplementation::Closed { rows } = &implementation.implementation else {
-            return false;
+            return None;
         };
-        return rows
+        let lifetime_arguments =
+            named_requirement_lifetime_arguments(typed, implementation, declaring_trait)?;
+        return (rows
             .iter()
             .filter(|entry| {
                 entry.declaring_trait == declaring_trait && entry.requirement == requirement
             })
             .count()
-            == 1;
+            == 1)
+            .then_some(ProviderTraitApplication::Named {
+                declaration: implementation,
+                lifetime_arguments,
+            });
     }
-    typed
+    let mut matching = typed
         .machine_trait_conformances(machine)
         .iter()
         .filter(|conformance| {
-            if conformance.external_binding.is_some() {
-                return false;
-            }
             let Some(typed_trees::machine::SatisfiedDeclaration::Trait {
                 definition,
                 requirement: signature,
@@ -89,9 +147,29 @@ pub fn provider_trait_requirement_matches(
                 && signature.symbol == requirement
                 && typed.trait_requirement_callable_identity_text(definition, signature)
                     == row.requirement_identity
-        })
-        .count()
-        == 1
+        });
+    let application = matching.next()?;
+    matching
+        .next()
+        .is_none()
+        .then_some(ProviderTraitApplication::Machine(application))
+}
+
+/// Authenticate a checked adapter's association at its declaration owner.
+pub fn provider_trait_requirement_matches(
+    context: ProviderPlanningContext<'_>,
+    plan: &ProviderPlan,
+    row: &ProviderPlanRow,
+    machine: &typed_trees::machine::Machine,
+    declaring_trait: SymbolHandle,
+    requirement: SymbolHandle,
+) -> bool {
+    provider_row_matches(context, plan, row, machine)
+        && provider_trait_application(context, plan, row, machine, declaring_trait, requirement)
+            .is_some_and(|application| match application {
+                ProviderTraitApplication::Named { .. } => true,
+                ProviderTraitApplication::Machine(edge) => edge.external_binding.is_none(),
+            })
 }
 
 /// Rejoin a provider row to its declaration, including an exact specialization

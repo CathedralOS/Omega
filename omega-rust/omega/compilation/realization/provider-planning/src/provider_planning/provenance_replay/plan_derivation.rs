@@ -300,6 +300,12 @@ fn derive_named_provider_plans(
                     row.declaring_trait,
                     row.requirement,
                 );
+                let lifetime_arguments =
+                    crate::provider_identity::named_requirement_lifetime_arguments(
+                        typed,
+                        implementation,
+                        row.declaring_trait,
+                    )?;
                 let (binding, lifetime_partition, origin) = if machine.supply_mode.is_checked_body()
                     && machine.body_is_present
                 {
@@ -311,7 +317,7 @@ fn derive_named_provider_plans(
                                 .symbol_package_identity(machine.symbol),
                         },
                         typed_trees::machine::normalize_requirement_lifetime_partition(
-                            &implementation.trait_lifetime_arguments,
+                            lifetime_arguments,
                         ),
                         None,
                     )

@@ -11,42 +11,6 @@ pub(crate) struct BoundaryField {
     pub(crate) trait_symbol: symbols::SymbolHandle,
 }
 
-pub(crate) fn exact_conformance_requirement_identity(
-    typed: &TypedTrees,
-    adapter: &typed_trees::machine::Machine,
-    owner: &typed_trees::trait_definition::TraitDefinition,
-    requirement: &str,
-) -> Option<String> {
-    let signatures = typed
-        .trait_machine_signatures(owner)
-        .iter()
-        .filter(|signature| signature.name.as_str() == requirement)
-        .collect::<Vec<_>>();
-    let signature = match signatures.as_slice() {
-        [signature] => *signature,
-        many => {
-            let implementation_dispatch = typed
-                .machine_states(adapter)
-                .first()
-                .map(|entry| typed.normalized_result_dispatch_set(entry.return_type));
-            let matches = many
-                .iter()
-                .copied()
-                .filter(|signature| {
-                    implementation_dispatch.as_ref().is_some_and(|dispatch| {
-                        typed.normalized_result_dispatch_set(signature.return_type) == *dispatch
-                    })
-                })
-                .collect::<Vec<_>>();
-            let [signature] = matches.as_slice() else {
-                return None;
-            };
-            *signature
-        }
-    };
-    Some(typed.trait_requirement_callable_identity_text(owner, signature))
-}
-
 pub(crate) fn exact_boundary_trait<'typed>(
     typed: &'typed TypedTrees,
     name: &str,
