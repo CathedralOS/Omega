@@ -1161,14 +1161,7 @@ impl Replay<'_> {
         match (&binding.boundary_entry_plan.call.result, result_shape) {
             (None, None) => {}
             (Some(placement), Some(shape)) => {
-                let placed = matches!(
-                    placement.locations.as_slice(),
-                    [ValueLocation::Register {
-                        value_byte_offset: 0,
-                        byte_size,
-                        ..
-                    }] if *byte_size == shape.byte_size
-                );
+                let placed = single_register_sized(&placement.locations, shape.byte_size);
                 if placement.shape != shape
                     || (matches!(expected_result, TargetBoundaryResult::Scalar(_)) && !placed)
                 {
@@ -3226,13 +3219,9 @@ impl Replay<'_> {
                 operation,
                 AbstractOperation::DynamicDescriptorParameter { .. }
             )
-        }) || !matches!(
-            result_placement.locations.as_slice(),
-            [ValueLocation::Register {
-                value_byte_offset: 0,
-                byte_size,
-                ..
-            }] if *byte_size == result_placement.shape.byte_size
+        }) || !single_register_sized(
+            &result_placement.locations,
+            result_placement.shape.byte_size,
         ) || home.shape != result_placement.shape
         {
             return Err(psi_operation);
@@ -3504,6 +3493,19 @@ fn matches_argument_identity(
         && actual.access == semantic.access
         && actual.access == declared.access
         && actual.structural_type == declared.structural_type
+}
+
+/// A one-register placement occupying exactly the declared shape's byte
+/// extent — the scalar lane's sole-occupancy proof.
+fn single_register_sized(locations: &[ValueLocation], byte_size: u32) -> bool {
+    matches!(
+        locations,
+        [ValueLocation::Register {
+            value_byte_offset: 0,
+            byte_size: placed_size,
+            ..
+        }] if *placed_size == byte_size
+    )
 }
 
 /// The byte size a one-slot offset-zero placement carries — register and
