@@ -52,15 +52,8 @@ pub(crate) fn compile_project_command(arguments: CompileArguments) {
             std::process::exit(refusal_exit_status([&error]));
         }
     };
-    if let Some(path) = &report_file
-        && let Err(error) =
-            write_report_text(path, &report_text(report_target_name.as_deref(), &outcome))
-    {
-        eprintln!(
-            "cannot write compile report to `{}`: {error}",
-            path.display()
-        );
-        std::process::exit(1);
+    if let Some(path) = &report_file {
+        write_report_or_exit(path, &report_text(report_target_name.as_deref(), &outcome));
     }
     print_outcome(&outcome);
 }
@@ -106,14 +99,8 @@ fn compile_several_targets(
     if let Some(started) = started {
         print_elapsed(started);
     }
-    if let Some(path) = report_file
-        && let Err(error) = write_report_text(path, &report_contents)
-    {
-        eprintln!(
-            "cannot write compile report to `{}`: {error}",
-            path.display()
-        );
-        std::process::exit(1);
+    if let Some(path) = report_file {
+        write_report_or_exit(path, &report_contents);
     }
     if !failed.is_empty() {
         eprintln!(
@@ -245,6 +232,16 @@ fn report_text(
         ));
     }
     contents
+}
+
+fn write_report_or_exit(path: &std::path::Path, contents: &str) {
+    if let Err(error) = write_report_text(path, contents) {
+        eprintln!(
+            "cannot write compile report to `{}`: {error}",
+            path.display()
+        );
+        std::process::exit(1);
+    }
 }
 
 fn write_report_text(path: &std::path::Path, contents: &str) -> std::io::Result<()> {
