@@ -57,27 +57,25 @@ use statements::validate_state_statement_node;
 
 pub use checked_trees::operators::ExactIntegerCastFact;
 
-/// The values an indexed read's scalar index can take, as the arithmetic walk
-/// that checked its evaluation found them; `None` is an unbounded end. Every
-/// walk of the expression contributes, so the interval holds wherever the
-/// read runs. The collection's length stays with the range checker.
+/// The values an integer expression can take, as the arithmetic walk that
+/// checked its evaluation found them; `None` is an unbounded end. Every walk of
+/// the expression contributes, so the interval holds wherever it is evaluated.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct IndexOperandInterval {
-    pub index: ExpressionHandle,
+pub struct ExpressionInterval {
+    pub expression: ExpressionHandle,
     pub low: Option<i64>,
     pub high: Option<i64>,
 }
 
-/// The retained interval of the index operand `index`, from `intervals` in
-/// handle order.
-pub fn index_operand_interval(
-    intervals: &[IndexOperandInterval],
-    index: ExpressionHandle,
-) -> Option<&IndexOperandInterval> {
-    let position = checked_trees::operators::handle_position(index);
+/// The retained interval of `expression`, from `intervals` in handle order.
+pub fn expression_interval(
+    intervals: &[ExpressionInterval],
+    expression: ExpressionHandle,
+) -> Option<&ExpressionInterval> {
+    let position = checked_trees::operators::handle_position(expression);
     intervals
         .binary_search_by_key(&position, |interval| {
-            checked_trees::operators::handle_position(interval.index)
+            checked_trees::operators::handle_position(interval.expression)
         })
         .ok()
         .map(|found| &intervals[found])
@@ -91,9 +89,9 @@ pub struct ProgramValidationFacts {
     /// Integer operations whose formation conditions every clean arithmetic
     /// walk decided.
     pub decided_formations: Vec<typed_trees::expression::ExpressionHandle>,
-    /// Index operand intervals of indexed reads, one per operand in handle
-    /// order, hulled over every clean arithmetic walk of it.
-    pub index_operand_intervals: Vec<IndexOperandInterval>,
+    /// Integer expression intervals, one per expression in handle order,
+    /// hulled over every clean arithmetic walk of it.
+    pub expression_intervals: Vec<ExpressionInterval>,
     pub float_meaning_projection_invocations: Vec<ValidatedFloatMeaningProjectionInvocation>,
     pub float_meaning_equality_propositions: Vec<ValidatedFloatMeaningEqualityProposition>,
     pub fact_call_projections: Vec<fact_call_projections::ValidatedFactCallProjection>,
@@ -659,21 +657,21 @@ fn validate(
     let arithmetic_domains::ArithmeticDecisions {
         mut exact_integer_casts,
         mut decided_formations,
-        index_operand_intervals: walked_index_intervals,
+        expression_intervals: walked_intervals,
     } = arithmetic_decisions;
-    let mut index_operand_intervals = Vec::<IndexOperandInterval>::new();
-    let mut walked_index_intervals = walked_index_intervals;
-    walked_index_intervals
-        .sort_by_key(|(index, _)| checked_trees::operators::handle_position(*index));
-    for (index, interval) in walked_index_intervals {
-        // Each walk bounds the reads it saw; their hull bounds them all.
-        match index_operand_intervals.last_mut() {
-            Some(previous) if previous.index == index => {
+    let mut expression_intervals = Vec::<ExpressionInterval>::new();
+    let mut walked_intervals = walked_intervals;
+    walked_intervals
+        .sort_by_key(|(expression, _)| checked_trees::operators::handle_position(*expression));
+    for (expression, interval) in walked_intervals {
+        // Each walk bounds the evaluations it saw; their hull bounds them all.
+        match expression_intervals.last_mut() {
+            Some(previous) if previous.expression == expression => {
                 previous.low = previous.low.zip(interval.low()).map(|(a, b)| a.min(b));
                 previous.high = previous.high.zip(interval.high()).map(|(a, b)| a.max(b));
             }
-            _ => index_operand_intervals.push(IndexOperandInterval {
-                index,
+            _ => expression_intervals.push(ExpressionInterval {
+                expression,
                 low: interval.low(),
                 high: interval.high(),
             }),
@@ -702,7 +700,7 @@ fn validate(
             boundary_operator_applications,
             exact_integer_casts,
             decided_formations,
-            index_operand_intervals,
+            expression_intervals,
             float_meaning_projection_invocations,
             float_meaning_equality_propositions,
             fact_call_projections,

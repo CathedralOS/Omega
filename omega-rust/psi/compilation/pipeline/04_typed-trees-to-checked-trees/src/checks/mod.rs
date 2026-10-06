@@ -87,7 +87,7 @@ pub(crate) fn check_checked_facts_recording_with_mutation_summaries(
     mutation_summaries: &crate::flow::StateMutationSummaryCache,
     guard_index: &IncomingGuardIndexCache,
     proven_machine_contracts: &[(SymbolHandle, Vec<typed_trees::expression::ExpressionHandle>)],
-    index_operand_intervals: &[validation::IndexOperandInterval],
+    expression_intervals: &[validation::ExpressionInterval],
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
     let call_frames = validation::CallFrameResolver::new(program);
@@ -113,6 +113,7 @@ pub(crate) fn check_checked_facts_recording_with_mutation_summaries(
         incoming_guards,
         call_frames.as_ref(),
         proven_machine_contracts,
+        expression_intervals,
     ) {
         Ok(decided) => facts.decided_call_requires = decided,
         Err(mut contract_diagnostics) => diagnostics.append(&mut contract_diagnostics),
@@ -164,7 +165,7 @@ pub(crate) fn check_checked_facts_recording_with_mutation_summaries(
         &facts.operators,
         &facts.borrow,
         &facts.flow,
-        index_operand_intervals,
+        expression_intervals,
         call_frames.as_ref(),
         incoming_guards,
         mutation_summaries,

@@ -57,20 +57,21 @@ pub(crate) struct ArithmeticDecisions {
     /// division, the excluded `MIN / -1` pair; a representable Exact sum,
     /// difference or product.
     pub(crate) decided_formations: Vec<ExpressionHandle>,
-    /// The interval of each indexed read's index operand, keyed by that
-    /// operand. The range checker compares it with the length it
-    /// resolves for the collection, so a computed index such as
-    /// `values[position - 1]` behind `position > 0 &&` is bounded by the same
-    /// branch-local environment that proved its subtraction.
-    pub(crate) index_operand_intervals: Vec<(ExpressionHandle, Interval)>,
+    /// The interval of each integer expression this walk checked, in the
+    /// branch-local environment it was checked in: the left operand of `&&`
+    /// or `||` and refuted earlier arms narrow what follows. Checking clients
+    /// consult it instead of keeping private interval engines: the range
+    /// checker bounds `values[position - 1]` behind `position > 0 &&` with it,
+    /// and the call-requires check proves `index + 1 <= 4` after a refuted
+    /// `index >= 4 ->` arm.
+    pub(crate) expression_intervals: Vec<(ExpressionHandle, Interval)>,
 }
 
 impl ArithmeticDecisions {
     pub(crate) fn extend(&mut self, other: Self) {
         self.exact_integer_casts.extend(other.exact_integer_casts);
         self.decided_formations.extend(other.decided_formations);
-        self.index_operand_intervals
-            .extend(other.index_operand_intervals);
+        self.expression_intervals.extend(other.expression_intervals);
     }
 }
 
@@ -162,18 +163,9 @@ impl ExpressionWalk<'_> {
             // Field/element/formal landing checks own their respective types;
             // typed arithmetic retains its operand-selected carrier and policy.
             let child_walk = self.with_destination(None, ArithmeticDomain::Exact);
-            let index_operand = match node {
-                ExpressionNode::Indexed(indexed) => Some(indexed.index),
-                _ => None,
-            };
             let mut analyze_child = |child: ExpressionHandle| {
                 if child.is_valid() {
-                    let analysis = child_walk.analyze(child, diagnostics, decisions);
-                    if index_operand == Some(child) {
-                        decisions
-                            .index_operand_intervals
-                            .push((child, analysis.interval));
-                    }
+                    child_walk.analyze(child, diagnostics, decisions);
                 }
             };
             if matches!(node, ExpressionNode::Atomic(_)) {
@@ -196,6 +188,23 @@ impl ExpressionWalk<'_> {
                 crate::expression_traversal::children(self.program, node, analyze_child);
             }
         }
+        let analysis = self.analyze_value(expression, node, diagnostics, decisions);
+        if analysis.interval.low.is_some() || analysis.interval.high.is_some() {
+            decisions
+                .expression_intervals
+                .push((expression, analysis.interval));
+        }
+        analysis
+    }
+
+    /// The value judgment of one node whose children were already checked.
+    fn analyze_value(
+        &self,
+        expression: ExpressionHandle,
+        node: &ExpressionNode,
+        diagnostics: &mut Vec<Diagnostic>,
+        decisions: &mut ArithmeticDecisions,
+    ) -> Analysis {
         if let Some(folded) = folded_values::analyze(self, expression, diagnostics) {
             return folded;
         }

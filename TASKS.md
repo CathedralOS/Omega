@@ -2946,9 +2946,11 @@ the validation `src/` (written `omega-rust/psi/compilation/checking/src/`) unles
   - `omega-rust/psi/compilation/proof/src/checker/integer_ranges.rs`.
 
   Keep one interval domain and one premise-chaining oracle in `validation`
-  (`arithmetic_domains`), and make every listed site a client. The stage 04
-  index checker already takes each index operand's interval from the
-  arithmetic walk for fixed-length reads; its name-keyed proofs and
+  (`arithmetic_domains`), and make every listed site a client. Validation
+  publishes each walked integer expression's interval
+  (`validation::ExpressionInterval`). The stage 04 index checker consumes it
+  for fixed-length reads, and the call-requires check consumes it for
+  parameter-versus-literal requirements. Their name-keyed proofs and
   unknown-length slice bounds remain private. Float intervals
   (`omega-rust/psi/compilation/checking/src/value_custody/expression_types/float_cast_proofs.rs`) stay
   separate. This is large: land it per client, each commit deleting that

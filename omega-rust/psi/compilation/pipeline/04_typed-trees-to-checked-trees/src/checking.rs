@@ -328,8 +328,7 @@ fn check_program(
         std::mem::take(&mut validated.validation_facts.proven_machine_contracts);
     // The range checker bounds indexes with the intervals the same
     // arithmetic walk established; nothing after checking reads them.
-    let index_operand_intervals =
-        std::mem::take(&mut validated.validation_facts.index_operand_intervals);
+    let expression_intervals = std::mem::take(&mut validated.validation_facts.expression_intervals);
     let (mut facts, _prepared_effect_scope) = build_check_facts(
         &program,
         &validated.proof_plan,
@@ -366,7 +365,7 @@ fn check_program(
         &mutation_summaries,
         &incoming_guard_index,
         &proven_machine_contracts,
-        &index_operand_intervals,
+        &expression_intervals,
     )?;
     checks::validate_selected_cleanup_guarantees(&program, &facts)?;
     crate::facts::refresh_realized_contract_envelopes(&mut facts);

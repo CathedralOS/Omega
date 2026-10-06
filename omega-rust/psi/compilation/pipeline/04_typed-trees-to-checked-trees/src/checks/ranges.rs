@@ -77,7 +77,7 @@ pub(crate) fn check_indexed_accesses(
     operators: &checked_trees::CheckedOperatorFacts,
     borrows: &checked_trees::BorrowFacts,
     flow: &checked_trees::FlowFacts,
-    index_operand_intervals: &[validation::IndexOperandInterval],
+    expression_intervals: &[validation::ExpressionInterval],
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     incoming_guards: &IncomingGuardIndex,
     mutation_summaries: &crate::flow::StateMutationSummaryCache,
@@ -117,7 +117,7 @@ pub(crate) fn check_indexed_accesses(
             facts.bound_lookup = bound_lookup.clone();
             facts.mutation_summaries = std::borrow::Cow::Borrowed(mutation_summaries);
             facts.checked_operators = Some(operators);
-            facts.index_operand_intervals = index_operand_intervals;
+            facts.expression_intervals = expression_intervals;
             facts.checked_calls = Some(calls);
             // State parameters are stable named places for the duration of
             // the state, just like locals introduced by `let`. Retain a

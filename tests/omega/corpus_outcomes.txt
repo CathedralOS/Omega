@@ -654,6 +654,8 @@ fail/contracts/ensures_named_parameter_arithmetic_wrong rejected 368ms expected 
 	cannot prove ensures contract for exit from Countdown::arm at statement 2: timer.remaining - 1 < 8
 fail/contracts/ensures_wrapping_field_arithmetic_wrong rejected 197ms expected @c08960bee2b1+wt
 	cannot prove ensures contract for exit from Countdown::arm at statement 1: countdown.remaining - 1 < 8
+fail/contracts/later_arm_call_requires_unproven rejected 653ms expected @53d5dde47ae5
+	cannot prove requires contract for call walk from walk: index + 1 <= 4 (needs fact `index <= 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/contracts/named_tail_return_contract rejected 202ms expected @43a77116e58+wt
 	cannot prove ensures contract for exit from forward at statement 0: result == 1
 fail/contracts/negated_edge_guard_unproven_bound rejected 1025ms expected @2d8ed253669f
@@ -2161,6 +2163,7 @@ pass/contracts/named_tail_return_contract checked 1210ms check-target:macos_arm6
 pass/contracts/proof_fact_indexed_domain_application checked 293ms @2d8ed253669f
 pass/contracts/requires_narrow_ceiling_unproven checked 3054ms check-target:macos_arm64 @527c7c316c6f+wt
 pass/contracts/requires_u8_ceiling_below_carrier checked 3035ms check-target:macos_arm64 @527c7c316c6f+wt
+pass/contracts/runtime_later_arm_call_requires_exit checked 2753ms check-target:macos_arm64 @53d5dde47ae5
 pass/control_flow/affine_call_result_state_transfer_exit checked 1527ms check-target:macos_arm64 @e28fa01a1e73+wt
 pass/control_flow/affine_record_state_cycle_exit checked 704ms check-target:macos_arm64 @7f2bd2604102
 pass/control_flow/arm_pattern_rest_optout_exit checked 3464ms check-target:macos_arm64 @b5d8c6882a8

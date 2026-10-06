@@ -374,7 +374,7 @@ fn check_known_length_index(
             // short-circuit's left operand and earlier arms' refutations. An
             // interval inside the length proves both halves, for a computed
             // index (`values[position - 1]`) as for a name.
-            if validation::index_operand_interval(facts.index_operand_intervals, index).is_some_and(
+            if validation::expression_interval(facts.expression_intervals, index).is_some_and(
                 |interval| {
                     interval.low.is_some_and(|low| low >= 0)
                         && interval

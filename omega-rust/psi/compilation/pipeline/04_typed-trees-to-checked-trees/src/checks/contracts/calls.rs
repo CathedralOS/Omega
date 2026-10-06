@@ -22,6 +22,7 @@ pub(super) fn check_call_requires(
     call_flow: &FlowCallFact,
     nominal_requirements: &super::nominal_inputs::DeclaredFieldRequirements,
     incoming_guards: &[crate::checks::ranges::incoming_guards::IncomingGuard],
+    expression_intervals: &[validation::ExpressionInterval],
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -94,6 +95,12 @@ pub(super) fn check_call_requires(
                         call_flow,
                         expression,
                         call_frames,
+                    ) || super::argument_intervals::proves(
+                        program,
+                        state_flow,
+                        call_flow,
+                        expression,
+                        expression_intervals,
                     )
                 }
                 _ => semantic_contexts_prove_contract_fact(

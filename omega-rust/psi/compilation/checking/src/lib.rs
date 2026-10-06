@@ -348,9 +348,9 @@ pub use program_scope::effects::{PreparedEffectScope, enter_prepared_effect_scop
 pub use program_scope::{ProgramPlanScopeGuard, enter_program_plan_scope};
 pub use program_validation::{
     ContractEntailmentStandDown, ContractEntailmentStandDownReason, ExactIntegerCastFact,
-    IndexOperandInterval, OpaquePropertyValidation, ProgramValidation, ProgramValidationFacts,
+    ExpressionInterval, OpaquePropertyValidation, ProgramValidation, ProgramValidationFacts,
     admit_prepared_program_effects, checked_operator_contract_snapshot,
-    collect_contract_entailment_stand_downs, index_operand_interval, prepare_specialized_program,
+    collect_contract_entailment_stand_downs, expression_interval, prepare_specialized_program,
     proven_machine_contract_expressions, validate_checked_operator_realization_contract,
     validate_generic_machine_contract_entailment, validate_program,
 };

@@ -520,6 +520,7 @@ pass/contracts/named_tail_return_contract built 3616ms exit:70 @9beb2be72f2d+wt
 pass/contracts/proof_fact_indexed_domain_application checked 176ms
 pass/contracts/requires_narrow_ceiling_unproven built 2806ms exit:70 @527c7c316c6f+wt
 pass/contracts/requires_u8_ceiling_below_carrier built 2894ms exit:70 @527c7c316c6f+wt
+pass/contracts/runtime_later_arm_call_requires_exit built 3086ms exit:70 @53d5dde47ae5
 pass/control_flow/affine_call_result_state_transfer_exit built 1607ms exit:70 @e28fa01a1e73+wt
 pass/control_flow/affine_record_state_cycle_exit built 849ms exit:70 @7f2bd2604102+wt
 pass/control_flow/arm_pattern_rest_optout_exit built 723ms exit:70 @48008365d839

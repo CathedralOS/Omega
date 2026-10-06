@@ -33,6 +33,7 @@
 
 // The steps: evidence binding, and the checks `check_flow_call_contracts`
 // runs.
+mod argument_intervals;
 mod assembly;
 pub(crate) mod calls;
 pub(crate) mod contextual_cleanup;
@@ -88,6 +89,7 @@ pub(super) fn check_flow_call_contracts(
     incoming_guards: &crate::checks::ranges::incoming_guards::IncomingGuardIndex,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     proven_machine_contracts: &[(SymbolHandle, Vec<ExpressionHandle>)],
+    expression_intervals: &[validation::ExpressionInterval],
 ) -> Result<Vec<checked_trees::DecidedCallRequires>, Vec<Diagnostic>> {
     let mut diagnostics =
         crate::facts::contextual_cleanup::check_cleanup_requirements(program, facts);
@@ -161,6 +163,7 @@ pub(super) fn check_flow_call_contracts(
                 call_flow,
                 &nominal_requirements,
                 incoming_guards.for_machine(state_flow.machine_symbol),
+                expression_intervals,
                 call_frames,
                 &mut diagnostics,
             );
