@@ -362,25 +362,44 @@ fn parameter_domain_grants(
         })
 }
 
+/// The `domain_symbol` and no-segment expression root a membership `place`
+/// names — the shared peel both grant checks apply before their payload
+/// tests.
+fn expression_rooted_domain_parts(
+    semantic: &facts::FactPlan,
+    payload: FactPayload,
+    place: FactPlace,
+) -> Option<(
+    symbols::SymbolHandle,
+    typed_trees::expression::ExpressionHandle,
+)> {
+    let (FactPayload::ContractDomainMembership { domain_symbol, .. }
+    | FactPayload::DomainMembership { domain_symbol, .. }) = payload
+    else {
+        return None;
+    };
+    let FactPlace::Place(place_handle) = place else {
+        return None;
+    };
+    let resolved = semantic.places.get(place_handle);
+    if !resolved.segments.is_empty() {
+        return None;
+    }
+    let PlaceRoot::Expression(expression) = resolved.root else {
+        return None;
+    };
+    Some((domain_symbol, expression))
+}
+
 fn string_literal_grants_domain(
     program: &typed_trees::TypedTrees,
     semantic: &facts::FactPlan,
     payload: FactPayload,
     place: FactPlace,
 ) -> bool {
-    let (FactPayload::ContractDomainMembership { domain_symbol, .. }
-    | FactPayload::DomainMembership { domain_symbol, .. }) = payload
+    let Some((domain_symbol, expression)) =
+        expression_rooted_domain_parts(semantic, payload, place)
     else {
-        return false;
-    };
-    let FactPlace::Place(place_handle) = place else {
-        return false;
-    };
-    let resolved = semantic.places.get(place_handle);
-    if !resolved.segments.is_empty() {
-        return false;
-    }
-    let PlaceRoot::Expression(expression) = resolved.root else {
         return false;
     };
     crate::facts::field_domain::string_literal_expression_grants_domain(
@@ -405,19 +424,9 @@ fn value_call_return_domain_grants(
     payload: FactPayload,
     place: FactPlace,
 ) -> bool {
-    let (FactPayload::ContractDomainMembership { domain_symbol, .. }
-    | FactPayload::DomainMembership { domain_symbol, .. }) = payload
+    let Some((domain_symbol, expression)) =
+        expression_rooted_domain_parts(semantic, payload, place)
     else {
-        return false;
-    };
-    let FactPlace::Place(place_handle) = place else {
-        return false;
-    };
-    let resolved = semantic.places.get(place_handle);
-    if !resolved.segments.is_empty() {
-        return false;
-    }
-    let PlaceRoot::Expression(expression) = resolved.root else {
         return false;
     };
     let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
