@@ -32,6 +32,13 @@ use targets::macos_arm64::macos_gui_impl;
 pub domain [u8]::CString(bytes)
 requires
     no_nul(bytes);
+
+// AppKit must be loaded before looking up Cocoa classes through libobjc.
+// The explicit import owns that dependency; class names do not select libraries.
+pub boundary trait AppKit {
+    machine load() -> bool;
+}
+
 // The Objective-C runtime seam (libobjc). Human method names; the `_objc_*`/`_sel_*`
 // symbols live only in the darwin binding table.
 pub boundary trait ObjectiveC {

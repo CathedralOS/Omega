@@ -10,7 +10,7 @@ use omega::language::core::float_operations;
 pub boundary trait Clock { machine sleep(milliseconds: u32) invokes DarwinClock; }
 pub boundary trait Gui {
     machine window_create(class_name: [u8; 7], title: [u8; 11], style: u32, x: i32, y: i32, width: i32, height: i32) -> Window
-        invokes ObjectiveC; invokes CoreGraphics;
+        invokes ObjectiveC; invokes CoreGraphics; invokes AppKit;
     machine window_destroy(window: Window) invokes ObjectiveC; invokes CoreGraphics;
     machine get_dc(window_state: &Window, window: u64) -> u64;
     machine msg_peek(window_state: &mut Window, message: [u64; 6]) -> u32 invokes ObjectiveC;
@@ -55,8 +55,9 @@ DemoGuiProvider satisfies Gui {
     Gui::blit = demo_blit;
 }
 macos_arm64 machine demo_window_create(class_name: [u8; 7], title: [u8; 11], style: u32, x: i32, y: i32, width: i32, height: i32) -> Window
-reaches CoreGraphics + ObjectiveC
+reaches CoreGraphics + ObjectiveC + AppKit
 {
+    let loaded: bool = appkit_load();
     let rx: f64 = F64::from_i32(x);
     let ry: f64 = F64::from_i32(y);
     let mut rw: f64 = F64::from_i32(width);
@@ -282,7 +283,7 @@ data Main {
     c: i32;
     px: i32;
 }
-machine Main::main(main: &mut Main) reaches Clock + Console + CoreGraphics + DarwinClock + Gui + ObjectiveC {
+machine Main::main(main: &mut Main) reaches AppKit + Clock + Console + CoreGraphics + DarwinClock + Gui + ObjectiveC {
     // "#32770\0" -- the predefined dialog class. Unlike the STATIC control
     // class, this behaves like a draggable top-level app window in practice.
     main.cls[0] = 35;

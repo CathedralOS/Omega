@@ -7,6 +7,20 @@
 
 use omega::language::core::external_binding;
 
+// AppKit supplies Cocoa classes; libobjc alone does not load them.
+pub macos_arm64 machine appkit_load_binding() -> ForeignBinding<50, 18, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/System/Library/Frameworks/AppKit.framework/AppKit",
+            symbol: "_NSApplicationLoad",
+        },
+    }
+}
+
+// NSApplicationLoad returns Objective-C BOOL, a C bool on macOS ARM64.
+pub macos_arm64 machine appkit_load() -> bool
+    satisfies AppKit::load via appkit_load_binding();
+
 // ---- libobjc (ObjectiveC) --------------------------------------------------
 // Every text argument is the raw `const char*` shape: callers stage a
 // NUL-terminated buffer and pass `&buf[0]` (`&u8` lowers to the pointer word).

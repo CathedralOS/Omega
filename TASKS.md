@@ -427,7 +427,7 @@ helper that passes does not close an item.
   (`fail/machines/retired_self_receiver`); do not restore them to make an
   unmigrated program pass.
   - Source remainder: boundary-trait requirements in
-    `samples/gui/{window_app,window_demo,windowed_calculator}/main.omg`
+    `samples/gui/{window_app,windowed_calculator}/main.omg`
     (**TRAIT-IMPLEMENTATION-SOURCE-MIGRATION** and **STATELESS-PROVIDERS**) and the two memory canaries
     (**STATIC-BOUNDARY-REQUIREMENT-CALL-FORM**). Build receiver calls remain
     for facets such as test groups. Move their producers and consumers to
@@ -1168,17 +1168,16 @@ defines the complete product bar.
   ([machines](wiki/spec/language/machines.md#static-declarations-and-explicit-state):
   a satisfier declares no parameter its requirement lacks). The `self`
   migration turned receiver state into a hidden `&mut Provider` parameter
-  that the requirement does not declare. For example,
-  `samples/gui/window_demo/main.omg`'s `data DemoGuiProvider { window, view,
-  app, space, … }` with
-  `DemoGuiProvider::window_create(demo_gui_provider: &mut DemoGuiProvider, …) satisfies Gui::window_create`.
-  - Redesign `Gui` (`source/library/std/macos_gui.omg` and the samples'
-    boundary traits) so `window_create` returns a `Window` record holding the
-    handles, selectors and autorelease pool; `blit`, `msg_peek` and the rest
-    take it explicitly, and teardown consumes it. Migrate `window_app`,
-    `window_demo`, `windowed_calculator` and `image_viewer`, plus any other
+  that the requirement does not declare. Finish converting the remaining
+  standard-library and GUI sample providers to explicit application-owned state.
+  - Redesign `Gui` (`source/library/std/macos_gui.omg` and the remaining
+    samples' boundary traits) so `window_create` returns a `Window` record
+    holding the handles, selectors and autorelease pool; `blit`, `msg_peek`
+    and the rest take it explicitly, and teardown consumes it. Migrate
+    `window_app`, `windowed_calculator` and `image_viewer`, plus any other
     satisfier with provider fields (find them by the extra leading provider
-    parameter).
+    parameter). `window_demo` supplies the explicit-state reference; its
+    remaining native failure belongs to **MACOS-APPLICATION-PUBLICATION**.
   - Make conformance checking reject a satisfier parameter the requirement
     lacks, and delete the provider-subject provisioning: the installation
     adapter and checked interpreter call the satisfier with exactly the
@@ -1202,30 +1201,22 @@ defines the complete product bar.
   `omega-rust/omega/compilation/backend/artifacts/native-artifact/src/package_publication.rs`
   for package assembly and signing, and
   `omega-rust/omega/compilation/products/src/compilation_products.rs` for
-  package/inner-executable accessors. The samples declare nominal
-  GUI/clock/input providers and macOS `provider_defaults`; preserve them.
+  package/inner-executable accessors. Keep provider selection as named
+  implementations and window state as explicit owned data.
 
-  All three check (`python tools/sample_gate.py --filter
-  gui/window_app,gui/window_demo,gui/windowed_calculator`). Native production
-  stops inside `*GuiProvider::window_create`:
-  - `window_demo`, `windowed_calculator`: stage 05
-    `omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/unit/attached_unit/structural_calls/result_uses.rs`
-    ("invalid claim-free custody") at `objc_get_class(&cbuf1[0])`, a shared
-    loan of a local array's fixed element. Behind it:
-    `unit/attached_unit/parameters.rs` ("invalid checked custody"); the
-    by-value parameter element `&title[0]` ("primitive array parameter requires
-    exact whole owned transport"); and Omega's normalized foreign call, which
-    admits only caller-parameter-rooted loans. The Terminal verifier's
-    local-array element-loan refusals go away with
-    **OMEGA-READS-TERMINAL-UNVERIFIED**.
-  - `window_app`: the stage 05
-    `omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/unit/attached_unit/call_catalog.rs`
-    fence on write-only stores and atomic events in opaque provider candidates.
-    Admit them only with a checked judgment preserving non-observation and
-    exact access to places exposed by the requirement's mutable parameters.
-  - Behind both: **STATELESS-PROVIDERS**. The GUI providers keep window
-    state in provider fields, which the static-machine contract forbids.
-  General lowering goes through **ENTRY-CONTENT-ROOTS**, **TR3-TR8** and
+  On macOS ARM64, `omega update --project samples/gui/window_demo --target
+  macos_arm64 --offline` succeeds. `omega run --keep
+  samples/gui/window_demo/main.omg` now reaches ARM64 instruction encoding and
+  fails encoding a `Store64` at stack displacement 35040 with
+  `FunctionRelativeRealization(Encoding(Aarch64(EncodedFormMismatch)))`.
+  Carry large frame-relative addresses through
+  `post-allocation-machine-to-selected-form-encoding` and `isa-aarch64`, then
+  continue the same program through publication and real execution. No window,
+  rendering or native exit has yet been observed for this sample.
+  `window_app` and `windowed_calculator` still need the explicit-state provider
+  migration under **STATELESS-PROVIDERS** and a fresh native run; their old
+  stage-05 diagnostics are not the current frontier. General lowering also
+  depends on **ENTRY-CONTENT-ROOTS**, **TR3-TR8** and
   **STATE-LOCAL-VALUE-FRONTIER**.
 
   Acceptance: all three publish a validated `.app` and execute on macOS ARM64
