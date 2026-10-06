@@ -1,8 +1,12 @@
 //! Scalar operand calls belong to computation roots; structural operands retain
 //! their own result producers within the same authored statement.
+//! Assignment selectors and the stored value own their calls through those
+//! exact roots, independently of the destination's spelling. This roster only
+//! accounts for the calls: the store planner and emitter still establish the
+//! destination and evaluate selectors before the value, once in authored order.
 use super::{
     CheckFacts, CheckedScalarExpressionRole, ExpressionNode, StatementNode, SymbolHandle,
-    TypeReferenceNode, TypedTrees,
+    TypedTrees,
 };
 use crate::execution::terminal_unit::control::{statement_sequence, structural_operands};
 use crate::execution::terminal_unit::types::{ShapeCollector, is_unit, machine_binders};
@@ -517,55 +521,68 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
         let StatementNode::Assignment(assignment) = statement else {
             continue;
         };
-        let supported_destination = match program.expression_table.expression(assignment.target) {
-            ExpressionNode::Member(_) => true,
-            ExpressionNode::Name(name) => {
-                name.symbol.is_valid()
-                    && name.head_symbol == name.symbol
-                    && program
-                        .expression_table
-                        .name_path_members(name.members)
-                        .len()
-                        == 1
-            }
-            _ => false,
-        };
-        if !supported_destination {
-            continue;
-        }
+        // A scalar computation owns its call occurrences whether its value
+        // lands in a local, a field, or an indexed destination. Selectors own
+        // theirs in the same way. Leaving either in the outer-call roster
+        // makes the statement count an invocation the store already evaluates.
         let plans = &facts.values.scalar_computations;
-        let Some(root) = plans.root_at(
-            state.symbol,
-            u32::try_from(statement_index).ok()?,
-            CheckedScalarExpressionRole::AssignmentValue,
-        ) else {
-            continue;
-        };
-        let reference =
-            validation::declared_place_type_raw(program, owner, Some(state), assignment.target)?;
-        let reference = match program.type_reference_table.type_reference(reference) {
-            TypeReferenceNode::Reference { referee, .. } => *referee,
-            _ => reference,
-        };
-        let primitive = program.primitive_type_reference(reference)?;
-        if root.machine != machine
-            || !plans.nodes.is_valid(root.root)
-            || plans.nodes.get(root.root).authored_root != assignment.value
-            || plans.nodes.get(root.root).primitive_type != primitive
-        {
-            return None;
+        let selectors = validation::assignment_target_selectors(program, assignment.target);
+        let operands = selectors
+            .into_iter()
+            .enumerate()
+            .map(|(depth, expression)| {
+                Some((
+                    CheckedScalarExpressionRole::AssignmentIndex {
+                        depth: u32::try_from(depth).ok()?,
+                    },
+                    expression,
+                ))
+            })
+            .chain(std::iter::once(Some((
+                CheckedScalarExpressionRole::AssignmentValue,
+                assignment.value,
+            ))));
+        for operand in operands {
+            let (role, expression) = operand?;
+            let Some(root) =
+                plans.root_at(state.symbol, u32::try_from(statement_index).ok()?, role)
+            else {
+                continue;
+            };
+            let primitive = match role {
+                CheckedScalarExpressionRole::AssignmentIndex { .. } => {
+                    typed_trees::types::PrimitiveType::U64
+                }
+                CheckedScalarExpressionRole::AssignmentValue => {
+                    let reference = validation::declared_place_type_raw(
+                        program,
+                        owner,
+                        Some(state),
+                        assignment.target,
+                    )?;
+                    crate::values::assignment_target_primitive_type(program, reference)?
+                }
+                _ => return None,
+            };
+            if root.machine != machine
+                || !plans.nodes.is_valid(root.root)
+                || plans.nodes.get(root.root).authored_root != expression
+                || plans.nodes.get(root.root).primitive_type != primitive
+            {
+                return None;
+            }
+            collect(
+                program,
+                facts,
+                state.symbol,
+                statement_index,
+                root.root,
+                calls,
+                0,
+                &mut Vec::new(),
+                &mut consumed,
+            )?;
         }
-        collect(
-            program,
-            facts,
-            state.symbol,
-            statement_index,
-            root.root,
-            calls,
-            0,
-            &mut Vec::new(),
-            &mut consumed,
-        )?;
     }
     for call in calls
         .iter()

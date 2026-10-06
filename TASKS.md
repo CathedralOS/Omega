@@ -3773,10 +3773,15 @@ deletions, which its commit lists.
     remain separate. The unchanged `samples/cli/collections/heat_grid`
     returns 45 through ordinary native execution after local measurement
     package review, and the nested 2-by-3 control returns 70. Generated
-    selectors retain certificate search. An indexed store whose right-hand
-    side calls a machine still needs assignment-computation call accounting
-    under **WRITE-ONLY-BORROW** / **STATE-LOCAL-VALUE-FRONTIER**; its current
-    stage 04 call-count refusal precedes this bounds transport.
+    selectors retain certificate search. Assignment call accounting now
+    consumes exact retained `AssignmentIndex` and `AssignmentValue` roots for
+    every destination. The captured-selector and effectful-selector fixtures
+    (`collections/runtime_fixed_array_{captured_selector,selector_call}_store_exit`)
+    each return their authored 70 through ordinary Windows native execution;
+    the selectors run before the stored value and both calls run once. The
+    old checked-tree interpreter declines the former and returns 77 for the
+    latter. Preserve those disagreements for **TERMINAL-RUNTIME-DRIVERS**;
+    native success does not establish common-core execution.
     Exact add, subtract and multiply representability and
     Exact casts now also travel as `SourceChecked` (only the cast stage 04
     builds from a checker fact; synthesized index widenings and scalar-graph

@@ -1,0 +1,29 @@
+// The destination selector completes before the RHS mutates its source.
+// The write still targets cell one; the cursor's live value becomes two.
+use omega_language_std::console;
+data Grid { cells: [u8; 2]; }
+data Cursor { index: u64; }
+
+machine replace_cursor(cursor: &mut Cursor) -> u8 {
+    cursor.index = 2;
+    70
+}
+
+machine store(grid: &mut Grid, cursor: &mut Cursor)
+    requires cursor.index < 2
+{
+    grid.cells[cursor.index] = replace_cursor(cursor);
+}
+
+machine main() reaches Console {
+    let mut grid: Grid;
+    let mut cursor: Cursor;
+    cursor.index = 1;
+    store(&mut grid, &mut cursor);
+    transition grid.cells[1] == 70 && cursor.index == 2 {
+        true -> passed()
+        false -> failed()
+    }
+    state passed() { Console::exit_process(70); }
+    state failed() { Console::exit_process(77); }
+}

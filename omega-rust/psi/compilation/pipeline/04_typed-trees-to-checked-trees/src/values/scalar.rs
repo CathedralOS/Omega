@@ -54,7 +54,9 @@ pub(crate) use expression_facts::{
     occupies_scalar_position, operator_is_builtin, parameter_position, scalar_expression_type,
     zeroed_scalar_local_initializer,
 };
-pub(crate) use expression_plans::build_checked_scalar_expression_plans;
+pub(crate) use expression_plans::{
+    assignment_target_primitive_type, build_checked_scalar_expression_plans,
+};
 pub(crate) use machine_parameter_booleans::lower_machine_parameter_boolean_expression;
 pub(crate) use result_contract::{
     lower_callable_parameter_range_requirements, lower_scalar_contract_predicate,
