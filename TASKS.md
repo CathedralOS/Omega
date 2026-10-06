@@ -1169,14 +1169,10 @@ defines the complete product bar.
   ([machines](wiki/spec/language/machines.md#static-declarations-and-explicit-state):
   a satisfier declares no parameter its requirement lacks). The `self`
   migration turned receiver state into a hidden `&mut Provider` parameter
-  that the requirement does not declare. Finish converting the remaining
-  standard-library and GUI sample providers to explicit application-owned state.
-  - Migrate `samples/gui/image_viewer` to the explicit owned `Window` API in
-    `source/library/std/macos_gui.omg`, preserving its title, BMP decoding and
-    navigation. Bundle-relative resources remain outside macOS publication v1.
-    Audit other satisfiers for extra leading provider parameters. The shared
-    library and `window_app`, `window_demo`, `windowed_calculator` now use
-    stateless named maps; their remaining interactive acceptance belongs to
+  that the requirement does not declare. Finish removing this implicit state
+  across conformance and invocation paths.
+  - Audit remaining standard-library and sample satisfiers for extra leading
+    provider parameters. GUI interactive acceptance belongs to
     **MACOS-APPLICATION-PUBLICATION**.
   - Reject a satisfier parameter absent from its requirement across all
     conformance paths and pin that rejection with a fail fixture. Installation
@@ -3384,8 +3380,9 @@ deletions, which the commit lists.
     Join the exact checked occurrence rather than performing another syntax walk
     or extending certificate search.
   - Cover shift counts, Boolean landing, representation geometry, capacities
-    and bounded stores wherever their existing checking decisions are not yet
-    retained. Finish the formation audit across aggregate and proposition
+    and remaining bounded stores outside completed bounded-integer field
+    replacements, including generated/indexed, refined and element-view writes.
+    Finish the formation audit across aggregate and proposition
     positions; unify abstract declaration-contract carrier resolution with the
     ordinary formation walk.
   - Replace search for invocation-entry, scalar-graph, local-refinement and
@@ -5339,7 +5336,7 @@ wait for Cathedral's instruction coverage. The interpreter is
 
   Migrate `filesystem.omg`, all five target implementations, filesystem
   fixtures, `pass/time/runtime_fs_mtime_system_time_interop_exit`,
-  `samples/cli/systems/file_journal` and `samples/gui/image_viewer`.
+  and `samples/cli/systems/file_journal`.
   Wrapper-only consumers include
   `pass/filesystem/{dir_walk_wrappers_exit,windows_wrapper_results_exit,wrapper_lock_metadata_exit,wrapper_open_with_exit}`.
   Rust consumers include package review's `semantic_bindings.rs`,
