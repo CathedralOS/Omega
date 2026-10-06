@@ -111,7 +111,6 @@ members = [
     "omega-rust/omega/packages/source-acquisition",
     "omega-rust/omega/packages/resolver-execution",
     "omega-rust/omega/packages/package-manager",
-    "omega-rust/library/topology",
 ]
 resolver = "3"
 

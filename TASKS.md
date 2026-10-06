@@ -5931,12 +5931,12 @@ topology IR or trusted graph axiom.
 - **TOPOLOGY-PLAN-VERIFICATION.** Connect the Omega build-only composer in
   `tests/omega/pending/build/build_scope_topology_plan` (it does not check
   against the current Build facets; its header has the diagnostics) and the
-  consumer `source/library/topology/verify.omg`. Reuse `omega-rust/library/topology/`'s
-  normalization, policy, certificate and codec logic and
-  `VerifiedComponent::export_contracts()`; derived contracts, not surface-name
-  hashes, join demands to supplies. The Rust composition test is deleted and
-  `verify.omg` has never been driven; component admission must come from
-  ordinary component-description production, not Rust-built Terminal modules.
+  consumer `source/library/topology/verify.omg`. Complete the ordinary Omega
+  package's normalization, policy, certificate and codec logic against verified
+  component descriptions; derived contracts, not surface-name hashes, join
+  demands to supplies. `verify.omg` has never been driven; component admission
+  must come from ordinary component-description production, not a Rust oracle
+  or Rust-built Terminal module.
   **BUILD-SNAPSHOT-OUTPUTS** owns confined inputs and output publication.
   Refresh the stale test names in `wiki/spec/packages/topology.md`'s acceptance
   status when this lands.
@@ -5954,11 +5954,10 @@ topology IR or trusted graph axiom.
 - **TOPOLOGY-PRIVATE-PIPE-INSTALLATION.** Run the
   [three-process payment customer](wiki/spec/packages/topology.md#first-executable-realization)
   with an Omega-authored installer and component programs on Windows and macOS,
-  after **TOPOLOGY-PLAN-VERIFICATION**. Reuse
-  `omega-rust/library/topology/src/topology_installation.rs` and its mediation,
-  frame, schema, pipe and supervisor modules; `LocalProcessSupervisor` is
-  Unix-only. Add explicit Windows handle transfer and macOS validated/signed
-  member images over the existing descriptor-transfer path. Disable general
+  after **TOPOLOGY-PLAN-VERIFICATION**. Implement mediation, frame/schema
+  validation, private-pipe adaptation and supervision in ordinary Omega/runtime
+  packages over general process and pipe boundaries. Add explicit Windows
+  handle transfer and macOS validated/signed member images. Disable general
   inheritance and deliver exactly the admitted endpoints before application
   entry.
 

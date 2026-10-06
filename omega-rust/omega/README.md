@@ -20,4 +20,5 @@ packages. Shared utilities remain in `foundation/`.
 Source processing through Terminal Psi remains in [Psi](../psi/README.md),
 including [target-neutral interpretation](../psi/interpreter/README.md).
 The [pipeline contract](../pipeline.md) defines the Psi/Omega firewall.
-Ordinary Rust library implementations live in [../library/](../library/README.md).
+Canonical bundled libraries live in [`../../source/library/`](../../source/library/);
+the Rust tree contains compiler/runtime machinery, not duplicate library packages.

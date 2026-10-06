@@ -232,7 +232,7 @@ bootstrap implementation; those meanings stay distinct in subjects.
 | `packages` | Package acquisition, graphs, review, admission, installation, and update workflows in `omega-rust/omega/packages/`. Package command wiring accompanying those changes keeps `packages`. |
 | `cli` | Command parsing, flags, help, and command dispatch in `omega-rust/omega/application/cli/src/`, plus the corresponding product entrypoint. The command's underlying compiler or package behavior uses its owning lane. |
 | `tooling` | Shipped developer tools and shared host support in `omega-rust/omega/foundation/`, including artifact file writing and measurements. Semantic trust records and admission under `realization/trust-model/` use `omega`. |
-| `library` | Bundled packages in `source/library/`, including `core`, `alloc`, and `std`, and their Rust reference implementations in `omega-rust/library/`. A compiler semantic fix exercised by library code keeps its compiler lane. |
+| `library` | Bundled packages in `source/library/`, including `core`, `alloc`, `std`, and ordinary domain packages. A compiler semantic fix exercised by library code keeps its compiler lane. |
 | `samples` | Standalone sample/example content and presentation in `samples/` or example directories. A regression fixture for an implementation fix keeps that implementation's lane. |
 | `tests` | Shared test infrastructure, corpus registration, fixtures, or architecture gates spanning multiple owners. Tests for one responsibility use that responsibility's lane, even in a test-only commit. |
 | `tools` | Repository maintenance/development utilities in `tools/`, including landing reservations and sample-refresh scripts. Bootstrap tools follow the rung/chain rules above; shipped tooling uses `tooling`. |

@@ -236,9 +236,9 @@ The compiler owns component descriptions, candidates, emitted products and
 generic installation evidence. Live deployment, replacement, entry routing,
 era retirement and update policy belong to an ordinary runtime/library package
 or Cathedral; no compiler runtime crate models them. The package-defined
-topology implementation lives separately at `library/topology/`: its graph
-policies, plan codec, verifier and installer are ordinary library
-responsibilities, not compiler primitives or backend realization plans.
+topology implementation lives at `source/library/topology/`: its graph policies,
+plan codec, verifier and installer are ordinary Omega library responsibilities,
+not compiler primitives or backend realization plans.
 
 Omega `foundation/` owns shared host primitives and native compiler vocabulary:
 bounded process execution, filesystem custody, function identities and optimization
