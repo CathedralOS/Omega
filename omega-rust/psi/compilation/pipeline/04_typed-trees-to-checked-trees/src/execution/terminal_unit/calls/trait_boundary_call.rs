@@ -269,23 +269,26 @@ pub(super) fn build(
             structural_arguments.push(literal);
             continue;
         }
-        if let Some(subslice) = view_subslice::admit(
-            program,
-            facts,
-            machine,
-            state,
-            caller_parameters,
-            formal,
-            *argument,
-            call.statement_index,
-            checked_trees::CheckedSubsliceSite::CallArgument {
-                call_ordinal: u32::try_from(call.call_ordinal).ok()?,
-                argument_ordinal: u32::try_from(structural_arguments.len()).ok()?,
-            },
-        ) && subslice.range.kind == view_subslice::ViewKind::Bytes
-            // A boundary call stages no whole-field view to narrow.
-            && subslice.range.collection.is_empty()
-        {
+        if validation::subslice_expression(program, *argument).is_some() {
+            // The ordinary operand scheduler establishes a descriptor for a
+            // projected array before narrowing it. Boundary and checked-body
+            // calls consume the same range value, with its exact source path,
+            // endpoint occurrences and access; a range cannot fall back to a
+            // fixed projection when its own admission fails.
+            let subslice = view_subslice::admit(
+                program,
+                facts,
+                machine,
+                state,
+                caller_parameters,
+                formal,
+                *argument,
+                call.statement_index,
+                checked_trees::CheckedSubsliceSite::CallArgument {
+                    call_ordinal: u32::try_from(call.call_ordinal).ok()?,
+                    argument_ordinal: u32::try_from(structural_arguments.len()).ok()?,
+                },
+            )?;
             structural_arguments.push(subslice.argument());
             continue;
         }
