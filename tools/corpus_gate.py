@@ -148,6 +148,7 @@ import os
 from pathlib import Path
 import platform
 import subprocess
+import tempfile
 import sys
 import urllib.request
 import threading
@@ -381,6 +382,12 @@ def shutil_which(name: str):
 def run_runner(binary: Path) -> list[dict]:
     env = dict(os.environ)
     env.pop("NEXTEST", None)
+    # Records arrive in their own file: a fixture's build log is ordinary
+    # compiler output on the runner's stdout and must not parse as a record.
+    records_file = tempfile.NamedTemporaryFile(
+        prefix="corpus-records-", suffix=".txt", delete=False)
+    records_file.close()
+    env["OMEGA_CORPUS_RECORDS"] = records_file.name
     proc = subprocess.Popen([str(binary)], cwd=ROOT, text=True, env=env,
                             stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     buffered_stderr = collections.deque(maxlen=2000)
@@ -398,15 +405,19 @@ def run_runner(binary: Path) -> list[dict]:
     stdout = proc.stdout.read()
     progress.join()
     proc.wait()
+    try:
+        records = Path(records_file.name).read_text(encoding="utf-8")
+    finally:
+        os.unlink(records_file.name)
     if proc.returncode != 0:
         sys.stderr.write(stdout[-2000:])
         sys.stderr.writelines(list(buffered_stderr)[-200:])
         raise InfrastructureFailure(
             f"corpus_gate: runner exited {proc.returncode}")
     try:
-        return corpus_records.parse(stdout)
+        return corpus_records.parse(records)
     except ValueError as error:
-        sys.stderr.write(stdout[-2000:])
+        sys.stderr.write(records[-2000:])
         sys.stderr.writelines(list(buffered_stderr)[-200:])
         raise InfrastructureFailure(
             f"corpus_gate: runner emitted unreadable records: {error}")

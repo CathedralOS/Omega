@@ -2564,23 +2564,6 @@ crash and native exit behavior.
   the arm by itself would bake the upstream gap into the Psi/Omega record
   contract.
 
-- **CORPUS-BUILD-LOG-STREAM-COLLISION.** (new-scope)
-  No corpus fixture can write a build log line. The compiler emits the retained
-  build log on its standard output and the corpus runner multiplexes its
-  fixture records on that same stream, so one authored line aborts the whole
-  measurement with `corpus_gate: runner emitted unreadable records: line 1: not
-  a fixture record: <the authored line>`. It is a harness property, not a
-  property of any one source: every fixture writing any build log line breaks
-  identically. That is why the authored `BuildLog::write_line` customer is
-  `tests/omega/pending/build/build_log_line_written` rather than a `pass` row,
-  verified instead through the real CLI. Acceptance: a fixture that writes a
-  build log line records an ordinary outcome, and that pending case moves into
-  `pass/` with its golden row.
-
-  Reuse the corpus runner's existing sealed source staging. A
-  row it adds carries a `check-target:<target>` fact when the fixture binds a
-  program entry.
-
 ## Lowering simplification
 
 Owner ruling 2026-10-04: stage 05 is cut down to a mechanical lowering of

@@ -23,7 +23,8 @@
 //! parallelism capped at 12), `OMEGA_CORPUS_FIXTURE_SECS` (per-fixture cap,
 //! default 120 — a timed-out fixture detaches its compile, records status
 //! `timeout`, and the pool applies back-pressure so stragglers cannot multiply
-//! past the worker count).
+//! past the worker count), `OMEGA_CORPUS_RECORDS=<path>` (write the records
+//! to that file rather than stdout, which a fixture's build log also reaches).
 //!
 //! `OMEGA_CORPUS_MIGRATION_FIXTURES` contains newline-separated exact
 //! `pending/group/name` paths from the gate's reviewed migration roster. Only
@@ -609,11 +610,7 @@ fn interpret_native_report(
         );
     };
     let expected_stdout = fs::read_to_string(fixture_dir.join("expected_stdout.txt")).ok();
-    terminal_execution::interpret(
-        artifact,
-        expected_stdout.as_deref(),
-        1_000_000,
-    )
+    terminal_execution::interpret(artifact, expected_stdout.as_deref(), 1_000_000)
 }
 
 /// With both legs, whether the native exit is this host's presentation of
@@ -1529,8 +1526,22 @@ fn main() {
         .unwrap_or_else(|records| records.lock().unwrap().clone().into())
         .into_inner()
         .unwrap();
+    // A build that writes its log reaches this process's real stdout, as the
+    // compiler's other output does, so a consumer that parses records names a
+    // file of their own instead of sharing that stream.
+    let mut text = String::new();
     for record in records {
-        println!("{record}");
+        text.push_str(&record.to_string());
+        text.push('\n');
+    }
+    match env::var_os("OMEGA_CORPUS_RECORDS") {
+        Some(path) => {
+            if let Err(error) = std::fs::write(&path, text) {
+                eprintln!("corpus_runner: could not write OMEGA_CORPUS_RECORDS {path:?}: {error}");
+                process::exit(1);
+            }
+        }
+        None => print!("{text}"),
     }
     // A live straggler can still remove build paths. Retain the reservation
     // until it dies with this process, rather than letting a same-PID session

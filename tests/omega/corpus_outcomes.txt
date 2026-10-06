@@ -1895,6 +1895,7 @@ pass/borrows/writeonly_record_field_store checked 1245ms check-target:macos_arm6
 pass/boundary/later_state_requirement_scalar_result_exit checked 2933ms check-target:macos_arm64 @44d31b02f28e+wt
 pass/boundary/static_foreign_scalar_result_locals_exit checked 29787ms check-target:macos_arm64 @469b20ad280d+wt
 pass/build/artifact_only_required_output_completion checked 3029ms @d37ea22ec592+wt
+pass/build/build_log_line_written checked 1789ms check-target:macos_arm64 @31926a3a0d06+wt
 pass/build/conditional_root_binding checked 389ms check-target:windows_x86_64 @2d8ed253669f
 pass/build/const_index_dependency_order_exit checked 1897ms check-target:macos_arm64 @ae8939e231af+wt
 pass/build/crash_exclusion_untrapping_provider_exit checked 2154ms check-target:macos_arm64 @5c302dd6d305

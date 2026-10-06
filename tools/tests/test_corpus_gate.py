@@ -25,6 +25,15 @@ def record(fixture, status="checked", millis=1, expected=None, facts=None,
             "diagnostics": diagnostics or [], "recorded_at": recorded_at}
 
 
+
+def fake_runner(records: str, stdout: str = ""):
+    """A Popen stand-in that writes `records` where the gate asks for them."""
+    def popen(arguments, **options):
+        Path(options["env"]["OMEGA_CORPUS_RECORDS"]).write_text(records)
+        return SimpleNamespace(stdout=io.StringIO(stdout), stderr=io.StringIO(""),
+                               returncode=0, wait=lambda: 0)
+    return popen
+
 class NativeExitExpectations(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
@@ -559,9 +568,7 @@ class MainVerdicts(unittest.TestCase):
         self.write_golden(rows)
         original = self.golden.read_text()
         for flags, expected_code in (((), 4), (("--bisect",), 125)):
-            process = SimpleNamespace(
-                stdout=io.StringIO("run/a/x built 1ms exit:7 exit:70\n"),
-                stderr=io.StringIO(""), returncode=0, wait=lambda: 0)
+            popen = fake_runner("run/a/x built 1ms exit:7 exit:70\n")
             argv = ["corpus_gate", "--runner", "unused", "--record",
                     "--golden", str(self.golden), "--json", str(self.json_path),
                     *flags]
@@ -569,7 +576,7 @@ class MainVerdicts(unittest.TestCase):
                  patch.object(corpus_gate, "ROOT", self.root), \
                  patch.object(corpus_gate, "measurement_stamp", return_value="aaaaaaaaaaaa"), \
                  patch.object(corpus_gate, "git_out", return_value=None), \
-                 patch.object(corpus_gate.subprocess, "Popen", return_value=process), \
+                 patch.object(corpus_gate.subprocess, "Popen", side_effect=popen), \
                  patch.dict(corpus_gate.os.environ, {}, clear=True), \
                  patch.object(sys, "argv", argv):
                 self.assertEqual(corpus_gate.main(), expected_code)
@@ -577,6 +584,23 @@ class MainVerdicts(unittest.TestCase):
                 document = json.loads(self.json_path.read_text())
                 self.assertEqual(document["verdict"], "infrastructure_failed")
                 self.assertIn("duplicate fact", document["infrastructure_error"])
+
+    def test_build_log_on_runner_stdout_is_not_parsed_as_a_record(self):
+        rows = [record("pass/build/log", status="checked")]
+        self.write_golden(rows)
+        popen = fake_runner(
+            corpus_records.render(rows), stdout="omega build log witness\n")
+        argv = ["corpus_gate", "--runner", "unused", "--golden", str(self.golden),
+                "--json", str(self.json_path)]
+        with patch.object(corpus_gate, "ROOT", self.root), \
+             patch.object(corpus_gate, "measurement_stamp", return_value="aaaaaaaaaaaa"), \
+             patch.object(corpus_gate, "git_out", return_value=None), \
+             patch.object(corpus_gate.subprocess, "Popen", side_effect=popen), \
+             patch.dict(corpus_gate.os.environ, {}, clear=True), \
+             patch.object(sys, "argv", argv):
+            self.assertEqual(corpus_gate.main(), 0)
+        document = json.loads(self.json_path.read_text())
+        self.assertNotEqual(document["verdict"], "infrastructure_failed")
 
     def test_record_writes_context_and_diff_carries_perf_warnings(self):
         rows = [record("pass/a/x", millis=3000)]
