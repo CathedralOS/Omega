@@ -165,71 +165,22 @@ pub(crate) fn build_structural_unit_control_machine(
                         })
                     })
                     .collect::<Option<Vec<_>>>()?;
-                let scalar_arguments =
-                    target_scalar_parameters
-                        .iter()
-                        .enumerate()
-                        .map(|(target_index, target)| {
-                            let argument_ordinal = target.source_position;
-                            let ranked_edge = proven_ranked_scc.and_then(|component| {
-                                component.covered_cyclic_edges.iter().find(|edge| {
-                                    edge.source_state == state.symbol
-                                        && edge.target_state == states[target_index].symbol
-                                        && edge.statement_ordinal == 0
-                                        && edge.target_rank_parameter_position == argument_ordinal
-                                })
-                            });
-                            let expression = facts.values.scalar_expressions.expression_at(
-                                state.symbol,
-                                0,
-                                CheckedScalarExpressionRole::TransitionArgument {
-                                    argument_ordinal,
-                                },
-                            );
-                            let source_index = match expression {
-                                Some(CheckedScalarExpression::Boolean(expression))
-                                    if target.primitive_type == PrimitiveType::Bool =>
-                                {
-                                    let checked_trees::CheckedBooleanExpression::Parameter {
-                                        position,
-                                    } = expression.as_ref()
-                                    else {
-                                        return None;
-                                    };
-                                    *position
-                                }
-                                Some(CheckedScalarExpression::Parameter {
-                                    position,
-                                    primitive_type,
-                                }) if *primitive_type == target.primitive_type => *position,
-                                _ if ranked_edge.is_some()
-                                    && proven_ranked_scc.is_some_and(|component| {
-                                        component.rank_primitive_type == target.primitive_type
-                                    }) =>
-                                {
-                                    source_scalar_parameters.iter().position(|source| {
-                                        ranked_edge.is_some_and(|edge| {
-                                            source.source_position
-                                                == edge.source_rank_parameter_position
-                                        })
-                                    })?
-                                }
-                                _ => return None,
-                            };
-                            if source_scalar_parameters
-                                .get(source_index)
-                                .is_none_or(|source| source.primitive_type != target.primitive_type)
-                            {
-                                return None;
-                            }
-                            Some(CheckedStructuralScalarArgumentPlan {
-                                argument_ordinal,
-                                source: checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter { index: u32::try_from(source_index).ok()? },
-                                target_scalar_parameter_index: u32::try_from(target_index).ok()?,
-                                primitive_type: target.primitive_type,
-                            })
-                        })
-                        .collect::<Option<Vec<_>>>()?;
+                let scalar_arguments = target_scalar_parameters
+                    .iter()
+                    .enumerate()
+                    .map(|(target_index, target)| {
+                        scalar_control_argument(
+                            facts,
+                            proven_ranked_scc,
+                            state.symbol,
+                            0,
+                            states,
+                            target_index,
+                            target,
+                            source_scalar_parameters,
+                        )
+                    })
+                    .collect::<Option<Vec<_>>>()?;
                 let cleanup = transferred_and_discarded_sources_cover(
                     facts,
                     machine.symbol,
@@ -360,74 +311,22 @@ pub(crate) fn build_structural_unit_control_machine(
                                 })
                             })
                             .collect::<Option<Vec<_>>>()?;
-                        let scalar_arguments =
-                            target_scalar_parameters
-                                .iter()
-                                .enumerate()
-                                .map(|(target_index, target)| {
-                                    let argument_ordinal = target.source_position;
-                                    let ranked_edge = proven_ranked_scc.and_then(|component| {
-                                        component.covered_cyclic_edges.iter().find(|edge| {
-                                            edge.source_state == state.symbol
-                                                && edge.target_state == states[target_index].symbol
-                                                && edge.statement_ordinal == statement_ordinal
-                                                && edge.target_rank_parameter_position
-                                                    == argument_ordinal
-                                        })
-                                    });
-                                    let expression = facts.values.scalar_expressions.expression_at(
-                                        state.symbol,
-                                        statement_ordinal,
-                                        CheckedScalarExpressionRole::TransitionArgument {
-                                            argument_ordinal,
-                                        },
-                                    );
-                                    let source_index = match expression {
-                                        Some(CheckedScalarExpression::Boolean(expression))
-                                            if target.primitive_type == PrimitiveType::Bool =>
-                                        {
-                                            let checked_trees::CheckedBooleanExpression::Parameter {
-                                            position,
-                                        } = expression.as_ref()
-                                        else {
-                                            return None;
-                                        };
-                                            *position
-                                        }
-                                        Some(CheckedScalarExpression::Parameter {
-                                            position,
-                                            primitive_type,
-                                        }) if *primitive_type == target.primitive_type => *position,
-                                        _ if ranked_edge.is_some()
-                                            && proven_ranked_scc.is_some_and(|component| {
-                                                component.rank_primitive_type
-                                                    == target.primitive_type
-                                            }) =>
-                                        {
-                                            source_scalar_parameters.iter().position(|source| {
-                                                ranked_edge.is_some_and(|edge| {
-                                                    source.source_position
-                                                        == edge.source_rank_parameter_position
-                                                })
-                                            })?
-                                        }
-                                        _ => return None,
-                                    };
-                                    if source_scalar_parameters.get(source_index).is_none_or(
-                                        |source| source.primitive_type != target.primitive_type,
-                                    ) {
-                                        return None;
-                                    }
-                                    Some(CheckedStructuralScalarArgumentPlan {
-                                        argument_ordinal,
-                                        source: checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter { index: u32::try_from(source_index)
-                                            .ok()? },
-                                        target_scalar_parameter_index: u32::try_from(target_index)
-                                            .ok()?,
-                                        primitive_type: target.primitive_type,
-                                    })
-                                })
-                                .collect::<Option<Vec<_>>>()?;
+                        let scalar_arguments = target_scalar_parameters
+                            .iter()
+                            .enumerate()
+                            .map(|(target_index, target)| {
+                                scalar_control_argument(
+                                    facts,
+                                    proven_ranked_scc,
+                                    state.symbol,
+                                    statement_ordinal,
+                                    states,
+                                    target_index,
+                                    target,
+                                    source_scalar_parameters,
+                                )
+                            })
+                            .collect::<Option<Vec<_>>>()?;
                         let cleanup = transferred_and_discarded_sources_cover(
                             facts,
                             machine.symbol,
@@ -624,4 +523,77 @@ fn transferred_and_discarded_sources_cover<'f>(
         return None;
     }
     Some(cleanup)
+}
+
+/// One scalar control argument: peel the typed transition-argument
+/// expression (or the ranked-cycle edge covering it) to its source scalar
+/// parameter position, then check that parameter carries the target's
+/// primitive type.
+#[allow(clippy::too_many_arguments)]
+fn scalar_control_argument(
+    facts: &CheckFacts,
+    proven_ranked_scc: Option<&crate::checks::termination::ProvenNatCountdownScc>,
+    state_symbol: symbols::SymbolHandle,
+    statement_ordinal: u32,
+    states: &[typed_trees::state::State],
+    target_index: usize,
+    target: &checked_trees::CheckedStructuralScalarParameterPlan,
+    source_scalar_parameters: &[checked_trees::CheckedStructuralScalarParameterPlan],
+) -> Option<CheckedStructuralScalarArgumentPlan> {
+    let argument_ordinal = target.source_position;
+    let ranked_edge = proven_ranked_scc.and_then(|component| {
+        component.covered_cyclic_edges.iter().find(|edge| {
+            edge.source_state == state_symbol
+                && edge.target_state == states[target_index].symbol
+                && edge.statement_ordinal == statement_ordinal
+                && edge.target_rank_parameter_position == argument_ordinal
+        })
+    });
+    let expression = facts.values.scalar_expressions.expression_at(
+        state_symbol,
+        statement_ordinal,
+        CheckedScalarExpressionRole::TransitionArgument { argument_ordinal },
+    );
+    let source_index = match expression {
+        Some(CheckedScalarExpression::Boolean(expression))
+            if target.primitive_type == PrimitiveType::Bool =>
+        {
+            let checked_trees::CheckedBooleanExpression::Parameter { position } =
+                expression.as_ref()
+            else {
+                return None;
+            };
+            *position
+        }
+        Some(CheckedScalarExpression::Parameter {
+            position,
+            primitive_type,
+        }) if *primitive_type == target.primitive_type => *position,
+        _ if ranked_edge.is_some()
+            && proven_ranked_scc.is_some_and(|component| {
+                component.rank_primitive_type == target.primitive_type
+            }) =>
+        {
+            source_scalar_parameters.iter().position(|source| {
+                ranked_edge.is_some_and(|edge| {
+                    source.source_position == edge.source_rank_parameter_position
+                })
+            })?
+        }
+        _ => return None,
+    };
+    if source_scalar_parameters
+        .get(source_index)
+        .is_none_or(|source| source.primitive_type != target.primitive_type)
+    {
+        return None;
+    }
+    Some(CheckedStructuralScalarArgumentPlan {
+        argument_ordinal,
+        source: checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter {
+            index: u32::try_from(source_index).ok()?,
+        },
+        target_scalar_parameter_index: u32::try_from(target_index).ok()?,
+        primitive_type: target.primitive_type,
+    })
 }

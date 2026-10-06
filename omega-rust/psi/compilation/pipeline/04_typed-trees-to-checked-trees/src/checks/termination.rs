@@ -51,6 +51,7 @@ pub(crate) use progress::entry_covers_progress_premises;
 pub(crate) use graph::{
     machine_adjacency, named_transition_target_state_index, strongly_connected_components,
 };
+pub(crate) use ranking::ProvenNatCountdownScc;
 pub(crate) use ranking::proven_fused_nat_countdown_sccs_with_call_frames;
 pub(crate) use ranking::proven_fused_state_natural_ranks_with_call_frames;
 pub(crate) use ranking::proven_nat_countdown_sccs_with_call_frames;
