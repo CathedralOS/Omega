@@ -1,1 +1,1 @@
-requires one exact contract-owned boundary schema `UefiApplication`, but found 0
+which needs an accepted program-entry binding

@@ -47,8 +47,14 @@ The CLI package is **`omega`** (binary `omega`); there is no `omega-cli`
 package.
 
 ```bash
+mbx run -p omega -- update --project samples/cli/basics/cli_mvp --target macos_arm64
 mbx run -p omega -- --check samples/cli/basics/cli_mvp/main.omg
 ```
+
+A hosted sample takes its target entry contract from std, an ordinary
+dependency, so its first check or run needs the accepted program-entry binding
+that `omega update` reviews (accept the pending decisions, then rerun with
+`--resume`). Without it the entry slot rejects and names that review.
 
 CLI startup and dispatch live in `src/main.rs`; typed invocations
 are parsed in `src/cli/arguments/`. Full surface:

@@ -897,6 +897,28 @@ fn selected_entry_schema<'program>(
             }));
         }
     }
+    // An unlocked compile has no accepted binding, so a dependency's copy of
+    // the contract (std's, usually) is loaded but not selected. Name the
+    // review that supplies the binding instead of an empty candidate count.
+    let package_copy_loaded = || {
+        typed.symbols.source_files().any(|source_file| {
+            source_file.dependency_scope == source::DependencyScope::Product
+                && source_file.package_identity.is_some()
+                && source_file
+                    .path
+                    .strip_prefix(&source_file.package_root)
+                    .ok()
+                    == Some(std::path::Path::new(package.package_relative_source()))
+        })
+    };
+    if selected_symbols.is_empty() && accepted_binding.is_none() && package_copy_loaded() {
+        return Err(Diagnostic::error(format!(
+            "target root slot `{}::{}` takes boundary schema `{schema_name}` from a dependency's `{}`, which needs an accepted program-entry binding; run `omega update` to review and accept it",
+            slot.owner.root_slot_owner_name(),
+            slot.slot_name,
+            package.package_relative_source(),
+        )));
+    }
     let [symbol] = selected_symbols.as_slice() else {
         return Err(Diagnostic::error(format!(
             "target root slot `{}::{}` requires one exact contract-owned boundary schema `{schema_name}`, but found {}",
