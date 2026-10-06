@@ -18,15 +18,15 @@
 //! `ElementViewLength`), its final operation, and its diagnostic wording.
 use super::{
     CheckedScalarExpression, CheckedScalarExpressionRole, CheckedTrees,
-    CheckedUnitStructuralPathSegment, LoweringError, Operation, OperationKind, OperationResult,
-    PlaceId, PrimitiveType, ScalarType, StructuralAccess, StructuralFieldId, StructuralFieldType,
+    CheckedUnitStructuralPathSegment, LoweringError, Operation, OperationKind, PlaceId,
+    PrimitiveType, ScalarType, StructuralAccess, StructuralFieldId, StructuralFieldType,
     StructuralMultiplicity, StructuralParameterDeclaration, StructuralPathSegment,
     StructuralTypeDeclaration, StructuralTypeId, StructuralTypeShape, ValueDeclaration, ValueId,
     allocate_dense, direct_expression_contains_short_circuit, emit_direct_expression,
     emit_u64_coordinate, obligation_id, terminal_scalar_type, unsupported,
     validate_direct_parameter_types, value_id,
 };
-use crate::emission::operation_emission::buffer::OperationBuffer;
+use crate::emission::operation_emission::buffer::{OperationBuffer, scalar_result_declaration};
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use crate::expression_preparation::bindings::ScalarBindings;
 use checked_trees::expression::ExpressionNode;
@@ -608,11 +608,7 @@ impl Destination {
             static_reach_binding: None,
             suspension_crossing: None,
             id,
-            result: OperationResult::Scalar(ValueDeclaration {
-                qualifications: Default::default(),
-                id: length,
-                scalar_type: terminal_scalar_type(PrimitiveType::U64)?,
-            }),
+            result: scalar_result_declaration(length, terminal_scalar_type(PrimitiveType::U64)?),
             kind,
         });
         if let DestinationShape::ByteField { path, field } = &self.shape {

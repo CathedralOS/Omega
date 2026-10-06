@@ -1,7 +1,7 @@
 //! Lowering caller store and realization store operations.
 
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
-use crate::emission::operation_emission::buffer::OperationBuffer;
+use crate::emission::operation_emission::buffer::{OperationBuffer, scalar_result_declaration};
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use crate::expression_preparation::bindings::StructuralScalarFieldBinding;
 use crate::expression_preparation::prepare_expression::lower_checked_scalar_expression_with_parameters;
@@ -16,7 +16,7 @@ use checked_trees::{
 };
 use terminal_psi::{
     MachineContract, Operation, OperationKind, OperationResult, StructuralAccess,
-    StructuralParameterDeclaration, ValueDeclaration,
+    StructuralParameterDeclaration,
 };
 
 /// The caller's retained field store before its selection: the constant, then
@@ -93,11 +93,7 @@ pub(crate) fn lower_caller_store_operations(
             static_reach_binding: None,
             suspension_crossing: None,
             id: constant_operation,
-            result: OperationResult::Scalar(ValueDeclaration {
-                qualifications: Default::default(),
-                id: value,
-                scalar_type,
-            }),
+            result: scalar_result_declaration(value, scalar_type),
             kind: constant,
         },
         Operation {
@@ -324,11 +320,7 @@ fn lower_realization_store_operation(
             static_reach_binding: None,
             suspension_crossing: None,
             id: constant_operation,
-            result: OperationResult::Scalar(ValueDeclaration {
-                qualifications: Default::default(),
-                id: constant_value,
-                scalar_type,
-            }),
+            result: scalar_result_declaration(constant_value, scalar_type),
             kind: constant,
         },
         Operation {

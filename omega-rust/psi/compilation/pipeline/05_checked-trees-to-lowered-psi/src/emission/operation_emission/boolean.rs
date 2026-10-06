@@ -5,6 +5,7 @@ use super::expressions::{
     LoweredDirectExpression, emit_direct_expression, emit_element_length, emit_scalar_leaf,
 };
 use super::integer::LoweredIntegerComparisonKind;
+use crate::emission::operation_emission::buffer::scalar_result_declaration;
 use crate::terminal_identities::obligation_id;
 use crate::terminal_identities::value_id;
 use semantic_vocabulary::{PlaceId, ScalarType, StructuralFieldId, ValueId};
@@ -130,11 +131,7 @@ pub(crate) fn emit_boolean_expression(
                 static_reach_binding: None,
                 suspension_crossing: None,
                 id: operation,
-                result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
-                    qualifications: Default::default(),
-                    id,
-                    scalar_type: ScalarType::Boolean,
-                }),
+                result: scalar_result_declaration(id, ScalarType::Boolean),
                 kind: OperationKind::BooleanConstant { value: *value },
             });
             id
@@ -151,11 +148,7 @@ pub(crate) fn emit_boolean_expression(
                 static_reach_binding: None,
                 suspension_crossing: None,
                 id: operation,
-                result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
-                    qualifications: Default::default(),
-                    id,
-                    scalar_type: ScalarType::Boolean,
-                }),
+                result: scalar_result_declaration(id, ScalarType::Boolean),
                 kind: kind.operation(left, right),
             });
             id
@@ -231,11 +224,7 @@ pub(crate) fn emit_boolean_expression(
                 static_reach_binding: None,
                 suspension_crossing: None,
                 id: operation,
-                result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
-                    qualifications: Default::default(),
-                    id,
-                    scalar_type: ScalarType::Boolean,
-                }),
+                result: scalar_result_declaration(id, ScalarType::Boolean),
                 kind: OperationKind::BooleanStructuralField {
                     source,
                     path: path.clone(),
@@ -307,11 +296,7 @@ pub(crate) fn emit_boolean_expression(
                 static_reach_binding: None,
                 suspension_crossing: None,
                 id: operation,
-                result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
-                    qualifications: Default::default(),
-                    id,
-                    scalar_type: ScalarType::Boolean,
-                }),
+                result: scalar_result_declaration(id, ScalarType::Boolean),
                 kind: OperationKind::BooleanNot { operand },
             });
             id
@@ -328,11 +313,7 @@ pub(crate) fn emit_boolean_expression(
                 static_reach_binding: None,
                 suspension_crossing: None,
                 id: operation,
-                result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
-                    qualifications: Default::default(),
-                    id,
-                    scalar_type: ScalarType::Boolean,
-                }),
+                result: scalar_result_declaration(id, ScalarType::Boolean),
                 kind: OperationKind::BooleanEqual { left, right },
             });
             id

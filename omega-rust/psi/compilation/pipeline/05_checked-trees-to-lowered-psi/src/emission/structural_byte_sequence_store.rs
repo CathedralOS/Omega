@@ -7,11 +7,12 @@
 use super::{
     CheckedUnitStructuralPathSegment, LoweringError, Operation, OperationKind, OperationResult,
     PrimitiveType, StructuralParameterDeclaration, StructuralPlaceDeclaration, StructuralPlaceKind,
-    StructuralTypeDeclaration, StructuralTypeId, StructuralTypeShape, ValueDeclaration,
-    allocate_dense, obligation_id, place_id, structural_type_id, terminal_scalar_type, unsupported,
-    value_id,
+    StructuralTypeDeclaration, StructuralTypeId, StructuralTypeShape, allocate_dense,
+    obligation_id, place_id, structural_type_id, terminal_scalar_type, unsupported, value_id,
 };
-use crate::emission::operation_emission::buffer::{OperationBuffer, StructuralBinding};
+use crate::emission::operation_emission::buffer::{
+    OperationBuffer, StructuralBinding, scalar_result_declaration,
+};
 
 use checked_trees::{
     CheckedByteSequenceStoreDestination as Destination, CheckedByteSequenceValue as ByteValue,
@@ -840,11 +841,7 @@ impl ByteEmission<'_> {
             kind,
             static_reach_binding: None,
             suspension_crossing: None,
-            result: OperationResult::Scalar(ValueDeclaration {
-                id: length,
-                scalar_type: terminal_scalar_type(PrimitiveType::U64)?,
-                qualifications: Default::default(),
-            }),
+            result: scalar_result_declaration(length, terminal_scalar_type(PrimitiveType::U64)?),
         });
         Ok(length)
     }

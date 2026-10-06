@@ -3,7 +3,9 @@
 use crate::lowering_error::LoweringError;
 use crate::terminal_identities::operation_id;
 use lowered_psi::LoweredSourceCallOccurrence;
-use semantic_vocabulary::{ObligationId, OperationId, PlaceId, StructuralFieldId, ValueId};
+use semantic_vocabulary::{
+    ObligationId, OperationId, PlaceId, ScalarType, StructuralFieldId, ValueId,
+};
 use terminal_psi::{Operation, ValueDeclaration};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -111,6 +113,19 @@ impl From<terminal_psi::StructuralOperationResult> for StructuralBinding {
     fn from(result: terminal_psi::StructuralOperationResult) -> Self {
         Self::OperationResult(result)
     }
+}
+
+/// The scalar operation result most emitted operations produce: the declared
+/// value carries no qualification membership.
+pub(crate) fn scalar_result_declaration(
+    id: ValueId,
+    scalar_type: ScalarType,
+) -> terminal_psi::OperationResult {
+    terminal_psi::OperationResult::Scalar(ValueDeclaration {
+        qualifications: Default::default(),
+        id,
+        scalar_type,
+    })
 }
 
 /// Module-wide operation identities for one machine namespace. Machine zero

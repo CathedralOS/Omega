@@ -21,6 +21,7 @@ use terminal_psi::{
 use crate::emission::expression_validation::{
     direct_expression_contains_short_circuit, validate_direct_parameter_types,
 };
+use crate::emission::operation_emission::buffer::scalar_result_declaration;
 use crate::emission::operation_emission::emit_direct_expression;
 use crate::emission::scalar_types::terminal_scalar_type;
 use crate::expression_preparation::prepare_expression::lower_checked_scalar_expression;
@@ -111,11 +112,7 @@ pub(crate) fn emit_u64_coordinate(
         static_reach_binding: None,
         suspension_crossing: None,
         id,
-        result: OperationResult::Scalar(ValueDeclaration {
-            qualifications: Default::default(),
-            id: coordinate,
-            scalar_type: coordinate_type,
-        }),
+        result: scalar_result_declaration(coordinate, coordinate_type),
         kind,
     });
     Ok(coordinate)

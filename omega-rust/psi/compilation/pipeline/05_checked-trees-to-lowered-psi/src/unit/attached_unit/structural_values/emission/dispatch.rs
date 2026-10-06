@@ -5,11 +5,12 @@
 
 use super::super::super::super::{StructuralAccess, StructuralParameterDeclaration, block_id};
 use super::super::super::{
-    CheckedScalarExpressionRole, LoweringError, Operation, OperationKind, OperationResult, PlaceId,
-    ScalarType, StructuralPlaceDeclaration, StructuralPlaceKind, Terminator, ValueDeclaration,
-    allocate_dense, argument_evaluation, place_id, unsupported, value_id,
+    CheckedScalarExpressionRole, LoweringError, Operation, OperationKind, PlaceId, ScalarType,
+    StructuralPlaceDeclaration, StructuralPlaceKind, Terminator, ValueDeclaration, allocate_dense,
+    argument_evaluation, place_id, unsupported, value_id,
 };
 use super::{Emission, ValueContinuation};
+use crate::emission::operation_emission::buffer::scalar_result_declaration;
 use crate::emission::operation_emission::integer::LoweredIntegerComparisonKind;
 
 impl Emission<'_, '_, '_> {
@@ -169,11 +170,7 @@ impl Emission<'_, '_, '_> {
                         static_reach_binding: None,
                         suspension_crossing: None,
                         id,
-                        result: OperationResult::Scalar(ValueDeclaration {
-                            id: condition,
-                            scalar_type: ScalarType::Boolean,
-                            qualifications: Default::default(),
-                        }),
+                        result: scalar_result_declaration(condition, ScalarType::Boolean),
                         kind,
                     });
                     let selected = block_id(allocate_dense(self.next_block)?);

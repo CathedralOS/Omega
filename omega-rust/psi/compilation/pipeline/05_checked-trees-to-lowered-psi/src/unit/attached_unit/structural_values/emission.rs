@@ -15,7 +15,7 @@ use super::super::{
     place_id, unsupported, value_id,
 };
 use super::CheckedTrees;
-use crate::emission::operation_emission::buffer::OperationBuffer;
+use crate::emission::operation_emission::buffer::{OperationBuffer, scalar_result_declaration};
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::emission::operation_emission::expressions::{
     LoweredDirectExpression, emit_direct_expression, emit_scalar_leaf,
@@ -2400,11 +2400,7 @@ impl Emission<'_, '_, '_> {
                     static_reach_binding: None,
                     suspension_crossing: None,
                     id,
-                    result: OperationResult::Scalar(ValueDeclaration {
-                        id: condition,
-                        scalar_type: ScalarType::Boolean,
-                        qualifications: Default::default(),
-                    }),
+                    result: scalar_result_declaration(condition, ScalarType::Boolean),
                     kind: OperationKind::StructuralCaseMembership {
                         source,
                         path: path.clone(),

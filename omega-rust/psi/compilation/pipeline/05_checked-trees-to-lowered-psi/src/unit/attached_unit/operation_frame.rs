@@ -68,7 +68,9 @@ use crate::emission::borrowed_window::{
     BorrowedWindowLedger, BorrowedWindowRepairValue, WindowEvaluation,
 };
 use crate::emission::indexed_write::{IndexedWriteLeaf, IndexedWriteTarget};
-use crate::emission::operation_emission::buffer::{OperationBuffer, StructuralBinding};
+use crate::emission::operation_emission::buffer::{
+    OperationBuffer, StructuralBinding, scalar_result_declaration,
+};
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::expression_preparation::bindings::ScalarBindings;
 use crate::expression_preparation::bindings::structural_paths::lower_structural_path;
@@ -1637,11 +1639,10 @@ impl OperationFrame<'_, '_> {
             static_reach_binding: None,
             suspension_crossing: None,
             id: observation,
-            result: OperationResult::Scalar(ValueDeclaration {
-                qualifications: Default::default(),
-                id: length,
-                scalar_type: terminal_scalar_type(crate::unit::PrimitiveType::U64)?,
-            }),
+            result: scalar_result_declaration(
+                length,
+                terminal_scalar_type(crate::unit::PrimitiveType::U64)?,
+            ),
             kind: OperationKind::ElementViewLength {
                 source: destination,
             },

@@ -13,6 +13,7 @@ pub(crate) mod place_declarations;
 pub(crate) mod view_subslice;
 
 use crate::emission::expression_validation::direct_expression_contains_short_circuit;
+use crate::emission::operation_emission::buffer::scalar_result_declaration;
 use crate::emission::selected_comparison::SelectedComparisonMeaning;
 use crate::lowering_error::LoweringError;
 use crate::lowering_error::unsupported;
@@ -188,11 +189,7 @@ pub(crate) fn emit_scalar_binding(
                 static_reach_binding: None,
                 suspension_crossing: None,
                 id: operation,
-                result: OperationResult::Scalar(ValueDeclaration {
-                    id,
-                    scalar_type: ScalarType::Boolean,
-                    qualifications: Default::default(),
-                }),
+                result: scalar_result_declaration(id, ScalarType::Boolean),
                 kind,
             });
             if !negated {
@@ -214,11 +211,7 @@ pub(crate) fn emit_scalar_binding(
                 static_reach_binding: None,
                 suspension_crossing: None,
                 id: negation,
-                result: OperationResult::Scalar(ValueDeclaration {
-                    id: negated_id,
-                    scalar_type: ScalarType::Boolean,
-                    qualifications: Default::default(),
-                }),
+                result: scalar_result_declaration(negated_id, ScalarType::Boolean),
                 kind: OperationKind::BooleanNot { operand: id },
             });
             Ok(negated_id)

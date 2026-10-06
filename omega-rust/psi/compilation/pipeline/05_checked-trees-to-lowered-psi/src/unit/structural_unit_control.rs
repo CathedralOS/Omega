@@ -15,6 +15,7 @@ use super::{
     lower_unit_parameters, machine_id, obligation_id, operation_id, terminal_scalar_type,
     unsupported, value_id,
 };
+use crate::emission::operation_emission::buffer::scalar_result_declaration;
 use crate::terminal_identities::lookup_attachment_type_id;
 pub(crate) fn lower_structural_unit_control_machine(
     checked: &CheckedTrees,
@@ -851,11 +852,7 @@ fn lower_ranked_structural_unit_countdown(
                         static_reach_binding: None,
                         suspension_crossing: None,
                         id: operation_id(1),
-                        result: OperationResult::Scalar(ValueDeclaration {
-                            qualifications: Default::default(),
-                            id: zero,
-                            scalar_type: rank_scalar_type,
-                        }),
+                        result: scalar_result_declaration(zero, rank_scalar_type),
                         kind: OperationKind::IntegerConstant {
                             value: IntegerValue::Unsigned(0),
                         },
@@ -864,11 +861,7 @@ fn lower_ranked_structural_unit_countdown(
                         static_reach_binding: None,
                         suspension_crossing: None,
                         id: operation_id(2),
-                        result: OperationResult::Scalar(ValueDeclaration {
-                            qualifications: Default::default(),
-                            id: condition,
-                            scalar_type: ScalarType::Boolean,
-                        }),
+                        result: scalar_result_declaration(condition, ScalarType::Boolean),
                         kind: OperationKind::IntegerLessThan {
                             left: zero,
                             right: rank,
@@ -908,11 +901,7 @@ fn lower_ranked_structural_unit_countdown(
                         static_reach_binding: None,
                         suspension_crossing: None,
                         id: operation_id(3),
-                        result: OperationResult::Scalar(ValueDeclaration {
-                            qualifications: Default::default(),
-                            id: one,
-                            scalar_type: rank_scalar_type,
-                        }),
+                        result: scalar_result_declaration(one, rank_scalar_type),
                         kind: OperationKind::IntegerConstant {
                             value: IntegerValue::Unsigned(1),
                         },
@@ -921,11 +910,7 @@ fn lower_ranked_structural_unit_countdown(
                         static_reach_binding: None,
                         suspension_crossing: None,
                         id: operation_id(4),
-                        result: OperationResult::Scalar(ValueDeclaration {
-                            qualifications: Default::default(),
-                            id: next,
-                            scalar_type: rank_scalar_type,
-                        }),
+                        result: scalar_result_declaration(next, rank_scalar_type),
                         kind: OperationKind::ExactIntegerSubtract {
                             left: rank,
                             right: one,

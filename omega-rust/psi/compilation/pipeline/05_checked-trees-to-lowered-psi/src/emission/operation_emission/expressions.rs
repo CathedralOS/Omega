@@ -3,6 +3,7 @@
 use super::boolean::{LoweredBooleanReturnExpression, emit_boolean_expression};
 use super::buffer::OperationBuffer;
 use super::integer::LoweredIntegerBinaryKind;
+use crate::emission::operation_emission::buffer::scalar_result_declaration;
 use crate::lowering_error::LoweringError;
 use crate::lowering_error::unsupported;
 use crate::terminal_identities::obligation_id;
@@ -320,11 +321,7 @@ pub(crate) fn emit_scalar_leaf(
         static_reach_binding: None,
         suspension_crossing: None,
         id: operation,
-        result: OperationResult::Scalar(ValueDeclaration {
-            qualifications: Default::default(),
-            id,
-            scalar_type,
-        }),
+        result: scalar_result_declaration(id, scalar_type),
         kind,
     });
     id
@@ -860,11 +857,7 @@ pub(crate) fn emit_direct_expression(
                 static_reach_binding: None,
                 suspension_crossing: None,
                 id: operation,
-                result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
-                    qualifications: Default::default(),
-                    id,
-                    scalar_type: *scalar_type,
-                }),
+                result: scalar_result_declaration(id, *scalar_type),
                 kind: kind.operation(operation, left, right),
             });
             id
@@ -884,11 +877,7 @@ pub(crate) fn emit_direct_expression(
                 static_reach_binding: None,
                 suspension_crossing: None,
                 id: operation,
-                result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
-                    qualifications: Default::default(),
-                    id,
-                    scalar_type: *scalar_type,
-                }),
+                result: scalar_result_declaration(id, *scalar_type),
                 kind: OperationKind::IntegerBitwiseNot { operand },
             });
             id
@@ -908,11 +897,7 @@ pub(crate) fn emit_direct_expression(
                 static_reach_binding: None,
                 suspension_crossing: None,
                 id: operation,
-                result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
-                    qualifications: Default::default(),
-                    id,
-                    scalar_type: *scalar_type,
-                }),
+                result: scalar_result_declaration(id, *scalar_type),
                 kind: OperationKind::IntegerWiden { operand },
             });
             id
@@ -942,11 +927,7 @@ pub(crate) fn emit_direct_expression(
                 static_reach_binding: None,
                 suspension_crossing: None,
                 id: operation,
-                result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
-                    qualifications: Default::default(),
-                    id,
-                    scalar_type: *scalar_type,
-                }),
+                result: scalar_result_declaration(id, *scalar_type),
                 kind: OperationKind::IntegerExactCast {
                     operand,
                     obligation,
@@ -995,11 +976,7 @@ pub(crate) fn emit_direct_expression(
                 static_reach_binding: None,
                 suspension_crossing: None,
                 id: operation,
-                result: terminal_psi::OperationResult::Scalar(ValueDeclaration {
-                    qualifications: Default::default(),
-                    id,
-                    scalar_type: *scalar_type,
-                }),
+                result: scalar_result_declaration(id, *scalar_type),
                 kind: OperationKind::ScalarRepresentationView {
                     operand,
                     landing_obligation,
