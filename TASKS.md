@@ -2230,11 +2230,11 @@ crash and native exit behavior.
 - **NATIVE-LEG-DEPENDS-ON-ACCEPTED-PACKAGE-STATE.** (new-scope)
   Verify that fresh and warm corpus workspaces establish identical reviewed
   dependency inputs for `pass/wire/wire_preserving_decode_relay_exit` and
-  `pass/providers/checked_boundary_operator_const_application_alternate_exit`.
-  Both have authored native exit 70. Historical fresh-worktree probes rejected
-  the exact `MacosApplication` schema while warm probes ran; the current
-  entry-selection and sealed-staging repairs must be tested before attributing
-  a remaining failure to acceptance state.
+  `pass/providers/checked_boundary_operator_const_application_alternate_exit`,
+  both with authored native exit 70. Fresh workspaces have rejected the exact
+  `MacosApplication` schema while warm workspaces ran; test current
+  entry-selection and sealed staging before attributing a remaining failure to
+  acceptance state.
 
   Reuse `reviewed_repository_fixture_package_inputs` and
   `candidate_program_entry_binding` in
@@ -2253,47 +2253,7 @@ crash and native exit behavior.
 
 
 - **TERMINAL-SUCCESSOR-CLEANUP-REGRESSED-THREE.** (split-of:TERMINAL-EDGE-VALIDATION-REGRESSED-FORTY)
-  **Three of `cfc85e2c592`'s forty regressions remain.** 37 recovered + 3 still
-  red + 3 that were never losses accounts for all 43 rows the re-pin added.
-
-  **Three producer defects, and the same inversion every time: the producer was
-  wider than the rule, the validator was right.** Two were lost in one commit,
-  `93ef77dfc41` ("compiler: preserve ordered cleanup on selected successors"),
-  which replaced the successor edge's `result_custody::local_discards` roster
-  with `cleanup::for_exit` over stage 04's whole dying complement and dropped
-  two subtractions the old route performed. `8ed612f5cc6` restored the
-  body-discharged subtraction (29 rows). `d3c790def04` restored the lent-home
-  subtraction in `loan_chains::finish` (5 rows): a chain's lender is not a chain
-  member, so `finish` never reached the lender's exits, and the lending edge
-  both carried a `MutableBorrow` of the home and emitted `DiscardRoot` of it.
-
-  **The third, `6405e62ce4a`, closed the four native `UnsupportedControlFlow`
-  rows and needed no bisect** -- the diagnostic now carries its own
-  `#[track_caller]` `CompilerCheckSite` (reveal with `OMEGA_COMPILER_CHECK_SITES`),
-  which named one site for all four: the successor-edge `cleanup` closure in
-  Omega stage 02 `lowering/control_flow/terminator.rs`, refusing through
-  `is_suspended_root` ("cleanup cannot discard storage that an outstanding
-  carrier still names"). Stage 04 marks a reference release whose last use is
-  the transition `defer_to_exit`; stage 05 correctly skips emitting it in the
-  body, because the transition condition still reads the carrier; and nothing
-  then scheduled it, so `affine_cleanup::complete` carried the carrier past the
-  owner's death to the machine's `ReturnUnit`. `cleanup::for_exit` now prepends
-  each deferred carrier ahead of the exit's owned roots -- the half
-  `result_custody`'s own comment already promised. The spec sentence is
-  `ownership.md`: "an owner cannot die before cleanup depending on its borrow".
-  A measured alternative was rejected: emitting the release in the body moved
-  all three `calls/` rows to `InvalidReferenceCustody`, a read-after-release.
-  All four meet their authored native outcome -- `exit:181`, a trap, and two
-  `exit:0`.
-
-  **Firewall asymmetry worth knowing, and the opposite of the earlier two
-  cases.** Here the twin is on the **Psi** side, and **Psi's Terminal verifier
-  admitted this module** -- only Omega's artifact lowering refused it. So the
-  Psi twin is *weaker*, not redundantly strict. Repairing the producer made both
-  legs pass; tightening the Psi verifier is a separate, measurable decision and
-  was deliberately not taken.
-
-  The three remaining are three distinct causes, each diagnosed to a site:
+  Three regressions remain, each with a distinct cause diagnosed to a site:
   - `pass/recast/runtime_aggregate_slice_representation_recast_exit`:
     `frontier/block_entry.rs::joined_frontier` refuses `BlockId(7)`, whose
     **five** incoming frontiers agree on references, partial custody and
@@ -2334,11 +2294,11 @@ crash and native exit behavior.
   Those are cross-target production measurements, not execution of foreign
   binaries. Confirm authored exit 70 separately on matching hosts after repair.
 
-  The recorded longer probe at `e399918ecac` reached eight missing native
-  realization diagnostics for `F32/F64::{classify,is_finite,is_normal,is_subnormal}`,
-  not a Unit-plan omission. **OPERATOR-BOUNDARY-CALLS** owns that capability;
-  recheck before attributing a new failure. A timeout identifies an exhausted
-  measurement budget, not a source rejection.
+  A longer probe reached eight missing native realization diagnostics for
+  `F32/F64::{classify,is_finite,is_normal,is_subnormal}`, not a Unit-plan
+  omission. **OPERATOR-BOUNDARY-CALLS** owns that capability; recheck before
+  attributing a new failure. A timeout identifies an exhausted measurement
+  budget, not a source rejection.
 
   Acceptance: both macOS rows reflect completed production verdicts at a named
   revision, with no timeout replacing the actual diagnostic. Native execution
@@ -2347,24 +2307,22 @@ crash and native exit behavior.
 - **COMPUTED-FLOAT-BARE-LITERAL-COMPARISON.** (new-scope)
   Revalidate the remaining computed-call/literal comparison lead:
   `machine code() -> bool { F64::square_root(64.0f64) == 8.0 }` with
-  `omega::language::core::float_operations` imported. At `a6dfddd40e9` it
-  failed stage 05 with “scalar computation needs one checked expression and
-  one source binding”; the reverse operand order and initializer form also
-  failed. Suffix, explicit cast and typed-local variants were controls, not
-  acceptable rewrites of the customer's source.
+  `omega::language::core::float_operations` imported. It fails stage 05 with
+  “scalar computation needs one checked expression and one source binding”;
+  the reverse operand order and initializer form also fail. Suffix, explicit
+  cast and typed-local variants are controls, not acceptable rewrites.
 
   This is not a claim that all computed-float comparisons fail:
   `pass/float/computed_comparison_literal_landing_exit` already has native
   and interpreter exit 0 records. Compare the exact remaining expression with
   that control before extending the repair.
 
-  The earlier probe found `values/scalar/expression_plans.rs` excluding a
-  tree containing a descendant custody cast while `computations.rs` claimed
-  only a root cast; `semantic_casts::requires_custody` classified the whole
-  subtree. Both rows were consequently absent. Confirm that mechanism in
-  current source. The open `operand-level-float-landing-custody` decision in
-  `OWNER_QUESTIONS.md` owns the representation choice; no second planner or
-  source-spelling workaround.
+  Suspected mechanism: `values/scalar/expression_plans.rs` excludes a tree
+  containing a descendant custody cast while `computations.rs` claims only a
+  root cast; `semantic_casts::requires_custody` classifies the whole subtree,
+  leaving both rows absent. Confirm that mechanism in current source. The open
+  `operand-level-float-landing-custody` decision in `OWNER_QUESTIONS.md` owns
+  the representation choice; no second planner or source-spelling workaround.
 
   Acceptance after that decision: add
   `pass/float/computed_float_bare_literal_comparison`, covering both operand
@@ -2378,22 +2336,17 @@ crash and native exit behavior.
   `pass/core/interrupt_obligations_surface` has one blocking line, proved by
   measurement. `reject_unselected_direct_requirement_calls`
   (`realization/selected-dispatch/src/boundary_dispatch.rs:512`) refuses it
-  through `is_directly_callable_top_level_requirement` (~line 428), whose last
-  clause `63bca13481d` deleted: the gate once required a requirement to be
-  **receiver-free** and now admits every top-level requirement. `50da9413d4e`
-  then rewrote this fixture's two calls from `guard.restore()` to
-  `InterruptMaskGuard::restore(guard)`, straight into the widened gate. Both
-  surrounding comments still state the retired rule -- the predicate's doc says
-  "without a `self` receiver" and the call site says "Receiver-bearing
-  requirements keep their existing routes".
+  through `is_directly_callable_top_level_requirement` (~line 428), which now
+  admits every top-level requirement although its surrounding comments still
+  say “without a `self` receiver” and “Receiver-bearing requirements keep their
+  existing routes”. `StateParameter::is_self` no longer exists, so the former
+  carve-out must be replaced rather than restored.
 
-  **The gate is load-bearing; narrow it, do not delete it.** Measured with the
-  one call site disabled at `c9eb93b5756`: `interrupt_obligations_surface` and
+  **The gate is load-bearing; narrow it, do not delete it.** With its call site
+  disabled, `interrupt_obligations_surface` and
   `pass/memory/address_translation_canary` both reach `checked`, and
   `fail/providers/boundary_requirement_direct_call_unselected` stops rejecting
-  for its authored reason. `StateParameter::is_self` no longer merely reads
-  false -- the field does not exist -- so the carve-out cannot be restored, only
-  replaced.
+  for its authored reason.
 
   Blocked on the owner question `unselected-requirement-carve-out` in
   `OWNER_QUESTIONS.md`. Note the cost if reachability is chosen: the only
@@ -2443,7 +2396,7 @@ crash and native exit behavior.
   - Cross-host control: Linux records still reject
     `pass/text/local_bounded_text_case_result_loan_exit` and mark
     `local_bounded_text_scalar_loan_exit` incomplete, while macOS recorded
-    exit 70 after `8eef3900552`. A Linux host must remeasure them; never copy
+    exit 70. A Linux host must remeasure them; never copy
     another host's success. **NATIVE-GOLDEN-LINUX-BOUND-UNMEASURED** owns that
     recording. An `Incomplete` proof-search diagnostic alone does not prove
     extra capacity will solve the obligation; inspect the failed judgment.
@@ -2521,10 +2474,10 @@ crash and native exit behavior.
 
 Owner ruling 2026-10-04: stage 05 is cut down to a mechanical lowering of
 stage 04's plans. Three things go:
-- **Re-checking.** Stage 05 re-reads the typed program and re-validates the
+- **Re-checking:** Stage 05 re-reads the typed program and re-validates the
   plan it is handed. That is the in-process self-validation the
   [verification placement](omega-rust/pipeline.md#verification-placement) removes.
-- **Parallel routes.** Bodies are lowered by 13 leaf routes, chosen in
+- **Parallel routes:** Bodies are lowered by 13 leaf routes, chosen in
   `omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/machine_lowering/machine_dispatch.rs`,
   and each route re-implements calls, stores and transitions.
 - **Shape-specific plans and rungs** where a general operation would work.
