@@ -1848,31 +1848,17 @@ impl MachineEmitter<'_> {
         }
     }
 
-    /// `FixedVec<E, N>` member: a byte-length varint opens the `end` window,
-    /// then each capacity slot reads an element while bytes remain — element
-    /// `k` runs only behind `at < end`, so a shorter body lands `length = k`
-    /// and the close still proves `at == end`. A body longer than capacity
-    /// leaves `at < end` at the close and flags `bad` through it.
-    fn dec_fixed_vec(
-        &mut self,
-        name: &str,
-        field: &str,
-        element: ScalarKind,
-        capacity: usize,
-        next: &str,
-        facts: &[StorePredicate],
-    ) {
+    /// The `end`-window derivation shared by every length-delimited member: a
+    /// byte-length varint opens the window and `end` comes out of complement
+    /// subtraction through named locals, never `at + raw` — one named local
+    /// per state so each subtraction's bound is a requires premise, since
+    /// arithmetic call arguments cannot carry it. On any guard failure the
+    /// content's `first` state is entered with `bad + 1`.
+    fn dec_open_window(&mut self, name: &str, first: &str) {
         let open = format!("{name}_open");
         let open_in = format!("{name}_open_in");
         let slack_state = format!("{name}_slack");
         let end_state = format!("{name}_end");
-        let close = format!("{name}_close");
-        let first = format!("{name}_element_0");
-        // `end` derives as `buffer.len - ((buffer.len - at) - raw)`, one
-        // named local per state so each subtraction's bound is a requires
-        // premise — arithmetic call arguments cannot carry it. On failure
-        // `end = 0` stands in for the wrapped cursor sum and the close
-        // flags `bad`.
         self.dec_varint(name, &open, "", "");
         self.state(
             &open,
@@ -1907,6 +1893,38 @@ impl MachineEmitter<'_> {
                 "        let end: u64 = buffer.len - slack;\n        transition {{ _ -> {first}(value, buffer, read, verdict, at, bad, end) }}\n"
             ),
         );
+    }
+
+    /// The close of every `end` window: the cursor must land exactly on the
+    /// bound or `bad` increments on the way to `next`.
+    fn dec_close_window(&mut self, name: &str, next: &str) {
+        self.state(
+            &format!("{name}_close"),
+            "end: u64",
+            "",
+            &format!(
+                "        transition at == end {{\n            true -> {next}(value, buffer, read, verdict, at, bad)\n            _ -> {next}(value, buffer, read, verdict, at, bad + 1)\n        }}\n"
+            ),
+        );
+    }
+
+    /// `FixedVec<E, N>` member: a byte-length varint opens the `end` window,
+    /// then each capacity slot reads an element while bytes remain — element
+    /// `k` runs only behind `at < end`, so a shorter body lands `length = k`
+    /// and the close still proves `at == end`. A body longer than capacity
+    /// leaves `at < end` at the close and flags `bad` through it.
+    fn dec_fixed_vec(
+        &mut self,
+        name: &str,
+        field: &str,
+        element: ScalarKind,
+        capacity: usize,
+        next: &str,
+        facts: &[StorePredicate],
+    ) {
+        let close = format!("{name}_close");
+        let first = format!("{name}_element_0");
+        self.dec_open_window(name, &first);
         for index in 0..capacity {
             let element_state = format!("{name}_element_{index}");
             let read = format!("{name}_element_{index}_read");
@@ -1946,14 +1964,7 @@ impl MachineEmitter<'_> {
                 ),
             );
         }
-        self.state(
-            &close,
-            "end: u64",
-            "",
-            &format!(
-                "        transition at == end {{\n            true -> {next}(value, buffer, read, verdict, at, bad)\n            _ -> {next}(value, buffer, read, verdict, at, bad + 1)\n        }}\n"
-            ),
-        );
+        self.dec_close_window(name, next);
     }
 
     /// A nested-message member: a byte-length varint opens the `end` window,
@@ -1968,48 +1979,9 @@ impl MachineEmitter<'_> {
         sub_facts: &[Vec<StorePredicate>],
         next: &str,
     ) {
-        let open = format!("{name}_open");
-        let open_in = format!("{name}_open_in");
-        let slack_state = format!("{name}_slack");
-        let end_state = format!("{name}_end");
         let close = format!("{name}_close");
         let first = format!("{name}_subtag_0_0");
-        // Same window derivation as `dec_fixed_vec`: `end` comes out of
-        // complement subtraction through named locals, never `at + raw`.
-        self.dec_varint(name, &open, "", "");
-        self.state(
-            &open,
-            "raw: u64",
-            "",
-            &format!(
-                "        transition at <= {} {{\n            true -> {open_in}(value, buffer, read, verdict, at, bad, raw)\n            _ -> {first}(value, buffer, read, verdict, at, bad + 1, 0)\n        }}\n",
-                self.limit
-            ),
-        );
-        self.state(
-            &open_in,
-            "raw: u64",
-            &format!("at <= {}", self.limit),
-            &format!(
-                "        let room: u64 = buffer.len - at;\n        transition raw <= room && room <= buffer.len {{\n            true -> {slack_state}(value, buffer, read, verdict, at, bad, raw, room)\n            _ -> {first}(value, buffer, read, verdict, at, bad + 1, 0)\n        }}\n"
-            ),
-        );
-        self.state(
-            &slack_state,
-            "raw: u64, room: u64",
-            &format!("raw <= room && room <= {}", self.limit),
-            &format!(
-                "        let slack: u64 = room - raw;\n        transition slack <= room && slack <= buffer.len && room <= buffer.len {{\n            true -> {end_state}(value, buffer, read, verdict, at, bad, slack, room)\n            _ -> {first}(value, buffer, read, verdict, at, bad + 1, 0)\n        }}\n"
-            ),
-        );
-        self.state(
-            &end_state,
-            "slack: u64, room: u64",
-            &format!("slack <= room && slack <= {} && room <= {}", self.limit, self.limit),
-            &format!(
-                "        let end: u64 = buffer.len - slack;\n        transition {{ _ -> {first}(value, buffer, read, verdict, at, bad, end) }}\n"
-            ),
-        );
+        self.dec_open_window(name, &first);
         for (sub_index, sub) in sub_members.iter().enumerate() {
             let content = format!("{name}_subcontent_{sub_index}");
             let store = format!("{name}_substore_{sub_index}");
@@ -2042,14 +2014,7 @@ impl MachineEmitter<'_> {
                 ", end",
             );
         }
-        self.state(
-            &close,
-            "end: u64",
-            "",
-            &format!(
-                "        transition at == end {{\n            true -> {next}(value, buffer, read, verdict, at, bad)\n            _ -> {next}(value, buffer, read, verdict, at, bad + 1)\n        }}\n"
-            ),
-        );
+        self.dec_close_window(name, next);
     }
 }
 
