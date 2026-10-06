@@ -292,29 +292,18 @@ fn validate_machine_top_level_requirement_conformance(
         .zip(actual_type_parameters)
         .enumerate()
     {
-        let ((
-            TypeParameterKind::Const {
-                type_reference: required_type,
-            },
-            TypeParameterKind::Const {
-                type_reference: actual_type,
-            },
-        )
-        | (
-            TypeParameterKind::Value {
-                type_reference: required_type,
-            },
-            TypeParameterKind::Value {
-                type_reference: actual_type,
-            },
-        )) = (&required.kind, &actual.kind)
+        let Some((required_type, actual_type)) =
+            crate::program_scope::type_shape::scalar_parameter_type_pair(
+                &required.kind,
+                &actual.kind,
+            )
         else {
             continue;
         };
         if !type_references_match_with_trait_bindings(
             program,
-            *actual_type,
-            *required_type,
+            actual_type,
+            required_type,
             required_type_parameters,
             &mut type_bindings,
         ) {

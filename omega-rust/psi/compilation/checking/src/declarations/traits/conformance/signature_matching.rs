@@ -390,32 +390,28 @@ pub(crate) fn validate_machine_state_satisfies_trait_signature_with_arguments(
                     )));
                 }
             }
-            (
-                TypeParameterKind::Const {
-                    type_reference: required_type,
-                },
-                TypeParameterKind::Const {
-                    type_reference: actual_type,
-                },
-            )
-            | (
-                TypeParameterKind::Value {
-                    type_reference: required_type,
-                },
-                TypeParameterKind::Value {
-                    type_reference: actual_type,
-                },
-            ) if !type_references_match_with_trait_bindings(
-                program,
-                *actual_type,
-                *required_type,
-                &required_generic_types,
-                &mut type_bindings,
-            ) => diagnostics.push(Diagnostic::error(format!(
-                "machine `{}` does not satisfy trait `{}` machine `{}`: callable const generic parameter {} has a different type",
-                machine.name, trait_definition.name, requirement.name, index
-            ))),
-            _ => {}
+            _ => {
+                let Some((required_type, actual_type)) =
+                    crate::program_scope::type_shape::scalar_parameter_type_pair(
+                        &required.kind,
+                        &actual.kind,
+                    )
+                else {
+                    continue;
+                };
+                if !type_references_match_with_trait_bindings(
+                    program,
+                    actual_type,
+                    required_type,
+                    &required_generic_types,
+                    &mut type_bindings,
+                ) {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "machine `{}` does not satisfy trait `{}` machine `{}`: callable const generic parameter {} has a different type",
+                        machine.name, trait_definition.name, requirement.name, index
+                    )));
+                }
+            }
         }
     }
 

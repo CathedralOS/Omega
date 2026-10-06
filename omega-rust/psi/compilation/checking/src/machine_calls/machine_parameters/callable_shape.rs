@@ -502,36 +502,6 @@ fn validate_callable_type_parameters(
                 }
             }
             (
-                TypeParameterKind::Const {
-                    type_reference: required_type,
-                },
-                TypeParameterKind::Const {
-                    type_reference: actual_type,
-                },
-            )
-            | (
-                TypeParameterKind::Value {
-                    type_reference: required_type,
-                },
-                TypeParameterKind::Value {
-                    type_reference: actual_type,
-                },
-            ) => {
-                if !required_type_matches(
-                    program,
-                    *actual_type,
-                    *required_type,
-                    generic_types,
-                    bindings,
-                    binder_bindings,
-                ) {
-                    diagnostics.push(Diagnostic::error(format!(
-                        "{label} does not refine `{}`: const generic parameter {} has a different type",
-                        parameter.name, index
-                    )));
-                }
-            }
-            (
                 TypeParameterKind::Machine {
                     contract: required_contract,
                 },
@@ -554,10 +524,33 @@ fn validate_callable_type_parameters(
                     diagnostics,
                 );
             }
-            _ => diagnostics.push(Diagnostic::error(format!(
-                "{label} does not refine `{}`: generic parameter {} has a different kind",
-                parameter.name, index
-            ))),
+            _ => {
+                if let Some((required_type, actual_type)) =
+                    crate::program_scope::type_shape::scalar_parameter_type_pair(
+                        &required.kind,
+                        &actual.kind,
+                    )
+                {
+                    if !required_type_matches(
+                        program,
+                        actual_type,
+                        required_type,
+                        generic_types,
+                        bindings,
+                        binder_bindings,
+                    ) {
+                        diagnostics.push(Diagnostic::error(format!(
+                            "{label} does not refine `{}`: const generic parameter {} has a different type",
+                            parameter.name, index
+                        )));
+                    }
+                } else {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "{label} does not refine `{}`: generic parameter {} has a different kind",
+                        parameter.name, index
+                    )));
+                }
+            }
         }
     }
 }
