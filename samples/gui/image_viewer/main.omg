@@ -1,40 +1,50 @@
-// IMAGE VIEWER -- a standalone software-rendered Windows app that LOADS BMP
-// FILES FROM DISK and displays them stretched to the window. RIGHT/LEFT arrows
-// flip through img0.bmp / img1.bmp / img2.bmp (loaded fresh from disk on every
-// flip -- the fs raw seam at work); ESC or the X button closes.
-//
-// The whole pipeline is Omega end to end on windows_x86_64: msvcrt _open/_read/
-// _close pull the file bytes, a pure-Omega decoder walks the 24bpp bottom-up
-// BMP pixel array into a top-down 32bpp [i32; 4096] framebuffer with RUNNING
-// COUNTERS (src marches +3 through the file; dst walks visual rows from the
-// bottom up, the `dst >= 128` dominating guard proving the row jump stays in
-// range -- no computed indices anywhere), and StretchDIBits blits it 8x into
-// the ~512x512 client area.
-//
-// Run from THIS folder (the BMP paths are relative): `build\omega-program.exe`.
-// This sample deliberately carries NO exit annotation for the harness: it is
-// compiled but never auto-run (it waits for a human to close the window).
-// (The annotation parser substring-matches, so: no exit phrase here.)
+// A persistent software-rendered image viewer. RIGHT/LEFT arrows load
+// img0.bmp / img1.bmp / img2.bmp afresh; Escape or the close button exits.
+// A pure-Omega decoder turns 24bpp bottom-up BMP pixels into the top-down
+// 64x64 framebuffer, stretched into the window's 512x512 client area.
+// Window state is explicitly owned; named providers select stateless code.
+// Run from this folder so the relative BMP paths resolve. No exit annotation:
+// this application waits for user input.
 
-use omega_language_std::filesystem_host;
+use omega_language_std::posix_filesystem_host;
+use omega_language_std::macos_gui;
 
 // GUI-subsystem app: the console surface is exit + a status line for terminal
 // runs (invisible from Finder). No stdin — a windowed app must never block on
 // a console.
 use omega_language_std::console;
 use omega::language::core::binding;
-pub boundary trait Clock { machine sleep(milliseconds: u32); }
-pub boundary trait Input { machine key_state(virtual_key: u32) -> u64; }
+pub boundary trait Clock { machine sleep(milliseconds: u32) invokes DarwinClock; }
+pub boundary trait Input { machine key_state(virtual_key: u32) -> u64 invokes CoreGraphics; }
 pub boundary trait Gui {
-    machine window_create(class_name: [u8; 7], title: [u8; 13], style: u32, x: i32, y: i32, width: i32, height: i32) -> u64;
-    machine get_dc(window: u64) -> u64;
-    machine blit(device: u64, dest_width: u32, dest_height: u32, source_width: u32, source_height: u32, pixels: [i32; 4096], info: [i32; 11]) -> u32;
-    machine msg_peek(message: [u64; 6]) -> u32;
-    machine msg_translate(message: [u64; 6]) -> u32;
-    machine msg_dispatch(message: [u64; 6]) -> u64;
-    machine is_window(window: u64) -> u32;
-    machine window_destroy(window: u64) -> u32;
-    machine foreground_window() -> u64;
+    machine window_create(class_name: [u8; 7], title: &u8, style: u32, x: i32, y: i32, width: i32, height: i32) -> Window
+        invokes ObjectiveC; invokes CoreGraphics; invokes AppKit;
+    machine window_destroy(window: Window) invokes ObjectiveC; invokes CoreGraphics;
+    machine get_dc(window_state: &Window, window: u64) -> u64;
+    machine blit(window_state: &Window, device: u64, dest_width: u32, dest_height: u32, source_width: u32, source_height: u32, pixels: [i32; 4096], info: [i32; 11]) -> u32
+        invokes ObjectiveC; invokes CoreGraphics;
+    machine msg_peek(window_state: &mut Window, message: [u64; 6]) -> u32 invokes ObjectiveC;
+    machine msg_translate(window_state: &Window, message: [u64; 6]) -> u32;
+    machine msg_dispatch(window_state: &Window, message: [u64; 6]) -> u64 invokes ObjectiveC;
+    machine is_window(window_state: &Window, window: u64) -> u32 invokes ObjectiveC;
+    machine foreground_window(window_state: &Window) -> u64 invokes ObjectiveC;
+}
+ViewerGuiProvider satisfies Gui {
+    Gui::window_create = macos_window_create;
+    Gui::window_destroy = macos_window_destroy;
+    Gui::get_dc = macos_window_get_dc;
+    Gui::blit = macos_window_blit;
+    Gui::msg_peek = macos_window_msg_peek;
+    Gui::msg_translate = macos_window_msg_translate;
+    Gui::msg_dispatch = macos_window_msg_dispatch;
+    Gui::is_window = macos_window_is_window;
+    Gui::foreground_window = macos_window_foreground_window;
+}
+ViewerInputProvider satisfies Input {
+    Input::key_state = macos_key_state;
+}
+ViewerClockProvider satisfies Clock {
+    Clock::sleep = macos_sleep;
 }
 
 data Main {
@@ -42,23 +52,21 @@ data Main {
     clock: Binding<Clock>;
     input: Binding<Input>;
     gui: Binding<Gui>;
-    raw: Binding<FilesystemHost>;
+    raw: Binding<PosixFilesystemHost>;
     cls: [u8; 7];
     title: [u8; 13];
     message: [u64; 6];
-    // Declared BEFORE the 32KB of arrays so their stores use the short
-    // low-offset encodings (a post-array field rides the aarch64 large-offset
-    // materialization path instead).
     fw: u64;
     msg_code: u64;
     // The raw file bytes (12,342 = 54-byte header + 64*64*3 pixel array; the
     // 64-wide 24bpp row is 192 bytes, already 4-aligned, so no stride padding).
     buffer: [u8; 16384];
-    // The decoded top-down 32bpp framebuffer StretchDIBits consumes.
+    // The decoded top-down 32bpp framebuffer.
     pixels: [i32; 4096];
     info: [i32; 11];
     fd: i32;
     n: i64;
+    received: u64 [0..=16384];
     rc: i32;
     hwnd: u64;
     hdc: u64;
@@ -67,7 +75,6 @@ data Main {
     translated: u32;
     dispatched: u64;
     alive: u32;
-    killed: u32;
     escape: u64;
     next_key: u64;
     prev_key: u64;
@@ -84,7 +91,7 @@ data Main {
     pumped: i32 [0..=16];
 }
 
-machine Main::main(main: &mut Main) reaches Clock + Console + FilesystemHost + Gui + Input {
+machine Main::main(main: &mut Main) reaches AppKit + Clock + Console + CoreGraphics + DarwinClock + PosixFilesystemHost + Gui + Input + ObjectiveC {
     // "#32770\0" -- the predefined dialog class (draggable top-level window).
     main.cls[0] = 35;
     main.cls[1] = 51;
@@ -114,120 +121,139 @@ machine Main::main(main: &mut Main) reaches Clock + Console + FilesystemHost + G
     main.info[2] = 0 - 64;
     main.info[3] = 2097153;
     main.current = 0;
-    transition { _ -> load(main) }
+    // Create the owned window before loading so every failure path can release it.
+    let window: Window = main.gui.window_create(main.cls, &main.title[0], 282001408, 160, 120, 528, 551);
+    main.hwnd = window.window;
+    transition main.hwnd > 0 { true -> dc(main, window) _ -> bad(main, window) }
 
     // --- load the current image from disk (also re-entered on every flip) ---
-    state load(main: &mut Main) {
-        transition main.current == 0 { true -> open0(main) _ -> load1(main) }
+    state load(main: &mut Main, window: Window) {
+        transition main.current == 0 { true -> open0(main, window) _ -> load1(main, window) }
     }
-    state load1(main: &mut Main) {
-        transition main.current == 1 { true -> open1(main) _ -> open2(main) }
+    state load1(main: &mut Main, window: Window) {
+        transition main.current == 1 { true -> open1(main, window) _ -> open2(main, window) }
     }
-    // Each image is tried at the sample dir first, then one level up -- so the
-    // exe works launched from the sample folder OR double-clicked in build\.
-    // (build.omg has no asset-copying yet; when it does, the fallback can go.)
-    state open0(main: &mut Main) {
-        // 32768 = O_BINARY (msvcrt): BMP bytes must not ride text-mode CRLF
-        // translation (0x0D 0x0A pairs collapse) or the ^Z end-of-file rule.
-        main.fd = main.raw.open("img0.bmp", 32768);
-        transition main.fd >= 0 { true -> read_file(main) _ -> open0_up(main) }
+    // Paths are relative to the process working directory, with the existing
+    // parent-directory fallback. Application publication does not change cwd.
+    state open0(main: &mut Main, window: Window) {
+        // POSIX O_RDONLY is zero. Reads preserve binary bytes.
+        main.fd = main.raw.open("img0.bmp", 0);
+        transition main.fd >= 0 { true -> read_file(main, window) _ -> open0_up(main, window) }
     }
-    state open0_up(main: &mut Main) {
-        main.fd = main.raw.open("../img0.bmp", 32768);
-        transition { _ -> read_file(main) }
+    state open0_up(main: &mut Main, window: Window) {
+        main.fd = main.raw.open("../img0.bmp", 0);
+        transition { _ -> read_file(main, window) }
     }
-    state open1(main: &mut Main) {
-        main.fd = main.raw.open("img1.bmp", 32768);
-        transition main.fd >= 0 { true -> read_file(main) _ -> open1_up(main) }
+    state open1(main: &mut Main, window: Window) {
+        main.fd = main.raw.open("img1.bmp", 0);
+        transition main.fd >= 0 { true -> read_file(main, window) _ -> open1_up(main, window) }
     }
-    state open1_up(main: &mut Main) {
-        main.fd = main.raw.open("../img1.bmp", 32768);
-        transition { _ -> read_file(main) }
+    state open1_up(main: &mut Main, window: Window) {
+        main.fd = main.raw.open("../img1.bmp", 0);
+        transition { _ -> read_file(main, window) }
     }
-    state open2(main: &mut Main) {
-        main.fd = main.raw.open("img2.bmp", 32768);
-        transition main.fd >= 0 { true -> read_file(main) _ -> open2_up(main) }
+    state open2(main: &mut Main, window: Window) {
+        main.fd = main.raw.open("img2.bmp", 0);
+        transition main.fd >= 0 { true -> read_file(main, window) _ -> open2_up(main, window) }
     }
-    state open2_up(main: &mut Main) {
-        main.fd = main.raw.open("../img2.bmp", 32768);
-        transition { _ -> read_file(main) }
+    state open2_up(main: &mut Main, window: Window) {
+        main.fd = main.raw.open("../img2.bmp", 0);
+        transition { _ -> read_file(main, window) }
     }
-    state read_file(main: &mut Main) {
-        transition main.fd >= 0 { true -> read_go(main) _ -> load_failed(main) }
+    state read_file(main: &mut Main, window: Window) {
+        transition main.fd >= 0 { true -> read_go(main, window) _ -> load_failed(main, window) }
     }
-    state read_go(main: &mut Main) {
-        main.n = main.raw.read(main.fd, &mut main.buffer, 16384);
+    state read_go(main: &mut Main, window: Window) {
+        main.received = 0;
+        transition { _ -> read_more(main, window) }
+    }
+    // POSIX permits short reads; the native provider also bounds each transfer.
+    // Read to EOF so a truncated or oversized image cannot pass the size check.
+    state read_more(main: &mut Main, window: Window) {
+        transition main.received < 16384 { true -> read_chunk(main, window) _ -> read_close(main, window) }
+    }
+    state read_chunk(main: &mut Main, window: Window) {
+        main.n = main.raw.read(main.fd, &mut main.buffer[main.received..16384], 16384 - main.received);
+        transition main.n > 0 { true -> read_count(main, window) _ -> read_close(main, window) }
+    }
+    state read_count(main: &mut Main, window: Window) {
+        transition main.n as u64 <= 16384 - main.received { true -> read_advance(main, window) _ -> read_error(main, window) }
+    }
+    state read_advance(main: &mut Main, window: Window) {
+        main.received = main.received + main.n as u64;
+        transition { _ -> read_more(main, window) }
+    }
+    state read_error(main: &mut Main, window: Window) {
+        main.n = 0 - 1;
+        transition { _ -> read_close(main, window) }
+    }
+    state read_close(main: &mut Main, window: Window) {
         main.rc = main.raw.close(main.fd);
-        transition main.n == 12342 { true -> decode_init(main) _ -> load_failed(main) }
+        transition main.n == 0 && main.received == 12342 && main.rc == 0 { true -> decode_init(main, window) _ -> load_failed(main, window) }
     }
 
     // --- decode: 24bpp bottom-up BGR -> top-down 0x00RRGGBB ---
     // File row 0 is the visual BOTTOM row, so dst starts at the last pixel row
     // (63*64 = 4032) and jumps back 128 after each row (64 forward within the
     // row, 192 back to the previous visual row's start).
-    state decode_init(main: &mut Main) {
+    state decode_init(main: &mut Main, window: Window) {
         main.src = 54;
         main.dst = 4032;
         main.col = 0;
-        transition { _ -> px_b(main) }
+        transition { _ -> px_b(main, window) }
     }
-    state px_b(main: &mut Main) {
-        transition main.src < 16384 { true -> px_b_go(main) _ -> load_failed(main) }
+    state px_b(main: &mut Main, window: Window) {
+        transition main.src < 16384 { true -> px_b_go(main, window) _ -> load_failed(main, window) }
     }
-    state px_b_go(main: &mut Main) {
+    state px_b_go(main: &mut Main, window: Window) {
         main.b = main.buffer[main.src] as i32;
         main.src = main.src + 1;
-        transition main.src < 16384 { true -> px_g(main) _ -> load_failed(main) }
+        transition main.src < 16384 { true -> px_g(main, window) _ -> load_failed(main, window) }
     }
-    state px_g(main: &mut Main) {
+    state px_g(main: &mut Main, window: Window) {
         main.g = main.buffer[main.src] as i32;
         main.src = main.src + 1;
-        transition main.src < 16384 { true -> px_r(main) _ -> load_failed(main) }
+        transition main.src < 16384 { true -> px_r(main, window) _ -> load_failed(main, window) }
     }
-    state px_r(main: &mut Main) {
+    state px_r(main: &mut Main, window: Window) {
         main.r = main.buffer[main.src] as i32;
         main.px = (main.r << 16) | (main.g << 8) | main.b;
-        transition main.src < 16384 { true -> px_advance(main) _ -> load_failed(main) }
+        transition main.src < 16384 { true -> px_advance(main, window) _ -> load_failed(main, window) }
     }
-    state px_advance(main: &mut Main) {
+    state px_advance(main: &mut Main, window: Window) {
         main.src = main.src + 1;
-        transition main.dst < 4096 { true -> px_put(main) _ -> load_failed(main) }
+        transition main.dst < 4096 { true -> px_put(main, window) _ -> load_failed(main, window) }
     }
-    state px_put(main: &mut Main) {
+    state px_put(main: &mut Main, window: Window) {
         main.pixels[main.dst] = main.px;
         main.dst = main.dst + 1;
-        transition main.col < 63 { true -> px_next_col(main) _ -> row_done(main) }
+        transition main.col < 63 { true -> px_next_col(main, window) _ -> row_done(main, window) }
     }
-    state px_next_col(main: &mut Main) {
+    state px_next_col(main: &mut Main, window: Window) {
         main.col = main.col + 1;
-        transition { _ -> px_b(main) }
+        transition { _ -> px_b(main, window) }
     }
-    state row_done(main: &mut Main) {
+    state row_done(main: &mut Main, window: Window) {
         main.col = 0;
         // dst sits one past the finished visual row's end. The bottom-up walk
         // is complete exactly when that row was the visual TOP row (dst == 64);
         // otherwise step back to the previous visual row's start (dst - 128,
         // proven in range by this guard).
-        transition main.dst >= 128 { true -> prev_row(main) _ -> decoded(main) }
+        transition main.dst >= 128 { true -> prev_row(main, window) _ -> decoded(main, window) }
     }
-    state prev_row(main: &mut Main) {
+    state prev_row(main: &mut Main, window: Window) {
         main.dst = main.dst - 128;
-        transition { _ -> px_b(main) }
+        transition { _ -> px_b(main, window) }
     }
 
-    // --- first decode creates the window; flips just re-present ---
-    state decoded(main: &mut Main) {
-        transition main.hwnd > 0 { true -> present(main) _ -> create_window(main) }
+    // Decoding and navigation reuse the same owned window.
+    state decoded(main: &mut Main, window: Window) {
+        main.console.write_line("loaded BMP: 64x64 (12342 bytes)");
+        transition { _ -> present(main, window) }
     }
-    state create_window(main: &mut Main) {
-        // WS_VISIBLE|WS_OVERLAPPEDWINDOW; outer padded so the client area is
-        // roughly 512x512 (the 64x64 image stretched 8x).
-        main.hwnd = main.gui.window_create(main.cls, main.title, 282001408, 160, 120, 528, 551);
-        transition main.hwnd > 0 { true -> dc(main) _ -> bad(main) }
-    }
-    state dc(main: &mut Main) {
-        main.hdc = main.gui.get_dc(main.hwnd);
-        transition main.hdc > 0 { true -> present(main) _ -> bad(main) }
+    state dc(main: &mut Main, window: Window) {
+        main.hdc = main.gui.get_dc(&window, main.hwnd);
+        transition main.hdc > 0 { true -> load(main, window) _ -> bad(main, window) }
     }
 
     // --- pump: drain up to 16 queued messages through DefWindowProc ---
@@ -237,135 +263,137 @@ machine Main::main(main: &mut Main) reaches Clock + Console + FilesystemHost + G
     // button's posted WM_NCLBUTTONDOWN (161) with wParam HTCLOSE (20), and a
     // queue-visible WM_SYSCOMMAND (274) whose wParam is SC_CLOSE (0xF060,
     // low hit-test nibble masked).
-    state pump_init(main: &mut Main) {
+    state pump_init(main: &mut Main, window: Window) {
         main.pumped = 0;
-        transition { _ -> pump_loop(main) }
+        transition { _ -> pump_loop(main, window) }
     }
-    state pump_loop(main: &mut Main) {
-        main.have = main.gui.msg_peek(main.message);
-        transition main.have > 0 { true -> pump_check_close(main) _ -> liveness(main) }
+    state pump_loop(main: &mut Main, mut window: Window) {
+        main.have = main.gui.msg_peek(&mut window, main.message);
+        transition main.have > 0 { true -> pump_check_close(main, window) _ -> liveness(main, window) }
     }
-    state pump_check_close(main: &mut Main) {
+    state pump_check_close(main: &mut Main, window: Window) {
         main.msg_code = main.message[1] % 65536;
-        transition main.msg_code == 16 { true -> quit_self(main) _ -> pump_check_xdown(main) }
+        transition main.msg_code == 16 { true -> quit_self(main, window) _ -> pump_check_xdown(main, window) }
     }
-    state pump_check_xdown(main: &mut Main) {
-        transition main.msg_code == 161 { true -> pump_check_xhit(main) _ -> pump_check_syscommand(main) }
+    state pump_check_xdown(main: &mut Main, window: Window) {
+        transition main.msg_code == 161 { true -> pump_check_xhit(main, window) _ -> pump_check_syscommand(main, window) }
     }
-    state pump_check_xhit(main: &mut Main) {
+    state pump_check_xhit(main: &mut Main, window: Window) {
         // Only the close button's hit-test code quits; any other non-client
         // press (caption drag, resize borders) dispatches normally.
-        transition main.message[2] == 20 { true -> quit_self(main) _ -> pump_handle(main) }
+        transition main.message[2] == 20 { true -> quit_self(main, window) _ -> pump_handle(main, window) }
     }
-    state pump_check_syscommand(main: &mut Main) {
-        transition main.msg_code == 274 { true -> pump_check_sysclose(main) _ -> pump_handle(main) }
+    state pump_check_syscommand(main: &mut Main, window: Window) {
+        transition main.msg_code == 274 { true -> pump_check_sysclose(main, window) _ -> pump_handle(main, window) }
     }
-    state pump_check_sysclose(main: &mut Main) {
-        transition main.message[2] >= 61536 && main.message[2] < 61552 { true -> quit_self(main) _ -> pump_handle(main) }
+    state pump_check_sysclose(main: &mut Main, window: Window) {
+        transition main.message[2] >= 61536 && main.message[2] < 61552 { true -> quit_self(main, window) _ -> pump_handle(main, window) }
     }
-    state pump_handle(main: &mut Main) {
-        main.translated = main.gui.msg_translate(main.message);
-        main.dispatched = main.gui.msg_dispatch(main.message);
-        transition main.pumped < 16 { true -> pump_next(main) _ -> liveness(main) }
+    state pump_handle(main: &mut Main, window: Window) {
+        main.translated = main.gui.msg_translate(&window, main.message);
+        main.dispatched = main.gui.msg_dispatch(&window, main.message);
+        transition main.pumped < 16 { true -> pump_next(main, window) _ -> liveness(main, window) }
     }
-    state pump_next(main: &mut Main) {
+    state pump_next(main: &mut Main, window: Window) {
         main.pumped = main.pumped + 1;
-        transition { _ -> pump_loop(main) }
+        transition { _ -> pump_loop(main, window) }
     }
 
     // --- quit paths: closed window or ESC; flip paths: RIGHT/LEFT edges ---
-    state liveness(main: &mut Main) {
-        main.alive = main.gui.is_window(main.hwnd);
-        transition main.alive > 0 { true -> focus_check(main) _ -> closed(main) }
+    state liveness(main: &mut Main, window: Window) {
+        main.alive = main.gui.is_window(&window, main.hwnd);
+        transition main.alive > 0 { true -> focus_check(main, window) _ -> closed(main, window) }
     }
-    // GetAsyncKeyState is GLOBAL: without this gate, an ESC (or arrow) pressed
+    // Key-state polling is global: without this gate, an ESC (or arrow) pressed
     // in ANY app -- even the Ctrl+Shift+Esc chord -- would drive this window.
-    state focus_check(main: &mut Main) {
-        main.fw = main.gui.foreground_window();
-        transition main.fw == main.hwnd { true -> esc_check(main) _ -> present(main) }
+    state focus_check(main: &mut Main, window: Window) {
+        main.fw = main.gui.foreground_window(&window);
+        transition main.fw == main.hwnd { true -> esc_check(main, window) _ -> present(main, window) }
     }
-    state esc_check(main: &mut Main) {
+    state esc_check(main: &mut Main, window: Window) {
         main.escape = main.input.key_state(27);
-        transition main.escape > 0 { true -> quit_self(main) _ -> next_check(main) }
+        transition main.escape > 0 { true -> quit_self(main, window) _ -> next_check(main, window) }
     }
-    state quit_self(main: &mut Main) {
-        main.killed = main.gui.window_destroy(main.hwnd);
-        transition { _ -> closed(main) }
+    state quit_self(main: &mut Main, window: Window) {
+        transition { _ -> closed(main, window) }
     }
     // Edge-detect the arrows (key_state reports HELD): flip only on the
     // 0 -> held transition, so holding the key is one flip, not sixty.
-    state next_check(main: &mut Main) {
+    state next_check(main: &mut Main, window: Window) {
         main.next_key = main.input.key_state(39);
-        transition main.next_key > 0 && main.next_held == 0 { true -> next_edge(main) _ -> next_level(main) }
+        transition main.next_key > 0 && main.next_held == 0 { true -> next_edge(main, window) _ -> next_level(main, window) }
     }
-    state next_edge(main: &mut Main) {
+    state next_edge(main: &mut Main, window: Window) {
         main.next_held = 1;
-        transition main.current < 2 { true -> next_up(main) _ -> next_wrap(main) }
+        transition main.current < 2 { true -> next_up(main, window) _ -> next_wrap(main, window) }
     }
-    state next_up(main: &mut Main) {
+    state next_up(main: &mut Main, window: Window) {
         main.current = main.current + 1;
-        transition { _ -> load(main) }
+        transition { _ -> load(main, window) }
     }
-    state next_wrap(main: &mut Main) {
+    state next_wrap(main: &mut Main, window: Window) {
         main.current = 0;
-        transition { _ -> load(main) }
+        transition { _ -> load(main, window) }
     }
-    state next_level(main: &mut Main) {
-        transition main.next_key > 0 { true -> prev_check(main) _ -> next_release(main) }
+    state next_level(main: &mut Main, window: Window) {
+        transition main.next_key > 0 { true -> prev_check(main, window) _ -> next_release(main, window) }
     }
-    state next_release(main: &mut Main) {
+    state next_release(main: &mut Main, window: Window) {
         main.next_held = 0;
-        transition { _ -> prev_check(main) }
+        transition { _ -> prev_check(main, window) }
     }
-    state prev_check(main: &mut Main) {
+    state prev_check(main: &mut Main, window: Window) {
         main.prev_key = main.input.key_state(37);
-        transition main.prev_key > 0 && main.prev_held == 0 { true -> prev_edge(main) _ -> prev_level(main) }
+        transition main.prev_key > 0 && main.prev_held == 0 { true -> prev_edge(main, window) _ -> prev_level(main, window) }
     }
-    state prev_edge(main: &mut Main) {
+    state prev_edge(main: &mut Main, window: Window) {
         main.prev_held = 1;
-        transition main.current > 0 { true -> prev_down(main) _ -> prev_wrap(main) }
+        transition main.current > 0 { true -> prev_down(main, window) _ -> prev_wrap(main, window) }
     }
-    state prev_down(main: &mut Main) {
+    state prev_down(main: &mut Main, window: Window) {
         main.current = main.current - 1;
-        transition { _ -> load(main) }
+        transition { _ -> load(main, window) }
     }
-    state prev_wrap(main: &mut Main) {
+    state prev_wrap(main: &mut Main, window: Window) {
         main.current = 2;
-        transition { _ -> load(main) }
+        transition { _ -> load(main, window) }
     }
-    state prev_level(main: &mut Main) {
-        transition main.prev_key > 0 { true -> present(main) _ -> prev_release(main) }
+    state prev_level(main: &mut Main, window: Window) {
+        transition main.prev_key > 0 { true -> present(main, window) _ -> prev_release(main, window) }
     }
-    state prev_release(main: &mut Main) {
+    state prev_release(main: &mut Main, window: Window) {
         main.prev_held = 0;
-        transition { _ -> present(main) }
+        transition { _ -> present(main, window) }
     }
 
     // --- present + pace ---
-    state present(main: &mut Main) {
-        main.copied = main.gui.blit(main.hdc, 512, 512, 64, 64, main.pixels, main.info);
-        transition main.copied == 64 { true -> pace(main) _ -> present_failed(main) }
+    state present(main: &mut Main, window: Window) {
+        main.copied = main.gui.blit(&window, main.hdc, 512, 512, 64, 64, main.pixels, main.info);
+        transition main.copied == 64 { true -> pace(main, window) _ -> present_failed(main, window) }
     }
-    state present_failed(main: &mut Main) {
+    state present_failed(main: &mut Main, window: Window) {
         // A failed blit right after the user closed the window is the normal
         // shutdown race, not an error.
-        main.alive = main.gui.is_window(main.hwnd);
-        transition main.alive > 0 { true -> bad(main) _ -> closed(main) }
+        main.alive = main.gui.is_window(&window, main.hwnd);
+        transition main.alive > 0 { true -> bad(main, window) _ -> closed(main, window) }
     }
-    state pace(main: &mut Main) {
+    state pace(main: &mut Main, window: Window) {
         main.clock.sleep(15);
-        transition { _ -> pump_init(main) }
+        transition { _ -> pump_init(main, window) }
     }
 
-    state closed(main: &mut Main) {
+    state closed(main: &mut Main, window: Window) {
+        main.gui.window_destroy(window);
         main.console.write_line("viewer closed -- goodbye (exit 0)");
         main.console.exit_process(0);
     }
-    state load_failed(main: &mut Main) {
+    state load_failed(main: &mut Main, window: Window) {
+        main.gui.window_destroy(window);
         main.console.write_line("FAIL: could not load imgN.bmp -- run from the image_viewer folder (exit 1)");
         main.console.exit_process(1);
     }
-    state bad(main: &mut Main) {
+    state bad(main: &mut Main, window: Window) {
+        main.gui.window_destroy(window);
         main.console.write_line("FAIL: window/DC creation failed or a blit failed while alive (exit 1)");
         main.console.exit_process(1);
     }

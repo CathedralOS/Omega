@@ -8,7 +8,7 @@ use omega_language_std::macos_gui;
 use omega::language::core::binding;
 pub boundary trait Clock { machine sleep(milliseconds: u32) invokes DarwinClock; }
 pub boundary trait Gui {
-    machine window_create(class_name: [u8; 7], title: [u8; 11], style: u32, x: i32, y: i32, width: i32, height: i32) -> Window
+    machine window_create(class_name: [u8; 7], title: &u8, style: u32, x: i32, y: i32, width: i32, height: i32) -> Window
         invokes ObjectiveC; invokes CoreGraphics; invokes AppKit;
     machine window_destroy(window: Window) invokes ObjectiveC; invokes CoreGraphics;
     machine get_dc(window_state: &Window, window: u64) -> u64;
@@ -93,7 +93,7 @@ machine Main::main(main: &mut Main) reaches AppKit + Clock + Console + CoreGraph
     // so the CLIENT area is ~256x256 without an AdjustWindowRect import.
     // The created resource is owned by the state machine, independently of
     // its borrowed rendering context. Each transition transfers that owner.
-    let window: Window = main.gui.window_create(main.cls, main.title, 282001408, 200, 200, 272, 295);
+    let window: Window = main.gui.window_create(main.cls, &main.title[0], 282001408, 200, 200, 272, 295);
     main.hwnd = window.window;
     transition main.hwnd > 0 { true -> dc(main, window) _ -> bad(main, window) }
     state dc(main: &mut Main, window: Window) {

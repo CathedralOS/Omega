@@ -80,7 +80,10 @@ pub data Window {
     ksel: u64;
     pool: u64;
 }
-pub macos_arm64 machine macos_window_create(class_name: [u8; 7], title: [u8; 11], style: u32, x: i32, y: i32, width: i32, height: i32) -> Window
+// Title borrows the first byte of a live NUL-terminated UTF-8 buffer, matching
+// ObjectiveC::send_byte_string. NSString copies it before this call returns;
+// Window retains no title loan. The buffer length is not a window API limit.
+pub macos_arm64 machine macos_window_create(class_name: [u8; 7], title: &u8, style: u32, x: i32, y: i32, width: i32, height: i32) -> Window
 reaches CoreGraphics + ObjectiveC + AppKit
 {
     let loaded: bool = appkit_load();
@@ -133,7 +136,7 @@ reaches CoreGraphics + ObjectiveC + AppKit
     tmp = objc_send(cls, sel);
     let cbuf15: [u8; 20] = "initWithUTF8String:\0";
     sel = objc_register_selector(&cbuf15[0]);
-    tmp = objc_send_byte_string(tmp, sel, &title[0]);
+    tmp = objc_send_byte_string(tmp, sel, title);
     let cbuf16: [u8; 10] = "setTitle:\0";
     sel = objc_register_selector(&cbuf16[0]);
     rc = objc_send_scalar(window, sel, tmp);

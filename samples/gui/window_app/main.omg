@@ -11,7 +11,7 @@ use omega::language::core::binding;
 pub boundary trait Clock { machine sleep(milliseconds: u32) invokes DarwinClock; }
 pub boundary trait Input { machine key_state(virtual_key: u32) -> u64 invokes CoreGraphics; }
 pub boundary trait Gui {
-    machine window_create(class_name: [u8; 7], title: [u8; 11], style: u32, x: i32, y: i32, width: i32, height: i32) -> Window
+    machine window_create(class_name: [u8; 7], title: &u8, style: u32, x: i32, y: i32, width: i32, height: i32) -> Window
         invokes ObjectiveC; invokes CoreGraphics; invokes AppKit;
     machine window_destroy(window: Window) invokes ObjectiveC; invokes CoreGraphics;
     machine get_dc(window_state: &Window, window: u64) -> u64;
@@ -98,7 +98,7 @@ machine Main::main(main: &mut Main) reaches AppKit + Clock + Console + CoreGraph
     main.info[2] = 0 - 64;
     main.info[3] = 2097153;
     // WS_VISIBLE|WS_OVERLAPPEDWINDOW; outer padded so client is roughly 256x256.
-    let window: Window = main.gui.window_create(main.cls, main.title, 282001408, 200, 200, 272, 295);
+    let window: Window = main.gui.window_create(main.cls, &main.title[0], 282001408, 200, 200, 272, 295);
     main.hwnd = window.window;
     transition main.hwnd > 0 { true -> dc(main, window) _ -> bad(main, window) }
     state dc(main: &mut Main, window: Window) {
