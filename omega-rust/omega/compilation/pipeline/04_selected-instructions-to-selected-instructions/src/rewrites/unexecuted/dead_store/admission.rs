@@ -94,6 +94,7 @@ use crate::rewrites::unexecuted::place_storage::{
     SubjectStorage, constant_index, extent_intersects, extent_reached_by,
     local_slot_is_place_storage, local_store_shape, packed_store_row_shape, place_store_row_shape,
     slot_is_subject_storage, staging_slot, structural_place_declarations, transport_defines,
+    write_role_covers_subject,
 };
 use crate::rewrites::window_hazards::{UnrosteredReach, unrostered_reach};
 
@@ -974,17 +975,8 @@ fn covering_source(
                 return Err(reject());
             }
             place_store_shape(instruction, environment)?;
-            match row.role {
-                SelectedMemoryAccessRole::WritePlace
-                    if matches!(dead.storage, SubjectStorage::Place) => {}
-                SelectedMemoryAccessRole::WriteLocal { slot }
-                    if slot_is_subject_storage(
-                        slot,
-                        dead.storage,
-                        dead.place,
-                        structural_places,
-                    ) => {}
-                _ => return Err(reject()),
+            if !write_role_covers_subject(row.role, dead.storage, dead.place, structural_places) {
+                return Err(reject());
             }
             (byte_offset, u32::from(byte_size))
         }
@@ -992,17 +984,8 @@ fn covering_source(
             if environment.selected_keys().store_packed != Some(instruction.constraint) {
                 return Err(DeadStoreEliminationError::ConstraintMismatch);
             }
-            match row.role {
-                SelectedMemoryAccessRole::WritePlace
-                    if matches!(dead.storage, SubjectStorage::Place) => {}
-                SelectedMemoryAccessRole::WriteLocal { slot }
-                    if slot_is_subject_storage(
-                        slot,
-                        dead.storage,
-                        dead.place,
-                        structural_places,
-                    ) => {}
-                _ => return Err(reject()),
+            if !write_role_covers_subject(row.role, dead.storage, dead.place, structural_places) {
+                return Err(reject());
             }
             (byte_offset, u32::from(width.byte_size()))
         }

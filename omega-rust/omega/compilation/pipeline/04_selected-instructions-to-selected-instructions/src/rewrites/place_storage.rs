@@ -148,6 +148,25 @@ pub(super) fn slot_is_subject_storage(
     }
 }
 
+/// Whether a store row's role reaches the subject's own storage: a
+/// `WritePlace` covers a place subject, a `WriteLocal` covers when its slot
+/// is the subject's storage, and every other role names an access the
+/// subject's removal does not describe.
+pub(super) fn write_role_covers_subject(
+    role: SelectedMemoryAccessRole,
+    storage: SubjectStorage,
+    place: PlaceId,
+    structural_places: &[StructuralPlaceDeclaration],
+) -> bool {
+    match role {
+        SelectedMemoryAccessRole::WritePlace => matches!(storage, SubjectStorage::Place),
+        SelectedMemoryAccessRole::WriteLocal { slot } => {
+            slot_is_subject_storage(slot, storage, place, structural_places)
+        }
+        _ => false,
+    }
+}
+
 /// The staging slot a `WriteLocal` row names when the slot is not the row
 /// place's own storage: a `Structural` slot staging bytes that name
 /// `place`. The row's place must be the place the slot stages — a
