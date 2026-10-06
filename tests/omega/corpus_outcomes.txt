@@ -1240,12 +1240,12 @@ fail/ranges/subject_guard_compound_index_mutated rejected 310ms expected @f64782
 	cannot prove index `main.b * 20 + main.a` is within length 200 in Main::main::put
 fail/ranges/sum_payload_non_case_guard_unproven rejected 142ms expected @7f4f399bb74b+wt
 	cannot prove requires contract for call use_v from Main::main: main.p::One.v in i32::Fifty (invalidated by prior mutation of main.p; main.p::One.v is part of i32::Fifty)
-fail/recast/field_precondition_call_invalidated_before_capture rejected 79ms expected @3ea6e15ff230a950a944f674759bee7c815bd987
-	machine `capture` state `entry`: the recast target `Desc` needs 16 bytes at offset 4294967295, but the region holds 32 -- the view would read past the buffer (§5b rule 1 is byte-granular)
+fail/recast/field_precondition_call_invalidated_before_capture rejected 171ms expected @ef3f9f2b015a
+	machine `capture` state `entry`: cannot bound the recast offset `cursor.offset` -- the region holds 32 bytes, but no declared range, dominating incoming guard, or boundary-ensures witness bounds the offset below the footprint. Bound it: declare a range on the offset param, guard the transition arm (`transition cursor.offset <= K { true -> ... }`), or `ensures`-bound the boundary out-param that feeds it
 fail/recast/field_precondition_invalidated_before_capture rejected 123ms expected @d9720a4fa49b+wt
 	machine `capture` state `entry`: the recast target `Desc` needs 16 bytes at offset 32, but the region holds 32 -- the view would read past the buffer (§5b rule 1 is byte-granular)
-fail/recast/incoming_offset_call_invalidated_before_capture rejected 79ms expected @3ea6e15ff230a950a944f674759bee7c815bd987
-	machine `capture` state `read`: the recast target `Desc` needs 16 bytes at offset 4294967295, but the region holds 32 -- the view would read past the buffer (§5b rule 1 is byte-granular)
+fail/recast/incoming_offset_call_invalidated_before_capture rejected 171ms expected @ef3f9f2b015a
+	machine `capture` state `read`: cannot bound the recast offset `offset` -- the region holds 32 bytes, but no declared range, dominating incoming guard, or boundary-ensures witness bounds the offset below the footprint. Bound it: declare a range on the offset param, guard the transition arm (`transition offset <= K { true -> ... }`), or `ensures`-bound the boundary out-param that feeds it
 fail/recast/incoming_offset_invalidated_before_capture rejected 132ms expected @d9720a4fa49b+wt
 	machine `capture` state `read`: the recast target `Desc` needs 16 bytes at offset 32, but the region holds 32 -- the view would read past the buffer (§5b rule 1 is byte-granular)
 fail/recast/interior_recast_footprint_rejected rejected 183ms expected @a3bac00e54bb+wt
@@ -1286,8 +1286,8 @@ fail/recast/shared_parameter_view_mutable_call_rejected rejected 131ms expected 
 	argument `value` for state `entry` is declared `&mut` (`&mut i32`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
 fail/recast/slice_view_non_tiling_rejected rejected 161ms expected @a3bac00e54bb+wt
 	machine `Main::main` state `main`: slice target `[u16]` does not exactly tile the source's 7 bytes with 2-byte elements
-fail/recast/unbounded_offset_names_the_bound rejected 544ms unexpected @c5d32a00863
-	machine `Main::main` state `read`: the recast target `Desc` needs 8 bytes at offset 4294967295, but the region holds 16 -- the view would read past the buffer (§5b rule 1 is byte-granular)
+fail/recast/unbounded_offset_names_the_bound rejected 152ms expected @ef3f9f2b015a
+	machine `Main::main` state `read`: cannot bound the recast offset `off` -- the region holds 16 bytes, but no declared range, dominating incoming guard, or boundary-ensures witness bounds the offset below the footprint. Bound it: declare a range on the offset param, guard the transition arm (`transition off <= K { true -> ... }`), or `ensures`-bound the boundary out-param that feeds it
 fail/relax/retired_relax_statement rejected 5ms expected @2d8ed253669f
 	tests/omega/fail/relax/retired_relax_statement/main.omg:8:5: `relax` is retired: invariant windows (ch11) supersede it -- write plainly; a momentary violation opens a window that must close before any read, call, or terminal exit
 fail/relevance/dynamic_erased_formal_lane rejected 627ms expected @2d8ed253669f
@@ -2089,8 +2089,8 @@ pass/data/runtime_mixed_case_payload_dispatch_exit checked 1537ms check-target:m
 pass/data/runtime_mixed_shape_exit checked 2078ms check-target:macos_arm64 @ca8c127c90c5
 pass/data/runtime_proof_only_data_declared_exit checked 1252ms check-target:macos_arm64 @2d8ed253669f
 pass/data/runtime_record_field_value_pattern_exit checked 1016ms check-target:macos_arm64 @3f4da4527c2d+wt
-pass/dependent/boundary_equality_recast_witness_compile rejected 627ms @c5d32a00863
-	machine `Main::main` state `read`: the recast target `u32` needs 4 bytes at offset 4294967295, but the region holds 12 -- the view would read past the buffer (§5b rule 1 is byte-granular)
+pass/dependent/boundary_equality_recast_witness_compile rejected 176ms @ef3f9f2b015a
+	machine `Main::main` state `read`: cannot bound the recast offset `size` -- the region holds 12 bytes, but no declared range, dominating incoming guard, or boundary-ensures witness bounds the offset below the footprint. Bound it: declare a range on the offset param, guard the transition arm (`transition size <= K { true -> ... }`), or `ensures`-bound the boundary out-param that feeds it
 pass/dependent/boundary_requires_caller_field_extent_compile checked 298ms @2d8ed253669f
 pass/dependent/call_requires_saved_local_arithmetic_bound_compile checked 292ms @2d8ed253669f
 pass/dependent/case_where_common_field_window checked 288ms @2d8ed253669f
