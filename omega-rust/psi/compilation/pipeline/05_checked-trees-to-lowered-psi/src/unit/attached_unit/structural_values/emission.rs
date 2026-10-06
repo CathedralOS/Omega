@@ -8,7 +8,10 @@ use super::super::{
     StructuralMultiplicity, StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeId,
     StructuralTypeShape, Terminator, ValueDeclaration, allocate_dense, argument_evaluation,
     edge_id, lookup_type_id, lower_structural_path,
-    operation_frame::{allocate_structural_result, operation_result_declaration},
+    operation_frame::{
+        allocate_structural_result, block_parameter_declaration, operation_result_declaration,
+        structural_parameter_declaration,
+    },
     place_id, unsupported, value_id,
 };
 use super::CheckedTrees;
@@ -1477,33 +1480,27 @@ impl Emission<'_, '_, '_> {
             let position = u32::try_from(structural_parameters.len()).map_err(|_| {
                 LoweringError::Unsupported("owned move parameter count exceeds u32")
             })?;
-            self.temporary_places.push(StructuralPlaceDeclaration {
-                id: target,
-                kind: StructuralPlaceKind::BlockParameter { block, position },
-            });
-            structural_parameters.push(StructuralParameterDeclaration {
-                place: target,
+            self.temporary_places
+                .push(block_parameter_declaration(target, block, position));
+            structural_parameters.push(structural_parameter_declaration(
+                target,
                 position,
-                structural_type: owner.value.structural_type,
-                multiplicity: owner.value.multiplicity,
-                access: StructuralAccess::Owned,
-                qualifications: Vec::new(),
-                projected_qualifications: Vec::new(),
-            });
+                owner.value.structural_type,
+                owner.value.multiplicity,
+                StructuralAccess::Owned,
+            ));
             pass_through.push((owner.value.place, target));
             owner.value.place = target;
         }
         let position = u32::try_from(structural_parameters.len())
             .map_err(|_| LoweringError::Unsupported("owned move parameter count exceeds u32"))?;
-        structural_parameters.push(StructuralParameterDeclaration {
+        structural_parameters.push(structural_parameter_declaration(
             place,
             position,
-            structural_type: self.structural_type,
-            multiplicity: self.multiplicity,
-            access: StructuralAccess::Owned,
-            qualifications: Vec::new(),
-            projected_qualifications: Vec::new(),
-        });
+            self.structural_type,
+            self.multiplicity,
+            StructuralAccess::Owned,
+        ));
         let parameters = self
             .values
             .iter()
@@ -1579,22 +1576,15 @@ impl Emission<'_, '_, '_> {
         let join = block_id(allocate_dense(self.next_block)?);
         let place = place_id(allocate_dense(self.next_place)?);
         let position = 0u32;
-        self.temporary_places.push(StructuralPlaceDeclaration {
-            id: place,
-            kind: StructuralPlaceKind::BlockParameter {
-                block: join,
-                position,
-            },
-        });
-        let structural_parameters = vec![StructuralParameterDeclaration {
+        self.temporary_places
+            .push(block_parameter_declaration(place, join, position));
+        let structural_parameters = vec![structural_parameter_declaration(
             place,
             position,
-            structural_type: self.structural_type,
-            multiplicity: self.multiplicity,
-            access: self.result_access,
-            qualifications: Vec::new(),
-            projected_qualifications: Vec::new(),
-        }];
+            self.structural_type,
+            self.multiplicity,
+            self.result_access,
+        )];
         let parameters = self
             .values
             .iter()
@@ -2384,26 +2374,19 @@ impl Emission<'_, '_, '_> {
                     }
                     owner.value.place = place;
                 }
-                self.temporary_places.push(StructuralPlaceDeclaration {
-                    id: place,
-                    kind: StructuralPlaceKind::BlockParameter {
-                        block: join,
-                        position,
-                    },
-                });
-                structural_parameters.push(StructuralParameterDeclaration {
+                self.temporary_places
+                    .push(block_parameter_declaration(place, join, position));
+                structural_parameters.push(structural_parameter_declaration(
                     place,
                     position,
                     structural_type,
                     multiplicity,
-                    access: if is_result_slot {
+                    if is_result_slot {
                         self.result_access
                     } else {
                         StructuralAccess::Owned
                     },
-                    qualifications: Vec::new(),
-                    projected_qualifications: Vec::new(),
-                });
+                ));
             }
             let place = structural_parameters
                 .last()

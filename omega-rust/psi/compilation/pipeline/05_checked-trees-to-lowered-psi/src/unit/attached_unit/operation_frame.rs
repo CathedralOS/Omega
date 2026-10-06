@@ -82,7 +82,7 @@ use crate::unit::{
     lookup_service_id, lookup_type_id, place_id, terminal_scalar_type, unsupported,
 };
 use checked_trees::{CheckedComposedUnitControlStatePlan, CheckedUnitStructuralArgumentPlan};
-use semantic_vocabulary::OperationId;
+use semantic_vocabulary::{BlockId, OperationId};
 use std::borrow::Cow;
 
 mod atomic_access;
@@ -1814,13 +1814,8 @@ impl OperationFrame<'_, '_> {
                 "structural case field store move emitted no operation",
             ))?
             .id;
-        self.private_places.push(StructuralPlaceDeclaration {
-            id: moved,
-            kind: StructuralPlaceKind::OperationResult {
-                producer: move_id,
-                structural_type: hole_type,
-            },
-        });
+        self.private_places
+            .push(operation_result_declaration(moved, move_id, hole_type));
         // The moved-out leaf is `Unrestricted` by the plan's own contract, so
         // no custody action retires it: edge discards admit affine places
         // only, and an unrestricted owned place may simply be left behind.
@@ -2065,13 +2060,8 @@ impl OperationFrame<'_, '_> {
                 "structural case literal field store move emitted no operation",
             ))?
             .id;
-        self.private_places.push(StructuralPlaceDeclaration {
-            id: moved,
-            kind: StructuralPlaceKind::OperationResult {
-                producer: move_id,
-                structural_type: hole_type,
-            },
-        });
+        self.private_places
+            .push(operation_result_declaration(moved, move_id, hole_type));
         // The moved-out leaf is `Unrestricted` by the plan's own contract, so
         // no custody action retires it.
         self.emit_window_store(
@@ -3061,5 +3051,39 @@ pub(super) fn operation_result_declaration(
             producer,
             structural_type,
         },
+    }
+}
+
+/// The `BlockParameter` place declaration a join's `block` reads at
+/// `position`.
+pub(super) fn block_parameter_declaration(
+    id: PlaceId,
+    block: BlockId,
+    position: u32,
+) -> StructuralPlaceDeclaration {
+    StructuralPlaceDeclaration {
+        id,
+        kind: StructuralPlaceKind::BlockParameter { block, position },
+    }
+}
+
+/// The `StructuralParameterDeclaration` every join and continuation
+/// parameter shares: caller fields alongside the same empty qualification
+/// roster.
+pub(super) fn structural_parameter_declaration(
+    place: PlaceId,
+    position: u32,
+    structural_type: StructuralTypeId,
+    multiplicity: terminal_psi::StructuralMultiplicity,
+    access: StructuralAccess,
+) -> StructuralParameterDeclaration {
+    StructuralParameterDeclaration {
+        place,
+        position,
+        structural_type,
+        multiplicity,
+        access,
+        qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
     }
 }
