@@ -31,7 +31,7 @@ fn selected_actions(
                 if statement_index == coordinate.statement_index as usize
                     && call_ordinal == coordinate.call_ordinal as usize)
     }) {
-        actions.extend(disposition_actions(program, facts, targets, shapes, disposition, source.clone())?);
+        actions.extend(disposition_actions(program, facts, targets, shapes, disposition, source.clone(), None)?);
     }
     Some(actions)
 }

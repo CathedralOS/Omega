@@ -1,4 +1,4 @@
-pub data Socket {
+pub data Socket [copy] {
     connected: bool;
     authenticated: bool;
 }

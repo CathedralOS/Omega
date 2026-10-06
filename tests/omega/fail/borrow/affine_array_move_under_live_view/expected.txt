@@ -1,1 +1,1 @@
-receives an owned value while local borrow `view` is still active
+cannot transfer a non-copy value out of borrowed storage without replacing its owner

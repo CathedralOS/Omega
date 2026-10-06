@@ -89,6 +89,23 @@ pub(super) fn actions(
             return None;
         }
     }
+    let replaced_place =
+        match crate::semantic::calls::find_state(program, state).and_then(|declaration| {
+            program
+                .statement_table
+                .statements(declaration.statement_nodes)
+                .get(*statement_index as usize)
+        }) {
+            Some(typed_trees::statement::StatementNode::Assignment(assignment)) => {
+                crate::flow::canonical_place_from_expression_in_state(
+                    program,
+                    state,
+                    *statement_index as usize,
+                    assignment.target,
+                )
+            }
+            _ => None,
+        };
     let mut actions = Vec::new();
     for (_, disposition) in facts
         .contextual_cleanup
@@ -113,26 +130,61 @@ pub(super) fn actions(
                 .span(disposition.path)?
                 .to_vec(),
         };
-        let (_, path) = crate::execution::terminal_unit::calls::projected_argument_path(
+        // The death of exactly the assigned place is the old value this store
+        // displaces, whose path the store already names, including a
+        // runtime-selected element that has no static argument path.
+        let replaced = replaced_place.as_ref() == Some(&place);
+        let path = match crate::execution::terminal_unit::calls::projected_argument_path(
             program,
             state,
             *statement_index as usize,
             &place,
-        )?;
-        if !path.starts_with(&destination.path) {
+        ) {
+            Some((_, path)) => path,
+            None if replaced => destination.path.clone(),
+            None => return None,
+        };
+        // A death can cover the replaced place or an enclosing value: a
+        // whole-array store composes one displacing store per element, while
+        // the old array dies once at the statement. Each store takes the
+        // death's actions within its own place; sibling elements' actions
+        // belong to their own stores.
+        if !path.starts_with(&destination.path) && !destination.path.starts_with(&path) {
             continue;
         }
-        let mut selected = super::actions::disposition_actions(
+        for mut action in super::actions::disposition_actions(
             program,
             facts,
             targets,
             shapes,
             disposition,
             source.clone(),
-        )?;
-        if displaced {
-            for action in &mut selected {
-                let (source, path) = match action {
+            replaced.then_some(destination.path.as_slice()),
+        )? {
+            let action_path = match &action {
+                CheckedNormalCleanupAction::Discard(action) => &action.path,
+                CheckedNormalCleanupAction::InvokeNominal(action) => &action.path,
+            };
+            if !action_path.starts_with(&destination.path) {
+                if !destination.path.starts_with(action_path) {
+                    continue;
+                }
+                // A discard of an enclosing value discards this place within
+                // it. An enclosing hook observes the whole value and cannot
+                // run piecewise.
+                let CheckedNormalCleanupAction::Discard(_) = action else {
+                    return None;
+                };
+                action = CheckedNormalCleanupAction::Discard(
+                    checked_trees::CheckedUnitPartialAffineDiscardPlan {
+                        source: source.clone(),
+                        path: destination.path.clone(),
+                        type_identity: destination.type_identity.clone(),
+                    },
+                );
+            }
+            if displaced {
+                let (source, path) = match &mut action {
                     CheckedNormalCleanupAction::Discard(action) => {
                         (&mut action.source, &mut action.path)
                     }
@@ -143,8 +195,8 @@ pub(super) fn actions(
                 *path = path.strip_prefix(destination.path.as_slice())?.to_vec();
                 *source = marker.source().clone();
             }
+            actions.push(action);
         }
-        actions.extend(selected);
     }
     // An occupied affine value cannot silently become a raw discard when its
     // source death is absent. The producer must supply that occurrence first.

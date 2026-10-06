@@ -731,6 +731,23 @@ pub(crate) fn validate_usage(
     let mut consumed = false;
     let mut disposed = false;
     let mut projected_paths = Vec::<&[checked_trees::CheckedUnitStructuralPathSegment]>::new();
+    // A `let` establishes its local's value as this result. Until the local
+    // is rebound, a store or rebind naming the local moves that same value.
+    let mut result_local = {
+        let (_, state) = crate::declarations::state_declaration(checked, caller.state)?;
+        match checked
+            .statement_table
+            .statements(state.statement_nodes)
+            .get(result.statement_index as usize)
+        {
+            Some(StatementNode::LocalData(local)) => Some(
+                checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
+                    symbol: local.symbol,
+                },
+            ),
+            _ => None,
+        }
+    };
     // Every projected move under a still return-dropped carrier must carry
     // its own proven leaf loan; a single unloaned projection revives the
     // ordinary residual-continuation requirement.
@@ -997,7 +1014,9 @@ pub(crate) fn validate_usage(
         // value is copied there and keeps owing nothing.
         if let CheckedUnitEffectOperationPlan::StoreStructuralField { value, .. }
         | CheckedUnitEffectOperationPlan::RebindStructuralLocal { value, .. } = operation
-            && value.source_structural_result_binding_ordinal() == Some(result.binding_ordinal)
+            && (value.source_structural_result_binding_ordinal() == Some(result.binding_ordinal)
+                || (operation_index > producer.operation_index
+                    && result_local.as_ref() == Some(&value.source)))
         {
             if consumed
                 || disposed
@@ -1012,6 +1031,12 @@ pub(crate) fn validate_usage(
             }
             consumed = result.multiplicity != Multiplicity::Unrestricted;
             continue;
+        }
+        if let CheckedUnitEffectOperationPlan::RebindStructuralLocal { destination, .. } = operation
+            && result_local.as_ref() == Some(&destination.source)
+            && operation_index > producer.operation_index
+        {
+            result_local = None;
         }
         let Some(call) = operation.call() else {
             continue;

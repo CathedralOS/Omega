@@ -19,6 +19,7 @@ pub(super) fn disposition_actions(
     shapes: &mut ShapeCollector<'_>,
     disposition: &checked_trees::ContextualCleanupDisposition,
     source: CheckedUnitStructuralArgumentSourcePlan,
+    place_path: Option<&[checked_trees::CheckedUnitStructuralPathSegment]>,
 ) -> Option<Vec<CheckedNormalCleanupAction>> {
     let machine = crate::lookup::machine_by_symbol(program, disposition.machine)?;
     let binders = machine_binders(program, machine);
@@ -52,7 +53,12 @@ pub(super) fn disposition_actions(
         )?
     };
     let type_identity = shapes.add_type(reference, &binders, &[])?;
-    let path = if place.segments.is_empty() {
+    // A caller that already holds the dying place in its own operand
+    // namespace supplies it: a runtime-selected element has no static
+    // argument path, but its store names the same place.
+    let path = if let Some(place_path) = place_path {
+        place_path.to_vec()
+    } else if place.segments.is_empty() {
         Vec::new()
     } else {
         crate::execution::terminal_unit::calls::projected_argument_path(

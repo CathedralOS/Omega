@@ -1,1 +1,1 @@
-already transferred or consumed
+after `category` was transferred or consumed

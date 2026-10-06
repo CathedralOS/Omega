@@ -161,9 +161,7 @@ fail/atomics/shared_receiver_plain_field_write rejected 108ms expected @c08960be
 	machine `Counter::bump` state `bump` assignment cannot write `counter` because it is not mutable in this state (if `counter` is undeclared -- a typo -- no such field or local exists)
 fail/blockexec/blocking_executor_ticket_scope_loss rejected 705ms expected @2d8ed253669f
 	linear value `ticket` reaches scope exit without being consumed or transferred
-fail/borrow/affine_array_move_under_live_view rejected 334ms expected @e477ee0294de+wt
-	state `consume` receives an owned value while local borrow `view` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
-	owned transfer requires an exact storage source and available loan authority
+fail/borrow/affine_array_move_under_live_view rejected 433ms expected @41c7c3df5137+wt
 	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `Main::main`, state `main` (statement 3)
 	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `Main::main`, state `main` (statement 2): `main.entries` must hold a value again before this state's exits consume the borrow
 fail/borrow/borrow_carrying_field_reassignment_invalidated rejected 957ms expected @c5d32a00863
@@ -493,8 +491,8 @@ fail/build/wire_compatibility_fabricated_activation rejected 564ms expected @889
 	the compiler-owned Build activation cannot be copied into local `counterfeit`
 fail/build/wire_compatibility_unknown_fact rejected 561ms expected @8899cb25e748+wt
 	unknown wire compatibility fact `Imaginary`
-fail/calls/affine_constructor_result_reuse rejected 635ms expected @2d8ed253669f
-	affine value `item` was already transferred or consumed; it cannot be moved here
+fail/calls/affine_constructor_result_reuse rejected 428ms expected @41c7c3df5137+wt
+	cannot use `item` in machine `Worker::check` state `check` (statement 2) after `item` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `item` first
 fail/calls/boundary_computed_selector_out_of_bounds rejected 430ms expected @cba4afbf6f2f+wt
 	cannot prove index `choose()` is within length 4 in main::entry
 fail/calls/boundary_nested_argument_conflicting_loan rejected 1030ms expected @cfe60a3a242
@@ -613,8 +611,8 @@ fail/collections/fixed_vec_push_without_room rejected 216ms expected @c08960bee2
 	cannot prove requires contract for call push from Main::main: main.vec.length < main.vec.items.len (needs fact `fixed_vec_i32x4.length < fixed_vec_i32x4.items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/collections/guarded_computed_index_overrun rejected 375ms expected @98f54226c10c
 	cannot prove index `position + 1` is within length 6 in rises::entry
-fail/collections/vec_duplicate_cleanup rejected 740ms expected @2d8ed253669f
-	linear value `vec` was already transferred or consumed; it cannot be moved here
+fail/collections/vec_duplicate_cleanup rejected 842ms expected @41c7c3df5137+wt
+	cannot use `vec` in machine `Main::main` state `main` (statement 2) after `vec` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `vec` first
 fail/collections/vec_invalidated_loan_after_growth rejected 315ms expected @c08960bee2b1+wt
 	state `grow8to16` receives `main.b8` while local borrow `slots` is still active (borrowed at statement 0; its last use is at statement 3 and it is released at state exit)
 	statement 2 mutates `main.b8.e[0]` while local borrow `slots` is still active (borrowed at statement 0; its last use is at statement 3 and it is released at state exit)
@@ -863,9 +861,8 @@ fail/domains/domain_alias_cycle rejected 277ms expected @2d8ed253669f
 	public interface selects private data `Socket`
 	public interface selects private data `Socket`
 	domain alias cycle: Socket::Usable -> Socket::Ready -> Socket::Usable
-fail/domains/domain_alias_reports_atomic_requirement rejected 265ms expected @c08960bee2b1+wt
+fail/domains/domain_alias_reports_atomic_requirement rejected 507ms expected @41c7c3df5137+wt
 	cannot prove requires contract for call consume from Main::main: main.socket in Socket::Authenticated
-	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `Main::main`, state `main` (statement 0): `main.socket` must hold a value again before this state's exits consume the borrow
 fail/domains/domain_carrier_mismatch rejected 252ms expected @2d8ed253669f
 	data `Main` field `value` uses `in Scanned`, but no `domain` named `Scanned` is declared for `i32` (domains are bound to their storage type)
 fail/domains/domain_operator_competing_spelling_meanings rejected 677ms expected @2d8ed253669f
@@ -874,9 +871,8 @@ fail/domains/exit_ensures_unproven rejected 226ms expected @c08960bee2b1+wt
 	cannot prove ensures contract for exit from Main::main at statement 0: main.player in Player::Alive
 fail/domains/implicit_semantic_domain_local_weakening rejected 216ms expected @2d8ed253669f
 	implicit domain weakening in machine `Main::main` state `main` local `raw` drops `Degrees`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
-fail/domains/indexed_domain_requires_invalidated_by_unknown_index_mutation rejected 257ms expected @c08960bee2b1+wt
+fail/domains/indexed_domain_requires_invalidated_by_unknown_index_mutation rejected 489ms expected @41c7c3df5137+wt
 	cannot prove requires contract for call accept from Main::main: main.items[0] in Item::Valid (invalidated by prior mutation of main.items[index].value; main.items[0].value is part of Item::Valid)
-	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `Main::main`, state `main` (statement 3): `main.items[0]` must hold a value again before this state's exits consume the borrow
 	cannot prove index `index` is within length 2 in Main::main::main
 fail/domains/module_domain_broad_import_hides_leaf rejected 236ms expected @2d8ed253669f
 	data `Main` field `span` uses `in Distance`, but no `domain` named `Distance` is declared for `u64` (domains are bound to their storage type)
@@ -1002,8 +998,8 @@ fail/expressions/match_fractional_result rejected 69ms expected @01974e342562+wt
 	anonymous operand `7/2` is not an integer in machine `choose` state `entry` terminal expression; type an operand before division if integer division was intended
 fail/expressions/match_mixed_result_domains rejected 292ms expected @2d8ed253669f
 	match arms produce incompatible values
-fail/expressions/match_result_double_move rejected 729ms expected @2d8ed253669f
-	affine value `category` was already transferred or consumed; it cannot be moved here
+fail/expressions/match_result_double_move rejected 425ms expected @41c7c3df5137+wt
+	cannot use `category` in machine `classify` state `entry` (statement 2) after `category` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `category` first
 fail/expressions/mismatched_width_bitwise_rejected rejected 450ms expected @c5d32a00863
 	machine `Main::combine` state `combine` applies `BitwiseOr` to a `u32` value and a `u8` value -- the operands have different integer types and the operation would silently truncate or reinterpret a value; convert one with an exact `as` cast so both are the same type
 fail/expressions/nested_i32_mul_overflow rejected 135ms expected @c08960bee2b1+wt
@@ -1202,9 +1198,8 @@ fail/modules/unused_scalar_constant_range rejected 12ms expected @2d8ed253669f
 	module scalar constant `VALUE` is invalid: const value `256` does not fit `u8`
 fail/modules/use_unresolved_path rejected 0ms expected @2d8ed253669f
 	failed to resolve tests/omega/fail/modules/use_unresolved_path/nonexistent/missing.omg: No such file or directory (os error 2)
-fail/multiplicity/computed_subject_separate_affine_call rejected 1036ms expected @c5d32a00863
-	affine value `choice` was already transferred or consumed; it cannot be moved here
-	affine value `choice` was already transferred or consumed; it cannot be moved here
+fail/multiplicity/computed_subject_separate_affine_call rejected 426ms expected @41c7c3df5137+wt
+	cannot use `choice` in machine `choose` state `entry` (statement 0) after `choice` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `choice` first
 fail/operators/constructed_operand_wrong_nominal_type rejected 400ms expected @8735cafb4cf
 	machine `invalid` state `entry` applies `Add` to a `Input` value, but no such operator is declared for these operand types; declare a matching token-bearing machine or select its declared trait meaning
 fail/operators/domain_operator_return_only_overload rejected 244ms expected @2d8ed253669f
@@ -1547,8 +1542,8 @@ fail/slices/utf8_subslice_byte_cut rejected 371ms expected @a5ac65bf511d+wt
 	cannot prove requires contract for call inspect from relay: bytes[0..1] in [u8]::Utf8
 fail/slices/window_shrink_index_out_of_length rejected 693ms expected @2d8ed253669f
 	cannot prove index `3` is within length 3
-fail/structs/affine_result_constructor_reuse rejected 649ms expected @2d8ed253669f
-	affine value `kind` was already transferred or consumed; it cannot be moved here
+fail/structs/affine_result_constructor_reuse rejected 416ms expected @41c7c3df5137+wt
+	cannot use `kind` in machine `Worker::wrap` state `wrap` (statement 1) after `kind` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `kind` first
 fail/structs/local_record_policy_erasure rejected 258ms expected @2d8ed253669f
 	implicit domain weakening in machine `observe` state `entry` local `value` drops `Wrapping`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
 	store in machine `observe` state `entry` local `value` implicitly converts `u8 in Wrapping` to `u8`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u8`)

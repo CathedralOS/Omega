@@ -97,6 +97,7 @@ pub(in crate::execution::terminal_unit) fn state_cleanups(
             shapes,
             disposition,
             source,
+            None,
         )?;
         if let Some(row) = rows.iter_mut().find(|row| row.exit == disposition.exit) {
             row.actions.extend(actions);

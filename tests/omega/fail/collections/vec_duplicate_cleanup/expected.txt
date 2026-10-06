@@ -1,1 +1,1 @@
-linear value `vec` was already transferred or consumed
+after `vec` was transferred or consumed
