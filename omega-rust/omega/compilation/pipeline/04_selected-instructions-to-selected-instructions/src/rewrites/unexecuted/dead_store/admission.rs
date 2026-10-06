@@ -1270,7 +1270,10 @@ fn edge_unobserved(
             SubjectStorage::Staging(slot) => case.source.local_slot() == Some(slot),
         };
         let discard_touches = matches!(dead.storage, SubjectStorage::Place)
-            && case.cleanup_actions.iter().any(|action| action.place() == dead.place);
+            && case
+                .cleanup_actions
+                .iter()
+                .any(|action| action.place() == dead.place);
         if slot_touches || discard_touches {
             return Err(DeadStoreEliminationError::InterveningAccess);
         }

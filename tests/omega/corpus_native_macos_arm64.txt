@@ -563,6 +563,8 @@ pass/drops/core_drop_explicit_consume built 661ms exit:0 @302faee005ee
 pass/drops/core_drop_owner_hook built 573ms exit:0 @302faee005ee
 pass/drops/core_drop_owner_hook_body built 735ms exit:0 @302faee005ee
 pass/drops/erased_record_initializer_exit built 818ms exit:70 @302faee005ee
+pass/drops/runtime_local_nominal_cleanup_exit built 1886ms exit:0 stdout:match @093f0ff4e0f2+wt
+pass/drops/runtime_nominal_successor_argument_order_exit built 1886ms exit:0 stdout:match @093f0ff4e0f2+wt
 pass/drops/transfer_cleanup_into_state checked 229ms @0aa983f6af47+wt
 pass/dungeon/runtime_ordered_room_dispatch_exit built 812ms exit:73
 pass/dungeon/runtime_threaded_mut_arg_interrupt_soak_exit built 1600ms exit:70 @48008365d839

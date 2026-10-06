@@ -1068,9 +1068,7 @@ fn edge_preserves(
         }
     }
     if let Some(case) = &successor.structural_case {
-        if case.source.place().is_some()
-            || !case.cleanup_actions.is_empty()
-        {
+        if case.source.place().is_some() || !case.cleanup_actions.is_empty() {
             return Err(StoredLoadForwardingError::AliasingWrite);
         }
         for payload in &case.payloads {
