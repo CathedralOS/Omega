@@ -1651,13 +1651,23 @@ then independent claimed restoration slices -> final closure.
   not the whole passing corpus. Unrelated unsupported features may become gaps.
   Current frontier: `Build::application`, `Build::depend(Source::Path)` and std's
   `Build::package` are statically projected, not runtime imports. The seed's
-  runtime work is its four authored `Build::bind` rows. Generalized `RootBinding`
-  checked plans, Terminal lowering and an exact Build observation binding remain
-  missing. The common instance must preserve original mutable Build identity,
-  retained declaration coordinates and ordered observations; product selection
-  does not execute product bodies. The stage 04 statement sequence currently
-  refuses `RootBinding`; core entry alone cannot establish this seed. Every
-  package root and dependency Build is sponsored. Connect the independent
+  runtime work is its four authored `Build::bind` rows. Unpublished source
+  preparation carries generalized `RootBinding` plans, exact declaration
+  coordinates and authenticated original Build inputs through the common core;
+  its four ordered observations, pause/resume without replay, actual settings
+  readback and foreign/malformed-input refusals are measured. This is not the
+  default package Build route. Forwarded identifier mutation still refuses
+  `InvalidStructuralByteViewFieldStore(OperationId(8))`: the mutable boundary
+  receiver has no portable stored-descriptor effect/lifetime contract.
+  `RetainedBorrow` covers shared inputs returned as structural results, not
+  Unit-return receiver writeback. Carry an authenticated general mutable-slot
+  effect/backing relation through checked admission, boundary declarations,
+  production, provider installation and normal-exit replay. Do not infer slot
+  preservation from the current observation-only adapter, a call name or source
+  custody; later unknown mutable writes remain unknown. Separate current-store
+  origins from output safety while retaining rejection of local backing escaping
+  through borrowed output on a Unit return. Every package root and dependency
+  Build is sponsored. Connect the independent
   `evaluation-accounting` invocation accounts to actual Terminal semantic fuel,
   owned live storage and result custody before allocation or publication;
   preserve aggregate allowances across the package closure and retries. Retained
