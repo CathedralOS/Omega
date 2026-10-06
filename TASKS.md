@@ -2271,61 +2271,77 @@ crash and native exit behavior.
   a failed measurement.
 
 
-- **TERMINAL-SUCCESSOR-CLEANUP-REGRESSED-SEVEN.** (split-of:TERMINAL-EDGE-VALIDATION-REGRESSED-FORTY)
-  Seven of `cfc85e2c592`'s forty regressions remain. **Thirty-three were two
-  producer defects, both lost in the same commit.** `93ef77dfc41` ("compiler:
-  preserve ordered cleanup on selected successors") replaced the successor
-  edge's `result_custody::local_discards` roster with `cleanup::for_exit` over
-  stage 04's whole dying complement when the root and residual lists became one
-  ordered action stream, and **dropped two subtractions** the old route
-  performed. The `@74a22511782` stamp was only where the losses got measured.
-  **This item previously guessed the five successor-argument rows "may predate
-  the batch" -- that was wrong: same batch, same commit, same defect class.**
+- **TERMINAL-SUCCESSOR-CLEANUP-REGRESSED-THREE.** (split-of:TERMINAL-EDGE-VALIDATION-REGRESSED-FORTY)
+  **Three of `cfc85e2c592`'s forty regressions remain.** 37 recovered + 3 still
+  red + 3 that were never losses accounts for all 43 rows the re-pin added.
 
-  **Both were the inverse of the usual lens: the producer was wider than the
-  rule, not the predicate narrower.** `8ed612f5cc6` restored the
-  body-discharged subtraction in `cleanup::for_exit` (29 rows). `d3c790def04`
-  restored the lent-home subtraction in `loan_chains::finish` (5 rows): the
-  lender of an exclusive state-loan chain is **not a chain member**, so `finish`
-  never reached the lender's exits, and the lending edge both carried a
-  `MutableBorrow` of the home *and* emitted `DiscardRoot` of it -- handing out a
-  `&mut` to a root while destroying that root on the same edge.
-  `loan_chains`'s own module header already stated the rule the producer broke
-  ("its home stays in place, members keep their exclusive views, and the chain's
-  ends discard the home"), and `block_views::mutable_records::validate_terminator`
-  was right to refuse ("a loan carried on this edge still needs its home"); the
-  spec sentence is `lifetimes.md`, "transitions may transport references only
-  while their storage outlives the target path". The repair is keyed on the
-  edge's own argument, so a lender that lends on one arm and lets the local die
-  on another keeps the dying arm's disposal, and transferred chain storage (an
-  `Owned` argument that genuinely dies on the moving edge) is untouched.
-  **No firewall twin of either judgment exists** -- both live only in the Psi
-  terminal verifier, confirmed by grep across `omega-rust/omega` and `source/`.
+  **Three producer defects, and the same inversion every time: the producer was
+  wider than the rule, the validator was right.** Two were lost in one commit,
+  `93ef77dfc41` ("compiler: preserve ordered cleanup on selected successors"),
+  which replaced the successor edge's `result_custody::local_discards` roster
+  with `cleanup::for_exit` over stage 04's whole dying complement and dropped
+  two subtractions the old route performed. `8ed612f5cc6` restored the
+  body-discharged subtraction (29 rows). `d3c790def04` restored the lent-home
+  subtraction in `loan_chains::finish` (5 rows): a chain's lender is not a chain
+  member, so `finish` never reached the lender's exits, and the lending edge
+  both carried a `MutableBorrow` of the home and emitted `DiscardRoot` of it.
 
-  All five reach `checked` and run natively at their authored exits (three at
-  70, one at 1, one at 0 with matching stdout); four `regressed-from` tokens
-  dropped through the observed run, and one fixture that had **no** native row
-  gained a true one where `corpus_both_macos_arm64.txt` had been claiming a
-  false green.
+  **The third, `6405e62ce4a`, closed the four native `UnsupportedControlFlow`
+  rows and needed no bisect** -- the diagnostic now carries its own
+  `#[track_caller]` `CompilerCheckSite` (reveal with `OMEGA_COMPILER_CHECK_SITES`),
+  which named one site for all four: the successor-edge `cleanup` closure in
+  Omega stage 02 `lowering/control_flow/terminator.rs`, refusing through
+  `is_suspended_root` ("cleanup cannot discard storage that an outstanding
+  carrier still names"). Stage 04 marks a reference release whose last use is
+  the transition `defer_to_exit`; stage 05 correctly skips emitting it in the
+  body, because the transition condition still reads the carrier; and nothing
+  then scheduled it, so `affine_cleanup::complete` carried the carrier past the
+  owner's death to the machine's `ReturnUnit`. `cleanup::for_exit` now prepends
+  each deferred carrier ahead of the exit's owned roots -- the half
+  `result_custody`'s own comment already promised. The spec sentence is
+  `ownership.md`: "an owner cannot die before cleanup depending on its borrow".
+  A measured alternative was rejected: emitting the release in the body moved
+  all three `calls/` rows to `InvalidReferenceCustody`, a read-after-release.
+  All four meet their authored native outcome -- `exit:181`, a trap, and two
+  `exit:0`.
 
-  The seven remaining split by what actually refuses, none of it edge cleanup:
-  - native `UnsupportedControlFlow` during artifact target lowering (4):
-    `pass/borrows/transition_shared_borrow_result`,
-    `pass/calls/{runtime_guarded_reference_return_crash,
-    runtime_guarded_terminal_mutable_reference_result_exit,
-    runtime_guarded_terminal_reference_result_exit}`.
-  - one each: `pass/borrows/qualified_record_view_call_exit` (cannot prove a
-    default-domain field requirement for a call fill),
-    `pass/recast/runtime_aggregate_slice_representation_recast_exit`
-    (`OwnedStructuralFrontierJoinMismatch`),
-    `pass/recast/runtime_interior_slice_view_mutable_write_exit`
-    (`InvalidNominalAffineCleanup`).
+  **Firewall asymmetry worth knowing, and the opposite of the earlier two
+  cases.** Here the twin is on the **Psi** side, and **Psi's Terminal verifier
+  admitted this module** -- only Omega's artifact lowering refused it. So the
+  Psi twin is *weaker*, not redundantly strict. Repairing the producer made both
+  legs pass; tightening the Psi verifier is a separate, measurable decision and
+  was deliberately not taken.
 
-  Other hosts' goldens still carry two of the five recovered rows as `rejected`
-  (`corpus_native_linux_x86_64.txt`, `corpus_native_windows_x86_64.txt`); the
-  repair is host-neutral but only macOS ARM64 was measurable here, and a row
-  re-recorded from the wrong host is worse than a stale one.
-  Acceptance: the seven reach `checked` and their authored native outcomes,
+  The three remaining are three distinct causes, each diagnosed to a site:
+  - `pass/recast/runtime_aggregate_slice_representation_recast_exit`:
+    `frontier/block_entry.rs::joined_frontier` refuses `BlockId(7)`, whose
+    **five** incoming frontiers agree on references, partial custody and
+    restoration debt but not owned places -- four arrive `{}` and the fifth
+    `{PlaceId(11): Affine}`. One predecessor edge omits a disposal its four
+    siblings perform, or the four perform it early. Next step: identify which.
+  - `pass/recast/runtime_interior_slice_view_mutable_write_exit`:
+    `consume_return_owner_action`'s `_ =>` arm refuses `BlockId(10)`'s return.
+    The expected reverse-producer roster is `[PlaceId(15), PlaceId(14)]` with
+    both owned affine; the module's roster is only `[DiscardRoot(PlaceId(14))]`,
+    so `PlaceId(15)` (the forwarded `&mut [Exact]` view from `OperationId(22)`)
+    has **no disposal at all**. A missing disposal on a *return* roster rather
+    than an ordering fault, reached by state forwarding rather than a deferred
+    release -- so `for_exit` is the wrong lever.
+  - `pass/borrows/qualified_record_view_call_exit`: **design-blocked on
+    `slice-view-element-domain-evidence`** in `OWNER_QUESTIONS.md`.
+    `checks/contracts/nominal_inputs.rs` cannot prove `[u8; N]::Utf8` for
+    `fill`'s `cell.label` because the actual is `&mut view[0]` through
+    `main.cells.as_mut_slice()`, and `candidate_referents_prove_domain`
+    enumerates referents only for a `&mut` local bound from a checked reference
+    result. A slice-view element projection carries no field-domain evidence.
+
+  **Reproduction note for all three:** they need the package-review accept dance
+  (`omega update --offline`, rewrite `decision row ... pending` to `accept` in
+  `build/package-manager/review-macos_arm64.txt`, `omega update --resume
+  --offline`), **redone after every compiler rebuild** because the accepted lock
+  pins the compiler identity. `--check` passes for both `recast/` rows; only
+  `omega run` reproduces them.
+  Acceptance: the three reach `checked` and their authored native outcomes,
   each cleared by an observed corpus result rather than a re-pin.
 
 - **GUARDED-TRANSITION-ARGUMENT-PROOF-REGRESSED.** (new-scope)
