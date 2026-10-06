@@ -11,7 +11,8 @@ use semantic_vocabulary::{
     StructuralFieldId, StructuralTypeId, ValueId,
 };
 use target_operations::{
-    TargetControlBlock, TargetControlGraph, TargetControlTerminator, TargetFunction,
+    TargetCallResult, TargetControlBlock, TargetControlGraph, TargetControlTerminator,
+    TargetFunction, TargetReferenceResult, TargetStructuralHomeRequirement,
     TargetStructuralParameter, TargetUnitOperation, TerminalPsiProvenance,
 };
 use terminal_psi::{
@@ -472,6 +473,36 @@ fn scalar_field_read_source_mut(
         unreachable!()
     };
     source
+}
+
+fn structural_call_reference_results_mut(
+    graph: &mut TargetControlGraph,
+    operation: usize,
+) -> &mut Vec<TargetReferenceResult> {
+    let TargetUnitOperation::Call {
+        result: TargetCallResult::Structural {
+            reference_results, ..
+        },
+        ..
+    } = &mut graph.blocks[0].operations[operation]
+    else {
+        unreachable!()
+    };
+    reference_results
+}
+
+fn structural_call_result_home_mut(
+    graph: &mut TargetControlGraph,
+    operation: usize,
+) -> &mut Option<TargetStructuralHomeRequirement> {
+    let TargetUnitOperation::Call {
+        result: TargetCallResult::Structural { result_home, .. },
+        ..
+    } = &mut graph.blocks[0].operations[operation]
+    else {
+        unreachable!()
+    };
+    result_home
 }
 
 #[test]
@@ -1396,15 +1427,7 @@ fn returned_reference_byte_store_retains_exact_pointer_home_and_candidates() {
         relevance: BindingRelevance::Relevant,
         field_type: StructuralFieldType::Structural(holder_type),
     });
-    let TargetUnitOperation::Call {
-        result: TargetCallResult::Structural {
-            reference_results, ..
-        },
-        ..
-    } = &mut grouped.graph.blocks[0].operations[0]
-    else {
-        unreachable!()
-    };
+    let reference_results = structural_call_reference_results_mut(&mut grouped.graph, 0);
     reference_results[0]
         .root_paths
         .push(vec![StructuralPathSegment::Field("sibling".into())]);
@@ -1414,15 +1437,7 @@ fn returned_reference_byte_store_retains_exact_pointer_home_and_candidates() {
         &grouped
     ));
     assert_reference_field_read_retains_carrier(&function, &grouped, holder_type);
-    let TargetUnitOperation::Call {
-        result: TargetCallResult::Structural {
-            reference_results, ..
-        },
-        ..
-    } = &mut grouped.graph.blocks[0].operations[0]
-    else {
-        unreachable!()
-    };
+    let reference_results = structural_call_reference_results_mut(&mut grouped.graph, 0);
     reference_results[0].root_paths.swap(0, 1);
     assert!(!replacement_retained(
         &function,
@@ -1508,30 +1523,13 @@ fn returned_reference_byte_store_retains_exact_pointer_home_and_candidates() {
         let mut changed_target = target.clone();
         match corruption {
             0 => {
-                let TargetUnitOperation::Call {
-                    result:
-                        TargetCallResult::Structural {
-                            reference_results, ..
-                        },
-                    ..
-                } = &mut changed_target.graph.blocks[0].operations[0]
-                else {
-                    unreachable!()
-                };
-                reference_results[0].root = PlaceId::new(9).unwrap();
+                structural_call_reference_results_mut(&mut changed_target.graph, 0)[0].root =
+                    PlaceId::new(9).unwrap();
             }
             1 => {
-                let TargetUnitOperation::Call {
-                    result:
-                        TargetCallResult::Structural {
-                            reference_results, ..
-                        },
-                    ..
-                } = &mut changed_target.graph.blocks[0].operations[0]
-                else {
-                    unreachable!()
-                };
-                reference_results[0].root_paths[0].clear();
+                structural_call_reference_results_mut(&mut changed_target.graph, 0)[0].root_paths
+                    [0]
+                .clear();
             }
             2 => {
                 let StructuralTypeShape::Reference { access, .. } =
@@ -1550,13 +1548,7 @@ fn returned_reference_byte_store_retains_exact_pointer_home_and_candidates() {
                 path.clear();
             }
             4..=6 => {
-                let TargetUnitOperation::Call {
-                    result: TargetCallResult::Structural { result_home, .. },
-                    ..
-                } = &mut changed_target.graph.blocks[0].operations[0]
-                else {
-                    unreachable!()
-                };
+                let result_home = structural_call_result_home_mut(&mut changed_target.graph, 0);
                 *result_home = Some(TargetStructuralHomeRequirement {
                     origin: TargetStructuralHomeOrigin::OperationResult {
                         operation: if corruption == 5 {
@@ -1601,7 +1593,6 @@ fn assert_reference_field_read_retains_carrier(
     target: &TargetFunction,
     holder_type: StructuralTypeId,
 ) {
-    use target_operations::TargetCallResult;
     use terminal_psi::{StructuralFieldType, StructuralTypeShape};
 
     let mut function = function.clone();
@@ -1671,15 +1662,8 @@ fn assert_reference_field_read_retains_carrier(
                 }
             }
             "producer" => {
-                let TargetUnitOperation::Call {
-                    result:
-                        TargetCallResult::Structural {
-                            result_home: Some(home),
-                            ..
-                        },
-                    ..
-                } = &mut changed.graph.blocks[0].operations[0]
-                else {
+                let result_home = structural_call_result_home_mut(&mut changed.graph, 0);
+                let Some(home) = result_home.as_mut() else {
                     panic!("reference result home");
                 };
                 let target_operations::TargetStructuralHomeOrigin::OperationResult {
