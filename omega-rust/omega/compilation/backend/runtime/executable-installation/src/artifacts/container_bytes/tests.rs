@@ -20,7 +20,6 @@ use crate::artifacts::container::DecodedArtifactContainer;
 use crate::artifacts::container::DecodedArtifactRelocation;
 use crate::artifacts::container::OMEGA_EXECUTABLE_CONTAINER_V1_MARKER;
 use crate::artifacts::container::OMEGA_EXECUTABLE_CONTAINER_V2_MARKER;
-use crate::artifacts::container::normalized_proof_payload_digest;
 use crate::artifacts::container::{
     ValidatedContainerAdmissionEvidence, admit_validated_container,
     non_authoritative_decoded_container_fingerprint,
@@ -37,7 +36,7 @@ use crate::artifacts::container_bytes::{
     ENTRY_RECORD_BYTES, OMEGA_EXECUTABLE_CONTAINER_HEADER_BYTES, OMEGA_EXECUTABLE_CONTAINER_MAGIC,
     OMEGA_EXECUTABLE_CONTAINER_SECTION_RECORD_BYTES, PLACEMENT_RECORD_BYTES, SECTION_CODE,
     SECTION_CONTRACTS, SECTION_ENTRIES, SECTION_FOOTPRINT, SECTION_INFORMATIONAL,
-    SECTION_PLACEMENT, SECTION_PROOF, SECTION_RELOCATIONS, encode_executable_container,
+    SECTION_PLACEMENT, SECTION_RELOCATIONS, encode_executable_container,
     encode_executable_container_v1_compatibility,
     non_authoritative_informational_section_fingerprint,
 };
@@ -75,7 +74,7 @@ fn write_record(destination: &mut [u8], layout: LayoutPlanReport, values: &[(&st
 }
 
 fn canonical_bytes() -> Vec<u8> {
-    let section_count = 7_u64;
+    let section_count = 6_u64;
     let directory_end = OMEGA_EXECUTABLE_CONTAINER_HEADER_BYTES
         + section_count * OMEGA_EXECUTABLE_CONTAINER_SECTION_RECORD_BYTES;
     let code_offset = directory_end;
@@ -84,8 +83,7 @@ fn canonical_bytes() -> Vec<u8> {
     let footprint_offset = contracts_offset + 8;
     let placement_offset = footprint_offset + 8;
     let entries_offset = placement_offset + PLACEMENT_RECORD_BYTES;
-    let proof_offset = entries_offset + ENTRY_RECORD_BYTES;
-    let total_length = proof_offset + 64;
+    let total_length = entries_offset + ENTRY_RECORD_BYTES;
 
     let contracts = MachineContractSetId::from_normalized_identity(3).unwrap();
     let footprint = MachineFootprintId::from_normalized_identity(4).unwrap();
@@ -93,7 +91,6 @@ fn canonical_bytes() -> Vec<u8> {
     let relocation_set = RelocationSetId::from_normalized_identity(6).unwrap();
     let entry_set = EntrySetId::from_normalized_identity(8).unwrap();
     let entry = EntryStubId::from_normalized_identity(9).unwrap();
-    let proof = vec![0xa5; 64];
     let mut decoded = DecodedArtifactContainer {
         format_marker: OMEGA_EXECUTABLE_CONTAINER_V1_MARKER,
         total_length,
@@ -116,8 +113,6 @@ fn canonical_bytes() -> Vec<u8> {
             target: RelocationTarget::Entry(entry),
             addend: -4,
         }],
-        proof_payload: normalized_proof_payload_digest(&proof),
-        proof,
         authority_commitments: None,
         sections: Vec::new(),
     };
@@ -196,7 +191,6 @@ fn canonical_bytes() -> Vec<u8> {
             entries_offset,
             ENTRY_RECORD_BYTES,
         ),
-        (SECTION_PROOF, 1, 0, proof_offset, 64),
     ];
     for (index, (kind, flags, identity, offset, length)) in sections.iter().enumerate() {
         let start = OMEGA_EXECUTABLE_CONTAINER_HEADER_BYTES as usize
@@ -262,11 +256,10 @@ fn canonical_bytes() -> Vec<u8> {
         ],
     );
     write_record(
-        &mut bytes[entries_offset as usize..proof_offset as usize],
+        &mut bytes[entries_offset as usize..],
         entry_layout(),
         &[("identity", 64, 9), ("offset", 64, 16)],
     );
-    bytes[proof_offset as usize..].fill(0xa5);
     bytes
 }
 
@@ -306,7 +299,7 @@ fn strong_artifact() -> Artifact {
 }
 
 fn add_optional_section(mut bytes: Vec<u8>, kind: u16, payload: &[u8]) -> Vec<u8> {
-    let old_section_count = 7_usize;
+    let old_section_count = 6_usize;
     let inserted_directory_offset = OMEGA_EXECUTABLE_CONTAINER_HEADER_BYTES as usize
         + old_section_count * OMEGA_EXECUTABLE_CONTAINER_SECTION_RECORD_BYTES as usize;
     bytes.splice(
@@ -323,7 +316,7 @@ fn add_optional_section(mut bytes: Vec<u8>, kind: u16, payload: &[u8]) -> Vec<u8
     }
     let payload_offset = bytes.len() as u64;
     bytes.extend_from_slice(payload);
-    bytes[14..16].copy_from_slice(&8_u16.to_le_bytes());
+    bytes[14..16].copy_from_slice(&7_u16.to_le_bytes());
     let total_length = bytes.len() as u64;
     bytes[24..32].copy_from_slice(&total_length.to_le_bytes());
     let identity =
@@ -345,16 +338,14 @@ fn add_optional_section(mut bytes: Vec<u8>, kind: u16, payload: &[u8]) -> Vec<u8
 }
 
 #[test]
-fn canonical_encoder_round_trips_the_exact_validated_artifact_and_proof() {
+fn canonical_encoder_round_trips_the_exact_validated_artifact() {
     let canonical = canonical_bytes();
     let source = decode_executable_container(&canonical, limits()).expect("source");
     assert_eq!(source.artifact().code(), &[0x90; 64]);
     assert_eq!(source.artifact().entries()[0].code_offset(), 16);
     assert_eq!(source.relocations()[0].addend, -4);
-    assert_eq!(source.proof(), &[0xa5; 64]);
     let encoded =
-        encode_executable_container_v1_compatibility(source.artifact(), source.proof(), limits())
-            .expect("encode");
+        encode_executable_container_v1_compatibility(source.artifact(), limits()).expect("encode");
     assert_eq!(
         encoded, canonical,
         "container-v1 wire bytes must remain stable"
@@ -368,20 +359,17 @@ fn canonical_encoder_round_trips_the_exact_validated_artifact_and_proof() {
     );
     let decoded = decode_executable_container(&encoded, limits()).expect("round trip");
     assert_eq!(decoded.artifact(), source.artifact());
-    assert_eq!(decoded.proof(), source.proof());
-    assert_eq!(decoded.proof_payload(), source.proof_payload());
 }
 
 #[test]
 fn container_v2_round_trips_strong_authority_commitments() {
     let artifact = strong_artifact();
-    let proof = vec![0xa5; 64];
-    let encoded = encode_executable_container(&artifact, &proof, limits()).expect("encode v2");
+    let encoded = encode_executable_container(&artifact, limits()).expect("encode v2");
     assert_eq!(
         u16::from_le_bytes(encoded[8..10].try_into().unwrap()),
         OMEGA_EXECUTABLE_CONTAINER_V2_MARKER,
     );
-    assert_eq!(u16::from_le_bytes(encoded[14..16].try_into().unwrap()), 8);
+    assert_eq!(u16::from_le_bytes(encoded[14..16].try_into().unwrap()), 7);
 
     let decoded = decode_executable_container(&encoded, limits()).expect("decode v2");
     assert_eq!(decoded.artifact(), &artifact);
@@ -448,8 +436,8 @@ fn payload_gaps_and_unreferenced_trailing_bytes_reject() {
     assert!(error.0.contains("leaves a gap"));
 
     let mut trailing = canonical_bytes();
-    let proof_record = OMEGA_EXECUTABLE_CONTAINER_HEADER_BYTES as usize + 6 * 32;
-    trailing[proof_record + 24..proof_record + 32].copy_from_slice(&63_u64.to_le_bytes());
+    let entries_record = OMEGA_EXECUTABLE_CONTAINER_HEADER_BYTES as usize + 5 * 32;
+    trailing[entries_record + 24..entries_record + 32].copy_from_slice(&15_u64.to_le_bytes());
     let error =
         decode_executable_container(&trailing, limits()).expect_err("unreferenced trailing");
     assert!(error.0.contains("unreferenced bytes"));
@@ -485,8 +473,7 @@ fn malformed_counts_unknown_required_and_identity_drift_reject() {
 #[test]
 fn executable_container_wire_rejects_every_one_field_substitution() {
     let artifact = strong_artifact();
-    let proof = vec![0xa5; 64];
-    let encoded = encode_executable_container(&artifact, &proof, limits()).expect("encode v2");
+    let encoded = encode_executable_container(&artifact, limits()).expect("encode v2");
     let authentic = decode_executable_container(&encoded, limits()).expect("authentic v2");
 
     // Every declared artifact lane substitutes independently through the
@@ -514,12 +501,11 @@ fn executable_container_wire_rejects_every_one_field_substitution() {
                 matches!(verdict, ContainerWireRejection::Construction(_))
             })
         })?;
-        let mutated_bytes =
-            encode_executable_container(&mutated, &proof, limits()).map_err(|error| {
-                classify(&error, |verdict| {
-                    matches!(verdict, ContainerWireRejection::Encoding(_))
-                })
-            })?;
+        let mutated_bytes = encode_executable_container(&mutated, limits()).map_err(|error| {
+            classify(&error, |verdict| {
+                matches!(verdict, ContainerWireRejection::Encoding(_))
+            })
+        })?;
         assert_ne!(
             mutated, artifact,
             "the substitution must change the artifact"
@@ -564,13 +550,8 @@ fn executable_container_wire_rejects_every_one_field_substitution() {
         joined_replay: Some(&joined_replay),
     });
 
-    // The encoder's own arguments are not artifact lanes: an empty proof and
-    // a version-1 encoding of strong commitments reject before any container
-    // exists.
-    let error = encode_executable_container(&artifact, &[], limits())
-        .expect_err("an empty proof section must reject at encoding");
-    assert!(error.0.contains("proof section cannot be empty"));
-    let error = encode_executable_container_v1_compatibility(&artifact, &proof, limits())
+    // A version-1 encoding of strong commitments rejects before any container exists.
+    let error = encode_executable_container_v1_compatibility(&artifact, limits())
         .expect_err("v1 encoding cannot discard strong commitments");
     assert!(
         error
@@ -584,7 +565,7 @@ fn executable_container_wire_rejects_every_one_field_substitution() {
     // decoder alone.
     let mut donor = ArtifactSeed::from(&artifact);
     donor.identity = ArtifactId::from_normalized_identity(2).expect("artifact identity");
-    let donor = encode_executable_container(&donor.into_artifact(), &proof, limits())
+    let donor = encode_executable_container(&donor.into_artifact(), limits())
         .expect("foreign container encodes");
     run_one_field_substitution_matrix(&OneFieldSubstitutionMatrix {
         family: "executable container wire bytes",

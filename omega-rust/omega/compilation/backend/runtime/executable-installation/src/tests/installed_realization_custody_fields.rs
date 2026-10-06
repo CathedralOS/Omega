@@ -15,10 +15,8 @@
 //! test names explicitly rather than declaring here.
 
 use super::{RealizationSpec, authentic_spec, spec_constraints};
-use crate::artifacts::container::{
-    ArtifactRelocationKind, DecodedArtifactRelocation, normalized_proof_payload_digest,
-};
-use crate::artifacts::{InstallationAudience, RetainedContainerProof};
+use crate::artifacts::InstallationAudience;
+use crate::artifacts::container::{ArtifactRelocationKind, DecodedArtifactRelocation};
 use crate::installation::WxEnforcement;
 use crate::test_support::entry_id;
 use layout_plans::{PlacementPhase, RelocationTarget};
@@ -37,9 +35,6 @@ optimization_core::custody_field_inventory! {
         ArtifactEntryCodeOffset,
         ArtifactRelocationRoster,
         AdmissionReceipt,
-        ContainerProofDropped,
-        ContainerProofDigest,
-        ContainerProofBytes,
         InstalledIdentity,
         PlacementIdentity,
         InstallationScope,
@@ -114,19 +109,6 @@ pub fn substitute_installed_realization_for_test(
             spec.resolve = |_| Some(0x9000);
         }
         Leg::AdmissionReceipt => spec.admission_receipt = 41,
-        Leg::ContainerProofDropped => spec.container_proof = None,
-        Leg::ContainerProofDigest => {
-            spec.container_proof = Some(RetainedContainerProof {
-                digest: normalized_proof_payload_digest(b"forged proof payload"),
-                bytes: b"container proof payload".to_vec(),
-            });
-        }
-        Leg::ContainerProofBytes => {
-            spec.container_proof = Some(RetainedContainerProof {
-                digest: normalized_proof_payload_digest(b"container proof payload"),
-                bytes: b"forged proof payload".to_vec(),
-            });
-        }
         Leg::InstalledIdentity => spec.installed = 282,
         Leg::PlacementIdentity => spec.placement = donor.placement,
         // A scope the plan never recorded must restate both the authority's

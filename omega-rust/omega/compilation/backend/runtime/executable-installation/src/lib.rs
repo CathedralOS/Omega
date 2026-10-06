@@ -36,7 +36,7 @@ pub use artifacts::container::{
     OMEGA_EXECUTABLE_CONTAINER_V1_MARKER, OMEGA_EXECUTABLE_CONTAINER_V2_MARKER,
     ValidatedArtifactContainer, ValidatedContainerAdmissionEvidence, admit_validated_container,
     non_authoritative_decoded_container_fingerprint, normalized_decoded_content_digest,
-    normalized_proof_payload_digest, validate_decoded_container,
+    validate_decoded_container,
 };
 pub use artifacts::container_bytes::{
     OMEGA_EXECUTABLE_CONTAINER_HEADER_BYTES, OMEGA_EXECUTABLE_CONTAINER_MAGIC,
@@ -55,8 +55,7 @@ pub use authority_digests::{
     InstallationScopeId, InstalledCodeId, MachineContractSetId, MachineFootprintId,
     MachineRegimeDigest, MappingQuarantineId, NonAuthoritativeContainerFingerprint64,
     NonAuthoritativeInformationalFingerprint64, NonAuthoritativeWriterContextFingerprint64,
-    PlacementPlanId, ProofPayloadDigest, RelocationSetId, ReplacementFactDigest,
-    RetirementFactDigest,
+    PlacementPlanId, RelocationSetId, ReplacementFactDigest, RetirementFactDigest,
 };
 pub use entry_references::{
     EntryReferenceAuthority, EntryReferenceError, EntryReferenceReceipt, InstalledEntryReference,

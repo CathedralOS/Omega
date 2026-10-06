@@ -3,7 +3,7 @@
 use crate::artifacts::Artifact;
 use crate::artifacts::container::{
     ArtifactRelocationKind, ContainerLimits, OMEGA_EXECUTABLE_CONTAINER_V1_MARKER,
-    OMEGA_EXECUTABLE_CONTAINER_V2_MARKER, normalized_proof_payload_digest,
+    OMEGA_EXECUTABLE_CONTAINER_V2_MARKER,
 };
 use crate::artifacts::container_bytes::decoding::checked_slice_mut;
 use crate::artifacts::container_bytes::decoding::decode_executable_container;
@@ -16,7 +16,7 @@ use crate::artifacts::container_bytes::{
     OMEGA_EXECUTABLE_CONTAINER_MAGIC, OMEGA_EXECUTABLE_CONTAINER_SECTION_RECORD_BYTES,
     PLACEMENT_RECORD_BYTES, RELOCATION_COUNT_BYTES, RELOCATION_RECORD_BYTES,
     SECTION_AUTHORITY_COMMITMENTS, SECTION_CODE, SECTION_CONTRACTS, SECTION_ENTRIES,
-    SECTION_FOOTPRINT, SECTION_PLACEMENT, SECTION_PROOF, SECTION_RELOCATIONS,
+    SECTION_FOOTPRINT, SECTION_PLACEMENT, SECTION_RELOCATIONS,
 };
 use crate::installation::InstallationDiagnostic;
 use layout_plans::RelocationTarget;
@@ -27,15 +27,9 @@ use target::Architecture;
 
 pub(crate) fn encode_executable_container_version(
     artifact: &Artifact,
-    proof: &[u8],
     limits: ContainerLimits,
     strong_authority: bool,
 ) -> Result<Vec<u8>, InstallationDiagnostic> {
-    if proof.is_empty() {
-        return Err(InstallationDiagnostic(
-            "artifact proof section cannot be empty".into(),
-        ));
-    }
     match (strong_authority, artifact.0.authority_commitments) {
         (true, None) => {
             return Err(InstallationDiagnostic(
@@ -50,7 +44,7 @@ pub(crate) fn encode_executable_container_version(
         }
         _ => {}
     }
-    let section_count = if strong_authority { 8_u64 } else { 7_u64 };
+    let section_count = if strong_authority { 7_u64 } else { 6_u64 };
     if limits.max_sections < section_count as usize {
         return Err(InstallationDiagnostic(format!(
             "canonical executable container needs {section_count} sections, configured bound is {}",
@@ -88,9 +82,6 @@ pub(crate) fn encode_executable_container_version(
     let entry_length = (artifact.0.entries.len() as u64)
         .checked_mul(ENTRY_RECORD_BYTES)
         .ok_or_else(|| InstallationDiagnostic("artifact entry payload length overflows".into()))?;
-    let proof_length = u64::try_from(proof.len())
-        .map_err(|_| InstallationDiagnostic("artifact proof length is not representable".into()))?;
-
     let mut payload_lengths = vec![
         artifact.0.byte_length,
         relocation_length,
@@ -98,7 +89,6 @@ pub(crate) fn encode_executable_container_version(
         8,
         PLACEMENT_RECORD_BYTES,
         entry_length,
-        proof_length,
     ];
     if strong_authority {
         payload_lengths.push(AUTHORITY_COMMITMENT_BYTES);
@@ -181,7 +171,6 @@ pub(crate) fn encode_executable_container_version(
         "container header",
     )?;
 
-    let proof_digest = normalized_proof_payload_digest(proof);
     let mut sections = vec![
         (SECTION_CODE, 1, 0, offsets[0], payload_lengths[0]),
         (
@@ -219,15 +208,14 @@ pub(crate) fn encode_executable_container_version(
             offsets[5],
             payload_lengths[5],
         ),
-        (SECTION_PROOF, 1, 0, offsets[6], payload_lengths[6]),
     ];
     if strong_authority {
         sections.push((
             SECTION_AUTHORITY_COMMITMENTS,
             1,
             0,
-            offsets[7],
-            payload_lengths[7],
+            offsets[6],
+            payload_lengths[6],
         ));
     }
     for (index, (kind, flags, identity, offset, length)) in sections.iter().enumerate() {
@@ -386,18 +374,11 @@ pub(crate) fn encode_executable_container_version(
             "artifact entry record",
         )?;
     }
-    checked_slice_mut(
-        &mut bytes,
-        offsets[6],
-        payload_lengths[6],
-        "artifact proof section",
-    )?
-    .copy_from_slice(proof);
     if let Some(commitments) = artifact.0.authority_commitments {
         let authority = checked_slice_mut(
             &mut bytes,
-            offsets[7],
-            payload_lengths[7],
+            offsets[6],
+            payload_lengths[6],
             "artifact authority-commitment section",
         )?;
         authority[..32].copy_from_slice(commitments.imported_contracts().as_bytes());
@@ -407,10 +388,7 @@ pub(crate) fn encode_executable_container_version(
     }
 
     let checked = decode_executable_container(&bytes, limits)?;
-    if checked.artifact() != artifact
-        || checked.proof_payload() != proof_digest
-        || checked.proof() != proof
-    {
+    if checked.artifact() != artifact {
         return Err(InstallationDiagnostic(
             "canonical executable-container encoder self-check disagrees with its input".into(),
         ));

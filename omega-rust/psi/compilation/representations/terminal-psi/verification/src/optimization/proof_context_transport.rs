@@ -16,7 +16,6 @@ use crate::{
     ReconstructedTerminalObligationSet, reconstruct_optimizable_terminal_obligations,
     validate_module_for_optimization, verify_module_for_optimization,
 };
-use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{Proposition, ScalarTerm, ValueId};
 use std::collections::BTreeMap;
 use terminal_psi::{EvidenceRoute, ProofBundle, ProofNode, ProofRule, TerminalModule};
@@ -72,7 +71,7 @@ pub(super) fn transport(
     if !questions_match(&old, &new, substitutions) {
         return None;
     }
-    verify_module_for_optimization(before, proof, &AdmissionProfile::default()).ok()?;
+    verify_module_for_optimization(before, proof).ok()?;
     let mut transported = proof.clone();
     for evidence in &mut transported.evidence {
         let old_question = old
@@ -104,7 +103,7 @@ pub(super) fn transport(
     // Recursive components, cycle witnesses, admission records, and crash rows
     // remain exact. Their own replay is the refusal boundary if an incidental
     // removed definition changed a context they consume.
-    verify_module_for_optimization(after, &transported, &AdmissionProfile::default()).ok()?;
+    verify_module_for_optimization(after, &transported).ok()?;
     Some(transported)
 }
 

@@ -61,8 +61,8 @@ use arena::HandleSpan;
 use numerics::bignum::BigInt;
 use proof_admission::IntegerAffineWitness;
 use proof_admission::{
-    AcceptedFact, AdmissionProfile, CertificateEnvelope, EvidenceError, EvidenceRoute, Obligation,
-    ObligationClass, PrimitiveJudgment, ProofNode, ProofRule, ProofSystemMarker, verify_obligation,
+    AcceptedFact, CertificateEnvelope, EvidenceError, EvidenceRoute, Obligation, ObligationClass,
+    PrimitiveJudgment, ProofNode, ProofRule, ProofSystemMarker, verify_obligation,
 };
 use semantic_vocabulary::{
     EvidenceIdentity, IntegerMathLiteral, IntegerMathTerm, IntegerSign, IntegerType, IntegerValue,
@@ -124,7 +124,6 @@ impl BoundedValueCertificate {
             &self.assumptions,
             &[],
             EvidenceRoute::CertificateDerived(self.envelope.clone()),
-            &AdmissionProfile::default(),
         )
     }
 }

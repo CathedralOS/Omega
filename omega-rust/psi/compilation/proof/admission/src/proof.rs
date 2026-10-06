@@ -1806,10 +1806,10 @@ mod tests {
     #[test]
     fn recursive_component_preserves_exact_machine_parameter_scope() {
         use crate::{
-            AdmissionProfile, CertificateEnvelope, CertificateObligation, EvidenceRoute,
-            Obligation, ObligationClass, RecursiveComponentCertificate,
-            RecursiveComponentObligation, RecursiveEdgeCertificate, RecursiveEdgeObligation,
-            verify_recursive_component, verify_recursive_component_with_machine_parameters,
+            CertificateEnvelope, CertificateObligation, EvidenceRoute, Obligation, ObligationClass,
+            RecursiveComponentCertificate, RecursiveComponentObligation, RecursiveEdgeCertificate,
+            RecursiveEdgeObligation, verify_recursive_component,
+            verify_recursive_component_with_machine_parameters,
         };
         use semantic_vocabulary::{BlockId, EvidenceIdentity, ObligationId, RankingRelationId};
 
@@ -1852,26 +1852,20 @@ mod tests {
                 evidence: route,
             }],
         };
-        let profile = AdmissionProfile::default();
         verify_recursive_component_with_machine_parameters(
             &context,
             &component,
             &parameters,
             certificate.clone(),
-            &profile,
         )
         .expect("actual invocation parameter supports the reconstructed proof");
-        assert!(
-            verify_recursive_component(&context, &component, certificate.clone(), &profile,)
-                .is_err()
-        );
+        assert!(verify_recursive_component(&context, &component, certificate.clone()).is_err());
         assert!(
             verify_recursive_component_with_machine_parameters(
                 &context,
                 &component,
                 &BTreeSet::from([ValueId::new(101).unwrap()]),
                 certificate,
-                &profile,
             )
             .is_err(),
             "a loop-local value cannot replace the invocation parameter"

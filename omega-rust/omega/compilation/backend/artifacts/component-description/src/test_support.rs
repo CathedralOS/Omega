@@ -21,9 +21,8 @@ use terminal_psi::{
 };
 
 use crate::{
-    AdmissionProfile, COMPONENT_DESCRIPTION_SCHEMA_V2, ComponentDescriptionFacts,
-    ComponentVerificationRequest, VerifiedComponent, describe_component_facts,
-    encode_component_description, verify_component,
+    COMPONENT_DESCRIPTION_SCHEMA_V2, ComponentDescriptionFacts, ComponentVerificationRequest,
+    VerifiedComponent, describe_component_facts, encode_component_description, verify_component,
 };
 
 fn machine_id(raw: u64) -> MachineId {
@@ -186,9 +185,8 @@ pub fn describe_module(module: &TerminalModule) -> Vec<u8> {
     let proof = terminal_psi::ProofBundle::default();
     let record = terminal_codec::build_identity_optimization_execution_record(module)
         .expect("identity optimization record");
-    let artifact =
-        terminal_codec::CanonicalTerminalArtifact::from_parts(module, &record, None)
-            .expect("canonical artifact");
+    let artifact = terminal_codec::CanonicalTerminalArtifact::from_parts(module, &record, None)
+        .expect("canonical artifact");
     let selected = SelectedProviderPlanFacts::from_selected_plans(Vec::new())
         .expect("a provider component seals no requirement of its own");
     let description = describe_component_facts(ComponentDescriptionFacts {
@@ -211,7 +209,6 @@ pub fn verified_component(module: &TerminalModule) -> VerifiedComponent {
         expected_subject: module_subject(module),
         accepted_schemas: BTreeSet::from([COMPONENT_DESCRIPTION_SCHEMA_V2]),
         accepted_assumptions: BTreeSet::new(),
-        admission_profile: AdmissionProfile::default(),
     };
     verify_component(&describe_module(module), &request).expect("the component verifies")
 }

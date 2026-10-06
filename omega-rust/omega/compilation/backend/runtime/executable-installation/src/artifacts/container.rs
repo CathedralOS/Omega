@@ -1,13 +1,11 @@
 use sha2::Digest;
 
-use crate::artifacts::RetainedContainerProof;
 use crate::artifacts::{AdmittedArtifact, Artifact, ArtifactAdmissionEvidence, ArtifactEntry};
 use crate::authority_digests::ArtifactAuthorityCommitments;
 use crate::authority_digests::{
     AdmissionReceiptId, ArtifactContentDigest, ArtifactId, EntrySetId, MachineContractSetId,
     MachineFootprintId, NonAuthoritativeContainerFingerprint64,
-    NonAuthoritativeInformationalFingerprint64, PlacementPlanId, ProofPayloadDigest,
-    RelocationSetId,
+    NonAuthoritativeInformationalFingerprint64, PlacementPlanId, RelocationSetId,
 };
 use crate::executable_installation::admit_executable;
 use crate::installation::InstallationDiagnostic;
@@ -20,14 +18,6 @@ pub const OMEGA_EXECUTABLE_CONTAINER_MARKER: u16 = OMEGA_EXECUTABLE_CONTAINER_V2
 const CANONICAL_ENTRY_RECORD_BYTES: u64 = 16;
 const CANONICAL_RELOCATION_COUNT_BYTES: u64 = 8;
 const CANONICAL_RELOCATION_RECORD_BYTES: u64 = 32;
-
-pub fn normalized_proof_payload_digest(proof: &[u8]) -> ProofPayloadDigest {
-    let mut digest = Sha256::new();
-    digest.update(b"omega.proof-payload.sha256.v1\0");
-    digest.update((proof.len() as u64).to_le_bytes());
-    digest.update(proof);
-    ProofPayloadDigest::from_digest(digest.finalize().into())
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ContainerLimits {
@@ -52,7 +42,6 @@ pub enum ContainerSectionKind {
     Footprint(MachineFootprintId),
     Placement(PlacementPlanId),
     Entries(EntrySetId),
-    Proof(ProofPayloadDigest),
     AuthorityCommitments(ArtifactAuthorityCommitments),
     Informational(NonAuthoritativeInformationalFingerprint64),
     /// An unrecognized optional section is informational by definition. It
@@ -140,10 +129,6 @@ pub struct DecodedArtifactContainer {
     pub entries: Vec<ArtifactEntry>,
     pub relocation_set: RelocationSetId,
     pub relocations: Vec<DecodedArtifactRelocation>,
-    pub proof_payload: ProofPayloadDigest,
-    /// Exact identity-invisible proof bytes. Admission binds these bytes even
-    /// though executable-content identity deliberately excludes them.
-    pub proof: Vec<u8>,
     /// Present only for container v2. Version 1 remains decodable for tooling
     /// compatibility but cannot produce admission evidence.
     pub authority_commitments: Option<ArtifactAuthorityCommitments>,
@@ -153,8 +138,6 @@ pub struct DecodedArtifactContainer {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValidatedArtifactContainer {
     artifact: Artifact,
-    proof_payload: ProofPayloadDigest,
-    proof: Vec<u8>,
     informational_sections: Vec<NonAuthoritativeInformationalFingerprint64>,
     unknown_informational_sections: Vec<u64>,
 }
@@ -174,14 +157,6 @@ impl ValidatedArtifactContainer {
         self.artifact.relocations()
     }
 
-    pub const fn proof_payload(&self) -> ProofPayloadDigest {
-        self.proof_payload
-    }
-
-    pub fn proof(&self) -> &[u8] {
-        &self.proof
-    }
-
     pub fn informational_sections(&self) -> &[NonAuthoritativeInformationalFingerprint64] {
         &self.informational_sections
     }
@@ -192,14 +167,12 @@ impl ValidatedArtifactContainer {
 }
 
 /// Validator-authored admission evidence bound to one exact checked container,
-/// including its identity-invisible proof payload. Informational sections are
-/// deliberately absent because they carry no admission authority.
+/// Informational sections are deliberately absent because they carry no
+/// admission authority.
 #[derive(Debug, PartialEq, Eq)]
 pub struct ValidatedContainerAdmissionEvidence {
     receipt: AdmissionReceiptId,
     artifact: Artifact,
-    proof_payload: ProofPayloadDigest,
-    proof: Vec<u8>,
     accepted: bool,
 }
 
@@ -212,49 +185,30 @@ impl ValidatedContainerAdmissionEvidence {
         Self {
             receipt,
             artifact: container.artifact.clone(),
-            proof_payload: container.proof_payload,
-            proof: container.proof.clone(),
             accepted,
         }
     }
 }
 
 /// Establishes the reusable executable qualification only from acceptance
-/// evidence for this exact checked container and proof payload. The verifier
-/// remains provider/PCC infrastructure; this gate prevents substitution or
-/// replay across its normalized input.
+/// evidence for this exact checked container.
 pub fn admit_validated_container(
     container: &ValidatedArtifactContainer,
     evidence: ValidatedContainerAdmissionEvidence,
 ) -> Result<AdmittedArtifact, InstallationDiagnostic> {
-    if evidence.proof_payload != container.proof_payload {
-        return Err(InstallationDiagnostic(
-            "artifact admission evidence names a different proof payload".into(),
-        ));
-    }
-    if evidence.proof != container.proof {
-        return Err(InstallationDiagnostic(
-            "artifact admission evidence names different exact proof bytes".into(),
-        ));
-    }
     if evidence.artifact != container.artifact {
         return Err(InstallationDiagnostic(
             "artifact admission evidence names a different validated container".into(),
         ));
     }
-    let mut admitted = admit_executable(
+    admit_executable(
         &container.artifact,
         ArtifactAdmissionEvidence::from_validator(
             evidence.receipt,
             &evidence.artifact,
             evidence.accepted,
         ),
-    )?;
-    admitted.container_proof = Some(RetainedContainerProof {
-        digest: container.proof_payload,
-        bytes: container.proof.clone(),
-    });
-    Ok(admitted)
+    )
 }
 
 pub fn validate_decoded_container(
@@ -304,12 +258,6 @@ pub fn validate_decoded_container(
             decoded.code_length
         )));
     }
-    if decoded.proof_payload != normalized_proof_payload_digest(&decoded.proof) {
-        return Err(InstallationDiagnostic(
-            "proof-payload identity does not match the exact proof bytes".into(),
-        ));
-    }
-
     let mut ranges = Vec::with_capacity(decoded.sections.len());
     let mut code = 0;
     let mut relocations = 0;
@@ -317,7 +265,6 @@ pub fn validate_decoded_container(
     let mut footprint = 0;
     let mut placement = 0;
     let mut entries = 0;
-    let mut proof = 0;
     let mut authority_commitments = 0;
     let mut informational = Vec::new();
     let mut unknown_informational = Vec::new();
@@ -404,15 +351,6 @@ pub fn validate_decoded_container(
                     )));
                 }
             }
-            ContainerSectionKind::Proof(identity) => {
-                proof += 1;
-                require_identity("proof", identity, decoded.proof_payload)?;
-                if section.length != decoded.proof.len() as u64 {
-                    return Err(InstallationDiagnostic(
-                        "proof section length does not match exact decoded proof bytes".into(),
-                    ));
-                }
-            }
             ContainerSectionKind::AuthorityCommitments(commitments) => {
                 authority_commitments += 1;
                 if Some(commitments) != decoded.authority_commitments {
@@ -454,7 +392,6 @@ pub fn validate_decoded_container(
         ("footprint", footprint),
         ("placement", placement),
         ("entry-set", entries),
-        ("proof", proof),
     ] {
         if count != 1 {
             return Err(InstallationDiagnostic(format!(
@@ -537,16 +474,14 @@ pub fn validate_decoded_container(
     };
     Ok(ValidatedArtifactContainer {
         artifact,
-        proof_payload: decoded.proof_payload,
-        proof: decoded.proof,
         informational_sections: informational,
         unknown_informational_sections: unknown_informational,
     })
 }
 
 /// Derive the normalizer-owned executable-content identity for one checked
-/// schema decode. Container byte order, section order, proof payloads, and
-/// informational sections do not participate; executable bytes and every
+/// schema decode. Container byte order, section order, and informational
+/// sections do not participate; executable bytes and every
 /// published semantic commitment do.
 pub fn normalized_decoded_content_digest(
     decoded: &DecodedArtifactContainer,

@@ -360,14 +360,6 @@ fn installed_artifact_occurrence_digest(
             .to_le_bytes(),
     );
     digest.update(admitted.admission.normalized_identity().to_le_bytes());
-    match &admitted.container_proof {
-        Some(proof) => {
-            digest.update([1]);
-            digest.update(proof.digest.digest());
-            bytes(&mut digest, &proof.bytes);
-        }
-        None => digest.update([0]),
-    }
     digest.update(evidence.installed.normalized_identity().to_le_bytes());
     digest.update(validated.placement.normalized_identity().to_le_bytes());
     digest.update(validated.scope.normalized_identity().to_le_bytes());

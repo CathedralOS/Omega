@@ -42,10 +42,10 @@ Follow the subordinate protocols as needed:
   so freeing cannot outrun the retirement that proved the mapping
   unreachable.
 
-Keep exact bytes, relocation/proof payload, placement lineage, final-byte
+Keep exact bytes, relocation payload, placement lineage, final-byte
 snapshot, footprint, audience, and provider receipts behind report identities.
-Content, proof, and final-byte digest domains are separate. Container-v1 compact
-content values do not replace those acceptance premises.
+Content and final-byte digest domains are separate. Container-v1 compact content
+values do not replace those acceptance premises.
 
 The compiler's frozen text plus immutable dynamic-conformance-table consumer
 does not establish a mutable-data or BSS installation model: its section gap is
@@ -59,9 +59,9 @@ those operations. [TASKS.md](../../../../../../TASKS.md) owns unfinished work.
 ## Native container codec
 
 `container_bytes.rs` owns the little-endian `OMEGAXE!` codec: a 64-byte header,
-32-byte section-directory records, opaque code/proof spans, 16-byte entry rows,
+32-byte section-directory records, opaque code spans, 16-byte entry rows,
 32-byte relocation rows, and a 64-byte placement record. The ordinary encoder
-emits version 2 with eight required semantic sections, including four separate
+emits version 2 with seven required semantic sections, including four separate
 strong authority commitments (contracts, footprint, regime, installation scope).
 Version-1 compatibility encoding is retained separately; those candidates cannot
 pass executable admission.
@@ -75,13 +75,12 @@ bytes rather than trusted from the directory. The encoder validates its own
 completed output through the hostile-input decoder before returning it.
 
 Normalized content identity includes exact code, architecture, contracts,
-footprint, placement, entries, and canonical relocations. Proof bytes have a
-separate strong identity. All four imported-authority commitments participate
+footprint, placement, entries, and canonical relocations. All four
+imported-authority commitments participate
 in admission, materialization, and final-byte identity; fixed compact report
 values cannot hide changed evidence. Signed relocation addends remain retained,
 and shared relocation kinds do not permit architecture substitution.
 
-The artifact writer accepts a normalized artifact and exact proof payload, not
-an arbitrary final native-image buffer, and installs the encoded file atomically.
-This packaging seam is not a complete compiler-to-container evidence translator
-or independent PCC verifier. Firmware envelopes are separate from this format.
+The artifact writer accepts a normalized artifact, not an arbitrary final
+native-image buffer, and installs the encoded file atomically. Firmware
+envelopes are separate from this format.

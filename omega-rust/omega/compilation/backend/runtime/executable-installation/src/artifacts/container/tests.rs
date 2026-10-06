@@ -17,7 +17,7 @@ use crate::artifacts::container::{
     DecodedArtifactContainer, DecodedArtifactRelocation, OMEGA_EXECUTABLE_CONTAINER_MARKER,
     ValidatedArtifactContainer, ValidatedContainerAdmissionEvidence, admit_validated_container,
     non_authoritative_decoded_container_fingerprint, normalized_decoded_content_digest,
-    normalized_proof_payload_digest, validate_decoded_container,
+    validate_decoded_container,
 };
 use crate::authority_digests::ArtifactAuthorityCommitments;
 use crate::authority_digests::{
@@ -49,8 +49,6 @@ fn decoded() -> DecodedArtifactContainer {
     let footprint = id(4, MachineFootprintId::from_normalized_identity);
     let placement = id(5, PlacementPlanId::from_normalized_identity);
     let relocations = id(6, RelocationSetId::from_normalized_identity);
-    let proof_bytes = vec![0xa5; 64];
-    let proof = normalized_proof_payload_digest(&proof_bytes);
     let entry_set = id(8, EntrySetId::from_normalized_identity);
     let entry = EntryStubId::from_normalized_identity(9).expect("entry identity");
     let authority_commitments = ArtifactAuthorityCommitments::from_canonical_evidence(
@@ -63,7 +61,7 @@ fn decoded() -> DecodedArtifactContainer {
     );
     let mut decoded = DecodedArtifactContainer {
         format_marker: OMEGA_EXECUTABLE_CONTAINER_MARKER,
-        total_length: 576,
+        total_length: 512,
         artifact: id(1, ArtifactId::from_normalized_identity),
         content_fingerprint: NonAuthoritativeContainerFingerprint64::from_compatibility_value(2)
             .unwrap(),
@@ -85,8 +83,6 @@ fn decoded() -> DecodedArtifactContainer {
             target: RelocationTarget::Entry(entry),
             addend: -4,
         }],
-        proof_payload: proof,
-        proof: proof_bytes,
         authority_commitments: Some(authority_commitments),
         sections: vec![
             ContainerSection {
@@ -120,13 +116,8 @@ fn decoded() -> DecodedArtifactContainer {
                 length: 16,
             },
             ContainerSection {
-                kind: ContainerSectionKind::Proof(proof),
-                offset: 384,
-                length: 64,
-            },
-            ContainerSection {
                 kind: ContainerSectionKind::AuthorityCommitments(authority_commitments),
-                offset: 448,
+                offset: 384,
                 length: 128,
             },
         ],
@@ -144,7 +135,6 @@ fn canonical_bounded_container_produces_only_an_artifact_candidate() {
     assert_eq!(container.artifact().architecture(), Architecture::X86_64);
     assert_eq!(container.artifact().byte_length(), 64);
     assert_eq!(container.artifact().code(), &[0x90; 64]);
-    assert_eq!(container.proof(), &[0xa5; 64]);
     assert_eq!(container.artifact().entries().len(), 1);
     assert_eq!(container.artifact().entries()[0].identity(), entry);
     assert_eq!(container.artifact().entries()[0].code_offset(), 16);
@@ -164,14 +154,14 @@ fn canonical_bounded_container_produces_only_an_artifact_candidate() {
 }
 
 #[test]
-fn validated_container_admission_binds_the_exact_proof_payload() {
+fn validated_container_admission_binds_the_exact_artifact() {
     let container = validate_decoded_container(decoded(), limits()).expect("container");
     let evidence = ValidatedContainerAdmissionEvidence::from_validator(
         id(70, AdmissionReceiptId::from_normalized_identity),
         &container,
         true,
     );
-    let admitted = admit_validated_container(&container, evidence).expect("exact proof admission");
+    let admitted = admit_validated_container(&container, evidence).expect("exact admission");
     assert_eq!(
         admitted.artifact().identity(),
         container.artifact().identity()
@@ -180,42 +170,6 @@ fn validated_container_admission_binds_the_exact_proof_payload() {
         admitted.admission(),
         id(70, AdmissionReceiptId::from_normalized_identity)
     );
-    let retained = admitted
-        .container_proof
-        .as_ref()
-        .expect("validated-container admission retains proof custody");
-    assert_eq!(retained.digest, container.proof_payload());
-    assert_eq!(retained.bytes, container.proof());
-
-    let mut changed = decoded();
-    changed.proof[0] ^= 1;
-    changed.proof_payload = normalized_proof_payload_digest(&changed.proof);
-    changed.sections[6].kind = ContainerSectionKind::Proof(changed.proof_payload);
-    let changed = validate_decoded_container(changed, limits()).expect("changed proof");
-    let replay = ValidatedContainerAdmissionEvidence::from_validator(
-        id(71, AdmissionReceiptId::from_normalized_identity),
-        &changed,
-        true,
-    );
-    let error = admit_validated_container(&container, replay)
-        .expect_err("acceptance for another proof payload must not replay");
-    assert!(error.0.contains("different proof payload"));
-
-    let changed_bytes = changed;
-    assert_eq!(
-        changed_bytes.artifact().content(),
-        container.artifact().content(),
-        "proof evidence remains outside executable promise identity"
-    );
-    let mut replay = ValidatedContainerAdmissionEvidence::from_validator(
-        id(72, AdmissionReceiptId::from_normalized_identity),
-        &changed_bytes,
-        true,
-    );
-    replay.proof_payload = container.proof_payload;
-    let error = admit_validated_container(&container, replay)
-        .expect_err("acceptance for different proof bytes must not replay");
-    assert!(error.0.contains("different exact proof bytes"));
 }
 
 #[test]
@@ -292,11 +246,6 @@ fn duplicate_missing_overlapping_and_out_of_bounds_sections_reject() {
     });
     let error = validate_decoded_container(duplicate, limits()).expect_err("duplicate code");
     assert!(error.0.contains("exactly one code"));
-
-    let mut missing = decoded();
-    missing.sections.remove(6);
-    let error = validate_decoded_container(missing, limits()).expect_err("missing proof");
-    assert!(error.0.contains("exactly one proof"));
 
     let mut overlapping = decoded();
     overlapping.sections[1].offset = 32;
@@ -427,13 +376,6 @@ fn content_identity_binds_code_and_normalized_semantics_not_evidence() {
     let validated =
         validate_decoded_container(reordered, limits()).expect("entry order normalizes");
     assert_eq!(validated.artifact().content(), two_entry_identity);
-
-    let mut changed_proof = decoded();
-    changed_proof.proof[0] ^= 1;
-    changed_proof.proof_payload = normalized_proof_payload_digest(&changed_proof.proof);
-    changed_proof.sections[6].kind = ContainerSectionKind::Proof(changed_proof.proof_payload);
-    let validated = validate_decoded_container(changed_proof, limits()).expect("proof is evidence");
-    assert_eq!(validated.artifact().content(), baseline_identity);
 }
 
 /// Honestly recompute the containing compatibility fingerprint over a mutated
@@ -448,7 +390,7 @@ fn reidentified(mut changed: DecodedArtifactContainer) -> ValidatedArtifactConta
 
 /// Every declared lane of the `DecodedArtifactContainer` record — the claimed
 /// artifact identity, content and placement axes, entry and relocation
-/// rosters, the strong authority commitments, the exact proof payload, the
+/// rosters, the strong authority commitments, the
 /// envelope directory axes canonicalization erases, and the roster-order axes
 /// canonicalization sorts — is substituted independently through the shared
 /// `run_one_field_substitution_matrix` driver. The inventory lives in
@@ -504,15 +446,6 @@ fn executable_container_rejects_every_one_field_substitution() {
                     substituted.artifact().content(),
                     authentic.artifact().content(),
                     "{:?}: the claimed artifact identity rides outside the content digest",
-                    leg.get(),
-                );
-            }
-            ExecutableContainerFieldForTest::ProofPayload => {
-                let substituted = reidentified(container.clone());
-                assert_eq!(
-                    substituted.artifact().content(),
-                    authentic.artifact().content(),
-                    "{:?}: proof bytes remain outside executable content identity",
                     leg.get(),
                 );
             }

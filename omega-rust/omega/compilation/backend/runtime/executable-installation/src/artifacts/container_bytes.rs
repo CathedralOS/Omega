@@ -46,8 +46,6 @@ const SECTION_PLACEMENT: u16 = 5;
 
 const SECTION_ENTRIES: u16 = 6;
 
-const SECTION_PROOF: u16 = 7;
-
 const SECTION_INFORMATIONAL: u16 = 8;
 
 const SECTION_AUTHORITY_COMMITMENTS: u16 = 9;
@@ -87,27 +85,25 @@ struct WireSection {
 }
 
 /// Emits the canonical Omega-native byte container for one compiler-produced
-/// artifact candidate and exact proof payload.
+/// artifact candidate.
 ///
 /// The encoder publishes no optional informational sections and derives the
-/// proof identity from the exact bytes. Before returning, it routes its own
-/// output through the hostile-input decoder and semantic validator. An encoder
+/// Before returning, it routes its own output through the hostile-input decoder
+/// and semantic validator. An encoder
 /// bug therefore fails closed instead of producing a container that a later
 /// loader interprets differently.
 pub fn encode_executable_container(
     artifact: &Artifact,
-    proof: &[u8],
     limits: ContainerLimits,
 ) -> Result<Vec<u8>, InstallationDiagnostic> {
-    encode_executable_container_version(artifact, proof, limits, true)
+    encode_executable_container_version(artifact, limits, true)
 }
 
 /// Re-encodes a decoded version-1 compatibility candidate byte-for-byte.
 /// Version 1 has no strong imported-authority section and cannot be admitted.
 pub fn encode_executable_container_v1_compatibility(
     artifact: &Artifact,
-    proof: &[u8],
     limits: ContainerLimits,
 ) -> Result<Vec<u8>, InstallationDiagnostic> {
-    encode_executable_container_version(artifact, proof, limits, false)
+    encode_executable_container_version(artifact, limits, false)
 }

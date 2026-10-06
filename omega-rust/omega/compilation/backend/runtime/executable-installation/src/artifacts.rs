@@ -14,7 +14,7 @@ use crate::authority_digests::ArtifactAuthorityCommitments;
 use crate::authority_digests::NonAuthoritativeContainerFingerprint64;
 use crate::authority_digests::{
     AdmissionReceiptId, ArtifactContentDigest, ArtifactId, EntrySetId, MachineContractSetId,
-    MachineFootprintId, PlacementPlanId, ProofPayloadDigest, RelocationSetId,
+    MachineFootprintId, PlacementPlanId, RelocationSetId,
 };
 use crate::installation::InstallationDiagnostic;
 use layout_plans::{EntryStubId, PlacementConstraints, RelocationTarget};
@@ -326,13 +326,6 @@ impl ArtifactAdmissionEvidence {
 pub struct AdmittedArtifact {
     pub(crate) artifact: Artifact,
     pub(crate) admission: AdmissionReceiptId,
-    pub(crate) container_proof: Option<RetainedContainerProof>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct RetainedContainerProof {
-    pub(crate) digest: ProofPayloadDigest,
-    pub(crate) bytes: Vec<u8>,
 }
 
 impl AdmittedArtifact {

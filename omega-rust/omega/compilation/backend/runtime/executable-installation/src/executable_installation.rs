@@ -104,7 +104,6 @@ pub fn admit_executable(
     Ok(AdmittedArtifact {
         artifact: artifact.clone(),
         admission: evidence.receipt,
-        container_proof: None,
     })
 }
 

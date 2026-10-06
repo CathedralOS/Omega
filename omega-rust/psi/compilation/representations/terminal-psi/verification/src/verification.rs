@@ -15,7 +15,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use proof_admission::{
-    AcceptedFact, AdmissionProfile, EvidenceError, EvidenceRoute, RecursiveComponentAcceptance,
+    AcceptedFact, EvidenceError, EvidenceRoute, RecursiveComponentAcceptance,
     RecursiveComponentError, accept_source_checked_operation,
     verify_obligation_with_machine_parameters, verify_recursive_component,
 };
@@ -192,11 +192,10 @@ impl<'module> VerifiedFixedFuelTerminalModule<'module> {
 pub fn verify_module<'module>(
     module: &'module TerminalModule,
     proof_bundle: &ProofBundle,
-    profile: &AdmissionProfile,
 ) -> Result<VerifiedTerminalModule<'module>, VerificationError> {
     let (validated, frontiers) =
         validate_module_retaining_frontiers(module).map_err(VerificationError::Module)?;
-    verify_validated_module(validated, frontiers, proof_bundle, profile)
+    verify_validated_module(validated, frontiers, proof_bundle)
         .map(|state| VerifiedTerminalModule { state })
 }
 
@@ -207,11 +206,10 @@ pub fn verify_module<'module>(
 pub fn verify_module_for_interpretation<'module>(
     module: &'module TerminalModule,
     proof_bundle: &ProofBundle,
-    profile: &AdmissionProfile,
 ) -> Result<VerifiedInterpretableTerminalModule<'module>, VerificationError> {
     let (validated, frontiers) =
         validate_module_retaining_frontiers(module).map_err(VerificationError::Module)?;
-    verify_validated_module(validated, frontiers, proof_bundle, profile)
+    verify_validated_module(validated, frontiers, proof_bundle)
         .map(|state| VerifiedInterpretableTerminalModule { state })
 }
 
@@ -220,11 +218,10 @@ pub fn verify_module_for_interpretation<'module>(
 pub fn verify_module_for_optimization<'module>(
     module: &'module TerminalModule,
     proof_bundle: &ProofBundle,
-    profile: &AdmissionProfile,
 ) -> Result<VerifiedOptimizableTerminalModule<'module>, VerificationError> {
     let (validated, frontiers) =
         validate_module_retaining_frontiers(module).map_err(VerificationError::Module)?;
-    verify_validated_module(validated, frontiers, proof_bundle, profile)
+    verify_validated_module(validated, frontiers, proof_bundle)
         .map(|state| VerifiedOptimizableTerminalModule { state })
 }
 
@@ -236,11 +233,10 @@ pub fn verify_module_for_optimization<'module>(
 pub fn verify_module_for_fixed_fuel<'module>(
     module: &'module TerminalModule,
     proof_bundle: &ProofBundle,
-    profile: &AdmissionProfile,
 ) -> Result<VerifiedFixedFuelTerminalModule<'module>, VerificationError> {
     let (validated, frontiers) =
         validate_module_retaining_frontiers(module).map_err(VerificationError::Module)?;
-    verify_validated_module(validated, frontiers, proof_bundle, profile)
+    verify_validated_module(validated, frontiers, proof_bundle)
         .map(|state| VerifiedFixedFuelTerminalModule { state })
 }
 
@@ -256,7 +252,6 @@ pub fn verify_reconstructed_obligation(
     site: &ReconstructedTerminalObligation,
     machine_parameter_values: &BTreeSet<semantic_vocabulary::ValueId>,
     route: EvidenceRoute,
-    profile: &AdmissionProfile,
 ) -> Result<AcceptedFact, VerificationError> {
     if route == EvidenceRoute::SourceChecked {
         if !matches!(
@@ -277,7 +272,6 @@ pub fn verify_reconstructed_obligation(
             &site.semantic_axioms,
             machine_parameter_values,
             route,
-            profile,
         )
     }
     .map_err(|error| VerificationError::RejectedEvidence {
@@ -290,7 +284,6 @@ fn verify_validated_module<'module>(
     validated: ValidatedTerminalModule<'module>,
     structural_frontiers: VerifiedTerminalStructuralFrontiers,
     proof_bundle: &ProofBundle,
-    profile: &AdmissionProfile,
 ) -> Result<VerifiedTerminalModuleState<'module>, VerificationError> {
     let module = validated.module();
     let reconstructed_obligations =
@@ -339,7 +332,6 @@ fn verify_validated_module<'module>(
             site,
             &machine_parameter_values,
             route,
-            profile,
         )?);
     }
 
@@ -377,7 +369,6 @@ fn verify_validated_module<'module>(
             &semantic_vocabulary::PropositionContext::default(),
             obligation,
             certificate,
-            profile,
         )
         .map_err(|error| VerificationError::RejectedRecursiveComponent {
             component: identity,
@@ -425,7 +416,6 @@ fn verify_validated_module<'module>(
             &question.obligation,
             &parameters,
             certificate,
-            profile,
         )
         .map_err(|error| VerificationError::RejectedControlCycle {
             component: question.component,

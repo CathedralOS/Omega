@@ -25,8 +25,6 @@ use terminal_psi::{TerminalModule, TerminalPsiIdentity};
 
 use effects::provider_plan::{ProviderBinding, ProviderPlan};
 
-pub use proof_admission::AdmissionProfile;
-
 use crate::component_description::{
     ComponentDescription, ComponentEntry, CustodyConstraint, CustodyEvidence, CustodyKind,
     DescriptionDecodeRejection, DescriptionFrontier, EntryEvidence, ExportContract, ExportSurface,
@@ -43,8 +41,7 @@ const VERIFICATION_PROFILE_DOMAIN: &[u8] = b"omega-component-verification-profil
 ///
 /// Everything here is supplied by the consumer and never read from the
 /// description itself: the component subject to admit, the description
-/// schemas this consumer understands, the assumption digests it accepts, and
-/// the module-proof admission profile the embedded module must verify under.
+/// schemas this consumer understands and the assumption digests it accepts.
 #[derive(Debug, Clone)]
 pub struct ComponentVerificationRequest {
     /// The exact component subject this admission expects.
@@ -54,11 +51,6 @@ pub struct ComponentVerificationRequest {
     /// Assumption digests this consumer accepts for declared rows and
     /// physical mechanisms. Any digest outside this set rejects.
     pub accepted_assumptions: BTreeSet<[u8; 32]>,
-    /// The admission profile `terminal-verifier` discharges the embedded
-    /// module's proof obligations under. An empty profile admits only modules
-    /// whose obligations are kernel-dischargeable; each acceptance names one
-    /// site, its evidence identity, and the profile decision that admitted it.
-    pub admission_profile: AdmissionProfile,
 }
 
 impl ComponentVerificationRequest {
@@ -76,13 +68,6 @@ impl ComponentVerificationRequest {
         digest.update((self.accepted_assumptions.len() as u64).to_le_bytes());
         for assumption in &self.accepted_assumptions {
             digest.update(assumption);
-        }
-        let acceptances: Vec<_> = self.admission_profile.acceptances().collect();
-        digest.update((acceptances.len() as u64).to_le_bytes());
-        for acceptance in acceptances {
-            digest.update(acceptance.site.get().to_le_bytes());
-            digest.update(acceptance.evidence_identity.get().to_le_bytes());
-            digest.update(acceptance.profile_decision.get().to_le_bytes());
         }
         digest.finalize().into()
     }
@@ -656,9 +641,8 @@ pub fn verify_component(
     }
     // A received component is structurally validated before its inventory
     // is read; proof-carrying admission is retired.
-    let verified_module = terminal_verifier::validate_module(module).map_err(|error| {
-        ComponentVerificationRejection::ModuleVerification(error.to_string())
-    })?;
+    let verified_module = terminal_verifier::validate_module(module)
+        .map_err(|error| ComponentVerificationRejection::ModuleVerification(error.to_string()))?;
     if description.frontier != DescriptionFrontier::TerminalArtifactClosure {
         return Err(ComponentVerificationRejection::EarlyFrontier(
             description.frontier,

@@ -3,8 +3,7 @@ pub use terminal_psi::ProofSystemMarker;
 pub use terminal_psi::{AdmissionEvidence, AdmissionKind, CertificateEnvelope, EvidenceRoute};
 
 use semantic_vocabulary::{
-    AdmissionSiteId, EvidenceIdentity, ObligationId, ProfileDecisionId, Proposition,
-    PropositionContext,
+    AdmissionSiteId, EvidenceIdentity, ObligationId, Proposition, PropositionContext,
 };
 
 use crate::{
@@ -32,42 +31,6 @@ pub struct Obligation {
     pub class: ObligationClass,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct AdmissionAcceptance {
-    pub site: AdmissionSiteId,
-    pub evidence_identity: EvidenceIdentity,
-    pub profile_decision: ProfileDecisionId,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct AdmissionProfile {
-    accepted: BTreeSet<AdmissionAcceptance>,
-}
-
-impl AdmissionProfile {
-    pub fn from_acceptances(acceptances: impl IntoIterator<Item = AdmissionAcceptance>) -> Self {
-        Self {
-            accepted: acceptances.into_iter().collect(),
-        }
-    }
-
-    /// The complete accepted-admission set in canonical order. Readers
-    /// needing a stable profile identity (for example a PCC sidecar's
-    /// checker-profile field) iterate this set rather than reserializing
-    /// private state.
-    pub fn acceptances(&self) -> impl Iterator<Item = &AdmissionAcceptance> {
-        self.accepted.iter()
-    }
-
-    fn accepts(&self, evidence: AdmissionEvidence) -> bool {
-        self.accepted.contains(&AdmissionAcceptance {
-            site: evidence.site,
-            evidence_identity: evidence.evidence_identity,
-            profile_decision: evidence.profile_decision,
-        })
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AcceptedFactRoute {
     KernelDerived(PrimitiveJudgment),
@@ -93,7 +56,6 @@ pub fn verify_obligation(
     assumptions: &[Proposition],
     semantic_axioms: &[Proposition],
     route: EvidenceRoute,
-    profile: &AdmissionProfile,
 ) -> Result<AcceptedFact, EvidenceError> {
     verify_obligation_with_machine_parameters(
         context,
@@ -102,7 +64,6 @@ pub fn verify_obligation(
         semantic_axioms,
         &BTreeSet::new(),
         route,
-        profile,
     )
 }
 
@@ -113,7 +74,6 @@ pub fn verify_obligation_with_machine_parameters(
     semantic_axioms: &[Proposition],
     machine_parameter_values: &BTreeSet<semantic_vocabulary::ValueId>,
     route: EvidenceRoute,
-    profile: &AdmissionProfile,
 ) -> Result<AcceptedFact, EvidenceError> {
     context
         .validate(&obligation.proposition)
@@ -153,10 +113,7 @@ pub fn verify_obligation_with_machine_parameters(
             {
                 return Err(EvidenceError::AdmissionSiteMismatch);
             }
-            if !profile.accepts(evidence) {
-                return Err(EvidenceError::AdmissionNotAcceptedByProfile);
-            }
-            AcceptedFactRoute::Admitted(evidence)
+            return Err(EvidenceError::AdmissionNotAcceptedByProfile);
         }
         // A checker decision answers only an operation's formation goal, and
         // only the Terminal verifier knows which obligations operations own:
@@ -230,11 +187,11 @@ impl std::error::Error for EvidenceError {}
 #[cfg(test)]
 mod tests {
     use super::{
-        AcceptedFactRoute, AdmissionAcceptance, AdmissionEvidence, AdmissionKind, AdmissionProfile,
-        AdmissionSiteId, AuthorizedAdmission, EvidenceError, EvidenceIdentity, EvidenceRoute,
-        Obligation, ObligationClass, ObligationId, ProfileDecisionId, ProofSystemMarker,
-        Proposition, PropositionContext, verify_obligation,
+        AdmissionEvidence, AdmissionKind, AdmissionSiteId, AuthorizedAdmission, EvidenceError,
+        EvidenceIdentity, EvidenceRoute, Obligation, ObligationClass, ObligationId,
+        ProofSystemMarker, Proposition, PropositionContext, verify_obligation,
     };
+    use semantic_vocabulary::ProfileDecisionId;
     fn obligation(proposition: Proposition, class: ObligationClass) -> Obligation {
         Obligation {
             id: ObligationId::new(1).expect("obligation identity"),
@@ -261,11 +218,6 @@ mod tests {
             kind: evidence.kind,
             authority_identity: evidence.authority_identity,
         };
-        let profile = AdmissionProfile::from_acceptances([AdmissionAcceptance {
-            site: evidence.site,
-            evidence_identity: evidence.evidence_identity,
-            profile_decision: evidence.profile_decision,
-        }]);
         assert_eq!(
             verify_obligation(
                 &PropositionContext::default(),
@@ -276,7 +228,6 @@ mod tests {
                 &[],
                 &[],
                 EvidenceRoute::Admitted(evidence),
-                &profile,
             )
             .expect_err("admission must not replace derivation"),
             EvidenceError::AdmissionCannotReplaceDerivation
@@ -284,38 +235,7 @@ mod tests {
     }
 
     #[test]
-    fn admitted_fact_requires_exact_site_authority_and_profile_acceptance() {
-        let evidence = admission();
-        let authorized = AuthorizedAdmission {
-            site: evidence.site,
-            kind: evidence.kind,
-            authority_identity: evidence.authority_identity,
-        };
-        let proposition = Proposition::Atom(
-            semantic_vocabulary::PropositionId::new(6).expect("proposition identity"),
-        );
-        let profile = AdmissionProfile::from_acceptances([AdmissionAcceptance {
-            site: evidence.site,
-            evidence_identity: evidence.evidence_identity,
-            profile_decision: evidence.profile_decision,
-        }]);
-        let accepted = verify_obligation(
-            &PropositionContext::default(),
-            &obligation(
-                proposition,
-                ObligationClass::AdmissionAuthorized(authorized),
-            ),
-            &[],
-            &[],
-            EvidenceRoute::Admitted(evidence),
-            &profile,
-        )
-        .expect("exact admission");
-        assert_eq!(accepted.route, AcceptedFactRoute::Admitted(evidence));
-    }
-
-    #[test]
-    fn admission_rejects_authority_substitution_and_missing_profile_acceptance() {
+    fn admission_rejects_authority_substitution_and_receiver_acceptance() {
         let evidence = admission();
         let proposition = Proposition::Atom(
             semantic_vocabulary::PropositionId::new(6).expect("proposition identity"),
@@ -335,7 +255,6 @@ mod tests {
                 &[],
                 &[],
                 EvidenceRoute::Admitted(evidence),
-                &AdmissionProfile::default(),
             )
             .expect_err("substituted authority must reject"),
             EvidenceError::AdmissionSiteMismatch
@@ -356,9 +275,8 @@ mod tests {
                 &[],
                 &[],
                 EvidenceRoute::Admitted(evidence),
-                &AdmissionProfile::default(),
             )
-            .expect_err("unaccepted evidence must reject"),
+            .expect_err("receiver admission evidence must reject"),
             EvidenceError::AdmissionNotAcceptedByProfile
         );
     }

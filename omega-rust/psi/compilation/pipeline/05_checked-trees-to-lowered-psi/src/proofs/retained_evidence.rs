@@ -1,6 +1,5 @@
 //! Optional proof-fact inference must preserve already supplied source evidence.
 
-use proof_admission::AdmissionProfile;
 use terminal_psi::ProofBundle;
 use terminal_verifier::{ReconstructedTerminalObligationSet, ValidatedTerminalModule};
 
@@ -53,7 +52,6 @@ pub(super) fn replays(
             after,
             &parameters,
             proof.route.clone(),
-            &AdmissionProfile::default(),
         )
         .is_err()
         {

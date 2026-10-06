@@ -18,11 +18,10 @@
 //! there with its named invariant; one the encoder cannot carry rejects at
 //! encoding with its configured bound.
 //!
-//! Named axes that are deliberately not lanes: the exact proof payload is
-//! an encoder argument rather than an artifact field — the empty-proof and
-//! version-1 encoder refusals are asserted directly, and the decoded-record
-//! matrix in `container/tests` carries the proof lanes; raw wire bytes the
-//! encoder derives are the separate wire-byte inventory.
+//! Named axes that are deliberately not lanes: opaque informational payloads
+//! are absent from canonical encoder output and exercised by focused decoder
+//! tests; version-1 refusal is asserted directly. Raw wire bytes the encoder
+//! derives are the separate wire-byte inventory.
 
 use crate::artifacts::Artifact;
 use crate::artifacts::ArtifactEntry;

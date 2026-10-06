@@ -24,7 +24,7 @@
 use std::collections::BTreeSet;
 
 use proof_admission::{
-    AcceptedFactRoute, AcceptedProofRule, AdmissionProfile, Budget, CertificateEnvelope, CoreError,
+    AcceptedFactRoute, AcceptedProofRule, Budget, CertificateEnvelope, CoreError,
     DEFAULT_CONVERSION_STEPS, EvidenceError, EvidenceRoute, MathematicalCoreDecision,
     MathematicalJudgmentReceipt, Obligation, ObligationClass, ProofError, ProofNode, ProofRule,
     ProofSystemMarker, Term, certificate_assumption_closure, denote_bounded_certificate,
@@ -103,7 +103,6 @@ fn admit(
         requires,
         &[],
         envelope(proof),
-        &AdmissionProfile::default(),
     )?;
     let AcceptedFactRoute::CertificateDerived { acceptance, .. } = accepted.route else {
         panic!("a certificate envelope is accepted on the certificate route");

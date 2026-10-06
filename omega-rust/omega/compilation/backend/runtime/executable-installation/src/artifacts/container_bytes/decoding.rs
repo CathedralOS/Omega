@@ -4,8 +4,7 @@ use crate::artifacts::ArtifactEntry;
 use crate::artifacts::container::{
     ArtifactRelocationKind, ContainerLimits, ContainerSection, ContainerSectionKind,
     DecodedArtifactContainer, DecodedArtifactRelocation, OMEGA_EXECUTABLE_CONTAINER_V1_MARKER,
-    OMEGA_EXECUTABLE_CONTAINER_V2_MARKER, ValidatedArtifactContainer,
-    normalized_proof_payload_digest, validate_decoded_container,
+    OMEGA_EXECUTABLE_CONTAINER_V2_MARKER, ValidatedArtifactContainer, validate_decoded_container,
 };
 use crate::artifacts::container_bytes::record_layouts::{
     entry_layout, entry_schema, header_layout, header_schema, identity_layout, identity_schema,
@@ -17,8 +16,8 @@ use crate::artifacts::container_bytes::{
     OMEGA_EXECUTABLE_CONTAINER_MAGIC, OMEGA_EXECUTABLE_CONTAINER_SECTION_RECORD_BYTES,
     PLACEMENT_RECORD_BYTES, RELOCATION_COUNT_BYTES, RELOCATION_RECORD_BYTES,
     SECTION_AUTHORITY_COMMITMENTS, SECTION_CODE, SECTION_CONTRACTS, SECTION_ENTRIES,
-    SECTION_FOOTPRINT, SECTION_INFORMATIONAL, SECTION_PLACEMENT, SECTION_PROOF,
-    SECTION_RELOCATIONS, WireSection, non_authoritative_informational_section_fingerprint,
+    SECTION_FOOTPRINT, SECTION_INFORMATIONAL, SECTION_PLACEMENT, SECTION_RELOCATIONS, WireSection,
+    non_authoritative_informational_section_fingerprint,
 };
 use crate::authority_digests::ArtifactAuthorityCommitments;
 use crate::authority_digests::{
@@ -220,7 +219,6 @@ pub fn decode_executable_container(
     let footprint_section = only_wire_section(&wire_sections, SECTION_FOOTPRINT, "footprint")?;
     let placement_section = only_wire_section(&wire_sections, SECTION_PLACEMENT, "placement")?;
     let entries_section = only_wire_section(&wire_sections, SECTION_ENTRIES, "entries")?;
-    let proof_section = only_wire_section(&wire_sections, SECTION_PROOF, "proof")?;
     let authority_section = match format_marker {
         OMEGA_EXECUTABLE_CONTAINER_V1_MARKER => {
             if wire_sections
@@ -264,14 +262,6 @@ pub fn decode_executable_container(
     let (entry_set, entries) = decode_entries(bytes, entries_section, architecture)?;
     let (relocation_set, relocations) =
         decode_relocations(bytes, relocation_section, limits.max_relocations)?;
-    let proof = checked_slice(
-        bytes,
-        proof_section.offset,
-        proof_section.length,
-        "artifact proof section",
-    )?
-    .to_vec();
-    let proof_payload = normalized_proof_payload_digest(&proof);
     let authority_commitments = authority_section
         .map(|section| {
             decode_authority_commitments(
@@ -294,7 +284,6 @@ pub fn decode_executable_container(
                 SECTION_FOOTPRINT => ContainerSectionKind::Footprint(declared_footprint),
                 SECTION_PLACEMENT => ContainerSectionKind::Placement(placement_plan),
                 SECTION_ENTRIES => ContainerSectionKind::Entries(entry_set),
-                SECTION_PROOF => ContainerSectionKind::Proof(proof_payload),
                 SECTION_AUTHORITY_COMMITMENTS => ContainerSectionKind::AuthorityCommitments(
                     authority_commitments
                         .expect("v2 authority section decoded before section construction"),
@@ -339,8 +328,6 @@ pub fn decode_executable_container(
             entries,
             relocation_set,
             relocations,
-            proof_payload,
-            proof,
             authority_commitments,
             sections,
         },
@@ -385,7 +372,7 @@ fn validate_known_section_flags(
 ) -> Result<(), InstallationDiagnostic> {
     match kind {
         SECTION_CODE | SECTION_RELOCATIONS | SECTION_CONTRACTS | SECTION_FOOTPRINT
-        | SECTION_PLACEMENT | SECTION_ENTRIES | SECTION_PROOF
+        | SECTION_PLACEMENT | SECTION_ENTRIES
             if !required =>
         {
             Err(InstallationDiagnostic(format!(
@@ -415,7 +402,6 @@ fn is_known_section_kind(kind: u16) -> bool {
             | SECTION_FOOTPRINT
             | SECTION_PLACEMENT
             | SECTION_ENTRIES
-            | SECTION_PROOF
             | SECTION_INFORMATIONAL
             | SECTION_AUTHORITY_COMMITMENTS
     )
@@ -423,7 +409,7 @@ fn is_known_section_kind(kind: u16) -> bool {
 
 fn validate_wire_section_identity(section: WireSection) -> Result<(), InstallationDiagnostic> {
     match section.kind {
-        SECTION_CODE | SECTION_PROOF | SECTION_AUTHORITY_COMMITMENTS if section.identity != 0 => {
+        SECTION_CODE | SECTION_AUTHORITY_COMMITMENTS if section.identity != 0 => {
             Err(InstallationDiagnostic(format!(
                 "artifact section kind {} must use zero wire identity",
                 section.kind

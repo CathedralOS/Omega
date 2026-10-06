@@ -63,7 +63,6 @@ macro_rules! normalized_digest {
 }
 
 normalized_digest!(ArtifactContentDigest);
-normalized_digest!(ProofPayloadDigest);
 normalized_digest!(FinalBytesDigest);
 normalized_digest!(EntryContractDigest);
 normalized_digest!(EntryReferenceFactDigest);

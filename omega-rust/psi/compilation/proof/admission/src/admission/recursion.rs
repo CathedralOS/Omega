@@ -6,7 +6,7 @@ use semantic_vocabulary::{
 };
 
 use crate::{
-    AcceptedFact, AdmissionProfile, EvidenceError, EvidenceRoute, Obligation,
+    AcceptedFact, EvidenceError, EvidenceRoute, Obligation,
     verify_obligation_with_machine_parameters,
 };
 
@@ -56,14 +56,12 @@ pub fn verify_recursive_component<Member: Copy + Ord>(
     context: &PropositionContext,
     obligation: &RecursiveComponentObligation<Member>,
     certificate: RecursiveComponentCertificate,
-    profile: &AdmissionProfile,
 ) -> Result<RecursiveComponentAcceptance<Member>, RecursiveComponentError<Member>> {
     verify_recursive_component_with_machine_parameters(
         context,
         obligation,
         &BTreeSet::new(),
         certificate,
-        profile,
     )
 }
 
@@ -74,7 +72,6 @@ pub fn verify_recursive_component_with_machine_parameters<Member: Copy + Ord>(
     obligation: &RecursiveComponentObligation<Member>,
     machine_parameter_values: &BTreeSet<semantic_vocabulary::ValueId>,
     certificate: RecursiveComponentCertificate,
-    profile: &AdmissionProfile,
 ) -> Result<RecursiveComponentAcceptance<Member>, RecursiveComponentError<Member>> {
     validate_component_shape(obligation)?;
     let ranking_relation = obligation
@@ -88,7 +85,6 @@ pub fn verify_recursive_component_with_machine_parameters<Member: Copy + Ord>(
         &obligation.well_foundedness,
         machine_parameter_values,
         certificate.well_foundedness,
-        profile,
     )
     .map_err(RecursiveComponentError::WellFoundedness)?;
 
@@ -107,17 +103,12 @@ pub fn verify_recursive_component_with_machine_parameters<Member: Copy + Ord>(
         let route = evidence
             .remove(&id)
             .ok_or(RecursiveComponentError::MissingDecreaseEvidence(id))?;
-        let accepted = verify_recursive_obligation(
-            context,
-            &edge.decrease,
-            machine_parameter_values,
-            route,
-            profile,
-        )
-        .map_err(|error| RecursiveComponentError::Decrease {
-            obligation: id,
-            error,
-        })?;
+        let accepted =
+            verify_recursive_obligation(context, &edge.decrease, machine_parameter_values, route)
+                .map_err(|error| RecursiveComponentError::Decrease {
+                obligation: id,
+                error,
+            })?;
         decreases.push(accepted);
     }
     if let Some(obligation) = evidence.keys().next().copied() {
@@ -138,7 +129,6 @@ fn verify_recursive_obligation(
     obligation: &CertificateObligation,
     machine_parameter_values: &BTreeSet<semantic_vocabulary::ValueId>,
     route: EvidenceRoute,
-    profile: &AdmissionProfile,
 ) -> Result<AcceptedFact, EvidenceError> {
     verify_obligation_with_machine_parameters(
         context,
@@ -147,7 +137,6 @@ fn verify_recursive_obligation(
         &obligation.semantic_axioms,
         machine_parameter_values,
         route,
-        profile,
     )
 }
 
@@ -247,20 +236,17 @@ impl<Member: std::fmt::Debug> std::error::Error for RecursiveComponentError<Memb
 #[cfg(test)]
 mod tests {
     use super::{
-        AdmissionProfile, BTreeSet, CertificateObligation, ContractId, EvidenceError,
-        EvidenceRoute, Obligation, Proposition, PropositionContext, RecursiveComponentAcceptance,
+        BTreeSet, CertificateObligation, ContractId, EvidenceError, EvidenceRoute, Obligation,
+        Proposition, PropositionContext, RecursiveComponentAcceptance,
         RecursiveComponentCertificate, RecursiveComponentError, RecursiveComponentObligation,
         RecursiveEdgeCertificate, RecursiveEdgeObligation, verify_recursive_component,
         verify_recursive_obligation,
     };
     use crate::{
-        AcceptedFactRoute, AdmissionAcceptance, AdmissionEvidence, AdmissionKind,
-        AuthorizedAdmission, CertificateEnvelope, ObligationClass, ProofNode, ProofRule,
+        AcceptedFactRoute, CertificateEnvelope, ObligationClass, ProofNode, ProofRule,
         ProofSystemMarker,
     };
-    use semantic_vocabulary::{
-        AdmissionSiteId, BlockId, ProfileDecisionId, PropositionId, PsiSemanticId,
-    };
+    use semantic_vocabulary::{BlockId, PropositionId, PsiSemanticId};
 
     fn id<T: PsiSemanticId>(raw: u64) -> T {
         T::new(raw).expect("test identity")
@@ -344,7 +330,6 @@ mod tests {
             &PropositionContext::default(),
             &component,
             certificate(&component),
-            &AdmissionProfile::default(),
         )
         .expect("measured mutual recursion");
         assert_eq!(accepted.members, component.members);
@@ -360,9 +345,8 @@ mod tests {
         let component = component_with_members::<BlockId>();
         let certificate = certificate(&component);
         let context = PropositionContext::default();
-        let profile = AdmissionProfile::default();
         let accepted: RecursiveComponentAcceptance<BlockId> =
-            verify_recursive_component(&context, &component, certificate.clone(), &profile)
+            verify_recursive_component(&context, &component, certificate.clone())
                 .expect("block identities retain the same admission checks");
         assert_eq!(accepted.members, component.members);
         assert_eq!(accepted.certificate, certificate.identity);
@@ -374,7 +358,6 @@ mod tests {
                 &component.well_foundedness,
                 &BTreeSet::new(),
                 certificate.well_foundedness,
-                &profile,
             )
             .unwrap()
         );
@@ -388,7 +371,6 @@ mod tests {
                     &edge.decrease,
                     &BTreeSet::new(),
                     certificate.evidence,
-                    &profile,
                 )
                 .unwrap()
             })
@@ -439,7 +421,6 @@ mod tests {
                 &PropositionContext::default(),
                 &component,
                 certificate(&original),
-                &AdmissionProfile::default(),
             )
             .unwrap_err();
             assert_eq!(error, expected, "topology mutation {mutation}");
@@ -466,13 +447,9 @@ mod tests {
                 6 => certificate.edges[0].evidence = certificate_route(proposition(99)),
                 _ => unreachable!(),
             }
-            let error = verify_recursive_component(
-                &PropositionContext::default(),
-                &component,
-                certificate,
-                &AdmissionProfile::default(),
-            )
-            .unwrap_err();
+            let error =
+                verify_recursive_component(&PropositionContext::default(), &component, certificate)
+                    .unwrap_err();
             match mutation {
                 0 => assert_eq!(error, RecursiveComponentError::RankingRelationMismatch),
                 1 => assert_eq!(
@@ -509,7 +486,6 @@ mod tests {
                 &PropositionContext::default(),
                 &unmeasured,
                 certificate(&component()),
-                &AdmissionProfile::default(),
             ),
             Err(RecursiveComponentError::MissingRankingRelation)
         );
@@ -521,7 +497,6 @@ mod tests {
                 &PropositionContext::default(),
                 &not_scc,
                 certificate(&not_scc),
-                &AdmissionProfile::default(),
             ),
             Err(RecursiveComponentError::NotStronglyConnected)
         );
@@ -533,12 +508,7 @@ mod tests {
         let mut wrong_relation = certificate(&component);
         wrong_relation.ranking_relation = id(99);
         assert_eq!(
-            verify_recursive_component(
-                &PropositionContext::default(),
-                &component,
-                wrong_relation,
-                &AdmissionProfile::default(),
-            ),
+            verify_recursive_component(&PropositionContext::default(), &component, wrong_relation,),
             Err(RecursiveComponentError::RankingRelationMismatch)
         );
 
@@ -549,7 +519,6 @@ mod tests {
                 &PropositionContext::default(),
                 &component,
                 wrong_well_foundedness,
-                &AdmissionProfile::default(),
             ),
             Err(RecursiveComponentError::WellFoundedness(
                 EvidenceError::Certificate(_)
@@ -559,12 +528,7 @@ mod tests {
         let mut missing = certificate(&component);
         missing.edges.pop();
         assert_eq!(
-            verify_recursive_component(
-                &PropositionContext::default(),
-                &component,
-                missing,
-                &AdmissionProfile::default(),
-            ),
+            verify_recursive_component(&PropositionContext::default(), &component, missing,),
             Err(RecursiveComponentError::MissingDecreaseEvidence(id(13)))
         );
 
@@ -575,60 +539,11 @@ mod tests {
                 &PropositionContext::default(),
                 &component,
                 perturbed,
-                &AdmissionProfile::default(),
             ),
             Err(RecursiveComponentError::Decrease {
                 obligation,
                 error: EvidenceError::Certificate(_),
             }) if obligation == id(12)
         ));
-    }
-
-    #[test]
-    fn admitted_well_foundedness_remains_in_component_provenance() {
-        assert_admitted_well_foundedness_provenance::<ContractId>();
-    }
-
-    #[test]
-    fn block_component_retains_admitted_well_foundedness_provenance() {
-        assert_admitted_well_foundedness_provenance::<BlockId>();
-    }
-
-    fn assert_admitted_well_foundedness_provenance<Member: PsiSemanticId + std::fmt::Debug>() {
-        let mut component = component_with_members::<Member>();
-        let site = id::<AdmissionSiteId>(30);
-        let authority = id(31);
-        component.well_foundedness.obligation.class =
-            ObligationClass::AdmissionAuthorized(AuthorizedAdmission {
-                site,
-                kind: AdmissionKind::ProviderFact,
-                authority_identity: authority,
-            });
-        component.well_foundedness.assumptions.clear();
-        let admission = AdmissionEvidence {
-            site,
-            kind: AdmissionKind::ProviderFact,
-            authority_identity: authority,
-            evidence_identity: id(32),
-            profile_decision: id::<ProfileDecisionId>(33),
-        };
-        let profile = AdmissionProfile::from_acceptances([AdmissionAcceptance {
-            site,
-            evidence_identity: admission.evidence_identity,
-            profile_decision: admission.profile_decision,
-        }]);
-        let mut certificate = certificate(&component);
-        certificate.well_foundedness = EvidenceRoute::Admitted(admission);
-        let accepted = verify_recursive_component(
-            &PropositionContext::default(),
-            &component,
-            certificate,
-            &profile,
-        )
-        .expect("authorized well-foundedness admission");
-        assert_eq!(
-            accepted.well_foundedness.route,
-            AcceptedFactRoute::Admitted(admission)
-        );
     }
 }

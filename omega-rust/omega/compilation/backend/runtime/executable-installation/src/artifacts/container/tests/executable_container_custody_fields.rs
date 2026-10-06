@@ -5,7 +5,7 @@
 //! The declared lanes are the `DecodedArtifactContainer` record's
 //! substitution axes: the claimed artifact identity, the executable
 //! content and its placement report coordinates, the entry and relocation
-//! rosters, the strong authority commitments, the exact proof payload, the
+//! rosters, the strong authority commitments, the
 //! envelope directory axes canonicalization erases, and the roster-order
 //! axes canonicalization sorts. Keeping the inventory in its own file
 //! names the boundary between what is declared substitutable and the
@@ -34,7 +34,6 @@ use crate::artifacts::ArtifactEntry;
 use crate::artifacts::container::{
     ArtifactRelocationKind, ContainerSectionKind, DecodedArtifactContainer,
     DecodedArtifactRelocation, OMEGA_EXECUTABLE_CONTAINER_V1_MARKER,
-    normalized_proof_payload_digest,
 };
 use crate::authority_digests::{
     ArtifactAuthorityCommitments, ArtifactId, EntrySetId, MachineContractSetId, MachineFootprintId,
@@ -83,7 +82,6 @@ optimization_core::custody_field_inventory! {
         RelocationAddend,
         RelocationRoster,
         AuthorityCommitments,
-        ProofPayload,
         // Informational lanes: the whole chain admits the substitution —
         // the axis canonicalizes away before artifact custody.
         TotalLengthBeyondSections,
@@ -100,7 +98,6 @@ optimization_core::custody_field_inventory! {
         HeaderCodeLength,
         TotalLengthBelowSections,
         RelocationSectionIdentity,
-        ProofSectionIdentity,
         ContractSectionIdentity,
         ContractsWithoutRecommit,
         FootprintWithoutRecommit,
@@ -117,7 +114,6 @@ optimization_core::custody_field_inventory! {
         RelocationOutsideCode,
         RelocationKindForeignArchitecture,
         RelocationsOverlap,
-        ProofPayloadAlone,
         // Roster-order lanes: an inserted member leaves the roster in
         // non-canonical order; canonicalization sorts it, so custody moves
         // and the sorted form is the identical artifact.
@@ -145,8 +141,6 @@ pub enum ExecutableContainerCustodyCheck {
     /// The relocation section's identity must restate the header's
     /// relocation set.
     RelocationSectionIdentityMismatch,
-    /// The proof section's identity must restate the exact proof payload.
-    ProofSectionIdentityMismatch,
     /// The contracts section's identity must restate the header's
     /// contract report coordinate.
     ContractSectionIdentityMismatch,
@@ -177,15 +171,11 @@ pub enum ExecutableContainerCustodyCheck {
     RelocationForeignArchitecture,
     /// Relocation fields may not overlap.
     RelocationsOverlap,
-    /// The proof payload digest must match the exact proof bytes.
-    ProofBytesNotExact,
     // Admission-replay verdicts.
     /// The substituted record validates but replays to a different
     /// validated container than the authentic evidence binds.
     DifferentValidatedContainer,
-    /// The substituted proof payload differs from the payload the
     /// authentic evidence binds.
-    DifferentProofPayload,
     // The whole chain admits the substitution.
     /// The axis is envelope data canonicalization erases: the substitution
     /// produces the identical artifact and the authentic evidence still
@@ -213,15 +203,11 @@ const VALIDATION_NEEDLES: &[(ExecutableContainerCustodyCheck, &str)] = &[
     ),
     (
         ExecutableContainerCustodyCheck::DeclaredLengthBelowSections,
-        "exceeds 512-byte container",
+        "exceeds 448-byte container",
     ),
     (
         ExecutableContainerCustodyCheck::RelocationSectionIdentityMismatch,
         "relocation section identity does not match canonical header",
-    ),
-    (
-        ExecutableContainerCustodyCheck::ProofSectionIdentityMismatch,
-        "proof section identity does not match canonical header",
     ),
     (
         ExecutableContainerCustodyCheck::ContractSectionIdentityMismatch,
@@ -275,10 +261,6 @@ const VALIDATION_NEEDLES: &[(ExecutableContainerCustodyCheck, &str)] = &[
         ExecutableContainerCustodyCheck::RelocationsOverlap,
         "overlaps",
     ),
-    (
-        ExecutableContainerCustodyCheck::ProofBytesNotExact,
-        "does not match the exact proof bytes",
-    ),
 ];
 
 /// Classify a canonical-validation rejection into the family's named
@@ -299,9 +281,7 @@ pub fn classify_container_validation(
 pub fn classify_container_replay(
     error: &crate::installation::InstallationDiagnostic,
 ) -> ExecutableContainerCustodyCheck {
-    if error.0.contains("different proof payload") {
-        ExecutableContainerCustodyCheck::DifferentProofPayload
-    } else if error.0.contains("different validated container") {
+    if error.0.contains("different validated container") {
         ExecutableContainerCustodyCheck::DifferentValidatedContainer
     } else {
         panic!("admission replay rejection outside the declared vocabulary: {error}");
@@ -488,14 +468,6 @@ pub fn substitute_executable_container_for_test(
                 }
             }
         }
-        // The exact proof payload is admission evidence: it stays outside
-        // the executable content identity yet replay still binds the exact
-        // bytes.
-        Leg::ProofPayload => {
-            container.proof[0] ^= 1;
-            container.proof_payload = normalized_proof_payload_digest(&container.proof);
-            container.sections[6].kind = ContainerSectionKind::Proof(container.proof_payload);
-        }
         // ── informational axes ──
         Leg::TotalLengthBeyondSections => container.total_length = 640,
         Leg::SectionRosterOrder => container.sections.swap(2, 3),
@@ -517,16 +489,12 @@ pub fn substitute_executable_container_for_test(
             container.format_marker = OMEGA_EXECUTABLE_CONTAINER_V1_MARKER;
         }
         Leg::HeaderCodeLength => container.code_length = 32,
-        Leg::TotalLengthBelowSections => container.total_length = 512,
+        Leg::TotalLengthBelowSections => container.total_length = 448,
         Leg::RelocationSectionIdentity => {
             container.sections[1].kind = ContainerSectionKind::Relocations(id(
                 99,
                 RelocationSetId::from_normalized_identity,
             ));
-        }
-        Leg::ProofSectionIdentity => {
-            container.sections[6].kind =
-                ContainerSectionKind::Proof(normalized_proof_payload_digest(b"x"));
         }
         Leg::ContractSectionIdentity => {
             container.contracts = id(13, MachineContractSetId::from_normalized_identity);
@@ -598,9 +566,6 @@ pub fn substitute_executable_container_for_test(
             container.relocations.push(container.relocations[0]);
             container.sections[1].length = 72;
         }
-        Leg::ProofPayloadAlone => {
-            container.proof_payload = normalized_proof_payload_digest(b"different proof");
-        }
         // ── roster-order canonicalization ──
         // The pushed member leaves the roster in non-canonical order:
         // relocations canonically sort by destination (8 ahead of 32) and
@@ -660,7 +625,6 @@ pub fn executable_container_custody_outcome(
         | Leg::FormatMarkerV1
         | Leg::RelocationRosterPermuted
         | Leg::EntryRosterPermuted => ExecutableContainerCustodyCheck::DifferentValidatedContainer,
-        Leg::ProofPayload => ExecutableContainerCustodyCheck::DifferentProofPayload,
         Leg::TotalLengthBeyondSections
         | Leg::SectionRosterOrder
         | Leg::SectionPayloadCoordinates => ExecutableContainerCustodyCheck::EnvelopeInformational,
@@ -675,7 +639,6 @@ pub fn executable_container_custody_outcome(
         Leg::RelocationSectionIdentity => {
             ExecutableContainerCustodyCheck::RelocationSectionIdentityMismatch
         }
-        Leg::ProofSectionIdentity => ExecutableContainerCustodyCheck::ProofSectionIdentityMismatch,
         Leg::ContractSectionIdentity => {
             ExecutableContainerCustodyCheck::ContractSectionIdentityMismatch
         }
@@ -696,7 +659,6 @@ pub fn executable_container_custody_outcome(
             ExecutableContainerCustodyCheck::RelocationForeignArchitecture
         }
         Leg::RelocationsOverlap => ExecutableContainerCustodyCheck::RelocationsOverlap,
-        Leg::ProofPayloadAlone => ExecutableContainerCustodyCheck::ProofBytesNotExact,
     };
     optimization_core::MutationOutcome::ExactError(check)
 }

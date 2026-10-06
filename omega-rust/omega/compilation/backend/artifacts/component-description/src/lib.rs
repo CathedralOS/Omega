@@ -45,7 +45,7 @@ pub use component_description::{
     requirement_export_identity,
 };
 pub use component_verification::{
-    AdmissionProfile, ComponentVerificationRejection, ComponentVerificationRequest,
-    IndependentRealizationMismatch, VerifiedComponent, verify_component,
+    ComponentVerificationRejection, ComponentVerificationRequest, IndependentRealizationMismatch,
+    VerifiedComponent, verify_component,
 };
 pub use publication::publish_component_description;

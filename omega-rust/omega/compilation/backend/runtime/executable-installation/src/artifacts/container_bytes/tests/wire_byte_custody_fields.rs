@@ -62,7 +62,6 @@ optimization_core::custody_field_inventory! {
         RelocationRecordIdentity,
         ContractsRecordIdentity,
         PlacementRecordIdentity,
-        ProofRecordIdentity,
         AuthorityRecordOptional,
         AuthorityRecordIdentity,
         // Payload fields.
@@ -128,8 +127,7 @@ const RELOCATIONS: usize = 1;
 const CONTRACTS: usize = 2;
 const PLACEMENT: usize = 4;
 const ENTRIES: usize = 5;
-const PROOF: usize = 6;
-const AUTHORITY: usize = 7;
+const AUTHORITY: usize = 6;
 
 /// The family's substitution hook: write exactly the declared lane into the
 /// canonically encoded `bytes`. Wire lanes take fixed non-canonical values;
@@ -171,7 +169,6 @@ pub fn substitute_container_wire_byte_for_test(
         Lane::RelocationRecordIdentity => write_u64(bytes, section_record(RELOCATIONS) + 8, 99),
         Lane::ContractsRecordIdentity => write_u64(bytes, section_record(CONTRACTS) + 8, 99),
         Lane::PlacementRecordIdentity => write_u64(bytes, section_record(PLACEMENT) + 8, 99),
-        Lane::ProofRecordIdentity => write_u64(bytes, section_record(PROOF) + 8, 1),
         Lane::AuthorityRecordOptional => write_u16(bytes, section_record(AUTHORITY) + 2, 0),
         Lane::AuthorityRecordIdentity => write_u64(bytes, section_record(AUTHORITY) + 8, 1),
         Lane::CodePayloadByte => {
@@ -253,9 +250,7 @@ pub fn container_wire_byte_custody_outcome(
         Lane::CodeRecordOptional => "must be required",
         Lane::CodeRecordUnknownFlags => "unknown flags",
         Lane::CodeRecordReserved => "section record reserved must be zero",
-        Lane::CodeRecordIdentity | Lane::ProofRecordIdentity | Lane::AuthorityRecordIdentity => {
-            "must use zero wire identity"
-        }
+        Lane::CodeRecordIdentity | Lane::AuthorityRecordIdentity => "must use zero wire identity",
         Lane::RelocationRecordIdentityZero => "requires a nonzero normalized identity",
         Lane::ContractsRecordIdentity | Lane::PlacementRecordIdentity | Lane::PlacementPlan => {
             "payload identity"

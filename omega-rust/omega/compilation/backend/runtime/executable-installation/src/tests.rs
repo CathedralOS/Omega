@@ -1,7 +1,4 @@
-use crate::artifacts::RetainedContainerProof;
-use crate::artifacts::container::{
-    ArtifactRelocationKind, DecodedArtifactRelocation, normalized_proof_payload_digest,
-};
+use crate::artifacts::container::{ArtifactRelocationKind, DecodedArtifactRelocation};
 use crate::artifacts::{Artifact, ArtifactAdmissionEvidence, ArtifactEntry, InstallationAudience};
 use crate::authority_digests::{
     AdmissionReceiptId, ArtifactId, CodePlacementId, EntryContractDigest, EntryReferenceFactDigest,
@@ -242,7 +239,6 @@ fn local_fnv_sites_are_explicitly_non_authoritative() {
 
     for forbidden in [
         ["normalized_id!", "(ArtifactContent"].concat(),
-        ["normalized_id!", "(ProofPayload"].concat(),
         ["normalized_id!", "(FinalBytes"].concat(),
         ["pub const fn", " from_digest"].concat(),
     ] {
@@ -1003,7 +999,6 @@ struct RealizationSpec {
     resolve: fn(RelocationTarget) -> Option<u64>,
     constraints: PlacementConstraints,
     admission_receipt: u64,
-    container_proof: Option<RetainedContainerProof>,
     placement: u64,
     scope: u64,
     audience: InstallationAudience,
@@ -1033,10 +1028,6 @@ fn authentic_spec() -> RealizationSpec {
         resolve: |_| None,
         constraints: artifact_placement_constraints(),
         admission_receipt: 40,
-        container_proof: Some(RetainedContainerProof {
-            digest: normalized_proof_payload_digest(b"container proof payload"),
-            bytes: b"container proof payload".to_vec(),
-        }),
         placement: 107,
         scope: 61,
         audience: InstallationAudience::FutureFetcher,
@@ -1141,7 +1132,7 @@ fn spec_placement(spec: &RealizationSpec) -> CodePlacement {
 
 fn spec_validated(spec: &RealizationSpec) -> ValidatedPlacement {
     let candidate = spec_artifact(spec);
-    let mut admitted = admit_executable(
+    let admitted = admit_executable(
         &candidate,
         ArtifactAdmissionEvidence::from_validator(
             id(
@@ -1153,7 +1144,6 @@ fn spec_validated(spec: &RealizationSpec) -> ValidatedPlacement {
         ),
     )
     .expect("spec admission");
-    admitted.container_proof = spec.container_proof.clone();
     let placement = spec_placement(spec);
     let materialized = materialize_admitted_artifact(&admitted, &placement, spec.resolve)
         .expect("spec materialization");

@@ -9,8 +9,8 @@ use super::{
 use crate::obligations::IntegerRange;
 use numerics::bignum::BigInt;
 use proof_admission::{
-    AcceptedFactRoute, AcceptedProofRule, AdmissionProfile, EvidenceRoute, Obligation,
-    ObligationClass, PrimitiveJudgment, ProofRule, verify_obligation,
+    AcceptedFactRoute, AcceptedProofRule, EvidenceRoute, Obligation, ObligationClass,
+    PrimitiveJudgment, ProofRule, verify_obligation,
 };
 use semantic_vocabulary::{
     IntegerMathLiteral, IntegerMathTerm, IntegerSign, IntegerType, ObligationId, Proposition,
@@ -178,7 +178,6 @@ fn kernel_derived_route_still_decides_the_same_closed_claim() {
         &[],
         &[],
         EvidenceRoute::KernelDerived(PrimitiveJudgment::ClosedIntegerRelation),
-        &AdmissionProfile::default(),
     )
     .expect("kernel accepts a true closed relation");
     assert_eq!(fact.proposition, conclusion);

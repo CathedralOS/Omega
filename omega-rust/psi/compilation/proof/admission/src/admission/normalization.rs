@@ -3,8 +3,8 @@ use std::collections::BTreeMap;
 use semantic_vocabulary::{EvidenceIdentity, PropositionContext};
 
 use crate::{
-    AcceptedFact, AcceptedFactRoute, AdmissionProfile, CertificateObligation, EvidenceError,
-    EvidenceRoute, verify_obligation,
+    AcceptedFact, AcceptedFactRoute, CertificateObligation, EvidenceError, EvidenceRoute,
+    verify_obligation,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -55,7 +55,6 @@ pub fn verify_normalization(
     context: &PropositionContext,
     obligation: &NormalizationObligation,
     certificate: NormalizationCertificate,
-    profile: &AdmissionProfile,
 ) -> Result<NormalizationAcceptance, NormalizationError> {
     validate_law_order(obligation)?;
     if certificate.conformance != obligation.conformance {
@@ -82,7 +81,6 @@ pub fn verify_normalization(
             &law.proof.assumptions,
             &law.proof.semantic_axioms,
             route,
-            profile,
         )
         .map_err(|error| NormalizationError::Law {
             identity: law.identity,
@@ -106,7 +104,6 @@ pub fn verify_normalization(
         &assumptions,
         &obligation.conclusion.semantic_axioms,
         certificate.conclusion,
-        profile,
     )
     .map_err(NormalizationError::Conclusion)?;
 
@@ -170,18 +167,14 @@ impl std::error::Error for NormalizationError {}
 #[cfg(test)]
 mod tests {
     use super::{
-        AcceptedFactRoute, AdmissionProfile, CertificateObligation, EvidenceRoute,
-        NormalizationCertificate, NormalizationError, NormalizationLawCertificate,
-        NormalizationLawObligation, NormalizationObligation, PropositionContext,
-        verify_normalization,
+        AcceptedFactRoute, CertificateObligation, EvidenceRoute, NormalizationCertificate,
+        NormalizationError, NormalizationLawCertificate, NormalizationLawObligation,
+        NormalizationObligation, PropositionContext, verify_normalization,
     };
     use crate::{
-        AdmissionAcceptance, AdmissionEvidence, AdmissionKind, AuthorizedAdmission,
         CertificateEnvelope, Obligation, ObligationClass, ProofNode, ProofRule, ProofSystemMarker,
     };
-    use semantic_vocabulary::{
-        AdmissionSiteId, ObligationId, ProfileDecisionId, Proposition, PropositionId, PsiSemanticId,
-    };
+    use semantic_vocabulary::{ObligationId, Proposition, PropositionId, PsiSemanticId};
 
     fn id<T: PsiSemanticId>(raw: u64) -> T {
         T::new(raw).expect("test identity")
@@ -242,13 +235,9 @@ mod tests {
     #[test]
     fn exact_conformance_and_law_are_recorded() {
         let (obligation, certificate) = normalization();
-        let accepted = verify_normalization(
-            &PropositionContext::default(),
-            &obligation,
-            certificate,
-            &AdmissionProfile::default(),
-        )
-        .expect("licensed normalization");
+        let accepted =
+            verify_normalization(&PropositionContext::default(), &obligation, certificate)
+                .expect("licensed normalization");
         assert_eq!(accepted.conformance, id(10));
         assert_eq!(accepted.laws[0].identity, id(11));
         let AcceptedFactRoute::CertificateDerived { acceptance, .. } = accepted.conclusion.route
@@ -267,7 +256,6 @@ mod tests {
                 &PropositionContext::default(),
                 &obligation,
                 wrong_conformance,
-                &AdmissionProfile::default(),
             ),
             Err(NormalizationError::ConformanceMismatch)
         );
@@ -275,12 +263,7 @@ mod tests {
         let (_, mut wrong_law) = normalization();
         wrong_law.laws[0].identity = id(99);
         assert_eq!(
-            verify_normalization(
-                &PropositionContext::default(),
-                &obligation,
-                wrong_law,
-                &AdmissionProfile::default(),
-            ),
+            verify_normalization(&PropositionContext::default(), &obligation, wrong_law,),
             Err(NormalizationError::MissingLawEvidence(id(11)))
         );
 
@@ -288,61 +271,8 @@ mod tests {
         uncited_obligation.conclusion.obligation.proposition = Proposition::Truth;
         uncited.conclusion = EvidenceRoute::KernelDerived(crate::PrimitiveJudgment::Truth);
         assert_eq!(
-            verify_normalization(
-                &PropositionContext::default(),
-                &uncited_obligation,
-                uncited,
-                &AdmissionProfile::default(),
-            ),
+            verify_normalization(&PropositionContext::default(), &uncited_obligation, uncited,),
             Err(NormalizationError::ConclusionDoesNotCiteLaws)
-        );
-    }
-
-    #[test]
-    fn admitted_law_is_retained_as_a_normalization_dependency() {
-        let (mut obligation, mut certificate) = normalization();
-        let site = id::<AdmissionSiteId>(30);
-        let authority = id(31);
-        obligation.laws[0].proof.obligation.class =
-            ObligationClass::AdmissionAuthorized(AuthorizedAdmission {
-                site,
-                kind: AdmissionKind::ProviderFact,
-                authority_identity: authority,
-            });
-        obligation.laws[0].proof.assumptions.clear();
-        let admission = AdmissionEvidence {
-            site,
-            kind: AdmissionKind::ProviderFact,
-            authority_identity: authority,
-            evidence_identity: id(32),
-            profile_decision: id::<ProfileDecisionId>(33),
-        };
-        certificate.laws[0].evidence = EvidenceRoute::Admitted(admission);
-        let profile = AdmissionProfile::from_acceptances([AdmissionAcceptance {
-            site,
-            evidence_identity: admission.evidence_identity,
-            profile_decision: admission.profile_decision,
-        }]);
-        let accepted = verify_normalization(
-            &PropositionContext::default(),
-            &obligation,
-            certificate,
-            &profile,
-        )
-        .expect("admission-dependent normalization");
-        assert_eq!(
-            accepted.laws[0].fact.route,
-            AcceptedFactRoute::Admitted(admission)
-        );
-        let AcceptedFactRoute::CertificateDerived { acceptance, .. } = accepted.conclusion.route
-        else {
-            panic!("normalization conclusion is certificate-derived");
-        };
-        assert!(
-            acceptance
-                .assumptions
-                .iter()
-                .any(|premise| premise.proposition == proposition(1))
         );
     }
 }

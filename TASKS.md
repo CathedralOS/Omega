@@ -3509,17 +3509,6 @@ deletions, which the commit lists.
   Acceptance: the `proof-admission` math tests and the check and native
   corpus are unchanged; no codec section carries proof evidence.
 
-- **PCC-PRODUCTS-DELETED.** (new-scope) Delete `AdmissionProfile` from
-  `proof-admission` and its remaining compile, stage 00 and interpreter users;
-  delete the live executable-container proof member and its image-emission
-  consumers in one coordinated change. The `Pcc*` products, uncompiled native
-  proof model, `Build.pcc`, report fields and macOS proof companion publication
-  are already gone and must not be restored.
-
-  Acceptance: `rg -i "pcc|AdmissionProfile"` finds nothing in `omega-rust`
-  outside history notes; no native container or package member carries proof
-  bytes; the CLI, package and native corpus are unchanged.
-
 - **PCC-DOCS-RETIRED.** (new-scope) Remove PCC from the instructions,
   specification and board text in one commit:
   - AGENTS.md: reword the opening "proof-carrying systems language", and the
