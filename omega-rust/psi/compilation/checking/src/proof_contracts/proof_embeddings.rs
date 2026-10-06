@@ -417,19 +417,10 @@ pub(crate) fn expression_type_reference(
                     },
                 );
             }
-            program
-                .data_definitions()
-                .iter()
-                .flat_map(|data| program.data_members(data))
-                .find_map(|data_member| match data_member {
-                    typed_trees::data::DataMember::Field(field)
-                        if member.member_symbol.is_valid()
-                            && field.symbol == member.member_symbol =>
-                    {
-                        Some(field.type_reference)
-                    }
-                    _ => None,
-                })
+            crate::program_scope::data_definitions::data_field_type_by_symbol(
+                program,
+                member.member_symbol,
+            )
         }
         ExpressionNode::Cast(cast) if !cast.form.is_recast() => Some(cast.target_type),
         ExpressionNode::Call(call) => {

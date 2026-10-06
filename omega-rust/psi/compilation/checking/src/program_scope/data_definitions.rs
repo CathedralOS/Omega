@@ -266,3 +266,23 @@ pub(crate) fn data_field_named<'a>(
             _ => None,
         })
 }
+
+/// The declared type of the one field `symbol` names across every data
+/// definition.
+pub(crate) fn data_field_type_by_symbol(
+    program: &typed_trees::TypedTrees,
+    symbol: symbols::SymbolHandle,
+) -> Option<typed_trees::types::TypeReferenceHandle> {
+    program
+        .data_definitions()
+        .iter()
+        .flat_map(|data| program.data_members(data))
+        .find_map(|member| match member {
+            typed_trees::data::DataMember::Field(field)
+                if symbol.is_valid() && field.symbol == symbol =>
+            {
+                Some(field.type_reference)
+            }
+            _ => None,
+        })
+}
