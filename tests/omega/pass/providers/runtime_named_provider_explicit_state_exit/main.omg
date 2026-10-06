@@ -13,7 +13,9 @@ CounterProvider satisfies CounterOperations {
     CounterOperations::read = read_counter;
 }
 machine replace_counter(counter: &mut Counter, value: i32) {
-    counter.value = value;
+    let mut staged: i32 = 0;
+    staged = value;
+    counter.value = staged;
 }
 machine read_counter(counter: &Counter) -> i32 { counter.value }
 

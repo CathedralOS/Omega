@@ -40,26 +40,13 @@ pub(super) fn discover(
             return unsupported("external composed entry overlaps its ordinary Unit closure");
         }
         let candidates = checked_unit_provider_candidates(checked, plans, &closure)?;
-        for candidate in candidates
-            .iter()
-            .filter(|candidate| candidate.body == ProviderBody::Callable)
-        {
-            if UnitBody::find(plans, candidate.candidate)?
-                .operations()
-                .any(|operation| {
-                    matches!(
-                        operation,
-                        CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
-                            | CheckedUnitEffectOperationPlan::AtomicAccess(_)
-                    )
-                })
-            {
-                return unsupported(
-                    "write-only stores and atomic events in opaque provider candidates require a pinned non-observation judgment",
-                );
-            }
-        }
-
+        // This catalog contains checked Omega bodies, not opaque realizations.
+        // Their stores and atomic operations keep the same checked access and
+        // custody as ordinary calls, and their transitive calls join this
+        // closure. A non-observing store is also legal through mutable access
+        // or into owned local storage; its operation kind does not imply an
+        // opaque write-only boundary. Such boundaries retain their separate
+        // source admission and provider-installation evidence requirements.
         let mut new_roots = candidates
             .iter()
             .filter(|candidate| candidate.body == ProviderBody::Callable)
