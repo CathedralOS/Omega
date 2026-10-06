@@ -141,87 +141,6 @@ twin. The verified member classification, call-site confinement and the ten
 Rust consumers the split moves stay on **FILESYSTEM-PLATFORM-SERVICES** in
 `TASKS.md`; that work is ordinary implementation once this is answered.
 
-### Q2 - May the trusted-surface ledger be re-recorded on a proof of no semantic change?
-
-Named decision: `trusted-surface-digest-reconciliation`.
-
-**Customer:** `python3 tools/trusted_surface_digests.py` reports **47 stale
-digests** on a clean `main`, and 19 `TEST_ONLY_SOURCES` rows name files that no
-longer exist. Nobody may refresh a digest for a file they did not author, so the
-drift has no owner and has sat unreconciled.
-
-**Existing rules:** `sites.rs` pins a SHA-256 for every bound verifier
-implementation file, and terminal-verifier's
-`recorded_digests_match_the_working_tree` enforced it. `tools/landing.py`'s
-`stale_trusted_sites` guard refuses a candidate that changes a pinned file
-without re-recording, but by design it inspects only the candidate's own
-changes, so drift already on main never blocks anyone.
-
-**What is measured, so the decision costs no re-reading:** all 47 files were
-last touched by one commit, `55a502d211b`, which also deleted that enforcing
-test. Every one of the 47 diffs is a **pure deletion** with zero non-blank added
-lines, and the 49 removed regions are all `#[cfg(test)]`-gated -- 48 beginning
-at the attribute, one at the doc comment above a
-`#[cfg(test)] pub(crate) fn proposition_observes_write`. Twelve of the 47
-removed only `#[cfg(test)]` + `mod <name>;`, their tests having lived in the
-sibling file the same commit deleted. **No verification judgment in any of the
-47 changed**, so revalidating the entries that cite them is satisfied by that
-fact rather than by re-reading 47 rules.
-
-**Decision needed:** may the ledger be re-recorded on that proof, and by whom?
-Three edits close it and must land together, or the restored test is red:
-delete the 19 dead `TEST_ONLY_SOURCES` rows; run
-`tools/trusted_surface_digests.py --write` for the 47; and restore
-`recorded_digests_match_the_working_tree` as a `[[test]]` under
-`terminal-psi/verification` (`autotests = false`). That test calls
-`check_source_coverage(&repository_root())` and hashes files -- it reads no
-Omega source, so the test-cut policy keeps it, and it was collateral of a
-43-crate sweep rather than a decision about this gate.
-
-Until the third edit lands the ledger has no enforcement outside the landing
-queue, and the queue cannot see drift already on main, so a re-record alone
-buys one clean report before the next sweep silently reopens the hole. This is
-recorded rather than done because `sites.rs` is a trust record: an automated
-edit to it was refused as audit tampering, which is the correct outcome.
-
-**Measured 2026-10-05: a selective re-record is landable and sanctioned, but
-one lane is held by its own permission denial and needs an owner grant.** An
-earlier revision
-of this entry claimed the rule and the landing gate contradict each other for
-any lane editing a pinned file. That is **refuted by demonstration**:
-`b474414158572c522ad113f56bd5328a1eed333e` changed six pinned verifier files
-and carried `sites.rs` with exactly six digest updates, one per file it
-authored. Verified independently at `b0a48cde065`: the ledger still reports
-**40** stale entries, unchanged, and none of that lane's six files appear in
-the stale list. A lane refreshing only its own authored entries is a different
-act from the blanket `--write`, is what the trust rule already permits, and
-needs no new capability.
-
-A path-scoped mode on `trusted_surface_digests.py` therefore remains worth
-having as a convenience -- it would make the narrow act the easy one rather
-than the careful one -- but it is not a precondition for anyone's landing and
-is not a fourth required edit. The three edits above still stand on their own.
-
-What still needs the owner, and is the only live blocker here: the lane that
-completed `psi: carry a record's linear member claims on its result`
-(`fef955e6d01`, rebased, clean tree, verify receipt `exit_code: 0`) asks to
-re-record the 5 entries for the files it authored -- `semantics/src/lib.rs`,
-`validation/error.rs`, `validation/frontier.rs`,
-`validation/frontier/operations.rs`, `validation/record.rs` -- leaving the 40
-foreign entries untouched. Its earlier denial stated that it "applies to the
-outcome, not only this exact command", naming "running the same command in
-smaller pieces" and acting on flagged items separately, so by the denial's own
-terms the narrow hand edit is covered and the lane declined to attempt it. That
-refusal was correct: a coordinator's reasoning is not consent, and only the
-permission decision can lift itself.
-
-So two lanes performed the same sanctioned action with different outcomes --
-`b474414158` landed its six, and this one may not touch its five. That
-asymmetry, not a tooling gap, is what holds finished work.
-
-Staleness was 47 when this question was filed, 40 at `b0a48cde065`, and 45 at
-the blocked lane's own HEAD (5 its own, 40 foreign).
-
 ### Q3 - What does a locally declared boundary schema mean against the target's own?
 
 Named decision: `entry-slot-schema-resolved-by-bare-name`.
@@ -299,41 +218,6 @@ what a dispatch plan is keyed by, which is a language-level commitment and not
 an implementation detail. `pass/traits/runtime_local_named_dyn_devirtualized_exit`
 is the sibling fixture that does author a local coercion, is a **different**
 defect, and is tracked on DYN-CONTINUATION-ROOT-REJOIN.
-
-### Q5 - Is `&Self` inside a conformance body rejected everywhere?
-
-Named decision: `conformance-body-self-spelling`.
-
-**Customer:** `pass/proofs/named_witness_static_trait_plural_compile` declared
-`machine produce(subject: &Self)` in a conformance body, left by the mechanical
-self-retirement respell at `553022e1a1a`, whose own message records that the
-fixture stayed red on static conformance dispatch. It was respelled to the
-concrete type to close that row.
-
-**The hazard, measured:** `&Self` in a conformance body is **accepted** on the
-ordinary route and **silently mis-binds** through specialized static requirement
-dispatch, where the substitution binds only the template's declared type
-parameters. `pass/traits/runtime_local_named_dyn_devirtualized_exit` has
-`Primary: Item satisfies Shape { machine code(subject: &Self) -> i32 }` and gets
-past typing into lowering -- its recorded red is a unit-plan omission, not a type
-error. So one route accepts a retired spelling and the other quietly binds it
-wrongly.
-
-**Existing rules:** `wiki/spec/language/conformances.md` settles
-`trait-requirement-subject-binding` (2026-10-04): "A conformance has no data
-subject, carrier type, implicit first type parameter, or privileged implementing
-type. `Self` has no binding and is retired together with receiver `self`...
-remove the old paths rather than add compatibility inference, aliases or modes."
-Read literally, that rejects the spelling **everywhere**.
-
-**Decision needed:** confirm that reading before anyone repairs the dispatch
-path, because teaching the specializer a `Self`-to-subject binding would
-re-entrench the construct the decision retires. If rejection is confirmed, the
-work is a diagnostic plus a migration of the accepting fixtures and of
-`source/library/core/layout.omg`'s three `&Self` requirements together with the
-seven pass fixtures that match them -- `NAMED-IMPLEMENTATION-CONFORMANCE-MIGRATION`
-scope, not a local fix. This is recorded rather than done because the failing
-site invites exactly the local fix the spec forbids.
 
 ### Q6 - After receiver retirement, what carves out an unselected requirement call?
 
