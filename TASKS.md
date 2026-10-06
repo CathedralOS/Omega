@@ -3626,8 +3626,8 @@ prevents a process exit from being reported as normal Unit completion, but does
 not execute it. The Terminal
 [terminator](omega-rust/psi/compilation/representations/terminal-psi/src/terminal_module/control_flow/termination.rs)
 has no external-completion variant, and the
-[trace codec](omega-rust/psi/compilation/representations/terminal-psi/codec/src/sections/terminal_trace_v1_profile.rs)
-rejects a nonempty external-termination roster. A native nonreturning
+[observation profile](omega-rust/psi/compilation/representations/terminal-psi/src/terminal_module/observation/profile.rs)
+has an empty external-termination roster. A native nonreturning
 operation does not fill this gap.
 
 - Native gaps (need not wait for the Terminal representation):
@@ -4229,9 +4229,9 @@ rejects at build and `mapped` needs a Windows full-i32 measurement.
 
   Concrete remaining controls:
   - Reproduce `omega --check tests/omega/pass/proofs/cauchy_predicates_compile/main.omg`.
-    The portable record at `c47f8652484` rejects an unmet instantiated
-    `rat_close_triangle_split` premise and an unsupported proof-only `Nat`
-    guarantee. Establish both judgments without weakening the theorem.
+    It rejects an unmet instantiated `rat_close_triangle_split` premise and an
+    unsupported proof-only `Nat` guarantee. Establish both judgments without
+    weakening the theorem.
     `checking/src/proof_contracts/contract_entailment.rs` tells users to wait
     for undocumented "math roster N3"; replace that with an actionable missing
     capability or a documented reference, not another untracked tier.
@@ -4246,7 +4246,6 @@ rejects at build and `mapped` needs a Windows full-i32 measurement.
     result-projection fact without becoming a runtime structural call. Ordinary
     package review and native execution must reach authored exit 70. Preserve
     effectful/nonterminating and linear-receipt-reuse rejection controls.
-    An unavailable local checkpoint is not acceptance evidence.
 
 - **PROOF-RELEVANCE-MIGRATION.** Erased arguments are not carrier-independent
   under [explicit erased bindings](wiki/spec/proofs/contracts.md#explicit-erased-bindings).
@@ -4309,8 +4308,8 @@ rejects at build and `mapped` needs a Windows full-i32 measurement.
   `representations/target-operations/src/target_operations/calls/abi.rs`
   requires a `ScalarAbiValue` result. Fix the ABI representation and its
   consumers together, not a void special case in the materializer.
-  Changing the procedure to return `u64` is not the customer's semantics
-  and previously encountered `StructuralCallArgumentMismatch` upstream.
+  Changing the procedure to return `u64` is not the customer's semantics and
+  does not repair the upstream `StructuralCallArgumentMismatch`.
 
   Acceptance: `pass/calls/callback_private_materialization` uses a genuine
   Windows x64 host registration provider and executes a callback with a general
@@ -5271,8 +5270,7 @@ wait for Cathedral's instruction coverage. The interpreter is
 
   - Current state: Windows rejects with "selected ProgramEntry Binding field
     `Main::fs::host` requires a selected Fused provider for boundary
-    `FilesystemHost`"; the corpus earlier recorded a conditional state-parameter
-    transfer refusal. Re-drive the whole program before naming the blocker;
+    `FilesystemHost`". Re-drive the whole program before naming the blocker;
     prerequisites route through **STATE-LOCAL-VALUE-FRONTIER** /
     **NOMINAL-FIELD-FLOW**. Structural field replacement of constructed and
     call-produced values already works through move/store pairs; extend it.
