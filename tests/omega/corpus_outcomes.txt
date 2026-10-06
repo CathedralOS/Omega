@@ -1773,6 +1773,7 @@ pass/borrows/runtime_stored_reference_leaf_field_retirement_exit checked 1141ms 
 pass/borrows/runtime_stored_reference_leaf_match_join_retirement_exit checked 1260ms check-target:macos_arm64 @104c2da31081
 pass/borrows/runtime_stored_reference_leaf_residual_retirement_exit checked 1426ms check-target:macos_arm64 @9660dd146223
 pass/borrows/runtime_stored_reference_shared_cohort_retirement_exit checked 1199ms check-target:macos_arm64 @104c2da31081
+pass/borrows/runtime_unit_call_mutable_view_local_exit checked 2400ms check-target:macos_arm64 @c5248fcf82a0+wt
 pass/borrows/runtime_whole_referent_case_store_exit checked 975ms check-target:macos_arm64 @6ec9ff444c14+wt
 pass/borrows/runtime_whole_referent_payload_case_store_exit checked 1005ms check-target:macos_arm64 @6ec9ff444c14+wt
 pass/borrows/runtime_whole_referent_record_store_exit checked 1034ms check-target:macos_arm64 @6ec9ff444c14+wt

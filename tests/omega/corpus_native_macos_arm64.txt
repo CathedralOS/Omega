@@ -172,6 +172,7 @@ pass/borrows/runtime_stored_reference_leaf_field_retirement_exit built 1161ms ex
 pass/borrows/runtime_stored_reference_leaf_match_join_retirement_exit built 1299ms exit:70 @104c2da31081
 pass/borrows/runtime_stored_reference_leaf_residual_retirement_exit built 2497ms exit:70 @9beb2be72f2d+wt
 pass/borrows/runtime_stored_reference_shared_cohort_retirement_exit built 1190ms exit:70 @104c2da31081
+pass/borrows/runtime_unit_call_mutable_view_local_exit built 2400ms exit:70 @c5248fcf82a0+wt
 pass/borrows/runtime_whole_referent_case_store_exit built 1291ms exit:70 @6ec9ff444c14+wt
 pass/borrows/runtime_whole_referent_payload_case_store_exit built 1289ms exit:70 @6ec9ff444c14+wt
 pass/borrows/runtime_whole_referent_record_store_exit built 1395ms exit:70 @6ec9ff444c14+wt

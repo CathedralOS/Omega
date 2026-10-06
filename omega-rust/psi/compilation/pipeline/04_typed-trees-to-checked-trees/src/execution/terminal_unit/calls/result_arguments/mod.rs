@@ -269,19 +269,25 @@ pub(super) fn argument(
     // calls; recognizing literal syntax here would lose that compositionality.
     // Named reference views keep their shelled identity; an owned local lent
     // through `&token` still follows the ordinary storage-loan path below.
+    // A mutable slice view forwards its descriptor the same way: the exact
+    // access replay below requires the call to hold that exclusive loan.
     if !projected
-        && access == CheckedStructuralAccess::SharedBorrow
-        && ((crate::execution::terminal_unit::types::borrowed_slice_view(
+        && ((matches!(
+            access,
+            CheckedStructuralAccess::SharedBorrow | CheckedStructuralAccess::MutableBorrow
+        ) && crate::execution::terminal_unit::types::slice_view_carrier(
             program,
             parameter.type_reference,
         ) && result.type_identity == target_identity)
-            || (crate::execution::terminal_unit::types::borrowed_named_view(
-                program,
-                parameter.type_reference,
-            ) && result.type_identity
-                == program
-                    .normalized_type_identity(parameter.type_reference)
-                    .as_str()))
+            || (access == CheckedStructuralAccess::SharedBorrow
+                && crate::execution::terminal_unit::types::borrowed_named_view(
+                    program,
+                    parameter.type_reference,
+                )
+                && result.type_identity
+                    == program
+                        .normalized_type_identity(parameter.type_reference)
+                        .as_str()))
         && let facts::PlaceRoot::Symbol(view_symbol) = place.root
     {
         let Some(StatementNode::LocalData(local)) = program
@@ -301,7 +307,7 @@ pub(super) fn argument(
         // differ from an element-only local annotation; result admission and
         // receiving view replay authenticate that descriptor and its backing.
         // Lending it does not cross a stored Reference shell.
-        if crate::execution::terminal_unit::types::borrowed_slice_view(
+        if crate::execution::terminal_unit::types::slice_view_carrier(
             program,
             parameter.type_reference,
         ) {

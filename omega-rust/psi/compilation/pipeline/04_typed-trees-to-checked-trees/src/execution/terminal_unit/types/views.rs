@@ -41,11 +41,20 @@ pub(crate) fn borrowed_slice_view(
 ) -> bool {
     structural_access_for_type_reference(program, type_reference)
         == Some(CheckedStructuralAccess::SharedBorrow)
-        && (borrowed_slice_view_element(program, type_reference, &[]).is_some()
-            || matches!(
-                byte_sequence_carrier(program, type_reference, &[]),
-                Some(checked_trees::CheckedByteSequenceCarrier::BorrowedView { .. })
-            ))
+        && slice_view_carrier(program, type_reference)
+}
+
+/// A `&[T]` or `&[u8]` descriptor carrier under either loan access; the
+/// reference shell's access is the loan's, not the carrier's.
+pub(crate) fn slice_view_carrier(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> bool {
+    borrowed_slice_view_element(program, type_reference, &[]).is_some()
+        || matches!(
+            byte_sequence_carrier(program, type_reference, &[]),
+            Some(checked_trees::CheckedByteSequenceCarrier::BorrowedView { .. })
+        )
 }
 
 /// A `&'a V` declared result type: a shared borrow of a named record or sum —

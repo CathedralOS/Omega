@@ -2142,15 +2142,24 @@ fn validate_operand_producers(
                     )
                 }) {
                 Some(Ok((root, path, access))) if root == local.symbol => {
-                    // A borrowed-view local can only ever be lent shared;
-                    // its authored access names the view's only custody.
+                    // A bare view local lends shared, or exclusively when the
+                    // view itself is mutable and the formal asks for that.
                     let authored_access =
                         access.unwrap_or(if view_carrier.is_some() || implicit_shared_owner {
                             checked_trees::CheckedStructuralAccess::SharedBorrow
                         } else {
                             checked_trees::CheckedStructuralAccess::Owned
                         });
-                    if path != argument.path || authored_access != argument.access {
+                    let exclusive_view = access.is_none()
+                        && argument.access == checked_trees::CheckedStructuralAccess::MutableBorrow
+                        && crate::expression_preparation::source_custody::structural::mutable_view_carrier(
+                            checked,
+                            binding_type,
+                        )
+                        .is_some();
+                    if path != argument.path
+                        || (authored_access != argument.access && !exclusive_view)
+                    {
                         return unsupported(
                             "Unit result projection disagrees with its authored path",
                         );
