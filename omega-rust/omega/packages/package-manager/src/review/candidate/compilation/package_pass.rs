@@ -32,9 +32,10 @@ use crate::resolution::PackageCompilationScope;
 use crate::resolution::graph::{ExactTargetPackageSourceClosure, ResolvedPackageSourceClosure};
 use crate::resolution::source::PackageSourceCustody;
 use crate::review::restricted_build_grants::RestrictedBuildCheckpoint;
-use checked_interpreter::{BuildEvaluationSponsor, FilesystemSponsor};
+use checked_interpreter::BuildEvaluationSponsor;
 use compilation_products::CheckedCompileOutcome;
 use diagnostics::Diagnostic;
+use filesystem_authority::FilesystemSponsor;
 use package_compilation::build_execution::RestrictedBuildGrants;
 use package_compilation::{
     AcceptedSemanticBinding, PackageCompilationInputError, PackageCompilationInputs,

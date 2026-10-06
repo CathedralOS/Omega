@@ -277,7 +277,7 @@ impl CanonicalFilesystemMetadataIndex {
         })
     }
 
-    pub(crate) fn row(&self, relative_path: &[u8]) -> Option<CanonicalFilesystemMetadataRowKind> {
+    pub fn row(&self, relative_path: &[u8]) -> Option<CanonicalFilesystemMetadataRowKind> {
         self.rows.get(relative_path).copied()
     }
 }

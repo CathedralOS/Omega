@@ -665,11 +665,8 @@ impl<'evaluation, 'program, 'arguments, 'frame>
                     Halt::Trap("rooted build path names no compiler-supplied grant root".to_owned())
                 })?
         };
-        let resolution = FilesystemRootedPathOperandResolution {
-            operand_ordinal,
-            root,
-            relative_path: relative,
-        };
+        let resolution =
+            FilesystemRootedPathOperandResolution::new(operand_ordinal, root, relative);
         self.evaluator
             .record_prepared_filesystem_rooted_path_operand_resolution(
                 self.attempt_index,

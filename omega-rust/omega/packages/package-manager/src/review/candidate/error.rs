@@ -1,8 +1,8 @@
 use super::PackageSourceVerificationPhase;
 use crate::declarations::PackageKey;
 use crate::resolution::source::PackageSourceSelectionEvidenceError;
-use checked_interpreter::FilesystemSponsorError;
 use diagnostics::Diagnostic;
+use filesystem_authority::FilesystemSponsorError;
 use package_compilation::{
     AcceptedSemanticBindingRole, BuildDeclarationKind, PackageCompilationInputError,
 };

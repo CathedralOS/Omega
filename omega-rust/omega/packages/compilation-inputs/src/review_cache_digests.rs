@@ -18,7 +18,7 @@ use crate::{
     PackageDependencyClosure, PackageGeneratedSourceBundle,
 };
 use build_output::{CapturedBuildSourceInput, CapturedSourceEntryKind};
-use checked_interpreter::CanonicalFilesystemMetadataIndex;
+use filesystem_authority::CanonicalFilesystemMetadataIndex;
 use sha2::{Digest, Sha256};
 
 const INPUTS_DIGEST_DOMAIN: &[u8] = b"OMEGA-COMPILED-REVIEW-CACHE-INPUTS\x02";
@@ -118,10 +118,10 @@ pub(crate) fn hash_metadata_index(digest: &mut Sha256, index: &CanonicalFilesyst
     for row in index.rows() {
         hash_framed(digest, row.relative_path());
         match row.kind() {
-            checked_interpreter::CanonicalFilesystemMetadataRowKind::Directory => {
+            filesystem_authority::CanonicalFilesystemMetadataRowKind::Directory => {
                 digest.update([0]);
             }
-            checked_interpreter::CanonicalFilesystemMetadataRowKind::File {
+            filesystem_authority::CanonicalFilesystemMetadataRowKind::File {
                 logical_byte_length,
                 executable,
             } => {
@@ -129,7 +129,7 @@ pub(crate) fn hash_metadata_index(digest: &mut Sha256, index: &CanonicalFilesyst
                 digest.update(logical_byte_length.to_le_bytes());
                 digest.update([executable as u8]);
             }
-            checked_interpreter::CanonicalFilesystemMetadataRowKind::Symlink {
+            filesystem_authority::CanonicalFilesystemMetadataRowKind::Symlink {
                 target_spelling_logical_byte_length,
             } => {
                 digest.update([2]);

@@ -24,7 +24,7 @@ pub use generated_sources::PackageGeneratedSourceBundle;
 
 use crate::{AcceptedSemanticBinding, AcceptedSemanticBindingRole, BuildDeclarationKind};
 use build_declarations::DependencyPurpose;
-use checked_interpreter::CanonicalFilesystemMetadataIndex;
+use filesystem_authority::CanonicalFilesystemMetadataIndex;
 use semantic_vocabulary::PackageKeyIdentity;
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};

@@ -4,7 +4,7 @@
 use crate::portable_paths::validate_portable_component;
 use crate::staged_output_tree::RetainedStagedOutputEntryKind;
 use crate::{capture, select_included_sources};
-use checked_interpreter::FilesystemSponsor;
+use filesystem_authority::FilesystemSponsor;
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -38,7 +38,7 @@ impl Fixture {
         fixture
     }
 
-    fn bind(&self, relative: &Path) -> checked_interpreter::FilesystemSponsorPath {
+    fn bind(&self, relative: &Path) -> filesystem_authority::FilesystemSponsorPath {
         self.sponsor.bind_path(self.root.join(relative)).unwrap()
     }
 

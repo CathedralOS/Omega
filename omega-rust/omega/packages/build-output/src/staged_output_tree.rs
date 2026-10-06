@@ -143,7 +143,7 @@ impl BuildStagedOutputTree {
         let mut retained = Vec::new();
         for (relative_path, kind) in entries {
             if relative_path.is_empty()
-                || !checked_interpreter::canonical_filesystem_metadata_path_is_canonical(
+                || !filesystem_authority::canonical_filesystem_metadata_path_is_canonical(
                     &relative_path,
                     false,
                 )

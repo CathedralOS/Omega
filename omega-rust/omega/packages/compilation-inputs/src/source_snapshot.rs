@@ -4,12 +4,12 @@
 mod file_read;
 
 use build_output::{CapturedBuildSourceInput, CapturedSourceEntry};
-use checked_interpreter::{
+use file_read::{hash_canonical_source_file, read_canonical_source_file};
+use filesystem_authority::{
     CANONICAL_FILESYSTEM_METADATA_POLICY_VERSION, CANONICAL_FILESYSTEM_METADATA_ROW_LIMIT,
     CanonicalFilesystemMetadataIndex, CanonicalFilesystemMetadataRow,
     CanonicalFilesystemMetadataRowKind, FILESYSTEM_ROOT_RELATIVE_PATH_BYTE_LIMIT,
 };
-use file_read::{hash_canonical_source_file, read_canonical_source_file};
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
@@ -61,7 +61,7 @@ impl BuildSourceCaptureRequest {
             });
             if std::str::from_utf8(&relative_path).is_err()
                 || drive_qualified
-                || !checked_interpreter::canonical_filesystem_metadata_path_is_canonical(
+                || !filesystem_authority::canonical_filesystem_metadata_path_is_canonical(
                     &relative_path,
                     false,
                 )
@@ -467,7 +467,7 @@ fn enqueue_capture_children(
         }
         child_relative.extend_from_slice(&name);
         charge_capture_path_bytes(aggregate_path_bytes, &child_relative)?;
-        if !checked_interpreter::canonical_filesystem_metadata_path_is_canonical(
+        if !filesystem_authority::canonical_filesystem_metadata_path_is_canonical(
             &child_relative,
             false,
         ) {

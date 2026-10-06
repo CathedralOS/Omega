@@ -25,11 +25,11 @@
 //! stays authored beside the matrix, together with the index's own
 //! policy-version encoding rejection.
 
-use checked_interpreter::{
+use diagnostics::Diagnostic;
+use filesystem_authority::{
     CanonicalFilesystemMetadataIndex, CanonicalFilesystemMetadataRow,
     CanonicalFilesystemMetadataRowKind,
 };
-use diagnostics::Diagnostic;
 use std::sync::Arc;
 
 use crate::captured_source::{

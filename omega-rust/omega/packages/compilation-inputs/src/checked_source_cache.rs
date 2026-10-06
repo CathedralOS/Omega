@@ -45,7 +45,7 @@
 //! the store, fingerprint, and capture protocol; that choice of lane and
 //! the caller opt-in live with the resolving consumers.
 
-use checked_interpreter::{
+use filesystem_authority::{
     CANONICAL_FILESYSTEM_METADATA_ROW_LIMIT, CanonicalFilesystemMetadataIndex,
     CanonicalFilesystemMetadataRow, CanonicalFilesystemMetadataRowKind,
     FILESYSTEM_ROOT_RELATIVE_PATH_BYTE_LIMIT, canonical_filesystem_metadata_path_is_canonical,

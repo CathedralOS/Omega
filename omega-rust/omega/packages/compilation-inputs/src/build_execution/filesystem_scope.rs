@@ -15,8 +15,8 @@ use build_time_evaluation::{
     BuildMachineFilesystemGrantRootIdentity, BuildMachineFilesystemGrants,
     BuildMachineFilesystemSponsor,
 };
-use checked_interpreter::FilesystemSponsorEntry;
 use diagnostics::Diagnostic;
+use filesystem_authority::FilesystemSponsorEntry;
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
@@ -44,7 +44,7 @@ pub const BUILD_OUTPUT_ROOT_IDENTITY: BuildMachineFilesystemGrantRootIdentity =
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BuildMachineFilesystemScope {
     source_root: PathBuf,
-    canonical_source_metadata: Option<checked_interpreter::CanonicalFilesystemMetadataIndex>,
+    canonical_source_metadata: Option<filesystem_authority::CanonicalFilesystemMetadataIndex>,
     canonical_source_metadata_required: bool,
     build_dir: PathBuf,
     /// The write root's overlap key as admission resolved it. Establishment
@@ -244,7 +244,7 @@ impl BuildMachineFilesystemScope {
         source_root: PathBuf,
         build_dir: PathBuf,
         sponsor: Option<BuildMachineFilesystemSponsor>,
-        metadata: Option<checked_interpreter::CanonicalFilesystemMetadataIndex>,
+        metadata: Option<filesystem_authority::CanonicalFilesystemMetadataIndex>,
     ) -> Self {
         let admitted_build_dir_key = overlap_key(&build_dir);
         Self {
@@ -439,7 +439,8 @@ impl BuildMachineFilesystemScope {
                     "required build outputs exceed the {REQUIRED_BUILD_OUTPUT_LIMIT}-entry ceiling"
                 ))]);
             }
-            if !checked_interpreter::canonical_filesystem_metadata_path_is_canonical(&name, false) {
+            if !filesystem_authority::canonical_filesystem_metadata_path_is_canonical(&name, false)
+            {
                 return Err(vec![Diagnostic::error(format!(
                     "required build output name is not a canonical relative path: {name:?}"
                 ))]);
@@ -829,7 +830,7 @@ impl BuildMachineFilesystemScope {
 
     fn sponsor_diagnostic(
         &self,
-        error: checked_interpreter::FilesystemSponsorError,
+        error: filesystem_authority::FilesystemSponsorError,
     ) -> Vec<Diagnostic> {
         vec![Diagnostic::error(format!(
             "build machine staging sponsor rejected `{}`: {error}",

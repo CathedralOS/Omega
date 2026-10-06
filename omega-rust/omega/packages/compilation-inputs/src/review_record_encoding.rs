@@ -10,8 +10,8 @@
 
 use crate::{AcceptedSemanticBindingRole, BuildDeclarationKind};
 use build_declarations::DependencyPurpose;
-use checked_interpreter::observation_codec::ObservationCursor;
 use effects::TerminalAuthorityClass;
+use filesystem_authority::observation_codec::ObservationCursor;
 use sha2::{Digest, Sha256};
 
 /// Hash `bytes` behind their little-endian `u64` length.

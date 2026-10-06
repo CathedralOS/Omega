@@ -1309,16 +1309,16 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
         self.filesystem_observation_path_bytes = next_total;
         self.filesystem_operation_attempts[attempt_index]
             .authorized_paths
-            .push(FilesystemAuthorizedPath {
+            .push(FilesystemAuthorizedPath::new(
                 operand_ordinal,
-                access: if write {
+                if write {
                     FilesystemGrantAccess::Write
                 } else {
                     FilesystemGrantAccess::Read
                 },
                 root,
                 relative_path,
-            });
+            ));
         true
     }
 
@@ -1333,15 +1333,15 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
         };
         self.filesystem_operation_attempts[attempt_index]
             .grant_refusals
-            .push(FilesystemGrantRefusal {
+            .push(FilesystemGrantRefusal::new(
                 operand_ordinal,
-                access: if write {
+                if write {
                     FilesystemGrantAccess::Write
                 } else {
                     FilesystemGrantAccess::Read
                 },
                 reason,
-            });
+            ));
     }
 
     #[cfg(unix)]

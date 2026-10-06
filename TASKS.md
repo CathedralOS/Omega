@@ -1713,10 +1713,10 @@ then independent claimed restoration slices -> final closure.
   reporting is implemented and full feature parity is not a dependency.
   Remove `omega-rust/psi/interpreter/checked-interpreter/` and production
   dependency edges, expression walkers, call/frame/store machinery and worker
-  entrypoints. Inventory every consumer first: compile-time and Build
-  evaluation, CLI/corpus, package snapshots/metadata, observation codecs,
-  provider selection and trust records. Move still-required data interfaces
-  and genuine host helpers to their semantic/tooling owners; retire receipt
+  entrypoints. Remaining consumers are compile-time and Build evaluation,
+  CLI/corpus comparison, provider selection and trust records. Move their
+  still-required data interfaces and genuine host helpers to their
+  semantic/tooling owners; retire receipt
   families already revoked by the owner. Do not leave the old crate as a
   facade or move its evaluator into a host adapter. Every unimplemented caller
   returns a specific capability gap before unsafe or partial execution, with

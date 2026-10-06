@@ -31,6 +31,7 @@ target = { path = "../../compilation/backend/target" }
 checked-trees = { path = "../../../psi/compilation/representations/checked-trees" }
 build-time-evaluation = { path = "../../../psi/compilation/compile-time" }
 checked-interpreter = { path = "../../../psi/interpreter/checked-interpreter" }
+filesystem-authority = { path = "../../../psi/foundation/filesystem-authority" }
 semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
 terminal-psi = { path = "../../../psi/compilation/representations/terminal-psi" }
 diagnostics = { path = "../../../psi/foundation/diagnostics" }

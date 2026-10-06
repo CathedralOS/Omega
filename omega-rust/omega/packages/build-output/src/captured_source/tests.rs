@@ -11,7 +11,7 @@ use captured_source_custody_fields::{
     captured_source_custody_outcome, captured_source_materialization_kind,
     substitute_captured_source_for_test,
 };
-use checked_interpreter::{CanonicalFilesystemMetadataIndexError, CanonicalFilesystemMetadataRow};
+use filesystem_authority::{CanonicalFilesystemMetadataIndexError, CanonicalFilesystemMetadataRow};
 use optimization_core::{OneFieldSubstitutionMatrix, run_one_field_substitution_matrix};
 use std::cell::Cell;
 use std::path::{Path, PathBuf};

@@ -1,11 +1,13 @@
 //! Operation attempts, outcomes, halts and service bindings.
 
-use crate::filesystem::{
+use filesystem_authority::{
     FilesystemAuthorizedPath, FilesystemGrantRefusal, FilesystemLogicalHandleIdentity,
     FilesystemLogicalHandleInput, FilesystemLogicalHandleOutput, FilesystemObservationProvider,
-    FilesystemRootedPathOperandResolution,
+    FilesystemOperationResult, FilesystemRootedPathOperandResolution,
 };
-use checked_trees::CheckedTrees;
+
+/// Schema for filesystem operation-attempt observations.
+pub const FILESYSTEM_OPERATION_ATTEMPT_SCHEMA_VERSION: u32 = 20;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FilesystemEvaluationHaltKind {
@@ -13,12 +15,6 @@ pub enum FilesystemEvaluationHaltKind {
     Unsupported,
     Trap,
     ResourceExhausted,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FilesystemOperationResult {
-    Scalar(i64),
-    LogicalHandle(FilesystemLogicalHandleIdentity),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -120,53 +116,5 @@ impl FilesystemOperationAttempt {
 
     pub fn retired_logical_handles(&self) -> &[FilesystemLogicalHandleIdentity] {
         &self.retired_logical_handles
-    }
-}
-
-/// Same-program routing custody for one compiler-resolved filesystem boundary.
-///
-/// This token grants no filesystem access and proves no package admission. It
-/// only prevents the checked interpreter from rediscovering a package-owned
-/// service through a readable name or source path after Omega has already
-/// resolved an exact accepted semantic binding. The token is valid only for
-/// the exact [`CheckedTrees`] instance from which it was constructed.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct FilesystemServiceBinding {
-    pub(crate) checked_program_address: usize,
-    pub(crate) declaration_symbol: symbols::SymbolHandle,
-}
-
-impl FilesystemServiceBinding {
-    pub fn from_compiler_resolved_declaration(
-        checked: &CheckedTrees,
-        declaration_symbol: symbols::SymbolHandle,
-    ) -> Result<Self, &'static str> {
-        if !declaration_symbol.is_valid()
-            || checked
-                .typed
-                .traits()
-                .iter()
-                .filter(|definition| {
-                    definition.is_boundary && definition.symbol == declaration_symbol
-                })
-                .count()
-                != 1
-        {
-            return Err("filesystem service binding is not one exact checked boundary declaration");
-        }
-        Ok(Self {
-            checked_program_address: std::ptr::from_ref(checked).addr(),
-            declaration_symbol,
-        })
-    }
-
-    pub(crate) fn declaration_symbol_for(
-        self,
-        checked: &CheckedTrees,
-    ) -> Result<symbols::SymbolHandle, &'static str> {
-        if self.checked_program_address != std::ptr::from_ref(checked).addr() {
-            return Err("filesystem service binding belongs to a different checked program");
-        }
-        Ok(self.declaration_symbol)
     }
 }

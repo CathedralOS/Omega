@@ -15,7 +15,7 @@ impl<'program> Evaluator<'program> {
     ) -> EvalResult<()> {
         let Some(next_total) = checked_observation_evidence_total(
             self.filesystem_observation_evidence_bytes,
-            resolution.relative_path.len(),
+            resolution.relative_path().len(),
         ) else {
             return Err(Halt::Resource(format!(
                 "filesystem observation evidence exceeded its {MAX_FILESYSTEM_OBSERVATION_EVIDENCE_BYTES}-byte operand-evidence ceiling"

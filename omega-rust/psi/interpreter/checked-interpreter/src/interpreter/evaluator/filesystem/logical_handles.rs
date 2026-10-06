@@ -24,11 +24,11 @@ impl<'program> Evaluator<'program> {
             .resolve(kind, raw, null_allowed);
         self.filesystem_operation_attempts[attempt_index]
             .logical_handle_inputs
-            .push(FilesystemLogicalHandleInput {
+            .push(FilesystemLogicalHandleInput::new(
                 operand_ordinal,
                 kind,
                 resolution,
-            });
+            ));
     }
 
     pub(crate) fn validate_incremental_logical_handle_inputs(
@@ -39,14 +39,16 @@ impl<'program> Evaluator<'program> {
         let canonical_inputs = plan
             .inputs
             .iter()
-            .map(|input| FilesystemLogicalHandleInput {
-                operand_ordinal: input.operand_ordinal,
-                kind: input.kind,
-                resolution: self.filesystem_logical_handles.resolve(
+            .map(|input| {
+                FilesystemLogicalHandleInput::new(
+                    input.operand_ordinal,
                     input.kind,
-                    input.raw,
-                    input.null_allowed,
-                ),
+                    self.filesystem_logical_handles.resolve(
+                        input.kind,
+                        input.raw,
+                        input.null_allowed,
+                    ),
+                )
             })
             .collect::<Vec<_>>();
         if self.filesystem_operation_attempts[attempt_index].logical_handle_inputs
@@ -87,16 +89,8 @@ impl<'program> Evaluator<'program> {
         {
             return Ok(());
         }
-        if matches!(
-            self.filesystem_operation_attempts[attempt_index]
-                .logical_handle_inputs
-                .as_slice(),
-            [FilesystemLogicalHandleInput {
-                kind: FilesystemLogicalHandleKind::Native,
-                resolution: FilesystemLogicalHandleInputResolution::Unknown,
-                ..
-            }]
-        ) {
+        let inputs = &self.filesystem_operation_attempts[attempt_index].logical_handle_inputs;
+        if inputs.len() == 1 && inputs[0].is_unknown_native() {
             return Ok(());
         }
         trap(
@@ -119,7 +113,7 @@ impl<'program> Evaluator<'program> {
                 .iter()
                 .any(|input| {
                     matches!(
-                        input.resolution,
+                        input.resolution(),
                         FilesystemLogicalHandleInputResolution::Unknown
                     )
                 })
@@ -190,11 +184,7 @@ impl<'program> Evaluator<'program> {
                 }
                 .map_err(filesystem_logical_handle_halt)?;
                 self.filesystem_operation_attempts[attempt_index].logical_handle_output =
-                    Some(FilesystemLogicalHandleOutput {
-                        kind,
-                        identity,
-                        source,
-                    });
+                    Some(FilesystemLogicalHandleOutput::new(kind, identity, source));
                 if let Some(lease) = live_handle_lease.take() {
                     let prior = self.filesystem_live_handle_leases.insert(identity, lease);
                     debug_assert!(prior.is_none());
@@ -208,14 +198,16 @@ impl<'program> Evaluator<'program> {
             let input = self.filesystem_operation_attempts[attempt_index]
                 .logical_handle_inputs
                 .iter()
-                .find(|input| input.operand_ordinal == retirement.operand_ordinal)
+                .find(|input| input.operand_ordinal() == retirement.operand_ordinal)
                 .copied()
                 .expect("retirement plan must name one retained handle input");
-            let FilesystemLogicalHandleInputResolution::Resolved(identity) = input.resolution
+            let FilesystemLogicalHandleInputResolution::Resolved(identity) = input.resolution()
             else {
                 return trap("filesystem provider closed an unresolved logical handle token");
             };
-            let retired = self.filesystem_logical_handles.retire(input.kind, identity);
+            let retired = self
+                .filesystem_logical_handles
+                .retire(input.kind(), identity);
             for retired_identity in &retired {
                 self.filesystem_live_handle_leases.remove(retired_identity);
             }
@@ -252,8 +244,8 @@ impl<'program> Evaluator<'program> {
         self.filesystem_operation_attempts[attempt_index]
             .logical_handle_inputs
             .iter()
-            .find(|input| input.operand_ordinal == operand_ordinal && input.kind == kind)
-            .and_then(|input| match input.resolution {
+            .find(|input| input.operand_ordinal() == operand_ordinal && input.kind() == kind)
+            .and_then(|input| match input.resolution() {
                 FilesystemLogicalHandleInputResolution::Resolved(identity) => Some(identity),
                 FilesystemLogicalHandleInputResolution::Null
                 | FilesystemLogicalHandleInputResolution::Unknown => None,

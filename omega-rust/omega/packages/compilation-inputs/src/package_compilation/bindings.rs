@@ -5,7 +5,7 @@
 use super::canonical_source_root;
 use crate::source_snapshot;
 use build_declarations::DependencyPurpose;
-use checked_interpreter::CanonicalFilesystemMetadataIndex;
+use filesystem_authority::CanonicalFilesystemMetadataIndex;
 use semantic_vocabulary::PackageKeyIdentity;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;

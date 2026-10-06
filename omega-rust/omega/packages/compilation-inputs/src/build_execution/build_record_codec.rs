@@ -12,8 +12,8 @@
 use crate::review_record_encoding::{
     declaration_kind_tag, encode_optional, recover_declaration_kind, recover_optional,
 };
-use checked_interpreter::observation_codec::{ObservationCursor as Cursor, push_framed};
-use checked_interpreter::{
+use filesystem_authority::observation_codec::{ObservationCursor as Cursor, push_framed};
+use filesystem_authority::{
     FilesystemSponsorLimits, canonical_filesystem_metadata_path_is_canonical, observation_codec,
 };
 
@@ -326,7 +326,7 @@ fn recover_attempt(cursor: &mut Cursor) -> Option<BuildFilesystemOperationAttemp
     let retired_count = cursor_count(cursor)?;
     let mut retired_logical_handles = Vec::with_capacity(retired_count);
     for _ in 0..retired_count {
-        retired_logical_handles.push(checked_interpreter::FilesystemLogicalHandleIdentity::new(
+        retired_logical_handles.push(filesystem_authority::FilesystemLogicalHandleIdentity::new(
             cursor.u64()?,
         )?);
     }

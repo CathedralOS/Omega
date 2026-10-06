@@ -35,6 +35,7 @@ language-semantics = { path = "../../../psi/foundation/language-semantics" }
 flow-effects = { path = "../../../psi/foundation/flow-effects" }
 symbols = { path = "../../../psi/foundation/symbols" }
 checked-interpreter = { path = "../../../psi/interpreter/checked-interpreter" }
+filesystem-authority = { path = "../../../psi/foundation/filesystem-authority" }
 diagnostics = { path = "../../../psi/foundation/diagnostics" }
 proof-admission = { path = "../../../psi/compilation/proof/admission" }
 source = { path = "../../../psi/foundation/source" }

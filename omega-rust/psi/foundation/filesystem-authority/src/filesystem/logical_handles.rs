@@ -49,6 +49,18 @@ pub struct FilesystemLogicalHandleInput {
 }
 
 impl FilesystemLogicalHandleInput {
+    pub const fn new(
+        operand_ordinal: u8,
+        kind: FilesystemLogicalHandleKind,
+        resolution: FilesystemLogicalHandleInputResolution,
+    ) -> Self {
+        Self {
+            operand_ordinal,
+            kind,
+            resolution,
+        }
+    }
+
     pub const fn operand_ordinal(self) -> u8 {
         self.operand_ordinal
     }
@@ -59,6 +71,16 @@ impl FilesystemLogicalHandleInput {
 
     pub const fn resolution(self) -> FilesystemLogicalHandleInputResolution {
         self.resolution
+    }
+
+    pub const fn is_unknown_native(self) -> bool {
+        matches!(
+            (self.kind, self.resolution),
+            (
+                FilesystemLogicalHandleKind::Native,
+                FilesystemLogicalHandleInputResolution::Unknown
+            )
+        )
     }
 }
 
@@ -81,6 +103,18 @@ pub struct FilesystemLogicalHandleOutput {
 }
 
 impl FilesystemLogicalHandleOutput {
+    pub const fn new(
+        kind: FilesystemLogicalHandleKind,
+        identity: FilesystemLogicalHandleIdentity,
+        source: FilesystemLogicalHandleOutputSource,
+    ) -> Self {
+        Self {
+            kind,
+            identity,
+            source,
+        }
+    }
+
     pub const fn kind(self) -> FilesystemLogicalHandleKind {
         self.kind
     }

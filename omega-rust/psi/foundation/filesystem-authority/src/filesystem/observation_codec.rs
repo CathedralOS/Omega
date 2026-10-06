@@ -15,7 +15,7 @@ use super::logical_handles::{
     FilesystemLogicalHandleInputResolution, FilesystemLogicalHandleKind,
     FilesystemLogicalHandleOutput, FilesystemLogicalHandleOutputSource,
 };
-use super::operation_attempts::FilesystemOperationResult;
+use super::FilesystemOperationResult;
 
 /// Sequential byte cursor over one retained record's payload. Out-of-range
 /// reads surface as `None`; callers map them to a truncated-record error.

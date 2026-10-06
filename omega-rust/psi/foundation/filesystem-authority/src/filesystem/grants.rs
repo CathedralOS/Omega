@@ -1,6 +1,5 @@
 //! Filesystem grant roots, refusals, authorized paths and access.
 
-use crate::FilesystemSponsor;
 use crate::filesystem::CanonicalFilesystemMetadataIndex;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -136,6 +135,20 @@ pub struct FilesystemAuthorizedPath {
 }
 
 impl FilesystemAuthorizedPath {
+    pub fn new(
+        operand_ordinal: u8,
+        access: FilesystemGrantAccess,
+        root: FilesystemGrantRootIdentity,
+        relative_path: Vec<u8>,
+    ) -> Self {
+        Self {
+            operand_ordinal,
+            access,
+            root,
+            relative_path,
+        }
+    }
+
     pub const fn operand_ordinal(&self) -> u8 {
         self.operand_ordinal
     }
@@ -154,6 +167,18 @@ impl FilesystemAuthorizedPath {
 }
 
 impl FilesystemGrantRefusal {
+    pub const fn new(
+        operand_ordinal: u8,
+        access: FilesystemGrantAccess,
+        reason: FilesystemGrantRefusalReason,
+    ) -> Self {
+        Self {
+            operand_ordinal,
+            access,
+            reason,
+        }
+    }
+
     pub const fn operand_ordinal(self) -> u8 {
         self.operand_ordinal
     }
@@ -165,32 +190,6 @@ impl FilesystemGrantRefusal {
     pub const fn reason(self) -> FilesystemGrantRefusalReason {
         self.reason
     }
-}
-
-/// How the interpreter serves a program's `Filesystem` capability.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub enum FilesystemAccess {
-    /// The deterministic in-memory filesystem (the default; the differential
-    /// oracle). Hermetic: no real disk is ever touched.
-    #[default]
-    Virtual,
-    /// The REAL host filesystem, UNSCOPED: fs ops act on real paths with the
-    /// invoking process's full authority. The trust level of `build.rs`; for
-    /// build.omg proper, prefer [`FilesystemAccess::RealScoped`] -- the grants
-    /// ARE the audit surface (open-work #3's settled design).
-    RealUnscoped,
-    /// The REAL host filesystem behind PATH GRANTS (build.omg rung 2): reads
-    /// must land under a read or write root, writes/creates/removes under a
-    /// write root; anything else is refused with EACCES before the OS is
-    /// touched. build.omg's shape: read = source tree, write = build dir.
-    RealScoped(FsGrants),
-    /// The same path authority, plus a compiler-owned resource sponsor shared
-    /// across every build-machine evaluation in one package-review session.
-    /// The program cannot inspect or enlarge this account.
-    RealScopedSponsored {
-        grants: FsGrants,
-        sponsor: FilesystemSponsor,
-    },
 }
 
 /// Path grants for [`FilesystemAccess::RealScoped`]. Roots are canonicalized

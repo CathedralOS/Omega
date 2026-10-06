@@ -11,11 +11,11 @@
 //! inventory, so a build cannot observe or depend on host path spellings,
 //! checkout location, directory iteration order, or post-capture mutation.
 
-use checked_interpreter::{
+use diagnostics::Diagnostic;
+use filesystem_authority::{
     CanonicalFilesystemMetadataIndex, CanonicalFilesystemMetadataRowKind,
     canonical_filesystem_metadata_path_is_canonical,
 };
-use diagnostics::Diagnostic;
 use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 use std::fmt;

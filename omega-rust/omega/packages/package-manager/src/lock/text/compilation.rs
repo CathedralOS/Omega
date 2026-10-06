@@ -6,11 +6,11 @@ use super::{
     framing::{Reader, Writer},
 };
 use crate::lock::{AcceptedPackageCompilation, PackageCheckedContext, PackageLockError as Error};
-use checked_interpreter::observation_codec::ObservationCursor;
 use effects::provider_plan::{ProviderPlanDigest, ServiceSchemaDigest};
 use effects::{
     ServiceTerminalAuthorityPermission, TerminalAuthorityClass, TerminalAuthorityDisposition,
 };
+use filesystem_authority::observation_codec::ObservationCursor;
 use package_compilation::{
     AcceptedSemanticBinding,
     review_record_encoding::{recover_semantic_binding_role, semantic_binding_role_tag},

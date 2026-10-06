@@ -9,8 +9,8 @@ use crate::portable_paths::{
 use crate::staged_output_tree::{
     MAX_STAGED_OUTPUT_ENTRIES, MAX_STAGED_OUTPUT_UNIQUE_FILE_BYTES, diagnostics, finish_commitment,
 };
-use checked_interpreter::{FilesystemSponsor, FilesystemSponsorNamespaceEntryKind};
 use diagnostics::Diagnostic;
+use filesystem_authority::{FilesystemSponsor, FilesystemSponsorNamespaceEntryKind};
 use sha2::Digest;
 use sha2::Sha256;
 use std::collections::{BTreeMap, BTreeSet};

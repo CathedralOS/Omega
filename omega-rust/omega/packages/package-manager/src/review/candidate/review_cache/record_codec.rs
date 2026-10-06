@@ -4,7 +4,6 @@
 
 use super::super::semantic_bindings::SemanticBindingReviewCandidate;
 use super::{CachedCompiledReview, CachedOccurrenceFacts};
-use checked_interpreter::observation_codec::{ObservationCursor, push_framed};
 use effects::provider_plan::{
     BoundaryCallingPlanCommitment, ProviderPlanDigest, ServiceEntryAuthorityFlow,
     ServiceEntryClaim, ServiceMethod, ServiceProgressEstablishmentRoute,
@@ -12,6 +11,7 @@ use effects::provider_plan::{
     ServiceResultClaim, ServiceSchema, ServiceSchemaDigest,
 };
 use effects::{ServiceTerminalAuthorityPermission, TerminalAuthorityDisposition};
+use filesystem_authority::observation_codec::{ObservationCursor, push_framed};
 use language_semantics::{CarryPolicy, DomainPredicateBody};
 use package_compilation::build_execution::build_record_codec;
 use package_compilation::review_record_encoding::{

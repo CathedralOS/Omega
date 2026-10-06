@@ -198,8 +198,8 @@ dependencies = [
 name = "build-output"
 version = "0.1.0"
 dependencies = [
- "checked-interpreter",
  "diagnostics",
+ "filesystem-authority",
  "optimization-core",
  "platform-custody",
  "sha2",
@@ -313,6 +313,7 @@ dependencies = [
  "build-time-values",
  "checked-trees",
  "evaluation-accounting",
+ "filesystem-authority",
  "language-core",
  "language-semantics",
  "layout-plans",
@@ -589,6 +590,10 @@ dependencies = [
  "symbols",
  "typed-trees",
 ]
+
+[[package]]
+name = "filesystem-authority"
+version = "0.1.0"
 
 [[package]]
 name = "find-msvc-tools"
@@ -1216,6 +1221,7 @@ dependencies = [
  "diagnostics",
  "effects",
  "evaluation-accounting",
+ "filesystem-authority",
  "flow-effects",
  "optimization-core",
  "platform-custody",
@@ -1282,6 +1288,7 @@ dependencies = [
  "diagnostics",
  "effects",
  "evaluation-accounting",
+ "filesystem-authority",
  "flow-effects",
  "language-semantics",
  "native-artifact",

@@ -10,6 +10,18 @@ pub struct FilesystemRootedPathOperandResolution {
 }
 
 impl FilesystemRootedPathOperandResolution {
+    pub fn new(
+        operand_ordinal: u8,
+        root: FilesystemGrantRootIdentity,
+        relative_path: Vec<u8>,
+    ) -> Self {
+        Self {
+            operand_ordinal,
+            root,
+            relative_path,
+        }
+    }
+
     pub const fn operand_ordinal(&self) -> u8 {
         self.operand_ordinal
     }

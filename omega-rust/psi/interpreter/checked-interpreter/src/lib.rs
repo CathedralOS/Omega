@@ -103,8 +103,10 @@ mod build_evaluation_sponsor;
 mod build_evaluation_usage;
 mod build_time;
 mod evaluation;
-mod filesystem;
-mod filesystem_sponsor;
+mod filesystem_access;
+mod filesystem_observations;
+mod filesystem_operation_attempts;
+mod filesystem_service_binding;
 pub mod interpreter;
 mod value;
 
@@ -117,14 +119,6 @@ pub use build_time::SelectedBuildTimeBinaryOperator;
 pub use evaluation_accounting::{
     BuildEvaluationUsage, BuildEvaluationUsageError, EvaluationMeasurementIdentity,
     TerminalStorageScheduleIdentity,
-};
-pub use filesystem_sponsor::{
-    COMPILER_DEFAULT_STAGING_ENTRY_LIMIT, COMPILER_DEFAULT_STAGING_MAX_OBJECT_EXTENT,
-    COMPILER_DEFAULT_STAGING_TOTAL_LOGICAL_BYTES, FilesystemOpenDescriptor, FilesystemSponsor,
-    FilesystemSponsorEntry, FilesystemSponsorError, FilesystemSponsorLimits,
-    FilesystemSponsorNamespaceEntry, FilesystemSponsorNamespaceEntryKind,
-    FilesystemSponsorNamespaceSnapshot, FilesystemSponsorPath, PreparedFilesystemMutation,
-    PreparedFilesystemOpen, PreparedFilesystemWrite,
 };
 pub use value::{Cell, Value};
 
@@ -140,24 +134,17 @@ pub use evaluation::{
     InterpretOutcome, MAX_BUILD_OUTPUT_OBLIGATIONS, MAX_INCLUDED_BUILD_SOURCES,
     MeasuredBuildMachineEvaluation, MeasuredEvaluation, PrivateLayoutPlacementReceipt,
 };
-pub use filesystem::{
-    CANONICAL_FILESYSTEM_METADATA_POLICY_VERSION, CANONICAL_FILESYSTEM_METADATA_ROW_LIMIT,
-    CanonicalFilesystemMetadataIndex, CanonicalFilesystemMetadataIndexError,
-    CanonicalFilesystemMetadataRow, CanonicalFilesystemMetadataRowKind,
-    FILESYSTEM_METADATA_API_CARRIER_BYTES, FILESYSTEM_OPERATION_ATTEMPT_SCHEMA_VERSION,
-    FILESYSTEM_ROOT_RELATIVE_PATH_BYTE_LIMIT, FilesystemAccess, FilesystemAuthorizedPath,
-    FilesystemEvaluationHaltKind, FilesystemGrantAccess, FilesystemGrantRefusal,
-    FilesystemGrantRefusalReason, FilesystemGrantRoot, FilesystemGrantRootIdentity,
-    FilesystemLogicalHandleIdentity, FilesystemLogicalHandleInput,
-    FilesystemLogicalHandleInputResolution, FilesystemLogicalHandleKind,
-    FilesystemLogicalHandleOutput, FilesystemLogicalHandleOutputSource, FilesystemMetadataField,
-    FilesystemMetadataFieldLayout, FilesystemMetadataLayout, FilesystemMetadataObservation,
-    FilesystemMetadataObservationKind, FilesystemObservationProvider, FilesystemOperationAttempt,
-    FilesystemOperationAttemptOutcome, FilesystemOperationResult,
-    FilesystemRootedPathOperandResolution, FilesystemServiceBinding, FsGrants,
-    canonical_filesystem_metadata_path_is_canonical, filesystem_root_relative_path_is_canonical,
-    observation_codec,
+pub use filesystem_access::FilesystemAccess;
+pub use filesystem_authority::*;
+pub use filesystem_observations::{
+    FILESYSTEM_METADATA_API_CARRIER_BYTES, FilesystemMetadataObservation,
+    FilesystemMetadataObservationKind,
 };
+pub use filesystem_operation_attempts::{
+    FILESYSTEM_OPERATION_ATTEMPT_SCHEMA_VERSION, FilesystemEvaluationHaltKind,
+    FilesystemOperationAttempt, FilesystemOperationAttemptOutcome,
+};
+pub use filesystem_service_binding::FilesystemServiceBinding;
 pub use interpreter::{
     BuildMachineEntry, BuildMachineEvaluationRequest, BuildMachineProgram, InterpretOptions,
     ProductEntryCompatibility, ProductEntryDeclaration, ProductEntrySignature,

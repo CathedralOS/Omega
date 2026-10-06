@@ -9,7 +9,7 @@ name = "build_output"
 path = "src/lib.rs"
 
 [dependencies]
-checked-interpreter = { path = "../../../psi/interpreter/checked-interpreter" }
+filesystem-authority = { path = "../../../psi/foundation/filesystem-authority" }
 diagnostics = { path = "../../../psi/foundation/diagnostics" }
 platform-custody = { path = "../../foundation/platform-custody" }
 sha2 = "0.10.9"

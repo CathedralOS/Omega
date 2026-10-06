@@ -31,9 +31,9 @@ const MAXIMUM_TARGETS: usize = 32;
 // Match capture's non-root entry ceiling and aggregate relative-path byte
 // budget. Optional absent entries still consume pending-review storage.
 const MAXIMUM_BUILD_INPUTS: usize =
-    checked_interpreter::CANONICAL_FILESYSTEM_METADATA_ROW_LIMIT - 1;
+    filesystem_authority::CANONICAL_FILESYSTEM_METADATA_ROW_LIMIT - 1;
 const MAXIMUM_BUILD_INPUT_PATH_BYTES: usize =
-    checked_interpreter::FILESYSTEM_ROOT_RELATIVE_PATH_BYTE_LIMIT;
+    filesystem_authority::FILESYSTEM_ROOT_RELATIVE_PATH_BYTE_LIMIT;
 
 pub(super) struct PendingPackageChange {
     pub kind: PackageCommandKind,

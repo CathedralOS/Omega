@@ -103,7 +103,7 @@ impl RestrictedBuildGrant {
 pub struct RestrictedBuildBounds {
     /// The shared filesystem sponsor account's staging ceilings, present
     /// when a caller-installed sponsor binds every granted operation.
-    filesystem_sponsor_limits: Option<checked_interpreter::FilesystemSponsorLimits>,
+    filesystem_sponsor_limits: Option<filesystem_authority::FilesystemSponsorLimits>,
     /// The evaluation sponsor's resource ceilings, present when a
     /// caller-installed sponsor caps this activation's evaluator.
     evaluation_sponsor_limits: Option<BuildEvaluationSponsorLimits>,
@@ -119,7 +119,7 @@ impl RestrictedBuildBounds {
     /// by the authority projection before it entered the record.
     #[doc(hidden)]
     pub const fn from_retained(
-        filesystem_sponsor_limits: Option<checked_interpreter::FilesystemSponsorLimits>,
+        filesystem_sponsor_limits: Option<filesystem_authority::FilesystemSponsorLimits>,
         evaluation_sponsor_limits: Option<BuildEvaluationSponsorLimits>,
         required_outputs: Vec<Vec<u8>>,
         artifact_only: bool,
@@ -134,7 +134,7 @@ impl RestrictedBuildBounds {
 
     pub const fn filesystem_sponsor_limits(
         &self,
-    ) -> Option<checked_interpreter::FilesystemSponsorLimits> {
+    ) -> Option<filesystem_authority::FilesystemSponsorLimits> {
         self.filesystem_sponsor_limits
     }
 

@@ -181,7 +181,7 @@ fn insert_named_input(
     input: CapturedBuildSourceInput,
 ) -> Result<(), Vec<Diagnostic>> {
     if std::str::from_utf8(&name).is_err()
-        || !checked_interpreter::canonical_filesystem_metadata_path_is_canonical(&name, false)
+        || !filesystem_authority::canonical_filesystem_metadata_path_is_canonical(&name, false)
     {
         return Err(vec![Diagnostic::error(format!(
             "named build input slot is not a canonical UTF-8 relative name: {name:?}"
@@ -205,11 +205,11 @@ fn insert_named_input(
         .try_fold(name.len(), |total, name| total.checked_add(name.len()));
     if slots.len() >= 4096
         || entries.is_none_or(|entries| {
-            entries > checked_interpreter::CANONICAL_FILESYSTEM_METADATA_ROW_LIMIT as u64
+            entries > filesystem_authority::CANONICAL_FILESYSTEM_METADATA_ROW_LIMIT as u64
         })
         || bytes.is_none_or(|bytes| bytes > 512 * 1024 * 1024)
         || names.is_none_or(|names| {
-            names > checked_interpreter::FILESYSTEM_ROOT_RELATIVE_PATH_BYTE_LIMIT
+            names > filesystem_authority::FILESYSTEM_ROOT_RELATIVE_PATH_BYTE_LIMIT
         })
     {
         return Err(vec![Diagnostic::error(
