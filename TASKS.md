@@ -4806,11 +4806,9 @@ wait for Cathedral's instruction coverage. The interpreter is
     `X86_64DeriverStubEntryEmission` has no production producer. Bind entry/body
     coordinates, bytes, stack overhead and final state, keeping stack, fuel and
     state separate.
-  - Publish the authored table through the package validator and generic
-    writer, and move the remaining gate/IST policy out of `InterruptTableGateDescriptor`
-    and `InterruptTableProfile` in
-    `omega-rust/omega/compilation/backend/runtime/external-roots/src/interrupts/interrupt_table/gate_descriptors.rs`,
-    keeping the installed-root, publication-authority and checked-`lidt` joins.
+  - **CATHEDRAL-INTERRUPT-RUNTIME-REMOVAL** owns deletion of the compiler-side
+    table membership, dispatch and invocation-stage model while preserving the
+    general installed-root, publication-authority and checked-`lidt` joins.
   - Implement fatal halt, timer/controller setup, tick recording and wake.
     **BOUNDED-INSTALLATION-REACH-ROWS** / **TOP-LEVEL-BOUNDARY-REQUIREMENTS** own
     acknowledgement lineage; integrate **UEFI-PHYSICAL-SEMANTIC-ENTRY** /
@@ -4822,6 +4820,44 @@ wait for Cathedral's instruction coverage. The interpreter is
   resuming ordinary work. Missing members, wrong writer/realization, changed
   bytes, replayed publication/acknowledgement, forgotten/double completion and
   retirement while the table names a root reject.
+
+- **CATHEDRAL-INTERRUPT-RUNTIME-REMOVAL.** (split-of:EXCEPTION-ROOTS-AND-TIMER)
+  Remove Cathedral interrupt policy and runtime lifecycle from the compiler.
+  `omega-rust/omega/compilation/backend/runtime/external-roots/src/interrupts/`
+  currently owns `InterruptTableLedger`, `InterruptTableProfile`, vector/member
+  policy, fatal-versus-timer obligations, `begin_published_interrupt_entry`, and
+  enter/body/exit epoch transitions. All callers of the dispatch and epoch APIs
+  are Rust tests; no produced program uses them. This is an OS model, not an
+  ISA, ABI, artifact or installation primitive.
+  - Cathedral source owns table data and validation, vector membership,
+    gate/IST policy, timer/fault dispatch, nesting, acknowledgement and
+    invocation lifecycle. Carry those through the authored
+    `tests/omega/pass/memory/interrupt_table_canary/cathedral/` customer and
+    the parent task's QEMU execution rather than reconstructing them in Rust.
+  - The compiler may retain generic installed-code/root identity, stack and
+    machine-state contracts, publication authority and linear custody, plus
+    unavoidable target mechanics: x86 `lidt` operand shape, instruction
+    encoding and relocations. Those mechanics consume authored table bytes and
+    selected-provider evidence; they do not know the member roster, vector
+    meaning, obligation kind or live invocation stage.
+  - Delete or generalize the interrupt-specific ledger, profile, established
+    table/member, admission, publication and dispatch carriers. Replace Rust
+    tests that construct table plans, roots, receipts and epoch transitions
+    with source/corpus customers of the surviving general contracts. Do not
+    move the model into another backend crate or add an interrupt-specific
+    compiler intrinsic family.
+
+  Acceptance: compiler-owned production code has no type that describes an
+  interrupt table's members, vector policy, fatal/timer role, dispatch decision
+  or enter/body/exit state, and no `begin_published_interrupt_entry`,
+  `turn_interrupt_epoch_stage` or `finish_interrupt_entry` API. A source guard
+  pins that boundary while allowing the exact target-owned `lidt` encoding and
+  generic external-root/publication contracts. The unchanged Cathedral canary
+  authors and validates its table, executes a timer and a deliberate fault in
+  QEMU through **EXCEPTION-ROOTS-AND-TIMER**, and the malformed-member,
+  wrong-publication, replay, missing-acknowledgement and premature-retirement
+  controls reject through ordinary source and provider contracts. The
+  `external-roots` test suite contains no substitute interrupt dispatcher.
 
 - **BOUNDED-INSTALLATION-REACH-ROWS.** Complete
   [installation-bound reach](wiki/spec/build/external_roots.md#installation-bound-reach)
