@@ -8,6 +8,18 @@ one command.
 
 ## Validation scope
 
+Iteration uses focused behavioral feedback; landing establishes the scoped
+change and attributes affected failures; release runs the full release matrix.
+A known-red unrelated baseline need not block a checkpoint, but is not release
+acceptance. Add tests for missing behavioral distinctions, not mechanically
+expanded combinations or test-count targets.
+
+An agent may own **VALIDATION-ENVIRONMENT** or **ITERATION-PERFORMANCE** after
+a round of compiler work (see [outcome ownership](../TASKS.md#outcome-ownership)).
+Name the obstructed workflow and adequate target first. Repair the bottleneck
+or validation path, demonstrate the result and stop. Do not silently turn a
+feature assignment into profiling or repeated broad test runs.
+
 Routine changes, including `advance`, use focused regression coverage, affected
 crate checks, and relevant integration tests. Choose checks from the changed
 behavior and its dependencies/source readers, not from the mere existence of a

@@ -17,8 +17,9 @@ workflow.
 
 Respect the requested area and mode: an audit asks for evidence and proposals;
 a cleanup authorizes implementation. Follow repository worktree, claims and
-landing procedures. Campaign duration and overlapping-claim permission come
-from the invocation.
+landing procedures. Campaign duration comes from the invocation. Claims own
+outcomes, not files; report overlaps and reconcile rather than avoiding the
+necessary repair. Retain one DRI through integration and acceptance.
 
 ## Choose a consequential problem
 

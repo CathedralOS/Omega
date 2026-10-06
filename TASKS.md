@@ -5,10 +5,56 @@ Unfinished product and language work for the Rust reference compiler. The
 defines release acceptance; this board lists the remaining work, not a
 passing baseline.
 
-Pick the nearest program that fails to compile or run, repair the shared
-operation it reaches, and rerun the unchanged program through native
-execution. All accepted language scope stays required; the order below guides
-implementation, it does not exempt anything from release.
+Own a general compiler capability through its release acceptance. Programs
+expose missing behavior and provide evidence; Squalr is not the destination or
+a reason to special-case source. All accepted language scope stays required.
+Measured iteration-performance and test-environment repairs are also outcomes,
+not fallback busywork when implementation files overlap.
+
+## Outcome ownership
+
+Keep the existing item IDs and capability sections stable for running agents.
+These are three views of the same board, not copies of its tasks:
+
+- **Active:** an outcome has a DRI in `python tools/claims.py status`. That
+  person owns acceptance and integration, including necessary cross-stage work.
+- **Ready:** unowned outcomes from `python tools/claims.py available --board
+  TASKS.md` whose stated prerequisites can be met. File overlap does not remove
+  availability. The command lists unowned work, not a proof of readiness.
+- **Parked:** outcomes with an explicit missing decision, environment or priority
+  prerequisite. Retain that prerequisite and acceptance, not an abandoned report.
+  Claim when it can be advanced; explicit owner-parked scope stays parked.
+
+Each assignment carries outcome, acceptance, DRI ticket, current failure, next
+necessary action and dependency links. Keep the DRI in the live registry rather
+than stamping names into shared prose. Existing task text supplies the contract;
+clarify it when taking ownership instead of mass-renaming active assignments.
+After compaction or a checkpoint, reread that short assignment before proceeding.
+
+Discovered roadblocks normally remain within the owned outcome. Record a shared
+blocker once and link it; a separate assignment requires independently useful
+work and an identified integration owner. A checkpoint, diagnosis or child task
+does not complete the parent. File conflicts are reconciled, not avoided by
+inventing another outcome. Never retain competing implementations as modes.
+
+### Development-health outcomes
+
+After a completed round or explicit handoff, an agent may own either duty below.
+These standing entries are parked when no concrete incident is assigned. An
+active claim must name an experienced obstruction, reproducible workflow,
+baseline and adequate acceptance target. Close that incident and return the
+duty to parked; keep measurements in its commit, not a growing incident log.
+Use an existing specific repair item when one already owns the obstruction.
+
+- **ITERATION-PERFORMANCE.** (new-scope) Restore a usable edit/build/run workflow
+  that is measurably obstructing compiler development. The DRI fixes its cause
+  and demonstrates the agreed time/resource target on comparable inputs while
+  preserving behavior. Stop at usable iteration, not exhaustive optimization.
+- **VALIDATION-ENVIRONMENT.** (new-scope) Restore meaningful, bounded feedback
+  for a named development workflow. The DRI repairs test selection, harness or
+  environment friction and demonstrates that affected regressions are detected
+  without an unnecessary full-suite run. Preserve release coverage and runtime
+  oracles; recorded unrelated failures need not become this incident's repairs.
 
 | Priority | Work |
 | --- | --- |
@@ -43,6 +89,11 @@ Update by subtraction, not accumulation. This applies to all three task boards.
   or qualify an unresolved observation.
 - Search the boards for the repaired capability and affected program; reconcile
   stale claims elsewhere. A passing narrower example does not close a wider task.
+- Do not create a task for each diagnostic or next implementation step. Splits
+  retain a parent integration owner; unrelated findings enter the board only
+  with a distinct required outcome and acceptance. No mining to fill slots.
+- Reconcile concurrent edits by the remaining requirements, not a union of old
+  and new paragraphs. Remove superseded directions and duplicate blockers.
 - Review the diff: what unfinished requirement did this change remove? If the
   item grew, what newly established unfinished work or necessary context explains
   the growth? There is no line quota and no requirement to invent a deletion.

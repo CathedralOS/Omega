@@ -10,7 +10,8 @@ the problem.
 
 Read [AGENTS.md](../../../AGENTS.md), especially the board and validation
 rules, and follow its worktree, claims and publication procedures. The
-invocation determines scope, persistence and overlap permission. A review-only
+invocation determines scope and persistence; paths are advisory under AGENTS.md.
+A review-only
 request produces findings.
 
 ## Audit before compressing
@@ -38,7 +39,9 @@ it. If status cannot be verified, write the precise verification needed.
   Missing implementation is unfinished work, and stays.
 - Consolidate duplicates under the owner of the missing capability, preserving
   distinct acceptance cases and dependencies. Split only when it enables
-  independent work.
+  independently useful work; retain the parent outcome's integration DRI.
+  A next diagnostic or implementation step normally updates the current frontier,
+  not the number of tasks. Never mine assignments just to occupy agents.
 - Challenge dependencies: separate an executable concurrency witness from model
   work that can proceed without a runtime, for example. Engineering difficulty
   and an old ownership stamp are engineering, not design blockers.
@@ -52,6 +55,11 @@ Each retained item explains the missing behavior, owning code/specification,
 necessary context, real dependencies and concrete acceptance, with a current
 reproduction or decisive symbol/test link when it saves rediscovery, in
 natural prose or bullets.
+
+Keep outcome IDs stable for active agents. Active/Ready/Parked are views of the
+same items; live claims record DRIs, not file exclusions. Performance and test
+environment incidents are valid outcomes with measured acceptance and a stop
+condition; dormant standing duties are not invitations to optimize forever.
 
 Replace accumulated history with the current state once: remove dated landing
 logs, expired claims, repeated rationale, test totals and copied repository
@@ -72,7 +80,8 @@ references to consolidated or removed items. Keep bootstrap and optimizer work
 with their owning boards; leave historical records alone.
 
 Validate links, ownership, dependency references and consistency. Reconcile
-incoming board edits by their meaning. Commit and publish coherent batches when
+incoming board edits by their remaining requirements, never union-merge history.
+Commit and publish coherent batches when
 authorized, following the repository landing protocol.
 
 Report the meaningful deletions/consolidations, unresolved questions and the

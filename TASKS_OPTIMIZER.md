@@ -2,6 +2,9 @@
 
 Follow [board update discipline](TASKS.md#updating-the-boards): retain unfinished
 work and its necessary context, not a history of completed milestones.
+Use [outcome ownership](TASKS.md#outcome-ownership) when this scope reopens.
+Development iteration performance is a separate first-class outcome there;
+it does not silently reopen optimizer feature work here.
 
 **Parked.** This board is not open for assignment until the owner reopens it.
 Do not claim or start these items; native correctness work that a program

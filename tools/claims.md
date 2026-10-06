@@ -1,139 +1,86 @@
-# Work claims
+# Outcome claims
 
-Machines, waves, and local sessions share one registry of in-progress work at
-`refs/coordination/omega-claims/main`. A claim names its owner, a board item or
-freeform label, the repository paths it expects to edit, and a renewable lease.
-It answers "what is already being worked on" before anyone starts, so a new
-agent picks unclaimed work instead of duplicating an active assignment.
+The registry at `refs/coordination/omega-claims/main` records the DRI (directly
+responsible individual) for an outcome, not exclusive files. Path overlap is
+integration information and never blocks a different outcome. Publication uses
+[landing](landing.md).
 
-The registry is an advisory fence, not a lock. Claiming an item another live
-claim holds, or a path overlapping another claim's paths, is rejected so the
-coordinator can partition explicitly. `--allow-overlap` records an informed
-exception in the result; contested merges still happen and remain the owners'
-problem. Publication stays with `tools/landing.py`; claims never touch `main`.
-
-Each command has a 15-second total coordination budget, including Git and
-contention retries. Exit 3 reports `state: unavailable`, not success or an empty
-registry. A timed-out claim saves its ticket and intended scope in
-`build/claims-pending/<ticket>.json`. Report the outage and continue development
-in an isolated worktree; do not repeatedly wait for registration. Known live
-conflicts still require coordination or owner permission, and publication still
-uses the landing queue. A timed-out push may have landed: inspect status before
-retrying, retaining the same ticket. `--timeout-seconds` before the subcommand
-can explicitly change the budget (maximum 300 seconds).
-
-This is compatible with running clients: the version-1 registry, active tickets,
-leases, and evidence notes are unchanged. Pending records are local reminders,
-not automatically replayed writes or successful claims.
-
-The helper uses **Python 3 and Git** like `landing.py`; `python` below means
-your Python 3 executable (`python3` on macOS/Linux). Every command prints one
-JSON object. Use `--repository <path>` for another worktree and `--remote
-<name>` for a remote other than `origin`.
-
-## See what is live
+## Inspect and claim
 
 ```text
 python tools/claims.py status
 python tools/claims.py available --board TASKS.md
+python tools/claims.py claim --board TASKS.md --item OUTCOME-ID --owner "Name / outcome" --path affected/subsystem --note "Acceptance; failure; next action; dependencies"
 ```
 
-`status` lists live claims and recently expired ones (kept for visibility until
-the next writer reaps them), plus `off_board_fences`: live claims with no board
-that hold directory fences, so invisible blocking work surfaces instead of
-sitting outside the boards. `available` lists a board's items that no live
-claim holds — the supported boards are `TASKS.md`, `TASKS_BOOTSTRAP.md`, and
-`TASKS_OPTIMIZER.md`.
+Use Python 3 (`python3` where appropriate), on Windows, macOS or Linux.
+`--repository` and `--remote` select another checkout/remote. Availability
+means unowned, not prerequisite-free: read the task and its parked status.
 
-## Claim before editing
+- Exit 0 registers the claim. `overlaps` names peers to notify and reconcile.
+- Exit 2 means the same outcome has a DRI. Contribute under that owner, arrange
+  a handoff, or select a distinct outcome. Do not invent an alias to evade it.
+- Exit 3 means coordination is unavailable. Record the scope locally and
+  continue isolated work; do not repeatedly wait or claim registration succeeded.
+
+A handoff records the frontier and successor, releases the old ticket, then the
+successor claims. A checkpoint is not a handoff. Delegation retains an integration
+DRI; contributors use specifically delegated sub-outcomes, not competing parent claims.
+
+`--path` accepts repeated, comma/whitespace-separated files or directories.
+These are estimates, not edit permissions. Necessary scope can expand without
+releasing ownership. Boards remain shared: claim their items, not board-file paths.
+
+## Lifetime and evidence
+
+Default leases last eight hours; `--lease-minutes` accepts 15–1440.
 
 ```text
-python tools/claims.py claim --board TASKS.md --item TERMINATION-RANKING-CHECKS \
-    --owner "Jarod / windows" --path omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/termination
+python tools/claims.py renew --ticket TICKET
+python tools/claims.py note --ticket TICKET --text "Outcome; acceptance; failure; next action; dependencies"
+python tools/claims.py release --ticket TICKET
+python tools/claims.py recover --ticket TICKET --reason "Owner confirmed stopped; handoff recorded"
 ```
 
-Retain the returned ticket. `--board` validates the item's `**<item>.**`
-marker; omit it for work not on a board. `--path` repeats, and each value may
-also be a comma-joined list (`--path a/b,c/d`); empty segments are rejected.
-Paths are normalized to repository-relative form (Windows-style separators
-accepted). The default lease is 8 hours; `--lease-minutes` accepts 15..1440.
+Renew while working. Release after completion or explicit handoff/stop, not
+every commit. Expiry is not completion. Preserve abandoned work before recovery;
+never remove a peer claim merely for file overlap.
 
-Omit `--ticket` for new work. Internally generated UUIDs need no historical
-message search. Explicitly supplied tickets retain the legacy retired-ticket
-check; a live ticket remains idempotent for its owner. Within one invocation,
-retries check ancestry of its own attempted writes so a claim accepted and then
-removed by another client cannot be resurrected.
+Notes survive release. `notes` lists pending entries; `--ticket` (unique
+prefix), `--owner`, and `--all` filter them. Coordinators incorporate only
+justified remaining work, then `sweep --owner <wave>`. Notes are not another
+backlog; board conflicts are reconciled, not union-merged.
 
-Task-list files are shared, never exclusively owned. Claim an individual item
-with `--board` and `--item`, not the board with `--path`. The helper rejects
-paths named `TASKS.md`, `TASKS_BOOTSTRAP.md`, or `TASKS_OPTIMIZER.md`, including
-nested boards. Existing board-file paths confer no fence, and audits require
-no path claim for board edits. Other paths and individual items in those
-claims remain protected. Keep edits scoped to the relevant items and reconcile
-concurrent board changes during landing; no board-file reservation is needed.
+`audit --worktree PATH --owner LABEL --base origin/main` reports changes,
+uncovered estimates and all peer `overlaps`, including shared estimates.
+It exits 0 for overlaps; command/network errors still fail.
 
-A claimed path that is a directory — or that does not exist and has no file
-extension — is a directory fence: it blocks every path under it for every
-other claimant. Directory fences therefore require `--board` with an item
-that exists on it, so the blocking work is schedulable against an
-acceptance instead of invisible to `available` and the boards. Off-board
-file claims stay allowed; `--allow-overlap` does not bypass the rule.
+## Compatible rollout
 
-Exit 2 means a live conflicting claim exists; the JSON lists the owner, item,
-and either the shared item or the overlapping paths. Stop and coordinate —
-that output is a real assignment, not a transient error. Retrying a live
-ticket you already hold with the same owner is idempotent.
+The wire format remains `omega-claims-v1`. Existing tickets, notes, leases,
+renewals and releases remain valid. No mass cancellation or reassignment.
+Historical duplicate owners remain readable; agree one DRI at handoff.
 
-## Renew, release, recover
+`--allow-overlap` remains accepted for old launchers. It is unnecessary for
+paths and cannot replace an outcome owner. Refresh old clients before selecting
+new work; old clients may still reject path overlap, but existing tickets can
+be renewed/released without conversion.
 
-```text
-python tools/claims.py renew --ticket <ticket> [--lease-minutes <n>]
-python tools/claims.py release --ticket <ticket>
-python tools/claims.py recover --ticket <ticket> --reason "Owner confirmed stopped"
-```
+Deprecated JSON fields `off_board_fences` and audit `violations` remain
+empty for existing consumers. Directory estimates appear in `off_board_paths`;
+audit collisions appear in `overlaps`.
 
-Renew any time before expiry. Release when finished for any reason — landed,
-blocked, or abandoned. An expired claim never blocks reuse: the next writer
-reaps it automatically. Recovery removes someone else's claim early and
-requires a reason after checking with its owner; owner labels identify peers
-but are not authentication.
+Commands have a 15-second total coordination budget; `--timeout-seconds`
+before the subcommand permits up to 300 seconds. Timed-out claims save
+`build/claims-pending/<ticket>.json`. Inspect status before retrying an
+uncertain write, retaining its ticket. Removed tickets cannot be resurrected.
 
-## Evidence notes
+Mutations compare-and-swap the Git reference: distinct concurrent outcomes
+survive, while a same-outcome race admits one owner. Expired claims are reaped
+by the next writer. This serializes registration, not development.
 
-```text
-python tools/claims.py note --ticket <ticket> --text "<finding>"
-python tools/claims.py notes [--ticket <prefix>] [--owner <substr>] [--all]
-python tools/claims.py sweep
-```
+## Validation
 
-Workers attach durable evidence to a live claim instead of committing board
-files: `note` records `text` (1–2000 characters) under the claim's ticket,
-item, and owner, and requires a live claim. Notes survive claim release, so a
-finding like "already resolved upstream, verified at `<sha>`" reaches the
-coordinator without a board-only commit on `main`. `notes` lists pending
-(unswept) entries — each carries its ticket, item, owner, and `created_utc`
-— and `--ticket <prefix>` (a prefix naming more than one known ticket is
-refused with the candidates listed), `--owner <substr>`,
-and `--all` (include swept history) filter that list; `status` reports the
-pending count as `notes_pending`. The
-coordinator reads them at drain, writes the board updates they justify in its
-own sweep commit, then marks them consumed with `sweep`. Swept notes stay in
-the record for audit, bounded to the most recent hundred; the ledger is not a
-second task board — it carries findings, not assignments.
-
-## Consistency model
-
-Every mutation commits the whole document as an empty-tree commit child and
-pushes with an exact expected reference, like the landing queue. Stale writers
-are fenced; concurrent claimants retry onto the newest document and keep both
-arrivals. Removed tickets stay invalid through the retained history. Clock
-skew only shifts apparent lease times; keep host clocks synchronized.
-
-```text
-python tools/tests/test_claims.py -v
-```
-
-Tests use temporary local repositories and independent processes. They cover
-claim/release, item and path conflicts, idempotent retry, renewal, expiry and
-reaping, recovery, concurrent arrivals, board item validation, and unknown
-formats. They do not contact GitHub.
+`python tools/tests/test_claims.py -v` uses temporary local repositories,
+not GitHub. It exercises ownership races, advisory overlap, legacy records/flags,
+ticket lifecycle, evidence notes and coordination failure.

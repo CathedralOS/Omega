@@ -37,11 +37,18 @@ From the repository root (`{repository}`):
     python3 tools/claims.py status
     {claim_command}
 
-Claim BEFORE editing and keep the ticket. If the claim exits 2 on a live
-conflict, narrow your path set and reclaim. If the item itself is claimed by
-a live session, pick an unclaimed board item that is not in this wave's
-sessions ({wave_items}) or the wave exclusions ({exclusions}), claim that
-instead, and record the pivot in your report. Never pass `--allow-overlap`.
+Keep the ticket and own this outcome through acceptance and integration.
+Exit 2 means another DRI owns the same outcome: ask the coordinator for a
+handoff or a delegated contribution, not an unrelated task. Paths are advisory:
+overlaps do not reject or require permission. Notify peers where practical,
+continue necessary work in this worktree and reconcile at landing. Refresh old
+claims clients that still reject file overlaps; existing tickets remain valid.
+Renew before expiry. A checkpoint does not end ownership.
+
+Keep a short assignment record: outcome, acceptance, current failure, next
+necessary action and dependencies. Reread it after compaction. New obstacles
+normally belong to this outcome; do not manufacture residual tasks or switch
+to profiling/testing work without completing or handing off the assignment.
 
 Exit 3 means coordination timed out, not a live conflict. Keep the pending
 claim record, report the outage, and continue the assigned work in this isolated
@@ -58,7 +65,8 @@ and repeat it in your report; the coordinator owns board edits and sweeps
 notes at drain.
 
 Release the claim with `python3 tools/claims.py release --ticket <ticket>`
-on ANY terminal outcome: landed, blocked, superseded, or abandoned.
+when the outcome completes or is explicitly handed off/stopped. A landed
+checkpoint with remaining acceptance retains ownership.
 
 ## Working rules
 
@@ -74,8 +82,8 @@ on ANY terminal outcome: landed, blocked, superseded, or abandoned.
 - On "No space left on device" during builds, reclaim the shared build cache
   first (`mbx gc` when `mbx` is present) before reducing scope.
 - Refetch `origin/main` before enqueueing. If the item's acceptance has
-  already landed or the board text materially changed, stop and report
-  `superseded` rather than landing a duplicate.
+  already landed, verify and report `superseded`. A changed board paragraph
+  alone is not completion or a reason to abandon the outcome.
 - On Windows, never use `2>nul` or `>nul` to silence output: Git Bash
   creates a literal file named `nul` in the worktree, which lands as an
   untracked file and can block a publish from the main checkout. Drop the
@@ -107,7 +115,7 @@ Give `publish` the model that produced the change: `--provenance "agent=<tool> m
 
 End with a prose report containing:
 
-- the item actually worked (if you pivoted after a claim conflict, say so)
+- the owned outcome and whether its acceptance is complete
 - claim ticket
 - landed commit(s), or the exact blocker with the conflict details
 - checks run, each with command, host, and exit code

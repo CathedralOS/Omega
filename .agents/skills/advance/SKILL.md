@@ -1,7 +1,7 @@
 ---
 name: advance
 description: >-
-  Deliver one bounded Omega compiler improvement from the execution boards or
+  Own one Omega compiler or development-health outcome from the execution boards or
   an existing customer example. Use for advance, continue the compiler, work the
   boards, or pick the next compiler task. Not for a named bug fix, code question,
   review, or repository-wide health check.
@@ -9,34 +9,42 @@ description: >-
 
 # Advance the Omega compiler
 
-One invocation makes one real program run that did not, and publishes it.
+Own one outcome through demonstrated acceptance and publication.
 Follow [AGENTS.md](../../../AGENTS.md) for repository ownership,
 validation, board rules, and publication.
 
-## Choose the program
+## Choose and retain the outcome
 
 Record the start time, starting checkout, and branch. Fetch main and inspect
 status and recent lane commits. If the starting checkout is clean and on main,
 fast-forward it with `git merge --ff-only origin/main` before reading its boards.
 Otherwise preserve it and read from an isolated worktree based on fetched main.
 
-For a continuation, keep the same program until it runs, a named dependency
-blocks it, or the user changes priority. Without prior continuity, choose from
+For a continuation, retain the same outcome until acceptance, explicit handoff,
+or a user priority change. Missing implementation is part of the assignment,
+not a reason to move elsewhere. Without prior continuity, choose from
 `TASKS.md`, `TASKS_BOOTSTRAP.md`, or `TASKS_OPTIMIZER.md`; honor a named board.
-The item to pick is the one whose program is nearest to `omega run` succeeding:
-`omega run <program.omg>` compiles and executes a real program that did not
-previously run, and the run produces the program's authored result. Missing
-implementation, a red customer command, and cross-stage scope are the shape of
-the work, not reasons to pass. When passing over an eligible item, name the
-active assignment or unanswered owner decision that prevents it. Check live
-assignments with `python tools/claims.py status` and coordinate overlapping
-paths before editing. Claim your item before editing
+Choose a general capability that closes release requirements; real programs
+and relevant invalid controls demonstrate it. Squalr and Cathedral are customers,
+not source shapes to special-case or rewrite around gaps. After a completed
+round or explicit handoff, measured iteration performance or test-environment
+friction may be the next owned outcome. Name its workflow, baseline and adequate
+target first; a minor incidental slowdown is not permission to abandon a feature.
+Check live assignments with `python tools/claims.py status`. Claim your item
 (`claim --board <board> --item <item> --owner "<label>" --path <paths>`), renew
 a long task before its lease expires, and release it when finished for any
-reason. A live conflicting claim means select different work or coordinate a
-handoff. A named board limits selection to that board; an explicitly named
+reason, recording the remaining frontier if interrupted. Same-outcome ownership
+requires a handoff; overlapping paths do not. Inform peers where practical,
+proceed in isolation and reconcile at landing. A named board limits selection
+to that board; an explicitly named
 program limits it to that program and the dependencies it needs to run. State
-the program, missing dependencies, and the command that shows it running.
+the outcome, missing dependencies and acceptance command.
+
+Keep that short assignment in the claim note or session handoff: outcome,
+acceptance, current failure, next necessary action and dependencies. Reread it
+after compaction and before changing direction. A new obstacle updates this
+frontier; it does not automatically create a task. Split genuinely independent
+work only with an integration DRI. Do not mine tasks to keep a slot occupied.
 
 Choose the capability by its source-to-execution acceptance: "a helper mutates
 the caller's field and the caller observes it after return," stated as the
@@ -44,13 +52,20 @@ program's observable behavior. Trace the remaining producer and consumer
 dependencies before the first repair. Own the outcome through the program
 running; when the next missing stage appears, that stage is the next step of
 the same assignment. Intermediate code checkpoints are fine; the assignment
-ends when the program runs.
+ends when the capability's acceptance passes, not merely one customer subcase.
+For development-health work, stop at the agreed usable workflow rather than
+collecting every hotspot or expanding test matrices.
 
 Read the owning design and [completion plan](../../../wiki/drafts/reference/rust_compiler_completion.md).
 For bootstrap work, also read [whole-chain minimization](../../../bootstrap/MINIMIZATION.md)
 and apply [scope and escalation](../../../AGENTS.md#scope-and-escalation).
 
 ## Work from a should-be-working example
+
+For a development-health outcome, the example is the obstructed edit/build/test
+workflow and its measured acceptance, not a fabricated program failure. Apply
+the investigation and validation steps below to that workflow; do not require
+unrelated native/interpreter gates just to fit the compiler-work template.
 
 Resolve unfamiliar paths with `rg --files <existing-directory> -g '<pattern>'`.
 For content searches, pass an existing directory and use `-g` for filename
@@ -83,8 +98,9 @@ anything, and admission fences stay out of its scope by design.
 Apply [compositional lowering](../../../omega-rust/pipeline.md#compositional-lowering).
 If supported operations fail only because of their surrounding arrangement,
 repair the shared sequencing or semantic join and retire the replaced
-recognizer. Carry the same program across the repair. Independent replay and
-real ownership, effect, proof, and ABI checks remain required.
+recognizer. Carry the same program across the repair. Preserve language
+ownership, effect, mathematical proof and ABI obligations; do not resurrect
+the independently replayed PCC checks retired by the owning tasks.
 
 Carry the reproduction and source findings forward across handoffs.
 
@@ -192,7 +208,8 @@ Monitor through completion, respond to findings, and inspect the returned diff
 and evidence before integration. Worker IDs stay in the conversation.
 
 Evidence identifies revision, host, command, exit, and remaining dependencies.
-The assigned acceptance is the program running on the target; continue
+The assigned acceptance is the required capability demonstrated on the target,
+or the measured development workflow restored to its agreed bound; continue
 implementation when the design answers the next question, or hand off the exact
 missing dependency and next acceptance.
 
@@ -234,7 +251,7 @@ running there, run `git worktree remove <path>`, then `git branch -d
 or unpublished stay; report a retained worktree and the reason. Verify the path
 is absent from `git worktree list` and the branch is gone.
 
-## When the program does not run yet
+## When acceptance is not complete
 
 Decompose cross-stage work into the smallest dependency that moves the same
 program's observable behavior or a named proof obligation.
@@ -244,11 +261,14 @@ dependency, why existing mechanisms cannot deliver it, and the next executable
 step. Language/architecture decisions go to `OWNER_QUESTIONS.md` with the
 dependency referenced on the owning task; engineering choices are the agent's.
 
-Stop only when no claimable program remains within the user's scope or an
-operational prerequisite is unavailable; report the candidates considered and
-the input needed. For a restricted assignment, explain the restriction.
+Do not switch assignments because a required file is shared, the next stage
+is unfinished or a checkpoint landed. Continue necessary work. A genuine owner
+decision, unavailable environment, budget limit or user stop may end this run;
+preserve the exact frontier and handoff without marking the outcome complete.
 
 Report the program's behavior before and after, commit/publication state,
-checks run, and remaining dependencies. Stop after this one program.
+checks run, and remaining dependencies. For development-health work report the
+workflow's before/after measurements and preserved validation. Stop after the
+owned outcome unless the user requested continuing work.
 
 For skill maintenance, use the [evaluation guide](evals/README.md).

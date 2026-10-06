@@ -149,7 +149,8 @@ class RegistrationBudgetTests(unittest.TestCase):
     def test_git_timeout_is_an_uncertain_outcome_not_success(self):
         module = load_claims()
         with mock.patch.object(module.coordination.subprocess, "run",
-                               side_effect=subprocess.TimeoutExpired("git", 0.1)) as run:
+                               side_effect=subprocess.TimeoutExpired("git", 0.1)) as run, \
+                mock.patch.object(module.coordination.time, "monotonic", return_value=0.0):
             with self.assertRaises(module.coordination.CoordinationTimeout):
                 module.coordination.git(".", "push", deadline=time.monotonic() + 0.1)
         self.assertGreater(run.call_args.kwargs["timeout"], 0)
@@ -325,7 +326,7 @@ class ClaimsTests(unittest.TestCase):
         self.assertEqual(report["violations"], [])
         self.claim(self.b, "BETA-ITEM", "B")
         self.claim(self.b, "ALPHA-ITEM", "B", expected=2)
-        self.claim(self.b, "GAMMA-ITEM", "B", "--path", "src/x/file.rs", expected=2)
+        self.claim(self.b, "GAMMA-ITEM", "B", "--path", "src/x/file.rs")
 
     def test_claim_splits_comma_joined_path_values(self):
         self.claim(self.a, "ALPHA-ITEM", "A", "--path", "src/x,src/y",
@@ -334,10 +335,9 @@ class ClaimsTests(unittest.TestCase):
         self.assertEqual(entry["paths"], ["src/x", "src/y", "src/z"])
         conflict = self.run_claims(self.b, "claim", "--item", "BETA-ITEM",
                                    "--board", "TASKS.md",
-                                   "--owner", "B", "--path", "src/y/deep",
-                                   expected=2)
-        self.assertEqual(conflict["conflicts"][0]["reason"], "overlapping paths")
-        self.assertEqual(conflict["conflicts"][0]["shared_paths"], ["src/y/deep"])
+                                   "--owner", "B", "--path", "src/y/deep")
+        self.assertEqual(conflict["overlaps"][0]["reason"], "overlapping paths")
+        self.assertEqual(conflict["overlaps"][0]["shared_paths"], ["src/y/deep"])
 
     def test_claim_splits_whitespace_joined_path_values(self):
         self.claim(self.a, "ALPHA-ITEM", "A", "--path", "src/x src/y")
@@ -361,7 +361,7 @@ class ClaimsTests(unittest.TestCase):
                 self.claim(self.a, "ALPHA-ITEM", "A", "--path", bad, expected=1)
         self.assertEqual(self.run_claims(self.a, "status")["state"], "available")
 
-    def test_legacy_comma_joined_claim_still_fences(self):
+    def test_legacy_comma_joined_claim_reports_overlap(self):
         """A claim recorded before comma-splitting keeps its full coverage."""
         self.claim(self.a, "ALPHA-ITEM", "A", "--path", "src/x")
         record = self.remote_record()
@@ -369,45 +369,34 @@ class ClaimsTests(unittest.TestCase):
         self.rewrite_record(record)
         conflict = self.run_claims(self.b, "claim", "--item", "BETA-ITEM",
                                    "--board", "TASKS.md",
-                                   "--owner", "B", "--path", "src/y/deep",
-                                   expected=2)
-        self.assertEqual(conflict["state"], "conflict")
-        self.assertEqual(conflict["conflicts"][0]["shared_paths"], ["src/y/deep"])
+                                   "--owner", "B", "--path", "src/y/deep")
+        self.assertEqual(conflict["state"], "claimed")
+        self.assertEqual(conflict["overlaps"][0]["shared_paths"], ["src/y/deep"])
 
-    def test_path_overlap_blocks_and_allow_overlap_records_exception(self):
+    def test_path_overlap_is_advisory_with_or_without_legacy_flag(self):
         self.claim(self.a, "ALPHA-ITEM", "A", "--path", "src/x")
         conflict = self.run_claims(self.b, "claim", "--item", "BETA-ITEM", "--board",
                                    "TASKS.md", "--owner", "B",
-                                   "--path", "src/x/y", expected=2)
-        self.assertEqual(conflict["conflicts"][0]["reason"], "overlapping paths")
-        self.assertEqual(conflict["conflicts"][0]["shared_paths"], ["src/x/y"])
-        self.claim(self.b, "BETA-ITEM", "B", "--path", "src/z")
+                                   "--path", "src/x/y")
+        self.assertEqual(conflict["overlaps"][0]["reason"], "overlapping paths")
+        self.assertEqual(conflict["overlaps"][0]["shared_paths"], ["src/x/y"])
         allowed = self.run_claims(self.b, "claim", "--item", "GAMMA-ITEM", "--board",
                                   "TASKS.md", "--owner", "B",
                                   "--path", "src/x/deep", "--allow-overlap")
         self.assertEqual(allowed["overlaps"][0]["item"], "ALPHA-ITEM")
 
-    def test_directory_fence_requires_board_item(self):
+    def test_directory_paths_are_estimates_even_without_board(self):
         (self.a / "src" / "dir").mkdir(parents=True)
-        for path in ("src/dir", "src/not-yet-created"):
-            with self.subTest(path=path):
-                error = self.run_claims(self.a, "claim", "--item", "OFF-BOARD",
-                                        "--owner", "A", "--path", path,
-                                        expected=1)
-                self.assertIn(f"Directory fence {path} needs a board item",
-                              error)
-        # --allow-overlap does not bypass the rule.
-        error = self.run_claims(self.a, "claim", "--item", "OFF-BOARD",
-                                "--owner", "A", "--path", "src/dir",
-                                "--allow-overlap", expected=1)
-        self.assertIn("needs a board item", error)
-        # A directory fence is fine once it is schedulable on a board.
-        claimed = self.run_claims(self.a, "claim", "--item", "ALPHA-ITEM",
-                                  "--board", "TASKS.md", "--owner", "A",
-                                  "--path", "src/dir")
-        self.assertEqual(claimed["state"], "claimed")
-        self.assertEqual(self.run_claims(self.a, "status")
-                         ["off_board_fences"], [])
+        first = self.run_claims(self.a, "claim", "--item", "OFF-BOARD",
+                                "--owner", "A", "--path", "src/dir")
+        second = self.claim(self.b, "BETA-ITEM", "B", "--path", "src/dir/new.rs")
+        self.assertEqual(second["overlaps"][0]["ticket"], first["ticket"])
+
+    def test_overlap_flag_cannot_replace_outcome_owner(self):
+        self.claim(self.a, owner="A")
+        conflict = self.run_claims(self.b, "claim", "--item", "ALPHA-ITEM",
+                            "--owner", "B", "--allow-overlap", expected=2)
+        self.assertEqual(conflict["conflicts"][0]["reason"], "same item")
 
     def test_file_claim_stays_off_board(self):
         (self.a / "notes.txt").write_text("x\n", encoding="utf-8")
@@ -418,14 +407,15 @@ class ClaimsTests(unittest.TestCase):
                                           "--path", path)
                 self.assertEqual(claimed["state"], "claimed")
 
-    def test_status_reports_off_board_directory_fences(self):
+    def test_status_keeps_legacy_directory_claims_without_fences(self):
         claimed = self.claim(self.a, "ALPHA-ITEM", "A", "--path", "src/dir")
         record = self.remote_record()
         record["claims"][0]["board"] = None
         record["claims"][0]["paths"] = ["src/dir", "src/pinned.rs"]
         self.rewrite_record(record)
         status = self.run_claims(self.b, "status")
-        self.assertEqual(status["off_board_fences"],
+        self.assertEqual(status["off_board_fences"], [])
+        self.assertEqual(status["off_board_paths"],
                          [{"ticket": claimed["ticket"], "item": "ALPHA-ITEM",
                            "owner": "A", "paths": ["src/dir"],
                            "expires_utc": status["claims"][0]["expires_utc"]}])
@@ -479,9 +469,9 @@ class ClaimsTests(unittest.TestCase):
         for round_number in range(3):
             with self.subTest(round=round_number):
                 a = self.start(self.a, "claim", "--item", "ALPHA-ITEM", "--board",
-                               "TASKS.md", "--owner", "A")
+                               "TASKS.md", "--owner", "A", "--path", "src/shared")
                 b = self.start(self.b, "claim", "--item", "BETA-ITEM", "--board",
-                               "TASKS.md", "--owner", "B")
+                               "TASKS.md", "--owner", "B", "--path", "src/shared")
                 results = [self.finish(a), self.finish(b)]
                 self.assertEqual([row[0] for row in results], [0, 0], results)
                 tickets = [entry["ticket"] for entry in self.run_claims(self.a, "status")["claims"]]
@@ -489,7 +479,15 @@ class ClaimsTests(unittest.TestCase):
                 for ticket in tickets:
                     self.run_claims(self.a, "release", "--ticket", ticket)
 
-    def test_audit_reports_uncovered_and_violating_paths(self):
+    def test_same_outcome_race_keeps_one_owner(self):
+        first = self.start(self.a, "claim", "--item", "ALPHA-ITEM", "--owner", "A")
+        second = self.start(self.b, "claim", "--item", "ALPHA-ITEM", "--owner", "B",
+                            "--allow-overlap")
+        results = [self.finish(first), self.finish(second)]
+        self.assertEqual(sorted(row[0] for row in results), [0, 2], results)
+        self.assertEqual(len(self.run_claims(self.a, "status")["claims"]), 1)
+
+    def test_audit_reports_advisory_overlaps_without_rejecting(self):
         self.claim(self.a, "ALPHA-ITEM", "A", "--path", "src/x")
         self.claim(self.b, "BETA-ITEM", "B", "--path", "src/y")
         for relative in ("src/x/mine.txt", "src/y/theirs.txt", "src/z/free.txt"):
@@ -497,14 +495,15 @@ class ClaimsTests(unittest.TestCase):
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text("changed\n", encoding="utf-8")
         report = self.run_claims(self.a, "audit", "--worktree", str(self.a),
-                                 "--owner", "A", expected=2)
+                                 "--owner", "A")
         self.assertEqual(report["uncovered"],
                          ["src/y/theirs.txt", "src/z/free.txt"])
-        self.assertEqual(report["violations"],
+        self.assertEqual(report["violations"], [])
+        self.assertEqual(report["overlaps"],
                          [{"path": "src/y/theirs.txt", "item": "BETA-ITEM",
                            "claimed_by": "B",
-                           "ticket": report["violations"][0]["ticket"],
-                           "expires_utc": report["violations"][0]["expires_utc"]}])
+                           "ticket": report["overlaps"][0]["ticket"],
+                           "expires_utc": report["overlaps"][0]["expires_utc"]}])
         clean = self.run_claims(self.a, "audit", "--worktree", str(self.b),
                                 "--owner", "B")
         self.assertEqual((clean["changed"], clean["uncovered"],

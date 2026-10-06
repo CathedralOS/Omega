@@ -236,19 +236,24 @@ class ControllerTests(unittest.TestCase):
         self.update(lambda r: cloud.checkpoint(r, '1', checkpoint()))
         self.request(assignment='1')
 
-    def test_live_global_claim_rejected_without_weakening_fence(self):
+    def test_live_global_paths_are_advisory(self):
         m = manifest(prefix='next'); s = snapshot()
-        s['claims'] = [dict(ticket='peer', owner='peer', paths=['src'])]
-        with self.assertRaisesRegex(RecoveryError, 'live claim'): self.update(lambda r: cloud.admit(r,m,s))
+        s['claims'] = [dict(ticket='peer', item='other', owner='peer', paths=['src'])]
+        record = self.store.load()
+        record['cloud']['batches'].clear()
+        record['cloud']['assignments'].clear()
+        cloud.admit(record, m, s)
+        self.assertIn(m['id'], record['cloud']['batches'])
 
     def test_existing_global_item_claim_is_a_fence_even_with_disjoint_paths(self):
         m=manifest(prefix='next');snapshot_value=snapshot()
         snapshot_value['claims']=[dict(ticket='peer',item='item-next0',board=None,owner='peer',paths=['unrelated/file.py'])]
-        with self.assertRaisesRegex(RecoveryError,'live claim'):self.update(lambda r:cloud.admit(r,m,snapshot_value))
+        with self.assertRaisesRegex(RecoveryError,'outcome already owned'):self.update(lambda r:cloud.admit(r,m,snapshot_value))
 
     def test_independent_canary_needs_no_invented_dependency(self):
         value = manifest(prefix='independent')
         value['assignments'][1]['reads'] = []
+        value['assignments'][1]['writes'] = value['assignments'][0]['writes']
         value['dependencies'] = []
         record = self.store.load()
         record['cloud']['batches'].clear()
@@ -266,11 +271,10 @@ class ControllerTests(unittest.TestCase):
         self.assertEqual(record['cloud']['batches'][value['id']]['manifest']['dependencies'][0]['kind'],
                          'producer-consumer')
 
-    def test_unsafe_overlap_undeclared_dependency_cycle(self):
+    def test_duplicate_outcomes_and_dependency_cycles_reject(self):
         for mutate, reason in [
-            (lambda m:m['assignments'][1].update(writes=m['assignments'][0]['writes']), 'unsafe overlap'),
-            (lambda m:m.update(dependencies=[]), 'undeclared'),
-            (lambda m:m['assignments'][1].update(outcome=m['assignments'][0]['outcome']), 'disjoint')]:
+            (lambda m:m['assignments'][1].update(item=m['assignments'][0]['item']), 'one DRI'),
+            (lambda m:m['assignments'][1].update(outcome=m['assignments'][0]['outcome']), 'distinct')]:
             m = manifest(prefix='new'); mutate(m)
             with self.assertRaisesRegex(RecoveryError, reason): self.update(lambda r: cloud.admit(r,m,snapshot()))
         m = manifest(prefix='cycle'); m['assignments'][0]['reads'] = m['assignments'][1]['writes']
@@ -392,9 +396,11 @@ class ControllerTests(unittest.TestCase):
         self.prepared()
         own = copy.deepcopy(self.state()['ownership_receipt'])
         own['claims'].append(dict(ticket='actual-peer',item='peer-item',owner='peer',paths=['src/0.py']))
-        with self.assertRaisesRegex(RecoveryError, 'live peer'): self.update(lambda r: cloud.ownership(r, '0', own))
+        self.update(lambda r: cloud.ownership(r, '0', own))
+        own['claims'][-1]['item'] = own['claims'][0]['item']
+        with self.assertRaisesRegex(RecoveryError, 'outcome already owned'): self.update(lambda r: cloud.ownership(r, '0', own))
         value = self.scouting_receipt()
-        value['blocker'] = dict(kind='live-owner', reason='actual-peer overlaps src/0.py', evidence='fresh registry result')
+        value['blocker'] = dict(kind='live-owner', reason='actual-peer owns the same outcome', evidence='fresh registry result')
         self.scout(value)
         self.assertEqual(cloud.readiness_state(self.store.load(), '0'), 'blocked')
         self.scout()
@@ -450,7 +456,7 @@ class ControllerTests(unittest.TestCase):
         self.assertEqual(cloud.readiness_state(self.store.load(), '0'), 'ready')
         self.update(lambda r: r['cloud']['assignments']['0']['ownership_receipt']['claims'].append(
             dict(ticket='overlap',owner='peer',item='other',paths=['src/0.py'])))
-        self.assertEqual(cloud.readiness_state(self.store.load(), '0'), 'stale')
+        self.assertEqual(cloud.readiness_state(self.store.load(), '0'), 'ready')
         self.assertIsNone(self.state()['accepted'])
         self.read()
         (self.repo / 'src/0.py').write_text('changed relevant semantics')

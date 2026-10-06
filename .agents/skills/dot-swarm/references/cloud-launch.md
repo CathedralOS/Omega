@@ -84,7 +84,7 @@ different cloud executor.
    budget in one cloud run. Where observed latency warrants it, use the
    supported bounded `--timeout-seconds 120` before the subcommand. A timeout
    is unavailable coordination, not an empty registry; preserve the ticket and
-   reconcile an uncertain write before retrying. Known live overlaps block
+   reconcile an uncertain write before retrying. Same-outcome ownership conflicts block
    edits. Registry outages otherwise follow AGENTS.md's isolated-worktree rule.
 7. **Recovery and landing.** Before a long operation or integration, preserve
    the exact source checkpoint, command exits, pending operation identities and

@@ -3,7 +3,7 @@
 
 No transport/daemon is invented here. The parent invokes currently exposed tools
 once after intent, then ingests sanitized correlated results. Uncertain mutations
-require authoritative reads. Claims v1 and landing fences remain authoritative.
+require authoritative reads. Claims v1 tracks outcome ownership; the landing queue serializes publication.
 """
 
 import argparse
@@ -78,7 +78,8 @@ def admit(record, manifest, snapshot):
         require(previous is None, "canary must start staged rollout")
     rows = {row["id"]: copy.deepcopy(row) for row in manifest["assignments"]}
     require(len(rows) == size and not set(rows) & cloud["assignments"].keys(), "duplicate assignment identity")
-    require(len({row["outcome"] for row in rows.values()}) == size, "each session needs a disjoint real outcome")
+    require(len({row["outcome"] for row in rows.values()}) == size, "each session needs a distinct real outcome")
+    require(len({row["item"] for row in rows.values()}) == size, "one DRI per outcome item")
     for row in rows.values():
         row.pop("binding", None)  # Session provenance enters only through a verified binding.
         for field in ("source_revision", "revisions", "preflight_history", "scouting", "readiness"):
@@ -110,13 +111,12 @@ def admit(record, manifest, snapshot):
                         and live.get("item") == row["item"] and live.get("board") == row.get("board"),
                         "existing own claim differs from exact assignment")
                 continue
-            require(not (live.get("item") == row["item"] and live.get("board") == row.get("board"))
-                    and not any(claims.paths_overlap(a, b) for a in row["writes"] for b in live["paths"]),
-                    "known live claim overlap; explicit peer coordination required")
+            require(live.get("item") != row["item"],
+                    "outcome already owned; explicit handoff required")
         for active in cloud["assignments"].values():
             require(active.get("accepted") and active["accepted"].get("cleanup") == "completed"
-                    or not any(claims.paths_overlap(a, b) for a in row["writes"] for b in active["writes"]),
-                    "inflight assignment overlap")
+                    or active["item"] != row["item"],
+                    "inflight outcome already assigned")
     dependencies = manifest["dependencies"]
     ids = set()
     graph = {name: set() for name in rows}
@@ -143,18 +143,8 @@ def admit(record, manifest, snapshot):
         require(ready, "dependency cycle; partition or designate integration owner")
         for key in ready:
             del pending[key]
-    for first in rows.values():
-        for second in rows.values():
-            if first["id"] == second["id"]:
-                continue
-            require(not any(claims.paths_overlap(a, b) for a in first["writes"] for b in second["writes"]),
-                    "unsafe overlap: one writer per shared file; partition or integration owner")
-            for write in first["writes"]:
-                for read in second["reads"]:
-                    if claims.paths_overlap(write, read):
-                        require(any(d["producer"] == first["id"] and d["consumer"] == second["id"]
-                                    and any(claims.paths_overlap(write, p) and claims.paths_overlap(read, p)
-                                            for p in d["paths"]) for d in dependencies), "undeclared producer/consumer dependency")
+    # Shared files do not imply a semantic dependency. The reviewed dependency
+    # graph records required producer results, not exclusive path reservations.
     require(all(batch_settled(record, batch) for batch in cloud["batches"]),
             "unfinished batch remains; do not overlap staged batches")
     cloud["batches"][manifest["id"]] = dict(manifest=copy.deepcopy(manifest), admitted_utc=now(), claims=snapshot)
@@ -179,7 +169,7 @@ def handoff(record, value):
             "handoff path/verification differs from partition")
     sha(value["candidate"])
     require(value.get("producer_receipt") and value.get("consumer_receipt") and value.get("verification_evidence")
-            and value.get("claim_evidence") and value.get("ownership") == "single-writer"
+            and value.get("claim_evidence") and value.get("ownership") in {"single-writer", "reconciled"}
             and value.get("producer_ticket") and value.get("consumer_ticket"), "auditable bilateral handoff required")
     require(fresh(value), "stale handoff; observe exact claims/candidate again")
     require(producer.get("claim_ticket") == value["producer_ticket"]
@@ -199,9 +189,8 @@ def ownership(record, assignment, snapshot):
             "exact owner/path claim receipt required")
     require(row.get("claim_ticket") in {None, live["ticket"]}, "claim identity changed; explicit new leg required")
     require(not any(c["ticket"] != live["ticket"] and
-                ((c.get("item") == row["item"] and c.get("board") == row.get("board"))
-                 or any(claims.paths_overlap(a, b) for a in row["writes"] for b in c["paths"]))
-                for c in snapshot["claims"]), "live peer overlap")
+                c.get("item") == row["item"]
+                for c in snapshot["claims"]), "outcome already owned")
     row["claim_ticket"] = live["ticket"]
     row["ownership_receipt"] = snapshot
 
@@ -224,8 +213,7 @@ def ownership_identity(row, snapshot):
     return sorted((dict(ticket=c["ticket"], owner=c["owner"], item=c.get("item"),
                         board=c.get("board"), paths=sorted(c["paths"]))
                    for c in snapshot["claims"] if c["ticket"] == row.get("claim_ticket")
-                   or (c.get("item") == row["item"] and c.get("board") == row.get("board"))
-                   or any(claims.paths_overlap(a, b) for a in row["writes"] for b in c["paths"])),
+                   or c.get("item") == row["item"]),
                   key=lambda c: c["ticket"])
 
 

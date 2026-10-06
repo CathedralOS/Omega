@@ -2,15 +2,16 @@
 
 Use the executable [cloud adapter contract](../../../../tools/swarm/cloud.md)
 for the staged 2 → 5 → 10 rollout. It extends the existing recovery journal,
-without changing claims-v1 ownership or landing publication fences. The parent
+preserving claims-v1 tickets and serialized landing publication. The parent
 uses its actually exposed cloud create/read/follow-up tools; native workers share
 one executor and do not represent cloud provisioning capacity.
 
-Before dispatch, record complete producer/consumer, digest/golden and shared-file
-dependencies. Keep one writer per file; designate an integration owner or create
-serial partitioned legs. A dependency wait is distinct from terminal failure.
-Exact claims and bilateral handoff receipts are required; “finish” cannot imply
-overlap permission. A known peer fence remains blocked until coordinated.
+Before dispatch, record actual producer/consumer and digest/golden dependencies.
+Keep one DRI per outcome; shared paths alone neither create a dependency nor
+block work. Use isolated worktrees and reconcile at landing. Exact claims and
+bilateral handoff receipts cover required producer results and same-outcome
+transfers, not permission to edit another outcome's path estimates. A dependency
+wait is distinct from terminal failure.
 
 When the parent has no child filesystem access and read exposes only recorded
 messages/results, use bounded preflight/report turns and controller-issued
@@ -33,7 +34,7 @@ owned-resource cleanup to the final SHA. Historical evidence remains separate;
 reuse needs unchanged reviewed inputs/environment and explicit justification.
 
 Admit only a bounded two-session canary first: two currently red real programs
-with disjoint, eligible implementation and test ownership. Declare a dependency
+with distinct outcomes and eligible hosts. Shared implementation paths are allowed. Declare a dependency
 and exact handoff only when the actual producer/consumer or shared-file closure
 requires it; independent assignments use an empty dependency list. Required
 digest and golden updates remain part of the actual ownership review. Admit five, then

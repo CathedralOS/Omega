@@ -7,10 +7,10 @@ full workspace run. Current scenarios have not been executed against this revisi
 ## Review without executing compiler work
 
 Check that an advance request retains its customer while actionable and produces
-one bounded improvement. A strategy pause requires reassessment before resumption
+the owned outcome, not merely a helper checkpoint. A strategy pause requires reassessment before resumption
 or independent selection within the user's scope, not an automatic stop or a
 permanent customer exclusion. Scenarios 16 and 17 distinguish a paused helper
-approach from a conflicting live assignment. A no-improvement stop needs
+approach from an already-owned outcome. File overlap alone is not an ownership conflict. A no-improvement stop needs
 evidence that the allowed scope has no actionable work or an operational
 prerequisite prevents proceeding. Check nearby non-invocations too: a named bug,
 a code explanation, and an edit to this skill must not independently select board

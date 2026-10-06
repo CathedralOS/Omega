@@ -21,13 +21,14 @@ state machines. This repository holds the language, its Rust reference
 compiler, its Omega-written product compiler, and the Alpha-to-Omega bootstrap
 chain.
 
-**The goal is a compiler that works.** The measure is one straight line:
-`omega run <program.omg>` on a supported host compiles the program and
-executes it, and the run produces the program's authored result. Today that
-line is not usable end-to-end. Work counts when a real program that
-previously failed to compile or run now compiles and runs correctly. Pick
-the red program nearest that line and make it run. A slot with no such
-program to claim idles.
+**The goal is a compiler that ships.** Own a release capability end to end,
+not a file or a stage. Demonstrate compiler work through real programs and
+relevant invalid controls; `omega run <program.omg>` must produce the authored
+result. Squalr and Cathedral expose general compiler gaps, not special cases
+to recognize or applications to rewrite around missing language support.
+Iteration performance and the test environment are also first-class outcomes
+when a measured workflow obstructs development. They need a concrete acceptance
+and stopping point, not an open-ended optimization or testing campaign.
 
 - `omega-rust/` — the Rust reference producer: the working development
   compiler and differential comparator. Not canonical, not a language rung.
@@ -134,7 +135,7 @@ The rules that touch every edit:
   frontier once — replace the paragraph, do not append run history. New
   items carry `(new-scope)` or `(split-of:<parent>)` on the first line.
   Owner decisions go to `OWNER_QUESTIONS.md`, not the boards.
-  Task lists are shared: claim individual items and implementation paths,
+  Task lists are shared: claim outcomes and report likely implementation paths,
   never a whole board file. Update only the relevant items and reconcile
   concurrent board edits during landing; nobody owns the task list.
 - Windows and macOS are both supported development hosts; shared tooling
@@ -166,11 +167,26 @@ are byte-sensitive.
 
 ## Scope and escalation
 
-- Before a milestone, name the program it will get running and the
-  dependencies still missing. Every change traces to a program that runs
-  because of it.
-- A session ends in one of two states: a program runs that did not, or the
-  session is blocked on a named dependency and idle. Report which.
+- Every active outcome has one directly responsible individual (DRI), recorded
+  in its live claim. The DRI owns acceptance and integration across stages.
+  Parked work remains available for a DRI when its dependency or priority changes.
+- Keep a short assignment record in the claim note or session handoff: outcome,
+  acceptance, current failure, next necessary action and dependencies. Reread it
+  after context compaction and before changing direction. A checkpoint is not
+  completion; continue the outcome or explicitly hand it off. A user stop or
+  exhausted budget preserves the frontier without claiming success.
+- A newly discovered obstacle normally belongs to the current outcome. Update
+  its frontier rather than spawning a task. Split only independently assignable
+  work; the original DRI still owns integration. Shared blockers are recorded
+  once and linked from affected outcomes. Do not mine work to occupy agents.
+- After an outcome or an explicit handoff, an agent may claim a bounded
+  iteration-performance or test-environment outcome based on an experienced
+  obstruction. Record the workflow and adequate target before repair; return
+  to product work when it meets that target. No incidental profiling detours.
+- Report outcome acceptance, not activity or commit counts. Missing implementation
+  and file overlap are work to resolve, not blockers. An actual missing owner
+  decision, inaccessible environment or external dependency may require a handoff
+  or idle slot; unrelated busywork is not a substitute.
 - Language/architecture decisions go in `OWNER_QUESTIONS.md` with the
   dependency referenced on the owning task; engineering decisions stay with
   the implementer. Gates pass on real behavior. The accepted bootstrap
@@ -184,13 +200,15 @@ are byte-sensitive.
   launch fields; a prompt alone cannot change a model. Before launching or
   resuming cloud work, follow the [cloud launch preflight](.agents/skills/dot-swarm/references/cloud-launch.md).
   A single advance remains one assignment; it does not authorize a swarm.
-- One edit owner per change; parallelize only independent work.
-  Assignments carry the objective, governing design links, ownership
-  boundary, dependencies, and the acceptance command.
+- One DRI per outcome; contributors may share implementation paths in isolated
+  worktrees. Assignments carry acceptance, governing design, dependencies and
+  an integration owner. Keep distinct outcomes rather than partitioning files.
 - Workers report through `python tools/claims.py note --ticket` and the
   session report; the coordinator integrates its workers' board updates,
   without claiming the board or blocking other sessions' updates. A slice
-  that reaches a sibling-owned implementation path stops there and reports it.
+  that reaches a sibling's implementation path reports the overlap and continues
+  necessary work. Reuse a shared repair when practical; do not wait for permission
+  to touch files. Reconcile competing changes into one implementation at landing.
 - Continue implementation when the design answers the question; hand off
   the exact missing dependency when it does not.
 
@@ -282,8 +300,11 @@ Commit messages carry no tool attribution: no "Generated with ..." line, no
   Claims are advisory, not permission to develop. If coordination is unavailable
   or times out, report it and continue in an isolated worktree with the intended
   scope recorded locally. Do not wait repeatedly, treat an outage as a known
-  conflict, or claim registration succeeded. Known live overlaps still require
-  coordination or owner permission. Publication still uses the landing queue.
+  conflict, or claim registration succeeded. Path overlaps are informational,
+  not exclusions; notify peers where possible and reconcile their changes.
+  Taking over the same outcome requires an explicit handoff, not an overlap flag.
+  Existing tickets remain valid; refresh old clients that reject path overlap.
+  Publication still uses the landing queue and never overwrites incoming work.
 - Keep sample coverage out of the shipped CLI.
 
 ## Design references

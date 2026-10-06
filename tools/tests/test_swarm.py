@@ -109,14 +109,13 @@ class SwarmTests(unittest.TestCase):
         with self.assertRaises(self.module.SwarmError):
             self.validate(record)
 
-    def test_manifest_rejects_duplicate_owning_path(self):
+    def test_manifest_allows_shared_paths_for_distinct_outcomes(self):
         record = manifest(sessions=[
             {"name": "a", "board": "TASKS.md", "item": "ITEM-ONE",
              "host": "linux", "owning_paths": ["src/one"]},
             {"name": "b", "board": "TASKS.md", "item": "ITEM-TWO",
              "host": "linux", "owning_paths": ["src/one"]}])
-        with self.assertRaises(self.module.SwarmError):
-            self.validate(record)
+        self.assertEqual(len(self.validate(record)), 2)
 
     def test_manifest_allows_path_overlap_across_layers(self):
         record = manifest(sessions=[
@@ -126,8 +125,7 @@ class SwarmTests(unittest.TestCase):
              "host": "linux", "owning_paths": ["src/one"], "layer": 1}])
         self.assertEqual(len(self.validate(record)), 2)
         record["sessions"][1]["layer"] = 0
-        with self.assertRaises(self.module.SwarmError):
-            self.validate(record)
+        self.assertEqual(len(self.validate(record)), 2)
         record["sessions"][1]["layer"] = -1
         with self.assertRaises(self.module.SwarmError):
             self.validate(record)
@@ -369,7 +367,9 @@ class SwarmTests(unittest.TestCase):
         self.validate(record)
         template = TEMPLATE.read_text(encoding="utf-8")
         prompt = self.module.render_prompt(template, record, record["sessions"][0])
-        self.assertIn("do not stop merely at a crate boundary", prompt)
+        self.assertIn("Required edits may span other workers' paths and multiple stages", prompt)
+        self.assertIn("overlaps do not reject or require permission", prompt)
+        self.assertIn("A checkpoint does not end ownership", prompt)
         self.assertIn("diagnosis is intermediate", prompt)
         self.assertIn("Rerun its outer command", prompt)
         self.assertIn("only when you were actively implementing", prompt)
@@ -708,6 +708,20 @@ class OwnershipPathTests(unittest.TestCase):
         self.repository = Path(self.temporary.name)
         (self.repository / 'TASKS.md').write_text('- **ITEM-ONE.** One\n- **ITEM-TWO.** Two\n', encoding='utf-8')
 
+    def test_live_registry_paths_are_advisory_but_item_ownership_rejects(self):
+        sessions = self.module.validate_manifest(manifest(), self.repository)
+        overlap = dict(reason='overlapping paths', owner='peer', item='ITEM-TWO',
+                       ticket='peer-ticket', expires_utc='later')
+        with mock.patch.object(self.module.claims, 'Claims') as constructor:
+            registry = constructor.return_value
+            registry.snapshot.return_value = {'record': {}}
+            registry.conflicts.return_value = [overlap]
+            self.assertEqual(self.module.claims_report(self.repository, sessions),
+                             {'alpha': [overlap]})
+            registry.conflicts.return_value = [dict(overlap, reason='same item')]
+            with self.assertRaises(self.module.SwarmError):
+                self.module.claims_report(self.repository, sessions)
+
     def test_rejects_invalid_ownership_paths_with_session_context(self):
         for path in ('../outside', '/absolute', 'C:\\outside', '.', '', '  ', 42, None):
             with self.subTest(path=path):
@@ -719,12 +733,15 @@ class OwnershipPathTests(unittest.TestCase):
         sessions = self.module.validate_manifest(record, self.repository)
         self.assertEqual(sessions[0]['owning_paths'], ['src/one', 'src/two'])
 
-    def test_same_layer_conflicts_and_siblings_stay_distinct(self):
+    def test_same_layer_paths_overlap_but_outcomes_stay_distinct(self):
         record = manifest(sessions=[
             {'name':'alpha','board':'TASKS.md','item':'ITEM-ONE','host':'local','owning_paths':['src\\one']},
             {'name':'beta','board':'TASKS.md','item':'ITEM-TWO','host':'local','owning_paths':['src/one/child']}])
+        self.assertEqual(len(self.module.validate_manifest(record, self.repository)), 2)
+        record['sessions'][1]['item'] = 'ITEM-ONE'
         with self.assertRaises(self.module.SwarmError):
             self.module.validate_manifest(record, self.repository)
+        record['sessions'][1]['item'] = 'ITEM-TWO'
         record['sessions'][1]['owning_paths'] = ['src/one-more']
         self.assertEqual(len(self.module.validate_manifest(record, self.repository)), 2)
 

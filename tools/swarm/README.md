@@ -63,9 +63,9 @@ credentials either; real `launch`, `status`, and `report` call the Devin API
    sequencing candidates for layers; `references_items` names other board
    items the text cites, and `same_layer_reference` warns when one is a
    same-layer session; `uncovered_mentions` lists paths or backticked crate
-   names the item text cites that `owning_paths` do not cover — the fence
-   would protect the wrong ground; `scale_hint` fires when the text spans
-   many crates, marking a multi-layer decomposition rather than one slice;
+   names the item text cites that `owning_paths` do not cover — revise the
+   estimate without splitting ownership merely by file; `scale_hint` fires
+   when the text spans many crates, prompting integration review;
    `resolution_language` fires when the item text carries board-sweep
    vocabulary ("Resolved —", "Row consumed", "already landed"), meaning the
    item may already be resolved upstream — re-verify it names unfinished
@@ -75,7 +75,7 @@ credentials either; real `launch`, `status`, and `report` call the Devin API
    `--skip-host-gates`, `--skip-route-check`, or `--skip-claims-check` when
    the coordinator deliberately does not run those checks. An unreachable
    registry reports `unavailable` per session rather than failing `plan`'s
-   offline use; a reachable registry with a conflicting live claim fails like
+   offline use; a reachable registry with a live same-outcome claim fails like
    a host gate.
 3. `launch --manifest <file>` — re-runs the claims check, then creates one
    session per entry and records `receipts.json`. A name with an existing
@@ -175,7 +175,7 @@ lease in the rendered command so interrupted slots self-release sooner than
 the registry's 480-minute default.
 
 The local template differs from the cloud one where the waves proved it
-matters: conflict-to-pivot instead of stop-and-block, `mbx` instead of Cargo,
+matters: outcome ownership with advisory path overlap, `mbx` instead of Cargo,
 the worktree/`git stash` rules, validate-before-claim landing order, and a
 per-host block generated from `platform` (Intel macOS gets the
 `--target linux_x86_64` workaround).
@@ -185,17 +185,15 @@ per-host block generated from `platform` (Intel macOS gets the
 Sessions may carry `"layer": N` (default 0) for dependency ordering. Launch
 layer N only after layer N-1 has fully landed or parked — each layer builds on
 `origin/main` containing the previous layer's published work, so dependency
-order replaces conflict avoidance. The owning-path overlap check applies
-within a layer only: a layer-1 session may own paths a layer-0 session
-touched, because the earlier work is merged by the time the later session
-starts. `--layer N` on `plan`, `launch`, and `local` selects one layer, and
+order follows required producer results. Shared paths are allowed within and
+across layers; outcome identity, not a directory, determines ownership. `--layer N` on `plan`, `launch`, and `local` selects one layer, and
 composes with `local --sessions` for partial relaunches.
 
 ### Coordinator runbook
 
 The agent-side lessons from macw1–macw3 are baked into
 `prompt_template_local.md` — keep it authoritative rather than re-teaching
-them per prompt: conflict-to-pivot on claim conflicts, no `TASKS*.md` in
+them per prompt: outcome handoffs and advisory path overlaps, no `TASKS*.md` in
 claimed paths, never `git stash` in a wave worktree, validate before claiming
 the landing queue, `mbx gc` on disk exhaustion. What remains genuinely
 coordinator-side:
@@ -245,7 +243,7 @@ coordinator-side:
 Prioritize immediate customer outcomes within the requested scope, not the ease
 of producing a helper commit. Give one session the bounded end-to-end slice and
 its application command; several pipeline crates can belong to that one slice.
-Check live assignments with the coordinator before partitioning shared paths.
+Check live outcome assignments; shared paths do not require partitioning.
 An exclusion applies to its wave, not all future work: reassess it when preparing
 a new wave and retain it only for a current conflict or concrete blocker. Do not
 edit a launched wave to reassign its running sessions.
@@ -254,11 +252,11 @@ Pick items that are:
 
 - runnable on the assigned host — Linux x86-64 for cloud sessions; a local
   session takes this machine's host, including its gaps,
-- non-overlapping: the launcher rejects parent/child `owning_paths` overlaps
-  inside a manifest and conflicts with live claims; still review shared
-  dependencies, since path checks cannot catch every semantic coupling,
-- not in this wave's `exclusions` and not under another session's or machine's
-  live claim (`python tools/claims.py status`),
+- distinct outcomes: the launcher rejects duplicate outcome owners in a layer,
+  while shared files are allowed. Review semantic dependencies and reconcile
+  overlapping implementations at landing,
+- not in this wave's `exclusions` or already owned as an outcome
+  (`python tools/claims.py status`); paths are advisory,
 - named in a board the launcher knows (`TASKS.md`, `TASKS_BOOTSTRAP.md`,
   `TASKS_OPTIMIZER.md`), with the item present as `**<item>.**`.
 - still unimplemented: board "next slice" text can lag landed code — check
@@ -311,10 +309,7 @@ Before the first wave, a human with org access must:
   crates.io downloads, the registry index, build scripts, and unchanged leaf
   crates; at this repository's commit velocity the first `cargo check` still
   rebuilds most of the workspace. Blueprints rebuild roughly every 24 hours.
-- The claims registry is an advisory fence, not a lock. It makes live
-  assignments visible across machines and waves, and `plan`/`launch` refuse a
-  manifest that collides with a reachable claim — but a session that never
-  claims, a `--skip-claims-check` launch, or plain direct work can still
-  collide. The landing protocol serializes publication; it does not prevent
-  competing implementations. Reconcile assignments before launch and on
-  overlap reports; an old manifest or worktree is not a claim.
+- Claims record outcome DRIs. Path overlaps appear in reports, not rejection.
+  Existing manifests and tickets remain valid. Refresh old clients before new
+  assignments; landing still serializes publication and requires reconciling
+  incoming changes. An old manifest is not a current ownership claim.

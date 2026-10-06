@@ -6,10 +6,10 @@ name, the repository paths it expects to edit, and a renewable lease. Claims
 make live work visible across machines, waves, and local sessions so a new
 agent can pick unclaimed work instead of duplicating an active assignment.
 
-Claims are advisory fences, not locks: claiming an item another live claim
-holds, or a path overlapping another claim's paths, is rejected so the
-coordinator can partition explicitly; --allow-overlap records an informed
-exception. Expired claims are reaped by the next writer and never block
+Claims name outcome owners, not exclusive files. Another live claim on the
+same item rejects; path overlaps are reported without blocking registration.
+--allow-overlap remains accepted for older callers, not as an ownership override.
+Expired claims are reaped by the next writer and never block
 reuse. Every mutation compares the prior object like tools/landing.py; see
 claims.md.
 """
@@ -528,10 +528,11 @@ class Claims:
                 f"--grep={options.ticket}", snapshot["version"]).stdout:
             raise ClaimsError("This ticket was already removed. Claim with a new ticket.")
         found = self.conflicts(record, options.item, options.paths)
-        if found and not options.allow_overlap:
+        owners = [conflict for conflict in found if conflict["reason"] == "same item"]
+        if owners:
             return {"code": 2, "proceed": False,
                     "record": {"state": "conflict", "item": options.item,
-                               "conflicts": found}}
+                               "conflicts": owners}}
         lease = options.lease_minutes
         entry = {"ticket": options.ticket, "item": options.item,
                  "board": options.board, "owner": options.owner,
@@ -550,9 +551,8 @@ class Claims:
         """Read-only coverage check: a worktree's changed paths vs live claims.
 
         Changed means uncommitted work plus commits ahead of --base. A path is
-        a violation when it lands inside a different owner's live claim; paths
-        covered by no claim at all are reported uncovered. Claims record intent
-        at claim time — this is the check that edits stayed inside the fence.
+        overlapping another outcome is reported for integration. Paths outside
+        the initial estimate are informational, never a permission failure.
         """
         live = live_claims(self.snapshot()["record"])
         worktree = Path(options.worktree).resolve()
@@ -575,27 +575,25 @@ class Claims:
         changed.update(line for line in diff.splitlines() if line)
         own = [path for claim in live if claim["owner"] == options.owner
                for path in claim["paths"]]
-        uncovered, violations = [], []
+        uncovered, overlaps = [], []
         for path in sorted(changed):
             if is_task_board(path):
                 continue
-            if any(paths_overlap(path, owned) for owned in own):
-                continue
-            uncovered.append(path)
-            hit = next((claim for claim in live
-                        if claim["owner"] != options.owner and any(
-                            paths_overlap(path, other)
-                            for other in claim["paths"])), None)
-            if hit is not None:
-                violations.append({"path": path, "item": hit["item"],
+            if not any(paths_overlap(path, owned) for owned in own):
+                uncovered.append(path)
+            for hit in live:
+                if hit["owner"] == options.owner or not any(
+                        paths_overlap(path, other) for other in hit["paths"]):
+                    continue
+                overlaps.append({"path": path, "item": hit["item"],
                                    "claimed_by": hit["owner"],
                                    "ticket": hit["ticket"],
                                    "expires_utc": hit["expires_utc"]})
         emit({"state": "audited", "worktree": str(worktree),
               "owner": options.owner, "base": options.base,
               "changed": sorted(changed), "uncovered": uncovered,
-              "violations": violations})
-        return 2 if violations else 0
+              "overlaps": overlaps, "violations": []})
+        return 0
 
     def observe(self, options, snapshot):
         record = snapshot["record"]
@@ -615,7 +613,8 @@ class Claims:
                          "owner": claim["owner"], "paths": fences,
                          "expires_utc": claim["expires_utc"]})
             emit({"state": "claimed" if live else "available", "claims": live,
-                  "expired": expired, "off_board_fences": off_board_fences,
+                  "expired": expired, "off_board_fences": [],
+                  "off_board_paths": off_board_fences,
                   "notes_pending": len(pending_notes(record)),
                   "version": snapshot["version"]})
             return 0
@@ -678,7 +677,8 @@ def main(argv=None):
     claim.add_argument("--lease-minutes", type=int, default=DEFAULT_LEASE_MINUTES)
     claim.add_argument("--note")
     claim.add_argument("--ticket")
-    claim.add_argument("--allow-overlap", action="store_true")
+    claim.add_argument("--allow-overlap", action="store_true",
+                       help="compatibility flag; paths always overlap freely, items do not")
     renew = subparsers.add_parser("renew")
     renew.add_argument("--ticket", required=True)
     renew.add_argument("--lease-minutes", type=int)
@@ -738,22 +738,13 @@ def main(argv=None):
                                                                  options.board):
                 raise ClaimsError(f"Item {options.item} not found in {options.board} "
                                   "(no **<item>.** marker).")
-            # A directory fence blocks everything under it, so it must be
-            # schedulable on a board: --board is required and its existing
-            # validation pins the item to a real marker. --allow-overlap
-            # does not bypass this; file-only claims may stay off-board.
+            # Paths are estimates. Boards remain shared, not claimable outcomes.
             for path in options.paths:
                 if is_task_board(path):
                     raise ClaimsError(
                         f"Task list {path} is shared and cannot be claimed. "
                         "Claim individual items with --board and --item, "
                         "and implementation paths with --path.")
-                if not options.board and is_directory_fence(options.repository,
-                                                            path):
-                    raise ClaimsError(
-                        f"Directory fence {path} needs a board item: pass "
-                        "--board <board> --item <ITEM> for an item with a "
-                        "**<ITEM>.** marker, or claim specific files.")
         if options.command == "recover" and not options.reason.strip():
             raise ClaimsError("Recovery requires --reason after checking with the owner.")
         if options.command == "note":

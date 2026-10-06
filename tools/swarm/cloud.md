@@ -91,7 +91,7 @@ Admission input contains `manifest` and `claims`. Obtain claims through actual
 `evidence` locator to its sanitized JSON. Unavailable/old snapshots are refused.
 The status list already contains only live claims; do not supply expired entries.
 Record exact existing tickets, owner labels and item/board identities; known
-live item conflicts and path overlaps are rejected.
+live same-outcome claims are rejected; path overlaps are advisory.
 
 ```sh
 python3 tools/swarm/cloud.py --state build/swarm/recovery/controller.json --revision CURRENT_REVISION admit --input build/swarm/admission.json
@@ -265,27 +265,27 @@ exit/output oracle. Dispatch must include native, interpreter, scoped tests and
 negatives. Expected-red before evidence is required later in final acceptance.
 
 Review the entire producer/consumer chain, generated digests/goldens, fixtures,
-board item and shared implementation files before admission. Manifest overlap
-checks are not a source-code dependency discovery engine. Undeclared write/read
-edges and cycles fail. Each dependency has `id`, exact `producer`, `consumer`,
-`paths` connecting producer writes to consumer reads, `kind`
-(`producer-consumer|digest|golden|shared`) and `verification`. Shared files have
-**one writer**: designate an integration owner, or partition into new serial
-legs after a recorded handoff. Two assignments writing one file are refused,
-even with a handoff or request to “finish.” The global claims-v1 directory fence
-remains in force; this helper neither uses nor grants `--allow-overlap`.
+board item and shared implementation files before admission. Assign distinct
+outcomes, not disjoint files. Path overlap alone neither creates a dependency
+nor prevents admission. Review actual producer/consumer dependencies explicitly;
+cycles reject. Each dependency has `id`, exact `producer`, `consumer`, `paths`
+connecting producer writes to consumer reads, `kind`
+(`producer-consumer|digest|golden|shared`) and `verification`. Each outcome keeps
+one DRI. Independent outcomes may edit shared files in isolated worktrees and
+reconcile incoming changes at landing. Same-outcome takeover requires handoff.
+Existing claims-v1 tickets and path estimates remain valid.
 
 After child claims, ingest exact ticket/path/owner evidence through `ownership`:
 input `{"assignment":"A","claims":{...fresh snapshot...,"ticket":"ACTUAL_TICKET"}}`.
 Handoff input has `dependency`, `producer`, `consumer`, `paths`, full `candidate`,
 `producer_ticket`, `consumer_ticket`, `producer_receipt`, `consumer_receipt`,
 `verification` matching dispatch, `verification_evidence`, `claim_evidence`,
-`ownership:"single-writer"`, fresh `observed_utc`. Receipts are actual bilateral
+`ownership:"reconciled"` (legacy `"single-writer"` also accepted), fresh `observed_utc`. Receipts are actual bilateral
 messages or confirmed artifacts, not a coordinator's inferred permission. Verify
 producer candidate, consumer integration and current claim ownership first.
-Handoffs never modify/release claims. Known external peer conflicts require that
-peer's coordination and a new reviewed partition; a generic finish instruction
-is insufficient. Dependency-gated consumers may create their bounded **preflight-only** turn
+Handoffs never modify/release claims. Same-outcome takeovers require explicit
+handoff. Shared paths alone are not a handoff prerequisite; preserve and
+reconcile peer changes. Dependency-gated consumers may create their bounded **preflight-only** turn
 before a handoff, so each child can record exact claims and acknowledgment.
 Implementation continuations stay waiting until the exact handoff.
 
@@ -537,7 +537,7 @@ Refreshing judgment need not rerun expensive reproduction when complete reviewed
 Git input objects are unchanged. The controller checks source/base/current
 objects, hashes the artifacts, and rechecks relevant checkout inputs/artifacts
 at implementation intent. Unrelated commits and unrelated claim renewals are
-neutral; changed relevant inputs, reviewed scope, overlapping ownership or
+neutral; changed relevant inputs, reviewed scope, same-outcome ownership or
 prerequisites make readiness stale. Missing provenance fails closed. Stop and
 revalidate newly discovered prerequisites. Once the implementation request is
 confirmed applied for this exact scope, ordinary validation continuations retain
@@ -694,7 +694,7 @@ the citing entries and records the digest; both may run bounded preflight
 turns first. A live peer's digest ownership still blocks that scope. Select
 independent eligible work when available rather than inventing a digest change
 solely to test the controller. Deterministic dependency tests exercise handoff
-and overlap rejection without requiring a shared dependency in every live batch.
+and same-outcome rejection without inventing dependencies from shared paths.
 
 Bound manifests to exactly 2, then exactly 5, then exactly 10 assignments.
 Admit 5 only with `previous` naming an accepted 2-session batch; admit 10 only

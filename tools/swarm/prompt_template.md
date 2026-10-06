@@ -27,11 +27,18 @@ sessions see it:
 
 `{claim_command}`
 
-Retain the returned ticket. Exit 2 lists a live conflicting claim — stop and
-report `blocked` with the named owner and reason; do not retry with
-`--allow-overlap` or work around it. If you approach the lease expiry,
-`python3 tools/claims.py renew --ticket <ticket>`. Release with
-`release --ticket <ticket>` when you finish for any reason.
+Keep the ticket and own this outcome through acceptance and integration.
+Exit 2 means another DRI owns the same outcome: ask the coordinator for a
+handoff or a delegated contribution, not an unrelated task. Paths are advisory:
+overlaps do not reject or require permission. Notify peers where practical,
+continue necessary work in this worktree and reconcile at landing. Refresh old
+claims clients that still reject file overlaps; existing tickets remain valid.
+Renew before expiry. A checkpoint does not end ownership.
+
+Keep a short assignment record: outcome, acceptance, current failure, next
+necessary action and dependencies. Reread it after compaction. New obstacles
+normally belong to this outcome; do not manufacture residual tasks or switch
+to profiling/testing work without completing or handing off the assignment.
 
 Exit 3 means coordination timed out, not a live conflict. Keep the pending
 claim record, report the outage, and continue the assigned work in isolation.
@@ -57,15 +64,10 @@ and at most one stamp per assigned row per session is permitted — only when
 it changes the row's frontier. Serial witness paragraphs ("re-verified a
 second/third time") are never appended. Never touch these excluded items:
 {exclusions}.
-If your fix needs a path owned by another item in the wave, stop and report
-`blocked` with the needed path so the coordinator can arrange a handoff. Apply
-the same rule to a confirmed active claim outside this wave
-(`tools/claims.py status`). Multiple
-unassigned stages may belong to your slice; do not stop merely at a crate boundary.
-
-Refetch `origin/main` before you `enqueue`. If the item's acceptance already
-landed, or another author materially changed its text, stop and report
-`superseded`.
+Required edits may span other workers' paths and multiple stages. Reconcile
+shared repairs rather than adding a competing mode or dropping incoming work.
+Refetch main before landing. If acceptance already passes, verify it and report
+superseded; a changed board paragraph alone does not end the assignment.
 
 ## Landing
 
@@ -116,8 +118,8 @@ stopped:
   outcome only for a probe-only assignment; in an implementation assignment,
   diagnosis is intermediate while a design-backed repair remains actionable.
   A rejection or a slice spanning stages is not by itself a stop condition.
-- `blocked`: an external obstacle (host, access, another item's path, a
-  prerequisite item) stopped you before the slice could be attempted.
+- `blocked`: an actual missing decision, environment or external prerequisite.
+  Shared files and missing implementation are not blockers.
 - `budget_exhausted`: only when you were actively implementing a slice you
   still believe is landable and ran out of ACU doing so; record the partial
   state and the next step in `remaining_dependency`. Do not describe a

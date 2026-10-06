@@ -61,11 +61,11 @@ An explicitly requested native swarm uses [dot-swarm](../dot-swarm/SKILL.md).
 1. Preserve the starting checkout and fetch current main. Record the exact
    revision; an unavailable fetch leaves a named local snapshot, not fresh main.
 2. Inspect live claims and the coordinator's in-flight assignments. Select real
-   failing programs from the requested boards under `advance`. Recheck board
+   capability or development-health outcomes under `advance`. Recheck board
    evidence against current code before dispatching an already-landed repair.
-3. Partition implementation and validation paths. Each assignment carries the
+3. Assign distinct outcomes, allowing shared implementation paths. Each assignment carries the
    program, authored exit/output, board acceptance, governing designs, exact
-   ownership, dependencies and acceptance commands. Never reserve a whole board.
+   DRI, advisory paths, dependencies and acceptance commands. Never reserve a whole board.
 4. Keep `build/swarm/<wave>/pool.json` and the cloud recovery journal. Record each
    logical slot's actual session/host/executor IDs, generation, assignment, source
    base, claim ticket, status, genuine progress time, result cursor, artifacts,
@@ -77,6 +77,9 @@ An explicitly requested native swarm uses [dot-swarm](../dot-swarm/SKILL.md).
    build slots. Do not launch compiler builds on the coordinator to warm every
    worker's machine.
 
+The executable cloud controller currently checks compiler-program acceptance;
+use ordinary advance and measured acceptance for development-health assignments,
+not fabricated native/interpreter results to fit that schema.
 Use the executable cloud controller's supported admission sizes and dependency
 gates when using that controller. A larger requested pool does not authorize
 inventing an unsupported schema or bypassing its gates. Record the remaining
@@ -124,7 +127,9 @@ ancestry before integration. Keep independent proof, custody and trust checks.
 
 Drain each result promptly: inspect evidence and diff, reconcile claims, record
 the outcome, integrate a verified candidate through `landing.py`, and follow up
-with the next ready leg on the same session. Do not hold an idle session behind
+with the next necessary step of the owned outcome on the same session.
+Choose another outcome only on completion or explicit handoff. Path overlap is
+not a blocker; reconcile changes rather than pivoting to peripheral work. Do not hold an idle session behind
 a coordinator gate unless its next program truly depends on that result.
 Update only board items justified by actual acceptance. A program that still
 fails has a named dependency; diagnostic reports do not close compiler tasks.

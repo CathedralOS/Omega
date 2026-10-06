@@ -20,8 +20,9 @@ What this launcher deliberately does NOT do: it writes no board text, holds no
 landing claim, creates no Git refs beyond the worktrees `local` is explicitly
 asked for, and keeps no ownership state. Its receipts live only in the ignored
 build/swarm/ directory so worker/session IDs stay off the boards. Partitioning
-lives only in the manifest the coordinator wrote; overlaps with in-flight
-human work are excluded there, not detected here.
+lives only in the manifest the coordinator wrote. Outcome claims prevent
+duplicate assignments; overlapping path estimates inform reconciliation,
+not permission to work.
 
 Every subcommand prints one JSON object. Credentials come only from the
 DEVIN_API_KEY and DEVIN_ORG_ID environment variables and are never printed.
@@ -172,7 +173,8 @@ def validate_manifest(manifest, repository):
             isinstance(entry, str) and entry for entry in secrets):
         raise SwarmError("manifest.secret_ids must be a list of Devin "
                          "organization secret ids (e.g. TYPESAFE_API_KEY).")
-    claimed = []
+    assigned = set()
+    names = set()
     for session in sessions:
         where = f"session {session.get('name', '?')!r}"
         require_fields(session, ("name", "board", "item", "host", "owning_paths"), where)
@@ -208,15 +210,13 @@ def validate_manifest(manifest, repository):
         layer = session.get("layer", 0)
         if not isinstance(layer, int) or isinstance(layer, bool) or layer < 0:
             raise SwarmError(f"{session['name']}: layer must be a non-negative integer.")
-        for path in session["owning_paths"]:
-            for existing_path, existing_name, existing_layer in claimed:
-                if (existing_layer == layer
-                        and claims.paths_overlap(path, existing_path)):
-                    raise SwarmError(f"Owning path {path} ({session['name']}) overlaps "
-                                     f"{existing_path} claimed by {existing_name} in "
-                                     f"layer {layer}; put the later session in a "
-                                     "higher layer.")
-            claimed.append((path, session["name"], layer))
+        if session["name"] in names:
+            raise SwarmError(f"Duplicate session name: {session['name']}")
+        names.add(session["name"])
+        outcome = (layer, session["item"])
+        if outcome in assigned:
+            raise SwarmError(f"Outcome {session['item']} already assigned in layer {layer}")
+        assigned.add(outcome)
         board_text_path = repository / session["board"]
         if not board_text_path.is_file():
             raise SwarmError(f"{session['name']}: board file {session['board']} not found.")
@@ -393,6 +393,8 @@ def claims_report(repository, sessions, skip=False):
                                    session["owning_paths"])
         report[session["name"]] = found
         for conflict in found:
+            if conflict["reason"] != "same item":
+                continue
             failures.append(
                 f"{session['name']}: {session['item']} conflicts with a live "
                 f"claim by {conflict['owner']} ({conflict['reason']}, ticket "
@@ -474,7 +476,7 @@ def jev_key():
 
 
 def jev_fence_verdict(item_name, item_text, owning_paths):
-    """Advisory fence check: does owning_paths cover the item's likely edit
+    """Advisory estimate check: does owning_paths cover the item's likely edit
     surface? None when unavailable/suppressed; the caller treats None as
     'no signal'. Worked example: build/experiments/failure-triage/FENCE.md —
     strict toward under_fenced, which is the safe direction here."""
@@ -491,9 +493,9 @@ def jev_fence_verdict(item_name, item_text, owning_paths):
                    "type": "choice",
                    "instructions": (
                        "A work session declared `owning_paths` as its edit "
-                       "fence for `item_name`. Given the item text (its "
+                       "estimate for `item_name`, not exclusive ownership. Given the item text (its "
                        "scope, declared owners, and acceptance surface), "
-                       "judge the fence. `adequate`: it covers the surfaces "
+                       "judge the estimate. `adequate`: it covers the surfaces "
                        "this item will plausibly edit. `under_fenced`: "
                        "plausibly-edited surfaces are missing. "
                        "`over_fenced`: it claims paths this item will not "
@@ -556,7 +558,7 @@ def partition_hints(repository, session, sessions, crates):
     - references_items / same_layer_reference: board items named in this
       item's text; flagged when one is another session at the same layer.
     - uncovered_mentions: path or crate-directory mentions in the item text
-      that owning_paths do not cover — the fence would protect the wrong
+      that owning_paths do not cover — the estimate would name the wrong
       ground (the product-references drift pattern).
     - named_crate_count / scale_hint: how many crates the text spans; large
       items are multi-layer decompositions, not slices.

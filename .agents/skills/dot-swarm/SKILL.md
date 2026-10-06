@@ -5,7 +5,7 @@ description: Coordinate an Omega cloud swarm with dot's native collaboration age
 
 # dot swarm
 
-Adapt [devin-swarm](../devin-swarm/SKILL.md)'s small-pool chain mode to dot's
+Adapt [devin-swarm](../devin-swarm/SKILL.md)'s outcome workflow to dot's
 cloud computer. Keep its task selection, warm chain ownership, slice-first
 progress, immediate result drains, and same-domain continuations. Replace its
 Devin transport and mass-wave mechanics with the actual native agent tools.
@@ -53,7 +53,7 @@ dead, a local archive is not a confirmed backup, and cleanup is never implicit.
 For coordinated cloud batches and staged rollout gates, follow the executable
 [cloud coordination contract](references/cloud-coordination.md). It adds durable
 assignment/result ingestion and final acceptance to the recovery journal; it
-does not authorize extra sessions or change global ownership fences.
+does not authorize extra sessions or replace outcome ownership.
 
 ## Detect the runtime and budget
 
@@ -102,23 +102,23 @@ absent, report the missing runtime rather than pretending a shell is an agent.
    available; report an unavailable fetch and the exact pinned snapshot rather
    than presenting it as current remote main.
 2. Read the relevant board sections and named code, then check live assignments
-   with `python3 tools/claims.py status`. These are repository-wide fences, not
-   just this wave's workers. Read the [coordinator selection rules](../../../tools/swarm/README.md#coordinator-selection-rules).
-3. Choose the real failing program nearest to `omega run` producing its authored
-   exit/output. Keep a continuation on its program. Verify stale board claims
+   with `python3 tools/claims.py status`. These name outcome DRIs, not file fences. Read the [coordinator selection rules](../../../tools/swarm/README.md#coordinator-selection-rules).
+3. Choose a required compiler capability with a real failing program, or a
+   measured development-health outcome with a bounded target. Keep a continuation
+   on its outcome through acceptance. Verify stale board claims
    against the code and recorded evidence. Do not fill spare slots with invented
    mining, fuzzing, or unrelated cleanup.
-4. Assign disjoint implementation and validation surfaces. Include the board's
+4. Assign distinct outcomes with advisory implementation and validation paths. Include the board's
    acceptance verbatim, concrete witness path, expected result, governing design,
-   owned paths, known dependencies, and other workers' owned walls. Check required
+   path estimates, known dependencies, and other workers' outcomes. Check required
    prerequisites before spending a slot on an impossible leg. Reading a shared
-   dependency is allowed; discovering needed edits there requires coordination.
-5. Reserve a path-disjoint coordinator slice when scope and capacity justify it.
+   dependency is allowed; necessary edits proceed with overlap reported.
+5. Reserve a distinct coordinator outcome when scope and capacity justify it.
    Keep drains ahead of that slice. At this width, assign one persistent outcome
    chain per worker, then implement its smallest verifiable leaves in order.
 6. Record assignments **before dispatch** in `build/swarm/<wave>/inflight.json`:
    item, worker, paths, assigned time, dependencies, mode, and stopping condition.
-   Skip both live claims and in-flight assignments; claims alone leave a race
+   Skip already-owned outcomes and in-flight assignments; claims alone leave a race
    before a new worker claims. Record the returned handle after spawn succeeds.
 
 For implementation, create worktrees from the top-level checkout under
@@ -128,15 +128,15 @@ warm build state. Never switch, reset, auto-stash, or clean another owner's tree
 Git's stash is shared across worktrees; use a separate baseline worktree instead.
 
 Claim before editing, retain the ticket, renew before expiry, and report evidence
-through `claims.py note`. A live conflict is a blocker, never a reason to use
-`--allow-overlap`. Shared claims, notes, releases, and landing are remote writes:
+through `claims.py note`. A same-outcome conflict requires a handoff;
+path overlap does not block work or require an override. Shared claims, notes, releases, and landing are remote writes:
 if the assignment forbids remote writes, do not silently invoke them. A read-only
 wave needs no edit claim; keep its assignments locally and label them read-only.
 A local-only edit exception needs an explicit scope decision and is not a shared
 claim. For an unavailable registry, follow AGENTS.md and tools/claims.md: record
 the intended scope and outage, then continue authorized development in an
-isolated worktree. Reconcile an uncertain mutation before retrying it; a known
-live overlap still requires coordination.
+isolated worktree. Reconcile uncertain mutations before retrying. Notify peers
+of path overlap and preserve both outcomes during integration.
 
 ## Reuse the repository helpers carefully
 
@@ -172,8 +172,8 @@ Give each worker one self-contained assignment containing:
 - Wave and slot name; exact checkout, branch, and base revision
 - Mode: diagnostic, local implementation, or authorized publication
 - One program/outcome chain, current board acceptance, witness and expected result
-- Edit boundary or read-only boundary, validation surface, design links, and
-  the current owned-walls roster
+- Read-only restrictions where applicable, advisory edit paths, validation,
+  design links and the current outcome/DRI roster
 - Exact useful checks, build ownership, relevant toolchain setup, and stop rules
 - Reporting destination and the verdict fields below
 
@@ -238,8 +238,7 @@ and validate, obtain the required exact-commit receipt, enqueue/claim, rebase on
 the reserved base, and revalidate changed inputs. If rebasing changes HEAD, run
 `python3 tools/landing.py verify --base <reserved-base>` again for that exact candidate SHA
 even when ordinary test evidence is reusable, then publish. Respect its lease and
-clean-tree requirements. Never copy devin-swarm's historical merge commits,
-direct pushes to main, batch-merge bypass, or remote branch cleanup. A lane is
+clean-tree requirements. Never use merge commits, direct main pushes or a batch-merge bypass. A lane is
 `landed` only after its candidate is verified as an ancestor of fetched
 `origin/main`; local integration is `candidate_ready`.
 

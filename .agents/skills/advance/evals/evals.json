@@ -270,16 +270,16 @@
     },
     {
       "id": 17,
-      "name": "end-to-end-priority-respects-active-edit-owner",
-      "prompt": "Advance. Squalr is explicitly available on the board, but a live coordinator assignment owns its checked scalar control and lowering integration. Your next fix would edit those same paths. The app still fails. There is independent actionable work on the allowed board.",
+      "name": "outcome-ownership-does-not-fence-files",
+      "prompt": "Continue the assigned aggregate-return outcome. A live coordinator assignment owns a distinct checked scalar-control outcome. Your next fix needs the same lowering files. Neither acceptance passes yet. An unrelated documentation task would avoid the overlap.",
       "status": "Not run against this revision",
-      "expected_output": "Coordinate the overlap before editing, take a genuinely independent dependency with an agreed handoff or select other actionable work, and identify the active assignment when bypassing the priority.",
+      "expected_output": "Retain the assigned outcome, report the path overlap, work in isolation and reconcile the shared implementation at landing. Do not switch to easier work or wait for file permission.",
       "files": [],
       "assertions": [
-        "Does not launch a competing implementation or treat the landing queue as edit ownership",
-        "Names the actual active assignment rather than citing a historical exclusion",
-        "Keeps one integration owner and an explicit handoff for any separately assigned dependency",
-        "Continues useful independent work without rewriting the running wave or inventing a new ownership registry"
+        "Does not treat shared files as an unavailable outcome or require an overlap override",
+        "Reports the actual peer assignment and preserves its incoming behavior",
+        "Retains one DRI per outcome; taking over the peer outcome would require handoff",
+        "Reconciles one implementation without retaining competing modes or abandoning acceptance"
       ]
     },
     {
