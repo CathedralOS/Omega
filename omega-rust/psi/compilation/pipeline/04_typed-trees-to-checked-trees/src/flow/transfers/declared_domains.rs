@@ -71,9 +71,11 @@ pub(super) fn establish(
             !crate::facts::field_domain::domain_requires_provenance(program, *symbol)
         })
         .collect();
-    for (domain_symbol, semantic_domain) in &declared_target_domains {
-        let fact = semantic.append_fact(Fact {
-            place: FactPlace::Place(target_place),
+    let membership_fact =
+        |place: PlaceHandle,
+         domain_symbol: SymbolHandle,
+         semantic_domain: language_semantics::SemanticDomainId| Fact {
+            place: FactPlace::Place(place),
             point: ProgramPoint::Statement {
                 machine_symbol,
                 state_symbol,
@@ -87,10 +89,16 @@ pub(super) fn establish(
             payload: FactPayload::DomainMembership {
                 value: ExpressionHandle::invalid(),
                 domain: HandleSpan::empty(),
-                domain_symbol: *domain_symbol,
-                semantic_domain: *semantic_domain,
+                domain_symbol,
+                semantic_domain,
             },
-        });
+        };
+    for (domain_symbol, semantic_domain) in &declared_target_domains {
+        let fact = semantic.append_fact(membership_fact(
+            target_place,
+            *domain_symbol,
+            *semantic_domain,
+        ));
         semantic.append_ref(refs, fact);
     }
     for candidate in candidate_targets {
@@ -117,25 +125,11 @@ pub(super) fn establish(
             if !was_live {
                 continue;
             }
-            let fact = semantic.append_fact(Fact {
-                place: FactPlace::Place(candidate_place),
-                point: ProgramPoint::Statement {
-                    machine_symbol,
-                    state_symbol,
-                    statement_index,
-                },
-                origin: FactOrigin::StatementTransfer,
-                evidence: QualificationEvidence::from_origin(
-                    language_semantics::QualificationEvidenceOrigin::CheckedValidation,
-                    state_symbol,
-                ),
-                payload: FactPayload::DomainMembership {
-                    value: ExpressionHandle::invalid(),
-                    domain: HandleSpan::empty(),
-                    domain_symbol: *domain_symbol,
-                    semantic_domain: *semantic_domain,
-                },
-            });
+            let fact = semantic.append_fact(membership_fact(
+                candidate_place,
+                *domain_symbol,
+                *semantic_domain,
+            ));
             semantic.append_ref(refs, fact);
         }
     }
