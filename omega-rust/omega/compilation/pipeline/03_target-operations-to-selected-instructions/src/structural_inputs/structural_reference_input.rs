@@ -1111,6 +1111,25 @@ fn bounded_byte_field_borrow(
     None
 }
 
+/// Per-case payload shapes in declaration order with relevance-erased fields
+/// dropped — the same projection the sum and mixed layouts evaluate.
+fn case_payloads(
+    cases: &[terminal_psi::StructuralCaseDeclaration],
+    declarations: &[StructuralTypeDeclaration],
+    active: &mut Vec<StructuralTypeId>,
+) -> Option<Vec<Vec<ValueShape>>> {
+    cases
+        .iter()
+        .map(|case| {
+            case.fields
+                .iter()
+                .filter(|field| !field.relevance.is_erased())
+                .map(|field| field_shape(&field.field_type, declarations, active))
+                .collect::<Option<Vec<_>>>()
+        })
+        .collect()
+}
+
 fn shape_inner(
     root: StructuralTypeId,
     declarations: &[StructuralTypeDeclaration],
@@ -1137,16 +1156,7 @@ fn shape_inner(
         // pointer plus extent, realized as one borrowed aggregate slot.
         StructuralTypeShape::ElementView { .. } => Some(ValueShape::integer(16, 8)),
         StructuralTypeShape::Sum { cases } => {
-            let payloads = cases
-                .iter()
-                .map(|case| {
-                    case.fields
-                        .iter()
-                        .filter(|field| !field.relevance.is_erased())
-                        .map(|field| field_shape(&field.field_type, declarations, active))
-                        .collect::<Option<Vec<_>>>()
-                })
-                .collect::<Option<Vec<_>>>()?;
+            let payloads = case_payloads(cases, declarations, active)?;
             Some(
                 calling_conventions::evaluate_conventional_sum_layout(&[], &payloads)
                     .ok()?
@@ -1163,16 +1173,7 @@ fn shape_inner(
                 .filter(|field| !field.relevance.is_erased())
                 .map(|field| field_shape(&field.field_type, declarations, active))
                 .collect::<Option<Vec<_>>>()?;
-            let payloads = cases
-                .iter()
-                .map(|case| {
-                    case.fields
-                        .iter()
-                        .filter(|field| !field.relevance.is_erased())
-                        .map(|field| field_shape(&field.field_type, declarations, active))
-                        .collect::<Option<Vec<_>>>()
-                })
-                .collect::<Option<Vec<_>>>()?;
+            let payloads = case_payloads(cases, declarations, active)?;
             Some(
                 calling_conventions::evaluate_conventional_sum_layout(&common, &payloads)
                     .ok()?
