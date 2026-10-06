@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": "2", "load1_end": 10.14, "load1_start": 10.14, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": null, "load1_end": 7.95, "load1_start": 7.95, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 189ms
 pass/arithmetic/anonymous_rational_integer_landing checked 186ms
 pass/arithmetic/bounded_assignment checked 197ms
@@ -226,6 +226,7 @@ pass/calls/runtime_assignment_call_post_mutation_value_exit built 824ms exit:70
 pass/calls/runtime_borrowed_binding_field_state_loan_exit built 966ms exit:70 stdout:match @bea382792161+wt
 pass/calls/runtime_call_statement_before_state_return_exit built 1440ms exit:42 @63377f7122bb+wt
 pass/calls/runtime_case_record_return_exit built 1202ms exit:70
+pass/calls/runtime_constructed_borrowed_payload_arguments_exit built 1975ms exit:0 @a9ea4297a1a9
 pass/calls/runtime_constructor_computed_field_exit built 530ms exit:1
 pass/calls/runtime_cross_machine_substate_name_exit built 771ms exit:70
 pass/calls/runtime_dispatch_binary_call_argument_exit built 551ms exit:70 @f711d1b640be
@@ -264,6 +265,7 @@ pass/calls/runtime_shared_ref_param_member_exit built 855ms exit:42 @2f8006be6cc
 pass/calls/runtime_static_entry_context_exit built 560ms exit:0 @48008365d839
 pass/calls/runtime_std_math_sin_cos_exit built 20695ms exit:70 @48008365d839
 pass/calls/runtime_structural_literal_call_initializer_exit built 1055ms exit:70
+pass/calls/runtime_temporary_lending_order_exit built 1990ms exit:0 @a9ea4297a1a9
 pass/calls/runtime_trailing_state_mut_param_phase_exit built 1103ms exit:70 @765e6c51624f+wt
 pass/calls/runtime_transition_subject_call_single_evaluation_exit built 2436ms exit:70 @fb2178def922
 pass/calls/runtime_value_call_dispatch_results_exit built 951ms exit:70

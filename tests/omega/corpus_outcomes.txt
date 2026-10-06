@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": "2", "load1_end": 11.03, "load1_start": 10.86, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": null, "load1_end": 7.95, "load1_start": 7.95, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -1789,6 +1789,7 @@ pass/calls/runtime_case_record_return_exit checked 1636ms check-target:macos_arm
 pass/calls/runtime_case_terminal_payload_result_exit checked 1182ms check-target:macos_arm64 @987a6f356be0
 pass/calls/runtime_computed_case_subject_affine_argument_exit checked 851ms check-target:macos_arm64 @92bbd31b7820
 pass/calls/runtime_computed_case_terminal_payload_result_exit checked 783ms check-target:macos_arm64 @95bd0eaccc6e
+pass/calls/runtime_constructed_borrowed_payload_arguments_exit checked 1957ms check-target:macos_arm64 @a9ea4297a1a9
 pass/calls/runtime_constructor_computed_field_exit checked 1305ms check-target:macos_arm64 @2d8ed253669f
 pass/calls/runtime_cross_machine_substate_name_exit checked 1579ms check-target:macos_arm64 @2d8ed253669f
 pass/calls/runtime_cyclic_state_reference_result_exit checked 5224ms check-target:macos_arm64 @8ed3ee405530
@@ -1851,6 +1852,7 @@ pass/calls/runtime_static_tail_local_custody_exit checked 1649ms check-target:ma
 pass/calls/runtime_static_tail_reordered_local_custody_exit checked 2398ms check-target:macos_arm64 @c5d32a008630+wt
 pass/calls/runtime_std_math_sin_cos_exit checked 39961ms check-target:macos_arm64 @ca8c127c90c5
 pass/calls/runtime_structural_literal_call_initializer_exit checked 1388ms check-target:macos_arm64 @2d8ed253669f
+pass/calls/runtime_temporary_lending_order_exit checked 1972ms check-target:macos_arm64 @a9ea4297a1a9
 pass/calls/runtime_terminal_requirement_projected_context_exit checked 619ms check-target:macos_arm64 @560687158d28
 pass/calls/runtime_trailing_state_mut_param_phase_exit checked 970ms check-target:macos_arm64 @765e6c51624f+wt
 pass/calls/runtime_transition_subject_call_single_evaluation_exit checked 1399ms check-target:macos_arm64 @2d8ed253669f

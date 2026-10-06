@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": "2", "load1_end": 10.71, "load1_start": 10.6, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": null, "load1_end": 8.11, "load1_start": 7.95, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/runtime_exact_dispatch_divisor_exit built 1233ms exit:70 interpreter-exit:70 interpreter:agrees @01974e342562+wt
 pass/arithmetic/runtime_exact_projection_sibling_exit built 1644ms exit:70 stdout:match interpreter-exit:70 interpreter-stdout:match interpreter:agrees @ffe8db2ea9e9
 pass/arithmetic/runtime_exact_signed_divisor_exclusions_exit built 1455ms exit:70 interpreter-exit:70 interpreter:agrees @d9720a4fa49b+wt
@@ -94,6 +94,7 @@ pass/calls/runtime_case_payload_indexed_calls_exit built 11916ms exit:70 interpr
 pass/calls/runtime_case_terminal_payload_result_exit built 1414ms exit:0 interpreter-exit:0 interpreter:agrees @9d538dd9a056
 pass/calls/runtime_computed_case_subject_affine_argument_exit built 814ms exit:0 interpreter-exit:0 interpreter:agrees @92bbd31b7820
 pass/calls/runtime_computed_case_terminal_payload_result_exit built 1318ms exit:0 interpreter-exit:0 interpreter:agrees @95bd0eaccc6e
+pass/calls/runtime_constructed_borrowed_payload_arguments_exit built 4619ms exit:0 interpreter-exit:0 interpreter:agrees @a9ea4297a1a9
 pass/calls/runtime_constructed_copy_payload_arguments_exit built 3370ms exit:0 interpreter-exit:0 interpreter:agrees @6a3a2f5cba58
 pass/calls/runtime_constructed_payload_arguments_exit built 3370ms exit:0 interpreter-exit:0 interpreter:agrees @6a3a2f5cba58
 pass/calls/runtime_cyclic_state_reference_result_exit built 8642ms exit:0 interpreter-exit:0 interpreter:agrees @8ed3ee405530
