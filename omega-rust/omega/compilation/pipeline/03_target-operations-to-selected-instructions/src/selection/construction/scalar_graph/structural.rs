@@ -1,18 +1,16 @@
 //! Place-backed ABI transport in the ordinary instruction stream.
 use super::{
-    Builder, IntegerSign, LegalizedScalarFunction, LegalizedScalarInstructionKind,
-    RegisterConstraintKey, ScalarType, SelectedBlockId, SelectedInstructionId,
-    SelectedInstructionKind, SelectedInstructionProvenance, ValueLocation, VirtualRegister,
-    VirtualRegisterId, VirtualRegisterOrigin,
+    Builder, IntegerSign, LegalizedScalarFunction, LegalizedScalarInstructionKind, ScalarType,
+    SelectedBlockId, SelectedInstructionId, SelectedInstructionKind, SelectedInstructionProvenance,
+    ValueLocation, VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
 };
 use crate::SelectedInstructionError;
 use crate::selection::byte_view_homes::ByteViewHomes;
 use crate::selection::element_view_homes::ElementViewHomes;
 use calling_conventions::IndirectPointerLocation;
-use legalized_operations::{LegalizedScalarArgument, LegalizedScalarInstruction};
-use register_model::RegisterOperandAccess;
+use legalized_operations::LegalizedScalarInstruction;
 use selected_instructions::{
-    OutgoingArgumentSlotId, SelectedBoundarySettlement, SelectedCallContract, SelectedMemoryAccess,
+    SelectedBoundarySettlement, SelectedCallContract, SelectedMemoryAccess,
     SelectedMemoryAccessRole, SelectedOutgoingArgumentSlot,
 };
 use semantic_vocabulary::{IntegerType, PlaceId};
@@ -459,231 +457,14 @@ pub(super) fn operation(
     if row.result.is_some() {
         return Ok(false);
     }
-    let LegalizedScalarInstructionKind::Call(call) = &row.kind else {
-        return Err(invalid());
-    };
-    // An owned actual that re-presents the caller's complete signature —
-    // identical call plan, every argument an owned parameter forward into an
-    // indirect-register outgoing copy — uses the slot-addressed forward lane;
-    // the general Unit transport emits register-relative copies instead.
-    let signature_equal_forward = source.structural.as_ref().is_some_and(|signature| {
-        call.result_placement.is_none()
-            && call.arguments.len() == signature.parameters.len()
-            && !call.arguments.is_empty()
-            && call.call_plan == source.call_plan
-            && call.arguments.iter().all(|argument| {
-                matches!(argument, LegalizedScalarArgument::Structural { semantic, target, .. }
-                if semantic.access == StructuralAccess::Owned
-                    && semantic.path.is_empty()
-                    && signature.parameters.iter().any(|parameter|
-                        parameter.semantic.place == semantic.place)
-                    && matches!(target.destination.locations.as_slice(),
-                        [ValueLocation::Indirect {
-                            pointer: IndirectPointerLocation::Register(_),
-                            copy_stack_byte_offset: Some(_),
-                            ..
-                        }]))
-            })
-    });
-    if !signature_equal_forward
-        && call.arguments.iter().all(|argument| !matches!(argument, LegalizedScalarArgument::Structural { semantic, target, .. }
-        if semantic.access == StructuralAccess::Owned
-            && crate::selection::scalar_call_abi::owned_value_shape(source, target.structural_type).is_none())) {
-        super::unit_call::emit(function, source, row, environment, builder)?;
-        return Ok(true);
-    }
-    let signature = source.structural.as_ref().ok_or_else(|| invalid())?;
-    if call.validate_shape().is_err()
-        || call.validate_source(&row.ownership).is_err()
-        || call.result_placement.is_some()
-        || call.arguments.len() != signature.parameters.len()
-        || call.call_plan != source.call_plan
-    {
+    if !matches!(row.kind, LegalizedScalarInstructionKind::Call(_)) {
         return Err(invalid());
     }
-    let mut pointers = Vec::new();
-    for (index, argument) in call.arguments.iter().enumerate() {
-        let LegalizedScalarArgument::Structural {
-            semantic, target, ..
-        } = argument
-        else {
-            return Err(invalid());
-        };
-        let parameter = signature
-            .parameters
-            .iter()
-            .find(|parameter| parameter.semantic.place == semantic.place)
-            .ok_or_else(|| invalid())?;
-        if semantic.access != StructuralAccess::Owned
-            || !semantic.path.is_empty()
-            || target.place != semantic.place
-            || target.source
-                != target_operations::TargetStructuralArgumentSource::Placement(
-                    parameter.target.placement.clone(),
-                )
-            || target.destination != call.call_plan.parameters[index]
-            || target.source_byte_offset != 0
-        {
-            return Err(invalid());
-        }
-        let [
-            ValueLocation::Indirect {
-                pointer: IndirectPointerLocation::Register(pointer),
-                copy_stack_byte_offset: Some(offset),
-                byte_size,
-                alignment,
-            },
-        ] = target.destination.locations.as_slice()
-        else {
-            return Err(invalid());
-        };
-        let slot = OutgoingArgumentSlotId {
-            role: selected_instructions::OutgoingArgumentSlotRole::Argument,
-            operation: row.operation,
-            argument_index: index.try_into().map_err(|_| invalid())?,
-        };
-        builder.transport.slots.push(SelectedOutgoingArgumentSlot {
-            id: slot,
-            byte_size: (*byte_size),
-            alignment: *alignment,
-            abi_stack_byte_offset: *offset,
-        });
-        let input = builder
-            .transport
-            .pointers
-            .iter()
-            .find(|(place, _)| *place == semantic.place)
-            .map(|(_, register)| *register)
-            .ok_or_else(|| invalid())?;
-        for byte_offset in [0, 8] {
-            let value = transport_register(builder, semantic.place, byte_offset)?;
-            memory(
-                builder,
-                row,
-                semantic.place,
-                byte_offset,
-                8,
-                SelectedMemoryAccessRole::ReadPlace,
-            )?;
-            builder.emit(
-                SelectedInstructionKind::Load64 { byte_offset },
-                builder.constraints.keys.load64.ok_or_else(|| invalid())?,
-                &[input, value],
-                provenance(row),
-            )?;
-            memory(
-                builder,
-                row,
-                semantic.place,
-                byte_offset,
-                8,
-                SelectedMemoryAccessRole::WriteOutgoing { slot },
-            )?;
-            builder.emit(
-                SelectedInstructionKind::Store64 {
-                    slot: selected_instructions::FrameStorageSlotId::Outgoing(slot),
-                    byte_offset,
-                },
-                builder.constraints.keys.store64.ok_or_else(|| invalid())?,
-                &[value],
-                provenance(row),
-            )?;
-        }
-        pointers.push((semantic.place, *byte_size, *pointer, slot));
-    }
-    // Outgoing-slot addresses materialize after the argument copies: per-
-    // argument custody spans stay contiguous and the call's operand roster
-    // still reads in argument order.
-    let pointers = pointers
-        .into_iter()
-        .map(|(place, byte_size, pointer, slot)| {
-            let address = transport_register(builder, place, 0)?;
-            memory(
-                builder,
-                row,
-                place,
-                0,
-                byte_size,
-                SelectedMemoryAccessRole::AddressOutgoing { slot },
-            )?;
-            builder.emit(
-                SelectedInstructionKind::FrameAddress {
-                    slot: selected_instructions::FrameStorageSlotId::Outgoing(slot),
-                    byte_offset: 0,
-                },
-                builder
-                    .constraints
-                    .keys
-                    .frame_address
-                    .ok_or_else(|| invalid())?,
-                &[address],
-                provenance(row),
-            )?;
-            Ok((
-                address,
-                environment
-                    .fixed_register_view(pointer)
-                    .ok_or_else(|| invalid())?,
-            ))
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    let key = builder
-        .constraints
-        .keys
-        .call_unit
-        .get(call.arguments.len())
-        .copied()
-        .ok_or_else(|| invalid())?;
-    let constraint = row_constraint(builder, key)?;
-    if environment.constraint(key) != Some(constraint)
-        || constraint.operands.len() != pointers.len()
-        || constraint
-            .operands
-            .iter()
-            .zip(&pointers)
-            .any(|(operand, (_, view))| {
-                operand.access != RegisterOperandAccess::Use || operand.fixed_view != Some(*view)
-            })
-    {
-        return Err(invalid());
-    }
-    builder.transport.calls.push(SelectedCallContract {
-        instruction: SelectedInstructionId(
-            builder
-                .instructions
-                .len()
-                .try_into()
-                .map_err(|_| invalid())?,
-        ),
-        owner: target_operations::CallSiteOwner::Operation(row.operation),
-        call: call.clone(),
-        effect: row.effect,
-        ownership: row.ownership.clone(),
-    });
-    builder.emit(
-        SelectedInstructionKind::CallUnit {
-            callee: call.callee,
-        },
-        key,
-        &pointers
-            .iter()
-            .map(|(register, _)| *register)
-            .collect::<Vec<_>>(),
-        SelectedInstructionProvenance {
-            operations: vec![row.operation],
-            fuel: row.fuel.clone(),
-            obligations: call.requirement_obligations.clone(),
-            ..Default::default()
-        },
-    )?;
+    // A forwarded owner is an ordinary argument. Its complete value geometry
+    // and outgoing ABI belong to the shared marshaller, independently of the
+    // caller's signature; a private fixed-width forward copy loses live bytes.
+    super::unit_call::emit(function, source, row, environment, builder)?;
     Ok(true)
-}
-
-fn row_constraint<'a>(
-    builder: &'a Builder<'_>,
-    key: RegisterConstraintKey,
-) -> Result<&'a register_model::RegisterInstructionConstraint, SelectedInstructionError> {
-    crate::selection::constraints::row(builder.catalog, key)
 }
 
 fn provenance(row: &LegalizedScalarInstruction) -> SelectedInstructionProvenance {
