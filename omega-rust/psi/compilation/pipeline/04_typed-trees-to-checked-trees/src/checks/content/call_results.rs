@@ -190,26 +190,7 @@ pub(super) fn check_call_result_qualifications(
                     {
                         return false;
                     }
-                    program
-                    .traits()
-                    .iter()
-                    .find(|owner| owner.symbol == owner_symbol)
-                    .and_then(|owner| {
-                        program
-                            .trait_machine_signatures(owner)
-                            .iter()
-                            .find(|signature| signature.symbol == state_symbol)
-                    })
-                    .is_some_and(|signature| {
-                        crate::facts::qualification_evidence::boundary_qualification_authorization(
-                            program,
-                            owner_symbol,
-                            signature,
-                            typed_trees::signature::SignatureContractKind::Ensures,
-                            contract.fact,
-                        )
-                        .is_some()
-                    })
+                    authorized_ensures_signature(program, owner_symbol, state_symbol, contract.fact)
                 }) || result_type_issuance_route(program, call.target_symbol, domain))
             {
                 return Some(());
@@ -418,26 +399,7 @@ fn call_parameter_qualification_join(
             {
                 return false;
             }
-            program
-                .traits()
-                .iter()
-                .find(|owner| owner.symbol == owner_symbol)
-                .and_then(|owner| {
-                    program
-                        .trait_machine_signatures(owner)
-                        .iter()
-                        .find(|signature| signature.symbol == state_symbol)
-                })
-                .is_some_and(|signature| {
-                    crate::facts::qualification_evidence::boundary_qualification_authorization(
-                        program,
-                        owner_symbol,
-                        signature,
-                        typed_trees::signature::SignatureContractKind::Ensures,
-                        contract.fact,
-                    )
-                    .is_some()
-                })
+            authorized_ensures_signature(program, owner_symbol, state_symbol, contract.fact)
         })
         .then_some(())
 }
@@ -513,6 +475,36 @@ fn replay_equation(
         output_identities.push(identity);
     }
     includes_required
+}
+
+/// The signature `state_symbol` on the `owner_symbol` trait carries `ensures`
+/// authorization for `fact`, when the owner and its requirement exist.
+fn authorized_ensures_signature(
+    program: &TypedTrees,
+    owner_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    fact: arena::Handle<typed_trees::domain::ProofFact>,
+) -> bool {
+    program
+        .traits()
+        .iter()
+        .find(|owner| owner.symbol == owner_symbol)
+        .and_then(|owner| {
+            program
+                .trait_machine_signatures(owner)
+                .iter()
+                .find(|signature| signature.symbol == state_symbol)
+        })
+        .is_some_and(|signature| {
+            crate::facts::qualification_evidence::boundary_qualification_authorization(
+                program,
+                owner_symbol,
+                signature,
+                typed_trees::signature::SignatureContractKind::Ensures,
+                fact,
+            )
+            .is_some()
+        })
 }
 
 /// The signature a boundary trait declares under `target_symbol`, present
