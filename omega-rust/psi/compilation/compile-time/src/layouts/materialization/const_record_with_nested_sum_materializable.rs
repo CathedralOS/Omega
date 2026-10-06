@@ -13,7 +13,7 @@ use crate::layouts::materialization::const_record_with_nested_sum_materializable
     record_sum_paths_reports_match_for_replay,
 };
 use layout_plans::{
-    AggregateFieldSchema, AggregateFieldValue, ByteOrder,
+    ByteOrder,
     ConventionalNestedRecordSumPathLayoutReport, ConventionalNestedRecordSumPathsLayoutReport,
     ConventionalRecordSumChildHop, ConventionalRecordSumChildInterior,
     ConventionalRecordSumChildLayoutReport, ConventionalRecursiveRecordSumPathsLayoutReport,

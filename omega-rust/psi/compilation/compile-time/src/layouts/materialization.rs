@@ -300,3 +300,41 @@ pub(super) fn encode_plain_outer_field(
     });
     Ok(())
 }
+
+/// The `(schema, value)` columns an encoded outer-field set materializes
+/// through, pushed in authored field order. The caller owns capacity policy:
+/// reserving there keeps each staging site's own resource diagnostic.
+pub(super) fn push_encoded_field_schema_values(
+    encoded_fields: Vec<EncodedOuterField>,
+    schemas: &mut Vec<AggregateFieldSchema>,
+    values: &mut Vec<AggregateFieldValue>,
+) -> Result<(), MaterializationDiagnostic> {
+    for field in encoded_fields {
+        let schema = match (field.repeated, field.identity) {
+            (Some(repeated), Some(identity)) => {
+                AggregateFieldSchema::new_repeated_numbered(
+                    &field.name,
+                    identity,
+                    repeated.element_size,
+                    repeated.element_align,
+                    repeated.element_count,
+                )?
+            }
+            (Some(repeated), None) => AggregateFieldSchema::new_repeated(
+                &field.name,
+                repeated.element_size,
+                repeated.element_align,
+                repeated.element_count,
+            )?,
+            (None, Some(identity)) => AggregateFieldSchema::new_numbered(
+                &field.name,
+                identity,
+                field.size,
+            )?,
+            (None, None) => AggregateFieldSchema::new(&field.name, field.size)?,
+        };
+        schemas.push(schema);
+        values.push(AggregateFieldValue::new(field.name, field.bytes)?);
+    }
+    Ok(())
+}

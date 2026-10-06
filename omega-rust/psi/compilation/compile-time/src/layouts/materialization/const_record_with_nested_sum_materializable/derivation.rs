@@ -1,7 +1,7 @@
 //! Recursive nested-record byte derivation and staging.
 
 use super::{
-    AggregateFieldSchema, AggregateFieldValue, BuildTimeValue, ByteOrder,
+    BuildTimeValue, ByteOrder,
     ConventionalNestedRecordSumPathLayoutReport, ConventionalRecordSumChildHop,
     ConventionalRecordSumChildInterior, ConventionalRecordSumChildLayoutReport,
     ConventionalRecursiveRecordSumPathsLayoutReport, ConventionalSumArrayFieldLayoutReport,
@@ -476,29 +476,11 @@ pub(super) fn materialize_level_bytes(
                 "ConstMaterializable record-level value staging exceeds compiler resources".into(),
             )
         })?;
-    for field in encoded_fields {
-        let schema = match (field.repeated, field.identity) {
-            (Some(repeated), Some(identity)) => AggregateFieldSchema::new_repeated_numbered(
-                &field.name,
-                identity,
-                repeated.element_size,
-                repeated.element_align,
-                repeated.element_count,
-            )?,
-            (Some(repeated), None) => AggregateFieldSchema::new_repeated(
-                &field.name,
-                repeated.element_size,
-                repeated.element_align,
-                repeated.element_count,
-            )?,
-            (None, Some(identity)) => {
-                AggregateFieldSchema::new_numbered(&field.name, identity, field.size)?
-            }
-            (None, None) => AggregateFieldSchema::new(&field.name, field.size)?,
-        };
-        schemas.push(schema);
-        values.push(AggregateFieldValue::new(field.name, field.bytes)?);
-    }
+    crate::layouts::materialization::push_encoded_field_schema_values(
+        encoded_fields,
+        &mut schemas,
+        &mut values,
+    )?;
     materialize_aggregate_layout_into(outer_layout, &schemas, &values, byte_order, &mut bytes)?;
     Ok(bytes)
 }
@@ -1078,29 +1060,11 @@ pub(super) fn derive_nested_record_sums_bytes_with_reachability(
                 "ConstMaterializable nested-record value staging exceeds compiler resources".into(),
             )
         })?;
-    for field in encoded_fields {
-        let schema = match (field.repeated, field.identity) {
-            (Some(repeated), Some(identity)) => AggregateFieldSchema::new_repeated_numbered(
-                &field.name,
-                identity,
-                repeated.element_size,
-                repeated.element_align,
-                repeated.element_count,
-            )?,
-            (Some(repeated), None) => AggregateFieldSchema::new_repeated(
-                &field.name,
-                repeated.element_size,
-                repeated.element_align,
-                repeated.element_count,
-            )?,
-            (None, Some(identity)) => {
-                AggregateFieldSchema::new_numbered(&field.name, identity, field.size)?
-            }
-            (None, None) => AggregateFieldSchema::new(&field.name, field.size)?,
-        };
-        schemas.push(schema);
-        values.push(AggregateFieldValue::new(field.name, field.bytes)?);
-    }
+    crate::layouts::materialization::push_encoded_field_schema_values(
+        encoded_fields,
+        &mut schemas,
+        &mut values,
+    )?;
     materialize_aggregate_layout_into(
         path_layout.outer_layout(),
         &schemas,

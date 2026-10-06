@@ -19,7 +19,7 @@ use crate::layouts::materialization::{
     validate_const_materializable_conventional_sum,
 };
 use layout_plans::{
-    AggregateFieldSchema, AggregateFieldValue, ByteOrder, ConventionalSumArrayFieldLayoutReport,
+    ByteOrder, ConventionalSumArrayFieldLayoutReport,
     ConventionalSumFieldLayoutReport, LayoutPlanReport, MaterializationDiagnostic,
     materialize_aggregate_layout_into,
 };
@@ -348,29 +348,11 @@ pub(crate) fn derive_record_with_sum_bytes(
     let mut bytes = vec![0; byte_len];
     let mut schemas = Vec::with_capacity(encoded_fields.len());
     let mut values = Vec::with_capacity(encoded_fields.len());
-    for field in encoded_fields {
-        let schema = match (field.repeated, field.identity) {
-            (Some(repeated), Some(identity)) => AggregateFieldSchema::new_repeated_numbered(
-                &field.name,
-                identity,
-                repeated.element_size,
-                repeated.element_align,
-                repeated.element_count,
-            )?,
-            (Some(repeated), None) => AggregateFieldSchema::new_repeated(
-                &field.name,
-                repeated.element_size,
-                repeated.element_align,
-                repeated.element_count,
-            )?,
-            (None, Some(identity)) => {
-                AggregateFieldSchema::new_numbered(&field.name, identity, field.size)?
-            }
-            (None, None) => AggregateFieldSchema::new(&field.name, field.size)?,
-        };
-        schemas.push(schema);
-        values.push(AggregateFieldValue::new(field.name, field.bytes)?);
-    }
+    crate::layouts::materialization::push_encoded_field_schema_values(
+        encoded_fields,
+        &mut schemas,
+        &mut values,
+    )?;
     materialize_aggregate_layout_into(layout, &schemas, &values, byte_order, &mut bytes)?;
 
     Ok(DerivedRecordWithSumMaterialization {
@@ -698,29 +680,11 @@ pub(crate) fn derive_record_with_sum_arrays_bytes(
     let mut bytes = vec![0; byte_len];
     let mut schemas = Vec::with_capacity(encoded_fields.len());
     let mut values = Vec::with_capacity(encoded_fields.len());
-    for field in encoded_fields {
-        let schema = match (field.repeated, field.identity) {
-            (Some(repeated), Some(identity)) => AggregateFieldSchema::new_repeated_numbered(
-                &field.name,
-                identity,
-                repeated.element_size,
-                repeated.element_align,
-                repeated.element_count,
-            )?,
-            (Some(repeated), None) => AggregateFieldSchema::new_repeated(
-                &field.name,
-                repeated.element_size,
-                repeated.element_align,
-                repeated.element_count,
-            )?,
-            (None, Some(identity)) => {
-                AggregateFieldSchema::new_numbered(&field.name, identity, field.size)?
-            }
-            (None, None) => AggregateFieldSchema::new(&field.name, field.size)?,
-        };
-        schemas.push(schema);
-        values.push(AggregateFieldValue::new(field.name, field.bytes)?);
-    }
+    crate::layouts::materialization::push_encoded_field_schema_values(
+        encoded_fields,
+        &mut schemas,
+        &mut values,
+    )?;
     materialize_aggregate_layout_into(layout, &schemas, &values, byte_order, &mut bytes)?;
 
     let mut arrays = Vec::new();
