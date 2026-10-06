@@ -671,7 +671,7 @@ pub(crate) fn literal_argument_places(
     Ok(places)
 }
 
-/// Emit one `IntegerStructuralField` read for every `StructuralField`
+/// Emit the declaration-resolved scalar read for every `StructuralField`
 /// runtime-index selector in argument order, before the call they select
 /// into. The call's `RuntimeIndex` segment then carries the read's value as
 /// its operand — the same operand position a `Parameter` selector carries —
@@ -694,22 +694,18 @@ pub(crate) fn mint_runtime_index_selectors(
             else {
                 continue;
             };
-            let (source, path, leaf, scalar_type) =
+            let observation =
                 crate::expression_preparation::bindings::structural_fields::resolve_typed(
                     fields,
                     field.parameter_position,
                     &field.path,
                 )?;
-            if !matches!(scalar_type, ScalarType::Integer(integer) if !integer.is_address()) {
+            if !matches!(observation.scalar_type(), ScalarType::Integer(integer) if !integer.is_address())
+            {
                 return unsupported("runtime index field selector is not an integer read");
             }
             values.push(emit_direct_expression(
-                &LoweredDirectExpression::StructuralField {
-                    source: source.into(),
-                    path,
-                    field: leaf,
-                    scalar_type,
-                },
+                &observation,
                 caller_scalar_values,
                 next_value,
                 operations,

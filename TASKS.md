@@ -678,18 +678,17 @@ defines the complete product bar.
   `pass/borrows/runtime_affine_local_case_return_exit` (42) and
   `pass/borrows/runtime_case_return_parameter_order_exit` (0), both native and
   interpreted. The remaining frontier is residual cleanup:
-  - Transport `build_projected_edge_plan`
-    (`omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/execution/terminal_cleanup.rs`)
-    through `.../execution/terminal_unit/state_graph/` and stage 05's
-    attached Unit graph. Composed `Pair.left` transition programs lack
-    admitted plans. Extend to partial construction, a second partial
-    parameter and mixed dying roots; keep machine parameter custody distinct
-    from edge cleanup. No runtime liveness flags, untouched-array leaf
-    expansion or deferral to final return.
-  - Successors and returns now transport one ordered cleanup-action stream
-    through Terminal, Abstract, interpreter and native consumers. Use that stream
-    for the missing composed projected-edge plans above; preserve mixed-root
-    establishment order rather than regrouping residuals behind whole roots.
+  - Extend the ordinary normal-edge cleanup plans in
+    `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/execution/terminal_cleanup.rs`
+    to abandoned construction prefixes and mixed dying roots with executable
+    hooks. Preserve mixed-root establishment order in the existing ordered
+    action stream through Terminal, Abstract, interpreter and native consumers;
+    do not regroup residuals behind whole roots. Keep machine parameter custody
+    distinct from edge cleanup. No runtime liveness flags, untouched-array leaf
+    expansion or deferral to final return. Keep
+    `pass/drops/runtime_projected_transition_cleanup_exit` and
+    `pass/drops/runtime_local_indexed_transition_cleanup_exit` as value-transfer
+    controls while adding observable cleanup-order coverage.
   - Generalize temporary cleanup beyond empty effect-free Unit consumers
     (other argument effects, non-Unit results, borrowed/owned mixtures,
     claims) on **STATE-LOCAL-VALUE-FRONTIER**'s evaluation path.
@@ -698,7 +697,7 @@ defines the complete product bar.
     suppresses arrival homes with a whole-function gate; replace it with
     per-place storage/action evidence. Preserve executable hooks through the
     existing ordered action stream.
-  Acceptance: add corpus fixtures where native runs and the checked
+  Acceptance: add corpus fixtures where native runs and the Terminal
   interpreter preserve values and hook order across composed edges, including
   a projected-argument jump edge closing residuals in order. Missing,
   duplicate, reordered, overlapping, wrong-root and post-transfer cleanup,

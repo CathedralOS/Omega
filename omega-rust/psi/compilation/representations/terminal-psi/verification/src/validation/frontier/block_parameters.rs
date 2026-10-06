@@ -1,4 +1,4 @@
-//! Whole owned successor bindings consume the old roots before establishing new ones.
+//! Owned successor bindings consume roots or subtrees before establishing new roots.
 
 use super::super::borrowed_windows::{WindowAliases, check_edge_arguments};
 use super::super::{StructuralArgument, StructuralPlaceKind, resolve_structural_path};
@@ -35,6 +35,17 @@ pub(super) fn consume(
     for (argument, parameter) in arguments.iter().zip(&target.structural_parameters) {
         if parameter.access != StructuralAccess::Owned {
             continue;
+        }
+        if parameter.multiplicity != StructuralMultiplicity::Unrestricted
+            && !frontier.references.is_empty()
+        {
+            super::super::references::check_owned_transfer(
+                module,
+                machine,
+                &frontier.references,
+                argument,
+                parameter.structural_type,
+            )?;
         }
         if !argument.path.is_empty() {
             // A projected move keeps its root live until its remaining
@@ -79,20 +90,6 @@ pub(super) fn consume(
                 frontier.owned_places.remove(&argument.place);
             }
             continue;
-        }
-        if parameter.multiplicity != StructuralMultiplicity::Unrestricted
-            && !frontier.references.is_empty()
-        {
-            // Check the existing leaf roster and external children without
-            // ending any loan. The whole move keeps those leaves and backing.
-            let mut remaining = frontier.references.clone();
-            super::super::references::discard_owned(
-                module,
-                machine,
-                &mut remaining,
-                argument.place,
-            )?;
-            super::super::references::check_root_access(machine, &remaining, argument.place)?;
         }
         if argument.access != StructuralAccess::Owned
             || frontier.partial_custody_paths.contains_key(&argument.place)
@@ -221,18 +218,18 @@ pub(super) fn establish(
     // Read each old carrier once: sequential source replacement would rewrite
     // the first half of a swap again when processing its second binding.
     for reference in &mut frontier.references {
-        if let Some((_, parameter)) =
-            arguments
-                .iter()
-                .zip(&target.structural_parameters)
-                .find(|(argument, parameter)| {
-                    parameter.access == StructuralAccess::Owned
-                        && argument.access == StructuralAccess::Owned
-                        && argument.path.is_empty()
-                        && argument.place == reference.carrier
-                })
+        if let Some((argument, parameter)) = arguments
+            .iter()
+            .zip(&target.structural_parameters)
+            .find(|(argument, parameter)| {
+                parameter.access == StructuralAccess::Owned
+                    && argument.access == StructuralAccess::Owned
+                    && argument.place == reference.carrier
+                    && reference.carrier_path.starts_with(&argument.path)
+            })
         {
             reference.carrier = parameter.place;
+            reference.carrier_path.drain(..argument.path.len());
         }
     }
     Ok(())

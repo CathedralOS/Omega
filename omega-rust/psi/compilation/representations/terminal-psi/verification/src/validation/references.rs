@@ -917,10 +917,10 @@ pub(super) fn validate_machine(
             ));
         }
     }
-    // Binding any subtree of a reference-bearing root would need partial-move
-    // custody, even when the selected target parameter itself has no references.
-    // A whole owned argument moves the entire record — and every stored loan
-    // with it — across the edge; a borrow lane or a projected path cannot.
+    // Owned containment moves descriptors with their selected subtree. The
+    // frontier checks its exact live leaf roster before cleanup and re-homes
+    // those leaves after cleanup. Borrowing the carrier or crossing through a
+    // stored pointer has a different permission and transport contract.
     for block in &machine.blocks {
         let arguments: &[StructuralArgument] = match &block.terminator {
             Terminator::Jump {
@@ -948,12 +948,19 @@ pub(super) fn validate_machine(
             .any(|argument| {
                 super::structural::result_contracts::source_signature(machine, argument.place)
                     .is_some_and(|source| contains_reference(module, source.structural_type))
-                    && (argument.access != StructuralAccess::Owned || !argument.path.is_empty())
+                    && (argument.access != StructuralAccess::Owned
+                        || argument.path.iter().any(|segment| {
+                            !matches!(
+                                segment,
+                                StructuralPathSegment::Field(_)
+                                    | StructuralPathSegment::FixedIndex(_)
+                            )
+                        }))
             })
         {
             return Err(invalid(
                 machine,
-                "reference-bearing continuation bindings are not yet supported",
+                "reference-bearing continuation bindings require owned containment paths",
             ));
         }
     }
@@ -1965,6 +1972,33 @@ pub(super) fn discard_residual(
     }
     *live = remaining;
     Ok(())
+}
+
+/// A move keeps every selected descriptor alive, but must own the same exact
+/// leaf roster and unsuspended storage a disposal would require. Replay only
+/// against scratch: successor cleanup may still need the unmoved siblings,
+/// and establishment relocates the selected leaves without ending their loans.
+pub(super) fn check_owned_transfer(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    live: &[LiveReference],
+    argument: &StructuralArgument,
+    structural_type: StructuralTypeId,
+) -> Result<(), ModuleError> {
+    let mut remaining = live.to_vec();
+    if argument.path.is_empty() {
+        discard_owned(module, machine, &mut remaining, argument.place)?;
+        check_root_access(machine, &remaining, argument.place)
+    } else {
+        discard_residual(
+            module,
+            machine,
+            &mut remaining,
+            argument.place,
+            &argument.path,
+            structural_type,
+        )
+    }
 }
 
 /// Complete construction relocates each selected carrier, never its referent.

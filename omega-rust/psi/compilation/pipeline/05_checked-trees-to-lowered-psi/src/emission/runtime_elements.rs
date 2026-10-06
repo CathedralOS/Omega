@@ -190,28 +190,20 @@ pub(crate) fn evaluate_selectors(
                 (value, scalar_type)
             }
             ProjectionStep::RuntimeIndexField(field) => {
-                let (source, path, field, scalar_type) =
+                let observation =
                     crate::expression_preparation::bindings::structural_fields::resolve_typed(
                         &evaluation.structural_fields,
                         field.parameter_position,
                         &field.path,
                     )?;
+                let scalar_type = observation.scalar_type();
                 if !matches!(scalar_type, ScalarType::Integer(integer) if !integer.is_address()) {
                     return unsupported(
                         "store runtime index field selector is not an integer read",
                     );
                 }
-                let index = super::emit_direct_expression(
-                    &LoweredDirectExpression::StructuralField {
-                        source: source.into(),
-                        path,
-                        field,
-                        scalar_type,
-                    },
-                    values,
-                    next_value,
-                    operations,
-                );
+                let index =
+                    super::emit_direct_expression(&observation, values, next_value, operations);
                 (index, scalar_type)
             }
             _ => continue,

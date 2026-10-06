@@ -251,6 +251,23 @@ pub(crate) fn lower_path(
     path: &[CheckedUnitStructuralPathSegment],
     types: &[StructuralTypeDeclaration],
 ) -> Result<(Vec<terminal_psi::StructuralPathSegment>, ScalarType), LoweringError> {
+    if let Some((CheckedUnitStructuralPathSegment::Field(identity), carrier)) = path.split_last() {
+        // Reads may observe declaration-constrained scalar fields through a
+        // pointer. Such a field is not raw primitive store storage. Reuse the
+        // carrier walk (including its bounds), then query read-only leaf typing.
+        let (steps, _) = walk_path(structural_type, carrier, types)?;
+        let mut path = super::runtime_elements::static_segments(steps)?;
+        path.push(terminal_psi::StructuralPathSegment::Field(identity.clone()));
+        let scalar_type = terminal_semantics::primitive_read_projection_type(
+            types.iter(),
+            structural_type,
+            &path,
+        )
+        .ok_or(LoweringError::Unsupported(
+            "primitive observation has no readable scalar endpoint",
+        ))?;
+        return Ok((path, scalar_type));
+    }
     let (steps, scalar_type) = lower_destination_path(structural_type, path, types)?;
     Ok((
         super::runtime_elements::static_segments(steps)?,
@@ -482,15 +499,10 @@ fn walk_path(
     use terminal_psi::StructuralPathSegment as Segment;
     let mut walked = Walked::Declared(structural_type);
     let mut result = Vec::with_capacity(path.len());
-    let mut visited = Vec::new();
     for segment in path {
         let Walked::Declared(structural_type) = walked else {
             return unsupported("primitive projection descends below a byte element");
         };
-        if visited.contains(&structural_type) {
-            return unsupported("primitive projection has a cyclic carrier");
-        }
-        visited.push(structural_type);
         let declaration = unique_type(types, structural_type)?;
         walked = match (segment, &declaration.shape) {
             (

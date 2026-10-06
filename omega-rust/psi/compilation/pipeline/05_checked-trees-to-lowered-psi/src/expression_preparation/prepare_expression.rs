@@ -394,14 +394,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                         path,
                         scalar_type,
                     )? {
-                        CasePayloadRead::Observation { source, path, field } => {
-                            LoweredDirectExpression::StructuralField {
-                                source,
-                                path,
-                                field,
-                                scalar_type,
-                            }
-                        }
+                        CasePayloadRead::Observation { expression } => expression,
                         CasePayloadRead::Established { position } => {
                             LoweredDirectExpression::Parameter {
                                 position,
@@ -431,19 +424,12 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                     scalar_type,
                 });
             }
-            let (source, path, field) =
-                crate::expression_preparation::bindings::structural_fields::resolve(
-                    structural_fields,
-                    *parameter_position,
-                    path,
-                    scalar_type,
-                )?;
-            Ok(LoweredDirectExpression::StructuralField {
-                source: source.into(),
+            crate::expression_preparation::bindings::structural_fields::resolve(
+                structural_fields,
+                *parameter_position,
                 path,
-                field,
                 scalar_type,
-            })
+            )
         }
         CheckedScalarExpression::IntegerLiteral { literal } => {
             let scalar_type = integer_landing_scalar_type(literal)?;
@@ -1272,13 +1258,8 @@ fn lower_checked_boolean_expression_with_parameters(
                         path,
                         ScalarType::Boolean,
                     )? {
-                        CasePayloadRead::Observation { source, path, field } => {
-                            LoweredBooleanReturnExpression::StructuralField {
-                                source,
-                                path,
-                                field,
-                            }
-                        }
+                        CasePayloadRead::Observation { expression } =>
+                            crate::expression_preparation::bindings::structural_fields::boolean_observation(expression)?,
                         CasePayloadRead::Established { position } => {
                             LoweredBooleanReturnExpression::Parameter { position }
                         }
@@ -1302,18 +1283,14 @@ fn lower_checked_boolean_expression_with_parameters(
                         )?;
                     return Ok(LoweredBooleanReturnExpression::PrimitiveRead { source, path });
                 }
-                let (source, path, field) =
+                let observation =
                     crate::expression_preparation::bindings::structural_fields::resolve(
                         structural_fields,
                         *parameter_position,
                         path,
                         ScalarType::Boolean,
                     )?;
-                return Ok(LoweredBooleanReturnExpression::StructuralField {
-                    source: source.into(),
-                    path,
-                    field,
-                });
+                return crate::expression_preparation::bindings::structural_fields::boolean_observation(observation);
             }
             let path = path
                 .iter()
@@ -1669,21 +1646,17 @@ fn element_path_runtime_selector(
             ))?
             .runtime_index_local(*position),
         checked_trees::CheckedRuntimeIndex::StructuralField(field) => {
-            let (source, path, field, scalar_type) =
+            let observation =
                 crate::expression_preparation::bindings::structural_fields::resolve_typed(
                     structural_fields,
                     field.parameter_position,
                     &field.path,
                 )?;
-            if !matches!(scalar_type, ScalarType::Integer(integer) if !integer.is_address()) {
+            if !matches!(observation.scalar_type(), ScalarType::Integer(integer) if !integer.is_address())
+            {
                 return unsupported("element path runtime selector is not an integer read");
             }
-            Ok(LoweredDirectExpression::StructuralField {
-                source: source.into(),
-                path,
-                field,
-                scalar_type,
-            })
+            Ok(observation)
         }
         _ => unsupported("element path runtime selector is not a parameter or field read"),
     }

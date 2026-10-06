@@ -17,6 +17,8 @@ use super::{
     LoweringError, PlaceId, ScalarType, StructuralAccess, StructuralParameterDeclaration,
     StructuralTypeDeclaration, unsupported,
 };
+use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
+use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use semantic_vocabulary::StructuralCaseId;
 
 mod observation_paths;
@@ -157,11 +159,7 @@ pub(crate) enum CasePayloadRead {
     /// A declaration-resolved read, not an active-case assertion. Scalar
     /// payloads may bind through a dispatch; structural carriers are copied
     /// at the observation point under independent active-case validation.
-    Observation {
-        source: crate::emission::operation_emission::expressions::PrimitiveReadSource,
-        path: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
-        field: StructuralFieldId,
-    },
+    Observation { expression: LoweredDirectExpression },
     /// The dominating dispatch's payload parameter.
     Established { position: usize },
 }
@@ -236,38 +234,23 @@ pub(crate) fn resolve(
     position: u32,
     path: &[checked_trees::CheckedStructuralPredicatePathSegment],
     scalar_type: ScalarType,
-) -> Result<
-    (
-        PlaceId,
-        Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
-        StructuralFieldId,
-    ),
-    LoweringError,
-> {
-    let (source, carrier_path, field, declared) = resolve_typed(fields, position, path)?;
-    if declared != scalar_type {
+) -> Result<LoweredDirectExpression, LoweringError> {
+    let observation = resolve_typed(fields, position, path)?;
+    if observation.scalar_type() != scalar_type {
         return unsupported("runtime field observation changes its declared scalar type");
     }
-    Ok((source, carrier_path, field))
+    Ok(observation)
 }
 
-/// The same field-path resolution returning the leaf's declared scalar type
-/// for a caller that must mint the read before it knows the leaf type — a
-/// runtime-index selector spelled `self.<fields>` reads whatever the path
-/// names and emits it as the operand.
+/// Resolve the declared read operation and scalar type together. Inline fields
+/// keep canonical field identity for proof terms; stored references keep their
+/// pointer crossings in a primitive read's memory path. Runtime selectors use
+/// this same observation rather than reconstructing a field-only operation.
 pub(crate) fn resolve_typed(
     fields: &[StructuralScalarFieldBinding],
     position: u32,
     path: &[checked_trees::CheckedStructuralPredicatePathSegment],
-) -> Result<
-    (
-        PlaceId,
-        Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
-        StructuralFieldId,
-        ScalarType,
-    ),
-    LoweringError,
-> {
+) -> Result<LoweredDirectExpression, LoweringError> {
     let mut matching = fields
         .iter()
         .filter(|field| field.source_position == position);
@@ -279,22 +262,16 @@ pub(crate) fn resolve_typed(
     }
     let mut structural_type = binding.structural_type;
     let mut carrier_path = Vec::with_capacity(path.len().saturating_sub(1));
-    let mut visited = Vec::new();
+    let mut crosses_reference = false;
     for (ordinal, segment) in path.iter().enumerate() {
-        if visited.contains(&structural_type) {
-            return unsupported("runtime field observation has a cyclic carrier");
-        }
-        visited.push(structural_type);
-        let mut declarations = binding
-            .declarations
-            .iter()
-            .filter(|declaration| declaration.id == structural_type);
-        let declaration = declarations.next().ok_or(LoweringError::Unsupported(
-            "runtime field observation lost its carrier declaration",
-        ))?;
-        if declarations.next().is_some() {
-            return unsupported("runtime field observation has ambiguous carrier declarations");
-        }
+        // Source field paths omit dereferences. Use the same declared-carrier
+        // walk as other observations, retaining every pointer load in the
+        // emitted path; a state binding does not turn a stored reference into
+        // inline record storage. The finite source path may revisit a type,
+        // while readable_carrier rejects a cycle within a reference chain.
+        let (declaration, crossings) =
+            observation_paths::readable_carrier(structural_type, &binding.declarations)?;
+        crosses_reference |= crossings != 0;
         if let checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(element_index) =
             segment
         {
@@ -366,7 +343,14 @@ pub(crate) fn resolve_typed(
             carrier_path.push(semantic_vocabulary::CanonicalStructuralPathSegment::Case(
                 case.id,
             ));
-            return Ok((binding.source, carrier_path, field.id, declared));
+            return resolved_field_read(
+                binding,
+                path,
+                carrier_path,
+                field.id,
+                declared,
+                crosses_reference,
+            );
         }
         let checked_trees::CheckedStructuralPredicatePathSegment::Field(identity) = segment else {
             unreachable!("fixed indices and cases return above");
@@ -402,7 +386,14 @@ pub(crate) fn resolve_typed(
                 StructuralFieldType::RefinedScalar(ref refinement) => refinement.carrier(),
                 _ => return unsupported("runtime field observation requires a scalar leaf"),
             };
-            return Ok((binding.source, carrier_path, field.id, declared));
+            return resolved_field_read(
+                binding,
+                path,
+                carrier_path,
+                field.id,
+                declared,
+                crosses_reference,
+            );
         }
         let StructuralFieldType::Structural(child) = field.field_type else {
             return unsupported("runtime field observation requires a structural carrier field");
@@ -413,6 +404,84 @@ pub(crate) fn resolve_typed(
         structural_type = child;
     }
     unsupported("runtime field observation requires a nonempty field path")
+}
+
+/// Symbolic field terms identify inline storage. Pointer crossings instead
+/// require an executable memory path; never erase them into a canonical term.
+fn resolved_field_read(
+    binding: &StructuralScalarFieldBinding,
+    authored_path: &[checked_trees::CheckedStructuralPredicatePathSegment],
+    canonical_path: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
+    field: StructuralFieldId,
+    scalar_type: ScalarType,
+    crosses_reference: bool,
+) -> Result<LoweredDirectExpression, LoweringError> {
+    if crosses_reference {
+        let (explicit, _) = observation_paths::explicit_path(
+            binding.structural_type,
+            authored_path,
+            &binding.declarations,
+        )?;
+        let (path, declared) = crate::emission::primitive_store::lower_path(
+            binding.structural_type,
+            &explicit,
+            &binding.declarations,
+        )?;
+        if declared != scalar_type {
+            return unsupported("field observation changes its declared scalar type");
+        }
+        Ok(LoweredDirectExpression::PrimitiveRead {
+            source: binding.source.into(),
+            path,
+            scalar_type,
+        })
+    } else {
+        Ok(canonical_field_read(
+            binding.source.into(),
+            canonical_path,
+            field,
+            scalar_type,
+        ))
+    }
+}
+
+fn canonical_field_read(
+    source: crate::emission::operation_emission::expressions::PrimitiveReadSource,
+    path: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
+    field: StructuralFieldId,
+    scalar_type: ScalarType,
+) -> LoweredDirectExpression {
+    match scalar_type {
+        ScalarType::Boolean => LoweredDirectExpression::Boolean {
+            expression: Box::new(LoweredBooleanReturnExpression::StructuralField {
+                source,
+                path,
+                field,
+            }),
+        },
+        _ => LoweredDirectExpression::StructuralField {
+            source,
+            path,
+            field,
+            scalar_type,
+        },
+    }
+}
+
+/// Preserve the Boolean AST's field and primitive-read distinctions: its
+/// field node emits BooleanStructuralField and carries canonical proof identity.
+pub(crate) fn boolean_observation(
+    observation: LoweredDirectExpression,
+) -> Result<LoweredBooleanReturnExpression, LoweringError> {
+    match observation {
+        LoweredDirectExpression::Boolean { expression } => Ok(*expression),
+        LoweredDirectExpression::PrimitiveRead {
+            source,
+            path,
+            scalar_type: ScalarType::Boolean,
+        } => Ok(LoweredBooleanReturnExpression::PrimitiveRead { source, path }),
+        _ => unsupported("Boolean field observation changed its declared scalar type"),
+    }
 }
 
 /// Resolve a scalar read below one sum root's selected payload. The selected case
@@ -491,28 +560,46 @@ pub(crate) fn resolve_case_payload(
             checked_trees::CheckedStructuralPredicatePathSegment::Field(_),
             projection @ ..,
         ] if !projection.is_empty() => {
-            let payload = plan_case_payload_leaf(fields, position, path).ok_or(
+            let mut payload = plan_case_payload_leaf(fields, position, path).ok_or(
                 LoweringError::Unsupported(
                     "case payload observation has no exact scalar projection",
                 ),
             )?;
-            if payload.scalar_type != scalar_type {
+            if payload.observation.scalar_type() != scalar_type {
                 return unsupported("case payload observation changes its declared scalar type");
             }
             // The observation owns preparation, not the successor argument
             // scanner. Its carrier copy is emitted only where this expression
             // executes, and Terminal replay checks the selected case there.
-            return Ok(CasePayloadRead::Observation {
-                source: crate::emission::operation_emission::expressions::PrimitiveReadSource::CaseLeaf {
+            let source =
+                crate::emission::operation_emission::expressions::PrimitiveReadSource::CaseLeaf {
                     source: payload.source,
                     path: vec![
                         semantic_vocabulary::CanonicalStructuralPathSegment::Case(payload.case),
                         semantic_vocabulary::CanonicalStructuralPathSegment::Field(payload.member),
                     ],
                     structural_type: payload.member_type,
+                };
+            match &mut payload.observation {
+                LoweredDirectExpression::PrimitiveRead { source: target, .. }
+                | LoweredDirectExpression::StructuralField { source: target, .. } => {
+                    *target = source
+                }
+                LoweredDirectExpression::Boolean { expression } => match expression.as_mut() {
+                    LoweredBooleanReturnExpression::StructuralField { source: target, .. }
+                    | LoweredBooleanReturnExpression::PrimitiveRead { source: target, .. } => {
+                        *target = source
+                    }
+                    _ => {
+                        return unsupported(
+                            "case payload did not resolve to a Boolean observation",
+                        );
+                    }
                 },
-                path: payload.path,
-                field: payload.field,
+                _ => return unsupported("case payload did not resolve to a field observation"),
+            }
+            return Ok(CasePayloadRead::Observation {
+                expression: payload.observation,
             });
         }
         _ => {
@@ -521,11 +608,14 @@ pub(crate) fn resolve_case_payload(
     };
     match &binding.case_payloads {
         CasePayloadAccess::Deferred => Ok(CasePayloadRead::Observation {
-            source: binding.source.into(),
-            path: vec![semantic_vocabulary::CanonicalStructuralPathSegment::Case(
-                case.id,
-            )],
-            field,
+            expression: canonical_field_read(
+                binding.source.into(),
+                vec![semantic_vocabulary::CanonicalStructuralPathSegment::Case(
+                    case.id,
+                )],
+                field,
+                scalar_type,
+            ),
         }),
         CasePayloadAccess::Established(rows) => rows
             .iter()
@@ -543,8 +633,8 @@ pub(crate) fn resolve_case_payload(
 }
 
 /// One planned leaf read below a case payload's record member: `member` is
-/// copied where the selecting case edge dominates and `field` is read as an
-/// ordinary scalar leaf of the copy. The shared operation emitter allocates
+/// copied where the selecting case edge dominates and the observation reads
+/// its scalar leaf. The shared operation emitter allocates
 /// both at the expression's actual execution point.
 #[derive(Debug, Clone)]
 pub(crate) struct PlannedCasePayloadLeaf {
@@ -552,9 +642,7 @@ pub(crate) struct PlannedCasePayloadLeaf {
     pub(crate) case: StructuralCaseId,
     pub(crate) member: StructuralFieldId,
     pub(crate) member_type: StructuralTypeId,
-    pub(crate) path: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
-    pub(crate) field: StructuralFieldId,
-    pub(crate) scalar_type: ScalarType,
+    pub(crate) observation: LoweredDirectExpression,
 }
 
 /// Resolve the selected payload member, then use ordinary field-path resolution
@@ -620,16 +708,13 @@ pub(crate) fn plan_case_payload_leaf(
         declarations: std::sync::Arc::clone(&binding.declarations),
         case_payloads: CasePayloadAccess::Unavailable,
     };
-    let (_, path, field, scalar_type) =
-        resolve_typed(std::slice::from_ref(&projected), position, projection).ok()?;
+    let observation = resolve_typed(std::slice::from_ref(&projected), position, projection).ok()?;
     Some(PlannedCasePayloadLeaf {
         source: binding.source,
         case: case.id,
         member: member.id,
         member_type,
-        path,
-        field,
-        scalar_type,
+        observation,
     })
 }
 
@@ -916,18 +1001,8 @@ pub(crate) fn resolve_primitive(
     }) {
         return resolve_case_primitive(binding, path, scalar_type);
     }
-    let path = path
-        .iter()
-        .map(|segment| match segment {
-            checked_trees::CheckedStructuralPredicatePathSegment::Field(identity) => {
-                Ok(CheckedUnitStructuralPathSegment::Field(identity.clone()))
-            }
-            checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(index) => {
-                Ok(CheckedUnitStructuralPathSegment::FixedIndex(*index))
-            }
-            _ => unsupported("primitive observation has an unsupported case path"),
-        })
-        .collect::<Result<Vec<_>, _>>()?;
+    let (path, _) =
+        observation_paths::explicit_path(binding.structural_type, path, &binding.declarations)?;
     let (path, declared_type) = crate::emission::primitive_store::lower_path(
         binding.structural_type,
         &path,

@@ -1,0 +1,31 @@
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Leaf { value: i32; }
+data View { body: &mut Leaf; }
+data Pair { left: View; right: View; }
+data Main { console: Binding<Console>; first: Leaf; second: Leaf; }
+
+// Both subtrees move from one root, in the opposite order to their fields.
+// Each stored reference must keep its own referent after the root retires.
+machine exercise(input: Pair) -> bool {
+    transition { _ -> finish(input.right, input.left) }
+    state finish(first: View, second: View) -> bool {
+        first.body.value == 29 && second.body.value == 7
+    }
+}
+
+machine Main::main(main: &mut Main) reaches Console {
+    main.first.value = 7;
+    main.second.value = 29;
+    let input: Pair = Pair {
+        left: View { body: &mut main.first },
+        right: View { body: &mut main.second }
+    };
+    let observed: bool = exercise(input);
+    transition observed {
+        true -> finish(main, 0)
+        _ -> finish(main, 1)
+    }
+    state finish(main: &mut Main, code: i32) { main.console.exit_process(code); }
+}

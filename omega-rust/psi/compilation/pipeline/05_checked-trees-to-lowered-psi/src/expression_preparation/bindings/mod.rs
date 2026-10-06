@@ -482,18 +482,11 @@ impl ScalarBindings {
                 self.runtime_index_parameter(*position)?
             }
             checked_trees::CheckedRuntimeIndex::StructuralField(field) => {
-                let (selector_source, selector_path, leaf, scalar_type) =
-                    structural_fields::resolve_typed(
-                        &self.structural_fields,
-                        field.parameter_position,
-                        &field.path,
-                    )?;
-                LoweredDirectExpression::StructuralField {
-                    source: selector_source.into(),
-                    path: selector_path,
-                    field: leaf,
-                    scalar_type,
-                }
+                structural_fields::resolve_typed(
+                    &self.structural_fields,
+                    field.parameter_position,
+                    &field.path,
+                )?
             }
             // A hoisted computed selector is an established immutable local:
             // the observation reads its value at the local's dense position.
@@ -1349,20 +1342,16 @@ impl ScalarBindings {
         &self,
         field: &checked_trees::CheckedStructuralParameterField,
     ) -> Result<LoweredDirectExpression, LoweringError> {
-        let (source, path, field, scalar_type) = structural_fields::resolve_typed(
+        let observation = structural_fields::resolve_typed(
             &self.structural_fields,
             field.parameter_position,
             &field.path,
         )?;
-        if !matches!(scalar_type, ScalarType::Integer(integer) if !integer.is_address()) {
+        if !matches!(observation.scalar_type(), ScalarType::Integer(integer) if !integer.is_address())
+        {
             return unsupported("runtime index field selector is not an integer read");
         }
-        Ok(LoweredDirectExpression::StructuralField {
-            source: source.into(),
-            path,
-            field,
-            scalar_type,
-        })
+        Ok(observation)
     }
 
     /// Resolve an authored scalar coordinate before emission. Runtime path
