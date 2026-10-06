@@ -850,8 +850,9 @@ defines the complete product bar.
 
   Roster and oracle accounting:
   - Reconcile added/removed fixtures with the check and per-host native
-    goldens after attributing their outcomes. Example: `pass/collections/runtime_shared_array_{dot_product,polynomial}_exit`
-    have only `corpus_both_macos_arm64.txt` rows.
+    goldens after attributing their outcomes. `pass/collections/runtime_shared_array_{dot_product,polynomial}_exit`
+    have portable-check and macOS both-engine rows, but no separate native
+    golden rows; reconcile coverage without treating a missing row as a run.
   - Keep one portable check golden without hiding semantic differences:
     host-selected providers can change a refusal; attribute it rather than
     repin one host over another. Keep missing rows, wrong-reason negatives,
@@ -909,27 +910,11 @@ defines the complete product bar.
     authority carried into native `NormalizedForeign`, not a fixture permission.
     Keep `pass/filesystem/runtime_local_host_result_dispatch_exit` as the Linux
     effect-ordering customer.
-  - **PROOF-CONTRACT-MIGRATION**: the local theorem repair checks
-    `pass/proofs/cauchy_predicates_compile` -- note its frontier below
-    describes an UNPUBLISHED checkpoint; on main that fixture is `rejected`,
-    and its second diagnostic names the blocker the compiler itself cannot
-    satisfy: an `ensures` fact over proof-only `Nat` that "no entailment tier
-    judges yet", directing the reader to "wait for the structural extraction
-    tier (math roster N3)". **That roster is undocumented.** N1 through N4 are
-    cited in six places in code
-    (`checking/src/proof_contracts/contract_entailment.rs:413,859`, its
-    `stand_downs.rs:46` and `citations.rs:743`, stage 03's `equality.rs:271`,
-    `structural_equality.rs:346` and `lowerer.rs:33`) and in
-    `samples/cli/proofs/structural_proofs/README.md`, but the tiers appear
-    nowhere in `wiki/spec/` or on this board, so a user who reads that
-    diagnostic has nothing to look up and no tracked item to follow. Either
-    document the roster where the diagnostic can cite it, or stop naming an
-    internal taxonomy in user-facing text. Until then this fixture is blocked
-    on an untracked tier, not on the repair this bullet describes; publication
-    still needs the native
-    `pass/proofs/runtime_static_result_projection_citation_exit` witness and
-    generalized fact-only citation erasure. See the owning item's frontier.
-    Keep exact bounds in
+  - **PROOF-CONTRACT-MIGRATION** owns `pass/proofs/cauchy_predicates_compile`
+    (recorded rejected on main), generalized fact-only citation erasure and
+    the missing native citation witness. Its task below records the remaining
+    checks and diagnostic repair; do not treat unpublished checkpoints as a
+    corpus result. Keep exact bounds in
     `pass/proofs/proof_inductive_climbing_sum` and its unbounded negative.
 
   Native customers (under `tests/omega/pass`):
@@ -971,22 +956,21 @@ defines the complete product bar.
   exit 70. The program reads four bytes, completes a mutable call, then
   observes its writes in transition arguments.
 
-  Measured frontier at `ca03765f46c` on Windows: the interpreter exits 70;
-  native realization rejects the selected Console `read_byte` intrinsic
-  because it has no Windows native catalog identity. The archived draft at
-  `cfe60a3a242` runs a checked adapter over private DLL requirements natively
-  with exit 70 but makes the interpreter decline. That draft cannot land.
+  Reproduce the Windows native `read_byte` realization rejection recorded at
+  `ca03765f46c`; its interpreter success predates the Terminal cutover and is
+  not evidence for the current engine. The adapter draft at `cfe60a3a242`
+  is a lead only: native success with interpreter refusal does not close this.
   Implement the input provider
   in `source/library/std/targets/windows_x86_64/console_impl.omg` and supply
   interpreter input operations from exact selected imports through
   `omega-rust/omega/compilation/realization/provider-planning/` and
-  `omega-rust/psi/interpreter/checked-interpreter/`. Execute the checked adapter;
+  `omega-rust/psi/interpreter/terminal-interpreter/`, coordinated with
+  **TERMINAL-RUNTIME-DRIVERS**. Execute the checked adapter;
   a provider spelling or matching signature cannot bypass its body or grant
   host behavior. Distinguish input bytes, EOF, transient empty pipe reads and
   failures without treating every successful zero-byte read as EOF.
-  The unchanged ordinary Loader `omega run --both` route exits 200 at this
-  revision with 14 pending std package-review decisions; explicit package
-  acceptance is also required before that route can establish execution.
+  Complete ordinary package review before claiming the Loader's
+  `omega run --both` acceptance; pending admission is not an execution result.
 
   Acceptance: `python tools/corpus_gate.py --both --filter
   calls/runtime_mutable_call_before_transition_args_exit,host/runtime_console_bounded_line`
@@ -995,8 +979,6 @@ defines the complete product bar.
   refusals separately. Exercise empty input, raw bytes and invalid input
   handles, and establish the Loader's ordinary `omega run --both` route;
   unresolved package admission is a named dependency, not runtime success.
-  Shared interpreter integration waits for the active accepted-Build claims
-  to clear, as directed by the owner.
 
 - **SQUALR-HEADLESS.** Run the independently versioned
   [Squalr application](samples/apps/README.md) (`samples/apps/squalr`
@@ -4626,27 +4608,26 @@ rejects at build and `mapped` needs a Windows full-i32 measurement.
      accepts representative operations and congruence but rejects the
      assumption-bearing quotient theorem.
 
-  Current frontier (unpublished `repair-theorem` checkpoint `8b9cb8dcc9a`,
-  macOS ARM64): `omega --check
-  tests/omega/pass/proofs/cauchy_predicates_compile/main.omg` checks 17 source
-  files. The proof/proposition/induction/Nat/Rat/contract/relevance corpus
-  checks 64 and rejects 81 without diagnostic regressions; a separate abstract
-  mathematical-call control rejects reuse of a linear receipt. Exact callable
-  substitution, nested field identity and isolated-parameter preservation now
-  reach checking. `omega run
-  tests/omega/pass/proofs/runtime_static_result_projection_citation_exit/main.omg`
-  requires accepted package inputs; `omega update --offline --project
-  tests/omega/pass/proofs/runtime_static_result_projection_citation_exit`
-  cannot produce them because the theorem call enters runtime structural
-  argument planning. `checking/src/machine_calls/fact_only_citations.rs` still
-  recognizes only empty nongeneric bodies. Replace that source-shape rule with
-  checked termination, effect and custody eligibility, settled once before
-  execution planning. Coordinate the citation skip in stage 04's live-owned
-  `execution/terminal_unit/control/statement_sequence.rs`; a narrow handoff was
-  requested on claim `03f901cb007048ba9c57d569fbdef49c`. This is an integration
-  dependency, not an unanswered language decision. Next acceptance: the same
-  native witness exits 70, preserving effectful/nonterminating and linear
-  ownership refusals; then publish the complete repair.
+  Concrete remaining controls:
+  - Reproduce `omega --check tests/omega/pass/proofs/cauchy_predicates_compile/main.omg`.
+    The portable record at `c47f8652484` rejects an unmet instantiated
+    `rat_close_triangle_split` premise and an unsupported proof-only `Nat`
+    guarantee. Establish both judgments without weakening the theorem.
+    `checking/src/proof_contracts/contract_entailment.rs` tells users to wait
+    for undocumented "math roster N3"; replace that with an actionable missing
+    capability or a documented reference, not another untracked tier.
+  - `checking/src/machine_calls/fact_only_citations.rs` recognizes only empty
+    nongeneric theorem bodies. Replace that source-shape rule with checked
+    termination, effect and custody eligibility, settled before execution
+    planning; integrate with stage 04's
+    `execution/terminal_unit/control/statement_sequence.rs`. Keep exact callable
+    substitution, nested field identity and isolated-parameter preservation.
+  - Add the planned `pass/proofs/runtime_static_result_projection_citation_exit`
+    fixture (absent from main): a theorem citation must establish the required
+    result-projection fact without becoming a runtime structural call. Ordinary
+    package review and native execution must reach authored exit 70. Preserve
+    effectful/nonterminating and linear-receipt-reuse rejection controls.
+    An unavailable local checkpoint is not acceptance evidence.
 
 - **PROOF-RELEVANCE-MIGRATION.** Erased arguments are not carrier-independent
   under [explicit erased bindings](wiki/spec/proofs/contracts.md#explicit-erased-bindings).
@@ -6386,31 +6367,19 @@ report a missing runtime leg explicitly.
     repeated park/resume without repeated effects; cancellation; early parent
     access, missing carry, forbidden live resources and missing/redundant
     markers reject.
-  - **Host-provider execution:** every hosted target has a reviewed TimeHost
-    provider at `source/library/std/targets/<target>/time_host_impl.omg`.
-    Only the two Darwin targets are EXECUTED:
-    `pass/time/runtime_time_host_native_darwin_exit` exits 70 on macOS ARM64
-    and `runtime_time_host_native_darwin_x86_64_exit` exits 70 under Rosetta.
-    For linux_x86_64, linux_arm64 and windows_x86_64 the providers only make
-    the artifact REALIZABLE: `corpus_gate.py --native-target <target> --filter
-    time/runtime_time_elapsed_since_exit` moves that fixture from `rejected`
-    to `built` for all three at 22d7c734257, measured against the same command
-    with the four provider files removed. Nothing executes them, so their
-    `clock_gettime` numbers (228 on x86-64's own table, 113 on arm64's
-    asm-generic table) and their kernel32 exports rest on the kernel and API
-    sources each file cites, not on a run. The lent-storage read all three
-    depend on is pinned on Darwin by
-    `pass/providers/foreign_out_parameter_write_observed_exit`, which exits 72
-    if a caller observes the pre-call initializer instead of the kernel's
-    write. Next acceptance: `runtime_time_elapsed_since_exit` exits 70
-    natively on a Linux x86-64, a Linux arm64 and a Windows x86-64 host. Those
-    three native goldens still read `rejected` for it, and `--record` cannot
-    refresh them from this host: the exit-oracle promise is weighed before
-    recording and a foreign-target build supplies no runtime evidence. The
-    check-leg row for that fixture is separately stale at `rejected` — it
-    measures `checked` with the providers REMOVED, so the closure-review
-    change owns that row, not this provider work. Remaining beside that:
-    filesystem adapters with real syscall marshalling and result transport,
+  - **Host-provider execution:** use the existing TimeHost providers at
+    `source/library/std/targets/<target>/time_host_impl.omg`; do not add a
+    second provider path. `pass/time/runtime_time_elapsed_since_exit` has
+    recorded native exit 70 on Linux x86-64 and macOS ARM64, and a portable
+    `checked` row. Windows x86-64 still records rejection; Linux ARM64 has no
+    native record. Obtain matching-host exit 70 on those two hosts, then
+    refresh all required lanes at the release commit. Cross-target builds
+    and historical successes do not close release acceptance.
+    Keep `pass/time/runtime_time_host_native_darwin{,_x86_64}_exit` controls
+    and `pass/providers/foreign_out_parameter_write_observed_exit`: the latter
+    must observe the foreign write, not its pre-call initializer (exit 72 is
+    failure, 70 success). Remaining beside that: filesystem adapters with
+    real syscall marshalling and result transport,
     beyond the Linux x86-64 rows in
     `omega-rust/omega/compilation/realization/provider-planning/src/provider_settlement/canonical_{filesystem,time}_host.rs`.
     Follow [toolchain-selected implementations](wiki/spec/build/provider_selection.md#toolchain-selected-checked-implementations);
