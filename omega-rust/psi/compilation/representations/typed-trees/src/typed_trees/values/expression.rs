@@ -448,21 +448,6 @@ impl ExpressionTable {
         ))
     }
 
-    pub fn struct_field_at_offset(
-        &self,
-        fields: HandleSpan<TableStructLiteralField>,
-        offset: u32,
-    ) -> &TableStructLiteralField {
-        self.struct_fields.get(Handle::from_parts(
-            fields
-                .start()
-                .arena_index()
-                .checked_add(offset)
-                .expect("struct literal field index overflow"),
-            fields.start().generation(),
-        ))
-    }
-
     /// Mutable node access for tree-normalization passes (the F2b float
     /// destination stamp rewrites an unlanded literal in place; handles and
     /// spans are untouched).

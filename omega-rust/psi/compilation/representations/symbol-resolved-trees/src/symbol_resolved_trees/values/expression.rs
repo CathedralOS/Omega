@@ -456,21 +456,6 @@ impl ExpressionTable {
         self.spans.struct_fields.span_or_empty(span)
     }
 
-    pub fn struct_field_at_offset(
-        &self,
-        fields: HandleSpan<TableStructLiteralField>,
-        offset: u32,
-    ) -> &TableStructLiteralField {
-        self.spans.struct_fields.get(Handle::from_parts(
-            fields
-                .start()
-                .arena_index()
-                .checked_add(offset)
-                .expect("struct literal field index overflow"),
-            fields.start().generation(),
-        ))
-    }
-
     pub fn name_path_members(&self, span: HandleSpan<DiagnosticName>) -> &[DiagnosticName] {
         self.spans.name_path_members.span_or_empty(span)
     }
