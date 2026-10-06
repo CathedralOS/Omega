@@ -515,6 +515,40 @@ fn replay_equation(
     includes_required
 }
 
+/// The signature a boundary trait declares under `target_symbol`, present
+/// only when one of `domain`'s `established by` routes names that trait and
+/// requirement as the issuance witness.
+fn boundary_requirement_signature<'a>(
+    program: &'a TypedTrees,
+    target_symbol: SymbolHandle,
+    domain: &typed_trees::domain::DomainDefinition,
+) -> Option<&'a typed_trees::signature::StateSignature> {
+    let owner = program.traits().iter().find(|owner| {
+        owner.is_boundary
+            && program
+                .trait_machine_signatures(owner)
+                .iter()
+                .any(|signature| signature.symbol == target_symbol)
+    })?;
+    let signature = program
+        .trait_machine_signatures(owner)
+        .iter()
+        .find(|signature| signature.symbol == target_symbol)?;
+    domain
+        .establishment_routes
+        .iter()
+        .any(|route| {
+            matches!(
+                route,
+                DomainEstablishmentRoute::BoundaryRequirement {
+                    boundary_trait,
+                    requirement,
+                } if *boundary_trait == owner.symbol && *requirement == signature.symbol
+            )
+        })
+        .then_some(signature)
+}
+
 /// The other authorized issuance spelling: a boundary requirement carries
 /// its grant on the constrained result type (`-> T in D`) instead of an
 /// `ensures` clause. When the domain's `established by` route names that
@@ -526,31 +560,10 @@ fn result_type_issuance_route(
     target_symbol: SymbolHandle,
     domain: &typed_trees::domain::DomainDefinition,
 ) -> bool {
-    let Some(owner) = program.traits().iter().find(|owner| {
-        owner.is_boundary
-            && program
-                .trait_machine_signatures(owner)
-                .iter()
-                .any(|signature| signature.symbol == target_symbol)
-    }) else {
+    let Some(signature) = boundary_requirement_signature(program, target_symbol, domain) else {
         return false;
     };
-    let Some(signature) = program
-        .trait_machine_signatures(owner)
-        .iter()
-        .find(|signature| signature.symbol == target_symbol)
-    else {
-        return false;
-    };
-    domain.establishment_routes.iter().any(|route| {
-        matches!(
-            route,
-            DomainEstablishmentRoute::BoundaryRequirement {
-                boundary_trait,
-                requirement,
-            } if *boundary_trait == owner.symbol && *requirement == signature.symbol
-        )
-    }) && crate::facts::qualification_evidence::unwrapped_type_references_match(
+    crate::facts::qualification_evidence::unwrapped_type_references_match(
         program,
         signature.return_type,
         domain.target_type,
@@ -570,31 +583,10 @@ fn case_payload_issuance_route(
     domain: &typed_trees::domain::DomainDefinition,
     path: &[PlaceSegment],
 ) -> bool {
-    let Some(owner) = program.traits().iter().find(|owner| {
-        owner.is_boundary
-            && program
-                .trait_machine_signatures(owner)
-                .iter()
-                .any(|signature| signature.symbol == target_symbol)
-    }) else {
+    let Some(signature) = boundary_requirement_signature(program, target_symbol, domain) else {
         return false;
     };
-    let Some(signature) = program
-        .trait_machine_signatures(owner)
-        .iter()
-        .find(|signature| signature.symbol == target_symbol)
-    else {
-        return false;
-    };
-    domain.establishment_routes.iter().any(|route| {
-        matches!(
-            route,
-            DomainEstablishmentRoute::BoundaryRequirement {
-                boundary_trait,
-                requirement,
-            } if *boundary_trait == owner.symbol && *requirement == signature.symbol
-        )
-    }) && qualified_leaf_carrier(program, signature.return_type, path).is_some_and(|carrier| {
+    qualified_leaf_carrier(program, signature.return_type, path).is_some_and(|carrier| {
         crate::facts::qualification_evidence::unwrapped_type_references_match(
             program,
             carrier,
