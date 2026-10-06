@@ -1209,49 +1209,38 @@ fn parameter_comparisons(
         if exact_integer_parameter(program, parameter.type_reference).is_none() {
             continue;
         }
-        let mut reference = parameter.type_reference;
-        while let TypeReferenceNode::Constrained {
-            base_type,
-            constraints,
-        } = program.type_reference_table.type_reference(reference)
+        for (minimum, maximum, end_inclusive) in
+            crate::program_scope::type_shape::range_constraints(
+                program,
+                parameter.type_reference,
+            )
         {
-            for constraint in program.type_reference_table.constraints(*constraints) {
-                let TypeConstraintNode::Range {
-                    minimum,
-                    maximum,
-                    end_inclusive,
-                } = constraint
-                else {
-                    continue;
-                };
-                // Missing or ambiguous aliases cannot contribute an auxiliary
-                // invariant, even when another premise makes the edge dead.
-                let binding = bindings
-                    .iter()
-                    .find(|binding| binding.symbol == parameter.symbol)?;
-                let StrictArithmeticBindingValue::Atom { identity, .. } = &binding.value else {
-                    return None;
-                };
-                admit(*minimum)?;
-                admit(*maximum)?;
-                let maximum = engine.normalize(*maximum)?;
-                let maximum = if *end_inclusive {
-                    maximum
-                } else {
-                    maximum.sub(&Polynomial::constant(BigInt::from_i64(1)))
-                };
-                comparisons.push((
-                    BinaryOperator::GreaterOrEqual,
-                    Polynomial::atom(identity.clone()),
-                    engine.normalize(*minimum)?,
-                ));
-                comparisons.push((
-                    BinaryOperator::LessOrEqual,
-                    Polynomial::atom(identity.clone()),
-                    maximum,
-                ));
-            }
-            reference = *base_type;
+            // Missing or ambiguous aliases cannot contribute an auxiliary
+            // invariant, even when another premise makes the edge dead.
+            let binding = bindings
+                .iter()
+                .find(|binding| binding.symbol == parameter.symbol)?;
+            let StrictArithmeticBindingValue::Atom { identity, .. } = &binding.value else {
+                return None;
+            };
+            admit(minimum)?;
+            admit(maximum)?;
+            let maximum = engine.normalize(maximum)?;
+            let maximum = if end_inclusive {
+                maximum
+            } else {
+                maximum.sub(&Polynomial::constant(BigInt::from_i64(1)))
+            };
+            comparisons.push((
+                BinaryOperator::GreaterOrEqual,
+                Polynomial::atom(identity.clone()),
+                engine.normalize(minimum)?,
+            ));
+            comparisons.push((
+                BinaryOperator::LessOrEqual,
+                Polynomial::atom(identity.clone()),
+                maximum,
+            ));
         }
     }
     Some(comparisons)

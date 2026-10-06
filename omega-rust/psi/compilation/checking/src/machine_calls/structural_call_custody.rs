@@ -339,33 +339,19 @@ fn retain_declared_integer_ranges(
     ) {
         return Some(());
     }
-    let mut reference = parameter.type_reference;
-    while let TypeReferenceNode::Constrained {
-        base_type,
-        constraints,
-    } = program.type_reference_table.type_reference(reference)
+    for (minimum, maximum, end_inclusive) in
+        crate::program_scope::type_shape::range_constraints(program, parameter.type_reference)
     {
-        for constraint in program.type_reference_table.constraints(*constraints) {
-            let TypeConstraintNode::Range {
-                minimum,
-                maximum,
-                end_inclusive,
-            } = constraint
-            else {
-                continue;
-            };
-            if program.arithmetic_domain_for_type_reference(parameter.type_reference)
-                != numerics::arithmetic::ArithmeticDomain::Exact
-            {
-                return None;
-            }
-            predicates.push(StateScalarContractRow::Interval {
-                parameter: parameter.symbol,
-                minimum: crate::closed_integer_range_bound(program, *minimum)?,
-                maximum: crate::closed_integer_range_maximum(program, *maximum, *end_inclusive)?,
-            });
+        if program.arithmetic_domain_for_type_reference(parameter.type_reference)
+            != numerics::arithmetic::ArithmeticDomain::Exact
+        {
+            return None;
         }
-        reference = *base_type;
+        predicates.push(StateScalarContractRow::Interval {
+            parameter: parameter.symbol,
+            minimum: crate::closed_integer_range_bound(program, minimum)?,
+            maximum: crate::closed_integer_range_maximum(program, maximum, end_inclusive)?,
+        });
     }
     Some(())
 }

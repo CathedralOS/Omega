@@ -2,7 +2,8 @@
 
 use typed_trees::TypedTrees;
 use typed_trees::data::TypeParameterKind;
-use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+use typed_trees::expression::ExpressionHandle;
+use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 
 /// Whether `reference` carries a slice base under any reference or
 /// constrained shells.
@@ -72,4 +73,32 @@ pub(crate) fn attenuated_reference_pair(
         ) => (*actual, *required),
         _ => (actual, required),
     }
+}
+
+/// Every `Range` constraint `reference` declares under `Constrained` shells,
+/// outermost first: `(minimum, maximum, end_inclusive)`.
+pub(crate) fn range_constraints(
+    program: &TypedTrees,
+    mut reference: TypeReferenceHandle,
+) -> Vec<(ExpressionHandle, ExpressionHandle, bool)> {
+    let mut ranges = Vec::new();
+    while let TypeReferenceNode::Constrained {
+        base_type,
+        constraints,
+    } = program.type_reference_table.type_reference(reference)
+    {
+        for constraint in program.type_reference_table.constraints(*constraints) {
+            let TypeConstraintNode::Range {
+                minimum,
+                maximum,
+                end_inclusive,
+            } = constraint
+            else {
+                continue;
+            };
+            ranges.push((*minimum, *maximum, *end_inclusive));
+        }
+        reference = *base_type;
+    }
+    ranges
 }
