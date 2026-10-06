@@ -784,7 +784,16 @@ defines the complete product bar.
     with exact live-claim dispositions; claim-free discard/hook actions do not
     consume retained claims. Preserve the selected transfer and ordered
     residual complement under the original owner, never a second whole
-    temporary for the selected field. Keep
+    temporary for the selected field.
+    `pending/drops/runtime_claim_bearing_temporary_cleanup_exit` passes source
+    checking but `omega run` still refuses "scalar computation needs one
+    checked expression and one source binding". Stage 04's anonymous shared
+    admission omits claim-bearing owners, and stage 05's scalar structural
+    producer lacks linear claim establishment/transport. Complete that shared
+    value frontier with **STATE-LOCAL-VALUE-FRONTIER**, not another caller shape.
+    Keep `fail/drops/{claim_bearing_temporary_requires_disposition,borrowed_temporary_projection_retains_owner_disposition}`
+    and `pass/drops/statically_skipped_claim_bearing_temporary` as whole-owner
+    disposition and evaluated-occurrence controls. Keep
     `pass/drops/runtime_nested_nominal_producer_loans_exit` as the operand-loan
     lifetime control: cleanup must not prolong a completed borrow-free
     producer's input loans.

@@ -210,6 +210,7 @@ pub(crate) fn prepare_permission_events(
             machine,
             state,
             &mut permission_events,
+            &mut selection_diagnostics,
         );
         // These are expression-rooted temporaries with their own complete
         // establishment/drop sequence, independent of state-exit roots.

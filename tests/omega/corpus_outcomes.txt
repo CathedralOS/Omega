@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 14, "jobs": null, "load1_end": 6.3, "load1_start": 6.3, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": null, "load1_end": 4.24, "load1_start": 4.24, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -897,6 +897,10 @@ fail/drops/authored_cleanup_static_argument_rejected rejected 72ms expected @9be
 	machine argument `Resource::drop` for `accept` does not refine `Selected`: expected 1 parameter(s), got 0
 fail/drops/borrowed_replacement_old_hook_prerequisite rejected 468ms expected @04d0fbe9d97c
 	cannot prove automatic cleanup requires at selected edge from replace state entry after statement 0: holder.token does not establish Token::drop clause `token.value == 7`
+fail/drops/borrowed_temporary_projection_retains_owner_disposition rejected 297ms expected @b891e70838b1+wt
+	cannot automatically dispose borrowed temporary `named(name(Pair))` after call `entry` at statement 0: every contained linear obligation needs its owner-authorized terminal disposition
+fail/drops/claim_bearing_temporary_requires_disposition rejected 297ms expected @b891e70838b1+wt
+	cannot automatically dispose borrowed temporary `named(name(Pair))` after call `entry` at statement 0: every contained linear obligation needs its owner-authorized terminal disposition
 fail/drops/cleanup_helper_guarantee_after_parent_hook rejected 351ms expected @e830e1bb7013+wt
 	cannot prove automatic cleanup requires at selected edge from main state entry after statement 2: owner.token does not establish Token::drop clause `token.value == 9 && token.ready`
 fail/drops/cleanup_helper_guarantee_after_write rejected 348ms expected @e830e1bb7013+wt
@@ -2434,6 +2438,7 @@ pass/drops/runtime_temporary_nominal_integer_contract_exit checked 1702ms check-
 pass/drops/runtime_temporary_nominal_prerequisite_exit checked 1673ms check-target:macos_arm64 @4df42bc194d5+wt
 pass/drops/runtime_unit_temporary_nominal_continuation_exit checked 1676ms check-target:macos_arm64 @4df42bc194d5+wt
 pass/drops/runtime_unobserved_owned_state_transfer_exit checked 1978ms check-target:macos_arm64 @9beb2be72f2d+wt
+pass/drops/statically_skipped_claim_bearing_temporary checked 396ms @b891e70838b1+wt
 pass/drops/transfer_cleanup_into_state checked 342ms @9beb2be72f2d+wt
 pass/dungeon/runtime_ordered_room_dispatch_exit checked 1484ms check-target:macos_arm64 @2d8ed253669f
 pass/dungeon/runtime_threaded_mut_arg_interrupt_soak_exit checked 1332ms check-target:macos_arm64 @2d8ed253669f
