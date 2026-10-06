@@ -2,8 +2,7 @@
 
 use crate::layouts::materialization::const_record_with_sum_materializable::outer_layouts::field_occurrence_matches;
 use crate::layouts::materialization::const_record_with_sum_materializable::{
-    ValidatedConstRecordSumArrayElementMaterialization,
-    ValidatedConstRecordSumArrayElementSelection, ValidatedConstRecordSumArrayFieldMaterialization,
+    ValidatedConstRecordSumArrayElementMaterialization, ValidatedConstRecordSumArrayFieldMaterialization,
 };
 use layout_plans::{
     ConventionalSumArrayFieldLayoutReport, conventional_sum_layout_reports_match_for_replay,
@@ -56,25 +55,6 @@ pub(crate) fn sum_array_elements_match(
         })
 }
 
-fn sum_array_selections_match(
-    left: &[ValidatedConstRecordSumArrayElementSelection],
-    right: &[ValidatedConstRecordSumArrayElementSelection],
-) -> bool {
-    left.len() == right.len()
-        && left.iter().zip(right).all(|(left, right)| {
-            left.literal_index == right.literal_index
-                && left.non_authoritative_schema_report_fingerprint
-                    == right.non_authoritative_schema_report_fingerprint
-                && left.value == right.value
-                && left.non_authoritative_layout_report_fingerprint
-                    == right.non_authoritative_layout_report_fingerprint
-                && left.selected_case_identity == right.selected_case_identity
-                && left.selected_case_ordinal == right.selected_case_ordinal
-                && left.bytes == right.bytes
-                && left.non_authoritative_materialization_report_fingerprint
-                    == right.non_authoritative_materialization_report_fingerprint
-        })
-}
 
 pub(crate) fn sum_array_layout_sets_match_for_replay(
     left: &[ConventionalSumArrayFieldLayoutReport],
@@ -98,6 +78,6 @@ pub(crate) fn sum_array_fields_match(
                 left.field_identity,
                 &right.field,
                 right.field_identity,
-            ) && sum_array_selections_match(&left.elements, &right.elements)
+            ) && super::sum_array_selections_match(&left.elements, &right.elements)
         })
 }

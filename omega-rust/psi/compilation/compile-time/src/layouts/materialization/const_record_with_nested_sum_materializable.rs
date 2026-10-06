@@ -41,8 +41,8 @@ use super::{
     validate_const_materializable_record_with_conventional_sums,
 };
 use crate::layouts::materialization::{
-    ValidatedConstRecordSumArrayElementSelection, ValidatedConstRecordSumArrayFieldMaterialization,
-    ValidatedConstRecordSumFieldMaterialization, ValidatedConstRecordWithSumMaterialization,
+    ValidatedConstRecordSumArrayFieldMaterialization, ValidatedConstRecordSumFieldMaterialization,
+    ValidatedConstRecordWithSumMaterialization,
 };
 
 mod derivation;

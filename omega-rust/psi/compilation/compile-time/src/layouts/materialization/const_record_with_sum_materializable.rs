@@ -82,3 +82,25 @@ pub fn validate_const_materializable_record_with_conventional_sums(
         non_authoritative_materialization_report_fingerprint: materialization_report_fingerprint,
     })
 }
+
+/// Exact replay equality for a pair of retained sum-array element
+/// selections, field by field.
+pub(crate) fn sum_array_selections_match(
+    left: &[validated_materializations::ValidatedConstRecordSumArrayElementSelection],
+    right: &[validated_materializations::ValidatedConstRecordSumArrayElementSelection],
+) -> bool {
+    left.len() == right.len()
+        && left.iter().zip(right).all(|(left, right)| {
+            left.literal_index == right.literal_index
+                && left.non_authoritative_schema_report_fingerprint
+                    == right.non_authoritative_schema_report_fingerprint
+                && left.value == right.value
+                && left.non_authoritative_layout_report_fingerprint
+                    == right.non_authoritative_layout_report_fingerprint
+                && left.selected_case_identity == right.selected_case_identity
+                && left.selected_case_ordinal == right.selected_case_ordinal
+                && left.bytes == right.bytes
+                && left.non_authoritative_materialization_report_fingerprint
+                    == right.non_authoritative_materialization_report_fingerprint
+        })
+}

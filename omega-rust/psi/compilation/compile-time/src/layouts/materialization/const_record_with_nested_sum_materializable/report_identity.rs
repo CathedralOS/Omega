@@ -6,7 +6,7 @@ use super::{
     ConventionalRecordSumChildInterior, ConventionalRecordSumChildLayoutReport,
     ConventionalRecursiveRecordSumPathsLayoutReport,
     ValidatedConstNestedSumRecordOccurrenceMaterialization,
-    ValidatedConstRecordArrayElementSelection, ValidatedConstRecordSumArrayElementSelection,
+    ValidatedConstRecordArrayElementSelection,
     ValidatedConstRecordSumChildMaterialization, ValidatedConstRecordWithSumMaterialization,
     conventional_sum_layout_reports_match_for_replay, field_occurrence_matches, hash_byte,
     hash_bytes, hash_text, hash_u64, hash_value, layout_plan_reports_match_for_replay,
@@ -84,25 +84,6 @@ fn record_array_selections_match(
         })
 }
 
-fn sum_array_element_selections_match(
-    left: &[ValidatedConstRecordSumArrayElementSelection],
-    right: &[ValidatedConstRecordSumArrayElementSelection],
-) -> bool {
-    left.len() == right.len()
-        && left.iter().zip(right).all(|(left, right)| {
-            left.literal_index == right.literal_index
-                && left.non_authoritative_schema_report_fingerprint
-                    == right.non_authoritative_schema_report_fingerprint
-                && left.value == right.value
-                && left.non_authoritative_layout_report_fingerprint
-                    == right.non_authoritative_layout_report_fingerprint
-                && left.selected_case_identity == right.selected_case_identity
-                && left.selected_case_ordinal == right.selected_case_ordinal
-                && left.bytes == right.bytes
-                && left.non_authoritative_materialization_report_fingerprint
-                    == right.non_authoritative_materialization_report_fingerprint
-        })
-}
 
 /// Exact replay comparison for one retained child custody row: the same
 /// custody kind carrying equal field identity and equal nested coordinates.
@@ -149,7 +130,7 @@ pub(super) fn child_materializations_match_for_replay(
                 left.field_identity,
                 &right.field,
                 right.field_identity,
-            ) && sum_array_element_selections_match(&left.elements, &right.elements)
+            ) && crate::layouts::materialization::const_record_with_sum_materializable::sum_array_selections_match(&left.elements, &right.elements)
         }
         (
             ValidatedConstRecordSumChildMaterialization::Record(left),
