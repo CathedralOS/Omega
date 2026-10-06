@@ -696,6 +696,8 @@ pass/drops/core_drop_explicit_consume built 3305ms exit:0 @9beb2be72f2d+wt
 pass/drops/core_drop_owner_hook built 3336ms exit:0 @9beb2be72f2d+wt
 pass/drops/core_drop_owner_hook_body built 3228ms exit:0 @9beb2be72f2d+wt
 pass/drops/erased_record_initializer_exit built 2783ms exit:70 @9beb2be72f2d+wt
+pass/drops/runtime_composed_nominal_output_hook_exit built 1653ms exit:0 stdout:match @47ad8bb72cea
+pass/drops/runtime_composed_nominal_return_hook_exit built 1646ms exit:0 @47ad8bb72cea
 pass/drops/runtime_computed_call_owner_retirement_exit built 2808ms exit:0 @9beb2be72f2d+wt
 pass/drops/runtime_effectful_projected_temporary_cleanup_exit built 3588ms exit:0 @e28fa01a1e73+wt
 pass/drops/runtime_indexed_nominal_cleanup_exit built 3463ms exit:0 stdout:match @9beb2be72f2d+wt

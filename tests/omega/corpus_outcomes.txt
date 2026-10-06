@@ -878,6 +878,15 @@ fail/drops/authored_cleanup_static_argument_rejected rejected 72ms expected @9be
 	machine argument `Resource::drop` for `accept` does not refine `Selected`: expected 1 parameter(s), got 0
 fail/drops/cleanup_mutated_integer_contract rejected 371ms expected @4cc11cbadf31+wt
 	cannot prove automatic cleanup requires at selected edge from main state entry after statement 2: token does not establish Token::drop clause `token.value == 7`
+fail/drops/composed_cleanup_authored_hook_call rejected 197ms expected @47ad8bb72cea
+	reserved cleanup machine `Token::drop` is compiler-selected and cannot be selected by source; consume the value with `omega::core::drop(value)` or call an ordinary owner-published protocol operation
+fail/drops/composed_cleanup_authored_hook_transition rejected 198ms expected @47ad8bb72cea
+	reserved cleanup machine `Token::drop` is compiler-selected and cannot be selected by source; consume the value with `omega::core::drop(value)` or call an ordinary owner-published protocol operation
+fail/drops/composed_cleanup_crash_outcome rejected 188ms expected @47ad8bb72cea
+	cleanup machine `Token::drop` may not declare a crash outcome
+fail/drops/composed_cleanup_external_hook_state rejected 188ms expected @47ad8bb72cea
+	reserved cleanup machine `Token::drop` is compiler-selected and cannot be selected by source; consume the value with `omega::core::drop(value)` or call an ordinary owner-published protocol operation
+	machine `main` state `entry`: value call `drop.finish(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
 fail/drops/drop_ensures_unlocked_predicate rejected 316ms expected @9beb2be72f2d+wt
 	cannot prove ensures contract for exit from MutexGuard::drop at statement 0: mutex_guard.mutex.unlocked()
 fail/drops/local_cleanup_unmet_prerequisite rejected 309ms expected @9beb2be72f2d+wt
@@ -2322,6 +2331,8 @@ pass/drops/core_drop_explicit_consume checked 2579ms check-target:macos_arm64 @9
 pass/drops/core_drop_owner_hook checked 2599ms check-target:macos_arm64 @9beb2be72f2d+wt
 pass/drops/core_drop_owner_hook_body checked 2629ms check-target:macos_arm64 @9beb2be72f2d+wt
 pass/drops/erased_record_initializer_exit checked 2276ms check-target:macos_arm64 @9beb2be72f2d+wt
+pass/drops/runtime_composed_nominal_output_hook_exit checked 1668ms check-target:macos_arm64 @47ad8bb72cea
+pass/drops/runtime_composed_nominal_return_hook_exit checked 1666ms check-target:macos_arm64 @47ad8bb72cea
 pass/drops/runtime_computed_call_owner_retirement_exit checked 2434ms check-target:macos_arm64 @9beb2be72f2d+wt
 pass/drops/runtime_effectful_projected_temporary_cleanup_exit checked 3581ms check-target:macos_arm64 @e28fa01a1e73+wt
 pass/drops/runtime_indexed_nominal_cleanup_exit checked 2774ms check-target:macos_arm64 @9beb2be72f2d+wt
