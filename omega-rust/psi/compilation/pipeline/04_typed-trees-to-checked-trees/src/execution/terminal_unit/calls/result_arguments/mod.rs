@@ -28,6 +28,8 @@ mod anonymous_shared;
 mod bounded_owner;
 mod reference;
 
+pub(crate) use anonymous_shared::validate as validate_shared_temporary;
+
 #[allow(clippy::too_many_arguments)]
 pub(super) fn argument(
     program: &TypedTrees,
@@ -466,26 +468,12 @@ pub(super) fn argument(
     let (value_expression, referent) = match access {
         CheckedStructuralAccess::Owned => (expression, formal_type),
         CheckedStructuralAccess::SharedBorrow => {
-            let typed_trees::types::TypeReferenceNode::Reference {
-                access: language_semantics::ReferenceAccess::Shared,
-                referee,
-                ..
-            } = program
-                .type_reference_table
-                .type_reference(parameter.type_reference)
-            else {
-                return None;
-            };
-            let referee = if array_view { local_type? } else { *referee };
-            let ExpressionNode::Borrow(borrow) = program.expression_table.expression(expression)
-            else {
-                return None;
-            };
-            if borrow.access != language_semantics::ReferenceAccess::Shared
-                || !program.expression_table.expression_is_valid(borrow.target)
-            {
-                return None;
-            }
+            let (referent_expression, referee) = crate::semantic::calls::shared_argument_referent(
+                program,
+                expression,
+                parameter.type_reference,
+            )?;
+            let referee = if array_view { local_type? } else { referee };
             match place.root {
                 facts::PlaceRoot::Symbol(_) => {
                     if exact_structural_argument_access(
@@ -495,12 +483,12 @@ pub(super) fn argument(
                         return None;
                     }
                 }
-                facts::PlaceRoot::Expression(source) if source == borrow.target => {
-                    anonymous_shared::validate(program, facts, machine, state, call, source)?;
+                facts::PlaceRoot::Expression(source) if source == referent_expression => {
+                    validate_shared_temporary(program, &facts.flow, machine, state, call, source)?;
                 }
                 _ => return None,
             }
-            (borrow.target, referee)
+            (referent_expression, referee)
         }
         CheckedStructuralAccess::MutableBorrow | CheckedStructuralAccess::WriteOnlyBorrow => {
             // Whole locals and projected subtrees retain their owner. Both
@@ -737,7 +725,7 @@ pub(super) fn argument(
                     != source
                 || program.type_multiplicity(root.type_reference) != result.multiplicity
                 || program.normalized_type_identity(root.type_reference)
-                    != program.normalized_type_identity(formal_type)
+                    != program.normalized_type_identity(referent)
             {
                 return None;
             }
@@ -750,7 +738,7 @@ pub(super) fn argument(
                 checked_trees::CheckedStructuralValueKind::CopiedStructuralPlace { .. }
             ) {
                 program.normalized_type_identity(root.type_reference)
-                    == program.normalized_type_identity(formal_type)
+                    == program.normalized_type_identity(referent)
                     && base_type_identity(program, root.type_reference, &[])?
                         == result.type_identity
             } else {

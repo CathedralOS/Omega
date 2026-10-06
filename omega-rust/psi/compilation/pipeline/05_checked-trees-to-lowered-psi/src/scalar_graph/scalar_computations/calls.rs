@@ -15,7 +15,9 @@ use crate::scalar_graph::scalar_graph_lowering::prepared_graph::{
     LoweredScalarBranchState, LoweredScalarBranchTerminator, LoweredScalarEffect,
 };
 use arena::HandleSpan;
-use checked_trees::CheckedScalarComputationStructuralArgument;
+use checked_trees::{
+    CheckedScalarComputationStructuralArgument, CheckedScalarComputationTemporaryDiscard,
+};
 
 enum Operand {
     Effect(LoweredScalarEffect),
@@ -276,6 +278,7 @@ impl Expansion<'_> {
         call_ordinal: u32,
         arguments: HandleSpan<Computation>,
         structural: HandleSpan<CheckedScalarComputationStructuralArgument>,
+        temporary_discards: HandleSpan<CheckedScalarComputationTemporaryDiscard>,
         result_type: QualifiedScalarType,
         input_types: &[QualifiedScalarType],
         target: usize,
@@ -526,6 +529,33 @@ impl Expansion<'_> {
             return unsupported("scalar computation repeats a call occurrence");
         }
         self.calls.push(call.source_coordinate);
+        // The checked call owns retirement, not the producer's source family
+        // or its borrowed access. Keep the scalar result and caller prefix live
+        // across the exact normal continuation; a crashing call never reaches it.
+        let discards =
+            self.temporary_discard_places(source_call, structural, temporary_discards)?;
+        let target = if discards.is_empty() {
+            target
+        } else {
+            let mut parameter_types = input_types.to_vec();
+            parameter_types.push(result_type);
+            self.push(LoweredScalarBranchState {
+                structural_parameters: Vec::new(),
+                structural_effects: Vec::new(),
+                bindings: Vec::new(),
+                erased_formal_types: Vec::new(),
+                erased_proof_formals: Vec::new(),
+                terminator: LoweredScalarBranchTerminator::Jump {
+                    arguments: super::parameters(&parameter_types),
+                    target,
+                    trivial_affine_discards: discards,
+                    erased_arguments: Vec::new(),
+                    erased_proof_arguments: Vec::new(),
+                    structural_arguments: Vec::new(),
+                },
+                parameter_types,
+            })
+        };
         let mut continuation = self.binding(
             call_types,
             input_types.len(),
@@ -615,5 +645,91 @@ impl Expansion<'_> {
             };
         }
         Ok(continuation)
+    }
+
+    /// Translate already-admitted temporary retirement into the reserved homes.
+    /// This is the same whole-owner edge disposal used for completed receivers;
+    /// nominal hooks and live reference contents need their nontrivial plan.
+    fn temporary_discard_places(
+        &self,
+        source_call: Handle<checked_trees::FlowCallFact>,
+        arguments: &[CheckedScalarComputationStructuralArgument],
+        retained: HandleSpan<CheckedScalarComputationTemporaryDiscard>,
+    ) -> Result<Vec<semantic_vocabulary::PlaceId>, LoweringError> {
+        let plans = &self.checked.facts.values.scalar_computations;
+        let retained =
+            plans
+                .temporary_discards
+                .span(retained)
+                .ok_or(LoweringError::Unsupported(
+                    "computed call lost its temporary retirement roster",
+                ))?;
+        let mut discards = Vec::with_capacity(retained.len());
+        for discard in retained {
+            let ordinal = discard.argument_ordinal as usize;
+            let argument = arguments
+                .get(ordinal)
+                .and_then(|argument| argument.as_place())
+                .ok_or(LoweringError::Unsupported(
+                    "temporary retirement lost its structural operand",
+                ))?;
+            if argument.access != checked_trees::CheckedStructuralAccess::SharedBorrow
+                || !argument.path.is_empty()
+                || !matches!(
+                    argument.source,
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { .. }
+                )
+            {
+                return unsupported("temporary retirement requires its whole shared operand");
+            }
+            let slot = self
+                .produced_values
+                .iter()
+                .find(|slot| slot.source_call == source_call && slot.argument_ordinal == ordinal)
+                .ok_or(LoweringError::Unsupported(
+                    "temporary retirement lost its reserved owner",
+                ))?;
+            if self.checked.type_multiplicity(slot.type_reference)
+                != language_semantics::Multiplicity::Affine
+                || discards.contains(&slot.place)
+            {
+                return unsupported("temporary retirement repeats or changes its affine owner");
+            }
+            if !crate::content_classes::plain_owned_with_represented_constraints(
+                self.checked,
+                slot.type_reference,
+            ) {
+                return unsupported(
+                    "computed temporary disposal requires its nontrivial cleanup plan",
+                );
+            }
+            discards.push(slot.place);
+        }
+        for (ordinal, argument) in arguments.iter().enumerate() {
+            let Some(argument) = argument.as_place() else {
+                continue;
+            };
+            if argument.access != checked_trees::CheckedStructuralAccess::SharedBorrow
+                || !matches!(
+                    argument.source,
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { .. }
+                )
+            {
+                continue;
+            }
+            let slot = self
+                .produced_values
+                .iter()
+                .find(|slot| slot.source_call == source_call && slot.argument_ordinal == ordinal)
+                .ok_or(LoweringError::Unsupported(
+                    "shared temporary lost its reserved owner",
+                ))?;
+            match self.checked.type_multiplicity(slot.type_reference) {
+                language_semantics::Multiplicity::Unrestricted => {}
+                language_semantics::Multiplicity::Affine if discards.contains(&slot.place) => {}
+                _ => return unsupported("shared temporary has no admitted normal retirement"),
+            }
+        }
+        Ok(discards)
     }
 }

@@ -1327,6 +1327,7 @@ impl Builder<'_, '_> {
                 }
                 let mut computed_arguments = Vec::with_capacity(arguments.len());
                 let mut structural_arguments = Vec::new();
+                let mut temporary_discards = Vec::new();
                 for (argument, parameter) in arguments.iter().zip(target_parameters) {
                     // An erased parameter position consumes its authored
                     // argument as proof material only: no scalar operand and
@@ -1384,16 +1385,42 @@ impl Builder<'_, '_> {
                             {
                                 return None;
                             }
-                            self.retain_structural_argument(*argument, parameter.type_reference)?;
+                            let value = self.retain_structural_argument(*argument, parameter.type_reference)?;
+                            let expression = self.structural_values.nodes.get(value).expression;
+                            let (access, referent) = match self.program.type_reference_table.type_reference(parameter.type_reference) {
+                                TypeReferenceNode::Reference { access: language_semantics::ReferenceAccess::Shared, referee, .. } =>
+                                    (checked_trees::CheckedStructuralAccess::SharedBorrow, *referee),
+                                TypeReferenceNode::Reference { .. } => return None,
+                                _ => (checked_trees::CheckedStructuralAccess::Owned, parameter.type_reference),
+                            };
+                            if access == checked_trees::CheckedStructuralAccess::SharedBorrow {
+                                // Retention only supplies storage. The permission pass owns
+                                // the loan's exact consumer and dying continuation; carry its
+                                // settlement into the scalar call instead of inferring a drop
+                                // later from the reference formal or constructor spelling.
+                                crate::execution::terminal_unit::calls::validate_shared_temporary(
+                                    self.program, self.flow, self.machine, self.state,
+                                    self.flow.control.calls.get(source_call), expression,
+                                )?;
+                                match self.program.type_multiplicity(referent) {
+                                    language_semantics::Multiplicity::Affine => {
+                                        temporary_discards.push(checked_trees::CheckedScalarComputationTemporaryDiscard {
+                                            argument_ordinal: u32::try_from(structural_arguments.len()).ok()?,
+                                        });
+                                    }
+                                    language_semantics::Multiplicity::Unrestricted => {}
+                                    _ => return None,
+                                }
+                            }
                             Some(checked_trees::CheckedUnitStructuralArgumentPlan {
                                 source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
-                                    expression: *argument,
+                                    expression,
                                 },
                                 path: Vec::new(),
                                 type_identity: self.program
-                                    .normalized_type_identity(parameter.type_reference)
+                                    .normalized_type_identity(referent)
                                     .into_string(),
-                                access: checked_trees::CheckedStructuralAccess::Owned,
+                                access,
                             })
                         });
                         structural_arguments.push(
@@ -1408,6 +1435,11 @@ impl Builder<'_, '_> {
                     .plans
                     .structural_arguments
                     .insert_many(structural_arguments);
+                temporary_discards.reverse();
+                let temporary_discards = self
+                    .plans
+                    .temporary_discards
+                    .insert_many(temporary_discards);
                 Some(self.insert(
                     expected_type,
                     CheckedScalarComputationKind::Call {
@@ -1417,6 +1449,7 @@ impl Builder<'_, '_> {
                         call_ordinal,
                         arguments,
                         structural_arguments,
+                        temporary_discards,
                     },
                 ))
             }

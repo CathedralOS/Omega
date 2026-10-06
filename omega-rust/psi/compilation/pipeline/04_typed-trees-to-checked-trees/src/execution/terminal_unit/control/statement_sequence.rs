@@ -1703,12 +1703,16 @@ fn append_call_cleanup(
     for (result, root) in results.iter().rev() {
         if !matches!(root, facts::PlaceRoot::Expression(_))
             || result.statement_index != statement_index
+            || result.multiplicity == Multiplicity::Unrestricted
             || !structural_arguments.iter().any(|argument| {
                 argument.source_structural_result_binding_ordinal() == Some(result.binding_ordinal)
                     && argument.access == CheckedStructuralAccess::SharedBorrow
             })
         {
             continue;
+        }
+        if result.multiplicity != Multiplicity::Affine {
+            return None;
         }
         discards.push(checked_trees::CheckedUnitPartialAffineDiscardPlan {
             source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {

@@ -786,17 +786,43 @@ fn argument_needs_establishment(kind: &CheckedStructuralValueKind) -> bool {
 }
 
 impl Builder<'_, '_> {
-    /// Retain an owned argument that establishes a value, independent of its
-    /// constructor spelling. Existing places keep their canonical call source;
-    /// references keep their existing lending admission and storage.
+    /// Retain the value established by an argument, independent of how the
+    /// consumer accesses it. A shared temporary owns its referent, not a
+    /// reference-shaped constructor. Existing places keep their loan/storage
+    /// route; retaining a value does not itself authorize lending or cleanup.
     pub(super) fn retain_structural_argument(
         &mut self,
         expression: ExpressionHandle,
         expected: TypeReferenceHandle,
     ) -> Option<CheckedStructuralValueHandle> {
-        if crate::execution::terminal_unit::types::is_reference(self.program, expected)
-            || self.program.primitive_type_reference(expected).is_some()
-        {
+        let (expression, expected) =
+            match self.program.type_reference_table.type_reference(expected) {
+                TypeReferenceNode::Reference {
+                    access: language_semantics::ReferenceAccess::Shared,
+                    ..
+                } => {
+                    let (expression, expected) = crate::semantic::calls::shared_argument_referent(
+                        self.program,
+                        expression,
+                        expected,
+                    )?;
+                    let place = crate::flow::canonical_place_from_expression_in_state(
+                        self.program,
+                        self.state,
+                        self.statement_index,
+                        expression,
+                    )?;
+                    if place.root != facts::PlaceRoot::Expression(expression)
+                        || !place.segments.is_empty()
+                    {
+                        return None;
+                    }
+                    (expression, expected)
+                }
+                TypeReferenceNode::Reference { .. } => return None,
+                _ => (expression, expected),
+            };
+        if self.program.primitive_type_reference(expected).is_some() {
             return None;
         }
         let statement = u32::try_from(self.statement_index).ok()?;

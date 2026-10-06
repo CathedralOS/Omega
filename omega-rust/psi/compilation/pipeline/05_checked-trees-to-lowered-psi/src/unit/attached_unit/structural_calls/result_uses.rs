@@ -234,12 +234,13 @@ fn validate_linear_result_consumer(
 
 /// Rejoin a construction authored as a call argument to the call that reads
 /// it: `f(Event::Insert { cents: 50 })` establishes the value at the call's
-/// statement and moves it whole into the formal it was written for. The
+/// statement and supplies the formal it was written for. The
 /// construction's own source custody — the authored argument expression at
 /// that formal position — is checked where the construction rejoins its
 /// statement. This ties the two operations together, so the value cannot move
-/// into another formal, another call, a borrowed or projected parameter, or
-/// into two consumers.
+/// into another formal, another call, a projected parameter, or two consumers.
+/// Sharing keeps the completed owner through its exact normal continuation;
+/// the borrowed formal's unrestricted multiplicity is not the owner's.
 fn validate_argument_construction_consumer(
     checked: &CheckedTrees,
     caller: &CallerView<'_>,
@@ -335,24 +336,42 @@ fn validate_argument_construction_consumer(
         || source.discard
         || parameter_position != source_position
         || !argument.path.is_empty()
-        || argument.access != checked_trees::CheckedStructuralAccess::Owned
+        || !matches!(
+            argument.access,
+            checked_trees::CheckedStructuralAccess::Owned
+                | checked_trees::CheckedStructuralAccess::SharedBorrow
+        )
         || parameter.access != argument.access
         || parameter.fused_service_erasure.is_some()
         || (!parameter.qualifications.is_empty() && !copied_qualifications)
-        || source.result.multiplicity != parameter.multiplicity
+        || parameter.multiplicity
+            != if argument.access == checked_trees::CheckedStructuralAccess::SharedBorrow {
+                Multiplicity::Unrestricted
+            } else {
+                source.result.multiplicity
+            }
         || argument.type_identity != source.result.type_identity
         || parameter.type_identity != source.result.type_identity
     {
         return unsupported("argument construction moves into another formal or custody");
     }
-    let owned_uses = operations
+    if argument.access == checked_trees::CheckedStructuralAccess::SharedBorrow {
+        validate_shared_temporary_continuation(
+            checked,
+            operations,
+            consumer_index,
+            &source,
+            argument,
+        )?;
+    }
+    let consumer_uses = operations
         .iter()
         .flat_map(CheckedUnitEffectOperationPlan::call_structural_arguments)
         .filter(|candidate| {
             candidate.source_structural_result_binding_ordinal() == Some(binding_ordinal)
         })
         .count();
-    if owned_uses != 1 {
+    if consumer_uses != 1 {
         return unsupported("argument construction is read by more than its own call");
     }
     Ok(())
@@ -364,6 +383,44 @@ struct Producer<'plan> {
     result: &'plan CheckedUnitStructuralResultBindingPlan,
     discard: bool,
     construction_source: Option<checked_trees::CheckedArrayConstructionSource>,
+}
+
+/// A completed anonymous owner can be lent only through a loan-free call.
+/// Affine owners die at the recorded normal continuation, independently of
+/// whether a nested invocation or an argument construction established them.
+fn validate_shared_temporary_continuation(
+    checked: &CheckedTrees,
+    operations: &[CheckedUnitEffectOperationPlan],
+    consumer_index: usize,
+    producer: &Producer<'_>,
+    argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
+) -> Result<(), LoweringError> {
+    let operation = operations
+        .get(consumer_index)
+        .ok_or(LoweringError::Unsupported(
+            "shared temporary lost its consumer operation",
+        ))?;
+    let call = operation.call().ok_or(LoweringError::Unsupported(
+        "shared temporary has no consuming call",
+    ))?;
+    if producer.discard || call.is_boundary() || !loan_free_call(checked, operation) {
+        return unsupported("anonymous shared result has no exact dying call continuation");
+    }
+    match producer.result.multiplicity {
+        Multiplicity::Unrestricted => Ok(()),
+        Multiplicity::Affine
+            if matches!(operations.get(consumer_index + 1),
+            Some(CheckedUnitEffectOperationPlan::ContinuationCleanup {
+                boundary: checked_trees::CheckedUnitCleanupBoundary::Call(coordinate), affine_discards,
+            }) if *coordinate == call.coordinate
+                && affine_discards.iter().filter(|discard| discard.source == argument.source).count() == 1
+                && affine_discards.iter().any(|discard| discard.source == argument.source
+                    && discard.path.is_empty() && discard.type_identity == producer.result.type_identity)) =>
+        {
+            Ok(())
+        }
+        _ => unsupported("anonymous shared result has no exact dying call continuation"),
+    }
 }
 
 /// A bare reference result's retained leaf loan proves a projected owned
@@ -535,6 +592,14 @@ fn no_cleanup_residual_field(field_type: &checked_trees::CheckedUnitStructuralFi
 }
 
 impl Producer<'_> {
+    fn is_argument_temporary(&self) -> bool {
+        self.coordinate.call_ordinal != 0
+            || matches!(
+                self.construction_source,
+                Some(checked_trees::CheckedArrayConstructionSource::CallArgument { .. })
+            )
+    }
+
     fn precedes_consumer(&self, coordinate: checked_trees::CheckedUnitCallCoordinate) -> bool {
         if let Some(checked_trees::CheckedArrayConstructionSource::CallArgument {
             call_ordinal,
@@ -940,7 +1005,7 @@ pub(crate) fn validate_usage(
             if consumed
                 || disposed
                 || producer.discard
-                || producer.coordinate.call_ordinal == 0
+                || !producer.is_argument_temporary()
                 || producer.coordinate.statement_index != coordinate.statement_index
                 || operation_index <= producer.operation_index
                 || if projected_paths.is_empty() {
@@ -1005,7 +1070,7 @@ pub(crate) fn validate_usage(
                 checked_trees::CheckedStructuralAccess::SharedBorrow
                     | checked_trees::CheckedStructuralAccess::MutableBorrow
                     | checked_trees::CheckedStructuralAccess::WriteOnlyBorrow
-            ) && producer.coordinate.call_ordinal == 0
+            ) && !producer.is_argument_temporary()
             {
                 if projected_paths.iter().any(|earlier| {
                     earlier.starts_with(&argument.path) || argument.path.starts_with(earlier)
@@ -1021,13 +1086,25 @@ pub(crate) fn validate_usage(
                 // Copies retain their source after either call family. Exact
                 // boundary type eligibility is rejoined by validate_consumer;
                 // this walk checks the produced value's use and lifetime.
-                if argument.access != checked_trees::CheckedStructuralAccess::Owned
-                    || !argument.path.is_empty()
+                if !matches!(
+                    argument.access,
+                    checked_trees::CheckedStructuralAccess::Owned
+                        | checked_trees::CheckedStructuralAccess::SharedBorrow
+                ) || !argument.path.is_empty()
                     || argument.type_identity != result.type_identity
                 {
                     return unsupported(
-                        "unrestricted array result requires a whole owned call argument",
+                        "unrestricted result requires a whole owned or shared call operand",
                     );
+                }
+                if argument.access == checked_trees::CheckedStructuralAccess::SharedBorrow {
+                    validate_shared_temporary_continuation(
+                        checked,
+                        operations,
+                        operation_index,
+                        &producer,
+                        argument,
+                    )?;
                 }
                 continue;
             }
@@ -1068,15 +1145,15 @@ pub(crate) fn validate_usage(
                 );
             }
             if argument.access == checked_trees::CheckedStructuralAccess::SharedBorrow
-                && producer.coordinate.call_ordinal != 0
-                && (producer.discard
-                    || call.is_boundary()
-                    || !matches!(operations.get(operation_index + 1),
-                        Some(CheckedUnitEffectOperationPlan::ContinuationCleanup { boundary: checked_trees::CheckedUnitCleanupBoundary::Call(cleanup), affine_discards })
-                            if *cleanup == coordinate
-                                && affine_discards.iter().filter(|discard| discard.source == argument.source).count() == 1))
+                && producer.is_argument_temporary()
             {
-                return unsupported("anonymous shared result has no exact dying call continuation");
+                validate_shared_temporary_continuation(
+                    checked,
+                    operations,
+                    operation_index,
+                    &producer,
+                    argument,
+                )?;
             }
             consumed = argument.access == checked_trees::CheckedStructuralAccess::Owned;
         }
@@ -1763,6 +1840,21 @@ fn validate_operand_producers(
     expression: Option<checked_trees::expression::ExpressionHandle>,
     binding_ordinal: Option<u32>,
 ) -> Result<(), LoweringError> {
+    // A shared argument observes the owned target of an explicit borrow; an
+    // implicit shared argument already names that same value. Keep the shell
+    // for every other access so this cannot turn an exclusive loan into one.
+    let owner_expression =
+        expression.map(
+            |expression| match checked.expression_table.expression(expression) {
+                ExpressionNode::Borrow(borrow)
+                    if argument.access == checked_trees::CheckedStructuralAccess::SharedBorrow
+                        && borrow.access == language_core::ReferenceAccess::Shared =>
+                {
+                    borrow.target
+                }
+                _ => expression,
+            },
+        );
     let shared_byte_formal =
         crate::declarations::target_signature(checked, caller.machine, authored.source_target)?
             .parameters
@@ -1860,7 +1952,7 @@ fn validate_operand_producers(
             let names_result = result.statement_index == coordinate.statement_index
                 && *call_ordinal == coordinate.call_ordinal
                 && *parameter_position == source_position
-                && expression == Some(construction_expression);
+                && owner_expression == Some(construction_expression);
             // The call takes the fresh value whole, including its disposition
             // obligation. The consuming edge proves transfer; a nominal hook
             // belongs to whichever owner eventually disposes the value.
@@ -1890,9 +1982,16 @@ fn validate_operand_producers(
             } else {
                 construction_type
             };
+            if names_result != (binding_ordinal == Some(result.binding_ordinal)) {
+                return unsupported("constructed operand names another completed owner");
+            }
             if names_result
                 && ((authored.boundary && !copied_array)
-                    || argument.access != checked_trees::CheckedStructuralAccess::Owned
+                    || !matches!(
+                        argument.access,
+                        checked_trees::CheckedStructuralAccess::Owned
+                            | checked_trees::CheckedStructuralAccess::SharedBorrow
+                    )
                     || !argument.path.is_empty()
                     || !whole_owned_contents
                     || checked

@@ -26,6 +26,8 @@ mod structural_result_call;
 mod trait_boundary_call;
 pub(crate) mod view_subslice;
 
+pub(crate) use result_arguments::validate_shared_temporary;
+
 pub(crate) use affine_locals::{
     build_affine_array_construction_prefix, build_unit_trivial_affine_locals,
 };

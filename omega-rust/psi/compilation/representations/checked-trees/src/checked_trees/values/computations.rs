@@ -56,12 +56,21 @@ impl CheckedScalarComputationStructuralArgument {
     }
 }
 
+/// One admitted temporary owner retired after its borrowing call returns.
+/// Rows follow reverse establishment order and select the call's structural
+/// operand roster, not a scalar position or a source binding ordinal.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct CheckedScalarComputationTemporaryDiscard {
+    pub argument_ordinal: u32,
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CheckedScalarComputationPlans {
     pub roots: Arena<CheckedScalarComputationRoot>,
     pub nodes: Arena<CheckedScalarComputation>,
     pub operands: Arena<CheckedScalarComputationHandle>,
     pub structural_arguments: Arena<CheckedScalarComputationStructuralArgument>,
+    pub temporary_discards: Arena<CheckedScalarComputationTemporaryDiscard>,
     pub dispatch_arms: Arena<CheckedScalarDispatchArm>,
     pub case_fields: Arena<CheckedScalarCaseComputationField>,
 }
@@ -220,6 +229,9 @@ pub enum CheckedScalarComputationKind {
         /// with structural arguments in authored formal-position order.
         arguments: HandleSpan<CheckedScalarComputationHandle>,
         structural_arguments: HandleSpan<CheckedScalarComputationStructuralArgument>,
+        /// Checked owner retirement on this invocation's normal continuation.
+        /// Borrowed access alone does not authorize an owned temporary's drop.
+        temporary_discards: HandleSpan<CheckedScalarComputationTemporaryDiscard>,
     },
     /// One bodyless boundary application nested under an enclosing operand,
     /// such as the product in `a * b + c`. Its dense scalar operands complete

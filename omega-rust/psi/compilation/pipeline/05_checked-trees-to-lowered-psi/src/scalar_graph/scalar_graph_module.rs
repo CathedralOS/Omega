@@ -23,8 +23,8 @@ use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::scalar_graph::scalar_graph_lowering::cycles::ScalarLoopPlan;
 use crate::scalar_graph::scalar_graph_lowering::prepared_graph::{
-    LoweredScalarBranchState, LoweredScalarBranchTerminator, LoweredScalarEffect,
-    PreparedScalarContract, PreparedStateRequirements,
+    LoweredScalarBranchState, PreparedScalarContract, PreparedStateRequirements,
+    ScalarStateTargets, scalar_state_emission_order,
 };
 
 mod pending_blocks;
@@ -74,69 +74,6 @@ pub(super) struct StateFrame<'s> {
     pub(super) current_parameters: &'s Vec<ValueDeclaration>,
     /// The emitting state's proof-only erased formal roster.
     pub(super) erased_formals: &'s [ValueDeclaration],
-}
-
-/// Continuations are built backward, but fresh record producer identities must
-/// follow production order: independent affine cleanup uses reverse producer
-/// order. Allocate operations in CFG reverse-postorder, retaining block indices
-/// and their parameter/target namespace. Keep unrelated existing graph bytes
-/// stable; they do not yet introduce statement-owned record lifetimes.
-fn emission_order(states: &[LoweredScalarBranchState]) -> Vec<usize> {
-    if !states.iter().any(|state| {
-        state
-            .structural_effects
-            .iter()
-            .any(|effect| matches!(effect, LoweredScalarEffect::EstablishAggregate(_)))
-    }) {
-        return (0..states.len()).collect();
-    }
-    let mut visited = vec![false; states.len()];
-    let mut pending = vec![(0, false)];
-    let mut order = Vec::with_capacity(states.len());
-    while let Some((position, completing)) = pending.pop() {
-        if completing {
-            order.push(position);
-            continue;
-        }
-        if visited[position] {
-            continue;
-        }
-        visited[position] = true;
-        pending.push((position, true));
-        match &states[position].terminator {
-            LoweredScalarBranchTerminator::Jump { target, .. }
-            | LoweredScalarBranchTerminator::Qualify { target, .. } => {
-                pending.push((*target, false))
-            }
-            LoweredScalarBranchTerminator::Conditional {
-                when_true_target,
-                when_false_target,
-                ..
-            }
-            | LoweredScalarBranchTerminator::CaseDispatch {
-                when_true_target,
-                when_false_target,
-                ..
-            } => {
-                pending.push((*when_false_target, false));
-                pending.push((*when_true_target, false));
-            }
-            LoweredScalarBranchTerminator::CaseDispatchSplit {
-                armed,
-                fallback_target,
-                ..
-            } => {
-                pending.push((*fallback_target, false));
-                for arm in armed {
-                    pending.push((arm.target, false));
-                }
-            }
-            LoweredScalarBranchTerminator::Return { .. }
-            | LoweredScalarBranchTerminator::Crash(_) => {}
-        }
-    }
-    order.reverse();
-    order
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -354,7 +291,7 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
         inlined_blocks,
         blocks,
     };
-    for index in emission_order(states) {
+    for index in scalar_state_emission_order(states, 0, ScalarStateTargets::ZeroBased)? {
         emission.emit_state(index)?;
     }
     emission.resolve_pending_blocks()?;

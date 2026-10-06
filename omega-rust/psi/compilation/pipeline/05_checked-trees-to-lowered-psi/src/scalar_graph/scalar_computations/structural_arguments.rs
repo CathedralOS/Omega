@@ -58,8 +58,7 @@ pub(super) fn lower(
             {
                 return unsupported("computed borrow disagrees with its callee referent custody");
             }
-            if parameter.access == checked_trees::CheckedStructuralAccess::Owned {
-                if matches!(argument.source, checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { .. }) {
+            if matches!(argument.source, checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { .. }) {
                     let slot = produced_values.iter().find(|slot| {
                         slot.source_call == source_call && slot.argument_ordinal == argument_ordinal
                     }).ok_or(LoweringError::Unsupported(
@@ -72,9 +71,14 @@ pub(super) fn lower(
                         selector_positions: Vec::new(),
                         place: slot.place,
                         path: Vec::new(),
-                        access: StructuralAccess::Owned,
+                        access: match argument.access {
+                            checked_trees::CheckedStructuralAccess::Owned => StructuralAccess::Owned,
+                            checked_trees::CheckedStructuralAccess::SharedBorrow => StructuralAccess::SharedBorrow,
+                            _ => return unsupported("computed owner only admits whole transfer or shared lending"),
+                        },
                     });
-                }
+            }
+            if parameter.access == checked_trees::CheckedStructuralAccess::Owned {
                 return bindings
                     .owned_argument(argument)
                     .and_then(PreparedStructuralArgument::from_static);

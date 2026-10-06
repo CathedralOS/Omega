@@ -544,9 +544,16 @@ defines the complete product bar.
     payload returns use ordinary expression continuations, not raw jump
     arguments. Preserve `pass/operators/runtime_constructed_operand_result_exit`.
     Structural arrays and value dispatch still need their full construction
-    schedule. Implicit shared lending of constructed temporaries needs a
-    completed referent, call-scoped loan and owner cleanup; a reference formal
-    must not reinterpret the constructor as a reference carrier. Selected
+    schedule. Explicit and implicit shared arguments retain the completed
+    owner, lend its referent and retire eligible affine owners on the checked
+    normal call continuation. Copyable temporaries carry no affine disposal
+    debt. On macOS ARM64 after package update,
+    `omega run --both tests/omega/pass/calls/runtime_constructed_borrowed_payload_arguments_exit/main.omg`
+    exits 0 in both engines. `runtime_temporary_lending_order_exit` exits 0
+    natively, including nested borrowing calls, mixed operand order and Unit
+    consumers; its interpreter still declines explicit borrowing of an owned
+    call result in `checked-interpreter/.../names_recasts_and_places.rs::resolve_place`
+    (unchanged from base `988b7227595`). Selected
     transfers of empty affine locals still stop in stage 04's ordinary call
     claim-transfer join; its prefix-local producer also assumes exactly one
     settlement. Runtime-indexed observations below case payloads still reject

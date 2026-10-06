@@ -288,12 +288,16 @@ pub(super) fn retain_shapes(
                             || structural_values.nodes.get(root.root).expression != expression
                             || program.normalized_type_identity(root.type_reference).as_str()
                                 != argument.type_identity
-                            || argument.access != checked_trees::CheckedStructuralAccess::Owned
+                            || !matches!(argument.access,
+                                checked_trees::CheckedStructuralAccess::Owned
+                                    | checked_trees::CheckedStructuralAccess::SharedBorrow)
                             || !argument.path.is_empty()
                         {
                             return None;
                         }
-                        // The produced value owns its complete declaration;
+                        // The produced value owns its complete declaration,
+                        // including when the invocation only borrows it. The
+                        // formal's reference type does not replace this owner;
                         // its scalar children have their own retained roots in
                         // this same state's computation inventory.
                         retain_declarations(

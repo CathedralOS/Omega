@@ -8,6 +8,7 @@ use crate::emission::operation_emission::LoweredScalarBinding;
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::buffer::SourceCallCoordinate;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
+use crate::lowering_error::LoweringError;
 use crate::proofs::content_conservation::LoweredContentIdentityReshuffles;
 use crate::proofs::content_conservation::LoweredContentPartitionCompositions;
 use crate::scalar_graph::scalar_computations;
@@ -139,6 +140,106 @@ pub(crate) struct LoweredScalarBranchState {
     /// Effects execute after the scalar prefix, without creating scalar slots.
     pub(crate) structural_effects: Vec<LoweredScalarEffect>,
     pub(crate) terminator: LoweredScalarBranchTerminator,
+}
+
+/// Standalone graphs address states directly. Embedded expression expansions
+/// reserve target zero for their caller's completion, then address state n at
+/// target n + 1. This is a target namespace, not an emission-order difference.
+#[derive(Clone, Copy)]
+pub(crate) enum ScalarStateTargets {
+    ZeroBased,
+    CompletionThenStates,
+}
+
+impl ScalarStateTargets {
+    fn state_position(
+        self,
+        target: usize,
+        state_count: usize,
+    ) -> Result<Option<usize>, LoweringError> {
+        let position = match self {
+            Self::ZeroBased => Some(target),
+            Self::CompletionThenStates => target.checked_sub(1),
+        };
+        if position.is_some_and(|position| position >= state_count) {
+            return Err(LoweringError::Unsupported(
+                "scalar graph target has no prepared state",
+            ));
+        }
+        Ok(position)
+    }
+}
+
+/// Allocate producer identities in control-flow order, not backward
+/// continuation-construction order. Reverse-postorder keeps dominating owners
+/// before their later consumers and gives independent cleanup reverse production
+/// order for calls and constructors alike. State identities do not move.
+/// Unreachable components remain retained in deterministic state order because
+/// their declaration rosters still belong to the prepared graph.
+pub(crate) fn scalar_state_emission_order(
+    states: &[LoweredScalarBranchState],
+    entry: usize,
+    targets: ScalarStateTargets,
+) -> Result<Vec<usize>, LoweringError> {
+    let entry = targets.state_position(entry, states.len())?;
+    let mut visited = vec![false; states.len()];
+    let mut pending = Vec::new();
+    let mut component = Vec::new();
+    let mut order = Vec::with_capacity(states.len());
+    for start in entry.into_iter().chain(0..states.len()) {
+        if visited[start] {
+            continue;
+        }
+        pending.push((start, false));
+        while let Some((position, completing)) = pending.pop() {
+            if completing {
+                component.push(position);
+                continue;
+            }
+            if visited[position] {
+                continue;
+            }
+            visited[position] = true;
+            pending.push((position, true));
+            let mut push_target = |target| -> Result<(), LoweringError> {
+                if let Some(position) = targets.state_position(target, states.len())? {
+                    pending.push((position, false));
+                }
+                Ok(())
+            };
+            match &states[position].terminator {
+                LoweredScalarBranchTerminator::Jump { target, .. }
+                | LoweredScalarBranchTerminator::Qualify { target, .. } => push_target(*target)?,
+                LoweredScalarBranchTerminator::Conditional {
+                    when_true_target,
+                    when_false_target,
+                    ..
+                }
+                | LoweredScalarBranchTerminator::CaseDispatch {
+                    when_true_target,
+                    when_false_target,
+                    ..
+                } => {
+                    push_target(*when_false_target)?;
+                    push_target(*when_true_target)?;
+                }
+                LoweredScalarBranchTerminator::CaseDispatchSplit {
+                    armed,
+                    fallback_target,
+                    ..
+                } => {
+                    push_target(*fallback_target)?;
+                    for arm in armed {
+                        push_target(arm.target)?;
+                    }
+                }
+                LoweredScalarBranchTerminator::Return { .. }
+                | LoweredScalarBranchTerminator::Crash(_) => {}
+            }
+        }
+        order.extend(component.drain(..).rev());
+    }
+    Ok(order)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

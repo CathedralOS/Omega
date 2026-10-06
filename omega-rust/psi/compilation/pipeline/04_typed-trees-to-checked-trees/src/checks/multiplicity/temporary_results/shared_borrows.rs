@@ -1,7 +1,7 @@
 //! Shared access to an anonymous owner ends before that owner's call cleanup.
 use super::{
     CheckFacts, FlowPermissionEventFact, HandleSpan, Multiplicity, PermissionAccess,
-    PermissionClaimIdentity, PermissionEventKind, PermissionProvenance, TypeReferenceNode,
+    PermissionClaimIdentity, PermissionEventKind, PermissionProvenance,
 };
 use crate::checks::type_carries_linear_obligation;
 use crate::checks::type_multiplicity;
@@ -80,57 +80,20 @@ fn events(
     parameter: &typed_trees::signature::StateParameter,
     argument: typed_trees::expression::ExpressionHandle,
 ) -> Option<[FlowPermissionEventFact; 3]> {
-    let ExpressionNode::Borrow(borrow) = program.expression_table.expression(argument) else {
-        return None;
-    };
-    if borrow.access != language_semantics::ReferenceAccess::Shared {
-        return None;
-    }
-    let mut producers = calls.iter().filter(|producer| {
-        producer.statement_index == consumer.statement_index
-            && producer.authored_expression == borrow.target
-    });
-    let producer = producers.next()?;
-    if producers.next().is_some() || producer.call_ordinal <= consumer.call_ordinal {
-        return None;
-    }
-    let ExpressionNode::Call(authored) = program.expression_table.expression(borrow.target) else {
-        return None;
-    };
-    if authored.target_symbol != producer.target_symbol {
+    let (expression, referee) = crate::semantic::calls::shared_argument_referent(
+        program,
+        argument,
+        parameter.type_reference,
+    )?;
+    let place = crate::flow::canonical_place_from_expression_in_state(
+        program,
+        state.symbol,
+        consumer.statement_index,
+        expression,
+    )?;
+    if place.root != facts::PlaceRoot::Expression(expression) || !place.segments.is_empty() {
         return None;
     }
-    let TypeReferenceNode::Reference {
-        access: language_semantics::ReferenceAccess::Shared,
-        referee,
-        ..
-    } = program
-        .type_reference_table
-        .type_reference(parameter.type_reference)
-    else {
-        return None;
-    };
-    let produced_type = crate::flow::call_target_return_type(program, producer.target_symbol)?;
-    if (parameter.is_const)
-        || parameter.is_mutable
-        || parameter.relevance.is_erased()
-        || program.normalized_type_identity(*referee)
-            != program.normalized_type_identity(produced_type)
-        || type_multiplicity(program, produced_type) != Multiplicity::Affine
-        || type_carries_linear_obligation(program, produced_type)
-    {
-        return None;
-    }
-    let producer_source = PermissionEventSource::Call {
-        statement_index: producer.statement_index,
-        call_ordinal: producer.call_ordinal,
-        target_symbol: producer.target_symbol,
-    };
-    let consumer_source = PermissionEventSource::Call {
-        statement_index: consumer.statement_index,
-        call_ordinal: consumer.call_ordinal,
-        target_symbol: consumer.target_symbol,
-    };
     let evaluation = crate::flow::call_permission_evaluation(
         program,
         machine,
@@ -138,17 +101,70 @@ fn events(
         consumer.statement_index,
         consumer.call_ordinal,
     );
-    if evaluation == checked_trees::FlowPermissionEvaluation::Unknown
-        || crate::flow::call_permission_evaluation(
+    if evaluation == checked_trees::FlowPermissionEvaluation::Unknown {
+        return None;
+    }
+    // Calls retain their invocation coordinate; other expression-owned values
+    // are established in this statement's evaluation. The expression root
+    // distinguishes sibling constructions without inventing producer calls.
+    let (producer_source, produced_type) =
+        if let ExpressionNode::Call(authored) = program.expression_table.expression(expression) {
+            let mut producers = calls.iter().filter(|producer| {
+                producer.statement_index == consumer.statement_index
+                    && producer.authored_expression == expression
+            });
+            let producer = producers.next()?;
+            if producers.next().is_some()
+                || producer.call_ordinal <= consumer.call_ordinal
+                || crate::flow::call_target_symbol(program, authored) != producer.target_symbol
+                || crate::flow::call_permission_evaluation(
+                    program,
+                    machine,
+                    state,
+                    producer.statement_index,
+                    producer.call_ordinal,
+                ) != evaluation
+            {
+                return None;
+            }
+            (
+                PermissionEventSource::Call {
+                    statement_index: producer.statement_index,
+                    call_ordinal: producer.call_ordinal,
+                    target_symbol: producer.target_symbol,
+                },
+                crate::flow::call_target_return_type(program, producer.target_symbol)?,
+            )
+        } else {
+            if !validation::checked_argument_matches_type_reference(program, expression, referee) {
+                return None;
+            }
+            (
+                PermissionEventSource::Statement {
+                    statement_index: consumer.statement_index,
+                },
+                referee,
+            )
+        };
+    if (parameter.is_const)
+        || parameter.is_mutable
+        || parameter.relevance.is_erased()
+        || program.normalized_type_identity(referee)
+            != program.normalized_type_identity(produced_type)
+        || type_multiplicity(program, produced_type) != Multiplicity::Affine
+        || type_carries_linear_obligation(program, produced_type)
+        || !validation::has_plain_owned_contents_with_represented_constraints(
             program,
-            machine,
-            state,
-            producer.statement_index,
-            producer.call_ordinal,
-        ) != evaluation
+            produced_type,
+        )
     {
         return None;
     }
+    let consumer_source = PermissionEventSource::Call {
+        statement_index: consumer.statement_index,
+        call_ordinal: consumer.call_ordinal,
+        target_symbol: consumer.target_symbol,
+    };
     let establishment = FlowPermissionEventFact {
         evaluation,
         machine_symbol: machine.symbol,
@@ -163,7 +179,7 @@ fn events(
             state_symbol: state.symbol,
             source: producer_source,
         },
-        root: facts::PlaceRoot::Expression(borrow.target),
+        root: facts::PlaceRoot::Expression(expression),
         segments: HandleSpan::empty(),
         obligation_live: false,
     };

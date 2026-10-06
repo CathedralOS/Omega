@@ -174,6 +174,7 @@ impl ExitScalars<'_, '_> {
                 call_ordinal,
                 arguments,
                 structural_arguments,
+                ..
             } => {
                 let control = &self.facts.flow.control;
                 if !control.calls.is_valid(*source_call) || !structural_arguments.is_empty() {

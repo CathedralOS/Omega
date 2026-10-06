@@ -356,9 +356,15 @@ pub(crate) fn produced_value_root<'checked>(
     else {
         return unsupported("computed structural operand has no produced expression");
     };
-    if argument.access != checked_trees::CheckedStructuralAccess::Owned || !argument.path.is_empty()
+    if !matches!(
+        argument.access,
+        checked_trees::CheckedStructuralAccess::Owned
+            | checked_trees::CheckedStructuralAccess::SharedBorrow
+    ) || !argument.path.is_empty()
     {
-        return unsupported("computed structural operand must consume its whole owned value");
+        return unsupported(
+            "computed structural operand must consume or share its whole owned value",
+        );
     }
     let control = &checked.facts.flow.control;
     if !control.calls.is_valid(source_call) {

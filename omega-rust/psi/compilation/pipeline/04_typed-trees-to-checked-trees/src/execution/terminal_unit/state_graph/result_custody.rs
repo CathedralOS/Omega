@@ -403,7 +403,8 @@ pub(super) fn account(
             .iter()
             .flat_map(CheckedUnitEffectOperationPlan::call_structural_arguments)
             .filter(|argument| {
-                call_owns_result(operation)
+                result.multiplicity != Multiplicity::Unrestricted
+                    && call_owns_result(operation)
                     && argument.source_structural_result_binding_ordinal()
                         == Some(result.binding_ordinal)
                     && argument.type_identity == result.type_identity
@@ -534,13 +535,11 @@ pub(super) fn account(
                 matches!(operation, CheckedUnitEffectOperationPlan::ByteSequenceStore(store)
                     if store.value.completed_call_binding_ordinal() == Some(result.binding_ordinal))
             });
-        // An unrestricted anonymous call result has no statement-local
-        // disposal owner: its statement may bind the enclosing scalar call.
-        // A later whole owned argument copies it just as a construction or
-        // byte store does. Repeated copies create no affine transfer debt;
-        // source occurrence and producer order are checked at each consumer.
-        let copied_into_call = result.multiplicity == Multiplicity::Unrestricted
-            && !call_owns_result(operation)
+        // A whole unrestricted result can be copied or shared by a later call,
+        // independently of whether a call or construction produced it. Neither
+        // observation creates affine transfer debt; exact source occurrence,
+        // producer order and loan authority are retained by the consumer.
+        let observed_by_call = result.multiplicity == Multiplicity::Unrestricted
             && operations[producer_index + 1..]
                 .iter()
                 .flat_map(CheckedUnitEffectOperationPlan::call_structural_arguments)
@@ -548,7 +547,10 @@ pub(super) fn account(
                     argument.source_structural_result_binding_ordinal()
                         == Some(result.binding_ordinal)
                         && argument.type_identity == result.type_identity
-                        && argument.access == CheckedStructuralAccess::Owned
+                        && matches!(
+                            argument.access,
+                            CheckedStructuralAccess::Owned | CheckedStructuralAccess::SharedBorrow
+                        )
                         && argument.path.is_empty()
                 });
         let total = usize::from(
@@ -556,7 +558,7 @@ pub(super) fn account(
                 || stored
                 || copied_into_construction
                 || copied_into_byte_store
-                || copied_into_call,
+                || observed_by_call,
         ) + call_transfers
             + cleanup_discards
             + construction_transfers

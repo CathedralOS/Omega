@@ -973,6 +973,7 @@ impl<'a> Expansion<'a> {
                 call_ordinal,
                 arguments,
                 structural_arguments,
+                temporary_discards,
             } => self.call(
                 source_call,
                 target_machine,
@@ -980,6 +981,7 @@ impl<'a> Expansion<'a> {
                 call_ordinal,
                 arguments,
                 structural_arguments,
+                temporary_discards,
                 result_type,
                 input_types,
                 target,

@@ -201,7 +201,9 @@ fn body_inputs<'input>(
 /// exit: a discarded result pairs with its call's cleanup continuation, a call
 /// result stored whole into a borrowed field's opened window moves into that
 /// field, and a construction authored as a call argument moves whole into the
-/// call that reads it. An anonymous unrestricted byte result copied into its
+/// call that reads it. An unrestricted temporary can instead be shared through
+/// that call: it has no affine disposal debt and is not a lexical local.
+/// An anonymous unrestricted byte result copied into its
 /// assignment's destination or passed whole into its enclosing call has no
 /// edge disposal or authored local. The call consumer independently rejoins
 /// each occurrence, result contract and evaluation order before emission.
@@ -222,28 +224,32 @@ fn retired_in_body(
                 operand_source:
                     Some(checked_trees::CheckedArrayConstructionSource::CallArgument { .. }),
                 ..
-            } => Some(result.binding_ordinal),
+            } => Some(result),
             CheckedUnitEffectOperationPlan::Call(call)
                 if !call.is_boundary() && call.coordinate.call_ordinal != 0 =>
             {
                 call.structural_result()
                     .filter(|result| result.multiplicity == Multiplicity::Unrestricted)
-                    .map(|result| result.binding_ordinal)
             }
             _ => None,
         })
-        .filter(|ordinal| {
+        .filter(|result| {
             state.operations.iter().any(|operation| {
                 operation
                     .call_structural_arguments()
                     .iter()
                     .any(|argument| {
-                        argument.source_structural_result_binding_ordinal() == Some(*ordinal)
-                            && argument.access == checked_trees::CheckedStructuralAccess::Owned
+                        argument.source_structural_result_binding_ordinal()
+                            == Some(result.binding_ordinal)
+                            && (argument.access == checked_trees::CheckedStructuralAccess::Owned
+                                || (result.multiplicity == Multiplicity::Unrestricted
+                                    && argument.access
+                                        == checked_trees::CheckedStructuralAccess::SharedBorrow))
                             && argument.path.is_empty()
                     })
             })
-        });
+        })
+        .map(|result| result.binding_ordinal);
     let mut retired = state
         .operations
         .iter()

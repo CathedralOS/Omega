@@ -49,13 +49,27 @@ fn evaluated_value_root<'a>(
 ) -> Option<&'a checked_trees::CheckedStructuralValueRoot> {
     if parameter.is_const
         || parameter.relevance.is_erased()
-        || crate::execution::terminal_unit::types::is_reference(program, parameter.type_reference)
         || program
             .primitive_type_reference(parameter.type_reference)
             .is_some()
     {
         return None;
     }
+    let (argument, expected) = match program
+        .type_reference_table
+        .type_reference(parameter.type_reference)
+    {
+        typed_trees::types::TypeReferenceNode::Reference {
+            access: language_semantics::ReferenceAccess::Shared,
+            ..
+        } => crate::semantic::calls::shared_argument_referent(
+            program,
+            argument,
+            parameter.type_reference,
+        )?,
+        typed_trees::types::TypeReferenceNode::Reference { .. } => return None,
+        _ => (argument, parameter.type_reference),
+    };
     let root = facts.values.structural_values.root_for_expression(
         state,
         u32::try_from(statement_index).ok()?,
@@ -63,7 +77,7 @@ fn evaluated_value_root<'a>(
     )?;
     if root.machine != machine
         || program.normalized_type_identity(root.type_reference)
-            != program.normalized_type_identity(parameter.type_reference)
+            != program.normalized_type_identity(expected)
         || !facts.values.structural_values.nodes.is_valid(root.root)
         || facts
             .values

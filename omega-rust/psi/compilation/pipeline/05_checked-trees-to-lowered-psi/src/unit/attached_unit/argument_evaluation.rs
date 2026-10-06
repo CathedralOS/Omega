@@ -25,7 +25,8 @@ use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use crate::scalar_graph::scalar_contracts::erased_proof_formal_declarations;
 use crate::scalar_graph::scalar_graph_lowering::prepared_graph::{
-    LoweredScalarBranchState, LoweredScalarBranchTerminator,
+    LoweredScalarBranchState, LoweredScalarBranchTerminator, ScalarStateTargets,
+    scalar_state_emission_order,
 };
 use checked_trees::CheckedCallScalarArgument;
 
@@ -1175,7 +1176,12 @@ impl Evaluation {
                 trivial_affine_discards: Vec::new(),
             },
         });
-        for (index, state) in states.iter().enumerate() {
+        for index in scalar_state_emission_order(
+            states,
+            entry_index,
+            ScalarStateTargets::CompletionThenStates,
+        )? {
+            let state = &states[index];
             emit_state(
                 state,
                 targets[index + 1],

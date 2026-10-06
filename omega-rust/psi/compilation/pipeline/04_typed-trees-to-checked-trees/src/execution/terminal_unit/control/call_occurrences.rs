@@ -1382,7 +1382,11 @@ fn collect_structural_argument_calls(
                 .normalized_type_identity(root.type_reference)
                 .as_str()
                 != argument.type_identity
-            || argument.access != checked_trees::CheckedStructuralAccess::Owned
+            || !matches!(
+                argument.access,
+                checked_trees::CheckedStructuralAccess::Owned
+                    | checked_trees::CheckedStructuralAccess::SharedBorrow
+            )
             || !argument.path.is_empty()
         {
             return None;

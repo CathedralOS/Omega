@@ -692,11 +692,10 @@ pub(super) fn member_position_after_segments(
 /// value's materialized reference) at its own stored reference, an array or
 /// match leaf at its joined position, and an index hop at the element a
 /// window was taken over — each through the same stored evidence
-/// `expression_type_position` already proves. A terminal `Declaration` or
-/// `Sliced` position cannot mint a type-reference handle (the immutable
-/// typed table stores no row for a literal's own type or a window), so the
-/// place keeps no reference rather than inventing one from a same-shaped
-/// row.
+/// `expression_type_position` already proves. A declaration position rejoins
+/// an existing named reference by its exact symbol, just as constructor result
+/// typing does. An absent declaration row or a sliced position cannot mint a
+/// type reference from a same-shaped row or an enclosing expected type.
 pub(crate) fn expression_place_type_reference(
     program: &typed_trees::TypedTrees,
     expression: ExpressionHandle,
@@ -705,7 +704,10 @@ pub(crate) fn expression_place_type_reference(
     let position = expression_type_position(program, expression)?;
     match member_position_after_segments(program, position, segments)? {
         MemberPosition::Reference(reference) => Some(reference),
-        MemberPosition::Declaration(_) | MemberPosition::Sliced(_) => None,
+        MemberPosition::Declaration(symbol) => program
+            .type_reference_table
+            .find_named_type_reference(symbol),
+        MemberPosition::Sliced(_) => None,
     }
 }
 

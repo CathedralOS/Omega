@@ -13,6 +13,36 @@ mod traversal;
 use crate::lookup::machine_by_symbol;
 use traversal::{CallSiteTraversal, find_call_site_in_statement};
 
+/// Identify the value a shared formal lends, whether `&` was explicit or
+/// implicit. This only classifies the operand: callers still establish its
+/// type, storage, loan validity and any temporary-owner cleanup. In particular,
+/// a reference formal must never turn a value constructor into a reference
+/// carrier, and this rule grants no implicit mutable or write-only lending.
+pub(crate) fn shared_argument_referent(
+    program: &typed_trees::TypedTrees,
+    argument: ExpressionHandle,
+    formal: TypeReferenceHandle,
+) -> Option<(ExpressionHandle, TypeReferenceHandle)> {
+    let TypeReferenceNode::Reference {
+        access: language_semantics::ReferenceAccess::Shared,
+        referee,
+        ..
+    } = program.type_reference_table.type_reference(formal)
+    else {
+        return None;
+    };
+    let value = match program.expression_table.expression(argument) {
+        typed_trees::expression::ExpressionNode::Borrow(borrow)
+            if borrow.access == language_semantics::ReferenceAccess::Shared =>
+        {
+            borrow.target
+        }
+        typed_trees::expression::ExpressionNode::Borrow(_) => return None,
+        _ => argument,
+    };
+    Some((value, *referee))
+}
+
 #[derive(Clone, Copy)]
 pub(crate) enum CallSite<'program> {
     Statement(&'program typed_trees::statement::TableCall),
