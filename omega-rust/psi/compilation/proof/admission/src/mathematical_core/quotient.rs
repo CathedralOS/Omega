@@ -88,7 +88,7 @@
 //! only each other, so a producer's own declarations append after them.
 
 use super::scheme_dsl::{
-    Syntax, app, apps, box_elim, box_intro, boxed, build, id, jelim, lam, pair, pi, refl,
+    Syntax, app, apps, box_elim, box_intro, boxed, build, id, jelim, lam, pair, pi, pis, refl,
     scheme_at, sigma, sort, squash, squash_intro, strict, ty, v,
 };
 use super::signature::Declaration;
@@ -269,22 +269,14 @@ fn is_set_declaration(arena: &mut TermArena) -> Declaration {
     let body = lam(
         "X",
         ty(0),
-        pi(
-            "x",
-            v("X"),
-            pi(
-                "y",
-                v("X"),
-                pi(
-                    "p",
-                    id(v("X"), v("x"), v("y")),
-                    pi(
-                        "q",
-                        id(v("X"), v("x"), v("y")),
-                        id(id(v("X"), v("x"), v("y")), v("p"), v("q")),
-                    ),
-                ),
-            ),
+        pis(
+            [
+                ("x", v("X")),
+                ("y", v("X")),
+                ("p", id(v("X"), v("x"), v("y"))),
+                ("q", id(v("X"), v("x"), v("y"))),
+            ],
+            id(id(v("X"), v("x"), v("y")), v("p"), v("q")),
         ),
     );
     let statement = build(arena, &mut Vec::new(), &statement);
@@ -320,18 +312,9 @@ fn set_quotient_declaration(arena: &mut TermArena) -> Declaration {
 /// `sound` — declaration 4, an assumption:
 /// `Π A R. Π(a b : A). Π(_ : R a b). Id (Q A R) (project a) (project b)`.
 fn sound_declaration(arena: &mut TermArena) -> Declaration {
-    let statement = pi_description(pi(
-        "a",
-        v("A"),
-        pi(
-            "b",
-            v("A"),
-            pi(
-                "_",
-                related(v("a"), v("b")),
-                id(quotient_of(), project_of(v("a")), project_of(v("b"))),
-            ),
-        ),
+    let statement = pi_description(pis(
+        [("a", v("A")), ("b", v("A")), ("_", related(v("a"), v("b")))],
+        id(quotient_of(), project_of(v("a")), project_of(v("b"))),
     ));
     let statement = build(arena, &mut Vec::new(), &statement);
     Declaration::assumption(2, statement)
@@ -342,18 +325,16 @@ fn sound_declaration(arena: &mut TermArena) -> Declaration {
 /// Effectivity supplies evidence of exactly the selected relation —
 /// never an extraction of the representative.
 fn effective_declaration(arena: &mut TermArena) -> Declaration {
-    let statement = pi_description(pi(
-        "a",
-        v("A"),
-        pi(
-            "b",
-            v("A"),
-            pi(
+    let statement = pi_description(pis(
+        [
+            ("a", v("A")),
+            ("b", v("A")),
+            (
                 "_",
                 id(quotient_of(), project_of(v("a")), project_of(v("b"))),
-                related(v("a"), v("b")),
             ),
-        ),
+        ],
+        related(v("a"), v("b")),
     ));
     let statement = build(arena, &mut Vec::new(), &statement);
     Declaration::assumption(2, statement)
@@ -367,26 +348,15 @@ fn effective_declaration(arena: &mut TermArena) -> Declaration {
 /// sound a b r)` — the transport `elim`'s coherence law names, and the
 /// optional precondition-transport surface for premise evidence.
 fn transport_declaration(arena: &mut TermArena) -> Declaration {
-    let statement = pi_description(pi(
-        "P",
-        motive_type(),
-        pi(
-            "a",
-            v("A"),
-            pi(
-                "b",
-                v("A"),
-                pi(
-                    "_",
-                    related(v("a"), v("b")),
-                    pi(
-                        "_",
-                        app(v("P"), project_of(v("a"))),
-                        app(v("P"), project_of(v("b"))),
-                    ),
-                ),
-            ),
-        ),
+    let statement = pi_description(pis(
+        [
+            ("P", motive_type()),
+            ("a", v("A")),
+            ("b", v("A")),
+            ("_", related(v("a"), v("b"))),
+            ("_", app(v("P"), project_of(v("a")))),
+        ],
+        app(v("P"), project_of(v("b"))),
     ));
     // `C y p = P y` over `p : Id Q (project a) y`.
     let motive = lam(
@@ -435,49 +405,42 @@ fn transport_declaration(arena: &mut TermArena) -> Declaration {
 ///  Π(c : Π(a b : A). Π(r : R a b).
 ///      Id (P (project b)) (transport P a b r (d a)) (d b)). rest`.
 fn pi_cases(rest: Syntax) -> Syntax {
-    pi(
-        "sets",
-        pi(
-            "z",
-            quotient_of(),
-            is_set(Level::Parameter(2), app(v("P"), v("z"))),
-        ),
-        pi(
-            "d",
-            pi("a", v("A"), app(v("P"), project_of(v("a")))),
-            pi(
-                "c",
+    pis(
+        [
+            ("P", motive_type()),
+            (
+                "sets",
                 pi(
-                    "a",
-                    v("A"),
-                    pi(
-                        "b",
-                        v("A"),
-                        pi(
-                            "r",
-                            related(v("a"), v("b")),
-                            id(
-                                app(v("P"), project_of(v("b"))),
-                                apps(
-                                    motive_scheme(QUOTIENT_TRANSPORT),
-                                    [
-                                        v("A"),
-                                        v("R"),
-                                        v("P"),
-                                        v("a"),
-                                        v("b"),
-                                        v("r"),
-                                        app(v("d"), v("a")),
-                                    ],
-                                ),
-                                app(v("d"), v("b")),
-                            ),
+                    "z",
+                    quotient_of(),
+                    is_set(Level::Parameter(2), app(v("P"), v("z"))),
+                ),
+            ),
+            ("d", pi("a", v("A"), app(v("P"), project_of(v("a"))))),
+            (
+                "c",
+                pis(
+                    [("a", v("A")), ("b", v("A")), ("r", related(v("a"), v("b")))],
+                    id(
+                        app(v("P"), project_of(v("b"))),
+                        apps(
+                            motive_scheme(QUOTIENT_TRANSPORT),
+                            [
+                                v("A"),
+                                v("R"),
+                                v("P"),
+                                v("a"),
+                                v("b"),
+                                v("r"),
+                                app(v("d"), v("a")),
+                            ],
                         ),
+                        app(v("d"), v("b")),
                     ),
                 ),
-                rest,
             ),
-        ),
+        ],
+        rest,
     )
 }
 
@@ -487,11 +450,7 @@ fn pi_cases(rest: Syntax) -> Syntax {
 /// coherence is `c`, and with set-valued fibers comparisons between
 /// parallel transport proofs are propositionally unique.
 fn elim_declaration(arena: &mut TermArena) -> Declaration {
-    let statement = pi_description(pi(
-        "P",
-        motive_type(),
-        pi_cases(pi("z", quotient_of(), app(v("P"), v("z")))),
-    ));
+    let statement = pi_description(pi_cases(pi("z", quotient_of(), app(v("P"), v("z")))));
     let statement = build(arena, &mut Vec::new(), &statement);
     Declaration::assumption(3, statement)
 }
@@ -501,30 +460,26 @@ fn elim_declaration(arena: &mut TermArena) -> Declaration {
 /// d c (project a)) (d a)`. A relevant `Id`, never a conversion rule —
 /// `elim` at `project a` is a neutral term that does not reduce.
 fn beta_declaration(arena: &mut TermArena) -> Declaration {
-    let statement = pi_description(pi(
-        "P",
-        motive_type(),
-        pi_cases(pi(
-            "a",
-            v("A"),
-            id(
-                app(v("P"), project_of(v("a"))),
-                apps(
-                    motive_scheme(QUOTIENT_ELIM),
-                    [
-                        v("A"),
-                        v("R"),
-                        v("P"),
-                        v("sets"),
-                        v("d"),
-                        v("c"),
-                        project_of(v("a")),
-                    ],
-                ),
-                app(v("d"), v("a")),
+    let statement = pi_description(pi_cases(pi(
+        "a",
+        v("A"),
+        id(
+            app(v("P"), project_of(v("a"))),
+            apps(
+                motive_scheme(QUOTIENT_ELIM),
+                [
+                    v("A"),
+                    v("R"),
+                    v("P"),
+                    v("sets"),
+                    v("d"),
+                    v("c"),
+                    project_of(v("a")),
+                ],
             ),
-        )),
-    ));
+            app(v("d"), v("a")),
+        ),
+    )));
     let statement = build(arena, &mut Vec::new(), &statement);
     Declaration::assumption(3, statement)
 }

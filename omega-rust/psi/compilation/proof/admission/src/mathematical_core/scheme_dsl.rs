@@ -228,6 +228,19 @@ pub(super) fn pi(name: &'static str, domain: Syntax, codomain: Syntax) -> Syntax
     Syntax::Pi(name, Box::new(domain), Box::new(codomain))
 }
 
+/// `Π (name domain)*. body` — one binder per list entry, outermost first.
+pub(super) fn pis(
+    binders: impl IntoIterator<Item = (&'static str, Syntax)>,
+    body: Syntax,
+) -> Syntax {
+    binders
+        .into_iter()
+        .collect::<Vec<_>>()
+        .into_iter()
+        .rev()
+        .fold(body, |inner, (name, domain)| pi(name, domain, inner))
+}
+
 pub(super) fn lam(name: &'static str, domain: Syntax, body: Syntax) -> Syntax {
     Syntax::Lambda(name, Box::new(domain), Box::new(body))
 }
