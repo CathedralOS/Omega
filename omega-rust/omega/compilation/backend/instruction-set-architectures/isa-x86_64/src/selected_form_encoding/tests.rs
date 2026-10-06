@@ -17,7 +17,9 @@ use crate::selected_form_encoding::saturating_forms::SaturatingForm;
 use crate::selected_form_encoding::trapping_forms::{TrappingRow, TrappingShape};
 use crate::x86_64_physical_register_model;
 use optimization_core::AcceptedObligationFactIdentity;
-use register_model::validate_physical_register_model;
+use register_model::{
+    RegisterViewId, ValidatedPhysicalRegisterModel, validate_physical_register_model,
+};
 use selected_instructions::{
     MachineSemanticKind, SaturatingCarrier, SaturatingOperation, TrappingForm, TrappingOperation,
 };
@@ -32,6 +34,25 @@ fn exact_add() -> SelectedInstructionKind {
     SelectedInstructionKind::ExactAddI64 {
         obligation: ObligationId::new(1).unwrap(),
         accepted_fact: AcceptedObligationFactIdentity::from_bytes([3; 32]),
+    }
+}
+
+fn assert_every_byte_change_rejected(
+    physical: &ValidatedPhysicalRegisterModel,
+    kind: SelectedInstructionKind,
+    key: MachineAlternativeKey,
+    operands: &[RegisterViewId],
+    bytes: &[u8],
+    context: &str,
+) {
+    for byte_position in 0..bytes.len() {
+        let mut changed = bytes.to_vec();
+        changed[byte_position] ^= 1;
+        assert!(
+            validate_x86_64_selected_form_encoding(physical, kind, key, operands, &changed)
+                .is_err(),
+            "{context} byte {byte_position}"
+        );
     }
 }
 
@@ -77,17 +98,14 @@ fn saturating_subtract_binds_registers_condition_and_flag_effects() {
                         .implicit_unit_clobbers
                         .is_empty()
                 );
-                for byte in 0..encoded.bytes().len() {
-                    let mut changed = encoded.bytes().to_vec();
-                    changed[byte] ^= 1;
-                    assert!(
-                        validate_x86_64_selected_form_encoding(
-                            &physical, kind, key, &operands, &changed
-                        )
-                        .is_err(),
-                        "changed byte {byte}"
-                    );
-                }
+                assert_every_byte_change_rejected(
+                    &physical,
+                    kind,
+                    key,
+                    &operands,
+                    encoded.bytes(),
+                    "changed",
+                );
             }
         }
     }
@@ -135,17 +153,14 @@ fn saturating_add_binds_registers_condition_and_flag_effects() {
                         .implicit_unit_clobbers
                         .is_empty()
                 );
-                for byte in 0..encoded.bytes().len() {
-                    let mut changed = encoded.bytes().to_vec();
-                    changed[byte] ^= 1;
-                    assert!(
-                        validate_x86_64_selected_form_encoding(
-                            &physical, kind, key, &operands, &changed
-                        )
-                        .is_err(),
-                        "changed byte {byte}"
-                    );
-                }
+                assert_every_byte_change_rejected(
+                    &physical,
+                    kind,
+                    key,
+                    &operands,
+                    encoded.bytes(),
+                    "changed",
+                );
             }
         }
     }
@@ -249,15 +264,14 @@ fn wrapping_remainder_binds_guard_signed_division_scratch_and_aliases() {
                 ]
             );
         }
-        for byte_position in 0..encoded.bytes().len() {
-            let mut changed = encoded.bytes().to_vec();
-            changed[byte_position] ^= 1;
-            assert!(
-                validate_x86_64_selected_form_encoding(&physical, kind, key, &operands, &changed,)
-                    .is_err(),
-                "mutated byte {byte_position}"
-            );
-        }
+        assert_every_byte_change_rejected(
+            &physical,
+            kind,
+            key,
+            &operands,
+            encoded.bytes(),
+            "mutated",
+        );
         for operand_position in 0..operands.len() {
             let mut changed = operands;
             changed[operand_position] = physical.model().view_named("r8").unwrap().id;
@@ -505,14 +519,7 @@ fn exact_divide_binds_unsigned_opcode_and_registers() {
 
     let encoded = encode_x86_64_selected_form(&physical, kind, key, &operands).unwrap();
     assert_eq!(encoded.bytes(), expected);
-    for byte in 0..expected.len() {
-        let mut changed = expected.clone();
-        changed[byte] ^= 1;
-        assert!(
-            validate_x86_64_selected_form_encoding(&physical, kind, key, &operands, &changed)
-                .is_err()
-        );
-    }
+    assert_every_byte_change_rejected(&physical, kind, key, &operands, &expected, "changed");
     for operand in 0..operands.len() {
         let mut changed = operands;
         changed[operand] = physical.model().view_named("r8").unwrap().id;
@@ -2882,16 +2889,14 @@ fn zero_extend_u8_binds_width_registers_and_is_not_a_copy() {
                 )
                 .is_err()
             );
-            for byte in 0..4 {
-                let mut changed = encoded.bytes().to_vec();
-                changed[byte] ^= 1;
-                assert!(
-                    validate_x86_64_selected_form_encoding(
-                        &physical, kind, key, &operands, &changed
-                    )
-                    .is_err()
-                );
-            }
+            assert_every_byte_change_rejected(
+                &physical,
+                kind,
+                key,
+                &operands,
+                encoded.bytes(),
+                "changed",
+            );
         }
     }
 }
@@ -2954,16 +2959,14 @@ fn zero_extend_u32_binds_width_registers_and_is_not_a_copy() {
                 )
                 .is_err()
             );
-            for byte in 0..3 {
-                let mut changed = encoded.bytes().to_vec();
-                changed[byte] ^= 1;
-                assert!(
-                    validate_x86_64_selected_form_encoding(
-                        &physical, kind, key, &operands, &changed
-                    )
-                    .is_err()
-                );
-            }
+            assert_every_byte_change_rejected(
+                &physical,
+                kind,
+                key,
+                &operands,
+                encoded.bytes(),
+                "changed",
+            );
         }
     }
 }
@@ -3049,20 +3052,14 @@ fn compare_i64_immediate_is_canonical_cmp_imm32_with_exact_footprint() {
             )
             .is_ok()
         );
-        for byte in 0..encoded.bytes().len() {
-            let mut corrupted = encoded.bytes().to_vec();
-            corrupted[byte] ^= 1;
-            assert!(
-                validate_x86_64_selected_form_encoding(
-                    &physical,
-                    kind,
-                    alternative,
-                    &[operand],
-                    &corrupted
-                )
-                .is_err()
-            );
-        }
+        assert_every_byte_change_rejected(
+            &physical,
+            kind,
+            alternative,
+            &[operand],
+            encoded.bytes(),
+            "corrupted",
+        );
     }
     for immediate in [IntegerValue::Unsigned(4096), IntegerValue::Signed(-1)] {
         let kind = SelectedInstructionKind::CompareI64Immediate { immediate };
@@ -3149,15 +3146,7 @@ fn exact_multiply_alias_partitions_encode_and_decode() {
                 .is_empty(),
             "imul clobbers rflags"
         );
-        for byte in 0..encoded.bytes().len() {
-            let mut corrupted = encoded.bytes().to_vec();
-            corrupted[byte] ^= 1;
-            assert!(
-                validate_x86_64_selected_form_encoding(&physical, kind, key, &homes, &corrupted,)
-                    .is_err(),
-                "changed byte {byte}"
-            );
-        }
+        assert_every_byte_change_rejected(&physical, kind, key, &homes, encoded.bytes(), "changed");
     }
     // A mismatched variant cannot validate the alias partition it skips.
     let homes = [views[0], views[1], views[2]];
