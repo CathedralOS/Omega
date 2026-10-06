@@ -190,8 +190,8 @@ pub fn descriptor_location_live_positions(
 }
 
 /// Exact descendant names at each input position, established on every incoming
-/// path. May-alias/lifetime capture is insufficient for this exemption. A static
-/// birth that can execute again cannot identify one resource instance here.
+/// path. May-alias/lifetime capture is insufficient for this exemption. Repeated
+/// formation lends authority only after every older instance has ceased to be live.
 pub fn descriptor_authorized_places(
     steps: &BTreeMap<DescriptorPosition, DescriptorFlowStep>,
     birth: DescriptorPosition,
@@ -212,10 +212,37 @@ pub fn descriptor_authorized_places(
         .collect()
 }
 
+pub struct DescriptorLifetime {
+    pub live: BTreeSet<DescriptorPosition>,
+    pub authorized: BTreeMap<DescriptorPosition, BTreeSet<DescriptorLocation>>,
+}
+
+/// Compute instance liveness once and use it to fence authority at reformation.
+/// A surviving alias or an untracked escape keeps the older instance live at
+/// its birth, even when that operation overwrites the original descriptor name.
+pub fn descriptor_location_lifetime(
+    steps: &BTreeMap<DescriptorPosition, DescriptorFlowStep>,
+    birth: DescriptorPosition,
+    descriptor: &DescriptorLocation,
+) -> DescriptorLifetime {
+    let live = descriptor_location_live_positions(steps, birth, descriptor);
+    let authorized = authorized_locations(steps, birth, descriptor, &live);
+    DescriptorLifetime { live, authorized }
+}
+
 pub fn descriptor_location_authorized_locations(
     steps: &BTreeMap<DescriptorPosition, DescriptorFlowStep>,
     birth: DescriptorPosition,
     descriptor: &DescriptorLocation,
+) -> BTreeMap<DescriptorPosition, BTreeSet<DescriptorLocation>> {
+    descriptor_location_lifetime(steps, birth, descriptor).authorized
+}
+
+fn authorized_locations(
+    steps: &BTreeMap<DescriptorPosition, DescriptorFlowStep>,
+    birth: DescriptorPosition,
+    descriptor: &DescriptorLocation,
+    live: &BTreeSet<DescriptorPosition>,
 ) -> BTreeMap<DescriptorPosition, BTreeSet<DescriptorLocation>> {
     let Some(formation) = steps.get(&birth) else {
         return BTreeMap::new();
@@ -227,21 +254,11 @@ pub fn descriptor_location_authorized_locations(
     {
         return BTreeMap::new();
     }
-    let mut pending = formation
-        .successors
-        .iter()
-        .map(|edge| edge.target)
-        .collect::<Vec<_>>();
-    let mut visited = BTreeSet::new();
-    while let Some(position) = pending.pop() {
-        if position == birth {
-            return BTreeMap::new();
-        }
-        if visited.insert(position)
-            && let Some(step) = steps.get(&position)
-        {
-            pending.extend(step.successors.iter().map(|edge| edge.target));
-        }
+    // A cycle alone does not extend the previous instance's lifetime. Keep
+    // the birth input unauthorized, and seed its new instance only after the
+    // formation, provided no older alias or escape remains live at that input.
+    if live.contains(&birth) {
+        return BTreeMap::new();
     }
     let mut predecessors =
         BTreeMap::<DescriptorPosition, Vec<(DescriptorPosition, &DescriptorFlowEdge)>>::new();

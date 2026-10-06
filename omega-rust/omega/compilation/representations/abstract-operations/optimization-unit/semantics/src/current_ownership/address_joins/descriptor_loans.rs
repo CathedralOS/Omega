@@ -184,12 +184,22 @@ impl DescriptorLoans {
         let flow = descriptor_flow(function, types, borrowed_regions);
         let mut loans = Vec::with_capacity(births.len());
         for (birth, descriptor, source, projection, access) in births {
+            let lifetime = terminal_semantics::descriptor_lifetimes::descriptor_location_lifetime(
+                &flow,
+                birth,
+                &descriptor,
+            );
             loans.push(DescriptorLoan {
-                incoming: borrowed_regions.incoming_origin_at((birth.0, birth.1 + 1), &descriptor, source, &projection),
+                incoming: borrowed_regions.incoming_origin_at(
+                    (birth.0, birth.1 + 1),
+                    &descriptor,
+                    source,
+                    &projection,
+                ),
                 regions: borrowed_regions.resolve(source, projection),
-                live: terminal_semantics::descriptor_lifetimes::descriptor_location_live_positions(&flow, birth, &descriptor),
+                live: lifetime.live,
                 access,
-                authorized: terminal_semantics::descriptor_lifetimes::descriptor_location_authorized_locations(&flow, birth, &descriptor),
+                authorized: lifetime.authorized,
             });
         }
         let observations = function

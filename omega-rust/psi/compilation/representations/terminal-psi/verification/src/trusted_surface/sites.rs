@@ -369,7 +369,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_lifetimes.rs",
-        sha256: Some("ca04678229d285389a6a672b0bfb932d4fd766d5c56c533196c21bbd540d2897"),
+        sha256: Some("8008b817e463dc887ac3a013258049254a95304f5ec276205100ff9b0d0ac568"),
         inventory_machinery: false,
     },
     ImplementationSite {
@@ -414,7 +414,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/frontier/descriptor_loans.rs",
-        sha256: Some("6cd77147d03eb7d0ac04e3a8b85f7a462403afb02dd35bd62a341fb2ae9c7cec"),
+        sha256: Some("b2a7902d09ed08504c43fe48d134ee5f456ac749dcdd52bba5d100566905fd67"),
         inventory_machinery: false,
     },
     ImplementationSite {

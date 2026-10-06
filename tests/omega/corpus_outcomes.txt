@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 14, "jobs": "4", "load1_end": 3.48, "load1_start": 3.48, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "2", "load1_end": 3.72, "load1_start": 3.7, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -24,6 +24,8 @@ fail/arithmetic/bounded_assignment_unproven rejected 141ms expected @c08960bee2b
 	cannot prove assignment value `9999` satisfies bounded target `main.x` in `Main::main.main`; expected 0..=100
 fail/arithmetic/bounded_call_unproven rejected 264ms expected @c08960bee2b1+wt
 	cannot prove requires contract for call wounded from Main::main: main.health > 0 (needs fact `value > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/arithmetic/bounded_store_consumed_before_repair rejected 145ms expected @6197860b335c+wt
+	cannot prove assignment value `11` satisfies bounded target `counter.value` in `Counter::replace.replace`; expected 0..=10
 fail/arithmetic/complement_nested_overflow rejected 257ms expected @2d8ed253669f
 	exact arithmetic in machine `run` state `entry` terminal expression may overflow `u8`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u8 in Wrapping`/`Saturating`/`Trapping`).
 fail/arithmetic/construction_payload_out_of_range rejected 282ms expected @2d8ed253669f
@@ -74,6 +76,12 @@ fail/arithmetic/fractional_integer_operand rejected 256ms expected @2d8ed253669f
 	anonymous operand `4097/2` is not an integer in machine `value` state `entry` terminal expression; type an operand before division if integer division was intended
 	anonymous operand `4097/2` cannot land exactly in `i32` in machine `value` state `entry` terminal expression; type an operand before division if integer division was intended
 	exact arithmetic in machine `value` state `entry` terminal expression may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
+fail/arithmetic/guarded_read_count_exceeds_target rejected 146ms expected @6197860b335c+wt
+	cannot prove assignment value `reader.received + reader.count as u64` satisfies bounded target `reader.received` in `Reader::advance.store`; expected 0..=16384
+fail/arithmetic/guarded_read_count_stale_before_assignment rejected 148ms expected @6197860b335c+wt
+	cannot prove assignment value `reader.received + reader.count as u64` satisfies bounded target `reader.received` in `Reader::advance.store`; expected 0..=16384
+fail/arithmetic/guarded_read_count_unguarded_arrival rejected 149ms expected @6197860b335c+wt
+	cannot prove assignment value `reader.received + reader.count as u64` satisfies bounded target `reader.received` in `Reader::advance.store`; expected 0..=16384
 fail/arithmetic/implicit_call_operand_conversion_rejected rejected 584ms expected @cfe60a3a242
 	machine `Values::signed_operand` state `signed_operand` applies `Add` to a `i32` value and a `u32` value -- the operands have different integer types and the operation would silently truncate or reinterpret a value; convert one with an exact `as` cast so both are the same type
 	machine `Values::wide_operand` state `wide_operand` applies `Add` to a `u16` value and a `u32` value -- the operands have different integer types and the operation would silently truncate or reinterpret a value; convert one with an exact `as` cast so both are the same type
@@ -132,6 +140,8 @@ fail/arithmetic/unknown_field_write_rejected rejected 249ms expected @2d8ed25366
 	implicit domain weakening in argument `return_code` for state `exit_process` drops `Wrapping`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
 fail/arithmetic/unqualified_case_value_rejected rejected 39ms expected @2d8ed253669f
 	case value `On` requires its carrier-qualified `Type::On` path
+fail/arithmetic/wrapping_guard_does_not_bound_original rejected 146ms expected @6197860b335c+wt
+	cannot prove assignment value `values.source` satisfies bounded target `values.result` in `Values::store.bounded`; expected 0..=10
 fail/arithmetic/wrapping_target_plain_operands_rejected rejected 127ms expected @d9720a4fa49b+wt
 	exact arithmetic in machine `Main::pick` state `pick` local `v` may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`). The target's `in Wrapping` does not re-domain the value expression (decision 17 is operand-driven): declare the domain on an operand or intermediate (`let t: i32 in Wrapping = ...`), or re-tag the operand inline (`x as i32 in Wrapping`).
 	store in machine `Main::pick` state `pick` local `v` implicitly converts `i32` to `i32 in Wrapping`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as i32 in Wrapping`)
@@ -254,6 +264,9 @@ fail/borrows/local_record_result_call_mut_and_shared_argument rejected 686ms exp
 	state `absorb` receives `tally` as both mutable and read-only
 fail/borrows/local_record_view_result_holds_loan rejected 663ms expected @2d8ed253669f
 	statement 2 mutates `tally.hits` while local borrow `cell` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
+fail/borrows/loop_descriptor_reformation_with_live_alias rejected 257ms expected @6197860b335c+wt
+	state `cycle` receives `buffer` while local borrow `current` is still active (borrowed at statement 1; its last use is at statement 2)
+	statement 2 mutates `buffer` while local borrow `current` is still active (borrowed at statement 1; its last use is at statement 2)
 fail/borrows/mutable_primitive_reference_live_owner_read rejected 740ms expected @944fb1232f17
 	state `observe` receives `value` while local borrow `borrowed` is still active (borrowed at statement 1; its last use is at statement 3)
 fail/borrows/mutable_record_state_alias rejected 546ms expected @cba4afbf6f2f+wt
@@ -473,6 +486,8 @@ fail/calls/boundary_computed_selector_out_of_bounds rejected 430ms expected @cba
 	cannot prove index `choose()` is within length 4 in main::entry
 fail/calls/boundary_nested_argument_conflicting_loan rejected 1030ms expected @cfe60a3a242
 	state `Math::inspect` receives `buffer` as both mutable and read-only
+fail/calls/boundary_projected_subslice_past_end rejected 276ms expected @6197860b335c+wt
+	cannot prove subslice range start bound `main.start..9` is within slice length 8
 fail/calls/computed_zero_requires_argument_rejected rejected 333ms expected @2d8ed253669f
 	machine `Main::main` state `main` value call to `Main::scale` violates required fact `divisor != 0`: the instantiated fact is structurally false
 fail/calls/constructed_case_invalid_common_zero rejected 418ms expected @b2906d953be
@@ -1614,6 +1629,7 @@ pass/arithmetic/runtime_explicit_call_operand_policy_exit checked 9664ms check-t
 pass/arithmetic/runtime_float_nan_comparison_exit checked 4994ms check-target:macos_arm64 @2d8ed253669f
 pass/arithmetic/runtime_float_self_compare_nan_exit checked 4254ms check-target:macos_arm64 @2d8ed253669f
 pass/arithmetic/runtime_guard_narrowed_transition_arg_exit checked 1292ms check-target:macos_arm64 @2d8ed253669f
+pass/arithmetic/runtime_guarded_read_count_assignment_exit checked 1146ms check-target:macos_arm64 @6197860b335c+wt
 pass/arithmetic/runtime_integer_casts_exit checked 1369ms check-target:macos_arm64 @2d8ed253669f
 pass/arithmetic/runtime_min_max_clamp_narrowing_exit checked 6268ms check-target:macos_arm64 @2d8ed253669f
 pass/arithmetic/runtime_monte_carlo_pi_exit checked 1623ms check-target:macos_arm64 @2d8ed253669f
@@ -1869,6 +1885,8 @@ pass/calls/runtime_alias_write_through_guarded_transition_exit checked 1355ms ch
 pass/calls/runtime_assignment_call_post_mutation_value_exit checked 1734ms check-target:macos_arm64 @2d8ed253669f
 pass/calls/runtime_borrowed_binding_field_state_loan_exit checked 1050ms check-target:macos_arm64 @bea382792161+wt
 pass/calls/runtime_boundary_computed_selector_order_exit checked 1177ms check-target:macos_arm64 @cba4afbf6f2f+wt
+pass/calls/runtime_boundary_loop_projected_subslice_exit checked 1148ms check-target:macos_arm64 @6197860b335c+wt
+pass/calls/runtime_boundary_projected_mutable_subslice_exit checked 858ms check-target:macos_arm64 @6197860b335c+wt
 pass/calls/runtime_call_statement_before_state_return_exit checked 1322ms check-target:macos_arm64 @63377f7122bb+wt
 pass/calls/runtime_case_payload_indexed_calls_exit checked 2987ms check-target:macos_arm64 @faab7e6c1b7d+wt
 pass/calls/runtime_case_record_return_exit checked 1636ms check-target:macos_arm64 @2d8ed253669f

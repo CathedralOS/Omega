@@ -78,21 +78,31 @@ impl DescriptorLoans {
         let steps = flow::reconstruct(module, machine, &mut analysis);
         let loans = births
             .into_iter()
-            .map(|(birth, descriptor, source, projection, access)| Loan {
-                incoming: analysis.symbolic_source_origins(machine.id, (birth.0, birth.1 + 1), &descriptor)
-                    .and_then(|origins| origins.into_iter().find(|origin| {
-                        matches!(origin, DescriptorSourceOrigin::IncomingSlot(_))
-                            && analysis.flatten_source_origin(machine.id, origin)
-                                == Some(DescriptorCallOrigin::Argument { source, projection: projection.clone() })
-                    })),
-                regions: borrowed_storage::resolve(&aliases, source, projection),
-                access,
-                live: terminal_semantics::descriptor_lifetimes::descriptor_location_live_positions(
-                    &steps, birth, &descriptor,
-                ),
-                authorized: terminal_semantics::descriptor_lifetimes::descriptor_location_authorized_locations(
-                    &steps, birth, &descriptor,
-                ),
+            .map(|(birth, descriptor, source, projection, access)| {
+                let lifetime =
+                    terminal_semantics::descriptor_lifetimes::descriptor_location_lifetime(
+                        &steps,
+                        birth,
+                        &descriptor,
+                    );
+                Loan {
+                    incoming: analysis
+                        .symbolic_source_origins(machine.id, (birth.0, birth.1 + 1), &descriptor)
+                        .and_then(|origins| {
+                            origins.into_iter().find(|origin| {
+                                matches!(origin, DescriptorSourceOrigin::IncomingSlot(_))
+                                    && analysis.flatten_source_origin(machine.id, origin)
+                                        == Some(DescriptorCallOrigin::Argument {
+                                            source,
+                                            projection: projection.clone(),
+                                        })
+                            })
+                        }),
+                    regions: borrowed_storage::resolve(&aliases, source, projection),
+                    access,
+                    live: lifetime.live,
+                    authorized: lifetime.authorized,
+                }
             })
             .collect();
         let calls = call_accesses::CallAccesses::new_in(module, &mut analysis);
