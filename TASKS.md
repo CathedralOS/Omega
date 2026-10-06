@@ -4726,8 +4726,10 @@ wait for Cathedral's instruction coverage. The interpreter is
   ABI/entry primitives. Connect `source/library/std/targets/uefi_x86_64/tables.omg`,
   the program-entry physical/semantic plans and
   [native-artifact's receiver wrapper](omega-rust/omega/compilation/backend/artifacts/native-artifact/src/fragment_object_publication.rs)
-  to actual arrival and scoped providers through
-  `omega-rust/omega/compilation/backend/runtime/external-roots/src/platform_bringup/uefi_bootstrap/`.
+  to actual arrival and scoped providers through ordinary program-entry,
+  calling, installed-root and provider contracts.
+  **CATHEDRAL-UEFI-RUNTIME-REMOVAL** owns deletion of the compiler-side
+  firmware-service and lifecycle model.
   Exact entry schema selection is split into
   **ENTRY-SLOT-EXACT-SCHEMA-SELECTION**; consume that selected identity here.
   Needs a source customer and a firmware or controlled-provider execution
@@ -4755,8 +4757,8 @@ wait for Cathedral's instruction coverage. The interpreter is
     release status. Keep both allocations on rejected release and keep the
     freshest map/key, allocation lineage and a stack that survives Boot
     Services exit.
-  - Keep allocation/status/retry policy in target code and delete the Rust
-    sequencing in `uefi_bootstrap/os_handoff_cycle.rs` once covered.
+  - **CATHEDRAL-UEFI-RUNTIME-REMOVAL** owns moving allocation/status/retry and
+    firmware-call sequencing into target source and deleting the Rust model.
 
   Acceptance: emitted code under firmware or a controlled provider covers
   growth, stale-key retry, bounded exhaustion with the target error, rejected
@@ -4764,6 +4766,43 @@ wait for Cathedral's instruction coverage. The interpreter is
   forbidden Boot Services use after exit; success enters the selected OS entry
   without returning. A bodyless provider, multi-call intrinsic or fallible
   cleanup destructor cannot replace the cycle.
+
+- **CATHEDRAL-UEFI-RUNTIME-REMOVAL.** (split-of:UEFI-OS-HANDOFF) Remove the
+  UEFI/Boot Services runtime from the compiler. The
+  `omega-rust/omega/compilation/backend/runtime/external-roots/src/platform_bringup/uefi_bootstrap/`
+  tree implements system-table and Boot Services lifetimes, handle-protocol
+  execution, `GetMemoryMap`, `ExitBootServices`, allocation/map-key retry and
+  OS-handoff sequencing in Rust. Its execution APIs are called only by that
+  Rust model and its tests; no produced program uses them.
+  - Target/library source owns firmware structures, service calls, phase
+    changes, retries, allocation custody and the returning-application versus
+    OS-handoff policy. Carry the existing
+    `source/library/std/targets/uefi_x86_64/` implementation through ordinary
+    boundary calls and the parent tasks' firmware/controlled-provider customer.
+  - The compiler may retain the selected UEFI entry schema, physical calling
+    convention, receiver/stack ABI, import and relocation mechanics, native
+    call emission and generic installed-root/publication custody. Move any
+    reusable physical-entry or stack-demand calculation to those general
+    owners; it cannot retain a firmware ledger or execute a firmware function.
+  - Delete
+    `omega-rust/omega/compilation/backend/runtime/external-roots/src/platform_bringup/uefi_bootstrap/`,
+    including
+    `UefiApplicationFirmwareLedger`, lifecycle-scoped service providers,
+    `UefiOsHandoffLedger`, the `execute_uefi_*` functions and
+    `drive_uefi_os_handoff_cycle`. Replace Rust protocol simulations with
+    source/corpus and firmware/QEMU controls. Do not recreate the lifecycle in
+    selected dispatch, native artifacts or compiler intrinsics.
+
+  Acceptance: compiler-owned production code has no UEFI system-table,
+  Boot-Services-phase, memory-map retry, protocol-discovery or OS-handoff state
+  machine and never invokes a firmware service function pointer. A source and
+  dependency guard permits UEFI-specific code only in target descriptions,
+  ABI/calling, entry/image encoding and the authored target library. The
+  unchanged UEFI entry and OS-handoff customers execute under firmware or a
+  controlled provider through **UEFI-PHYSICAL-SEMANTIC-ENTRY** and
+  **UEFI-OS-HANDOFF**; growth, stale-key retry, malformed map, rejected release,
+  forbidden post-exit service use and nonreturning handoff controls retain
+  their authored outcomes. No Rust test substitutes for that lifecycle.
 
 - **AP-BRINGUP.** Execute Cathedral-owned secondary-processor startup under
   [external roots](wiki/spec/build/external_roots.md#secondary-processor-startup).
@@ -4773,9 +4812,9 @@ wait for Cathedral's instruction coverage. The interpreter is
   acknowledgement and roster but has an empty `Main::main`. Connect it to the
   trampoline in
   `omega-rust/omega/compilation/backend/machine-emission/src/startup_trampoline.rs`,
-  the ledger in
-  `omega-rust/omega/compilation/backend/runtime/external-roots/src/platform_bringup/secondary_processor.rs`
-  and provider receipt ingress through **BOUNDARY-ISSUANCE**.
+  generic installed-entry/resource custody and provider receipt ingress through
+  **BOUNDARY-ISSUANCE**. **CATHEDRAL-SECONDARY-PROCESSOR-RUNTIME-REMOVAL** owns
+  deletion of the compiler-side startup protocol.
 
   Acceptance: on a matching platform or emulator, the emitted trampoline enters
   the installed entry with dedicated, nonoverlapping stack/state, bound to the
@@ -4786,6 +4825,40 @@ wait for Cathedral's instruction coverage. The interpreter is
   timeout/late arrival, cancellation before confirmation, races,
   foreign/stale/replayed receipts and resource conflicts. No compiler-owned
   APIC driver.
+
+- **CATHEDRAL-SECONDARY-PROCESSOR-RUNTIME-REMOVAL.** (split-of:AP-BRINGUP)
+  Remove secondary-processor startup policy and lifecycle from the compiler.
+  `omega-rust/omega/compilation/backend/runtime/external-roots/src/platform_bringup/secondary_processor.rs`
+  currently owns profiles, per-processor accounts, request/receipt verdicts,
+  retry/settlement, cancellation and quiescent retirement. All callers of
+  `begin_secondary_processor_startup`, `complete_secondary_processor_startup`,
+  `settle_secondary_processor_startup` and `retire_secondary_processor` are
+  Rust tests; no produced program uses them.
+  - Cathedral source owns processor discovery, startup request and vector
+    protocol, acknowledgement, retries, cancellation, late arrival and
+    retirement. Exercise those through the authored
+    `tests/omega/pass/memory/secondary_processor_canary` and the parent task's
+    matching-platform/emulator run.
+  - The compiler may retain target trampoline instruction emission and
+    relocation, low-memory placement/alignment constraints, entry ABI/regime,
+    generic installed-code/root identity, stack/state resource contracts and
+    ordinary provider calls. Those mechanisms do not know processor rosters,
+    invocation phases, verdict kinds or retry policy.
+  - Delete or generalize the `SecondaryProcessor*` profile, account, ledger,
+    invocation, receipt, settlement and quiescence carriers and their identity
+    family. Replace Rust tests of the protocol state machine with source/corpus
+    acceptance of the surviving general mechanisms. Do not move the protocol
+    into another backend crate or an AP-specific compiler intrinsic.
+
+  Acceptance: compiler-owned production code has no secondary-processor
+  discovery, request/acknowledgement, retry/cancellation or retirement state
+  machine and none of the four lifecycle APIs above. A source guard pins that
+  boundary while allowing target trampoline bytes, placement, entry ABI and
+  generic installation/resource custody. The unchanged Cathedral canary starts
+  a processor on a matching platform/emulator through **AP-BRINGUP** and covers
+  nondispatch, unconfirmed/late arrival, retry, cancellation and quiescent
+  retirement with foreign/stale/replayed controls. The `external-roots` test
+  suite contains no substitute processor-startup runtime.
 
 - **ADDRESS-TRANSLATION-CANARY.** Execute Cathedral-owned mapping installation
   and teardown under [mapping and reclamation](wiki/spec/resources/extents.md#mapping-and-reclamation).
