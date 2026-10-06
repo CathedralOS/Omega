@@ -520,6 +520,7 @@ mod tests {
         let action =
             TerminalAffineCleanupAction::InvokeNominal(terminal_psi::NominalAffineCleanup {
                 place: PlaceId::new(1).unwrap(),
+                path: Vec::new(),
                 structural_type: StructuralTypeId::new(1).unwrap(),
                 cleanup_machine,
                 consumed_claims: Vec::new(),

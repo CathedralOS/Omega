@@ -33,7 +33,8 @@ const SHARED_MUTATION: &str =
     "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/shared_mutation.rs";
 const CRASH_PATHS: &str = "omega-rust/psi/compilation/representations/terminal-psi/verification/src/verification/reconstruction/crash_paths.rs";
 const BLOCK_INVARIANTS: &str = "omega-rust/psi/compilation/representations/terminal-psi/verification/src/verification/reconstruction/scalar_block_invariants.rs";
-const SUBSTITUTION: &str = "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/substitution.rs";
+const SUBSTITUTION: &str =
+    "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/substitution.rs";
 const CALL_COMPOSITION: &str = "omega-rust/psi/compilation/representations/terminal-psi/verification/src/verification/call_composition.rs";
 const TERMINATION: &str = "omega-rust/psi/compilation/representations/terminal-psi/src/terminal_module/control_flow/termination.rs";
 
@@ -110,8 +111,8 @@ static OWNER_NOMINAL_CLEANUP_REQUIRES: TrustedSurfaceEntry = TrustedSurfaceEntry
     id: "owner:nominal-cleanup-requires",
     family: LedgerFamily::ObligationOwner,
     binding: owner(),
-    premises: "a nominal affine cleanup action on a return terminator whose cleanup machine has a requires clause at a validated position",
-    conclusion: "a derivable obligation whose proposition is the cleanup target's requires clause under the cleanup receiver substitution",
+    premises: "a nominal cleanup action on the selected normal continuation or return edge whose cleanup machine has a requires clause at a validated position",
+    conclusion: "a derivable obligation whose proposition is the cleanup target's requires clause under the exact receiver root and canonical subtree path substitution, with the selected edge's live facts",
     dependencies: &["scope:place-substitution"],
     implementation: &[TERMINATOR_FACTS, RECONSTRUCTION],
     soundness: TRUSTED,

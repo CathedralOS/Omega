@@ -42,6 +42,7 @@ pub(super) struct MachineSignature {
     /// obligation roster from this slice before any body is emitted.
     pub requires: Vec<Proposition>,
     pub runtime_requirements: Vec<Proposition>,
+    pub source_checked_requires: Vec<Proposition>,
 }
 
 impl MachineSignature {
@@ -52,6 +53,7 @@ impl MachineSignature {
             predicate_parameters: &self.predicate_parameters,
             requires: &self.requires,
             runtime_requirements: &self.runtime_requirements,
+            source_checked_requires: &self.source_checked_requires,
         }
     }
 }
@@ -138,6 +140,7 @@ pub(super) fn lower(
             cleanup_receiver: None,
             requires: Vec::new(),
             runtime_requirements: Vec::new(),
+            source_checked_requires: Vec::new(),
         });
     }
 
@@ -178,6 +181,7 @@ pub(super) fn lower(
         )?;
         signature.requires = requirements.requires;
         signature.runtime_requirements = requirements.runtime_requirements;
+        signature.source_checked_requires = requirements.source_checked_requires;
         if let Some(context) = cleanup_context {
             context.validate_contract(&signature.requires)?;
         }

@@ -32,6 +32,7 @@ pub(super) struct Target<'a> {
     /// requirements.
     pub requires: &'a [Proposition],
     pub runtime_requirements: &'a [Proposition],
+    pub source_checked_requires: &'a [Proposition],
 }
 
 pub(super) struct PreparedCall {
@@ -268,16 +269,20 @@ pub(super) fn prepare(
             .collect::<Result<BTreeMap<_, _>, LoweringError>>()?;
         substitute_structural_crash_route_roots(&mut crash_continuations, &substitutions)?;
     }
-    // One obligation per published callee `requires` row: the verifier
-    // re-derives the proposition from the emitted contract, so the count must
-    // match the closed clauses plus runtime requirements exactly.
+    // Retain one identity per published requirement while certificates remain
+    // in the wire format. The source checker has already discharged authored
+    // clauses at this exact call, including projected aggregate observations.
+    // Re-searching those decisions after lowering loses source fact transport
+    // and duplicates checking. Generated runtime requirements retain their
+    // separate decision route until the checker cutover completes.
     let requirement_obligations = target
         .requires
         .iter()
-        .map(|_| {
-            // Proof finalization reconstructs this exact callee
-            // slot against the completed caller's pre-call facts.
+        .map(|requirement| {
             let obligation = calls.allocate_requirement()?;
+            if target.source_checked_requires.contains(requirement) {
+                operations.source_checked_obligations.push(obligation);
+            }
             Ok(obligation)
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;

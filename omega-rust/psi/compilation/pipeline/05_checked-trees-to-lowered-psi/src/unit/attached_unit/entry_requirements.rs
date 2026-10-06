@@ -11,6 +11,7 @@ use terminal_psi::{StructuralParameterDeclaration, StructuralTypeDeclaration, Va
 pub(crate) struct EntryRequirements {
     pub(crate) requires: Vec<Proposition>,
     pub(crate) runtime_requirements: Vec<Proposition>,
+    pub(crate) source_checked_requires: Vec<Proposition>,
 }
 
 pub(crate) fn lower(
@@ -108,13 +109,27 @@ pub(crate) fn lower(
             .filter(|clause| *clause != Proposition::Truth)
             .collect();
     }
+    // Source checking already decides each authored requirement at every
+    // ordinary call occurrence. Keep that origin through canonical merging;
+    // a generated runtime row must not acquire it merely by roster position.
+    let mut source_checked_requires = requires.clone();
+    normalize_requires(&mut source_checked_requires)?;
     requires.extend(runtime_requirements.iter().cloned());
+    normalize_requires(&mut requires)?;
+    Ok(EntryRequirements {
+        requires,
+        runtime_requirements,
+        source_checked_requires,
+    })
+}
+
+fn normalize_requires(requires: &mut Vec<Proposition>) -> Result<(), LoweringError> {
     // A requires roster is itself a conjunction, so a row that is a
     // top-level conjunction (crash arithmetic's runtime package restates
     // the authored clauses that way) is split into its conjuncts. Each
     // fact is then one row, and the dedup below cannot keep both a
     // clause and a conjunction containing it.
-    let mut pending = std::mem::take(&mut requires);
+    let mut pending = std::mem::take(requires);
     pending.reverse();
     while let Some(requirement) = pending.pop() {
         match requirement {
@@ -128,9 +143,5 @@ pub(crate) fn lower(
     // then normalize rather than exposing clause/runtime ordering
     // accidents. `Proposition`'s derived `Ord` is Rust declaration order,
     // not the canonical key; the shared helper orders by encoded bytes.
-    crate::scalar_graph::scalar_contracts::canonicalize_requires(&mut requires)?;
-    Ok(EntryRequirements {
-        requires,
-        runtime_requirements,
-    })
+    crate::scalar_graph::scalar_contracts::canonicalize_requires(requires)
 }

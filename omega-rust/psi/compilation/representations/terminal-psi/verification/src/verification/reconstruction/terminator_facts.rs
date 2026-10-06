@@ -45,9 +45,8 @@ pub(super) fn append_terminator(
             | Terminator::StructuralCase { .. }
     ) {
         for (edge, actions) in terminator.cleanup_rosters() {
-            if ignored_backedges.contains(&edge) {
-                continue;
-            }
+            // Cutting cyclic fact propagation does not suppress operations on
+            // that edge: its cleanup prerequisites still need a decision.
             let mut edge_axioms = axioms.clone();
             match terminator {
                 Terminator::Conditional {
