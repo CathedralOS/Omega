@@ -68,39 +68,26 @@ fn fused_states<'program>(
     let mut cursor = 0;
     while let Some(&(_, state)) = fused.get(cursor) {
         cursor += 1;
-        for statement in program.statement_table.statements(state.statement_nodes) {
-            let StatementNode::Transition(transition) = statement else {
+        for target_symbol in named_transition_targets(program, state) {
+            if fused_target_index(program, &fused, target_symbol).is_some() {
+                continue;
+            }
+            let Some((target_owner, _)) =
+                crate::semantic::calls::find_machine_by_entry_state(program, target_symbol)
+            else {
                 continue;
             };
-            for target in [transition.target, transition.continuation] {
-                if !program.statement_table.transition_target_is_valid(target) {
-                    continue;
-                }
-                let TransitionTargetNode::Named { path, .. } =
-                    program.statement_table.transition_target(target)
-                else {
-                    continue;
-                };
-                if fused_target_index(program, &fused, path.symbol).is_some() {
-                    continue;
-                }
-                let Some((target_owner, _)) =
-                    crate::semantic::calls::find_machine_by_entry_state(program, path.symbol)
-                else {
-                    continue;
-                };
-                // A bodyless callable contributes a contract and a call
-                // operation, never an executable state to this graph.
-                if !target_owner.body_is_present {
-                    continue;
-                }
-                for owner_state in program.machine_states(target_owner) {
-                    if !fused
-                        .iter()
-                        .any(|(_, candidate)| candidate.symbol == owner_state.symbol)
-                    {
-                        fused.push((target_owner, owner_state));
-                    }
+            // A bodyless callable contributes a contract and a call
+            // operation, never an executable state to this graph.
+            if !target_owner.body_is_present {
+                continue;
+            }
+            for owner_state in program.machine_states(target_owner) {
+                if !fused
+                    .iter()
+                    .any(|(_, candidate)| candidate.symbol == owner_state.symbol)
+                {
+                    fused.push((target_owner, owner_state));
                 }
             }
         }
@@ -118,27 +105,13 @@ fn fused_states<'program>(
         let Some(source_index) = owners.iter().position(|symbol| *symbol == owner.symbol) else {
             continue;
         };
-        for statement in program.statement_table.statements(state.statement_nodes) {
-            let StatementNode::Transition(transition) = statement else {
+        for target_symbol in named_transition_targets(program, state) {
+            let Some(target_index) = fused_target_index(program, &fused, target_symbol) else {
                 continue;
             };
-            for target in [transition.target, transition.continuation] {
-                if !program.statement_table.transition_target_is_valid(target) {
-                    continue;
-                }
-                let TransitionTargetNode::Named { path, .. } =
-                    program.statement_table.transition_target(target)
-                else {
-                    continue;
-                };
-                let Some(target_index) = fused_target_index(program, &fused, path.symbol) else {
-                    continue;
-                };
-                let target_owner = fused[target_index].0.symbol;
-                if let Some(target_index) = owners.iter().position(|symbol| *symbol == target_owner)
-                {
-                    predecessors.push((target_index, source_index));
-                }
+            let target_owner = fused[target_index].0.symbol;
+            if let Some(target_index) = owners.iter().position(|symbol| *symbol == target_owner) {
+                predecessors.push((target_index, source_index));
             }
         }
     }
@@ -171,6 +144,30 @@ fn fused_states<'program>(
             .is_some_and(|owner_index| retained[owner_index])
     });
     fused
+}
+
+/// The valid named targets of one state's transitions, in authored order:
+/// each transition's target and continuation, filtered to `Named` spells.
+fn named_transition_targets<'a>(
+    program: &'a TypedTrees,
+    state: &'a typed_trees::state::State,
+) -> impl Iterator<Item = symbols::SymbolHandle> + 'a {
+    program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .filter_map(|statement| match statement {
+            StatementNode::Transition(transition) => Some(transition),
+            _ => None,
+        })
+        .flat_map(|transition| [transition.target, transition.continuation])
+        .filter(|target| program.statement_table.transition_target_is_valid(*target))
+        .filter_map(
+            |target| match program.statement_table.transition_target(target) {
+                TransitionTargetNode::Named { path, .. } => Some(path.symbol),
+                _ => None,
+            },
+        )
 }
 
 /// The fused position of a named transition target: a state symbol resolves
