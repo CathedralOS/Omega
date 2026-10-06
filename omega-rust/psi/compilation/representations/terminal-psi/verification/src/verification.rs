@@ -22,10 +22,8 @@ use proof_admission::{
 use semantic_vocabulary::{EvidenceIdentity, EvidenceTermId, ObligationId, Proposition};
 use terminal_psi::TerminalModule;
 
-use crate::{
-    ModuleError, ValidatedTerminalModule, VerifiedTerminalStructuralFrontiers,
-    validate_module_retaining_frontiers,
-};
+use crate::validation::{VerifiedTerminalStructuralFrontiers, validate_module_retaining_frontiers};
+use crate::{ModuleError, ValidatedTerminalModule};
 
 mod call_composition;
 mod evidence_provenance;

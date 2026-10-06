@@ -1,17 +1,16 @@
-//! Optimizer module role: executable entrance. Optimizer-input entrance: reconstruct the complete unit seed, bind admitted
-//! proof facts, proof questions, and ownership frontiers, then seal the unit
-//! beside the verifier-owned input context.
+//! Optimizer module role: executable entrance. Optimizer-input entrance:
+//! reconstruct the complete unit seed, bind admitted proof facts and questions,
+//! then seal the unit beside the verifier-owned input context. Stage 01
+//! reconstructs current ownership from this unit before running any pass.
 
 mod accepted_obligations;
 mod error;
-mod ownership_frontiers;
 mod proof_questions;
 
 pub use error::VerifiedPsiOptimizationUnitBuildError;
 
 use abstract_operations::AbstractOperationPlan;
 use accepted_obligations::project_accepted_obligation_facts;
-use ownership_frontiers::project_ownership_frontiers;
 use proof_questions::project_proof_questions;
 
 /// The only optimizer-facing unit constructor. Consuming the verified carrier
@@ -30,8 +29,6 @@ pub fn build_verified_psi_optimization_unit(
     let unit = optimization_unit::attach_accepted_obligation_facts(seed, facts)?;
     let proof_questions = project_proof_questions(&input)?;
     let unit = optimization_unit::attach_proof_questions(unit, proof_questions)?;
-    let ownership_frontiers = project_ownership_frontiers(&input)?;
-    let unit = optimization_unit::attach_ownership_frontier_facts(unit, ownership_frontiers)?;
     Ok(VerifiedPsiOptimizationUnit { input, unit })
 }
 
@@ -58,15 +55,13 @@ impl VerifiedPsiOptimizationInput {
     }
 }
 
-/// Verifier-owned semantic and proof context retained beside the reconstructible
-/// Omega plan. The complete immutable Terminal module is intentional: narrow
-/// projections may be derived from it, but cannot recreate discarded place
-/// paths, call obligations, edge cleanup, or borrow frontiers.
+/// Verifier-owned proof context retained beside the reconstructible Omega plan.
+/// The complete immutable Terminal module remains for proof-question and cycle
+/// admission until those independent replay paths are deleted.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VerifiedPsiOptimizationContext {
     pub(crate) module: terminal_psi::TerminalModule,
     pub(crate) reconstructed_obligations: terminal_verifier::ReconstructedTerminalObligationSet,
-    pub(crate) structural_frontiers: terminal_verifier::VerifiedTerminalStructuralFrontiers,
 }
 
 impl VerifiedPsiOptimizationContext {
@@ -80,11 +75,6 @@ impl VerifiedPsiOptimizationContext {
         &self.reconstructed_obligations
     }
 
-    pub const fn structural_frontiers(
-        &self,
-    ) -> &terminal_verifier::VerifiedTerminalStructuralFrontiers {
-        &self.structural_frontiers
-    }
 }
 
 /// A reconstructible optimizer unit that cannot detach from the exact

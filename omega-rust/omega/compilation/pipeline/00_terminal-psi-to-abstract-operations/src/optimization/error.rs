@@ -16,13 +16,7 @@ pub enum VerifiedPsiOptimizationUnitBuildError {
     PropositionCodec(CodecError),
     FactIndex(optimization_unit::AcceptedObligationFactIndexError),
     ProofQuestionIndex(optimization_unit::ProofQuestionIndexError),
-    OwnershipFrontierFactIndex(optimization_unit::OwnershipFrontierFactIndexError),
     MissingStructuralCatalogMachine(MachineId),
-    MissingStructuralFrontierMachine(MachineId),
-    MissingStructuralFrontier {
-        machine: MachineId,
-        site: optimization_unit::OwnershipFrontierSite,
-    },
 }
 
 impl std::fmt::Display for VerifiedPsiOptimizationUnitBuildError {
@@ -53,14 +47,6 @@ impl From<optimization_unit::AcceptedObligationFactIndexError>
 {
     fn from(error: optimization_unit::AcceptedObligationFactIndexError) -> Self {
         Self::FactIndex(error)
-    }
-}
-
-impl From<optimization_unit::OwnershipFrontierFactIndexError>
-    for VerifiedPsiOptimizationUnitBuildError
-{
-    fn from(error: optimization_unit::OwnershipFrontierFactIndexError) -> Self {
-        Self::OwnershipFrontierFactIndex(error)
     }
 }
 

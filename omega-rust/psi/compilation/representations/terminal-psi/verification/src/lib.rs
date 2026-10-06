@@ -47,14 +47,11 @@ pub use terminal_trace_v1::{
     reconstruct_terminal_trace_v1_rows,
 };
 pub use validation::trapping_integer::reconstruct_trapping_integer_normal_return_equation;
-pub use validation::validate_module_retaining_frontiers;
 pub use validation::{
     AtomicAccessRefusal, ContractClauseKind, ControlCycleIneligibility,
     ModuleError, ServiceCeilingOwner, StructuralSignatureOwner, SuspensionCallPlanError,
     ValidatedInterpretableTerminalModule, ValidatedOptimizableTerminalModule,
-    ValidatedTerminalModule, VerifiedLiveClaim, VerifiedMachineStructuralFrontiers,
-    VerifiedOwnedStructuralPlace, VerifiedPartialStructuralCustody,
-    VerifiedStructuralOwnershipFrontier, VerifiedTerminalStructuralFrontiers,
+    ValidatedTerminalModule,
     maximum_registered_obligation_id,
     scalar_block_invariant_scope, substitute_crash_routes,
     validate_module, validate_module_for_interpretation, validate_module_for_optimization,

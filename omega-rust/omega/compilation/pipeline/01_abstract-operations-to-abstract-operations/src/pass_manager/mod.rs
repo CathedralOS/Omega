@@ -76,7 +76,25 @@ impl VerifiedPsiOptimizationSession {
         verified: VerifiedPsiOptimizationUnit,
     ) -> Result<Self, OptimizationUnitValidationError> {
         let cycle_components = validate_verified_psi_cycle_components(&verified)?;
+        let admitted_machines = cycle_components
+            .components()
+            .iter()
+            .map(|component| component.id.machine)
+            .collect::<std::collections::BTreeSet<_>>()
+            .into_iter()
+            .collect::<Vec<_>>();
         let (input, unit) = verified.into_parts();
+        let frontiers =
+            optimization_unit_semantics::reconstruct_ownership_frontier_facts_with_admitted_cycle_machines(
+                &unit,
+                &admitted_machines,
+            )?;
+        let unit = optimization_unit::attach_ownership_frontier_facts(unit, frontiers)
+            .map_err(|_| OptimizationUnitValidationError::OwnershipFrontierFactIndexMismatch)?;
+        optimization_unit_semantics::validate_psi_optimization_unit_with_admitted_cycle_machines(
+            &unit,
+            &admitted_machines,
+        )?;
         Ok(Self {
             input,
             unit,

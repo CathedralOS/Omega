@@ -46,6 +46,7 @@ pub fn structural_place_access(
 
 // Whole-unit acceptance.
 pub use unit_validation::{
+    reconstruct_ownership_frontier_facts_with_admitted_cycle_machines,
     validate_psi_optimization_unit, validate_psi_optimization_unit_with_admitted_cycle_machines,
 };
 

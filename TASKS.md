@@ -3464,9 +3464,6 @@ deletions, which the commit lists.
     `omega-rust/omega/compilation/pipeline/01_abstract-operations-to-abstract-operations/src/rules/proof_check_elision/`
     read "an Exact operation's canonical goal holds", which
     **CHECKER-DISCHARGES-OPERATION-OBLIGATIONS** makes true;
-  - move the structural ownership frontier reconstruction
-    (`omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/frontier.rs`
-    and `frontier/`) into an Omega analysis owned by stage 01;
 
   Stage 06 now owns control-flow cleanup, global value numbering and sparse
   conditional constant propagation validation plus cleanup retention. Its

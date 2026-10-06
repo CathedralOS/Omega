@@ -58,6 +58,7 @@ pub(crate) fn validate_function(
     descriptor_requirements: &mut Vec<
         terminal_semantics::descriptor_results::DescriptorCompatibilityRequirement,
     >,
+    ownership_frontiers: &mut Vec<optimization_unit::OwnershipFrontierFact>,
 ) -> Result<(), OptimizationUnitValidationError> {
     if let Some(subject) = function.nominal_cleanup_subject {
         if function.attachment != Some(subject)
@@ -144,6 +145,7 @@ pub(crate) fn validate_function(
     )?;
     validate_places_and_claims(function)?;
     let requirements = current_ownership::validate_current_ownership_frontier_collecting(
+        unit.psi,
         function,
         &control_flow.blocks,
         &control_flow.successors,
@@ -151,6 +153,7 @@ pub(crate) fn validate_function(
         boundary_machines,
         structural_types,
         call_accesses,
+        ownership_frontiers,
     )?;
     descriptor_requirements.extend(requirements);
     Ok(())

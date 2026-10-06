@@ -7,7 +7,10 @@ use crate::current_ownership::structural::projected_root_is_fully_consumed;
 use crate::current_ownership::{CurrentOwnership, LiveClaim, bind_owned_parameters};
 use abstract_operations::AbstractOperation as O;
 use abstract_operations::AbstractStructuralCallResult;
-use optimization_unit::{OptimizationBlock, PsiOptimizationFunction};
+use optimization_unit::{
+    OptimizationBlock, OwnershipFrontierFact, OwnershipFrontierSite, OwnershipFrontierSnapshot,
+    PsiOptimizationFunction,
+};
 use semantic_vocabulary::{BlockId, MachineId, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{
@@ -151,6 +154,8 @@ pub(super) fn validate_current_ownership_cfg(
     structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     call_accesses: &super::CallAccesses,
     entry: CurrentOwnership,
+    psi: terminal_psi::TerminalPsiIdentity,
+    facts: &mut Vec<OwnershipFrontierFact>,
 ) -> Result<
     Vec<terminal_semantics::descriptor_results::DescriptorCompatibilityRequirement>,
     OptimizationUnitValidationError,
@@ -165,17 +170,28 @@ pub(super) fn validate_current_ownership_cfg(
     let mut incoming = BTreeMap::<BlockId, CurrentOwnership>::new();
     incoming.insert(function.entry, entry);
     let mut returned_reference_sources = Vec::new();
+    let mut snapshots = BTreeMap::<OwnershipFrontierSite, OwnershipFrontierSnapshot>::new();
 
     while let Some(block_id) = ready.pop_first() {
         let mut frontier = incoming
             .get(&block_id)
             .expect("reachable block has a current ownership frontier")
             .clone();
+        snapshots.insert(
+            OwnershipFrontierSite::BlockEntry(block_id),
+            frontier.snapshot(),
+        );
 
         let block = blocks[&block_id];
         for (node_index, node) in block.nodes.iter().enumerate() {
             let node_index =
                 u32::try_from(node_index).expect("optimization-unit node position fits u32");
+            let psi_operation = node.operation.psi_operation();
+            if let Some(operation) = psi_operation {
+                snapshots
+                    .entry(OwnershipFrontierSite::OperationEntry(operation))
+                    .or_insert_with(|| frontier.snapshot());
+            }
 
             // Restoration windows may repair their own temporary holes, but
             // cannot reanimate subtrees permanently consumed by an owned move
@@ -933,6 +949,12 @@ pub(super) fn validate_current_ownership_cfg(
                 }
                 _ => {}
             }
+            if let Some(operation) = psi_operation {
+                snapshots.insert(
+                    OwnershipFrontierSite::OperationExit(operation),
+                    frontier.snapshot(),
+                );
+            }
         }
 
         for edge in &block
@@ -941,6 +963,10 @@ pub(super) fn validate_current_ownership_cfg(
             .expect("validated block is nonempty")
             .successors
         {
+            snapshots.insert(
+                OwnershipFrontierSite::EdgeEntry(edge.psi_edge),
+                frontier.snapshot(),
+            );
             pins.check_edge(
                 function,
                 block_id,
@@ -967,6 +993,10 @@ pub(super) fn validate_current_ownership_cfg(
                 &edge.structural_bindings,
                 blocks[&edge.target],
             )?;
+            snapshots.insert(
+                OwnershipFrontierSite::EdgeExit(edge.psi_edge),
+                outgoing.snapshot(),
+            );
             if let Some(existing) = incoming.get(&edge.target) {
                 if existing.claims != outgoing.claims {
                     return Err(OptimizationUnitValidationError::CurrentClaimJoinMismatch {
@@ -1000,5 +1030,10 @@ pub(super) fn validate_current_ownership_cfg(
     }
 
     super::references::validate_return_coverage(function, &returned_reference_sources)?;
+    facts.extend(
+        snapshots.into_iter().map(|(site, snapshot)| {
+            OwnershipFrontierFact::new(psi, function.machine, site, snapshot)
+        }),
+    );
     Ok(pins.descriptor_requirements())
 }

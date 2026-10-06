@@ -110,10 +110,8 @@ use foundation::{
 pub(crate) use foundation::{
     structural_element_scalar, structural_leaf_type, view_extent_leaf_has_extent,
 };
-pub use frontier::{
-    VerifiedLiveClaim, VerifiedMachineStructuralFrontiers, VerifiedOwnedStructuralPlace,
-    VerifiedPartialStructuralCustody, VerifiedStructuralOwnershipFrontier,
-    VerifiedTerminalStructuralFrontiers,
+pub(crate) use frontier::{
+    VerifiedMachineStructuralFrontiers, VerifiedTerminalStructuralFrontiers,
 };
 use partial_affine::{is_partial_affine_path, partial_affine_residuals, partial_affine_root_type};
 use proof_recursion::validate_proof_recursive_components;

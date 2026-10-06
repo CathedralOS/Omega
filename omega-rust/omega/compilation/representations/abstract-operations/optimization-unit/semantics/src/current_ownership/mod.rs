@@ -12,7 +12,11 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use optimization_unit::{OptimizationBlock, PsiOptimizationFunction};
+use optimization_unit::{
+    OptimizationBlock, OwnershipFrontierFact, OwnershipFrontierLiveClaim,
+    OwnershipFrontierOwnedPlace, OwnershipFrontierPartialCustody, OwnershipFrontierSnapshot,
+    PsiOptimizationFunction,
+};
 use semantic_vocabulary::{BlockId, ClaimId, MachineId, PlaceId, StructuralTypeId};
 use terminal_psi::{
     BoundaryMachineDeclaration, StructuralAccess, StructuralMultiplicity, StructuralPathSegment,
@@ -41,6 +45,7 @@ pub(crate) use block_parameters::parameter_establishment_order;
 pub(crate) use continuation::valid_partial_continuation_complement;
 
 pub(super) fn validate_current_ownership_frontier_collecting(
+    psi: terminal_psi::TerminalPsiIdentity,
     function: &PsiOptimizationFunction,
     blocks: &BTreeMap<BlockId, &OptimizationBlock>,
     successors: &BTreeMap<BlockId, Vec<BlockId>>,
@@ -51,6 +56,7 @@ pub(super) fn validate_current_ownership_frontier_collecting(
     >,
     structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     call_accesses: &CallAccesses,
+    facts: &mut Vec<OwnershipFrontierFact>,
 ) -> Result<
     Vec<terminal_semantics::descriptor_results::DescriptorCompatibilityRequirement>,
     OptimizationUnitValidationError,
@@ -65,6 +71,8 @@ pub(super) fn validate_current_ownership_frontier_collecting(
         structural_types,
         call_accesses,
         entry,
+        psi,
+        facts,
     )
 }
 
@@ -85,6 +93,39 @@ struct CurrentOwnership {
     owned_places: BTreeMap<PlaceId, StructuralMultiplicity>,
     partial_custody_paths: BTreeMap<PlaceId, BTreeSet<Vec<StructuralPathSegment>>>,
     live_references: Vec<LiveReference>,
+}
+
+impl CurrentOwnership {
+    fn snapshot(&self) -> OwnershipFrontierSnapshot {
+        OwnershipFrontierSnapshot {
+            claims: self
+                .claims
+                .iter()
+                .map(|(claim, live)| OwnershipFrontierLiveClaim {
+                    claim: *claim,
+                    input: live.input,
+                    path: live.path.clone(),
+                    multiplicity: live.multiplicity,
+                })
+                .collect(),
+            owned_places: self
+                .owned_places
+                .iter()
+                .map(|(place, multiplicity)| OwnershipFrontierOwnedPlace {
+                    place: *place,
+                    multiplicity: *multiplicity,
+                })
+                .collect(),
+            partial_custody: self
+                .partial_custody_paths
+                .iter()
+                .map(|(place, moved_paths)| OwnershipFrontierPartialCustody {
+                    place: *place,
+                    moved_paths: moved_paths.iter().cloned().collect(),
+                })
+                .collect(),
+        }
+    }
 }
 
 fn reconstruct_entry_ownership(

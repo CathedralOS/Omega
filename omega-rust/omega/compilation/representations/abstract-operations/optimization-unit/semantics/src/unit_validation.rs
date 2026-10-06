@@ -56,6 +56,22 @@ pub fn validate_psi_optimization_unit_with_admitted_cycle_machines(
     validate_psi_optimization_unit_with_control_cycles(unit, &policy)
 }
 
+/// Reconstruct the current ownership frontier from the executable optimization
+/// unit itself. The returned facts carry no verifier snapshot or side channel.
+pub fn reconstruct_ownership_frontier_facts_with_admitted_cycle_machines(
+    unit: &PsiOptimizationUnit,
+    admitted_machines: &[MachineId],
+) -> Result<Vec<optimization_unit::OwnershipFrontierFact>, OptimizationUnitValidationError> {
+    identity_indexes::validate_identity_and_fact_indexes(unit)?;
+    let mut policy = function_structure::ControlCyclePolicy::default();
+    for &machine in admitted_machines {
+        policy.admit(machine);
+    }
+    let mut facts = catalogs::index_and_validate_unit_catalogs(unit, &policy)?.ownership_frontiers;
+    facts.sort_by_key(|fact| (fact.machine, fact.site));
+    Ok(facts)
+}
+
 pub(crate) fn validate_psi_optimization_unit_with_control_cycles(
     unit: &PsiOptimizationUnit,
     cycle_policy: &function_structure::ControlCyclePolicy,

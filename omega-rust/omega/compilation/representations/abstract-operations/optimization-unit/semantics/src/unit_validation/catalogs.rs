@@ -19,6 +19,7 @@ pub(super) struct UnitIndexes<'a> {
         BTreeMap<BoundaryMachineId, &'a terminal_psi::BoundaryMachineDeclaration>,
     pub(super) services: BTreeMap<ServiceId, &'a terminal_psi::ServiceDeclaration>,
     pub(super) pruned: BTreeSet<MachineId>,
+    pub(super) ownership_frontiers: Vec<optimization_unit::OwnershipFrontierFact>,
 }
 
 pub(super) fn index_and_validate_unit_catalogs<'unit>(
@@ -111,6 +112,7 @@ pub(super) fn index_and_validate_unit_catalogs<'unit>(
     validate_provider_service_refinements(unit, &machines, &boundary_machines)?;
     let call_accesses = crate::current_ownership::CallAccesses::new(&machines, &structural_types);
     let mut descriptor_requirements = BTreeMap::new();
+    let mut ownership_frontiers = Vec::new();
     for function in &unit.functions {
         validate_function(
             unit,
@@ -123,6 +125,7 @@ pub(super) fn index_and_validate_unit_catalogs<'unit>(
             cycle_policy,
             &call_accesses,
             descriptor_requirements.entry(function.machine).or_default(),
+            &mut ownership_frontiers,
         )?;
         validate_structural_field_range_authority(unit, function, &structural_types)?;
     }
@@ -132,6 +135,7 @@ pub(super) fn index_and_validate_unit_catalogs<'unit>(
         boundary_machines,
         services,
         pruned,
+        ownership_frontiers,
     })
 }
 
@@ -698,6 +702,7 @@ pub(super) fn validate_final_authorities(
         boundary_machines,
         services,
         pruned,
+        ..
     } = indexes;
     for fact in &unit.ownership_frontier_facts {
         if unit

@@ -127,14 +127,13 @@ impl AdmittedNativeArtifact {
 pub(super) fn lower_decoded_native_module(
     module: &terminal_psi::TerminalModule,
 ) -> Result<AdmittedNativeArtifact, ArtifactLoweringError> {
-    let (validated, structural_frontiers) =
-        terminal_verifier::validate_module_retaining_frontiers(module)
-            .map_err(ArtifactLoweringError::Validation)?;
+    let validated =
+        terminal_verifier::validate_module(module).map_err(ArtifactLoweringError::Validation)?;
     let reconstructed_obligations =
         terminal_verifier::reconstruct_execution_terminal_obligations(validated)
             .map_err(ArtifactLoweringError::Validation)?;
     let plan = lower_decoded_module(module).map_err(ArtifactLoweringError::Lowering)?;
-    let context = retain_optimization_context(module, reconstructed_obligations, structural_frontiers);
+    let context = retain_optimization_context(module, reconstructed_obligations);
     Ok(AdmittedNativeArtifact {
         optimization_input: VerifiedPsiOptimizationInput { plan, context },
     })
