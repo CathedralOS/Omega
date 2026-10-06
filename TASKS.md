@@ -676,8 +676,8 @@ defines the complete product bar.
   Crash/abort/process exit has no cleanup successor. Whole-root conditional
   scalar returns preserve reverse parameter order, covered by
   `pass/borrows/runtime_affine_local_case_return_exit` (42) and
-  `pass/borrows/runtime_case_return_parameter_order_exit` (0), both native and
-  interpreted. The remaining frontier is residual cleanup:
+  `pass/borrows/runtime_case_return_parameter_order_exit` (0) on the native
+  route. The remaining frontier is residual cleanup:
   - Extend the ordinary normal-edge cleanup plans in
     `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/execution/terminal_cleanup.rs`
     to abandoned construction prefixes and mixed dying roots with executable
