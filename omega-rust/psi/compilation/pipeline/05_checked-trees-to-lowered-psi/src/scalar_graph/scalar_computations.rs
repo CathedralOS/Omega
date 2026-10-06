@@ -480,7 +480,7 @@ impl<'a> Expansion<'a> {
             erased_proof_formals: Vec::new(),
             bindings: Vec::new(),
             terminator: LoweredScalarBranchTerminator::Jump {
-                trivial_affine_discards: Vec::new(),
+                cleanup_actions: Vec::new(),
                 target,
                 structural_arguments: structural_arguments.to_vec(),
                 arguments: parameters(&completed_types)
@@ -629,7 +629,7 @@ impl<'a> Expansion<'a> {
             erased_proof_formals: Vec::new(),
             bindings: vec![binding],
             terminator: LoweredScalarBranchTerminator::Jump {
-                trivial_affine_discards: Vec::new(),
+                cleanup_actions: Vec::new(),
                 target,
                 arguments,
                 erased_arguments: Vec::new(),

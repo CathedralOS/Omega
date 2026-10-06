@@ -70,7 +70,7 @@ impl Expansion<'_> {
                 erased_proof_formals: Vec::new(),
                 bindings: Vec::new(),
                 terminator: LoweredScalarBranchTerminator::Jump {
-                    trivial_affine_discards: Vec::new(),
+                    cleanup_actions: Vec::new(),
                     target,
                     arguments,
                     erased_arguments: Vec::new(),

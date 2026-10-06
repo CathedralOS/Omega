@@ -138,15 +138,10 @@ pub(super) fn account(
         // An owned selection moved each candidate source's custody into
         // the join's residual parameters, which die at the same authored
         // exit. The receipt, not a transfer or disposal row on the dead
-        // source place, accounts for that consumption on an ordinary
-        // successor; other exits still need their own residual evidence.
-        let selection_residual_source = matches!(
-            terminator,
-            CheckedComposedUnitControlTerminatorPlan::Jump { .. }
-                | CheckedComposedUnitControlTerminatorPlan::Conditional { .. }
-                | CheckedComposedUnitControlTerminatorPlan::ConditionalReturn { .. }
-                | CheckedComposedUnitControlTerminatorPlan::GuardedJumps { .. }
-        ) && result.multiplicity == Multiplicity::Affine
+        // source place, accounts for that consumption independently of the
+        // final control shape. Exact exit cleanup
+        // must still account for the selection's surviving result and residuals.
+        let selection_residual_source = result.multiplicity == Multiplicity::Affine
             && facts
                 .flow
                 .ownership

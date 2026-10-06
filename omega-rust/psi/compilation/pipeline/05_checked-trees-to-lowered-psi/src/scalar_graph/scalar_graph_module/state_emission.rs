@@ -160,7 +160,7 @@ impl GraphEmission<'_> {
                 erased_arguments,
                 erased_proof_arguments,
                 structural_arguments,
-                trivial_affine_discards,
+                cleanup_actions,
             } => {
                 if erased_arguments
                     .iter()
@@ -168,7 +168,7 @@ impl GraphEmission<'_> {
                 {
                     return unsupported("erased call operands require completed scalar operands");
                 }
-                if (!structural_arguments.is_empty() || !trivial_affine_discards.is_empty())
+                if (!structural_arguments.is_empty() || !cleanup_actions.is_empty())
                     && arguments
                         .iter()
                         .any(direct_expression_contains_short_circuit)
@@ -294,11 +294,7 @@ impl GraphEmission<'_> {
                         arguments,
                         erased_arguments,
                         erased_proof_arguments,
-                        cleanup_actions: trivial_affine_discards
-                            .iter()
-                            .copied()
-                            .map(terminal_psi::TerminalAffineCleanupAction::DiscardRoot)
-                            .collect(),
+                        cleanup_actions: cleanup_actions.clone(),
                     }
                 }
             }

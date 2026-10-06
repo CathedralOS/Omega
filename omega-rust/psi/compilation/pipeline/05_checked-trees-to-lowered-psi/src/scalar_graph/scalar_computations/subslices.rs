@@ -340,7 +340,7 @@ impl super::Expansion<'_> {
             bindings: Vec::new(),
             structural_effects: vec![effect],
             terminator: LoweredScalarBranchTerminator::Jump {
-                trivial_affine_discards: Vec::new(),
+                cleanup_actions: Vec::new(),
                 target,
                 arguments: super::parameters(input_types),
                 erased_arguments: Vec::new(),
@@ -360,7 +360,7 @@ impl super::Expansion<'_> {
             bindings: Vec::new(),
             structural_effects: vec![LoweredScalarEffect::EstablishElementView(establishment)],
             terminator: LoweredScalarBranchTerminator::Jump {
-                trivial_affine_discards: Vec::new(),
+                cleanup_actions: Vec::new(),
                 target: entry,
                 arguments: super::parameters(input_types),
                 erased_arguments: Vec::new(),

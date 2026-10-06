@@ -23,7 +23,7 @@ use semantic_vocabulary::{
 };
 use terminal_psi::{
     CrashCause as TerminalCrashCause, StructuralArgument, StructuralMultiplicity,
-    StructuralParameterDeclaration, StructuralPathSegment,
+    StructuralParameterDeclaration, StructuralPathSegment, TerminalAffineCleanupAction,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -47,7 +47,8 @@ pub(crate) enum LoweredScalarBranchTerminator {
         /// them against the source state's completed value namespace.
         erased_proof_arguments: Vec<LoweredProofTerm>,
         structural_arguments: Vec<StructuralArgument>,
-        trivial_affine_discards: Vec<PlaceId>,
+        /// Exact ordered edge work, including executable nominal hooks.
+        cleanup_actions: Vec<TerminalAffineCleanupAction>,
     },
     Conditional {
         condition: LoweredBooleanReturnExpression,

@@ -93,7 +93,7 @@ impl Expansion<'_> {
                     erased_proof_formals: Vec::new(),
                     bindings: Vec::new(),
                     terminator: LoweredScalarBranchTerminator::Jump {
-                        trivial_affine_discards: Vec::new(),
+                        cleanup_actions: Vec::new(),
                         target: selected,
                         arguments: parameters(input_types),
                         erased_arguments: Vec::new(),
@@ -145,7 +145,7 @@ impl Expansion<'_> {
                         // Source replay and the coverage pass above establish
                         // this final literal Boolean alternative, not a default.
                         LoweredScalarBranchTerminator::Jump {
-                            trivial_affine_discards: Vec::new(),
+                            cleanup_actions: Vec::new(),
                             target: selected,
                             arguments: parameters(input_types),
                             erased_arguments: Vec::new(),

@@ -1,0 +1,155 @@
+use omega::language::core::binding;
+use omega::language::core::external_binding;
+
+// This fixture explicitly assumes finite, normal completion of one byte write
+// from its reviewed external provider. It does not strengthen std::Console.
+pub boundary trait Console {
+    machine write_byte(byte: i32)
+    reaches Console
+    terminates;
+
+    machine exit_process(return_code: i32)
+    reaches Console;
+}
+
+pub data ConsoleNativeProvider {}
+
+macos_arm64 boundary machine ConsoleNativeProvider::write_byte(byte: i32)
+    satisfies Console::write_byte;
+macos_arm64 boundary machine ConsoleNativeProvider::exit_process(return_code: i32)
+    satisfies Console::exit_process;
+linux_x86_64 boundary machine ConsoleNativeProvider::write_byte(byte: i32)
+    satisfies Console::write_byte;
+linux_x86_64 boundary machine ConsoleNativeProvider::exit_process(return_code: i32)
+    satisfies Console::exit_process;
+linux_arm64 boundary machine ConsoleNativeProvider::write_byte(byte: i32)
+    satisfies Console::write_byte;
+linux_arm64 boundary machine ConsoleNativeProvider::exit_process(return_code: i32)
+    satisfies Console::exit_process;
+
+windows_x86_64 machine ConsoleNativeProvider::write_byte(byte: i32)
+    satisfies Console::write_byte
+    via ForeignBinding::CompilerIntrinsic;
+windows_x86_64 machine exit_process_binding() -> ForeignBinding<12, 11, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::PeByName {
+            library: "kernel32.dll",
+            export: "ExitProcess",
+        },
+    }
+}
+windows_x86_64 machine ConsoleNativeProvider::exit_process(return_code: i32)
+    satisfies Console::exit_process
+    via exit_process_binding();
+
+data Token { ready: bool; byte: i32; }
+
+machine Token::drop(token: &mut Token)
+requires token.ready
+reaches Console
+{
+    Console::write_byte(token.byte);
+    token.ready = false;
+}
+
+machine outgoing(byte: i32) -> i32 reaches Console {
+    Console::write_byte(88);
+    byte
+}
+
+// The selected return evaluates its result before disposing locals. The caller
+// observes that captured result only after both hooks complete.
+machine choose(first_path: bool) -> i32 reaches Console {
+    transition { _ -> finish(first_path) }
+
+    state finish(first_path: bool) {
+        let first: Token = Token { ready: true, byte: 65 };
+        let second: Token = Token { ready: true, byte: 66 };
+        transition first_path {
+            true -> (outgoing(67))
+            _ -> (outgoing(68))
+        }
+    }
+}
+
+data Main { console: Binding<Console>; }
+
+machine consume(token: Token, byte: i32) -> i32
+requires token.ready
+reaches Console
+{
+    Console::write_byte(88);
+    byte
+}
+
+machine choose_consuming(first_path: bool) -> i32 reaches Console {
+    transition { _ -> finish(first_path) }
+
+    state finish(first_path: bool) {
+        let first: Token = Token { ready: true, byte: 65 };
+        let second: Token = Token { ready: true, byte: 66 };
+        transition first_path {
+            true -> (consume(second, 67))
+            _ -> (outgoing(68))
+        }
+    }
+}
+
+data Choice { case Empty; case Some(value: i32); }
+
+// The marker is established between the candidate owners. Selection transports
+// its home, while only one scalar return consumes it as an operand.
+machine choose_selected(first_path: bool) -> i32 reaches Console {
+    transition { _ -> finish(first_path) }
+
+    state finish(first_path: bool) {
+        let left: Choice = Choice::Some { value: 67 };
+        let marker: Token = Token { ready: true, byte: 65 };
+        let right: Choice = Choice::Empty;
+        let selected: Choice = match first_path {
+            true -> left,
+            false -> right
+        };
+        transition selected in Choice::Some {
+            true -> (consume(marker, 67))
+            _ -> (outgoing(68))
+        }
+    }
+}
+
+data Payload { case First(value: i32); case Second(value: i32); }
+
+// The result is bound by the chosen case, then kept across nominal cleanup.
+machine choose_payload(payload: &Payload) -> i32 reaches Console {
+    transition { _ -> finish(payload) }
+
+    state finish(payload: &Payload) {
+        let marker: Token = Token { ready: true, byte: 65 };
+        transition payload {
+            Payload::First { value } -> (value)
+            Payload::Second { value } -> (value)
+        }
+    }
+}
+
+machine Main::main(main: &mut Main) reaches Console {
+    let first: i32 = choose(true);
+    main.console.write_byte(first);
+    let second: i32 = choose(false);
+    main.console.write_byte(second);
+    let consumed: i32 = choose_consuming(true);
+    main.console.write_byte(consumed);
+    let retained: i32 = choose_consuming(false);
+    main.console.write_byte(retained);
+    let selected: i32 = choose_selected(true);
+    main.console.write_byte(selected);
+    let unselected: i32 = choose_selected(false);
+    main.console.write_byte(unselected);
+    let left: Payload = Payload::First { value: 69 };
+    let left_value: i32 = choose_payload(&left);
+    main.console.write_byte(left_value);
+    let right: Payload = Payload::Second { value: 70 };
+    let right_value: i32 = choose_payload(&right);
+    main.console.write_byte(right_value);
+    main.console.write_byte(10);
+}

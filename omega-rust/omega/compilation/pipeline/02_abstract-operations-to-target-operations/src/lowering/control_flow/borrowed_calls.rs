@@ -57,23 +57,37 @@ pub(super) fn argument(
     // producer keeps whole storage, and the argument transports the leaf's
     // address inside it. The verifier admits the same projected loan only
     // under its exact-access and claim-free bounds, which this shape check
-    // replays against the home's own result metadata. An empty path borrows
+    // replays against the home's own establishment metadata. An empty path borrows
     // the home whole when the formal is no primitive reference — primitive
     // storage keeps its own custody channel below.
     if let Some(home) = live.structural_homes.get(&argument.place)
         && (!argument.path.is_empty()
             || !super::primitive_storage::is_primitive_reference(declaration, types))
     {
-        let (producer, result) = home
-            .operation_result()
-            .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
+        // A selected owner has a block-arrival home, not one distinguished
+        // incoming producer. Borrow that destination's storage; choosing an
+        // incoming operation would lose the runtime selection and its updates.
+        let source = match &home.origin {
+            target_operations::TargetStructuralHomeOrigin::OperationResult {
+                operation, ..
+            } => TargetStructuralArgumentSource::StructuralHome {
+                psi_operation: *operation,
+            },
+            target_operations::TargetStructuralHomeOrigin::BlockParameter {
+                block,
+                declaration,
+            } => TargetStructuralArgumentSource::BlockParameter {
+                block: *block,
+                place: declaration.place,
+            },
+        };
         let mut shape_cache = BTreeMap::new();
         let mut active = BTreeSet::new();
         let (projected_type, projected_shape, source_byte_offset) = if argument.path.is_empty() {
             (
-                result.structural_type,
+                home.structural_type(),
                 crate::lowering::structural_layout::structural_shape(
-                    result.structural_type,
+                    home.structural_type(),
                     types,
                     &mut shape_cache,
                     &mut active,
@@ -82,7 +96,7 @@ pub(super) fn argument(
             )
         } else {
             crate::lowering::structural_layout::resolve_structural_projection_path(
-                result.structural_type,
+                home.structural_type(),
                 &argument.path,
                 types,
                 &mut shape_cache,
@@ -109,11 +123,14 @@ pub(super) fn argument(
             || (!declaration.qualifications.is_empty() && !owner_loan)
             || !declaration.projected_qualifications.is_empty()
             || projected_type != declaration.structural_type
-            || result.multiplicity == StructuralMultiplicity::Linear
-            || (!result.qualifications.is_empty() && !owner_loan)
-            || !result.projected_qualifications.is_empty()
-            || !result.qualification_establishments.is_empty()
-            || !result.claims.is_empty()
+            || home.access() != StructuralAccess::Owned
+            || home.multiplicity() == StructuralMultiplicity::Linear
+            || (!home.qualifications().is_empty() && !owner_loan)
+            || !home.projected_qualifications().is_empty()
+            || home
+                .operation_result()
+                .is_some_and(|(_, result)| !result.qualification_establishments.is_empty())
+            || home.has_claims()
             || crate::lowering::structural_layout::structural_parameter_shape(
                 projected_shape,
                 declaration.access,
@@ -129,16 +146,14 @@ pub(super) fn argument(
             place: argument.place,
             access: argument.access,
             path: argument.path.clone(),
-            root_structural_type: result.structural_type,
+            root_structural_type: home.structural_type(),
             structural_type: projected_type,
             shape: destination.shape,
             source_byte_offset,
             fixed_array_length: None,
             element_stride: None,
             indices: Vec::new(),
-            source: TargetStructuralArgumentSource::StructuralHome {
-                psi_operation: producer,
-            },
+            source,
             destination: destination.placement.clone(),
         });
     }

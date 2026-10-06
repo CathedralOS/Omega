@@ -34,6 +34,8 @@ mod record_captures;
 mod scalar_control;
 mod source_values;
 
+pub(crate) use scalar_control::ScalarReturnCleanup;
+
 pub(crate) struct Evaluation {
     /// The enclosing emission unit's scalar qualification namespace. A call
     /// result publishes the callee's qualified result in it, so argument
@@ -1447,7 +1449,7 @@ fn emit_state(
             erased_arguments,
             erased_proof_arguments,
             structural_arguments,
-            trivial_affine_discards,
+            cleanup_actions,
         } => Terminator::Jump {
             structural_arguments: structural_arguments.clone(),
             edge: edge_id(allocate_dense(next_edge)?),
@@ -1475,11 +1477,7 @@ fn emit_state(
                     )
                 })
                 .collect::<Result<Vec<_>, _>>()?,
-            cleanup_actions: trivial_affine_discards
-                .iter()
-                .copied()
-                .map(terminal_psi::TerminalAffineCleanupAction::DiscardRoot)
-                .collect(),
+            cleanup_actions: cleanup_actions.clone(),
         },
         LoweredScalarBranchTerminator::Conditional {
             condition,

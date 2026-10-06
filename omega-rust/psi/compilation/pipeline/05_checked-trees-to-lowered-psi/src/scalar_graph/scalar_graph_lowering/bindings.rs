@@ -695,7 +695,7 @@ impl Prepared {
                         bindings: prefix.bindings,
                         structural_effects: Vec::new(),
                         terminator: LoweredScalarBranchTerminator::Jump {
-                            trivial_affine_discards: Vec::new(),
+                            cleanup_actions: Vec::new(),
                             target,
                             arguments: computations::parameters(&prefix.value_types),
                             erased_arguments: Vec::new(),
@@ -727,7 +727,7 @@ impl Prepared {
                         destination,
                     }],
                     terminator: LoweredScalarBranchTerminator::Jump {
-                        trivial_affine_discards: Vec::new(),
+                        cleanup_actions: Vec::new(),
                         structural_arguments: Vec::new(),
                         target,
                         arguments: computations::parameters(&completed_types),
@@ -757,7 +757,7 @@ impl Prepared {
                         erased_proof_formals: Vec::new(),
                         bindings: vec![binding],
                         terminator: LoweredScalarBranchTerminator::Jump {
-                            trivial_affine_discards: Vec::new(),
+                            cleanup_actions: Vec::new(),
                             structural_arguments: Vec::new(),
                             target,
                             arguments: computations::parameters(&completed_types),
@@ -775,7 +775,7 @@ impl Prepared {
                 erased_proof_formals: Vec::new(),
                 bindings: prefix.bindings,
                 terminator: LoweredScalarBranchTerminator::Jump {
-                    trivial_affine_discards: Vec::new(),
+                    cleanup_actions: Vec::new(),
                     structural_arguments: Vec::new(),
                     target,
                     arguments: computations::parameters(&prefix.value_types),

@@ -470,7 +470,7 @@ fn emit_call(
         bindings: Vec::new(),
         structural_effects: vec![LoweredScalarEffect::Call(call)],
         terminator: LoweredScalarBranchTerminator::Jump {
-            trivial_affine_discards: Vec::new(),
+            cleanup_actions: Vec::new(),
             target,
             arguments: super::computations::parameters(output_types),
             erased_arguments: Vec::new(),

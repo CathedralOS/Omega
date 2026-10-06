@@ -1,6 +1,8 @@
-//! Structural parameters, projected borrowed operands, and primitive referents
-//! in scalar computations. Parameter projections reuse established storage;
-//! local construction remains independently restricted to supported whole values.
+//! Structural homes, projected borrowed operands, and primitive referents
+//! in scalar computations. Whole owned operands use the same storage contract
+//! for parameters and locals. Their call occurrence retains identity until
+//! checked ownership supplies copy or transfer authority; a nominal hook changes
+//! the receiving owner's cleanup, not the argument's storage representation.
 use crate::execution::terminal_unit::CheckedStructuralAccess;
 use crate::execution::terminal_unit::CheckedUnitStructuralArgumentPlan;
 use crate::execution::terminal_unit::CheckedUnitStructuralArgumentSourcePlan;
@@ -113,9 +115,7 @@ pub(crate) fn structural_computation_argument(
         }
         // This retains authored actual identity. Graph publication rejoins
         // affine transfers after multiplicity checking produces permissions.
-        return owned_parameter_argument(program, state, name.symbol, target).or_else(|| {
-            owned_copy_local_argument(program, state, call.statement_index, name.symbol, target)
-        });
+        return owned_argument(program, state, call.statement_index, name.symbol, target);
     }
     let target_type = plain_primitive_referent(program, target.type_reference)?;
     let parameters = program.state_parameters(state);
@@ -676,109 +676,76 @@ fn dense_structural_index(
     u32::try_from(index).ok()
 }
 
-fn owned_copy_local_argument(
+/// Resolve the established home first, then apply one owned-storage contract.
+/// Copying snapshots contents; affine arguments move at the exact call occurrence.
+/// Neither operation acquires disposal authority from its storage classification.
+fn owned_argument(
     program: &TypedTrees,
     state: &typed_trees::state::State,
     statement_index: usize,
     source_symbol: SymbolHandle,
     target: &StateParameter,
 ) -> Option<CheckedUnitStructuralArgumentPlan> {
-    if target.is_mutable
-        || program
-            .state_parameters(state)
-            .iter()
-            .any(|parameter| parameter.symbol == source_symbol)
-    {
+    if target.is_mutable {
         return None;
     }
-    let (_, local) = program
-        .state_local_declaration(state, source_symbol)
-        .filter(|&(ordinal, _)| ordinal < statement_index)?;
-    // Scalar operand sequencing snapshots the current contents before later
-    // arguments run. The binding may mutate; the copied value cannot alias it.
-    if !program
+    let parameters = program.state_parameters(state);
+    let (source, source_type) = if let Some(position) = parameters
+        .iter()
+        .position(|source| source.symbol == source_symbol)
+    {
+        let parameter = &parameters[position];
+        if parameter.is_const || parameter.is_mutable {
+            return None;
+        }
+        (
+            CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                parameter_index: dense_structural_index(program, parameters, position)?,
+            },
+            parameter.type_reference,
+        )
+    } else {
+        let (_, local) = program
+            .state_local_declaration(state, source_symbol)
+            .filter(|&(ordinal, _)| ordinal < statement_index)?;
+        if !program
             .expression_table
             .expression_is_valid(local.initial_value)
-        // Copying a closed plain-owned local preserves its established storage
-        // regardless of whether its carrier is an array, record, or case.
-        // Affine moves need their own transfer receipts and remain excluded.
-        || [local.type_reference, target.type_reference]
-            .iter()
-            .any(|reference| {
-                program.primitive_type_reference(*reference).is_some()
-                    || !validation::has_plain_owned_contents(program, *reference)
-                    || crate::checks::type_multiplicity(program, *reference)
-                        != Multiplicity::Unrestricted
-            })
-    {
-        return None;
-    }
+        {
+            return None;
+        }
+        (
+            CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
+                symbol: source_symbol,
+            },
+            local.type_reference,
+        )
+    };
     let mut shapes = ShapeCollector::new(program);
-    let type_identity = shapes.add_type(local.type_reference, &[], &[])?;
-    if type_identity != shapes.add_type(target.type_reference, &[], &[])? {
-        return None;
-    }
-    Some(CheckedUnitStructuralArgumentPlan {
-        source: CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
-            symbol: source_symbol,
-        },
-        path: Vec::new(),
-        type_identity,
-        access: CheckedStructuralAccess::Owned,
-    })
-}
-
-fn owned_parameter_argument(
-    program: &TypedTrees,
-    state: &typed_trees::state::State,
-    source_symbol: SymbolHandle,
-    target: &StateParameter,
-) -> Option<CheckedUnitStructuralArgumentPlan> {
-    let parameters = program.state_parameters(state);
-    let source_position = parameters
-        .iter()
-        .position(|parameter| parameter.symbol == source_symbol)?;
-    let source = &parameters[source_position];
-    let mut shapes = ShapeCollector::new(program);
-    for parameter in [source, target] {
-        if (parameter.is_const)
-            || parameter.is_mutable
-            || !(matches!(
-                program
-                    .type_reference_table
-                    .type_reference(parameter.type_reference),
-                TypeReferenceNode::Named { .. }
-            ) || validation::is_closed_primitive_array_type(program, parameter.type_reference))
-            || program
-                .primitive_type_reference(parameter.type_reference)
-                .is_some()
+    for reference in [source_type, target.type_reference] {
+        if program.primitive_type_reference(reference).is_some()
             || !matches!(
-                crate::checks::type_multiplicity(program, parameter.type_reference),
+                crate::checks::type_multiplicity(program, reference),
                 Multiplicity::Unrestricted | Multiplicity::Affine
             )
-            || !(validation::is_closed_primitive_array_type(program, parameter.type_reference)
-                || validation::has_plain_owned_contents_with_numeric_constraints(
-                    program,
-                    parameter.type_reference,
-                ))
-            || structural_access_for_type_reference(program, parameter.type_reference)?
+            || !(validation::is_closed_primitive_array_type(program, reference)
+                || validation::has_cleanup_owned_contents(program, reference))
+            || structural_access_for_type_reference(program, reference)?
                 != CheckedStructuralAccess::Owned
-            || !parameter_qualifications(program, &mut shapes, parameter.type_reference, &[])?
-                .is_empty()
+            || !parameter_qualifications(program, &mut shapes, reference, &[])?.is_empty()
         {
             return None;
         }
     }
-    let type_identity = shapes.add_type(source.type_reference, &[], &[])?;
+    let type_identity = shapes.add_type(source_type, &[], &[])?;
     if type_identity != shapes.add_type(target.type_reference, &[], &[])?
-        || crate::checks::type_multiplicity(program, source.type_reference)
+        || crate::checks::type_multiplicity(program, source_type)
             != crate::checks::type_multiplicity(program, target.type_reference)
     {
         return None;
     }
-    let parameter_index = dense_structural_index(program, parameters, source_position)?;
     Some(CheckedUnitStructuralArgumentPlan {
-        source: CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index },
+        source,
         path: Vec::new(),
         type_identity,
         access: CheckedStructuralAccess::Owned,

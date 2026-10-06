@@ -242,11 +242,11 @@ impl GraphEmission<'_> {
             target,
             arguments,
             structural_arguments,
-            trivial_affine_discards,
+            cleanup_actions,
             ..
         } = &continuation_plan
             && structural_arguments.is_empty()
-            && trivial_affine_discards.is_empty()
+            && cleanup_actions.is_empty()
             && let [LoweredDirectExpression::Boolean { expression }] = arguments.as_slice()
             && contains_short_circuit(expression)
         {
@@ -491,10 +491,10 @@ impl GraphEmission<'_> {
                 target,
                 arguments,
                 structural_arguments,
-                trivial_affine_discards,
+                cleanup_actions,
                 ..
             } => {
-                if (!structural_arguments.is_empty() || !trivial_affine_discards.is_empty())
+                if (!structural_arguments.is_empty() || !cleanup_actions.is_empty())
                     && arguments
                         .iter()
                         .any(direct_expression_contains_short_circuit)
@@ -550,10 +550,7 @@ impl GraphEmission<'_> {
                         arguments,
                         erased_arguments: Vec::new(),
                         erased_proof_arguments: Vec::new(),
-                        cleanup_actions: trivial_affine_discards
-                            .into_iter()
-                            .map(terminal_psi::TerminalAffineCleanupAction::DiscardRoot)
-                            .collect(),
+                        cleanup_actions,
                     }
                 }
             }

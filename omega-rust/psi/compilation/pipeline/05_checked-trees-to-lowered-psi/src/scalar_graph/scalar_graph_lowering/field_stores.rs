@@ -131,7 +131,7 @@ impl Prepared {
                 erased_arguments: Vec::new(),
                 erased_proof_arguments: Vec::new(),
                 structural_arguments: Vec::new(),
-                trivial_affine_discards: Vec::new(),
+                cleanup_actions: Vec::new(),
             },
         });
         match self.expression {
@@ -148,7 +148,7 @@ impl Prepared {
                     erased_arguments: Vec::new(),
                     erased_proof_arguments: Vec::new(),
                     structural_arguments: Vec::new(),
-                    trivial_affine_discards: Vec::new(),
+                    cleanup_actions: Vec::new(),
                 },
             })),
             None => computations.retained_value(

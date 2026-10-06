@@ -1,6 +1,6 @@
-//! A named transition's operand calls move a source local on their edge alone.
+//! A transition's operand calls move a source local on their edge alone.
 //!
-//! `next(consume(local), ...)` evaluates `consume` on the selected edge, after
+//! `next(consume(local), ...)` and `(consume(local))` evaluate on the selected edge, after
 //! selection. When it takes a state local whole by value, the checker records
 //! that move as an owned `Transfer` at the call's own occurrence
 //! (`Call { statement, call_ordinal, target }`) beside the local's lexical
@@ -19,7 +19,7 @@ use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionNode;
 use typed_trees::statement::{StatementNode, TransitionTargetNode};
 
-/// The call occurrences inside the named target arguments of the transition
+/// The call occurrences inside the outgoing operands of the transition
 /// at `statement_index` that pass `local` whole as a positional argument, as
 /// the permission sources their moves are recorded under, in authored order.
 ///
@@ -40,14 +40,16 @@ pub fn transition_operand_moves(
     let StatementNode::Transition(transition) = statements.get(statement_index)? else {
         return None;
     };
-    let TransitionTargetNode::Named { arguments, .. } =
-        program.statement_table.transition_target(transition.target)
-    else {
-        return Some(Vec::new());
+    let operands = match program.statement_table.transition_target(transition.target) {
+        TransitionTargetNode::Named { arguments, .. } => {
+            program.statement_table.expression_handles(*arguments)
+        }
+        TransitionTargetNode::Value(value) => std::slice::from_ref(value),
+        _ => return Some(Vec::new()),
     };
     let mut nodes = Vec::new();
     let mut seen = HashSet::new();
-    for argument in program.statement_table.expression_handles(*arguments) {
+    for argument in operands {
         crate::expression_traversal::collect_expression_nodes(
             program, *argument, &mut nodes, &mut seen,
         );
@@ -81,9 +83,7 @@ pub fn transition_operand_moves(
             continue;
         }
         let mut occurrences = calls.iter().filter(|fact| {
-            fact.statement_index == statement_index
-                && fact.call_ordinal != 0
-                && fact.authored_expression == node
+            fact.statement_index == statement_index && fact.authored_expression == node
         });
         let occurrence = occurrences.next()?;
         if occurrences.next().is_some() {

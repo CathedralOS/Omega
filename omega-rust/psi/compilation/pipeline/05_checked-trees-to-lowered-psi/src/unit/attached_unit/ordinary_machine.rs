@@ -484,6 +484,7 @@ pub(super) fn emit(
             plan.machine,
             plan.state,
             control,
+            &[],
             &mut scalar_result_values,
             &mut next_value_identity,
             &mut next_block,

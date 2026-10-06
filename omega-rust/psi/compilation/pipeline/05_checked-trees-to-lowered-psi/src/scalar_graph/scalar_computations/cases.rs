@@ -442,8 +442,10 @@ impl Expansion<'_> {
                 erased_arguments: Vec::new(),
                 erased_proof_arguments: Vec::new(),
                 structural_arguments: Vec::new(),
-                trivial_affine_discards: if slot.multiplicity == StructuralMultiplicity::Affine {
-                    vec![slot.place]
+                cleanup_actions: if slot.multiplicity == StructuralMultiplicity::Affine {
+                    vec![terminal_psi::TerminalAffineCleanupAction::DiscardRoot(
+                        slot.place,
+                    )]
                 } else {
                     Vec::new()
                 },
@@ -468,7 +470,7 @@ impl Expansion<'_> {
                 erased_arguments: Vec::new(),
                 erased_proof_arguments: Vec::new(),
                 structural_arguments: Vec::new(),
-                trivial_affine_discards: Vec::new(),
+                cleanup_actions: Vec::new(),
             },
         });
         self.sequence(&operands, input_types, constructor, site, active)

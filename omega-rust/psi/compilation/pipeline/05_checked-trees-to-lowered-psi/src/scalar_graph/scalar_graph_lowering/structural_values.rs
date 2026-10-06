@@ -850,7 +850,7 @@ impl PreparedValue {
                 erased_arguments: Vec::new(),
                 erased_proof_arguments: Vec::new(),
                 structural_arguments: Vec::new(),
-                trivial_affine_discards: Vec::new(),
+                cleanup_actions: Vec::new(),
             },
         });
         for step in self.steps.into_iter().rev() {
@@ -893,7 +893,7 @@ impl PreparedValue {
                             erased_arguments: Vec::new(),
                             erased_proof_arguments: Vec::new(),
                             structural_arguments: Vec::new(),
-                            trivial_affine_discards: Vec::new(),
+                            cleanup_actions: Vec::new(),
                         },
                     });
                     computations.push(LoweredScalarBranchState {
@@ -909,7 +909,7 @@ impl PreparedValue {
                             erased_arguments: Vec::new(),
                             erased_proof_arguments: Vec::new(),
                             structural_arguments: vec![source],
-                            trivial_affine_discards: Vec::new(),
+                            cleanup_actions: Vec::new(),
                         },
                     })
                 }
@@ -939,7 +939,7 @@ impl PreparedValue {
                         erased_arguments: Vec::new(),
                         erased_proof_arguments: Vec::new(),
                         structural_arguments: Vec::new(),
-                        trivial_affine_discards: Vec::new(),
+                        cleanup_actions: Vec::new(),
                     },
                 }),
                 Step::Aggregate {
@@ -958,7 +958,7 @@ impl PreparedValue {
                         erased_arguments: Vec::new(),
                         erased_proof_arguments: Vec::new(),
                         structural_arguments: Vec::new(),
-                        trivial_affine_discards: Vec::new(),
+                        cleanup_actions: Vec::new(),
                     },
                 }),
                 Step::Zeroed {
@@ -983,7 +983,7 @@ impl PreparedValue {
                         erased_arguments: Vec::new(),
                         erased_proof_arguments: Vec::new(),
                         structural_arguments: Vec::new(),
-                        trivial_affine_discards: Vec::new(),
+                        cleanup_actions: Vec::new(),
                     },
                 }),
             };
@@ -1172,10 +1172,10 @@ pub(super) fn exit_target(
     // so reverse parameter disposal agrees with source order without repeatedly
     // remapping every survivor at each move. The ordinary edge verifier checks
     // consumption, fresh binding and the complete resulting frontier.
-    let discards = destinations
+    let cleanup_actions = destinations
         .iter()
         .rev()
-        .map(|parameter| parameter.place)
+        .map(|parameter| terminal_psi::TerminalAffineCleanupAction::DiscardRoot(parameter.place))
         .collect();
     let cleanup = computations.push(LoweredScalarBranchState {
         structural_parameters: destinations,
@@ -1190,7 +1190,7 @@ pub(super) fn exit_target(
             erased_arguments: Vec::new(),
             erased_proof_arguments: Vec::new(),
             structural_arguments: std::mem::take(structural_arguments),
-            trivial_affine_discards: discards,
+            cleanup_actions,
         },
     });
     Ok(computations.push(LoweredScalarBranchState {
@@ -1206,7 +1206,7 @@ pub(super) fn exit_target(
             erased_arguments: Vec::new(),
             erased_proof_arguments: Vec::new(),
             structural_arguments: owners,
-            trivial_affine_discards: Vec::new(),
+            cleanup_actions: Vec::new(),
         },
     }))
 }

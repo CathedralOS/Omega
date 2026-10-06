@@ -311,7 +311,7 @@ fn prepare_scalar_graph_machine_with_contract_mode(
                 };
                 if let Some(target) = computed_entry {
                     LoweredScalarBranchTerminator::Jump {
-                        trivial_affine_discards: Vec::new(),
+                        cleanup_actions: Vec::new(),
                         target,
                         arguments: computations::parameters(value_types),
                         erased_arguments: Vec::new(),
@@ -338,7 +338,7 @@ fn prepare_scalar_graph_machine_with_contract_mode(
                             erased_arguments: Vec::new(),
                             erased_proof_arguments: Vec::new(),
                             structural_arguments: Vec::new(),
-                            trivial_affine_discards: Vec::new(),
+                            cleanup_actions: Vec::new(),
                         }
                     } else {
                         LoweredScalarBranchTerminator::Return { expression }
@@ -509,7 +509,7 @@ fn prepare_scalar_graph_machine_with_contract_mode(
                         next_place,
                     )?;
                 LoweredScalarBranchTerminator::Jump {
-                    trivial_affine_discards: Vec::new(),
+                    cleanup_actions: Vec::new(),
                     target,
                     arguments,
                     erased_arguments,

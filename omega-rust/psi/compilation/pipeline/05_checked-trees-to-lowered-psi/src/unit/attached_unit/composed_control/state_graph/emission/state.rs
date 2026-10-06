@@ -18,8 +18,7 @@ use super::super::super::super::{
 };
 use super::super::super::LoweringError;
 use super::super::{
-    CheckedStructuralControlSuccessorPlan, case_emission, edges, ranking, result_custody, returns,
-    scalars,
+    CheckedStructuralControlSuccessorPlan, case_emission, ranking, returns, scalars,
 };
 use super::StateGraphEmission;
 use crate::emission::boolean_control::LoweredBooleanDecision;
@@ -431,12 +430,24 @@ impl StateGraphEmission<'_, '_> {
             CheckedComposedUnitControlTerminatorPlan::ReturnScalar {
                 completion: checked_trees::CheckedScalarReturnPlan::Exits(exits),
             } => {
+                // Allocate each exit's obligations before the call context takes
+                // its counter snapshot. Proofs are produced from the completed
+                // graph, where the selected arm and result effects are known.
+                let cleanups = super::super::cleanup::scalar_returns(
+                    checked,
+                    state,
+                    self.catalogs,
+                    &state_parameters,
+                    &evaluation,
+                    &operations,
+                )?;
                 let mut calls = self.catalogs.scalar_calls.emission_context();
                 let value = evaluation.scalar_control_result(
                     checked,
                     owner,
                     state.state,
                     exits,
+                    &cleanups,
                     &mut values,
                     &mut next_value,
                     &mut next_block,
@@ -730,31 +741,12 @@ impl StateGraphEmission<'_, '_> {
             };
         // Ordinary completion has one exact authored exit. Lower its checked
         // action stream after result evaluation, before successor emission
-        // borrows the current value namespace. Multiple scalar exits still
-        // use the existing no-code graph scheduler: executable or residual
-        // actions must remain at their selected exit before reconvergence.
+        // borrows the current value namespace. Scalar exits already completed
+        // their exact cleanup on private edges before result reconvergence.
         let mut ordinary_return_cleanup = match &state.terminator {
             CheckedComposedUnitControlTerminatorPlan::ReturnScalar {
                 completion: checked_trees::CheckedScalarReturnPlan::Exits(_),
-            } => {
-                if state.normal_exit_cleanups.iter().flat_map(|exit| &exit.actions).any(|action| {
-                    !matches!(action, checked_trees::CheckedNormalCleanupAction::Discard(discard) if discard.path.is_empty())
-                }) {
-                    return unsupported("scalar exit cleanup requires selected actions before the result join");
-                }
-                Some(
-                    scalar_exit_root_discards(
-                        checked,
-                        state,
-                        &operations,
-                        &evaluation,
-                        &state_parameters,
-                    )?
-                    .into_iter()
-                    .map(terminal_psi::TerminalAffineCleanupAction::DiscardRoot)
-                    .collect(),
-                )
-            }
+            } => Some(Vec::new()),
             CheckedComposedUnitControlTerminatorPlan::ReturnUnit
             | CheckedComposedUnitControlTerminatorPlan::ReturnScalar { .. } => {
                 let [cleanup] = state.normal_exit_cleanups.as_slice() else {
@@ -1333,34 +1325,6 @@ impl StateGraphEmission<'_, '_> {
             },
         )
     }
-}
-
-/// The existing no-code scalar-exit scheduler rejoins whole-root custody after
-/// evaluating the selected value. It cannot move executable or projected
-/// cleanup across that join; callers reject those checked action streams.
-fn scalar_exit_root_discards(
-    checked: &checked_trees::CheckedTrees,
-    state: &checked_trees::CheckedComposedUnitControlStatePlan,
-    operations: &OperationBuffer,
-    evaluation: &crate::unit::attached_unit::argument_evaluation::Evaluation,
-    state_parameters: &[terminal_psi::StructuralParameterDeclaration],
-) -> Result<Vec<semantic_vocabulary::PlaceId>, LoweringError> {
-    let (owner, source) = crate::declarations::state_declaration(checked, state.state)?;
-    let discards = edges::return_discards(checked, owner.symbol, source, state)?;
-    let mut local_discards =
-        result_custody::local_discards(checked, owner.symbol, source, state, None)?
-            .into_iter()
-            .map(|ordinal| {
-                let result = case_emission::result(state, ordinal, operations)?;
-                Ok(evaluation.current_structural_place(result.place()))
-            })
-            .collect::<Result<Vec<_>, LoweringError>>()?;
-    local_discards.extend(
-        discards
-            .into_iter()
-            .map(|index| state_parameters[index].place),
-    );
-    Ok(local_discards)
 }
 
 /// The owned parameter each edge of a case-test dispatch consumes, keyed by

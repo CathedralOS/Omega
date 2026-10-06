@@ -551,7 +551,10 @@ impl Expansion<'_> {
                 terminator: LoweredScalarBranchTerminator::Jump {
                     arguments: super::parameters(&parameter_types),
                     target,
-                    trivial_affine_discards: discards,
+                    cleanup_actions: discards
+                        .into_iter()
+                        .map(terminal_psi::TerminalAffineCleanupAction::DiscardRoot)
+                        .collect(),
                     erased_arguments: Vec::new(),
                     erased_proof_arguments: Vec::new(),
                     structural_arguments: Vec::new(),
@@ -584,7 +587,7 @@ impl Expansion<'_> {
                         bytes: slot.bytes.clone(),
                     }],
                     terminator: LoweredScalarBranchTerminator::Jump {
-                        trivial_affine_discards: Vec::new(),
+                        cleanup_actions: Vec::new(),
                         target: continuation,
                         arguments: super::parameters(prefix),
                         erased_arguments: Vec::new(),
@@ -613,7 +616,7 @@ impl Expansion<'_> {
                     bindings: Vec::new(),
                     structural_effects: vec![effect.clone()],
                     terminator: LoweredScalarBranchTerminator::Jump {
-                        trivial_affine_discards: Vec::new(),
+                        cleanup_actions: Vec::new(),
                         target: continuation,
                         arguments: super::parameters(prefix),
                         erased_arguments: Vec::new(),

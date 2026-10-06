@@ -152,7 +152,7 @@ pub(crate) fn evaluate(
         target,
     )?;
     Ok(LoweredScalarBranchTerminator::Jump {
-        trivial_affine_discards: Vec::new(),
+        cleanup_actions: Vec::new(),
         structural_arguments: Vec::new(),
         target,
         arguments: computations::parameters(source_types),

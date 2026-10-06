@@ -514,6 +514,7 @@ pub(crate) fn materialize_helper_body(
                 source_machine,
                 body.state,
                 control,
+                &[],
                 &mut values,
                 next_value,
                 next_block,

@@ -1,6 +1,7 @@
 //! The ordered prefix completes before its authored scalar return or dispatch.
-//! Returns use the existing selective evaluator and rejoin with one result;
-//! structural places keep their dominating producers across guarded arms.
+//! Each authored return retains its completion edge through selective evaluation:
+//! capture its result, run that exit's cleanup, then join the common result.
+//! Structural places keep their dominating producers across guarded arms.
 use super::{
     CheckedScalarExpressionRole, CheckedTrees, Evaluation, LoweredBooleanReturnExpression,
     LoweredDirectExpression, LoweringError, QualifiedScalarType, ScalarType, ValueDeclaration,
@@ -14,10 +15,38 @@ use crate::scalar_graph::scalar_graph_lowering::prepared_graph::{
 };
 use checked_trees::{CheckedScalarBranchDestination, CheckedScalarStateTerminator};
 
+/// Cleanup already selected by source ownership, before scalar arm expansion.
+/// Obligation identities belong to this exit, so all routes to that authored
+/// return share one completion edge rather than cloning its action identities.
+pub(crate) struct ScalarReturnCleanup {
+    pub(crate) destination: CheckedScalarBranchDestination,
+    pub(crate) actions: Vec<terminal_psi::TerminalAffineCleanupAction>,
+}
+
+fn completion_target(
+    destination: &CheckedScalarBranchDestination,
+    completions: &[(CheckedScalarBranchDestination, usize)],
+) -> Result<usize, LoweringError> {
+    if completions.is_empty() {
+        return Ok(0);
+    }
+    let mut selected = completions
+        .iter()
+        .filter(|(source, _)| source == destination);
+    let (_, target) = selected.next().ok_or(LoweringError::Unsupported(
+        "scalar return has no selected cleanup completion",
+    ))?;
+    if selected.next().is_some() {
+        return unsupported("scalar return repeats its cleanup completion");
+    }
+    Ok(*target)
+}
+
 /// A guarded-exit arm that dispatches on its case's scalar payloads: the
 /// selected case's payload fields bind as the arm continuation's block
 /// parameters, in declaration order.
 struct PayloadCaseDispatchArm {
+    destination: CheckedScalarBranchDestination,
     source: semantic_vocabulary::PlaceId,
     selected: semantic_vocabulary::StructuralCaseId,
     cases: Vec<semantic_vocabulary::StructuralCaseId>,
@@ -38,6 +67,7 @@ fn push_arm_target(
     source_types: &[QualifiedScalarType],
     result_type: QualifiedScalarType,
     destination: &CheckedScalarBranchDestination,
+    completions: &[(CheckedScalarBranchDestination, usize)],
 ) -> Result<usize, LoweringError> {
     let CheckedScalarBranchDestination::Return {
         statement_ordinal,
@@ -51,6 +81,7 @@ fn push_arm_target(
     } else {
         CheckedScalarExpressionRole::Return
     };
+    let target = completion_target(destination, completions)?;
     // Presence selects computation replay; ambiguity must be rejected
     // there, never interpreted as permission to use a pure fallback.
     if checked
@@ -70,7 +101,7 @@ fn push_arm_target(
             bindings,
             source_types,
             result_type,
-            0,
+            target,
         )
     } else {
         expansion.retained_pure_value(
@@ -80,7 +111,7 @@ fn push_arm_target(
             bindings,
             source_types,
             result_type,
-            0,
+            target,
         )
     }
 }
@@ -335,6 +366,10 @@ impl Evaluation {
         // place, not just its scalar slots. Nested payload observations keep
         // their canonical paths and execute only in this continuation.
         Ok(Some(PayloadCaseDispatchArm {
+            destination: CheckedScalarBranchDestination::Return {
+                statement_ordinal,
+                is_continuation: role == CheckedScalarExpressionRole::ContinuationReturn,
+            },
             source,
             selected: case,
             cases: cases.iter().map(|declared| declared.id).collect(),
@@ -352,6 +387,7 @@ impl Evaluation {
         expansion: &mut crate::scalar_graph::scalar_computations::Expansion<'_>,
         source_types: &[QualifiedScalarType],
         dispatch: &PayloadCaseDispatchArm,
+        completions: &[(CheckedScalarBranchDestination, usize)],
     ) -> Result<usize, LoweringError> {
         let mut input_types = source_types.to_vec();
         input_types.extend(dispatch.payloads.iter().map(|(_, value_type)| *value_type));
@@ -371,9 +407,9 @@ impl Evaluation {
             erased_proof_formals: Vec::new(),
             bindings: Vec::new(),
             terminator: LoweredScalarBranchTerminator::Jump {
-                trivial_affine_discards: Vec::new(),
+                cleanup_actions: Vec::new(),
                 structural_arguments: Vec::new(),
-                target: 0,
+                target: completion_target(&dispatch.destination, completions)?,
                 arguments,
                 erased_arguments: Vec::new(),
                 erased_proof_arguments: self.proof_formal_forwarding(),
@@ -398,6 +434,7 @@ impl Evaluation {
         result_type: QualifiedScalarType,
         dispatches: Vec<PayloadCaseDispatchArm>,
         fallback: Option<&CheckedScalarBranchDestination>,
+        completions: &[(CheckedScalarBranchDestination, usize)],
     ) -> Result<LoweredScalarBranchTerminator, LoweringError> {
         let source = dispatches[0].source;
         let cases = dispatches[0].cases.clone();
@@ -409,7 +446,8 @@ impl Evaluation {
         }
         let mut armed = Vec::with_capacity(dispatches.len());
         for dispatch in dispatches {
-            let target = self.payload_arm_target(expansion, source_types, &dispatch)?;
+            let target =
+                self.payload_arm_target(expansion, source_types, &dispatch, completions)?;
             let mut arguments = crate::scalar_graph::scalar_computations::parameters(source_types);
             arguments.extend(dispatch.payloads.iter().enumerate().map(
                 |(index, (_, value_type))| LoweredDirectExpression::Parameter {
@@ -436,6 +474,7 @@ impl Evaluation {
                     source_types,
                     result_type,
                     fallback,
+                    completions,
                 )?,
                 crate::scalar_graph::scalar_computations::parameters(source_types),
             )
@@ -468,7 +507,7 @@ impl Evaluation {
             },
         });
         Ok(LoweredScalarBranchTerminator::Jump {
-            trivial_affine_discards: Vec::new(),
+            cleanup_actions: Vec::new(),
             structural_arguments: Vec::new(),
             target,
             arguments: crate::scalar_graph::scalar_computations::parameters(source_types),
@@ -484,6 +523,7 @@ impl Evaluation {
         machine: symbols::SymbolHandle,
         state: symbols::SymbolHandle,
         control: &checked_trees::CheckedUnitScalarControlPlan,
+        cleanups: &[ScalarReturnCleanup],
         values: &mut Vec<ValueDeclaration>,
         next_value: &mut u64,
         next_block: &mut u64,
@@ -529,6 +569,32 @@ impl Evaluation {
         .with_cases(&self.cases)
         .with_fields(&self.record_fields)
         .enter_proof_scope(&self.erased_proof_formals);
+        let mut completion_types = source_types.clone();
+        completion_types.push(result_type.into());
+        let completions = cleanups
+            .iter()
+            .map(|cleanup| {
+                let target = expansion.push(LoweredScalarBranchState {
+                    structural_parameters: Vec::new(),
+                    structural_effects: Vec::new(),
+                    parameter_types: completion_types.clone(),
+                    erased_formal_types: Vec::new(),
+                    erased_proof_formals: Vec::new(),
+                    bindings: Vec::new(),
+                    terminator: LoweredScalarBranchTerminator::Jump {
+                        cleanup_actions: cleanup.actions.clone(),
+                        structural_arguments: Vec::new(),
+                        target: 0,
+                        arguments: crate::scalar_graph::scalar_computations::parameters(
+                            &completion_types,
+                        ),
+                        erased_arguments: Vec::new(),
+                        erased_proof_arguments: self.proof_formal_forwarding(),
+                    },
+                });
+                (cleanup.destination.clone(), target)
+            })
+            .collect::<Vec<_>>();
         let terminator = match &control.terminator {
             CheckedScalarStateTerminator::Return { statement_ordinal } => {
                 let target = push_arm_target(
@@ -542,9 +608,10 @@ impl Evaluation {
                         statement_ordinal: *statement_ordinal,
                         is_continuation: false,
                     },
+                    &completions,
                 )?;
                 LoweredScalarBranchTerminator::Jump {
-                    trivial_affine_discards: Vec::new(),
+                    cleanup_actions: Vec::new(),
                     structural_arguments: Vec::new(),
                     target,
                     arguments: crate::scalar_graph::scalar_computations::parameters(&source_types),
@@ -623,11 +690,16 @@ impl Evaluation {
                             result_type.into(),
                             vec![first, second],
                             None,
+                            &completions,
                         )?
                     }
                     (Some(dispatch), _) => {
-                        let true_target =
-                            self.payload_arm_target(&mut expansion, &source_types, &dispatch)?;
+                        let true_target = self.payload_arm_target(
+                            &mut expansion,
+                            &source_types,
+                            &dispatch,
+                            &completions,
+                        )?;
                         let false_target = push_arm_target(
                             &mut expansion,
                             checked,
@@ -636,6 +708,7 @@ impl Evaluation {
                             &source_types,
                             result_type.into(),
                             when_false,
+                            &completions,
                         )?;
                         payload_case_dispatch_terminator(
                             dispatch,
@@ -650,8 +723,12 @@ impl Evaluation {
                         // on the case the arm observes, with every
                         // non-selected edge continuing into the guard's
                         // true continuation.
-                        let selected_target =
-                            self.payload_arm_target(&mut expansion, &source_types, &dispatch)?;
+                        let selected_target = self.payload_arm_target(
+                            &mut expansion,
+                            &source_types,
+                            &dispatch,
+                            &completions,
+                        )?;
                         let other_target = push_arm_target(
                             &mut expansion,
                             checked,
@@ -660,6 +737,7 @@ impl Evaluation {
                             &source_types,
                             result_type.into(),
                             when_true,
+                            &completions,
                         )?;
                         payload_case_dispatch_terminator(
                             dispatch,
@@ -678,6 +756,7 @@ impl Evaluation {
                             &source_types,
                             result_type.into(),
                             when_true,
+                            &completions,
                         )?;
                         let false_target = push_arm_target(
                             &mut expansion,
@@ -687,6 +766,7 @@ impl Evaluation {
                             &source_types,
                             result_type.into(),
                             when_false,
+                            &completions,
                         )?;
                         crate::scalar_graph::scalar_graph_lowering::guards::lower(
                             checked,
@@ -748,14 +828,18 @@ impl Evaluation {
                         result_type.into(),
                         dispatches,
                         fallback.as_ref(),
+                        &completions,
                     )?
                 } else {
                     let mut entries = Vec::with_capacity(arms.len());
                     for (guard, dispatch) in arms.iter().zip(dispatches) {
                         let target = match &dispatch {
-                            Some(dispatch) => {
-                                self.payload_arm_target(&mut expansion, &source_types, dispatch)?
-                            }
+                            Some(dispatch) => self.payload_arm_target(
+                                &mut expansion,
+                                &source_types,
+                                dispatch,
+                                &completions,
+                            )?,
                             None => push_arm_target(
                                 &mut expansion,
                                 checked,
@@ -764,6 +848,7 @@ impl Evaluation {
                                 &source_types,
                                 result_type.into(),
                                 &guard.destination,
+                                &completions,
                             )?,
                         };
                         entries.push((guard.guard_statement_ordinal, target, dispatch));
@@ -777,6 +862,7 @@ impl Evaluation {
                             &source_types,
                             result_type.into(),
                             fallback,
+                            &completions,
                         )?
                     } else {
                         match entries
@@ -844,7 +930,7 @@ impl Evaluation {
                         });
                     }
                     LoweredScalarBranchTerminator::Jump {
-                        trivial_affine_discards: Vec::new(),
+                        cleanup_actions: Vec::new(),
                         structural_arguments: Vec::new(),
                         target: next,
                         arguments: crate::scalar_graph::scalar_computations::parameters(

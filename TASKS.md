@@ -696,46 +696,6 @@ defines the complete product bar.
   suspension/resume/cancellation and crash/process-exit abandonment without
   invented rollback.
 
-- **CLEANUP-HOOK-SELECTION-AND-ERASED-OWNERSHIP.** Complete nominal cleanup for
-  dying local owners before scalar-exit result joins, composed with contextual
-  hooks and ordinary consuming `drop<T>`, under
-  [nominal cleanup](wiki/spec/terminal-psi/ownership.md#nominal-cleanup).
-  - Return and named-successor cleanup now run. On macOS ARM64,
-    `python3 tools/corpus_gate.py --both --filter
-    drops/runtime_local_nominal_cleanup_exit,drops/runtime_nominal_successor_argument_order_exit`
-    produces `BADCE` and `XBAGEXBAGF`, respectively, with matching native and
-    checked-interpreter output and exit 0. The second program evaluates effectful
-    outgoing operands before hooks on either branch, retaining the result across
-    cleanup. Returns and successors share ordered actions through Terminal,
-    Abstract and native edge-transfer blocks. The corpus harness supplies explicit
-    custom-Console provider acceptance; bare CLI execution lacks that test policy.
-    Public-artifact Terminal execution also agrees uninterrupted and at one unit
-    of fuel per resume on four paths, with identical attribution and no repeated
-    effects. Eleven existing runtime controls remain passing; false prerequisites
-    and consumed-owner reads still reject.
-  - Remaining implementation: stage 05's
-    `.../unit/attached_unit/composed_control/state_graph/emission/state.rs`
-    refuses executable cleanup for `CheckedScalarReturnPlan::Exits`:
-    `scalar exit cleanup requires selected actions before the result join`.
-    Its argument evaluator reconverges before emission receives the exact arm's
-    cleanup. Carry selected-exit cleanup through that evaluation boundary before
-    the join, using the same action stream; no-code cleanup already works there.
-  - Keep exact selected-exit, named-transition and operand-time ownership,
-    exact-place premises without invented caller demands, and outgoing result
-    homes. **CML4** owns residual partitions and mixed-root order;
-    **PROOF-RELEVANCE-MIGRATION** owns erased formal/actual transport.
-  - Cleanup prerequisites are call contracts, distinct from primitive
-    operation conditions. **CHECKER-DISCHARGES-OPERATION-OBLIGATIONS** owns
-    the remaining operation gate; add no cleanup-specific proof machinery.
-  Acceptance: nominal cleanup runs once on the selected scalar-exit arm before
-  result reconvergence, preserving the result and exact arm premises, natively
-  and in the checked interpreter. Keep the two successor witnesses and controls
-  `pass/drops/{core_drop_explicit_consume,core_drop_owner_hook,core_drop_owner_hook_body}`,
-  `pass/drops/erased_record_initializer_exit` (70),
-  `pass/drops/{contextual_cleanup_exit,contextual_core_drop_exit,conditional_structural_return_cleanup_exit}`
-  (`BA`, exit 0), and source rejection of unmet hook prerequisites and
-  duplicate consumption.
-
 - **CML4.** Complete edge-local residual cleanup under the
   [ownership contract](wiki/spec/terminal-psi/ownership.md). Materialize
   outgoing values before transfer/disposal; give every occurrence one
@@ -765,8 +725,8 @@ defines the complete product bar.
   - Native: `accepts` in
     `omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/src/lowering/unobserved_owned.rs`
     suppresses arrival homes with a whole-function gate; replace it with
-    per-place storage/action evidence. **CLEANUP-HOOK-SELECTION-AND-ERASED-OWNERSHIP**
-    owns executable hooks.
+    per-place storage/action evidence. Preserve executable hooks through the
+    existing ordered action stream.
   Acceptance: add corpus fixtures where native runs and the checked
   interpreter preserve values and hook order across composed edges, including
   a projected-argument jump edge closing residuals in order. Missing,
@@ -4775,8 +4735,9 @@ rejects at build and `mapped` needs a Windows full-i32 measurement.
   `checks/contracts/dynamic_erased_lane.rs`. Extend the existing routes to keep
   exact erased subjects/actuals, witness identity, scope, multiplicity and
   assumptions through static and dynamic calls, without runtime storage or ABI
-  arguments. Erased-field custody/cleanup belongs to
-  **CLEANUP-HOOK-SELECTION-AND-ERASED-OWNERSHIP**.
+  arguments. Preserve erased-field custody and the ordinary
+  [normal cleanup](wiki/spec/terminal-psi/calls_and_outcomes.md#normal-cleanup)
+  contract.
 
   Acceptance: erased record/enum and array-bearing formals and a dynamic trait
   call use their erased evidence in checked contracts and execute with stripped
@@ -6113,7 +6074,7 @@ wait for Cathedral's instruction coverage. The interpreter is
   preserve producer-private selection on returned selectors. Run
   `python tools/corpus_gate.py --filter traits/` and affected backend checks.
   A `dyn` selector owns no implicit data; explicit owners retain the ordinary
-  cleanup obligations covered by **CLEANUP-HOOK-SELECTION-AND-ERASED-OWNERSHIP**.
+  [normal cleanup obligations](wiki/spec/terminal-psi/calls_and_outcomes.md#normal-cleanup).
 
 - **TARGET-SEMANTIC-APPLICATIONS.** Make compile-time evaluation consume the
   [target-semantic capsule](wiki/spec/language/evaluation.md#target-semantic-capsule)

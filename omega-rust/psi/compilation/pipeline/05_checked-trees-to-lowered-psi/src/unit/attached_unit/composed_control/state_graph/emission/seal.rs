@@ -8,7 +8,6 @@ use super::super::super::super::super::{
 };
 use super::super::super::super::{Block, Terminator, unsupported};
 use super::super::super::LoweringError;
-use super::super::case_emission;
 use super::StateGraphEmission;
 use crate::emission::operation_emission::buffer::OperationBuffer;
 
@@ -85,98 +84,34 @@ impl StateGraphEmission<'_, '_> {
                 )?;
             }
         }
-        if !is_guarded_return && !evaluation.selection_cleanups.is_empty() {
+        // Scalar exits settled their selection receipts on their private
+        // completion edges. Repeating the splice here would recreate owners
+        // after those paths have already disposed of them.
+        if !is_guarded_return
+            && !matches!(
+                &state.terminator,
+                CheckedComposedUnitControlTerminatorPlan::ReturnScalar {
+                    completion: checked_trees::CheckedScalarReturnPlan::Exits(_),
+                }
+            )
+            && !evaluation.selection_cleanups.is_empty()
+        {
             match &mut terminator {
-                Terminator::ReturnStructural { .. }
-                | Terminator::ReturnUnit { .. }
-                | Terminator::Return { .. } => {
-                    let discards = match &terminator {
-                        Terminator::ReturnStructural {
-                            cleanup_actions, ..
-                        }
-                        | Terminator::ReturnUnit {
-                            cleanup_actions, ..
-                        }
-                        | Terminator::Return {
-                            cleanup_actions, ..
-                        } => {
-                            let mut roots = Vec::new();
-                            for action in cleanup_actions {
-                                if !roots.contains(&action.place()) {
-                                    roots.push(action.place());
-                                }
-                            }
-                            roots
-                        }
-                        _ => unreachable!(),
-                    };
-                    let mut local_discards = Vec::new();
-                    for operation in state.operations.iter().rev() {
-                        if let Some((result, discard_result_on_return)) =
-                            operation.discardable_structural_result()
-                        {
-                            local_discards.push((
-                                case_emission::result(state, result.binding_ordinal, &operations)?
-                                    .place(),
-                                discard_result_on_return,
-                            ));
-                        }
-                    }
-                    // Parameter selection sources keep the same roster shape
-                    // as the guarded edge: they follow the result rows in
-                    // descending authored position so the splice substitutes
-                    // each residual join parameter at its own slot.
-                    let mut parameter_sources = Vec::new();
-                    for cleanup in &evaluation.selection_cleanups {
-                        for source in &cleanup.sources {
-                            if let Some((position, _)) = evaluation
-                                .structural_parameters
-                                .iter()
-                                .find(|(_, declaration)| declaration.place == *source)
-                            {
-                                parameter_sources.push((*position, *source));
-                            }
-                        }
-                    }
-                    parameter_sources.sort_by_key(|(position, _)| std::cmp::Reverse(*position));
-                    parameter_sources.dedup_by_key(|(_, place)| *place);
-                    local_discards.extend(
-                        parameter_sources
-                            .into_iter()
-                            .map(|(_, place)| (place, false)),
-                    );
-                    local_discards.extend(discards.iter().map(|place| (*place, true)));
-                    let selected = evaluation.selection_return_discards(local_discards)?;
-                    match &mut terminator {
-                        Terminator::ReturnStructural {
-                            cleanup_actions, ..
-                        }
-                        | Terminator::ReturnUnit {
-                            cleanup_actions, ..
-                        }
-                        | Terminator::Return {
-                            cleanup_actions, ..
-                        } => {
-                            let previous = std::mem::take(cleanup_actions);
-                            // A residual root can own several ordered actions.
-                            // Splice its complete group, never just the first
-                            // action with that root identity.
-                            for place in selected {
-                                let retained =
-                                    previous.iter().filter(|action| action.place() == place);
-                                if retained.clone().next().is_some() {
-                                    cleanup_actions.extend(retained.cloned());
-                                } else {
-                                    cleanup_actions.push(
-                                        terminal_psi::TerminalAffineCleanupAction::DiscardRoot(
-                                            place,
-                                        ),
-                                    );
-                                }
-                            }
-                        }
-                        _ => unreachable!(),
-                    }
+                Terminator::ReturnStructural {
+                    cleanup_actions, ..
+                }
+                | Terminator::ReturnUnit {
+                    cleanup_actions, ..
+                }
+                | Terminator::Return {
+                    cleanup_actions, ..
+                } => {
+                    super::super::cleanup::selection(
+                        state,
+                        &evaluation,
+                        &operations,
+                        cleanup_actions,
+                    )?;
                 }
                 // Ordinary successors already partitioned each edge's residual
                 // custody inside `successor`; no global return splice applies.
