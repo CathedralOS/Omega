@@ -131,43 +131,8 @@ pub(super) fn project_static_path(
             structural_type = element;
             continue;
         }
-        let StructuralPathSegment::Field(identity) = segment else {
-            return Err(InvalidStructuralShape);
-        };
-        let declaration = indexed
-            .get(&structural_type)
-            .ok_or(InvalidStructuralShape)?;
-        let StructuralTypeShape::Record { fields } = &declaration.shape else {
-            return Err(InvalidStructuralShape);
-        };
-        let mut local_offset = 0_u32;
-        let mut selected = None;
-        for field in fields.iter().filter(|field| {
-            !field.relevance.is_erased()
-                && !matches!(field.field_type, StructuralFieldType::Erased { .. })
-        }) {
-            let shape = field_shape(&field.field_type, &indexed, &mut cache, &mut active)?;
-            local_offset = align(local_offset, u32::from(shape.alignment))?;
-            if field.identity == *identity {
-                let field_type = match &field.field_type {
-                    StructuralFieldType::Structural(nested) => *nested,
-                    leaf => {
-                        let shape = leaf.canonical_leaf_shape().ok_or(InvalidStructuralShape)?;
-                        *indexed
-                            .iter()
-                            .find(|(_, declaration)| declaration.shape == shape)
-                            .map(|(id, _)| id)
-                            .ok_or(InvalidStructuralShape)?
-                    }
-                };
-                selected = Some((field_type, local_offset));
-                break;
-            }
-            local_offset = local_offset
-                .checked_add(shape.byte_size)
-                .ok_or(InvalidStructuralShape)?;
-        }
-        let (field_type, field_offset) = selected.ok_or(InvalidStructuralShape)?;
+        let (field_type, _, field_offset) =
+            record_field_step(segment, structural_type, &indexed, &mut cache, &mut active)?;
         byte_offset = byte_offset
             .checked_add(field_offset)
             .ok_or(InvalidStructuralShape)?;
@@ -303,43 +268,8 @@ pub(super) fn projected_field(
     let mut byte_offset = 0_u32;
     let mut selected_shape = None;
     for segment in path {
-        let StructuralPathSegment::Field(identity) = segment else {
-            return Err(InvalidStructuralShape);
-        };
-        let declaration = indexed
-            .get(&structural_type)
-            .ok_or(InvalidStructuralShape)?;
-        let StructuralTypeShape::Record { fields } = &declaration.shape else {
-            return Err(InvalidStructuralShape);
-        };
-        let mut local_offset = 0_u32;
-        let mut selected = None;
-        for field in fields.iter().filter(|field| {
-            !field.relevance.is_erased()
-                && !matches!(field.field_type, StructuralFieldType::Erased { .. })
-        }) {
-            let shape = field_shape(&field.field_type, &indexed, &mut cache, &mut active)?;
-            local_offset = align(local_offset, u32::from(shape.alignment))?;
-            if field.identity == *identity {
-                let field_type = match &field.field_type {
-                    StructuralFieldType::Structural(nested) => *nested,
-                    leaf => {
-                        let shape = leaf.canonical_leaf_shape().ok_or(InvalidStructuralShape)?;
-                        *indexed
-                            .iter()
-                            .find(|(_, declaration)| declaration.shape == shape)
-                            .map(|(id, _)| id)
-                            .ok_or(InvalidStructuralShape)?
-                    }
-                };
-                selected = Some((field_type, shape, local_offset));
-                break;
-            }
-            local_offset = local_offset
-                .checked_add(shape.byte_size)
-                .ok_or(InvalidStructuralShape)?;
-        }
-        let (field_type, shape, field_offset) = selected.ok_or(InvalidStructuralShape)?;
+        let (field_type, shape, field_offset) =
+            record_field_step(segment, structural_type, &indexed, &mut cache, &mut active)?;
         byte_offset = byte_offset
             .checked_add(field_offset)
             .ok_or(InvalidStructuralShape)?;
@@ -1097,6 +1027,55 @@ fn result_home_layout(
         .map(TargetStructuralHomeLayout::Sum),
         _ => Err(InvalidStructuralShape),
     }
+}
+
+/// One record-field step of a path projection: the visible-field layout
+/// walk that locates `identity` inside the current record type and reports
+/// the field's continuation type, storage shape, and byte offset. Leaf
+/// fields name their continuation through the canonical leaf catalog, so a
+/// projected leaf resolves to the same declaration the producer replays.
+fn record_field_step(
+    segment: &StructuralPathSegment,
+    structural_type: StructuralTypeId,
+    indexed: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
+    active: &mut BTreeSet<StructuralTypeId>,
+) -> Result<(StructuralTypeId, ValueShape, u32), InvalidStructuralShape> {
+    let StructuralPathSegment::Field(identity) = segment else {
+        return Err(InvalidStructuralShape);
+    };
+    let declaration = indexed
+        .get(&structural_type)
+        .ok_or(InvalidStructuralShape)?;
+    let StructuralTypeShape::Record { fields } = &declaration.shape else {
+        return Err(InvalidStructuralShape);
+    };
+    let mut local_offset = 0_u32;
+    for field in fields.iter().filter(|field| {
+        !field.relevance.is_erased()
+            && !matches!(field.field_type, StructuralFieldType::Erased { .. })
+    }) {
+        let shape = field_shape(&field.field_type, indexed, cache, active)?;
+        local_offset = align(local_offset, u32::from(shape.alignment))?;
+        if field.identity == *identity {
+            let field_type = match &field.field_type {
+                StructuralFieldType::Structural(nested) => *nested,
+                leaf => {
+                    let shape = leaf.canonical_leaf_shape().ok_or(InvalidStructuralShape)?;
+                    *indexed
+                        .iter()
+                        .find(|(_, declaration)| declaration.shape == shape)
+                        .map(|(id, _)| id)
+                        .ok_or(InvalidStructuralShape)?
+                }
+            };
+            return Ok((field_type, shape, local_offset));
+        }
+        local_offset = local_offset
+            .checked_add(shape.byte_size)
+            .ok_or(InvalidStructuralShape)?;
+    }
+    Err(InvalidStructuralShape)
 }
 
 fn field_shape(
