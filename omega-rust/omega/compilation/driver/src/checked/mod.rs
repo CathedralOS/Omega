@@ -22,7 +22,7 @@ pub use checking::compile_thread::run_on_compile_thread;
 pub use checking::{
     CheckedCompilation, CheckedCompileOutcome, CheckedCompileRequest,
     IndependentComponentDiscovery, IndependentComponentSelection, PackageBuildOutcome,
-    PreparedCheckedSource, PreparedPackageBuild, RestrictedBuildGrants,
+    PreparedCheckedSource, PreparedPackageBuild, RestrictedBuildGrants, SettledCheckReuse,
     check_prepared_package_build, compile_checked, compile_checked_reusing_builds,
     compile_to_checked, prepare_package_build,
 };

@@ -24,8 +24,8 @@ pub use crate::checked::{
     CheckedCompilation, CheckedCompileRequest, IndependentComponentDiscovery,
     IndependentComponentSelection, OptimizationRollback, OptimizationRollbackInputError,
     PackageBuildOutcome, PreparedCheckedSource, PreparedPackageBuild, RestrictedBuildGrants,
-    check_prepared_package_build, checked_compilation_call_count, compile_checked,
-    compile_checked_reusing_builds, compile_to_checked, preliminary_check_totals,
+    SettledCheckReuse, check_prepared_package_build, checked_compilation_call_count,
+    compile_checked, compile_checked_reusing_builds, compile_to_checked, preliminary_check_totals,
     prepare_package_build, settled_check_totals, source_assembly_invocation_count,
     typed_frontier_reuse_count,
 };

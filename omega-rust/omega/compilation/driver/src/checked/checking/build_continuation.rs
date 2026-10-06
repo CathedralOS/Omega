@@ -34,6 +34,7 @@ pub(crate) fn evaluate_build_and_continue(
         optimization_rollback: _,
         restricted_build_grants,
         permit_unsettled_fused_service_fields: _,
+        settled_check_reuse: _,
     } = child;
     let TypedCompilationFrontier {
         mut typing,

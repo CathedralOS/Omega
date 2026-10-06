@@ -798,6 +798,34 @@ impl ClosurePass<'_> {
         Ok(true)
     }
 
+    /// The settled judgment this occurrence's compile may take or keep. The
+    /// discovery pass keeps each one, because a bound pass recompiles every
+    /// occurrence its discovered bindings touch; that pass hands back the
+    /// judgment of the same occurrence. Psi takes it only when settlement
+    /// under the bound pass's bindings arrives at an equal typed program, so
+    /// the bindings still decide everything after the language judgment.
+    fn settled_check_reuse(
+        &self,
+        position: usize,
+        purpose: DependencyPurpose,
+    ) -> compiler::SettledCheckReuse {
+        let prior = self
+            .prior
+            .and_then(|prior| {
+                prior.occurrences.iter().find(|occurrence| {
+                    occurrence.position == position && occurrence.purpose == purpose
+                })
+            })
+            .and_then(|occurrence| match &occurrence.checked {
+                OccurrenceCompile::Checked(checked) => checked.settled_check().cloned(),
+                OccurrenceCompile::Cached(_) => None,
+            });
+        compiler::SettledCheckReuse {
+            prior,
+            retain: self.discovery == TargetEntryDiscovery::Dependencies,
+        }
+    }
+
     /// Compile the occurrence under its assembled inputs, retrying once with
     /// published component descriptions when the component-closure fence
     /// rejects unanswered `Independent` selections. Returns the checked
@@ -854,6 +882,7 @@ impl ClosurePass<'_> {
             // lack their selection: this pass's whole product is the
             // nomination that supplies it.
             permit_unsettled_fused_service_fields: discovery == TargetEntryDiscovery::Dependencies,
+            settled_check_reuse: self.settled_check_reuse(position, purpose),
             ..CheckedCompileRequest::new(entry, Some(target))
         };
         // A populated slot supplies only this package's binding-independent
@@ -925,6 +954,7 @@ impl ClosurePass<'_> {
                     // settlement tolerance as the rejected attempt.
                     permit_unsettled_fused_service_fields: discovery
                         == TargetEntryDiscovery::Dependencies,
+                    settled_check_reuse: self.settled_check_reuse(position, purpose),
                     ..CheckedCompileRequest::new(entry, Some(target))
                 };
                 let outcome = compiler::compile_checked_reusing_builds(

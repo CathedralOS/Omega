@@ -5,10 +5,18 @@
 //! package checkpoint (preliminary or settled) and carries source admission
 //! evidence. Only the test-only crash-inspection mode omits crash admission.
 //!
-//! Every request checks its program afresh. An exact-input memo once served
-//! repeated checks of an equal program; only package review's passes ever
-//! hit it, so it was deleted rather than kept as a second path to a
-//! judgment.
+//! A request checks its program afresh unless its caller hands back a
+//! [`RetainedCheck`] from earlier in the same invocation. Package review is
+//! that caller: its bound pass recompiles occurrences whose discovered
+//! bindings changed, and provider settlement usually leaves the settled typed
+//! program identical, so the bound pass would repeat a judgment the discovery
+//! pass already made (about 200 s of std's checking per update in a debug
+//! build). The judgment is a pure function of the typed program, the
+//! checkpoint and the opaque-property receipts, so an equal input takes the
+//! retained judgment, which this function computed. Everything invocation-owned
+//! (wire demands, constant completeness, asm and declaration authority) still
+//! runs on every request. A global exact-input memo once served such repeats
+//! implicitly; it was deleted, and reuse is now an explicit caller input.
 
 pub(crate) mod call_acknowledgements;
 mod default_domain_zero;
@@ -123,6 +131,39 @@ pub fn lower_typed_trees(
     program: typed_trees::TypedTrees,
     request: &CheckingRequest<'_>,
 ) -> Result<CheckedTrees, Vec<diagnostics::Diagnostic>> {
+    lower_typed_trees_reusing(program, request, None, false).map(|outcome| outcome.checked)
+}
+
+/// One language judgment kept with the exact input it judged. Only this module
+/// constructs one, from a check it ran, so a judgment taken from it is a
+/// judgment this function computed for an equal input.
+#[derive(Debug, Clone)]
+pub struct RetainedCheck {
+    program: std::sync::Arc<typed_trees::TypedTrees>,
+    admits_pending_inputs: bool,
+    opaque_property_receipts: Vec<validation::OpaqueDataPropertyReceipt>,
+    checked: std::sync::Arc<CheckedTrees>,
+}
+
+/// What [`lower_typed_trees_reusing`] returns: the checked program, this
+/// judgment when retention was asked for, and whether an equal prior supplied
+/// it instead of a check.
+pub struct CheckingOutcome {
+    pub checked: CheckedTrees,
+    pub retained: Option<RetainedCheck>,
+    pub took_prior: bool,
+}
+
+/// [`lower_typed_trees`], taking `prior`'s judgment when its program, checkpoint
+/// and receipts equal this request's, and returning this request's judgment
+/// for a later request when `retain`. Retention clones the input program and
+/// the result; only a caller that will ask again should request it.
+pub fn lower_typed_trees_reusing(
+    program: typed_trees::TypedTrees,
+    request: &CheckingRequest<'_>,
+    prior: Option<&RetainedCheck>,
+    retain: bool,
+) -> Result<CheckingOutcome, Vec<diagnostics::Diagnostic>> {
     // Declaration descriptions may retain pending implementations, but the
     // executable roster must be complete before any proof or memo lookup.
     for machine in program.machines() {
@@ -152,7 +193,26 @@ pub fn lower_typed_trees(
     let opaque_property_receipts =
         opaque_property_receipts::for_source_instances(&program, request.opaque_property_receipts);
     let request = request.with_opaque_property_receipts(&opaque_property_receipts);
-    let checked = check_program(program, &request)?;
+    let equal_prior = prior.filter(|prior| {
+        prior.admits_pending_inputs == request.admits_pending_inputs
+            && prior.opaque_property_receipts == opaque_property_receipts
+            && *prior.program == program
+    });
+    let took_prior = equal_prior.is_some();
+    let (checked, retained) = match equal_prior {
+        Some(prior) => ((*prior.checked).clone(), retain.then(|| prior.clone())),
+        None => {
+            let input = retain.then(|| std::sync::Arc::new(program.clone()));
+            let checked = check_program(program, &request)?;
+            let retained = input.map(|program| RetainedCheck {
+                program,
+                admits_pending_inputs: request.admits_pending_inputs,
+                opaque_property_receipts: opaque_property_receipts.clone(),
+                checked: std::sync::Arc::new(checked.clone()),
+            });
+            (checked, retained)
+        }
+    };
     // Package authority is invocation-owned, not part of the language
     // judgment: admit the returned selections under the caller's authority.
     if let Some(authority) = request.declaration_authority {
@@ -166,7 +226,11 @@ pub fn lower_typed_trees(
             &sibling_occurrences,
         )?;
     }
-    Ok(checked)
+    Ok(CheckingOutcome {
+        checked,
+        retained,
+        took_prior,
+    })
 }
 
 /// The check itself, over a program `lower_typed_trees` has found complete.

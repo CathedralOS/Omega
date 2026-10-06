@@ -7,7 +7,7 @@ pub(crate) mod execution_settlement;
 pub use compilation_products::{
     CheckedCompilation, CheckedCompileOutcome, CheckedCompileRequest,
     IndependentComponentDiscovery, IndependentComponentSelection, PackageBuildOutcome,
-    PreparedCheckedSource, PreparedPackageBuild,
+    PreparedCheckedSource, PreparedPackageBuild, SettledCheckReuse,
 };
 pub use package_compilation::build_execution::RestrictedBuildGrants;
 
@@ -179,6 +179,7 @@ fn prepare_package_build_worker(
         optimization_rollback: request.optimization_rollback.clone(),
         restricted_build_grants: request.restricted_build_grants,
         permit_unsettled_fused_service_fields: false,
+        settled_check_reuse: SettledCheckReuse::default(),
     };
     let prepared_source = request.retain_prepared_source.then(|| source.clone());
     let prepared = prepare_build_source(&request.root_path, source, child, None, owner.as_ref())?;
@@ -209,6 +210,7 @@ pub fn check_prepared_package_build(build: PreparedPackageBuild) -> CheckedCompi
             Some(&inputs),
             &rollback,
             false,
+            SettledCheckReuse::default(),
         ))
     })
     .unwrap_or_else(|diagnostics| CheckedCompileOutcome {
@@ -261,6 +263,7 @@ fn compile_checked_worker(
         optimization_rollback: request.optimization_rollback.clone(),
         restricted_build_grants: request.restricted_build_grants,
         permit_unsettled_fused_service_fields: request.permit_unsettled_fused_service_fields,
+        settled_check_reuse: request.settled_check_reuse,
     };
     let retained_source = request.retain_prepared_source.then(|| prepared.clone());
     let mut outcome = check_prepared_source(
@@ -291,6 +294,7 @@ pub(crate) fn check_prepared_source(
     let package_inputs = child.package_inputs;
     let rollback = child.optimization_rollback.clone();
     let permit_unsettled_fused_service_fields = child.permit_unsettled_fused_service_fields;
+    let settled_check_reuse = child.settled_check_reuse.clone();
 
     let prepared = prepare_build_source(root_path, source, child, builds, pure_build_compilation)?;
     Ok(check_completed_build(
@@ -299,6 +303,7 @@ pub(crate) fn check_prepared_source(
         package_inputs,
         &rollback,
         permit_unsettled_fused_service_fields,
+        settled_check_reuse,
     ))
 }
 
@@ -357,6 +362,7 @@ fn check_completed_build(
     package_inputs: Option<&PackageCompilationInputs>,
     rollback: &crate::OptimizationRollback,
     permit_unsettled_fused_service_fields: bool,
+    settled_check_reuse: SettledCheckReuse,
 ) -> CheckedCompileOutcome {
     let PreparedBuild {
         built,
@@ -373,10 +379,12 @@ fn check_completed_build(
             rollback,
             timings,
             permit_unsettled_fused_service_fields,
+            settled_check_reuse,
         )
     });
-    let result = result.and_then(|execution| {
+    let result = result.and_then(|(execution, settled_check)| {
         CheckedCompilation::seal(execution, build_sources, package_inputs, timings)
+            .map(|checked| checked.with_settled_check(settled_check))
     });
     CheckedCompileOutcome {
         prepared_source: None,

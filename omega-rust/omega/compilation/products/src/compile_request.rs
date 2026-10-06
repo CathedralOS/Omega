@@ -16,7 +16,7 @@ use terminal_psi_to_abstract_operations::provider_admission::{
 
 mod checked;
 mod native;
-pub use checked::{CheckedCompileRequest, CheckedExecutionRequest};
+pub use checked::{CheckedCompileRequest, CheckedExecutionRequest, SettledCheckReuse};
 pub mod options;
 pub use native::{
     NativeProductRequest, NativeRealizationRequest, RequestedNativeArtifactError,
@@ -79,9 +79,9 @@ impl RequestedCompileProduct {
         optimization_rollback: &OptimizationRollback,
     ) -> Result<(), Vec<Diagnostic>> {
         if artifact_only && self != Self::Check && !optimization_rollback.is_empty() {
-                return Err(vec![Diagnostic::error(
-                    "artifact-only builds execute no product optimization stages to roll back",
-                )]);
+            return Err(vec![Diagnostic::error(
+                "artifact-only builds execute no product optimization stages to roll back",
+            )]);
         }
         Ok(())
     }

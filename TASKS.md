@@ -188,14 +188,11 @@ helper that passes does not close an item.
   300 s per-call timeout, preserving its runtime oracle. First remeasure on
   one host and compiler profile:
   `python3 tools/sample_native_gate.py --cli <debug omega> --jobs 1 --timeout 6600 --filter games/dungeon_crawler_cli`.
-  - The sample checks, produces Terminal Psi, builds natively and exits 0
-    on its closed-stdin route again. On macOS ARM64 the debug corpus runner,
-    given a copy of the sample as a fixture, took about 6 minutes for all four
-    steps at load 20, with the borrowed-argument field domain fix. The product
-    route cannot measure it yet: since `a6dfddd40e9`, every sample's
-    `omega run` refuses with "target root slot `macos_arm64::ProgramEntry`
-    requires one exact contract-owned boundary schema `MacosApplication`,
-    but found 0". Rerun the gate command above once that recovers.
+  - At `e830e1bb701` on macOS ARM64 (debug CLI) the gate command above
+    passes the oracle in 1849 s for its three calls together (review, resume,
+    run); the per-call split is not yet measured. Review repeats std's
+    whole-package check in both `omega update` calls (see
+    **REVIEW-BOUND-PASS-RECHECKS**).
   - Historical macOS ARM64 baseline at `8c2a6e8da58`: 2554 s including package
     review; 5-second stack samples every 5 minutes placed stage 00 verification
     in minutes 0–12 and spill recovery in minutes 13–36. This is a profiling
@@ -3259,18 +3256,19 @@ of a check the same flow already performed, not the check itself.
 
 - **REVIEW-BOUND-PASS-RECHECKS.** (new-scope) Package review's bound pass
   (`omega-rust/omega/packages/package-manager/src/review/candidate/compilation.rs`)
-  recompiles every occurrence whose inputs the discovered semantic bindings
-  touch and checks typed programs the discovery pass already checked; the
-  exact-input memo used to serve those repeats and is gone. On macOS ARM64
+  now takes each occurrence's settled product judgment from the discovery
+  pass when settlement arrives at an equal typed program
+  (`typed_trees_to_checked_trees::lower_typed_trees_reusing`). On macOS ARM64
   (debug build), `OMEGA_REVIEW_TIMINGS=1 omega update --project <copy of
-  samples/cli/basics/cli_mvp> --target macos_arm64 --offline` reports
-  `occurrences=2 compiled=2 settled_checks=4` for both the discovery and the
-  bound pass (`carried=0`), and the update takes 280 s where the memo made it
-  157 s. Bindings choose providers after the language judgment; let the bound
-  pass keep an occurrence's checked trees when the bindings leave its typed
-  program unchanged and redo only the binding-dependent settlement.
-  Acceptance: the bound pass reports `settled_checks=0` for an occurrence
-  whose typed program is unchanged, and review output for that command is
+  samples/cli/basics/print_number> --target macos_arm64 --offline` reports
+  `settled_checks=2` for the bound pass, both of them build-program checks
+  (`build-evaluation/src/admission/checking.rs`, about 7 s together). Remaining:
+  let a build activation take an equal build program's judgment the same way,
+  then the bound pass reports `settled_checks=0`. Separately, `omega update
+  --resume` repeats the whole two-pass review (238 s): the persistent review
+  cache never carries std, a path dependency, into the next invocation.
+  Acceptance: the bound pass reports `settled_checks=0` for an occurrence whose
+  typed program is unchanged, and review output for that command is
   unchanged.
 
 - **BEHAVIOR-EXCLUSIONS-CHECKED-ONCE.** (new-scope) An authored exclusion is

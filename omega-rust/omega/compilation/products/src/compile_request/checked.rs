@@ -36,6 +36,18 @@ pub struct CheckedCompileRequest {
     /// Discovery leaves unsettled fields unestablished; the bound recompile must
     /// derive or diagnose them under its own inputs.
     pub permit_unsettled_fused_service_fields: bool,
+    /// An earlier settled judgment of this occurrence to take when settlement
+    /// arrives at an equal input, and whether to retain this one for later.
+    pub settled_check_reuse: SettledCheckReuse,
+}
+
+/// Package review's two passes compile one occurrence twice; the bound pass
+/// hands the discovery pass's settled judgment back. Ordinary compiles leave
+/// both fields empty and check afresh.
+#[derive(Debug, Clone, Default)]
+pub struct SettledCheckReuse {
+    pub prior: Option<typed_trees_to_checked_trees::RetainedCheck>,
+    pub retain: bool,
 }
 
 impl CheckedCompileRequest {
@@ -55,6 +67,7 @@ impl CheckedCompileRequest {
             restricted_build_grants: None,
             collect_timings: false,
             permit_unsettled_fused_service_fields: false,
+            settled_check_reuse: SettledCheckReuse::default(),
         }
     }
 }
@@ -76,6 +89,7 @@ pub struct CheckedExecutionRequest<'request> {
     /// Discovery leaves unsettled Service fields unestablished. The bound
     /// recompile must derive or diagnose every field under its own inputs.
     pub permit_unsettled_fused_service_fields: bool,
+    pub settled_check_reuse: SettledCheckReuse,
 }
 
 impl ValidatedTargetCompilation {
@@ -103,6 +117,7 @@ impl ValidatedTargetCompilation {
             optimization_rollback: self.optimization_rollback().clone(),
             restricted_build_grants: None,
             permit_unsettled_fused_service_fields: false,
+            settled_check_reuse: SettledCheckReuse::default(),
         }
     }
 }

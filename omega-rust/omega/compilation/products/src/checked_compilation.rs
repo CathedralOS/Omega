@@ -63,10 +63,14 @@ pub struct CheckedCompilation {
     execution: CheckedCompilationInputs,
     sources: CheckedSourceCustody,
     timings: CompileTimings,
+    /// The settled language judgment and its exact input, kept only when the
+    /// request asked to retain it for a later compile of the same occurrence.
+    settled_check: Option<typed_trees_to_checked_trees::RetainedCheck>,
 }
 
-// Measurements are observations, not checked semantic identity. Each retained
-// semantic owner derives equality so newly retained fields participate too.
+// Measurements and a retained judgment are observations, not checked semantic
+// identity. Each retained semantic owner derives equality so newly retained
+// fields participate too.
 impl PartialEq for CheckedCompilation {
     fn eq(&self, other: &Self) -> bool {
         self.execution == other.execution && self.sources == other.sources
@@ -90,7 +94,23 @@ impl CheckedCompilation {
             execution,
             sources,
             timings,
+            settled_check: None,
         })
+    }
+
+    /// Keep the settled check this compilation ran (or took) for a later
+    /// compile of the same occurrence to hand back.
+    pub fn with_settled_check(
+        mut self,
+        settled_check: Option<typed_trees_to_checked_trees::RetainedCheck>,
+    ) -> Self {
+        self.settled_check = settled_check;
+        self
+    }
+
+    /// The retained settled check, when the request asked for one.
+    pub const fn settled_check(&self) -> Option<&typed_trees_to_checked_trees::RetainedCheck> {
+        self.settled_check.as_ref()
     }
 }
 

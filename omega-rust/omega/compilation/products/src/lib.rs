@@ -49,7 +49,7 @@ pub use compile_request::options::CompileOptions;
 pub use compile_request::{
     CheckedCompileRequest, CheckedExecutionRequest, CompileRequest, NativeProductRequest,
     NativeRealizationRequest, RequestedCompileProduct, RequestedNativeArtifactError,
-    RetainedNativeRealizationRequest, TargetCompileConfiguration,
+    RetainedNativeRealizationRequest, SettledCheckReuse, TargetCompileConfiguration,
 };
 pub use evaluated_build::{
     BuildAdmission, BuildConfig, ComputedBuildConfig, IndependentComponentDiscovery,

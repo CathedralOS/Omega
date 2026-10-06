@@ -3,10 +3,12 @@
 //! One entrance: [`lower_typed_trees`], in `checking.rs`, which takes a
 //! [`CheckingRequest`] naming the package checkpoint and the settled
 //! selections. Read that function to read this stage — the module order
-//! below is the order it runs them in.
+//! below is the order it runs them in. [`lower_typed_trees_reusing`] is the
+//! same entrance for a caller that hands back an earlier [`RetainedCheck`].
 //!
 //! Wire codec and compatibility admission runs at the entrance for every
-//! request, including memo reuse; Build supplies demands, not their verdict.
+//! request, including a reused judgment; Build supplies demands, not their
+//! verdict.
 //! It prepares the typed program, validates it, builds the facts a checked
 //! machine publishes, analyses its flow and values, and plans its execution:
 //!
@@ -61,8 +63,8 @@ mod product_pruning;
 pub use build_program::{project_build_program, project_selected_program};
 
 pub use checking::{
-    CheckingRequest, lower_typed_trees, normalize_open_index_identities,
-    specialize_static_machine_calls,
+    CheckingOutcome, CheckingRequest, RetainedCheck, lower_typed_trees, lower_typed_trees_reusing,
+    normalize_open_index_identities, specialize_static_machine_calls,
 };
 
 pub use package_review::{
