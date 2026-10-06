@@ -188,13 +188,15 @@ impl LegalizedScalarInstruction {
                 .map(|index| index.operand.value)
                 .chain([*index, *length])
                 .for_each(visit),
+            // A window store addresses its element through the same runtime
+            // selectors as the copy that opened the window.
             LegalizedScalarInstructionKind::StructuralLeafCopy { indices, .. }
-            | LegalizedScalarInstructionKind::StructuralCaseMembership { indices, .. } => {
+            | LegalizedScalarInstructionKind::StructuralCaseMembership { indices, .. }
+            | LegalizedScalarInstructionKind::StoreStructuralField { indices, .. } => {
                 indices.iter().for_each(|index| visit(index.operand.value))
             }
             LegalizedScalarInstructionKind::EstablishStructuralArray { .. }
             | LegalizedScalarInstructionKind::Constant(_)
-            | LegalizedScalarInstructionKind::StoreStructuralField { .. }
             | LegalizedScalarInstructionKind::EstablishTrivialAffineLocal { .. }
             | LegalizedScalarInstructionKind::EstablishZeroedStructural { .. }
             | LegalizedScalarInstructionKind::EstablishStructuralLocal { .. }
