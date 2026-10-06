@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 14, "jobs": "2", "load1_end": 4.46, "load1_start": 4.42, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": "4", "load1_end": 4.12, "load1_start": 4.22, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/runtime_exact_dispatch_divisor_exit built 1233ms exit:70 interpreter-exit:70 interpreter:agrees @01974e342562+wt
 pass/arithmetic/runtime_exact_projection_sibling_exit built 1644ms exit:70 stdout:match interpreter-exit:70 interpreter-stdout:match interpreter:agrees @ffe8db2ea9e9
 pass/arithmetic/runtime_exact_signed_divisor_exclusions_exit built 1455ms exit:70 interpreter-exit:70 interpreter:agrees @d9720a4fa49b+wt
@@ -220,6 +220,7 @@ pass/providers/runtime_boundary_array_construction_exit built 4358ms exit:70 int
 pass/providers/selected_const_provider_call_identity_exit built 2803ms exit:70 interpreter-exit:70 interpreter:agrees @c8e8e86a6e1b
 pass/recast/runtime_aggregate_slice_representation_recast_exit built 5319ms exit:70 interpreter-exit:70 interpreter:agrees @9765a474ac87+wt
 pass/recast/runtime_bool_representation_recast_exit built 1700ms exit:70 interpreter-exit:70 interpreter:agrees @7e0a52664189
+pass/recast/runtime_boolean_view_decision_exit built 1649ms exit:0 interpreter-exit:0 interpreter:agrees @6e7bf42e4877
 pass/recast/runtime_field_precondition_capture_exit built 1832ms exit:70 interpreter-exit:70 interpreter:agrees @acbc628d0f2583bd98ee0217008c976c209d90b7+wt
 pass/recast/runtime_float_range_representation_recast_exit built 3039ms exit:70 interpreter-exit:70 interpreter:agrees @7e0a52664189
 pass/recast/runtime_guarded_offset_recast_exit built 8282ms exit:70 interpreter-exit:70 interpreter:agrees @3fa817733300+wt

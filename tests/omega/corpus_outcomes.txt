@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 14, "jobs": "2", "load1_end": 4.42, "load1_start": 4.42, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": "4", "load1_end": 4.22, "load1_start": 4.22, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -1431,6 +1431,10 @@ fail/ranges/subject_guard_compound_index_mutated rejected 310ms expected @f64782
 	cannot prove index `main.b * 20 + main.a` is within length 200 in Main::main::put
 fail/ranges/sum_payload_non_case_guard_unproven rejected 142ms expected @7f4f399bb74b+wt
 	cannot prove requires contract for call use_v from Main::main: main.p::One.v in i32::Fifty (invalidated by prior mutation of main.p; main.p::One.v is part of i32::Fifty)
+fail/recast/boolean_view_requires_byte_region_representation rejected 187ms expected @6e7bf42e4877
+	machine `read` state `entry`: a shared recast may weaken established facts but cannot strengthen them; a raw byte region cannot establish the target's representation facts
+fail/recast/boolean_view_requires_source_representation rejected 187ms expected @6e7bf42e4877
+	machine `read` state `entry`: a shared recast may weaken established facts but cannot strengthen them; source facts do not establish the target representation
 fail/recast/field_precondition_call_invalidated_before_capture rejected 171ms expected @ef3f9f2b015a
 	machine `capture` state `entry`: cannot bound the recast offset `cursor.offset` -- the region holds 32 bytes, but no declared range, dominating incoming guard, or boundary-ensures witness bounds the offset below the footprint. Bound it: declare a range on the offset param, guard the transition arm (`transition cursor.offset <= K { true -> ... }`), or `ensures`-bound the boundary out-param that feeds it
 fail/recast/field_precondition_invalidated_before_capture rejected 123ms expected @d9720a4fa49b+wt
@@ -2907,6 +2911,7 @@ pass/ranges/sum_payload_range_arith_narrowed_exit checked 618ms check-target:mac
 pass/recast/nested_operand_view_compile checked 373ms @a3bac00e54bb+wt
 pass/recast/runtime_aggregate_slice_representation_recast_exit checked 3846ms check-target:macos_arm64 @5a7ed5b57d00+wt
 pass/recast/runtime_bool_representation_recast_exit checked 1642ms check-target:macos_arm64 @a3bac00e54bb+wt
+pass/recast/runtime_boolean_view_decision_exit checked 1601ms check-target:macos_arm64 @6e7bf42e4877
 pass/recast/runtime_field_precondition_capture_exit checked 10152ms check-target:macos_arm64 @cfe60a3a242
 pass/recast/runtime_float_range_representation_recast_exit checked 4057ms check-target:macos_arm64 @a3bac00e54bb+wt
 pass/recast/runtime_guarded_offset_recast_exit checked 1534ms check-target:macos_arm64 @a3bac00e54bb+wt
