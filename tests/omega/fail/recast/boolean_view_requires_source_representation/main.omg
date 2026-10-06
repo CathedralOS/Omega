@@ -1,0 +1,6 @@
+data Byte { value: u8; }
+
+machine read(byte: &Byte) -> bool {
+    let flag: &bool = &byte.value as &bool;
+    flag
+}

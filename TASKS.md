@@ -3370,7 +3370,7 @@ deletions, which the commit lists.
     casts. Synthesized widenings and generated scalar-graph casts still use search.
     Join the exact checked occurrence rather than performing another syntax walk
     or extending certificate search.
-  - Cover shift counts, Boolean landing, representation geometry, capacities
+  - Cover shift counts, representation geometry, capacities
     and remaining bounded stores outside completed bounded-integer field
     replacements, including generated/indexed, refined and element-view writes.
     Finish the formation audit across aggregate and proposition

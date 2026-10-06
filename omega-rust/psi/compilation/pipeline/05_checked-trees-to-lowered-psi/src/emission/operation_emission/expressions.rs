@@ -230,8 +230,9 @@ pub(crate) enum LoweredDirectExpression {
     },
     /// One place's stored bits re-viewed at `scalar_type`, a carrier of the
     /// same width in another family (`ScalarRepresentationView`). An integer
-    /// landing on `bool` emits its `{0, 1}` landing obligation; every other
-    /// admitted pair is total.
+    /// landing on `bool` retains the recast judgment's `{0, 1}` decision;
+    /// every other admitted pair is total. Only checked representation-view
+    /// lowering constructs this form, never an unchecked byte conversion.
     RepresentationView {
         scalar_type: ScalarType,
         operand: Box<LoweredDirectExpression>,
@@ -972,6 +973,15 @@ pub(crate) fn emit_direct_expression(
                         .expect("landing obligation follows its operation identity"),
                 )
             });
+            // The checked recast admits the source representation set at
+            // this exact observation. Its operand still names the original
+            // backing and carrier after substitution; asking certificate
+            // search to establish {0, 1} again loses that source decision.
+            // Raw byte views cannot establish Boolean facts: checking fences
+            // those before this lowered form is constructed.
+            if let Some(obligation) = landing_obligation {
+                operations.source_checked_obligations.push(obligation);
+            }
             operations.push(Operation {
                 static_reach_binding: None,
                 suspension_crossing: None,

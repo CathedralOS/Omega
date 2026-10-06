@@ -65,9 +65,12 @@ declared-type checks intact and replays the carrier relation
 carriers read the two's-complement modular image, and a wider integer view of
 a runtime-selected `u8` element reads the byte region little-endian, one
 element read (and one Terminal index obligation) per byte. Boolean and IEEE
-float cross-carrier views use `ScalarRepresentationView`: independent
-verification reconstructs the equal-width carrier pair and requires a proved
-0/1 landing when an integer becomes Boolean. Native selection preserves the
+float cross-carrier views use `ScalarRepresentationView`: lowering classifies
+the equal-width carrier pair and carries the source recast judgment's 0/1
+landing decision when an integer becomes Boolean. It does not search for a
+second proof of that observation. Raw byte-region views still reject Boolean
+leaves, and a mutable view must preserve the source and target representation
+sets in both directions. Native selection preserves the
 stored bits and applies only the result carrier's register normalization.
 Reads through an immutable `&mut` place-loan local re-evaluate the loaned place
 like shared loan locals do.
@@ -116,8 +119,5 @@ mutable locals and arguments: original cells and captured coordinates stay
 separate from the checked reference access. Shared record views therefore read
 the original backing rather than an assembled copy.
 `Placed<P, T>` and its accessors are excluded: representation equivalence
-cannot replace the placement access plan. Focused source cases live in
-`tests/omega/{pass,fail}/recast/`. Representation judgments are tested beside
-`src/value_custody/recasts/`; checked-tree and lowering coverage is in
-`04_typed-trees-to-checked-trees/src/tests/{borrow/recasts.rs,flow/terminal_unit/representation_views.rs}`
-and `05_checked-trees-to-lowered-psi/src/tests/representation_view_guards.rs`.
+cannot replace the placement access plan. Source, lowering and execution
+coverage lives in `tests/omega/{pass,fail}/recast/` through the corpus runner.

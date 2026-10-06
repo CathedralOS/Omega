@@ -24,11 +24,11 @@
 //!   one Terminal `ScalarRepresentationView` over the source read: the result
 //!   is the same stored bits at the view carrier, NaN payloads and signed
 //!   zeros included. The pair is the shared closed table
-//!   (`terminal_semantics::ScalarRepresentationViewPair`), which the verifier
-//!   replays independently. A byte re-viewed as `bool` emits the landing
-//!   obligation `0 <= byte <= 1`, so Terminal re-proves the `{0, 1}` fact the
-//!   recast judgment relied on from the facts on the path (a data `where`
-//!   row, a bounded field, a guard) rather than trusting the judgment.
+//!   (`terminal_semantics::ScalarRepresentationViewPair`). A byte re-viewed
+//!   as `bool` carries the recast judgment's
+//!   landing decision `0 <= byte <= 1` to emission as source-checked. Checking
+//!   already compared the representation sets; certificate search must not
+//!   rediscover that result from the lowered field observations.
 //! - A retained view must change its carrier. A same-carrier recast only
 //!   changes facts and stage 04 reads the place directly, so an identity pair
 //!   here is a malformed judgment rather than a no-op to accept silently.
@@ -37,7 +37,7 @@
 //!
 //! Boolean guard positions retain this same operation through the scalar
 //! computation graph, including beneath short-circuit operators. Their byte
-//! landing therefore owes the same independently reconstructed obligation.
+//! landing therefore consumes the same checked representation judgment.
 //!
 //! The operand must observe one place. A re-view of a computed value would be
 //! a conversion, which the recast contract forbids a cast to perform.
@@ -48,6 +48,10 @@ use crate::emission::operation_emission::integer::LoweredIntegerBinaryKind;
 use crate::lowering_error::{LoweringError, unsupported};
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, ScalarType};
 
+/// Lower an admitted representation view while preserving its source read.
+/// Callers supply a checked scalar re-view, a captured checked loan, or the
+/// corresponding leaf of a checked record view. Byte-region views admit only
+/// fact-free leaves, so they cannot construct a Boolean landing from raw bytes.
 pub(crate) fn replay(
     operand: LoweredDirectExpression,
     view: ScalarType,
@@ -74,8 +78,8 @@ pub(crate) fn replay(
             crate::expression_preparation::wrapping_cast::wrapping_cast(operand, source_type, view)
         }
         // Every cross-family pair the shared table admits is one Terminal
-        // re-view of the place's own read; the verifier replays the pair and
-        // proves a byte's `{0, 1}` landing on `bool`.
+        // re-view of the place's own read. A byte's `{0, 1}` landing on
+        // `bool` was decided by source recast checking, not by this table.
         _ if terminal_semantics::ScalarRepresentationViewPair::classify(source, view).is_some() => {
             if !observes_one_place(&operand) {
                 return unsupported("a representation re-view must observe one scalar place");

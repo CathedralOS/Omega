@@ -1,0 +1,6 @@
+data Raw { bytes: [u8; 1]; }
+
+machine read(raw: &Raw) -> bool {
+    let flag: &bool = &raw.bytes[0] as &bool;
+    flag
+}
