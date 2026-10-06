@@ -129,6 +129,7 @@ pass/borrows/runtime_cyclic_field_loan_release_exit built 2372ms exit:70 @9beb2b
 pass/borrows/runtime_discarded_reference_release_exit built 2650ms exit:70 @9beb2be72f2d+wt
 pass/borrows/runtime_forwarded_primitive_state_loan_exit built 1428ms exit:70 @63377f7122bb+wt
 pass/borrows/runtime_forwarded_reference_array_bounded_read_exit built 2195ms exit:70 @6ba9c43af356+wt
+pass/borrows/runtime_forwarded_view_field_domain_exit built 2722ms exit:70 @53d5dde47ae5
 pass/borrows/runtime_index_mut_loan_write_exit built 2117ms exit:0 @af9f91f2fb06+wt
 pass/borrows/runtime_indexed_carrier_bounded_reference_read_exit built 1142ms exit:70 @104c2da31081
 pass/borrows/runtime_indexed_carrier_reference_read_exit built 1140ms exit:70 @104c2da31081

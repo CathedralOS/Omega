@@ -1769,6 +1769,7 @@ pass/borrows/runtime_cyclic_field_loan_release_exit checked 4743ms check-target:
 pass/borrows/runtime_discarded_reference_release_exit checked 3696ms check-target:macos_arm64 @3fa817733300+wt
 pass/borrows/runtime_forwarded_primitive_state_loan_exit checked 1312ms check-target:macos_arm64 @63377f7122bb+wt
 pass/borrows/runtime_forwarded_reference_array_bounded_read_exit checked 3216ms check-target:macos_arm64 @6ba9c43af356+wt
+pass/borrows/runtime_forwarded_view_field_domain_exit checked 2582ms check-target:macos_arm64 @53d5dde47ae5
 pass/borrows/runtime_index_mut_loan_write_exit checked 2022ms check-target:macos_arm64 @af9f91f2fb06+wt
 pass/borrows/runtime_indexed_carrier_bounded_reference_read_exit checked 1132ms check-target:macos_arm64 @104c2da31081
 pass/borrows/runtime_indexed_carrier_reference_read_exit checked 1126ms check-target:macos_arm64 @104c2da31081

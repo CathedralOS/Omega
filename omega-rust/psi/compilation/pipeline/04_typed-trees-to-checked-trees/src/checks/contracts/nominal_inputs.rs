@@ -154,9 +154,24 @@ pub(super) fn check(
                 argument_index - 1,
                 segments.clone(),
             );
-            let argument_contexts = captured_actual.as_ref().map(|actual| {
-                super::call_values::actual_contexts(program, facts, state, call, actual)
-            });
+            // A copied argument is proved from its own completion facts, which
+            // survive a later operand's write to its source. A borrowed
+            // argument lends the storage itself, so the callee observes it at
+            // the call and the call site's contexts are its evidence: the
+            // epoch rule `call_values::membership_contexts` states. A view's
+            // element field memberships live only in those call-site contexts.
+            let borrowed = matches!(
+                program
+                    .type_reference_table
+                    .type_reference(parameter.type_reference),
+                typed_trees::types::TypeReferenceNode::Reference { .. }
+            );
+            let argument_contexts = captured_actual
+                .as_ref()
+                .filter(|_| !borrowed)
+                .map(|actual| {
+                    super::call_values::actual_contexts(program, facts, state, call, actual)
+                });
             let contexts = argument_contexts.as_deref().unwrap_or(contexts);
             let proves = |subject: &crate::flow::CanonicalPlace| {
                 prove_declared_field_domain(

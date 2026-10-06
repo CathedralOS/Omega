@@ -536,19 +536,6 @@ defines the complete product bar.
   operations and remove superseded whole-machine recognizers as you go.
   **SAMPLE-CORPUS** and **CANARY-CORPUS** keep the full program oracles.
 
-  - **Forwarded view field contracts (regression).** `6c0fd10e915` made
-    `samples/cli/games/dungeon_crawler_cli` refuse in checking: on macOS
-    ARM64 `omega update --project samples/cli/games/dungeon_crawler_cli
-    --target macos_arm64` reports 119 "cannot prove default-domain field
-    requirement for call find_room_mut_at from
-    RoomLookup::find_room_mut::find_room_mut: parameter
-    rooms[0..18446744073709551615].label requires [u8; N]::Utf8"
-    diagnostics (`rooms/room_lookup.omg`), none at `6c0fd10e915^`. The
-    argument is `let rooms: &mut [Room] = level.rooms.as_mut_slice()`,
-    forwarded to a `&mut [Room]` state parameter. `nominal_inputs.rs` now
-    reads the argument's completion contexts (`call_values::actual_contexts`)
-    instead of the call site's, and those lack the element field memberships
-    the view carries.
   - **Computed calls and state transfers.** Finish selected mixed scalar/structural
     operands, effectful arguments/returns, nested mutable-argument calls,
     dependent/public-trait results and boundary consumers on the common
