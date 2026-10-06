@@ -18,6 +18,7 @@
 pub(crate) mod call_targets;
 pub(crate) mod data_definitions;
 pub(crate) mod effects;
+pub(crate) mod type_shape;
 pub(crate) mod value_properties;
 
 use std::cell::RefCell;

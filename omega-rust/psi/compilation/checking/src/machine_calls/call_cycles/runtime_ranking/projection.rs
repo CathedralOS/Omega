@@ -588,18 +588,8 @@ fn unsigned_subject_carrier(
 
 /// The slice carrier under any reference or constrained shells. A ranked
 /// subject without an exact slice base cannot carry a length projection.
-fn slice_carrier_type(program: &TypedTrees, mut reference: TypeReferenceHandle) -> bool {
-    let mut visited = Vec::new();
-    while reference.is_valid() && !visited.contains(&reference) {
-        visited.push(reference);
-        match program.type_reference_table.type_reference(reference) {
-            TypeReferenceNode::Slice { .. } => return true,
-            TypeReferenceNode::Reference { referee, .. } => reference = *referee,
-            TypeReferenceNode::Constrained { base_type, .. } => reference = *base_type,
-            _ => return false,
-        }
-    }
-    false
+fn slice_carrier_type(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {
+    crate::program_scope::type_shape::has_slice_base(program, reference)
 }
 
 /// The unsigned primitive carrier under any constrained shells. A ranked
