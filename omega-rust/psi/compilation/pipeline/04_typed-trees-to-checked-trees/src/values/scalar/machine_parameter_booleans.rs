@@ -45,15 +45,7 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
     // dense retained-scalar roster; `[erased]` and structural bindings must
     // stay out of it so their references fall through to the erased/structural
     // branches that still see the authored roster.
-    let scalar_parameters = parameters
-        .iter()
-        .filter(|parameter| crate::values::scalar::occupies_scalar_position(program, parameter))
-        .cloned()
-        .collect::<Vec<_>>();
-    let parameter_types = scalar_parameters
-        .iter()
-        .map(|parameter| program.primitive_type_reference(parameter.type_reference))
-        .collect::<Option<Vec<_>>>()?;
+    let (scalar_parameters, parameter_types) = scalar_parameters_and_types(program, parameters)?;
     lower_boolean_expression(
         program,
         operators,
@@ -82,15 +74,7 @@ pub(crate) fn lower_parameter_boolean_expression(
     ) {
         return None;
     }
-    let scalar_parameters = parameters
-        .iter()
-        .filter(|parameter| crate::values::scalar::occupies_scalar_position(program, parameter))
-        .cloned()
-        .collect::<Vec<_>>();
-    let parameter_types = scalar_parameters
-        .iter()
-        .map(|parameter| program.primitive_type_reference(parameter.type_reference))
-        .collect::<Option<Vec<_>>>()?;
+    let (scalar_parameters, parameter_types) = scalar_parameters_and_types(program, parameters)?;
     lower_boolean_expression(
         program,
         operators,
@@ -101,4 +85,24 @@ pub(crate) fn lower_parameter_boolean_expression(
         &[],
         exact_integer_casts,
     )
+}
+
+/// The retained-scalar parameter roster and each element's primitive type.
+fn scalar_parameters_and_types(
+    program: &TypedTrees,
+    parameters: &[typed_trees::signature::StateParameter],
+) -> Option<(
+    Vec<typed_trees::signature::StateParameter>,
+    Vec<typed_trees::types::PrimitiveType>,
+)> {
+    let scalar_parameters = parameters
+        .iter()
+        .filter(|parameter| crate::values::scalar::occupies_scalar_position(program, parameter))
+        .cloned()
+        .collect::<Vec<_>>();
+    let parameter_types = scalar_parameters
+        .iter()
+        .map(|parameter| program.primitive_type_reference(parameter.type_reference))
+        .collect::<Option<Vec<_>>>()?;
+    Some((scalar_parameters, parameter_types))
 }
