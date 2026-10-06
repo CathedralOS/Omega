@@ -34,7 +34,6 @@ pub(in crate::validation) fn validate_structural_argument(
         call_kind,
         borrowed_call,
         ordinary_call,
-        result_projection,
         reference_result_call,
     } = *shape;
     let boundary_byte_view_call = source_policy
@@ -311,7 +310,12 @@ pub(in crate::validation) fn validate_structural_argument(
                                 | StructuralArgumentSourcePolicy::ParametersOrBoundaryActuals
                         )
                         && (argument.path.is_empty()
-                            || (result_projection
+                            // Operand custody does not depend on the consumer's
+                            // return shape. A scalar consumer selects the same
+                            // finite subtree as a Unit or reference consumer;
+                            // availability and residual replay still own the
+                            // move and its remaining complement.
+                            || (allow_projected
                                 && partial_affine_root_type(caller, argument.place) == Some(structural_type)
                                 && is_partial_affine_path(module, structural_type, &argument.path))) =>
                     {

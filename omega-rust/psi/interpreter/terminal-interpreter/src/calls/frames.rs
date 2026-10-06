@@ -11,14 +11,48 @@ use crate::execution::RuntimeDynamicDescriptor;
 use crate::execution::SuspendedCall;
 use crate::execution::SuspendedCallResult;
 use crate::execution::TerminalExecution;
-use crate::values::{TerminalScalarValue, TerminalStructuralValue};
+use crate::values::{TerminalScalarCaseValue, TerminalScalarValue, TerminalStructuralValue};
 use semantic_vocabulary::{MachineId, OperationId, PlaceId};
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{
-    ClaimTransfer, StructuralAccess, StructuralArgument, StructuralMultiplicity,
-    StructuralOperationResult, StructuralParameterDeclaration, StructuralPathSegment,
-    StructuralResultClaimTransfer, StructuralTypeShape, TerminalMachineResult,
+    ClaimTransfer, StructuralAccess, StructuralAffineDiscard, StructuralArgument,
+    StructuralMultiplicity, StructuralOperationResult, StructuralParameterDeclaration,
+    StructuralPathSegment, StructuralResultClaimTransfer, StructuralTypeShape,
+    TerminalMachineResult,
 };
+
+/// The caller retains an owner only while some subtree remains in its custody.
+/// Moving the final projected child retires the same descriptor as a whole move,
+/// without inventing a discard for an empty complement. Resolve all transfers
+/// first: several disjoint arguments may consume one root, which retires once.
+fn retire_transferred_call_sources(
+    arguments: &[StructuralArgument],
+    parameters: &[StructuralParameterDeclaration],
+    frontier: &BTreeSet<StructuralAffineDiscard>,
+    values: &mut BTreeMap<PlaceId, TerminalStructuralValue>,
+    cases: &mut BTreeMap<PlaceId, TerminalScalarCaseValue>,
+) -> Result<(), TerminalInterpretError> {
+    let sources = arguments
+        .iter()
+        .zip(parameters)
+        .filter(|(argument, parameter)| {
+            argument.access == StructuralAccess::Owned
+                && parameter.multiplicity != StructuralMultiplicity::Unrestricted
+                && (argument.path.is_empty()
+                    || (parameter.multiplicity == StructuralMultiplicity::Affine
+                        && !frontier.iter().any(|entry| entry.place == argument.place)))
+        })
+        .map(|(argument, _)| argument.place)
+        .collect::<BTreeSet<_>>();
+    for place in sources {
+        if values.remove(&place).is_none() && cases.remove(&place).is_none() {
+            return Err(TerminalInterpretError::VerifiedStructuralPlaceMissing(
+                place,
+            ));
+        }
+    }
+    Ok(())
+}
 
 impl TerminalExecution {
     pub(crate) fn resolve_dynamic_call_arguments(
@@ -252,22 +286,13 @@ impl TerminalExecution {
         }
         let mut caller_structural_values = std::mem::take(&mut self.structural_values);
         let mut caller_scalar_case_values = std::mem::take(&mut self.scalar_case_values);
-        for (argument, _parameter) in structural_arguments
-            .iter()
-            .zip(&callee.structural_parameters)
-            .filter(|(argument, parameter)| {
-                argument.path.is_empty()
-                    && parameter.multiplicity != StructuralMultiplicity::Unrestricted
-            })
-        {
-            if caller_structural_values.remove(&argument.place).is_none()
-                && caller_scalar_case_values.remove(&argument.place).is_none()
-            {
-                return Err(TerminalInterpretError::VerifiedStructuralPlaceMissing(
-                    argument.place,
-                ));
-            }
-        }
+        retire_transferred_call_sources(
+            structural_arguments,
+            &callee.structural_parameters,
+            &caller_affine_frontier,
+            &mut caller_structural_values,
+            &mut caller_scalar_case_values,
+        )?;
         self.call_stack.push(SuspendedCall {
             values: std::mem::take(&mut self.values),
             structural_values: caller_structural_values,
@@ -364,22 +389,13 @@ impl TerminalExecution {
         }
         let mut caller_structural_values = std::mem::take(&mut self.structural_values);
         let mut caller_scalar_case_values = std::mem::take(&mut self.scalar_case_values);
-        for (argument, _parameter) in structural_arguments
-            .iter()
-            .zip(&callee.structural_parameters)
-            .filter(|(argument, parameter)| {
-                argument.path.is_empty()
-                    && parameter.multiplicity != StructuralMultiplicity::Unrestricted
-            })
-        {
-            if caller_structural_values.remove(&argument.place).is_none()
-                && caller_scalar_case_values.remove(&argument.place).is_none()
-            {
-                return Err(TerminalInterpretError::VerifiedStructuralPlaceMissing(
-                    argument.place,
-                ));
-            }
-        }
+        retire_transferred_call_sources(
+            structural_arguments,
+            &callee.structural_parameters,
+            &caller_affine_frontier,
+            &mut caller_structural_values,
+            &mut caller_scalar_case_values,
+        )?;
         self.call_stack.push(SuspendedCall {
             values: std::mem::take(&mut self.values),
             structural_values: caller_structural_values,
@@ -555,7 +571,6 @@ impl TerminalExecution {
         )?;
 
         let mut caller_affine_frontier = self.live_affine_frontier.clone();
-        let mut retired_carriers = BTreeSet::new();
         for (argument, parameter) in structural_arguments
             .iter()
             .zip(&callee.structural_parameters)
@@ -564,48 +579,17 @@ impl TerminalExecution {
                 && argument.access == StructuralAccess::Owned
             {
                 self.consume_affine_call_argument(&mut caller_affine_frontier, argument)?;
-                // A projected operand that consumed every affine subtree
-                // retires its carrier: no residual frontier entry survives
-                // to answer for the root, so its value cannot remain either.
-                if !argument.path.is_empty()
-                    && !caller_affine_frontier
-                        .iter()
-                        .any(|entry| entry.place == argument.place)
-                {
-                    retired_carriers.insert(argument.place);
-                }
             }
         }
         let mut caller_structural_values = self.structural_values.clone();
-        for (argument, _parameter) in structural_arguments
-            .iter()
-            .zip(&callee.structural_parameters)
-            .filter(|(argument, parameter)| {
-                (argument.path.is_empty()
-                    && parameter.multiplicity != StructuralMultiplicity::Unrestricted)
-                    || retired_carriers.contains(&argument.place)
-            })
-        {
-            if caller_structural_values.remove(&argument.place).is_none()
-                && !self.scalar_case_values.contains_key(&argument.place)
-            {
-                return Err(TerminalInterpretError::VerifiedStructuralPlaceMissing(
-                    argument.place,
-                ));
-            }
-        }
-
         let mut caller_scalar_case_values = std::mem::take(&mut self.scalar_case_values);
-        for (argument, parameter) in structural_arguments
-            .iter()
-            .zip(&callee.structural_parameters)
-        {
-            if argument.path.is_empty()
-                && parameter.multiplicity != StructuralMultiplicity::Unrestricted
-            {
-                caller_scalar_case_values.remove(&argument.place);
-            }
-        }
+        retire_transferred_call_sources(
+            structural_arguments,
+            &callee.structural_parameters,
+            &caller_affine_frontier,
+            &mut caller_structural_values,
+            &mut caller_scalar_case_values,
+        )?;
         self.next_operation += 1;
         self.call_stack.push(SuspendedCall {
             values: std::mem::take(&mut self.values),

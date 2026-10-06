@@ -128,15 +128,14 @@ pub(crate) fn literal_qualifications(
 }
 
 /// What the call's kind implies for every argument: the operation kind at
-/// the call site, whether it is a Unit call, a borrowed call, an ordinary
-/// call under the source policy, whether results may be projected, and
+/// the call site, whether it is a borrowed call, an ordinary
+/// call under the source policy, and
 /// whether the call's own result is a live reference roster.
 #[derive(Clone, Copy)]
 pub(in crate::validation) struct CallShape<'a> {
     pub(in crate::validation) call_kind: Option<&'a OperationKind>,
     pub(in crate::validation) borrowed_call: bool,
     pub(in crate::validation) ordinary_call: bool,
-    pub(in crate::validation) result_projection: bool,
     /// The call returns reference custody, so its owned operands may name a
     /// declared-field subtree of a result carrier: the callee's published
     /// result source map rejoins each leaf loan under that exact projection.
@@ -158,7 +157,6 @@ pub(crate) fn validate_structural_arguments(
         .flat_map(|block| &block.operations)
         .find(|candidate| candidate.id == operation);
     let call_kind = call_operation.map(|candidate| &candidate.kind);
-    let unit_call = matches!(call_kind, Some(OperationKind::CallUnit { .. }));
     let borrowed_call = matches!(
         call_kind,
         Some(
@@ -184,12 +182,10 @@ pub(crate) fn validate_structural_arguments(
         .is_some_and(|result| {
             crate::validation::references::contains_reference(module, result.structural_type)
         });
-    let result_projection = allow_projected && (unit_call || reference_result_call);
     let shape = CallShape {
         call_kind,
         borrowed_call,
         ordinary_call,
-        result_projection,
         reference_result_call,
     };
     if arguments.len() != expected.len() {

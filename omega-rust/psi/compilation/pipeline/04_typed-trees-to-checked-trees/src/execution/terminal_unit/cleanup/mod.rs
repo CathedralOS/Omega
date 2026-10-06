@@ -7,6 +7,7 @@
 //! empty service reach and exact affine discards.
 
 pub(super) mod anonymous;
+pub(crate) use anonymous::projected_temporary_residuals;
 mod cleanup_evidence;
 mod nominal_requirements;
 pub(super) mod normal_edges;

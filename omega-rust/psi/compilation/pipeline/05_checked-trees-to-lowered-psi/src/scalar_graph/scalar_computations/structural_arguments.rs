@@ -58,17 +58,16 @@ pub(super) fn lower(
                     }).ok_or(LoweringError::Unsupported(
                         "computed value has no reserved argument home",
                     ))?;
-                    if !argument.path.is_empty() {
-                        return unsupported("computed value argument must retain its complete owner");
-                    }
                     return Ok(PreparedStructuralArgument {
                         selector_positions: Vec::new(),
                         place: slot.place,
-                        path: Vec::new(),
+                        path: crate::expression_preparation::bindings::structural_paths::prepare_argument_path(
+                            &argument.path, slot.structural_type, structural_types,
+                        )?,
                         access: match argument.access {
                             checked_trees::CheckedStructuralAccess::Owned => StructuralAccess::Owned,
                             checked_trees::CheckedStructuralAccess::SharedBorrow => StructuralAccess::SharedBorrow,
-                            _ => return unsupported("computed owner only admits whole transfer or shared lending"),
+                            _ => return unsupported("computed owner only admits transfer or shared lending"),
                         },
                     });
             }

@@ -180,13 +180,21 @@ impl Builder<'_, '_> {
                                 return None;
                             }
                             let value = self.retain_structural_argument(*argument, parameter.type_reference)?;
-                            let expression = self.structural_values.nodes.get(value).expression;
                             let (access, referent) = match self.program.type_reference_table.type_reference(parameter.type_reference) {
                                 TypeReferenceNode::Reference { access: language_semantics::ReferenceAccess::Shared, referee, .. } =>
                                     (checked_trees::CheckedStructuralAccess::SharedBorrow, *referee),
                                 TypeReferenceNode::Reference { .. } => return None,
                                 _ => (checked_trees::CheckedStructuralAccess::Owned, parameter.type_reference),
                             };
+                            let (expression, owner_type, path) = self.retained_argument_owner(value, referent)?;
+                            let contract = validation::structural_result_contract(self.program, referent).ok()?;
+                            let argument_plan = checked_trees::CheckedUnitStructuralArgumentPlan {
+                                source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression },
+                                path,
+                                type_identity: self.program.normalized_type_identity(contract.carrier).into_string(),
+                                access,
+                            };
+                            let mut discards = None;
                             if access == checked_trees::CheckedStructuralAccess::SharedBorrow {
                                 // Retention only supplies storage. The permission pass owns
                                 // the loan's exact consumer and dying continuation; carry its
@@ -198,28 +206,31 @@ impl Builder<'_, '_> {
                                 )?;
                                 match self.program.type_multiplicity(referent) {
                                     language_semantics::Multiplicity::Affine => {
-                                        temporary_discards.push(checked_trees::CheckedScalarComputationTemporaryDiscard {
-                                            argument_ordinal: u32::try_from(structural_arguments.len()).ok()?,
-                                        });
+                                        discards = Some(vec![checked_trees::CheckedUnitPartialAffineDiscardPlan {
+                                            source: argument_plan.source.clone(),
+                                            path: Vec::new(),
+                                            type_identity: argument_plan.type_identity.clone(),
+                                        }]);
                                     }
                                     language_semantics::Multiplicity::Unrestricted => {}
                                     _ => return None,
                                 }
+                            } else if !argument_plan.path.is_empty() {
+                                discards = Some(crate::execution::terminal_unit::cleanup::projected_temporary_residuals(
+                                    self.program, self.flow, self.machine, self.state,
+                                    self.flow.control.calls.get(source_call), owner_type, &argument_plan,
+                                )?);
                             }
-                            // The retained root still owns the complete declared
-                            // type matched to this formal. The operand names its
-                            // storage carrier; qualifications are not type rows.
-                            let contract = validation::structural_result_contract(self.program, referent).ok()?;
-                            Some(checked_trees::CheckedUnitStructuralArgumentPlan {
-                                source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
-                                    expression,
-                                },
-                                path: Vec::new(),
-                                type_identity: self.program
-                                    .normalized_type_identity(contract.carrier)
-                                    .into_string(),
-                                access,
-                            })
+                            if let Some(discards) = discards {
+                                temporary_discards.push(checked_trees::CheckedScalarComputationTemporaryDiscard {
+                                    argument_ordinal: u32::try_from(structural_arguments.len()).ok()?,
+                                    affine_discards: self.plans.temporary_affine_discards.insert_many(discards),
+                                });
+                            }
+                            // The retained root owns the complete carrier; the
+                            // argument's path selects the type matched to this
+                            // formal. Qualifications are not type rows.
+                            Some(argument_plan)
                         });
                 structural_arguments.push(
                     checked_trees::CheckedScalarComputationStructuralArgument::Place(

@@ -295,18 +295,20 @@ pub(super) fn retain_shapes(
                         if roots.next().is_some()
                             || !structural_values.nodes.is_valid(root.root)
                             || structural_values.nodes.get(root.root).expression != expression
-                            || program.normalized_type_identity(contract.carrier).as_str()
-                                != argument.type_identity
+                            || (argument.path.is_empty()
+                                && program.normalized_type_identity(contract.carrier).as_str()
+                                    != argument.type_identity)
                             || !matches!(argument.access,
                                 checked_trees::CheckedStructuralAccess::Owned
                                     | checked_trees::CheckedStructuralAccess::SharedBorrow)
-                            || !argument.path.is_empty()
                         {
                             return None;
                         }
                         // The produced value owns its complete declaration,
                         // including when the invocation only borrows it. The
                         // formal's reference type does not replace this owner;
+                        // a projected argument likewise retains its exact path
+                        // and transfer without replacing the owner's catalog.
                         // its scalar children have their own retained roots in
                         // this same state's computation inventory.
                         retain_declarations(

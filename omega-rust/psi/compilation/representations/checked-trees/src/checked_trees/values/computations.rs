@@ -56,12 +56,15 @@ impl CheckedScalarComputationStructuralArgument {
     }
 }
 
-/// One admitted temporary owner retired after its borrowing call returns.
+/// One admitted temporary owner retired after its consuming call returns.
 /// Rows follow reverse establishment order and select the call's structural
 /// operand roster, not a scalar position or a source binding ordinal.
+/// The exact maximal complement may be empty; the row still names the dying
+/// owner's normal continuation. A whole loan uses one empty-path discard.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CheckedScalarComputationTemporaryDiscard {
     pub argument_ordinal: u32,
+    pub affine_discards: HandleSpan<crate::CheckedUnitPartialAffineDiscardPlan>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -71,6 +74,7 @@ pub struct CheckedScalarComputationPlans {
     pub operands: Arena<CheckedScalarComputationHandle>,
     pub structural_arguments: Arena<CheckedScalarComputationStructuralArgument>,
     pub temporary_discards: Arena<CheckedScalarComputationTemporaryDiscard>,
+    pub temporary_affine_discards: Arena<crate::CheckedUnitPartialAffineDiscardPlan>,
     pub dispatch_arms: Arena<CheckedScalarDispatchArm>,
     pub case_fields: Arena<CheckedScalarCaseComputationField>,
 }

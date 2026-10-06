@@ -367,11 +367,8 @@ pub(crate) fn produced_value_root<'checked>(
         argument.access,
         checked_trees::CheckedStructuralAccess::Owned
             | checked_trees::CheckedStructuralAccess::SharedBorrow
-    ) || !argument.path.is_empty()
-    {
-        return unsupported(
-            "computed structural operand must consume or share its whole owned value",
-        );
+    ) {
+        return unsupported("computed structural operand must consume or share its retained owner");
     }
     let control = &checked.facts.flow.control;
     if !control.calls.is_valid(source_call) {
@@ -410,10 +407,15 @@ pub(crate) fn produced_value_root<'checked>(
         .map_err(LoweringError::Unsupported)?;
     if root.machine != state.machine_symbol
         || !values.nodes.is_valid(root.root)
-        || checked.normalized_type_identity(contract.carrier).as_str() != argument.type_identity
+        || (argument.path.is_empty()
+            && checked.normalized_type_identity(contract.carrier).as_str()
+                != argument.type_identity)
     {
         return unsupported("computed structural operand disagrees with its retained value");
     }
+    // A projected actual keeps this complete owner's storage contract. Its
+    // selected type was checked at admission; lowering resolves the retained
+    // path against the owner's catalog rather than minting another value.
     Ok(root)
 }
 

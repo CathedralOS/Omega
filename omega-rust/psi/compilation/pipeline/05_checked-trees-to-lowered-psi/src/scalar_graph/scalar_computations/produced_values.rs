@@ -68,9 +68,13 @@ pub(crate) fn prepare(
                 continue;
             }
             let root = produced_value_root(checked, source_call, argument)?;
+            let contract =
+                validation::structural_result_contract(&checked.typed, root.type_reference)
+                    .map_err(LoweringError::Unsupported)?;
+            let identity = checked.normalized_type_identity(contract.carrier);
             let declaration = types
                 .iter()
-                .find(|declaration| declaration.identity == argument.type_identity)
+                .find(|declaration| declaration.identity == identity.as_str())
                 .ok_or(LoweringError::Unsupported(
                     "computed producer has no structural type namespace",
                 ))?;

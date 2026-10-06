@@ -2,6 +2,8 @@
 //! and structural construction. Snapshots survive later effects without becoming
 //! callee arguments; constructor leaves retire at their own constructor. CPS
 //! attaches this stream only to the selected expression path.
+//! Anonymous argument owners retain their complete homes through the call;
+//! its normal continuation retires the checked ordered residual complement.
 use super::super::direct_expression_contains_short_circuit;
 use super::{
     Argument, CheckedScalarComputationKind, CheckedScalarExpressionRole, CheckedTrees, Computation,
@@ -570,8 +572,8 @@ impl Expansion<'_> {
         // or its borrowed access. Keep the scalar result and caller prefix live
         // across the exact normal continuation; a crashing call never reaches it.
         let discards =
-            self.temporary_discard_places(source_call, structural, temporary_discards)?;
-        let target = if discards.is_empty() {
+            self.temporary_cleanup_actions(source_call, structural, temporary_discards)?;
+        let target = if temporary_discards.is_empty() {
             target
         } else {
             let mut parameter_types = input_types.to_vec();
@@ -585,10 +587,7 @@ impl Expansion<'_> {
                 terminator: LoweredScalarBranchTerminator::Jump {
                     arguments: super::parameters(&parameter_types),
                     target,
-                    cleanup_actions: discards
-                        .into_iter()
-                        .map(terminal_psi::TerminalAffineCleanupAction::DiscardRoot)
-                        .collect(),
+                    cleanup_actions: discards,
                     erased_arguments: Vec::new(),
                     erased_proof_arguments: Vec::new(),
                     structural_arguments: Vec::new(),
@@ -682,15 +681,15 @@ impl Expansion<'_> {
         Ok(continuation)
     }
 
-    /// Translate already-admitted temporary retirement into the reserved homes.
-    /// This is the same whole-owner edge disposal used for completed receivers;
-    /// nominal hooks and live reference contents need their nontrivial plan.
-    fn temporary_discard_places(
+    /// Translate the checked partition in its authored cleanup order. Admission
+    /// owns the permission and complement derivation; this step only joins its
+    /// exact source to storage and lowers the already selected subtree paths.
+    fn temporary_cleanup_actions(
         &self,
         source_call: Handle<checked_trees::FlowCallFact>,
         arguments: &[CheckedScalarComputationStructuralArgument],
         retained: HandleSpan<CheckedScalarComputationTemporaryDiscard>,
-    ) -> Result<Vec<semantic_vocabulary::PlaceId>, LoweringError> {
+    ) -> Result<Vec<terminal_psi::TerminalAffineCleanupAction>, LoweringError> {
         let plans = &self.checked.facts.values.scalar_computations;
         let retained =
             plans
@@ -699,7 +698,8 @@ impl Expansion<'_> {
                 .ok_or(LoweringError::Unsupported(
                     "computed call lost its temporary retirement roster",
                 ))?;
-        let mut discards = Vec::with_capacity(retained.len());
+        let mut actions = Vec::new();
+        let mut retired = Vec::with_capacity(retained.len());
         for discard in retained {
             let ordinal = discard.argument_ordinal as usize;
             let argument = arguments
@@ -708,14 +708,13 @@ impl Expansion<'_> {
                 .ok_or(LoweringError::Unsupported(
                     "temporary retirement lost its structural operand",
                 ))?;
-            if argument.access != checked_trees::CheckedStructuralAccess::SharedBorrow
-                || !argument.path.is_empty()
+            if retired.contains(&ordinal)
                 || !matches!(
                     argument.source,
                     checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { .. }
                 )
             {
-                return unsupported("temporary retirement requires its whole shared operand");
+                return unsupported("temporary retirement repeats or loses its owner source");
             }
             let slot = self
                 .produced_values
@@ -724,47 +723,44 @@ impl Expansion<'_> {
                 .ok_or(LoweringError::Unsupported(
                     "temporary retirement lost its reserved owner",
                 ))?;
-            if self.checked.type_multiplicity(slot.type_reference)
-                != language_semantics::Multiplicity::Affine
-                || discards.contains(&slot.place)
-            {
-                return unsupported("temporary retirement repeats or changes its affine owner");
-            }
-            if !crate::content_classes::plain_owned_with_represented_constraints(
-                self.checked,
-                slot.type_reference,
-            ) {
-                return unsupported(
-                    "computed temporary disposal requires its nontrivial cleanup plan",
-                );
-            }
-            discards.push(slot.place);
-        }
-        for (ordinal, argument) in arguments.iter().enumerate() {
-            let Some(argument) = argument.as_place() else {
-                continue;
-            };
-            if argument.access != checked_trees::CheckedStructuralAccess::SharedBorrow
-                || !matches!(
-                    argument.source,
-                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { .. }
-                )
-            {
-                continue;
-            }
-            let slot = self
-                .produced_values
-                .iter()
-                .find(|slot| slot.source_call == source_call && slot.argument_ordinal == ordinal)
+            retired.push(ordinal);
+            let discards = plans
+                .temporary_affine_discards
+                .span(discard.affine_discards)
                 .ok_or(LoweringError::Unsupported(
-                    "shared temporary lost its reserved owner",
+                    "temporary retirement has stale residual rows",
                 ))?;
-            match self.checked.type_multiplicity(slot.type_reference) {
-                language_semantics::Multiplicity::Unrestricted => {}
-                language_semantics::Multiplicity::Affine if discards.contains(&slot.place) => {}
-                _ => return unsupported("shared temporary has no admitted normal retirement"),
+            for residual in discards {
+                if residual.source != argument.source {
+                    return unsupported("temporary residual names a different owner");
+                }
+                if residual.path.is_empty() {
+                    actions.push(terminal_psi::TerminalAffineCleanupAction::DiscardRoot(
+                        slot.place,
+                    ));
+                } else {
+                    let path = crate::expression_preparation::bindings::structural_paths::lower_typed_argument_path(
+                        &residual.path, slot.structural_type, self.structural_types,
+                        None, &mut std::iter::empty(), None,
+                    )?;
+                    let structural_type = self
+                        .structural_types
+                        .iter()
+                        .find(|declaration| declaration.identity == residual.type_identity)
+                        .map(|declaration| declaration.id)
+                        .ok_or(LoweringError::Unsupported(
+                            "temporary residual has no structural type",
+                        ))?;
+                    actions.push(terminal_psi::TerminalAffineCleanupAction::DiscardResidual(
+                        terminal_psi::StructuralAffineDiscard {
+                            place: slot.place,
+                            path,
+                            structural_type,
+                        },
+                    ));
+                }
             }
         }
-        Ok(discards)
+        Ok(actions)
     }
 }

@@ -176,13 +176,15 @@ pub(super) fn validate(
                             if value.machine != machine
                                 || !structural_values.nodes.is_valid(value.root)
                                 || structural_values.nodes.get(value.root).expression != expression
-                                || program.normalized_type_identity(contract.carrier).as_str()
-                                    != argument.type_identity
-                                || !argument.path.is_empty()
+                                || (argument.path.is_empty()
+                                    && program.normalized_type_identity(contract.carrier).as_str()
+                                        != argument.type_identity)
                             {
                                 return None;
                             }
-                            // A produced value is not an ingress parameter.
+                            // A produced owner (whole or projected) is not an
+                            // ingress parameter. Its child transfer and residual
+                            // disposition belong to the consuming call.
                             // Its scalar children own separate computation
                             // roots. Any embedded affine parameter transfer
                             // must still match the event ledger below; this

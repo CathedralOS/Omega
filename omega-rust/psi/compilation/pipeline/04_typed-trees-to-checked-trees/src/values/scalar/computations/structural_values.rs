@@ -786,6 +786,74 @@ fn argument_needs_establishment(kind: &CheckedStructuralValueKind) -> bool {
 }
 
 impl Builder<'_, '_> {
+    /// A projection names a subtree of the retained value's real owner. Keep
+    /// that owner as the expression source and the selection as an argument
+    /// path, so every evaluation schedule establishes and disposes it once.
+    pub(super) fn retained_argument_owner(
+        &mut self,
+        value: CheckedStructuralValueHandle,
+        reference: TypeReferenceHandle,
+    ) -> Option<(
+        ExpressionHandle,
+        TypeReferenceHandle,
+        Vec<checked_trees::CheckedUnitStructuralPathSegment>,
+    )> {
+        let node = self.structural_values.nodes.get(value);
+        let (owner, path) = match &node.kind {
+            CheckedStructuralValueKind::Projection { source, path, .. } => (*source, path.clone()),
+            _ => (value, Vec::new()),
+        };
+        let expression = self.structural_values.nodes.get(owner).expression;
+        let owner_reference = if owner == value {
+            reference
+        } else {
+            let place = crate::flow::canonical_place_from_expression_in_state(
+                self.program,
+                self.state,
+                self.statement_index,
+                expression,
+            )?;
+            if !place.segments.is_empty() {
+                return None;
+            }
+            crate::flow::canonical_place_type_reference(
+                self.program,
+                self.state,
+                self.statement_index,
+                &place,
+            )?
+        };
+        if !argument_needs_establishment(&self.structural_values.nodes.get(owner).kind) {
+            return None;
+        }
+        let statement = u32::try_from(self.statement_index).ok()?;
+        if let Some(retained) = self
+            .structural_values
+            .root_for_expression(self.state, statement, expression)
+        {
+            if retained.machine != self.machine
+                || self
+                    .program
+                    .normalized_type_identity(retained.type_reference)
+                    != self.program.normalized_type_identity(owner_reference)
+            {
+                return None;
+            }
+        } else {
+            self.structural_values
+                .roots
+                .append(checked_trees::CheckedStructuralValueRoot {
+                    machine: self.machine,
+                    state: self.state,
+                    statement_ordinal: statement,
+                    expression,
+                    type_reference: owner_reference,
+                    root: owner,
+                });
+        }
+        Some((expression, owner_reference, path))
+    }
+
     /// Retain the value established by an argument, independent of how the
     /// consumer accesses it. A shared temporary owns its referent, not a
     /// reference-shaped constructor. Existing places keep their loan/storage

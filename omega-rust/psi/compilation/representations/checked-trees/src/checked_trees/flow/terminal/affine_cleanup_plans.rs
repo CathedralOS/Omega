@@ -11,13 +11,25 @@ use symbols::SymbolHandle;
 /// One claim-free affine structural place disposed on the normal edge selected
 /// by its containing plan. An empty path denotes the whole root; a nonempty path
 /// denotes a retained residual subtree. The root is a structural parameter or
-/// call-result binding, with canonical semantic path identity. Other source
-/// kinds do not yet admit this cleanup.
+/// call-result binding or retained expression, with canonical semantic path
+/// identity. A projection preserves that owner's identity through disposal.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedUnitPartialAffineDiscardPlan {
     pub source: CheckedUnitStructuralArgumentSourcePlan,
     pub path: Vec<CheckedUnitStructuralPathSegment>,
     pub type_identity: String,
+}
+
+impl Default for CheckedUnitPartialAffineDiscardPlan {
+    fn default() -> Self {
+        Self {
+            source: CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
+                expression: arena::Handle::invalid(),
+            },
+            path: Vec::new(),
+            type_identity: String::new(),
+        }
+    }
 }
 
 /// Checked-only carrier for direct-record-field partial cleanup. It remains

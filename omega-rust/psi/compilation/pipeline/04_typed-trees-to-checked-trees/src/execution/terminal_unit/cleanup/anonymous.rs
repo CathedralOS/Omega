@@ -14,25 +14,27 @@ use super::{
 };
 use crate::execution::terminal_unit::calls::projected_argument_path;
 use crate::execution::terminal_unit::cleanup::partial_affine_cleanup::partial_affine_residuals;
-use crate::execution::terminal_unit::types::{ShapeCollector, base_type_identity, state_flow};
+use crate::execution::terminal_unit::types::{ShapeCollector, base_type_identity};
 
 #[allow(clippy::too_many_arguments)]
-pub(in crate::execution::terminal_unit) fn validate_permissions_at(
+fn validate_permissions_at(
     program: &TypedTrees,
-    facts: &CheckFacts,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
+    flow: &checked_trees::FlowFacts,
+    machine: symbols::SymbolHandle,
+    state: symbols::SymbolHandle,
     root: facts::PlaceRoot,
     statement_index: usize,
     call_ordinal: usize,
-    binding_ordinal: u32,
+    source_plan: &CheckedUnitStructuralArgumentSourcePlan,
     residuals: &[CheckedUnitPartialAffineDiscardPlan],
 ) -> Option<()> {
     let facts::PlaceRoot::Expression(expression) = root else {
         return None;
     };
-    let flow = state_flow(facts, machine.symbol, state.symbol)?;
-    let calls = facts.flow.control.calls.span(flow.calls)?;
+    let (_, state_flow) = flow.control.states.iter().find(|(_, candidate)| {
+        candidate.machine_symbol == machine && candidate.state_symbol == state
+    })?;
+    let calls = flow.control.calls.span(state_flow.calls)?;
     let calls = calls
         .iter()
         .filter(|call| call.statement_index == statement_index)
@@ -55,8 +57,8 @@ pub(in crate::execution::terminal_unit) fn validate_permissions_at(
     }
     let consumer_site = crate::semantic::calls::find_call_site(
         program,
-        machine.symbol,
-        state.symbol,
+        machine,
+        state,
         statement_index,
         call_ordinal,
     )?;
@@ -66,7 +68,7 @@ pub(in crate::execution::terminal_unit) fn validate_permissions_at(
             .filter_map(|argument| {
                 crate::flow::canonical_place_from_expression_in_state(
                     program,
-                    state.symbol,
+                    state,
                     statement_index,
                     *argument,
                 )
@@ -82,24 +84,16 @@ pub(in crate::execution::terminal_unit) fn validate_permissions_at(
         target_symbol: call.target_symbol,
     };
     let provenance = language_semantics::PermissionProvenance::Established {
-        machine_symbol: machine.symbol,
-        state_symbol: state.symbol,
+        machine_symbol: machine,
+        state_symbol: state,
         source: source(producer),
     };
     let mut established = false;
     let mut transferred = false;
     let mut dropped = Vec::new();
-    for (_, event) in facts
-        .flow
-        .ownership
-        .permissions
-        .iter()
-        .filter(|(_, event)| {
-            event.machine_symbol == machine.symbol
-                && event.state_symbol == state.symbol
-                && event.root == root
-        })
-    {
+    for (_, event) in flow.ownership.permissions.iter().filter(|(_, event)| {
+        event.machine_symbol == machine && event.state_symbol == state && event.root == root
+    }) {
         if event.access != PermissionAccess::Owned
             || event.multiplicity != Multiplicity::Affine
             || event.claim_identity != PermissionClaimIdentity::Unknown
@@ -108,7 +102,7 @@ pub(in crate::execution::terminal_unit) fn validate_permissions_at(
         {
             return None;
         }
-        let segments = facts.flow.ownership.segments.span(event.segments)?;
+        let segments = flow.ownership.segments.span(event.segments)?;
         match event.kind {
             PermissionEventKind::Establish
                 if !established && event.source == source(producer) && segments.is_empty() =>
@@ -131,7 +125,7 @@ pub(in crate::execution::terminal_unit) fn validate_permissions_at(
                     segments: segments.to_vec(),
                 };
                 let (reference, path) =
-                    projected_argument_path(program, state.symbol, statement_index, &place)?;
+                    projected_argument_path(program, state, statement_index, &place)?;
                 dropped.push((path, base_type_identity(program, reference, &[])?));
             }
             _ => return None,
@@ -146,12 +140,55 @@ pub(in crate::execution::terminal_unit) fn validate_permissions_at(
             .all(|((path, identity), residual)| {
                 *path == residual.path
                     && *identity == residual.type_identity
-                    && residual.source
-                        == CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-                            binding_ordinal,
-                        }
+                    && residual.source == *source_plan
             }))
     .then_some(())
+}
+
+/// Publish the original anonymous owner's residual partition for any call
+/// evaluation schedule. Scalar and operation callers consume these same rows;
+/// a selected subtree never becomes a second whole temporary.
+pub(crate) fn projected_temporary_residuals(
+    program: &TypedTrees,
+    flow: &checked_trees::FlowFacts,
+    machine: symbols::SymbolHandle,
+    state: symbols::SymbolHandle,
+    consumer: &checked_trees::FlowCallFact,
+    owner_type: typed_trees::types::TypeReferenceHandle,
+    argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
+) -> Option<Vec<CheckedUnitPartialAffineDiscardPlan>> {
+    let CheckedUnitStructuralArgumentSourcePlan::StructuralExpression { expression } =
+        argument.source
+    else {
+        return None;
+    };
+    if argument.access != CheckedStructuralAccess::Owned
+        || argument.path.is_empty()
+        || program.type_multiplicity(owner_type) != Multiplicity::Affine
+        || !validation::has_plain_owned_contents_with_represented_constraints(program, owner_type)
+    {
+        return None;
+    }
+    let mut shapes = ShapeCollector::new(program);
+    let identity = shapes.add_type(owner_type, &[], &[])?;
+    let residuals = partial_affine_residuals(
+        &shapes.types,
+        &argument.source,
+        &identity,
+        &[(argument.path.clone(), argument.type_identity.clone())],
+    )?;
+    validate_permissions_at(
+        program,
+        flow,
+        machine,
+        state,
+        facts::PlaceRoot::Expression(expression),
+        consumer.statement_index,
+        consumer.call_ordinal,
+        &argument.source,
+        &residuals,
+    )?;
+    Some(residuals)
 }
 
 /// Dispose anonymous argument owners at the call's normal continuation.
@@ -231,13 +268,13 @@ pub(in crate::execution::terminal_unit) fn append_continuation(
             )?;
             validate_permissions_at(
                 program,
-                facts,
-                machine,
-                state,
+                &facts.flow,
+                machine.symbol,
+                state.symbol,
                 *root,
                 usize::try_from(coordinate.statement_index).ok()?,
                 usize::try_from(coordinate.call_ordinal).ok()?,
-                result.binding_ordinal,
+                &source,
                 &residuals,
             )?;
             affine_discards.extend(residuals);

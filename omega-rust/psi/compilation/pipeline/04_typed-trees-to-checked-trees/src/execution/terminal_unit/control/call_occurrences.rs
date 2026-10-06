@@ -338,9 +338,15 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
                         let call = facts.flow.control.calls.get(source_call);
                         if call.authored_expression != node.expression
                             || call.statement_index != statement_index
-                            || consumed.contains(&source_call)
                         {
                             return None;
+                        }
+                        // Owner and projection roots can both retain this
+                        // captured occurrence. Discovery lists it once; the
+                        // operand schedule, not the number of root references,
+                        // owns its single execution and result establishment.
+                        if consumed.contains(&source_call) {
+                            continue;
                         }
                         consumed.push(source_call);
                         structural.push(call);
@@ -1400,23 +1406,26 @@ fn collect_structural_argument_calls(
         let root = values.root_for_expression(state, u32::try_from(statement).ok()?, expression)?;
         if !values.nodes.is_valid(root.root)
             || values.nodes.get(root.root).expression != expression
-            || program
-                .normalized_type_identity(
-                    validation::structural_result_contract(program, root.type_reference)
-                        .ok()?
-                        .carrier,
-                )
-                .as_str()
-                != argument.type_identity
+            || (argument.path.is_empty()
+                && program
+                    .normalized_type_identity(
+                        validation::structural_result_contract(program, root.type_reference)
+                            .ok()?
+                            .carrier,
+                    )
+                    .as_str()
+                    != argument.type_identity)
             || !matches!(
                 argument.access,
                 checked_trees::CheckedStructuralAccess::Owned
                     | checked_trees::CheckedStructuralAccess::SharedBorrow
             )
-            || !argument.path.is_empty()
         {
             return None;
         }
+        // A projected actual selects a subtree without replacing this retained
+        // owner. Its path/type/transfer were admitted with the call; discovery
+        // follows the owner's dependencies, not the selected argument type.
         // Constructor fields already own their scalar computation roots in
         // collect_constructor_calls. Following them again here would count
         // one authored invocation twice; this edge only rejoins its value.
