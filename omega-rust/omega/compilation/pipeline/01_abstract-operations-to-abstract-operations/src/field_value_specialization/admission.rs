@@ -594,7 +594,7 @@ fn establishment_scalar(
                 else {
                     return None;
                 };
-                let child = case_structural_child(function, operation, place, identity)?;
+                let child = structural_child(function, operation, place, identity)?;
                 let declaration = function
                     .structural_places
                     .iter()
@@ -827,7 +827,7 @@ fn forwarded_resolution(
 
 /// The `EstablishRecord` node's field initializers when `producer` is that
 /// node on `place`, or `None` when no such node exists.
-fn establish_record_fields(
+fn establishment_fields(
     function: &PsiOptimizationFunction,
     producer: OperationId,
     place: PlaceId,
@@ -841,6 +841,12 @@ fn establish_record_fields(
                 psi_operation,
                 result,
                 fields,
+            }
+            | O::EstablishCase {
+                psi_operation,
+                result,
+                fields,
+                ..
             } if *psi_operation == producer && result.place == place => Some(fields.as_slice()),
             _ => None,
         })
@@ -855,7 +861,7 @@ fn record_initializer(
     place: PlaceId,
     field: StructuralFieldId,
 ) -> Option<ValueId> {
-    establish_record_fields(function, producer, place)?
+    establishment_fields(function, producer, place)?
         .iter()
         .find(|initializer| initializer.field == field)
         .and_then(|initializer| match &initializer.value {
@@ -875,7 +881,7 @@ fn structural_child(
     place: PlaceId,
     field: StructuralFieldId,
 ) -> Option<PlaceId> {
-    establish_record_fields(function, producer, place)?
+    establishment_fields(function, producer, place)?
         .iter()
         .find(|initializer| initializer.field == field)
         .and_then(|initializer| match &initializer.value {
@@ -898,60 +904,12 @@ fn case_field_initializer(
     place: PlaceId,
     field: StructuralFieldId,
 ) -> Option<ValueId> {
-    function
-        .blocks
-        .iter()
-        .flat_map(|block| &block.nodes)
-        .find_map(|node| match &node.operation {
-            O::EstablishCase {
-                psi_operation,
-                result,
-                fields,
-                ..
-            } if *psi_operation == producer && result.place == place => fields
-                .iter()
-                .find(|initializer| initializer.field == field)
-                .and_then(|initializer| match initializer.value {
-                    terminal_psi::RecordFieldValue::Scalar { value, .. } => Some(value),
-                    terminal_psi::RecordFieldValue::Structural(_) => None,
-                }),
-            _ => None,
-        })
-}
-
-/// The child place the `EstablishCase` producer stores whole into payload
-/// `field`, or `None` when the producer node is absent, is not an
-/// `EstablishCase` on this place, or `field`'s initializer is not an owned,
-/// complete structural argument.
-fn case_structural_child(
-    function: &PsiOptimizationFunction,
-    producer: OperationId,
-    place: PlaceId,
-    field: StructuralFieldId,
-) -> Option<PlaceId> {
-    function
-        .blocks
-        .iter()
-        .flat_map(|block| &block.nodes)
-        .find_map(|node| match &node.operation {
-            O::EstablishCase {
-                psi_operation,
-                result,
-                fields,
-                ..
-            } if *psi_operation == producer && result.place == place => Some(fields),
-            _ => None,
-        })?
+    establishment_fields(function, producer, place)?
         .iter()
         .find(|initializer| initializer.field == field)
-        .and_then(|initializer| match &initializer.value {
-            RecordFieldValue::Structural(argument)
-                if argument.path.is_empty()
-                    && argument.access == terminal_psi::StructuralAccess::Owned =>
-            {
-                Some(argument.place)
-            }
-            _ => None,
+        .and_then(|initializer| match initializer.value {
+            terminal_psi::RecordFieldValue::Scalar { value, .. } => Some(value),
+            terminal_psi::RecordFieldValue::Structural(_) => None,
         })
 }
 
