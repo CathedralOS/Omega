@@ -479,6 +479,25 @@ fn build_operand(
                     .collect::<Option<Vec<_>>>()?,
             })
         }
+        ExpressionNode::Cast(cast)
+            if !cast.form.is_recast()
+                && cast.semantic_domain.is_empty()
+                && cast.domain == ArithmeticDomain::Exact =>
+        {
+            // An admitted Exact integer conversion preserves its observed
+            // value. Formation still owes source-to-destination fit; treating
+            // it as an identity supplies no target-range premise. Qualified,
+            // policy-changing, address and reference casts stay opaque.
+            let source = integer_meaning(program, machine, state, cast.value)?.0;
+            let target = program.primitive_type_reference(cast.target_type)?;
+            if source == PrimitiveType::Addr
+                || target == PrimitiveType::Addr
+                || primitive_range(target).is_none()
+            {
+                return None;
+            }
+            build_operand(program, machine, state, cast.value, depth + 1, frames)
+        }
         ExpressionNode::Binary(binary)
             if crate::has_builtin_bound_expression_meaning(
                 program,

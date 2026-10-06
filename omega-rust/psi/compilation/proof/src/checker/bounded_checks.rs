@@ -95,19 +95,25 @@ pub(crate) fn check_bounded_assignment<'program>(
                 ));
             }
             CertificateVerdict::Uncovered => {
-                let Some(value_range) = guarded_integer_range_for_assignment_with_context(
+                let interval_fits = guarded_integer_range_for_assignment_with_context(
                     proof_plan, obligation, context,
-                ) else {
-                    diagnostics.push(cannot_prove_bounded_assignment_integer(
-                        proof_plan,
-                        obligation,
-                        target_range,
-                    ));
-                    return;
-                };
-
-                if value_range.minimum < target_range.minimum
-                    || value_range.maximum > target_range.maximum
+                )
+                .is_some_and(|range| {
+                    range.minimum >= target_range.minimum && range.maximum <= target_range.maximum
+                });
+                // Independent intervals can lose correlations between operands.
+                // Ask the arithmetic owner about this exact pre-store occurrence;
+                // the promised destination range is a goal, never a premise.
+                if !interval_fits
+                    && !validation::occurrence_integer_expression_fits_range(
+                        proof_plan.program,
+                        obligation.machine_symbol,
+                        obligation.state_symbol,
+                        obligation.statement_index,
+                        obligation.value,
+                        &target_range.minimum,
+                        &target_range.maximum,
+                    )
                 {
                     diagnostics.push(cannot_prove_bounded_assignment_integer(
                         proof_plan,

@@ -22,7 +22,10 @@ use crate::proof_contracts::bound_expression_meaning as meaning;
 mod case_facts;
 mod parameter_bounds;
 pub(crate) use arrivals::occurrence_value_environment;
-pub use arrivals::{arrival_integer_expression_bounds, occurrence_integer_expression_bounds};
+pub use arrivals::{
+    arrival_integer_expression_bounds, occurrence_integer_expression_bounds,
+    occurrence_integer_expression_fits_range,
+};
 
 // Sibling Requires readers must recover the comparison from the same exact
 // expression whose declaration occurrence is checked by the meaning owner.

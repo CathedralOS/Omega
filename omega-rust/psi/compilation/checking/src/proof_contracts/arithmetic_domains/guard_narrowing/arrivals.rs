@@ -82,6 +82,66 @@ pub fn occurrence_integer_expression_bounds(
     (low <= high).then_some((low, high))
 }
 
+/// Judge a closed bound at one exact value occurrence. Independent operand
+/// intervals can lose correlations such as `amount <= limit - used`; the live
+/// ordered-value judgment retains those relations across the same effects and
+/// all-arrival joins as ordinary arithmetic checking.
+pub fn occurrence_integer_expression_fits_range(
+    program: &TypedTrees,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    expression: ExpressionHandle,
+    minimum: &numerics::bignum::BigInt,
+    maximum: &numerics::bignum::BigInt,
+) -> bool {
+    let Some(observation) = expression_observation(
+        program,
+        machine_symbol,
+        state_symbol,
+        Some(statement_index),
+        expression,
+    ) else {
+        return false;
+    };
+    if observation.interval.is_some_and(|interval| {
+        interval
+            .low
+            .is_some_and(|low| numerics::bignum::BigInt::from_i64(low) >= *minimum)
+            && interval
+                .high
+                .is_some_and(|high| numerics::bignum::BigInt::from_i64(high) <= *maximum)
+    }) {
+        return true;
+    }
+    let Some(environment) = observation.environment else {
+        return false;
+    };
+    let Some(machine) = program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == machine_symbol)
+    else {
+        return false;
+    };
+    let Some(state) = program
+        .machine_states(machine)
+        .iter()
+        .find(|state| state.symbol == state_symbol)
+    else {
+        return false;
+    };
+    super::super::live_integer_constraints::proves_range(
+        program,
+        machine,
+        state,
+        &environment,
+        expression,
+        minimum,
+        maximum,
+    )
+}
+
 /// Facts at an exact source observation, including non-interval premises such
 /// as a nonzero divisor. An unbounded result is not failed arithmetic: callers
 /// validate under this environment rather than requiring finite endpoints.

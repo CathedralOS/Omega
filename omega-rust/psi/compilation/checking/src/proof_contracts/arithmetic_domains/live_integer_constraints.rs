@@ -44,6 +44,56 @@ pub(super) fn excludes_values(
             right: integer(value),
         });
     }
+    contradicts(program, machine, environment, observations, comparisons)
+}
+
+/// Prove a requested closed range from the same live observation relations.
+/// The two excluded complements are independent questions to the existing
+/// integer judgment; neither the requested bound nor a cast's target range is
+/// installed as a premise.
+pub(super) fn proves_range(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    environment: &ValueEnvironment,
+    expression: ExpressionHandle,
+    minimum: &BigInt,
+    maximum: &BigInt,
+) -> bool {
+    let Some(operand) = super::ordered_values::operand(program, machine, state, expression) else {
+        return false;
+    };
+    [
+        (BinaryOperator::Less, minimum),
+        (BinaryOperator::Greater, maximum),
+    ]
+    .into_iter()
+    .all(|(operator, bound)| {
+        let mut observations = Observations::default();
+        let Some(left) = observations.value(&operand) else {
+            return false;
+        };
+        contradicts(
+            program,
+            machine,
+            environment,
+            observations,
+            vec![ScopedArithmeticComparison {
+                operator,
+                left,
+                right: ScopedArithmeticValue::Integer(bound.clone()),
+            }],
+        )
+    })
+}
+
+fn contradicts(
+    program: &TypedTrees,
+    machine: &Machine,
+    environment: &ValueEnvironment,
+    mut observations: Observations,
+    mut comparisons: Vec<ScopedArithmeticComparison>,
+) -> bool {
     for relation in &environment.ordered_values {
         let (Some(left), Some(right)) = (
             observations.value(&relation.left),
