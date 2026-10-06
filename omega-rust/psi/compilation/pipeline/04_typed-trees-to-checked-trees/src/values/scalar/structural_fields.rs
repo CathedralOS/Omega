@@ -1250,12 +1250,15 @@ pub(super) fn structural_parameter_place(
         {
             return None;
         }
-        let mut candidates = parameters.iter().enumerate().filter(|(_, parameter)| {
-            parameter.symbol == name.head_symbol
-                && names
-                    .first()
-                    .is_some_and(|spelling| *spelling == parameter.name)
-        });
+        // The resolved head symbol IS which authored binder this place roots
+        // at, and stage 02 mints one parameter symbol per authored binder, so
+        // one roster cannot hold two entries sharing it and the uniqueness
+        // bail below cannot widen. The spelling beside it is the operand a
+        // renamed binder or a same-spelled sibling can disagree with.
+        let mut candidates = parameters
+            .iter()
+            .enumerate()
+            .filter(|(_, parameter)| parameter.symbol == name.head_symbol);
         let (position, _) = candidates.next()?;
         if candidates.next().is_some() {
             return None;
