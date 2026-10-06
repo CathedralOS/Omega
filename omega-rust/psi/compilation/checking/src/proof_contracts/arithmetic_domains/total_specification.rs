@@ -610,92 +610,54 @@ fn validate_abstract_exact_policy_erasure_formation(
         Some((Some(primitive), interval, erased))
     }
 
-    fn walk(
-        program: &TypedTrees,
-        expression: ExpressionHandle,
-        owner: &str,
-        bindings: AbstractSpecificationBindings<'_>,
-        environment: &ValueEnvironment,
-        diagnostics: &mut Vec<Diagnostic>,
-        visited: &mut Vec<ExpressionHandle>,
-    ) {
-        if !expression.is_valid() || visited.contains(&expression) {
+    let mut check = |node: &ExpressionNode| {
+        let ExpressionNode::Binary(binary) = node else {
+            return;
+        };
+        if !matches!(
+            binary.operator,
+            BinaryOperator::Add
+                | BinaryOperator::Subtract
+                | BinaryOperator::Multiply
+                | BinaryOperator::ShiftLeft
+        ) {
             return;
         }
-        visited.push(expression);
-        let recurse = |child, diagnostics: &mut Vec<Diagnostic>, visited: &mut Vec<_>| {
-            walk(
-                program,
-                child,
-                owner,
-                bindings,
-                environment,
-                diagnostics,
-                visited,
-            );
+        let Some((left_primitive, left, left_erased)) =
+            direct_operand(program, bindings, environment, binary.left)
+        else {
+            return;
         };
-        match program.expression_table.expression(expression) {
-            ExpressionNode::Binary(binary) => {
-                recurse(binary.left, diagnostics, visited);
-                recurse(binary.right, diagnostics, visited);
-                if !matches!(
-                    binary.operator,
-                    BinaryOperator::Add
-                        | BinaryOperator::Subtract
-                        | BinaryOperator::Multiply
-                        | BinaryOperator::ShiftLeft
-                ) {
-                    return;
-                }
-                let Some((left_primitive, left, left_erased)) =
-                    direct_operand(program, bindings, environment, binary.left)
-                else {
-                    return;
-                };
-                let Some((right_primitive, right, right_erased)) =
-                    direct_operand(program, bindings, environment, binary.right)
-                else {
-                    return;
-                };
-                if !left_erased && !right_erased {
-                    return;
-                }
-                let primitive = match (left_primitive, right_primitive) {
-                    (Some(left), Some(right)) if left != right => return,
-                    (Some(primitive), _) | (_, Some(primitive)) => primitive,
-                    (None, None) => return,
-                };
-                let interval = match binary.operator {
-                    BinaryOperator::Add => left.add(right),
-                    BinaryOperator::Subtract => left.subtract(right),
-                    BinaryOperator::Multiply => left.multiply(right),
-                    BinaryOperator::ShiftLeft => left.shift_left(right),
-                    _ => return,
-                };
-                if let Some(range) = primitive_range(primitive)
-                    && !range.contains(interval)
-                {
-                    diagnostics.push(Diagnostic::error(format!(
-                        "exact arithmetic in {owner} may overflow `{}`: explicit same-carrier policy erasure retains the ordinary representability obligation, which must be discharged by prior facts",
-                        primitive_name(primitive),
-                    )));
-                }
-            }
-            other => crate::expression_traversal::children(program, other, |child| {
-                recurse(child, diagnostics, visited);
-            }),
+        let Some((right_primitive, right, right_erased)) =
+            direct_operand(program, bindings, environment, binary.right)
+        else {
+            return;
+        };
+        if !left_erased && !right_erased {
+            return;
         }
-    }
-
-    walk(
-        program,
-        expression,
-        owner,
-        bindings,
-        environment,
-        diagnostics,
-        &mut Vec::new(),
-    );
+        let primitive = match (left_primitive, right_primitive) {
+            (Some(left), Some(right)) if left != right => return,
+            (Some(primitive), _) | (_, Some(primitive)) => primitive,
+            (None, None) => return,
+        };
+        let interval = match binary.operator {
+            BinaryOperator::Add => left.add(right),
+            BinaryOperator::Subtract => left.subtract(right),
+            BinaryOperator::Multiply => left.multiply(right),
+            BinaryOperator::ShiftLeft => left.shift_left(right),
+            _ => return,
+        };
+        if let Some(range) = primitive_range(primitive)
+            && !range.contains(interval)
+        {
+            diagnostics.push(Diagnostic::error(format!(
+                "exact arithmetic in {owner} may overflow `{}`: explicit same-carrier policy erasure retains the ordinary representability obligation, which must be discharged by prior facts",
+                primitive_name(primitive),
+            )));
+        }
+    };
+    crate::expression_traversal::visit_post_order(program, expression, &mut Vec::new(), &mut check);
 }
 
 fn narrow_abstract_specification_environment(
