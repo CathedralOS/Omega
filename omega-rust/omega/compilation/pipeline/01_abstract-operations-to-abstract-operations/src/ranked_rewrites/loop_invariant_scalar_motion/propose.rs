@@ -209,6 +209,22 @@ fn admit_member_node(
     let component = evidence.component;
     let mut root_rewrite = None;
     let mut argument_rewrites = Vec::new();
+    // The call-family arms' shared tail: the admitted substitution and
+    // custody rewrites pass the representable gate, the rewrites join the
+    // argument-rebind records, and the substitution becomes the operand
+    // rewrite roster.
+    let mut admit_call = |admission: Option<(
+        std::collections::BTreeMap<ValueId, ValueId>,
+        Vec<(PlaceId, PlaceId)>,
+    )>|
+     -> Option<Vec<(ValueId, ValueId)>> {
+        let (substitution, rewrites) = admission?;
+        if !evidence.representable(&substitution, relocating) {
+            return None;
+        }
+        argument_rewrites = rewrites;
+        Some(substitution.into_iter().collect())
+    };
     let operand_rewrites = if crate::validation::invariant_operations::admissible_scalar_leaf_relocation(node) {
         Vec::new()
     } else if let Some(source) = crate::validation::invariant_operations::admissible_invariant_place_read(node) {
@@ -369,18 +385,13 @@ fn admit_member_node(
         if !(evidence.guaranteed_entry && evidence.guaranteed.contains(&member)) {
             return None;
         }
-        let (substitution, rewrites) = crate::validation::invariant_operations::invariant_record_admission(
+        admit_call(crate::validation::invariant_operations::invariant_record_admission(
             function,
             component,
             node,
             relocating,
             relocating_roots,
-        )?;
-        if !evidence.representable(&substitution, relocating) {
-            return None;
-        }
-        argument_rewrites = rewrites;
-        substitution.into_iter().collect()
+        ))?
     } else if crate::validation::invariant_operations::admissible_invariant_scalar_array(node).is_some() {
         // A scalar-array establishment is the record's flat sibling: it
         // declares a fresh claim-free unrestricted array place whose
@@ -510,19 +521,14 @@ fn admit_member_node(
             return None;
         }
         let effects = evidence.call_effects;
-        let (substitution, rewrites) = crate::validation::invariant_calls::invariant_unit_call_admission(
+        admit_call(crate::validation::invariant_calls::invariant_unit_call_admission(
             function,
             component,
             node,
             relocating,
             relocating_roots,
             effects,
-        )?;
-        if !evidence.representable(&substitution, relocating) {
-            return None;
-        }
-        argument_rewrites = rewrites;
-        substitution.into_iter().collect()
+        ))?
     } else if crate::validation::invariant_calls::admissible_invariant_crash_continuation_unit_call(
         node,
     )
@@ -544,8 +550,7 @@ fn admit_member_node(
             return None;
         }
         let effects = evidence.call_effects;
-        let (substitution, rewrites) =
-            crate::validation::invariant_calls::invariant_crash_continuation_unit_call_admission(
+        admit_call(crate::validation::invariant_calls::invariant_crash_continuation_unit_call_admission(
                 evidence.functions,
                 function,
                 component,
@@ -553,12 +558,7 @@ fn admit_member_node(
                 relocating,
                 relocating_roots,
                 effects,
-            )?;
-        if !evidence.representable(&substitution, relocating) {
-            return None;
-        }
-        argument_rewrites = rewrites;
-        substitution.into_iter().collect()
+            ))?
     } else if crate::validation::invariant_calls::admissible_invariant_structural_scalar_call(node).is_some() {
         // A scalar-result structural call keeps the unit call's whole
         // evidence surface — the non-speculative gate, the pure transitive
@@ -572,20 +572,14 @@ fn admit_member_node(
             return None;
         }
         let effects = evidence.call_effects;
-        let (substitution, rewrites) =
-            crate::validation::invariant_calls::invariant_structural_scalar_call_admission(
+        admit_call(crate::validation::invariant_calls::invariant_structural_scalar_call_admission(
                 function,
                 component,
                 node,
                 relocating,
                 relocating_roots,
                 effects,
-            )?;
-        if !evidence.representable(&substitution, relocating) {
-            return None;
-        }
-        argument_rewrites = rewrites;
-        substitution.into_iter().collect()
+            ))?
     } else if crate::validation::invariant_calls::admissible_invariant_crash_continuation_structural_scalar_call(
         node,
     )
@@ -607,8 +601,7 @@ fn admit_member_node(
             return None;
         }
         let effects = evidence.call_effects;
-        let (substitution, rewrites) =
-            crate::validation::invariant_calls::invariant_crash_continuation_structural_scalar_call_admission(
+        admit_call(crate::validation::invariant_calls::invariant_crash_continuation_structural_scalar_call_admission(
                 evidence.functions,
                 function,
                 component,
@@ -616,12 +609,7 @@ fn admit_member_node(
                 relocating,
                 relocating_roots,
                 effects,
-            )?;
-        if !evidence.representable(&substitution, relocating) {
-            return None;
-        }
-        argument_rewrites = rewrites;
-        substitution.into_iter().collect()
+            ))?
     } else if crate::validation::invariant_calls::admissible_invariant_structural_call(node).is_some() {
         // A structural-result call keeps the borrow call family's whole
         // evidence surface — the non-speculative gate, the pure transitive
@@ -653,19 +641,14 @@ fn admit_member_node(
             return None;
         }
         let effects = evidence.call_effects;
-        let (substitution, rewrites) = crate::validation::invariant_calls::invariant_structural_call_admission(
+        admit_call(crate::validation::invariant_calls::invariant_structural_call_admission(
             function,
             component,
             node,
             relocating,
             relocating_roots,
             effects,
-        )?;
-        if !evidence.representable(&substitution, relocating) {
-            return None;
-        }
-        argument_rewrites = rewrites;
-        substitution.into_iter().collect()
+        ))?
     } else if crate::validation::invariant_calls::admissible_invariant_crash_continuation_structural_call(
         node,
     )
@@ -689,8 +672,7 @@ fn admit_member_node(
             return None;
         }
         let effects = evidence.call_effects;
-        let (substitution, rewrites) =
-            crate::validation::invariant_calls::invariant_crash_continuation_structural_call_admission(
+        admit_call(crate::validation::invariant_calls::invariant_crash_continuation_structural_call_admission(
                 evidence.functions,
                 function,
                 component,
@@ -698,12 +680,7 @@ fn admit_member_node(
                 relocating,
                 relocating_roots,
                 effects,
-            )?;
-        if !evidence.representable(&substitution, relocating) {
-            return None;
-        }
-        argument_rewrites = rewrites;
-        substitution.into_iter().collect()
+            ))?
     } else {
         if !(evidence.guaranteed_entry && evidence.guaranteed.contains(&member)) {
             return None;
