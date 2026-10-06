@@ -66,6 +66,22 @@ impl BoundedProcessLimits {
     }
 }
 
+macro_rules! standard_stream_disposition {
+    ($stream:ident, $null:ident, $piped:ident) => {
+        pub fn $null(&mut self) -> &mut Self {
+            self.command.$stream(Stdio::null());
+            self.$stream = Some(BoundedStandardStreamDisposition::Null);
+            self
+        }
+
+        pub fn $piped(&mut self) -> &mut Self {
+            self.command.$stream(Stdio::piped());
+            self.$stream = Some(BoundedStandardStreamDisposition::Piped);
+            self
+        }
+    };
+}
+
 impl BoundedProcessPrepared {
     pub fn new(
         mut command: Command,
@@ -110,41 +126,9 @@ impl BoundedProcessPrepared {
         self
     }
 
-    pub fn stdin_null(&mut self) -> &mut Self {
-        self.command.stdin(Stdio::null());
-        self.stdin = Some(BoundedStandardStreamDisposition::Null);
-        self
-    }
-
-    pub fn stdin_piped(&mut self) -> &mut Self {
-        self.command.stdin(Stdio::piped());
-        self.stdin = Some(BoundedStandardStreamDisposition::Piped);
-        self
-    }
-
-    pub fn stdout_null(&mut self) -> &mut Self {
-        self.command.stdout(Stdio::null());
-        self.stdout = Some(BoundedStandardStreamDisposition::Null);
-        self
-    }
-
-    pub fn stdout_piped(&mut self) -> &mut Self {
-        self.command.stdout(Stdio::piped());
-        self.stdout = Some(BoundedStandardStreamDisposition::Piped);
-        self
-    }
-
-    pub fn stderr_null(&mut self) -> &mut Self {
-        self.command.stderr(Stdio::null());
-        self.stderr = Some(BoundedStandardStreamDisposition::Null);
-        self
-    }
-
-    pub fn stderr_piped(&mut self) -> &mut Self {
-        self.command.stderr(Stdio::piped());
-        self.stderr = Some(BoundedStandardStreamDisposition::Piped);
-        self
-    }
+    standard_stream_disposition!(stdin, stdin_null, stdin_piped);
+    standard_stream_disposition!(stdout, stdout_null, stdout_piped);
+    standard_stream_disposition!(stderr, stderr_null, stderr_piped);
 
     /// Unix only: retain one parent descriptor across the child's exec.
     ///
