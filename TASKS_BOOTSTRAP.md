@@ -96,15 +96,12 @@ prerequisite to every lower-rung milestone.
   `encode_Beta(S, 0x4000000, 0xfffffc) = Success(T)`.
 
   Current frontier: the complete untrusted derivation and source-owned theory
-  exist, and request admission now allows 136,314,880 bytes. The
-  [native check record](tests/gamma/beta-encoding-check/README.md) progressed
-  past request admission to comparison-budget exhaustion; the source's
-  `implementation/comparison/session.gamma` now uses the selected 2^26 shared
-  work bound. The 2026-09-27 macOS arm64 run produced the request byte-exactly
-  (135,485,028 bytes, 3,182,974 rows, 70.6 s) but the evaluator leg hit the
-  43200 s host timeout with no `Checked` observation — see
-  `wiki/drafts/measurements/gamma_beta_encoding_check.md`. Successful full
-  checking and mutation acceptance remain owed.
+  exist, but full checking and mutation acceptance remain owed. The
+  2026-09-27 macOS arm64 evaluator run hit the 43200 s host timeout without
+  `Checked`; see `wiki/drafts/measurements/gamma_beta_encoding_check.md`.
+  The 135,485,028-byte request fits the selected 136,314,880-byte admission
+  bound; `implementation/comparison/session.gamma` uses the selected 2^26
+  shared work bound. These are the provisions to exercise, not new blockers.
   Reuse the coupled evaluator/storage provisions in
   [CHECKING.md](bootstrap/proofs/checker/CHECKING.md#complete-generic-execution-provision)
   and [PROFILE.md](bootstrap/proofs/beta_encoding/PROFILE.md); do not rediscover
@@ -128,9 +125,8 @@ prerequisite to every lower-rung milestone.
 
   More native backing, not a new composition rule, is the selected admission
   route. The [encoder candidate continuation condition](bootstrap/proofs/beta_encoding/ENCODER_CANDIDATE.md#continuation-condition)
-  still governs that separate experiment. The corrected macOS arm64 seed is
-  landed (`1a70b42afe`, 128 GiB extent, 34/34 conformance + 78/78 bounds
-  native); work on another supported seed is unaffected.
+  still governs that separate experiment. Use the provisioned macOS arm64
+  seed's 128 GiB extent; work on another supported seed is unaffected.
 
   Acceptance: full evidence checks under the exact
   [result/resource profile](bootstrap/proofs/checker/FORMAT.md), with measured
@@ -214,7 +210,6 @@ prerequisite to every lower-rung milestone.
   - Complete the chain beyond interpreted D once OMEGA-D, OMEGA-C and their
     required proof edges close, then reconstruct/check it on a blank supported
     host without unavailable-host success or an undisclosed authority substitute.
-    The corrected macOS extent is already applied (`1a70b42afe`).
   - Complete [Delta's cumulative pair containment](bootstrap/3_delta/implementation/boundary/execution_storage.md#remaining-obligation)
     for the selected Gamma profile. Scaled allocation projections and individual
     full-extent runs do not cover every admitted composition. Derive the complete

@@ -45,9 +45,9 @@ rewrites and promotion are not prerequisites for the first useful compiler.
     `omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/runtime_spill/`
     (`omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/runtime_spill/admission.rs`,
     `omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/runtime_spill/slot.rs`: stores, reloads, window-granular slot reuse).
-  - Spilling runs natively today: `pass/collections/runtime_vec_u32_growth_exit`
-    (exit 70) and `pass/calls/nested_call_tail_roots_exit` (exit 0). Hosted
-    entries already join the spill frame to stack demand.
+  - Reuse hosted-entry spill-frame accounting. Preserve
+    `pass/collections/runtime_vec_u32_growth_exit` (exit 70) and
+    `pass/calls/nested_call_tail_roots_exit` (exit 0) as regression controls.
   - Remaining: external (non-hosted) entry roots do not yet join spill frames
     to stack demand; values of a foreign register class without a pure
     bit-transport pair still reject (vector/non-IEEE needs a scalar
@@ -75,11 +75,10 @@ rewrites and promotion are not prerequisites for the first useful compiler.
     multiple-incoming-connector and cyclic restrictions. Recompute liveness,
     ranges and legality after changing the selected graph; keep exact
     register-unit aliases and fixed-use constraints.
-  - Stage 03 result origins now name the first defining instruction after
-    operand copies or scratch materialization; independent selection replay
-    checks the same definition. `pass/arithmetic/runtime_pressure_trapping_add_exit`
-    retains 32 arithmetic results and runs exit 70 through register-pressure
-    recovery. Arbitrary split points and the restrictions above remain.
+  - Preserve stage 03 result origins at the first defining instruction after
+    operand copies or scratch materialization. Regression control:
+    `pass/arithmetic/runtime_pressure_trapping_add_exit` retains 32 arithmetic
+    results and expects exit 70 through register-pressure recovery.
   Acceptance: a corpus pressure fixture runs natively on each admitted target
   and uses splits and copies where it previously spilled. SPILL-REALIZATION
   owns storage; this item adds no slot.
@@ -209,9 +208,7 @@ rewrites and promotion are not prerequisites for the first useful compiler.
   - Owners under `omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/`:
     `selected_lowering/literal_fold/`, `constant_branch/`, `constant_boolean/`,
     `copied_call_operand/`, and [staged peepholes](omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/unexecuted/peepholes/mod.rs).
-  - Done: literal nomination scans every `MaterializeI64`;
-    `copied_call_operand`, `terminator_pair` and `condition_materialization`
-    run through the catalog. `projected_access`
+  - `projected_access`
     (`omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/unexecuted/peepholes/projected_access.rs`) is the last
     descriptor-only family; it waits for source-produced address-offset
     consumers (`Load8Indexed`, `ByteViewAddress`, `CopyBytes`, slot `Store64`),

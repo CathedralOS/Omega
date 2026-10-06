@@ -2805,10 +2805,10 @@ check corpus and the native corpus unchanged on the slices it names.
     error;
   - no corpus outcome changes otherwise.
 
-  **Site map, measured at `4fa2d6d846eb`.** The phase string is the only
-  reliable pointer: it names the enum variant or literal at the refusing
-  `return None`, and the "rejoins 0 identities" wording is the downstream
-  symptom, not a location. Each remaining row is a separate defect.
+  **Site map, measured at `4fa2d6d846eb`.** Phase strings locate consumers,
+  not necessarily the refusing decision. Probe the upstream `?` exits;
+  "rejoins 0 identities" is a downstream symptom. Revalidate the map against
+  current source before repairing a row.
 
   | phase | fixture | refusing site |
   | --- | --- | --- |
@@ -2831,34 +2831,12 @@ check corpus and the native corpus unchanged on the slices it names.
   records this as owed via
   `ContentPartitionCompositionFact::source_derivation_depth`. Do not widen that
   recognizer; it is the conservation check.
-  **Two rows are closed, and the map's premise for one of them was wrong.**
-  `pass/wire/wire_preserving_decode_relay_exit` reaches `checked` and runs
-  natively at `exit:70` (`d29042bbc65`). The refusing site was never
-  `state_graph/mod.rs:1939` -- that is the consumer -- but `terminal_cleanup.rs`'s
-  `build_state_plan`, whose per-edge projected-move branch recognized exactly one
-  source shape and discarded the whole state plan on `None`. The trigger was a
-  `.len` read on a borrowed-slice field in a transition guard: an intrinsic member
-  resolves no data-member symbol, so the canonical place ends in
-  `PlaceSegment::Field { symbol: invalid }`, no type projects through it, and
-  `expression_requires_ownership`'s `unwrap_or(true)` recorded the metadata read
-  as an owned move of the whole place.
-
-  `pass/build/uefi_os_handoff_invocation` keeps its omission closed and stays red
-  (`31acaf783d0`). **Neither named predicate was refusing its operands; neither
-  was ever consulted.** Both admitting branches of
-  `ordinary_projected_call_is_supported` and the whole of
-  `projected_reference_record_operands_supported` sit behind
-  `supply_mode == MachineSupplyMode::CheckedBody`, and the callee
-  `UefiOsHandoffLegs::acquire` is a bodied `boundary machine`. Four consumers had
-  each re-derived that judgment, and the same narrowing marked the adapter
-  `Unsupported` in terminal-machine selection, failing its callers' closure
-  lowering. `Machine::supplies_checked_body` now states it once, at 9 call sites.
-  What the fixture needs now is a closed native catalog identity for the
-  `UefiOsHandoffTermination::firmware_return` and `::transfer` boundaries --
-  backend work, not a stage-04 omission.
-
-  One correction carried forward to every remaining row: **a phase string names
-  the consumer, not the decision.** Probe the `?` exits.
+  Regression controls: `pass/wire/wire_preserving_decode_relay_exit` (native
+  exit 70) must not classify borrowed-slice `.len` metadata as an owned move;
+  `pass/build/uefi_os_handoff_invocation` must retain its bodied boundary call
+  via `Machine::supplies_checked_body`. The latter's remaining native catalog
+  identities for `UefiOsHandoffTermination::{firmware_return,transfer}` belong
+  to **UEFI-OS-HANDOFF**, not this diagnostic repair.
 
 
 - **TRANSPARENT-RECORD-RESULT-CARRIES-MEMBER-CLAIMS.** (split-of:PROJECTED-OWNED-LET-CONTINUATION)
