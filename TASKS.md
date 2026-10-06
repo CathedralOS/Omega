@@ -2373,31 +2373,6 @@ crash and native exit behavior.
   with its expected diagnostic and an automated check proves no partial outputs
   were published.
 
-- **NATIVE-LEG-DEPENDS-ON-ACCEPTED-PACKAGE-STATE.** (new-scope)
-  Verify that fresh and warm corpus workspaces establish identical reviewed
-  dependency inputs for `pass/wire/wire_preserving_decode_relay_exit` and
-  `pass/providers/checked_boundary_operator_const_application_alternate_exit`,
-  both with authored native exit 70. Fresh workspaces have rejected the exact
-  `MacosApplication` schema while warm workspaces ran; test current
-  entry-selection and sealed staging before attributing a remaining failure to
-  acceptance state.
-
-  Reuse `reviewed_repository_fixture_package_inputs` and
-  `candidate_program_entry_binding` in
-  `omega-rust/omega/compilation/driver/tests/support/fixture_package_inputs.rs`.
-  Stage and review exact package-owned bindings without ambient checkout
-  acceptance; a std-looking path grants no special owner identity. Do not
-  remove native entry bindings or replace the runtime oracle with targetless
-  checking to avoid preparation. Preserve refusal without accepted authority.
-
-  Acceptance: at one compiler revision on the same host, isolated and warm
-  workspaces both build and execute the unchanged fixtures to 70. If current
-  staging already achieves this, close with those observations; otherwise
-  repair its missing preparation and keep diagnostics distinct from compiler
-  regressions. Gate errors must not discard the diagnostic needed to attribute
-  a failed measurement.
-
-
 - **TWINS-GOLDEN-RECORDS-A-LOAD-ARTIFACT.** (split-of:OPERATOR-BOUNDARY-CALLS)
   Refresh the stale macOS native records for
   `pass/float/build_runtime_semantics_twins_{x86_baseline,windows_x64}`.
