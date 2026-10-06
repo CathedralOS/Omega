@@ -444,6 +444,7 @@ pass/collections/record_array_literal_field_store_exit built 1286ms exit:25 @480
 pass/collections/runtime_argmax_index_exit built 750ms exit:70
 pass/collections/runtime_borrowed_element_float_guard_exit built 4519ms exit:70 @bea382792161+wt
 pass/collections/runtime_borrowed_fixed_array_state_reads_exit built 1010ms exit:70 @e94b9f79576e+wt
+pass/collections/runtime_bounded_byte_reference_forward_exit built 2795ms exit:70 @c86f2eca11a9
 pass/collections/runtime_bounded_byte_reference_read_exit built 1532ms exit:70 @8351bf5ebf1b
 pass/collections/runtime_case_array_element_write_exit built 3798ms exit:36 @fb2178def922
 pass/collections/runtime_computed_index_direct_exit built 953ms exit:1

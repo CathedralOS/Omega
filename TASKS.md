@@ -5327,10 +5327,9 @@ wait for Cathedral's instruction coverage. The interpreter is
   - The providers copy bytes through 4096-byte chunks. Two compiler gaps
     force this. First, a byte slice cannot lend its storage to a foreign
     pointer formal: `&bytes[0]` on a view has no Terminal projection.
-    Second, a received `&[u8; N]` loan forwarded whole to another call is
-    refused: stage 02 `fixed_array_view_argument` takes its pointer cell for
-    the backing, and stage 03 legalization and selection refuse the forward.
-    Closing either gap removes the copies.
+    The copy loops take slices because a received `&[u8; N]` loan could not
+    be forwarded to another call before `5fde48274c1`. Lending storage to the
+    import is what removes the copies.
   The portable wrapper's carrier depends on
   `portable-service-per-family-binding-carrier` in `OWNER_QUESTIONS.md`;
   independent family/provider work can proceed.
