@@ -945,8 +945,7 @@ pass/inline_asm/asm_where_exact_clobbers_compile checked 225ms
 pass/layouts/access_plan_inaccessible_seed checked 263ms
 pass/layouts/integer_at_owned_local_borrow_call_exit built 1459ms exit:0 @313322813ba5+wt
 pass/layouts/placed_view_source_access_compile checked 547ms
-pass/layouts/private_callback_slot_demand_compile rejected 31ms
-	plan-laid value type `Spread<ForeignRecord>`: declaration `WndClassWindowProcedureSlot` has non-hermetic source origin `User`
+pass/layouts/private_callback_slot_demand_compile checked 2650ms @693920652f41+wt
 pass/layouts/private_callback_slot_untaken_compile checked 214ms
 pass/layouts/runtime_callee_owned_local_origins_exit built 3838ms exit:0 @9beb2be72f2d+wt
 pass/layouts/runtime_plan_laid_compact_bits_exit built 705ms exit:70

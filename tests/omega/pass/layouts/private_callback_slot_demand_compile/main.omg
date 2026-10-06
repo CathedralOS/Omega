@@ -2,6 +2,9 @@
 // callback destination by explicitly citing one exact named conformance. The
 // sealed plan operation returns the ordinary Plan unchanged; the compiler
 // retains the private demand beside the validated semantic geometry.
+// Retained placement custody binds hermetic source identities, so the
+// fixture is a `Build::package` root; the same source compiled standalone is
+// `fail/layouts/private_callback_slot_standalone_source_rejected`.
 use omega::language::core::layout;
 
 boundary trait WindowProcedure {

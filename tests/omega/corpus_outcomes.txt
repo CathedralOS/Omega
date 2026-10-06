@@ -1142,6 +1142,8 @@ fail/layouts/plan_laid_dynamic_plan rejected 79ms expected @2d8ed253669f
 	plan-laid value type `Streamy<Pairish>`: policy `Streamy::plan` produced a dynamic plan; a dynamic plan cannot be a value type -- values need offsets, bytes need mints
 fail/layouts/plan_laid_policy_without_plan_machine rejected 43ms expected @2d8ed253669f
 	data `NotAPolicy` takes no type parameters and has no attached `plan` machine, so `NotAPolicy<...>` is neither a generic instantiation nor a layout-policy application
+fail/layouts/private_callback_slot_standalone_source_rejected rejected 37ms expected @693920652f41+wt
+	plan-laid value type `Spread<ForeignRecord>`: declaration `WndClassWindowProcedureSlot` has non-hermetic source origin `User`
 fail/layouts/private_callback_slot_wrong_layout rejected 73ms expected @2d8ed253669f
 	plan-laid value type `Spread<ForeignRecord>`: policy `Spread::plan` selected private slot `WrongLayoutSlot` for layout `OtherLayout`, but the active layout producer is attached to `Spread`
 fail/layouts/recast_integer_at_store_requires_fit rejected 52ms expected @8a4978545872+wt
@@ -2718,8 +2720,7 @@ pass/layouts/access_plan_inaccessible_seed checked 444ms @2d8ed253669f
 pass/layouts/byte_view_borrow_with_encoded_sibling checked 276ms @d1ebe54629b8
 pass/layouts/integer_at_owned_local_borrow_call_exit checked 1327ms check-target:macos_arm64 @313322813ba5+wt
 pass/layouts/placed_view_source_access_compile checked 1502ms @2d8ed253669f
-pass/layouts/private_callback_slot_demand_compile rejected 53ms @c47f8652484
-	plan-laid value type `Spread<ForeignRecord>`: declaration `WndClassWindowProcedureSlot` has non-hermetic source origin `User`
+pass/layouts/private_callback_slot_demand_compile checked 3542ms @693920652f41+wt
 pass/layouts/private_callback_slot_untaken_compile checked 444ms @2d8ed253669f
 pass/layouts/runtime_callee_integer_at_fitting_write_exit rejected 3318ms check-target:macos_arm64 @835baa6033e
 	terminal-artifact production failed: Lowering(Unsupported("structural argument has no established storage"))
