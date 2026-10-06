@@ -1,0 +1,1 @@
+cleanup effect dependency in `main` has no exact structural residual disposition

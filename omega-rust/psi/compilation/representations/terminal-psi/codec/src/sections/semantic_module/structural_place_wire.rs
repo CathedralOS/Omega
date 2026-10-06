@@ -45,6 +45,7 @@ pub(crate) fn encode_affine_cleanup_action(
         TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
             writer.u8(3);
             writer.id(cleanup.place);
+            encode_structural_path(writer, "nominal cleanup path", &cleanup.path)?;
             writer.id(cleanup.structural_type);
             writer.id(cleanup.cleanup_machine);
             writer.len(
@@ -182,6 +183,7 @@ pub(crate) fn decode_affine_cleanup_action(
         3 => Ok(TerminalAffineCleanupAction::InvokeNominal(
             NominalAffineCleanup {
                 place: reader.id("PlaceId")?,
+                path: decode_structural_path(reader)?,
                 structural_type: reader.id("StructuralTypeId")?,
                 cleanup_machine: reader.id("MachineId")?,
                 consumed_claims: decode_ids(reader, "ClaimId")?,
@@ -267,4 +269,53 @@ pub(crate) fn decode_structural_place_kind(
         },
         tag => return Err(CodecError::InvalidTag("StructuralPlaceKind", tag)),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use semantic_vocabulary::{ClaimId, MachineId, PlaceId, StructuralTypeId};
+
+    #[test]
+    fn nominal_cleanup_round_trip_retains_projected_path() {
+        let mut previous_encoding = None;
+        for path in [
+            Vec::new(),
+            vec![StructuralPathSegment::Field("children".into())],
+            vec![
+                StructuralPathSegment::Field("children".into()),
+                StructuralPathSegment::FixedIndex(1),
+            ],
+        ] {
+            let action = TerminalAffineCleanupAction::InvokeNominal(NominalAffineCleanup {
+                place: PlaceId::new(1).unwrap(),
+                path,
+                structural_type: StructuralTypeId::new(2).unwrap(),
+                cleanup_machine: MachineId::new(3).unwrap(),
+                consumed_claims: vec![ClaimId::new(4).unwrap()],
+                cleanup_receiver: Some(PlaceId::new(5).unwrap()),
+                requirement_obligations: vec![ObligationId::new(6).unwrap()],
+            });
+            let mut writer = Writer::default();
+            encode_affine_cleanup_action(&mut writer, &action).unwrap();
+            let encoded = writer.finish();
+            let mut reader = Reader::new(&encoded);
+            assert_eq!(decode_affine_cleanup_action(&mut reader).unwrap(), action);
+            assert_eq!(reader.remaining(), 0);
+            if let Some(previous) = previous_encoding {
+                assert_ne!(encoded, previous);
+            }
+            previous_encoding = Some(encoded);
+        }
+    }
+
+    #[test]
+    fn nominal_cleanup_path_wire_change_rejects_previous_module_version() {
+        let mut encoded = super::super::MAGIC.to_vec();
+        encoded.extend_from_slice(&120_u16.to_le_bytes());
+        assert!(matches!(
+            super::super::decode_module(&encoded),
+            Err(CodecError::UnsupportedFormatMarker(120))
+        ));
+    }
 }

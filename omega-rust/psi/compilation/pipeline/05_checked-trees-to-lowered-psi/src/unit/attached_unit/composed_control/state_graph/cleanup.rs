@@ -286,8 +286,12 @@ pub(super) fn for_exit(
                 }
             }
             CheckedNormalCleanupAction::InvokeNominal(cleanup) => {
+                let structural_type = crate::terminal_identities::lookup_type_id(&catalogs.type_ids, &cleanup.type_identity)?;
+                let path = crate::expression_preparation::bindings::structural_paths::lower_typed_argument_path(
+                    &cleanup.path, root_type, &catalogs.structural_types, None, &mut std::iter::empty(), None,
+                )?;
                 Ok(TerminalAffineCleanupAction::InvokeNominal(crate::unit::unit_cleanup::lower_nominal_cleanup_action(
-                    checked, cleanup, place, root_type, &catalogs.type_ids,
+                    checked, cleanup, place, structural_type, path, &catalogs.type_ids,
                     &catalogs.scalar_calls.machine_ids, &receivers, &mut catalogs.scalar_calls.next_call_obligation,
                 )?))
             }

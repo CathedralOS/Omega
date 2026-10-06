@@ -242,6 +242,7 @@ pub(super) fn lower_nominal_structural_scalar_return_machine(
                             cleanup,
                             parameter.place,
                             parameter.structural_type,
+                            Vec::new(),
                             &closure.type_ids,
                             &closure.machine_ids,
                             &receivers,

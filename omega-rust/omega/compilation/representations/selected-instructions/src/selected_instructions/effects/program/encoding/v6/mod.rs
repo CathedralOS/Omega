@@ -11,6 +11,7 @@
 //! framing rejects older envelopes even when their rows need no new tag. The
 //! content identity domain stays unchanged because existing row bytes retain
 //! their denotation; the envelope version is not part of that content.
+//! Version 34 retains the owned subtree path of nominal cleanup actions.
 //! Version 33 aligns cleanup runtime-index paths with the fixed-view action codec.
 //! Older envelopes are rejected before the new path vocabulary is interpreted.
 //! Version 32 retains explicit unbounded target retry work/control for bitwise atomics.
@@ -68,4 +69,4 @@ use values::{decode_constraint_key, decode_ids, decode_machine, decode_obligatio
 pub use values::{decode_target, decode_units};
 
 const MAGIC: &[u8; 8] = b"OMGMFX\0\0";
-const VERSION: u32 = 33;
+const VERSION: u32 = 34;

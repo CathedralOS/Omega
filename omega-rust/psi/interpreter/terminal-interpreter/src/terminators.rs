@@ -72,10 +72,10 @@ impl TerminalExecution {
         )
     }
 
-    fn prepare_residual_disposal(
+    fn prepare_cleanup_partition(
         &self,
         structural_arguments: &[StructuralArgument],
-        residual_affine_discards: &[StructuralAffineDiscard],
+        actions: &[terminal_psi::TerminalAffineCleanupAction],
     ) -> Result<BTreeSet<PlaceId>, TerminalInterpretError> {
         // Projected owned arguments open partial custody on their
         // roots: each moves an exact affine child while the
@@ -95,22 +95,46 @@ impl TerminalExecution {
                 argument,
             )?;
         }
-        let mut expected = BTreeSet::new();
-        for discard in residual_affine_discards {
-            let root = self.structural_values.get(&discard.place).ok_or(
-                TerminalInterpretError::VerifiedStructuralPlaceMissing(discard.place),
+        for (place, path, structural_type) in actions.iter().filter_map(|action| match action {
+            terminal_psi::TerminalAffineCleanupAction::DiscardResidual(discard) => Some((
+                discard.place,
+                discard.path.as_slice(),
+                discard.structural_type,
+            )),
+            terminal_psi::TerminalAffineCleanupAction::InvokeNominal(cleanup)
+                if !cleanup.path.is_empty() =>
+            {
+                Some((
+                    cleanup.place,
+                    cleanup.path.as_slice(),
+                    cleanup.structural_type,
+                ))
+            }
+            _ => None,
+        }) {
+            let root = self.structural_values.get(&place).ok_or(
+                TerminalInterpretError::VerifiedStructuralPlaceMissing(place),
             )?;
-            if discard.path.is_empty()
+            if path.is_empty()
                 || resolve_structural_path_type(
                     &self.program.structural_types,
                     root.structural_type,
-                    &discard.path,
-                )? != discard.structural_type
-                || !expected.insert(discard.clone())
+                    path,
+                )? != structural_type
             {
                 return Err(TerminalInterpretError::AffineFrontierMismatch);
             }
-            residual_roots.insert(discard.place);
+            consume_affine_projection(
+                &self.program.structural_types,
+                &self.structural_values,
+                projected_frontier.get_or_insert_with(|| self.live_affine_frontier.clone()),
+                &StructuralArgument {
+                    place,
+                    path: path.to_vec(),
+                    access: StructuralAccess::Owned,
+                },
+            )?;
+            residual_roots.insert(place);
         }
         let replayed = projected_frontier
             .as_ref()
@@ -119,17 +143,7 @@ impl TerminalExecution {
         // declared residual rows: projected transfers opened the
         // holes, and the listed complement is the only remainder.
         for place in &residual_roots {
-            if replayed
-                .iter()
-                .filter(|entry| entry.place == *place)
-                .cloned()
-                .collect::<BTreeSet<_>>()
-                != expected
-                    .iter()
-                    .filter(|entry| entry.place == *place)
-                    .cloned()
-                    .collect::<BTreeSet<_>>()
-            {
+            if replayed.iter().any(|entry| entry.place == *place) {
                 return Err(TerminalInterpretError::AffineFrontierMismatch);
             }
         }
@@ -149,16 +163,7 @@ impl TerminalExecution {
             structural_arguments,
             cleanup_actions,
         } = successor;
-        let residuals = cleanup_actions
-            .iter()
-            .filter_map(|action| match action {
-                terminal_psi::TerminalAffineCleanupAction::DiscardResidual(discard) => {
-                    Some(discard.clone())
-                }
-                _ => None,
-            })
-            .collect::<Vec<_>>();
-        self.prepare_residual_disposal(structural_arguments, &residuals)?;
+        self.prepare_cleanup_partition(structural_arguments, cleanup_actions)?;
         let bindings = self.prepare_block_bindings(target, arguments, structural_arguments)?;
         bindings.validate_cleanup_actions(self, cleanup_actions)?;
         if let Err(error) = meter.charge_edge(edge, terminator) {
@@ -287,17 +292,7 @@ impl TerminalExecution {
             bindings.push((parameter.id, scalar));
         }
         let bindings = block_bindings::BlockBindings::from_scalars(bindings);
-        let residuals = successor
-            .cleanup_actions
-            .iter()
-            .filter_map(|action| match action {
-                terminal_psi::TerminalAffineCleanupAction::DiscardResidual(discard) => {
-                    Some(discard.clone())
-                }
-                _ => None,
-            })
-            .collect::<Vec<_>>();
-        self.prepare_residual_disposal(&[], &residuals)?;
+        self.prepare_cleanup_partition(&[], &successor.cleanup_actions)?;
         bindings.validate_cleanup_actions(self, &successor.cleanup_actions)?;
         if let Err(error) = meter.charge_edge(successor.edge, terminator) {
             return meter_status(error).map(TerminatorFlow::Yield);
@@ -330,6 +325,8 @@ impl TerminalExecution {
         if !matches!(machine.result, TerminalMachineResult::Scalar(_)) {
             return Err(TerminalInterpretError::VerifiedOperationMalformed);
         }
+        self.prepare_cleanup_partition(&[], cleanup_actions)?;
+        block_bindings::BlockBindings::default().validate_cleanup_actions(self, cleanup_actions)?;
         if let Err(error) = meter.charge_terminator(terminator) {
             return meter_status(error).map(TerminatorFlow::Yield);
         }
@@ -364,6 +361,8 @@ impl TerminalExecution {
         if machine.result != TerminalMachineResult::Unit {
             return Err(TerminalInterpretError::VerifiedOperationMalformed);
         }
+        self.prepare_cleanup_partition(&[], cleanup_actions)?;
+        block_bindings::BlockBindings::default().validate_cleanup_actions(self, cleanup_actions)?;
         if let Err(error) = meter.charge_terminator(terminator) {
             return meter_status(error).map(TerminatorFlow::Yield);
         }

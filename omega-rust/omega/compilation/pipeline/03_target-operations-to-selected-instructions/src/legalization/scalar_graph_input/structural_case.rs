@@ -434,6 +434,7 @@ fn byte_carrier_leaf_copy(
 pub(super) fn validate(
     node: &OptimizationNode,
     function: &PsiOptimizationFunction,
+    structural_types: &[terminal_psi::StructuralTypeDeclaration],
 ) -> Result<(), LegalizationError> {
     let AbstractOperation::StructuralCase { source, cases } = &node.operation else {
         return Err(LegalizationError::custody());
@@ -465,7 +466,7 @@ pub(super) fn validate(
         // edge's and every return's: a plain affine result, block arrival, or
         // the function's own owned parameter — which is what a dispatch on an
         // owned parameter leaves behind on each arm.
-        if !super::aggregate_results::cleanup(function, &case.cleanup_actions) {
+        if !super::aggregate_results::cleanup(function, &case.cleanup_actions, structural_types) {
             return Err(LegalizationError::custody());
         }
     }

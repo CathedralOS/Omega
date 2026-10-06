@@ -147,18 +147,10 @@ fn residual_cleanup(
     live: &LiveDefinitions,
     structural_types: &StructuralTypeLookup<'_>,
     discard: &terminal_psi::StructuralAffineDiscard,
-    discharged_roots: &BTreeSet<PlaceId>,
-    discharged_residuals: &BTreeSet<(PlaceId, Vec<StructuralPathSegment>)>,
 ) -> bool {
     // A residual is a strictly projected subtree of a live root; the verifier
     // names maximal complements of moved paths, never a whole root.
-    if discard.path.is_empty()
-        || discharged_roots.contains(&discard.place)
-        || discharged_residuals.iter().any(|(place, path)| {
-            *place == discard.place
-                && (path.starts_with(&discard.path) || discard.path.starts_with(path))
-        })
-    {
+    if discard.path.is_empty() {
         return false;
     }
     // Custody replay disposes the exact remaining subtree separately from its
@@ -180,14 +172,26 @@ pub(super) fn plain_home_cleanup(
     structural_types: &StructuralTypeLookup<'_>,
     actions: &[TerminalAffineCleanupAction],
 ) -> Result<bool, LoweringError> {
-    let mut discarded_roots = BTreeSet::new();
-    let mut discarded_residuals = BTreeSet::new();
+    let mut disposed: BTreeSet<(PlaceId, Vec<StructuralPathSegment>)> = BTreeSet::new();
     for action in actions {
+        let (place, path) = match action {
+            TerminalAffineCleanupAction::DiscardRoot(place) => (*place, &[][..]),
+            TerminalAffineCleanupAction::DiscardResidual(discard) => {
+                (discard.place, discard.path.as_slice())
+            }
+            TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
+                (cleanup.place, cleanup.path.as_slice())
+            }
+        };
+        if disposed.iter().any(|(previous_place, previous_path)| {
+            *previous_place == place
+                && (previous_path.starts_with(path) || path.starts_with(previous_path))
+        }) {
+            return Ok(false);
+        }
+        disposed.insert((place, path.to_vec()));
         match action {
             TerminalAffineCleanupAction::DiscardRoot(place) => {
-                if !discarded_roots.insert(*place) {
-                    return Ok(false);
-                }
                 if live.views.contains_key(place) {
                     if !affine_view_carrier(live, function, structural_types, *place) {
                         return Ok(false);
@@ -218,14 +222,7 @@ pub(super) fn plain_home_cleanup(
                 super::references::discard_owned(function, structural_types, live, *place)?;
             }
             TerminalAffineCleanupAction::DiscardResidual(discard) => {
-                if !residual_cleanup(
-                    function,
-                    live,
-                    structural_types,
-                    discard,
-                    &discarded_roots,
-                    &discarded_residuals,
-                ) {
+                if !residual_cleanup(function, live, structural_types, discard) {
                     return Ok(false);
                 }
                 super::references::discard_subtree(
@@ -235,23 +232,37 @@ pub(super) fn plain_home_cleanup(
                     discard.place,
                     &discard.path,
                 )?;
-                discarded_residuals.insert((discard.place, discard.path.clone()));
             }
             TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
-                // The call's ABI is reconstructed before this disposition. Its
-                // root still owes exactly one whole cleanup on this edge.
-                if !discarded_roots.insert(cleanup.place)
-                    || nominal_owner_type(live, function, cleanup.place)
-                        != Some(cleanup.structural_type)
+                // The selected owner remains intact when the hook borrows it;
+                // moving a disjoint sibling does not change its storage.
+                if nominal_owner_type(live, function, cleanup.place)
+                    .and_then(|root| structural_types.subtree(root, &cleanup.path))
+                    != Some(cleanup.structural_type)
                     || !cleanup.requirement_obligations.is_empty()
-                    || super::references::is_suspended_root(live, cleanup.place)
+                    || !abstract_operations::control_flow::address_joins::is_static_projection(
+                        &cleanup.path,
+                    )
+                    || super::references::is_suspended_storage_region(
+                        function,
+                        live,
+                        structural_types,
+                        cleanup.place,
+                        &cleanup.path,
+                    )
                 {
                     return Ok(false);
                 }
                 // Normal hook completion retires the same owner's embedded
                 // loans before the next action or successor. Physical storage
                 // stays live through the edge-owned call selected above.
-                super::references::discard_owned(function, structural_types, live, cleanup.place)?;
+                super::references::discard_subtree(
+                    function,
+                    structural_types,
+                    live,
+                    cleanup.place,
+                    &cleanup.path,
+                )?;
             }
         }
     }

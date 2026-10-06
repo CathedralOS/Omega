@@ -209,7 +209,7 @@ pub(super) fn operation(
                             target_operations::TargetStructuralReturnSource::Home(home) => home.place() == *source,
                             target_operations::TargetStructuralReturnSource::Parameter(parameter) => parameter.place == *source,
                             target_operations::TargetStructuralReturnSource::SharedDescriptor { place } => *place == *source,
-                        } && cleanup_actions == expected_cleanup && super::control_flow::return_cleanup_calls_match(cleanup_actions, &block.operations, *psi_edge))).count() == 1
+                        } && cleanup_actions == expected_cleanup && super::control_flow::return_cleanup_calls_match(cleanup_actions, &block.operations, &graph.structural_types, *psi_edge))).count() == 1
                 && selected.blocks.iter().filter(|block| matches!(&block.terminator,
                     SelectedTerminator::Return { psi_return_edge, instruction }
                         if psi_return_edge == psi_edge && (matches!(instruction.kind, selected_instructions::SelectedInstructionKind::ReturnAggregate { .. } | selected_instructions::SelectedInstructionKind::ReturnScalar)

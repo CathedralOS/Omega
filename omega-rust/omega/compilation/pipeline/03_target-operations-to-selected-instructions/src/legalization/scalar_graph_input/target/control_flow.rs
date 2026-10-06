@@ -320,7 +320,11 @@ pub(super) fn validate(
                     && source_value == value
                     && cleanup_actions == expected_cleanup
                     && (cleanup_actions.is_empty()
-                        || super::super::aggregate_results::cleanup(optimized, cleanup_actions)
+                        || super::super::aggregate_results::cleanup(
+                            optimized,
+                            cleanup_actions,
+                            &plan.structural_types,
+                        )
                         || (super::super::unobserved_owned::body(optimized)
                             && super::super::unobserved_owned::cleanup(optimized, cleanup_actions)))
                     && available.iter().any(|(identity, source)| {
@@ -389,7 +393,11 @@ pub(super) fn validate(
                     && cleanup_actions == cleanup
                     && (cleanup.is_empty()
                         || super::super::read_byte::cleanup(optimized, cleanup)
-                        || super::super::aggregate_results::cleanup(optimized, cleanup)
+                        || super::super::aggregate_results::cleanup(
+                            optimized,
+                            cleanup,
+                            &plan.structural_types,
+                        )
                         || (super::super::unobserved_owned::body(optimized)
                             && super::super::unobserved_owned::cleanup(optimized, cleanup)))
             }
@@ -414,7 +422,12 @@ pub(super) fn validate(
                         structural_bindings,
                         plan,
                     )
-                    && edge_cleanup_matches(optimized, &successor.cleanup_actions, cleanup_actions)
+                    && edge_cleanup_matches(
+                        optimized,
+                        &successor.cleanup_actions,
+                        cleanup_actions,
+                        &plan.structural_types,
+                    )
             }
             (
                 TargetControlTerminator::Conditional {
@@ -467,13 +480,20 @@ fn successor_matches(
             &source.structural_bindings,
             plan,
         )
-        && edge_cleanup_matches(function, &target.cleanup_actions, &source.cleanup_actions)
+        && edge_cleanup_matches(
+            function,
+            &target.cleanup_actions,
+            &source.cleanup_actions,
+            &plan.structural_types,
+        )
 }
 
 fn edge_cleanup_matches(
     function: &PsiOptimizationFunction,
     actions: &[terminal_psi::TerminalAffineCleanupAction],
     expected: &[terminal_psi::TerminalAffineCleanupAction],
+    structural_types: &[terminal_psi::StructuralTypeDeclaration],
 ) -> bool {
-    actions == expected && super::super::aggregate_results::cleanup(function, actions)
+    actions == expected
+        && super::super::aggregate_results::cleanup(function, actions, structural_types)
 }

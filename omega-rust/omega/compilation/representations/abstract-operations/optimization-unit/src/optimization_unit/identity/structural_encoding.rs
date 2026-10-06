@@ -661,6 +661,7 @@ pub(super) fn encode_cleanup(bytes: &mut CanonicalBytes, action: &TerminalAffine
         TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
             bytes.u8(3);
             bytes.id(cleanup.place);
+            bytes.slice(&cleanup.path, encode_structural_path_segment);
             bytes.id(cleanup.structural_type);
             bytes.id(cleanup.cleanup_machine);
             encode_ids(bytes, &cleanup.consumed_claims);
@@ -668,6 +669,43 @@ pub(super) fn encode_cleanup(bytes: &mut CanonicalBytes, action: &TerminalAffine
                 bytes.id(*place)
             });
             encode_ids(bytes, &cleanup.requirement_obligations);
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use semantic_vocabulary::{MachineId, PlaceId, StructuralTypeId};
+    use terminal_psi::{NominalAffineCleanup, StructuralPathSegment, TerminalAffineCleanupAction};
+
+    #[test]
+    fn nominal_cleanup_identity_distinguishes_owned_subtrees() {
+        let mut previous_encoding = None;
+        for path in [
+            Vec::new(),
+            vec![StructuralPathSegment::Field("children".into())],
+            vec![
+                StructuralPathSegment::Field("children".into()),
+                StructuralPathSegment::FixedIndex(1),
+            ],
+        ] {
+            let action = TerminalAffineCleanupAction::InvokeNominal(NominalAffineCleanup {
+                place: PlaceId::new(1).unwrap(),
+                path,
+                structural_type: StructuralTypeId::new(2).unwrap(),
+                cleanup_machine: MachineId::new(3).unwrap(),
+                consumed_claims: Vec::new(),
+                cleanup_receiver: None,
+                requirement_obligations: Vec::new(),
+            });
+            let mut bytes = CanonicalBytes::collect();
+            encode_cleanup(&mut bytes, &action);
+            let encoded = bytes.finish();
+            if let Some(previous) = previous_encoding {
+                assert_ne!(encoded, previous);
+            }
+            previous_encoding = Some(encoded);
         }
     }
 }

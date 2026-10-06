@@ -11,12 +11,15 @@ pub struct StructuralAffineDiscard {
     pub structural_type: StructuralTypeId,
 }
 
-/// One whole owned place disposed by its exact owner-designated cleanup machine.
+/// One intact owned subtree disposed by its owner-designated cleanup machine.
 /// The edge begins consumption before lending the intact value to that hook.
 /// Linear disposition retains its complete claim roster; affine cleanup has none.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct NominalAffineCleanup {
     pub place: PlaceId,
+    /// Canonical containment path from the owner root to the intact receiver.
+    /// An empty path selects the whole root; siblings retain their own custody.
+    pub path: Vec<StructuralPathSegment>,
     pub structural_type: StructuralTypeId,
     pub cleanup_machine: MachineId,
     /// Strictly ordered machine-local identities consumed by this action.

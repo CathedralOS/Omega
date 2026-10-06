@@ -37,8 +37,15 @@ pub(super) fn validate(predicate: &CheckedBooleanExpression) -> Result<(), Lower
             .ok_or(LoweringError::Unsupported(
                 "closed byte predicate requires a structural formal",
             )),
-        CheckedBooleanExpression::StructuralParameterField { .. }
-        | CheckedBooleanExpression::IeeeFloatComparison { .. }
+        CheckedBooleanExpression::StructuralParameterField { path, .. } => {
+            if path.is_empty() {
+                return Err(LoweringError::Unsupported(
+                    "closed scalar contract observation requires a field path",
+                ));
+            }
+            Ok(())
+        }
+        CheckedBooleanExpression::IeeeFloatComparison { .. }
         | CheckedBooleanExpression::ByteSequenceEqual { .. }
         | CheckedBooleanExpression::PayloadlessSumEqual { .. }
         | CheckedBooleanExpression::StructuralCaseMembership { .. } => {

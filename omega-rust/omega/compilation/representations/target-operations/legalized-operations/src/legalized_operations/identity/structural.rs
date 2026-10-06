@@ -248,6 +248,7 @@ pub(super) fn encode_cleanup_action(
         terminal_psi::TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
             bytes.push(3);
             bytes.extend_from_slice(&cleanup.place.get().to_le_bytes());
+            encode_structural_path(bytes, &cleanup.path);
             bytes.extend_from_slice(&cleanup.structural_type.get().to_le_bytes());
             bytes.extend_from_slice(&cleanup.cleanup_machine.get().to_le_bytes());
             encode_ids(
@@ -262,6 +263,42 @@ pub(super) fn encode_cleanup_action(
                     .iter()
                     .map(|obligation| obligation.get()),
             );
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use semantic_vocabulary::{MachineId, PlaceId, StructuralTypeId};
+    use terminal_psi::{NominalAffineCleanup, StructuralPathSegment, TerminalAffineCleanupAction};
+
+    #[test]
+    fn nominal_cleanup_identity_distinguishes_owned_subtrees() {
+        let mut previous_encoding = None;
+        for path in [
+            Vec::new(),
+            vec![StructuralPathSegment::Field("children".into())],
+            vec![
+                StructuralPathSegment::Field("children".into()),
+                StructuralPathSegment::FixedIndex(1),
+            ],
+        ] {
+            let action = TerminalAffineCleanupAction::InvokeNominal(NominalAffineCleanup {
+                place: PlaceId::new(1).unwrap(),
+                path,
+                structural_type: StructuralTypeId::new(2).unwrap(),
+                cleanup_machine: MachineId::new(3).unwrap(),
+                consumed_claims: Vec::new(),
+                cleanup_receiver: None,
+                requirement_obligations: Vec::new(),
+            });
+            let mut encoded = Vec::new();
+            encode_cleanup_action(&mut encoded, &action);
+            if let Some(previous) = previous_encoding {
+                assert_ne!(encoded, previous);
+            }
+            previous_encoding = Some(encoded);
         }
     }
 }

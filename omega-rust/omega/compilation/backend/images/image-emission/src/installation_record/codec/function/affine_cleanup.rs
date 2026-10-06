@@ -1,4 +1,4 @@
-//! Canonical format-36 codec for installed function affine cleanup evidence.
+//! Canonical codec for installed function affine cleanup evidence.
 //!
 //! Function row placement and cleanup canonicality remain in the installation
 //! parent. This child owns the exact Unit cleanup and scalar-control list bytes.
@@ -8,7 +8,9 @@ use semantic_vocabulary::{ClaimId, EdgeId, MachineId, OperationId, PlaceId, Stru
 use terminal_psi::{StructuralAffineDiscard, StructuralArgument, TerminalAffineCleanupAction};
 
 use crate::installation_record::codec::{
-    structural::argument::{decode_structural_argument, encode_structural_argument},
+    structural::argument::{
+        decode_path, decode_structural_argument, encode_path, encode_structural_argument,
+    },
     trivial_affine_local::{
         decode_trivial_affine_local, decode_trivial_affine_local_type, encode_trivial_affine_local,
         encode_trivial_affine_local_type,
@@ -60,6 +62,7 @@ pub(crate) fn encode_unit_affine_cleanup(
             TerminalAffineCleanupAction::InvokeNominal(nominal) => {
                 bytes.extend_from_slice(&[3, 0, 0, 0]);
                 push_u64(bytes, nominal.place.get());
+                encode_path(bytes, &nominal.path)?;
                 push_u64(bytes, nominal.structural_type.get());
                 push_u64(bytes, nominal.cleanup_machine.get());
                 push_u32(
@@ -160,6 +163,7 @@ pub(crate) fn decode_unit_affine_cleanup(
                 place: PlaceId::new(reader.u64()?).ok_or(
                     InstallationError::ZeroStructuralReturnIdentity("nominal Unit cleanup place"),
                 )?,
+                path: decode_path(reader)?,
                 structural_type: StructuralTypeId::new(reader.u64()?).ok_or(
                     InstallationError::ZeroStructuralReturnIdentity("nominal Unit cleanup type"),
                 )?,
@@ -222,4 +226,51 @@ pub(crate) fn decode_scalar_control_affine_cleanups(
         cleanups.push(decode_unit_affine_cleanup(reader)?);
     }
     Ok(cleanups)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use terminal_psi::{NominalAffineCleanup, StructuralPathSegment};
+
+    #[test]
+    fn nominal_cleanup_round_trip_retains_projected_path() {
+        let mut previous_encoding = None;
+        for path in [
+            Vec::new(),
+            vec![StructuralPathSegment::Field("children".into())],
+            vec![
+                StructuralPathSegment::Field("children".into()),
+                StructuralPathSegment::FixedIndex(1),
+            ],
+        ] {
+            let cleanup = UnitAffineCleanupRecord {
+                psi_edge: EdgeId::new(1).unwrap(),
+                structural_types: Vec::new().into(),
+                locals: Vec::new(),
+                actions: vec![TerminalAffineCleanupAction::InvokeNominal(
+                    NominalAffineCleanup {
+                        place: PlaceId::new(2).unwrap(),
+                        path,
+                        structural_type: StructuralTypeId::new(3).unwrap(),
+                        cleanup_machine: MachineId::new(4).unwrap(),
+                        consumed_claims: vec![ClaimId::new(5).unwrap()],
+                        cleanup_receiver: None,
+                        requirement_obligations: Vec::new(),
+                    },
+                )],
+                code_offset: 16,
+                byte_count: 4,
+            };
+            let mut encoded = Vec::new();
+            encode_unit_affine_cleanup(&mut encoded, &cleanup).unwrap();
+            let mut reader = Reader::new(&encoded);
+            assert_eq!(decode_unit_affine_cleanup(&mut reader).unwrap(), cleanup);
+            assert_eq!(reader.remaining(), 0);
+            if let Some(previous) = previous_encoding {
+                assert_ne!(encoded, previous);
+            }
+            previous_encoding = Some(encoded);
+        }
+    }
 }

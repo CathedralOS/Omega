@@ -18,6 +18,7 @@ use super::{
 
 mod block_entry;
 mod block_parameters;
+mod cleanup;
 mod descriptor_loans;
 pub(in crate::validation) use descriptor_loans::validate_compatibility;
 mod operations;
@@ -836,122 +837,19 @@ fn validate_return_cleanup_actions(
     forget_empty_partial_storage(module, machine, &mut frontier);
     let mut actions = actions.iter();
 
-    // Every live, claim-free affine operation result follows the same reverse
-    // producer order as edge and Unit-return disposal. A record containing a
-    // loan still owns its carrier: eligibility comes from the independently
-    // reconstructed frontier, not the payload classifier for owned transfers.
-    // Parameters and declared locals keep their separate ordering below.
-    for place in expected_trivial_affine_discards(machine, parameter_order, &frontier) {
-        if !machine.structural_places.iter().any(|declaration| {
-            declaration.id == place
-                && matches!(
-                    declaration.kind,
-                    StructuralPlaceKind::OperationResult { .. }
-                )
-        }) {
-            continue;
-        }
-        if frontier.partial_custody_paths.contains_key(&place) {
-            validate_return_residual_cleanup(
-                module,
-                machine,
-                block,
-                &mut frontier,
-                place,
-                &mut actions,
-            )?;
-            frontier.owned_places.remove(&place);
-            continue;
-        }
-        let action = actions.next().ok_or_else(mismatch)?;
-        consume_return_owner_action(
+    // Returns and continuing edges use one reverse establishment order. Each
+    // owner contributes its exact live partition without regrouping hook calls
+    // and no-code actions, and only the completed partition retires the owner.
+    for place in owned_cleanup_order(machine, parameter_order, &frontier) {
+        cleanup::consume_owner(
             module,
             machine,
             machines,
             block,
             &mut frontier,
             place,
-            action,
+            &mut actions,
         )?;
-        frontier.owned_places.remove(&place);
-    }
-
-    let mut locals = machine
-        .structural_places
-        .iter()
-        .filter_map(|place| match place.kind {
-            StructuralPlaceKind::TrivialAffineLocal {
-                declaration_ordinal,
-                ..
-            } if frontier.owned_places.contains_key(&place.id) => {
-                Some((declaration_ordinal, place.id))
-            }
-            _ => None,
-        })
-        .collect::<Vec<_>>();
-    locals.sort_by_key(|(ordinal, _)| std::cmp::Reverse(*ordinal));
-    for (_, place) in locals {
-        let action = actions.next().ok_or_else(mismatch)?;
-        consume_return_owner_action(
-            module,
-            machine,
-            machines,
-            block,
-            &mut frontier,
-            place,
-            action,
-        )?;
-        frontier.owned_places.remove(&place);
-    }
-
-    for parameter in parameter_order.iter().rev() {
-        if !frontier.owned_places.contains_key(&parameter.place)
-            || parameter.multiplicity == StructuralMultiplicity::Unrestricted
-        {
-            continue;
-        }
-        if machine
-            .content_entry_claims
-            .iter()
-            .any(|claim| claim.input.root == parameter.place)
-        {
-            return Err(mismatch());
-        }
-        if frontier
-            .partial_custody_paths
-            .contains_key(&parameter.place)
-        {
-            if parameter.multiplicity != StructuralMultiplicity::Affine
-                || frontier
-                    .claims
-                    .values()
-                    .any(|claim| claim.input == Some(parameter.place))
-            {
-                return Err(mismatch());
-            }
-            validate_return_residual_cleanup(
-                module,
-                machine,
-                block,
-                &mut frontier,
-                parameter.place,
-                &mut actions,
-            )?;
-        } else {
-            let Some(action) = actions.next() else {
-                return Err(mismatch());
-            };
-            consume_return_owner_action(
-                module,
-                machine,
-                machines,
-                block,
-                &mut frontier,
-                parameter.place,
-                action,
-            )?;
-        }
-        frontier.owned_places.remove(&parameter.place);
     }
 
     // The frontier also records available copies. They may remain after a
@@ -972,102 +870,6 @@ fn validate_return_cleanup_actions(
         return Err(mismatch());
     }
     Ok(frontier)
-}
-
-/// Whole-owner actions consume the same custody whether storage arrived as a
-/// parameter or was established by an operation. The caller owns static order.
-#[allow(clippy::too_many_arguments)]
-fn consume_return_owner_action(
-    module: &TerminalModule,
-    machine: &TerminalMachine,
-    machines: &BTreeMap<MachineId, &TerminalMachine>,
-    block: BlockId,
-    frontier: &mut StructuralOwnershipFrontier,
-    place: PlaceId,
-    action: &TerminalAffineCleanupAction,
-) -> Result<(), ModuleError> {
-    match action {
-        TerminalAffineCleanupAction::DiscardRoot(discarded)
-            if *discarded == place
-                && frontier.owned_places.get(&place) == Some(&StructuralMultiplicity::Affine)
-                && !frontier
-                    .claims
-                    .values()
-                    .any(|claim| claim.input == Some(place)) =>
-        {
-            super::references::discard_owned(module, machine, &mut frontier.references, place)?;
-        }
-        TerminalAffineCleanupAction::InvokeNominal(cleanup) if cleanup.place == place => {
-            consume_nominal_cleanup(module, machine, machines, block, frontier, cleanup)?;
-        }
-        _ => {
-            return Err(ModuleError::InvalidNominalAffineCleanup {
-                machine: machine.id,
-                block,
-            });
-        }
-    }
-    Ok(())
-}
-
-/// Whole and projected results follow the same lifetime order. A projected
-/// disposal must name the complete remaining subtree roster, never the root.
-fn validate_return_residual_cleanup(
-    module: &TerminalModule,
-    machine: &TerminalMachine,
-    block: BlockId,
-    frontier: &mut StructuralOwnershipFrontier,
-    place: PlaceId,
-    actions: &mut std::slice::Iter<'_, TerminalAffineCleanupAction>,
-) -> Result<(), ModuleError> {
-    let mismatch = || {
-        if machine.result.structural().is_some() {
-            ModuleError::StructuralReturnAffineDiscardsMismatch {
-                machine: machine.id,
-                block,
-            }
-        } else if machine.result == terminal_psi::TerminalMachineResult::Unit {
-            ModuleError::UnitReturnAffineDiscardsMismatch {
-                machine: machine.id,
-                block,
-            }
-        } else {
-            ModuleError::ScalarReturnAffineDiscardsMismatch {
-                machine: machine.id,
-                block,
-            }
-        }
-    };
-    let root_type = partial_affine_root_type(machine, place).ok_or_else(mismatch)?;
-    let moved = frontier
-        .partial_custody_paths
-        .remove(&place)
-        .ok_or_else(mismatch)?;
-    let residuals =
-        partial_affine_residuals(module, root_type, &moved, actions.len()).ok_or_else(mismatch)?;
-    if residuals.is_empty() {
-        return Err(mismatch());
-    }
-    for (path, structural_type) in residuals {
-        super::references::discard_residual(
-            module,
-            machine,
-            &mut frontier.references,
-            place,
-            &path,
-            structural_type,
-        )?;
-        let expected =
-            TerminalAffineCleanupAction::DiscardResidual(terminal_psi::StructuralAffineDiscard {
-                place,
-                path,
-                structural_type,
-            });
-        if actions.next() != Some(&expected) {
-            return Err(mismatch());
-        }
-    }
-    Ok(())
 }
 
 /// The cleanup action consumes one complete owned obligation before lending
@@ -1097,10 +899,19 @@ fn consume_nominal_cleanup(
         .iter()
         .filter(|(_, claim)| claim.input == Some(cleanup.place))
         .collect::<Vec<_>>();
-    if source.structural_type != cleanup.structural_type
+    if super::resolve_structural_path(module, source.structural_type, &cleanup.path)
+        != Some(cleanup.structural_type)
         || source.multiplicity != multiplicity
         || !valid_return_nominal_cleanup(module, machine, machines, cleanup)
-        || frontier.partial_custody_paths.contains_key(&cleanup.place)
+        || frontier
+            .partial_custody_paths
+            .get(&cleanup.place)
+            .is_some_and(|moved| {
+                moved
+                    .iter()
+                    .any(|path| path.starts_with(&cleanup.path) || cleanup.path.starts_with(path))
+            })
+        || (!cleanup.path.is_empty() && multiplicity != StructuralMultiplicity::Affine)
         || frontier.restoration_debt.contains_key(&cleanup.place)
         || machine
             .content_entry_claims
@@ -1122,11 +933,21 @@ fn consume_nominal_cleanup(
     {
         return Err(invalid());
     }
-    super::references::check_root_access(machine, &frontier.references, cleanup.place)?;
+    if cleanup.path.is_empty() {
+        super::references::check_root_access(machine, &frontier.references, cleanup.place)?;
+    } else {
+        super::references::discard_residual(
+            module,
+            machine,
+            &mut frontier.references,
+            cleanup.place,
+            &cleanup.path,
+            cleanup.structural_type,
+        )?;
+    }
     for claim in &cleanup.consumed_claims {
         frontier.claims.remove(claim);
     }
-    frontier.owned_places.remove(&cleanup.place);
     Ok(())
 }
 
@@ -1150,7 +971,7 @@ fn valid_return_nominal_cleanup(
         && valid_nominal_cleanup_target(module, caller.id, target, cleanup)
 }
 
-fn expected_trivial_affine_discards(
+fn owned_cleanup_order(
     machine: &TerminalMachine,
     parameter_order: &[&StructuralParameterDeclaration],
     frontier: &StructuralOwnershipFrontier,
@@ -1160,12 +981,12 @@ fn expected_trivial_affine_discards(
         .iter()
         .filter_map(|place| match place.kind {
             StructuralPlaceKind::OperationResult { producer, .. }
-                if frontier.owned_places.get(&place.id)
-                    == Some(&StructuralMultiplicity::Affine)
-                    && !frontier
-                        .claims
-                        .values()
-                        .any(|claim| claim.input == Some(place.id)) =>
+                if frontier
+                    .owned_places
+                    .get(&place.id)
+                    .is_some_and(|multiplicity| {
+                        *multiplicity != StructuralMultiplicity::Unrestricted
+                    }) =>
             {
                 Some((producer, place.id))
             }
@@ -1197,16 +1018,8 @@ fn expected_trivial_affine_discards(
             .iter()
             .rev()
             .filter_map(|parameter| {
-                (parameter.multiplicity == StructuralMultiplicity::Affine
-                    && frontier.owned_places.contains_key(&parameter.place)
-                    && !frontier
-                        .claims
-                        .values()
-                        .any(|claim| claim.input == Some(parameter.place))
-                    && !machine
-                        .content_entry_claims
-                        .iter()
-                        .any(|claim| claim.input.root == parameter.place))
+                (parameter.multiplicity != StructuralMultiplicity::Unrestricted
+                    && frontier.owned_places.contains_key(&parameter.place))
                 .then_some(parameter.place)
             })
             .collect::<Vec<_>>(),
@@ -1218,7 +1031,7 @@ fn expected_trivial_affine_discards(
 /// structural parameter owned with unrestricted multiplicity. Its storage
 /// release is real (the interpreter frees it), but the frontier tracks only
 /// affine custody, so eligibility lives here instead of in
-/// `expected_trivial_affine_discards`.
+/// `owned_cleanup_order`.
 fn unrestricted_owned_parameter(machine: &TerminalMachine, place: PlaceId) -> bool {
     machine
         .structural_parameters
@@ -1246,174 +1059,49 @@ fn apply_edge_cleanup_actions(
     edge: EdgeId,
     actions: &[TerminalAffineCleanupAction],
 ) -> Result<(), ModuleError> {
-    let eligible = expected_trivial_affine_discards(walk.machine, walk.parameter_order, frontier);
+    let eligible = owned_cleanup_order(walk.machine, walk.parameter_order, frontier);
     let mut next_root = 0;
-    let mut next_residual = 0;
-    let mut offset = 0;
-    while offset < actions.len() {
-        match &actions[offset] {
-            TerminalAffineCleanupAction::DiscardRoot(place) => {
-                if !unrestricted_owned_parameter(walk.machine, *place) {
-                    let position = eligible[next_root..]
-                        .iter()
-                        .position(|candidate| candidate == place)
-                        .ok_or(ModuleError::EdgeAffineDiscardsInvalid { edge })?;
-                    next_root += position + 1;
-                }
-                apply_edge_trivial_affine_discards(
-                    walk.module,
-                    walk.machine,
-                    walk.parameter_order,
-                    frontier,
-                    edge,
-                    std::slice::from_ref(place),
-                )?;
-                offset += 1;
+    let mut actions = actions.iter();
+    let mut released_unrestricted = BTreeSet::new();
+    while let Some(action) = actions.as_slice().first() {
+        let place = match action {
+            TerminalAffineCleanupAction::DiscardRoot(place) => *place,
+            TerminalAffineCleanupAction::DiscardResidual(discard) => discard.place,
+            TerminalAffineCleanupAction::InvokeNominal(cleanup) => cleanup.place,
+        };
+        // Case-subject shells can have no ownership debt but still release
+        // actual storage. Their release cannot be repeated on the same edge.
+        if unrestricted_owned_parameter(walk.machine, place) {
+            if action != &TerminalAffineCleanupAction::DiscardRoot(place)
+                || frontier.partial_custody_paths.contains_key(&place)
+                || !released_unrestricted.insert(place)
+            {
+                return Err(ModuleError::EdgeAffineDiscardsInvalid { edge });
             }
-            TerminalAffineCleanupAction::DiscardResidual(first) => {
-                let position = eligible[next_residual..]
-                    .iter()
-                    .position(|candidate| *candidate == first.place)
-                    .ok_or(ModuleError::InvalidPartialAffineCleanup {
-                        machine: walk.machine.id,
-                        block,
-                    })?;
-                next_residual += position + 1;
-                let mut residuals = Vec::new();
-                while let Some(TerminalAffineCleanupAction::DiscardResidual(discard)) =
-                    actions.get(offset)
-                {
-                    if discard.place != first.place {
-                        break;
-                    }
-                    residuals.push(discard.clone());
-                    offset += 1;
-                }
-                apply_continuation_residual_discards(
-                    walk.module,
-                    walk.machine,
-                    block,
-                    walk.parameter_order,
-                    frontier,
-                    &residuals,
-                )?;
-            }
-            TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
-                consume_nominal_cleanup(
-                    walk.module,
-                    walk.machine,
-                    walk.machines,
-                    block,
-                    frontier,
-                    cleanup,
-                )?;
-                offset += 1;
-            }
+            super::references::discard_owned(
+                walk.module,
+                walk.machine,
+                &mut frontier.references,
+                place,
+            )?;
+            frontier.owned_places.remove(&place);
+            actions.next();
+            continue;
         }
-    }
-    Ok(())
-}
-
-fn apply_edge_trivial_affine_discards(
-    module: &TerminalModule,
-    machine: &TerminalMachine,
-    parameter_order: &[&StructuralParameterDeclaration],
-    frontier: &mut StructuralOwnershipFrontier,
-    edge: EdgeId,
-    discards: &[PlaceId],
-) -> Result<(), ModuleError> {
-    if discards
-        .iter()
-        .any(|place| frontier.partial_custody_paths.contains_key(place))
-    {
-        return Err(ModuleError::EdgeAffineDiscardsInvalid { edge });
-    }
-    // Unrestricted owned parameters stay live by binding rather than an
-    // owned_places row, so they never appear in the affine-eligible list.
-    // A consumed case subject's shell is one such place: the edge still
-    // releases its storage, which the interpreter executes unconditionally.
-    let tracked: Vec<&PlaceId> = discards
-        .iter()
-        .filter(|place| !unrestricted_owned_parameter(machine, **place))
-        .collect();
-    let eligible = expected_trivial_affine_discards(machine, parameter_order, frontier);
-    let mut next = 0;
-    for eligible_place in eligible.iter() {
-        if tracked.get(next).copied() == Some(eligible_place) {
-            next += 1;
-        }
-    }
-    if next != tracked.len() {
-        return Err(ModuleError::EdgeAffineDiscardsInvalid { edge });
-    }
-    for place in discards {
-        super::references::discard_owned(module, machine, &mut frontier.references, *place)?;
-        frontier.owned_places.remove(place);
-    }
-    Ok(())
-}
-
-fn apply_continuation_residual_discards(
-    module: &TerminalModule,
-    machine: &TerminalMachine,
-    block: BlockId,
-    parameter_order: &[&StructuralParameterDeclaration],
-    frontier: &mut StructuralOwnershipFrontier,
-    discards: &[terminal_psi::StructuralAffineDiscard],
-) -> Result<(), ModuleError> {
-    let invalid = || ModuleError::InvalidPartialAffineCleanup {
-        machine: machine.id,
-        block,
-    };
-    // Disposal groups follow the same live-root order as ordinary affine
-    // cleanup. Each group must be the exact current complement, including
-    // transfers in predecessor blocks; no same-block transfer implies death.
-    let eligible = expected_trivial_affine_discards(machine, parameter_order, frontier);
-    let mut next_root = 0;
-    let mut offset = 0;
-    while offset < discards.len() {
-        let place = discards[offset].place;
         let position = eligible[next_root..]
             .iter()
             .position(|candidate| *candidate == place)
-            .ok_or_else(invalid)?;
+            .ok_or(ModuleError::EdgeAffineDiscardsInvalid { edge })?;
         next_root += position + 1;
-        let moved = frontier
-            .partial_custody_paths
-            .get(&place)
-            .ok_or_else(invalid)?;
-        let expected = partial_affine_root_type(machine, place)
-            .and_then(|root_type| {
-                partial_affine_residuals(module, root_type, moved, discards.len() - offset)
-            })
-            .ok_or_else(invalid)?;
-        if expected.is_empty()
-            || offset + expected.len() > discards.len()
-            || discards[offset..offset + expected.len()]
-                .iter()
-                .zip(&expected)
-                .any(|(discard, (path, structural_type))| {
-                    discard.place != place
-                        || discard.path != *path
-                        || discard.structural_type != *structural_type
-                })
-            || frontier.owned_places.get(&place) != Some(&StructuralMultiplicity::Affine)
-        {
-            return Err(invalid());
-        }
-        for (path, structural_type) in &expected {
-            super::references::discard_residual(
-                module,
-                machine,
-                &mut frontier.references,
-                place,
-                path,
-                *structural_type,
-            )?;
-        }
-        frontier.partial_custody_paths.remove(&place);
-        frontier.owned_places.remove(&place);
-        offset += expected.len();
+        cleanup::consume_owner(
+            walk.module,
+            walk.machine,
+            walk.machines,
+            block,
+            frontier,
+            place,
+            &mut actions,
+        )?;
     }
     // Unselected complements remain live across ordinary evaluation edges.
     // Exact joins compare their moved paths, and terminal cleanup must settle

@@ -63,10 +63,19 @@ pub(crate) fn commit_cleanup_action(
                     root.structural_type,
                     &discard.path,
                 )? != discard.structural_type
-                || !frontier.remove(discard)
             {
                 return Err(TerminalInterpretError::AffineFrontierMismatch);
             }
+            consume_affine_projection(
+                structural_types,
+                structural_values,
+                frontier,
+                &StructuralArgument {
+                    place: discard.place,
+                    path: discard.path.clone(),
+                    access: StructuralAccess::Owned,
+                },
+            )?;
             // A projected transfer may already retain descendants of this root.
             // Retire only this disposed subtree, never the transferred sibling.
             let mut path = root.path.clone();
@@ -90,11 +99,12 @@ pub(crate) fn commit_cleanup_action(
                 live_claims,
                 cleanup,
             )?;
-            let value = structural_values.get(&cleanup.place).ok_or(
+            let root = structural_values.get(&cleanup.place).ok_or(
                 TerminalInterpretError::VerifiedStructuralPlaceMissing(cleanup.place),
             )?;
-            // A whole nominal owner cannot be destroyed beneath an outstanding
-            // reference, including a projection of its backing storage.
+            let value = project_structural_value(structural_types, root, &cleanup.path)?;
+            // The selected nominal owner cannot die beneath an outstanding
+            // reference; disjoint siblings retain their own storage and loans.
             if reference_referents.iter().any(|(carrier, referent)| {
                 (carrier.opaque_identity == value.opaque_identity
                     && terminal_semantics::structural_paths_may_overlap(&carrier.path, &value.path))
@@ -106,9 +116,26 @@ pub(crate) fn commit_cleanup_action(
             }) {
                 return Err(TerminalInterpretError::AffineFrontierMismatch);
             }
-            let value = structural_values
-                .remove(&cleanup.place)
-                .expect("validated nominal source");
+            if cleanup.consumed_claims.is_empty() {
+                consume_affine_projection(
+                    structural_types,
+                    structural_values,
+                    frontier,
+                    &StructuralArgument {
+                        place: cleanup.place,
+                        path: cleanup.path.clone(),
+                        access: StructuralAccess::Owned,
+                    },
+                )?;
+                // Reserve exactly this pending hook until normal completion.
+                // The enclosing frame is suspended, so it cannot consume the
+                // selected obligation a second time while the hook runs.
+                frontier.insert(StructuralAffineDiscard {
+                    place: cleanup.place,
+                    path: cleanup.path.clone(),
+                    structural_type: cleanup.structural_type,
+                });
+            }
             for claim in &cleanup.consumed_claims {
                 live_claims.remove(claim);
             }
@@ -129,7 +156,8 @@ pub(crate) fn validate_nominal_cleanup_action(
     cleanup: &NominalAffineCleanup,
 ) -> Result<(), TerminalInterpretError> {
     let invalid = || TerminalInterpretError::AffineFrontierMismatch;
-    let value = values.get(&cleanup.place).ok_or_else(invalid)?;
+    let root = values.get(&cleanup.place).ok_or_else(invalid)?;
+    let value = project_structural_value(structural_types, root, &cleanup.path)?;
     let target = machines.get(&cleanup.cleanup_machine).ok_or_else(invalid)?;
     let Some(StructuralTypeShape::Record { fields }) = structural_types
         .get(&cleanup.structural_type)
@@ -139,13 +167,22 @@ pub(crate) fn validate_nominal_cleanup_action(
     };
     let source_claims = claims
         .iter()
-        .filter(|(_, claim)| claim.place == Some(cleanup.place))
+        .filter(|(_, claim)| {
+            claim.place == Some(cleanup.place)
+                && terminal_semantics::structural_paths_may_overlap(&claim.path, &cleanup.path)
+        })
         .collect::<Vec<_>>();
-    let whole = StructuralAffineDiscard {
-        place: cleanup.place,
-        path: Vec::new(),
-        structural_type: cleanup.structural_type,
-    };
+    let mut remaining = frontier.clone();
+    let affine_subject = consume_affine_projection(
+        structural_types,
+        values,
+        &mut remaining,
+        &StructuralArgument {
+            place: cleanup.place,
+            path: cleanup.path.clone(),
+            access: StructuralAccess::Owned,
+        },
+    );
     if value.structural_type != cleanup.structural_type
         || target.attachment != Some(cleanup.structural_type)
         || target.nominal_cleanup_subject != Some(cleanup.structural_type)
@@ -168,13 +205,49 @@ pub(crate) fn validate_nominal_cleanup_action(
                     | terminal_psi::StructuralFieldType::Atomic(ScalarType::Integer(integer))
                     if matches!(integer.bits(), 8 | 16 | 32 | 64) && (!integer.is_address() || integer.bits() == 64)))
         || cleanup.consumed_claims != source_claims.iter().map(|(identity, _)| **identity).collect::<Vec<_>>()
-        || source_claims.iter().any(|(_, claim)| !claim.path.is_empty() || claim.multiplicity != Some(StructuralMultiplicity::Linear))
+        || source_claims.iter().any(|(_, claim)| claim.path != cleanup.path || claim.multiplicity != Some(StructuralMultiplicity::Linear))
         || if source_claims.is_empty() {
-            !frontier.contains(&whole) || frontier.iter().any(|entry| entry.place == cleanup.place && entry != &whole)
+            affine_subject.is_err()
         } else {
-            source_claims.len() != 1 || frontier.iter().any(|entry| entry.place == cleanup.place)
+            source_claims.len() != 1 || frontier.iter().any(|entry| entry.place == cleanup.place
+                && terminal_semantics::structural_paths_may_overlap(&entry.path, &cleanup.path))
         }
     { return Err(invalid()); }
+    Ok(())
+}
+
+/// A hook returns to the same pending subject. Remove its reservation only;
+/// the surrounding carrier remains until its last sibling obligation ends.
+pub(crate) fn complete_nominal_cleanup(
+    values: &mut BTreeMap<PlaceId, TerminalStructuralValue>,
+    frontier: &mut BTreeSet<StructuralAffineDiscard>,
+    claims: &BTreeMap<ClaimId, LiveClaim>,
+    cleanup: &NominalAffineCleanup,
+) -> Result<(), TerminalInterpretError> {
+    if if cleanup.consumed_claims.is_empty() {
+        !frontier.remove(&StructuralAffineDiscard {
+            place: cleanup.place,
+            path: cleanup.path.clone(),
+            structural_type: cleanup.structural_type,
+        })
+    } else {
+        frontier.iter().any(|entry| {
+            entry.place == cleanup.place
+                && terminal_semantics::structural_paths_may_overlap(&entry.path, &cleanup.path)
+        }) || cleanup
+            .consumed_claims
+            .iter()
+            .any(|claim| claims.contains_key(claim))
+    } {
+        return Err(TerminalInterpretError::AffineFrontierMismatch);
+    }
+    if !frontier.iter().any(|entry| entry.place == cleanup.place)
+        && !claims
+            .values()
+            .any(|claim| claim.place == Some(cleanup.place))
+    {
+        values.remove(&cleanup.place);
+    }
     Ok(())
 }
 

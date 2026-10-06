@@ -785,11 +785,11 @@ pub(super) fn lower_cleanup_calls(
                 }
                 let argument = StructuralArgument {
                     place: cleanup.place,
-                    path: Vec::new(),
+                    path: cleanup.path.clone(),
                     access: parameter.access,
                 };
-                // A whole owned record lends its original home; it does not copy
-                // that home into the cleanup's borrowed parameter.
+                // Cleanup lends the selected owner's original storage; it does
+                // not copy that storage into the hook's borrowed parameter.
                 arguments.push(super::borrowed_calls::argument(
                     &argument,
                     parameter,

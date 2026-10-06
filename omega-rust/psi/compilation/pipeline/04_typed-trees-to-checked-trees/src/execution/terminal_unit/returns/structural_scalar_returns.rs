@@ -640,6 +640,7 @@ pub(crate) fn build_structural_scalar_return_machine(
                 }
                 Some(CheckedUnitNominalAffineCleanupPlan {
                     source,
+                    path: Vec::new(),
 
                     type_identity: checked_parameter.type_identity.clone(),
                     cleanup_machine: cleanup_machine.symbol,

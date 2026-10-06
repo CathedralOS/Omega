@@ -48,7 +48,13 @@ pub(super) fn retained(source: &AbstractOperation, target: &TargetFunction) -> b
     let Some(candidate) = candidates.next() else {
         return false;
     };
-    if candidates.next().is_some() || !cleanup_rosters_match(source, &candidate.operations) {
+    if candidates.next().is_some()
+        || !cleanup_rosters_match(
+            source,
+            &candidate.operations,
+            &target.graph.structural_types,
+        )
+    {
         return false;
     }
     match (source, &candidate.terminator) {
@@ -88,6 +94,7 @@ pub(super) fn retained(source: &AbstractOperation, target: &TargetFunction) -> b
                 && return_cleanup_calls_match(
                     cleanup_actions,
                     &candidate.operations,
+                    &target.graph.structural_types,
                     match source {
                         AbstractOperation::Return { psi_edge, .. }
                         | AbstractOperation::ReturnUnit { psi_edge, .. } => *psi_edge,
@@ -108,6 +115,7 @@ pub(super) fn retained(source: &AbstractOperation, target: &TargetFunction) -> b
                 && return_cleanup_calls_match(
                     cleanup_actions,
                     &candidate.operations,
+                    &target.graph.structural_types,
                     match source {
                         AbstractOperation::Return { psi_edge, .. }
                         | AbstractOperation::ReturnUnit { psi_edge, .. } => *psi_edge,
@@ -165,6 +173,7 @@ fn successor_matches(source: &AbstractSuccessor, target: &TargetControlSuccessor
 fn cleanup_rosters_match(
     source: &AbstractOperation,
     operations: &[target_operations::TargetUnitOperation],
+    structural_types: &[terminal_psi::StructuralTypeDeclaration],
 ) -> bool {
     let expected = source
         .cleanup_rosters()
@@ -177,7 +186,7 @@ fn cleanup_rosters_match(
         .sum::<usize>();
     expected == operations.iter().filter(|operation| matches!(operation, target_operations::TargetUnitOperation::CleanupCall { .. })).count()
         && source.cleanup_rosters().all(|(edge, actions)| edge_cleanup_calls_match(actions, operations.iter().filter(|operation|
-            matches!(operation, target_operations::TargetUnitOperation::CleanupCall { owner, .. } if owner.edge() == Some(edge))), edge))
+            matches!(operation, target_operations::TargetUnitOperation::CleanupCall { owner, .. } if owner.edge() == Some(edge))), structural_types, edge))
 }
 
 /// Earlier graph admission owns the live frontier and callee ABI/body. This
@@ -185,14 +194,16 @@ fn cleanup_rosters_match(
 pub(super) fn return_cleanup_calls_match(
     actions: &[TerminalAffineCleanupAction],
     operations: &[target_operations::TargetUnitOperation],
+    structural_types: &[terminal_psi::StructuralTypeDeclaration],
     edge: semantic_vocabulary::EdgeId,
 ) -> bool {
-    edge_cleanup_calls_match(actions, operations.iter(), edge)
+    edge_cleanup_calls_match(actions, operations.iter(), structural_types, edge)
 }
 
 fn edge_cleanup_calls_match<'a>(
     actions: &[TerminalAffineCleanupAction],
     operations: impl Iterator<Item = &'a target_operations::TargetUnitOperation>,
+    structural_types: &[terminal_psi::StructuralTypeDeclaration],
     edge: semantic_vocabulary::EdgeId,
 ) -> bool {
     let mut calls = operations.filter_map(|operation| match operation {
@@ -232,12 +243,30 @@ fn edge_cleanup_calls_match<'a>(
                 .iter()
                 .zip(&call_plan.parameters)
                 .any(|(argument, placement)| {
+                    let projection = if argument.path.is_empty() {
+                        crate::object_artifact::replay::structural::condition_layout::replay_structural_value_shape(
+                            argument.root_structural_type,
+                            structural_types,
+                        ).map(|shape| (argument.root_structural_type, shape, 0))
+                    } else {
+                        crate::object_artifact::replay::structural::condition_layout::replay_structural_projection(
+                            argument.root_structural_type,
+                            &argument.path,
+                            structural_types,
+                        )
+                    };
                     argument.place != nominal.place
-                        || argument.root_structural_type != nominal.structural_type
                         || argument.structural_type != nominal.structural_type
-                        || !argument.path.is_empty()
+                        || argument.path != nominal.path
                         || !argument.indices.is_empty()
-                        || argument.source_byte_offset != 0
+                        || projection.is_none_or(|(leaf_type, leaf_shape, byte_offset)| {
+                            leaf_type != nominal.structural_type
+                                || argument.source_byte_offset != byte_offset
+                                || argument.shape != calling_conventions::ValueShape::borrowed_reference(
+                                    leaf_shape.byte_size,
+                                    leaf_shape.alignment,
+                                )
+                        })
                         || !matches!(
                             argument.access,
                             terminal_psi::StructuralAccess::MutableBorrow
@@ -259,17 +288,35 @@ fn edge_cleanup_calls_match<'a>(
 mod cleanup_tests {
     use super::{retained, return_cleanup_calls_match};
     use calling_conventions::{CallSignature, CallingPolicy, ValueShape, evaluate_call_plan};
-    use semantic_vocabulary::{BlockId, EdgeId, MachineId, OperationId, PlaceId, StructuralTypeId};
+    use semantic_vocabulary::{
+        BlockId, EdgeId, IeeeFloatFormat, MachineId, OperationId, PlaceId, ScalarType,
+        StructuralFieldId, StructuralTypeId,
+    };
     use target_operations::{CallSiteOwner, TargetStructuralArgument, TargetUnitOperation};
     use terminal_psi::{
-        NominalAffineCleanup, StructuralAccess, StructuralAffineDiscard, StructuralPathSegment,
-        TerminalAffineCleanupAction,
+        BindingRelevance, NominalAffineCleanup, StructuralAccess, StructuralAffineDiscard,
+        StructuralFieldDeclaration, StructuralFieldType, StructuralPathSegment,
+        StructuralTypeDeclaration, StructuralTypeShape, TerminalAffineCleanupAction,
     };
 
     #[test]
     fn nominal_image_return_rejoins_every_action_and_original_receiver() {
         let edge = EdgeId::new(1).unwrap();
         let structural_type = StructuralTypeId::new(1).unwrap();
+        let structural_types = vec![StructuralTypeDeclaration {
+            id: structural_type,
+            identity: "Leaf".into(),
+            shape: StructuralTypeShape::Record {
+                fields: vec![StructuralFieldDeclaration {
+                    id: StructuralFieldId::new(1).unwrap(),
+                    identity: "value".into(),
+                    relevance: BindingRelevance::Relevant,
+                    field_type: StructuralFieldType::Scalar(ScalarType::IeeeFloat(
+                        IeeeFloatFormat::Binary32,
+                    )),
+                }],
+            },
+        }];
         let machine = MachineId::new(9).unwrap();
         let shape = ValueShape::borrowed_reference(4, 4);
         let plan = evaluate_call_plan(
@@ -286,6 +333,7 @@ mod cleanup_tests {
             actions.push(TerminalAffineCleanupAction::InvokeNominal(
                 NominalAffineCleanup {
                     place,
+                    path: Vec::new(),
                     structural_type,
                     cleanup_machine: machine,
                     consumed_claims: Vec::new(),
@@ -324,7 +372,12 @@ mod cleanup_tests {
         }
         // A raw image join only: earlier source and graph replay own frontier
         // liveness, original storage residence, hook contract and callee body.
-        assert!(return_cleanup_calls_match(&actions, &calls, edge));
+        assert!(return_cleanup_calls_match(
+            &actions,
+            &calls,
+            &structural_types,
+            edge
+        ));
         for mutation in 0..7 {
             let mut hostile = calls.clone();
             match mutation {
@@ -360,7 +413,12 @@ mod cleanup_tests {
                     }
                 }
             }
-            assert!(!return_cleanup_calls_match(&actions, &hostile, edge));
+            assert!(!return_cleanup_calls_match(
+                &actions,
+                &hostile,
+                &structural_types,
+                edge
+            ));
         }
     }
 

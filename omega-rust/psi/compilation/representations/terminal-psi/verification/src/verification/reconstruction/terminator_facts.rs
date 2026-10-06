@@ -36,6 +36,66 @@ pub(super) fn append_terminator(
     crash_sites: &mut Vec<ReconstructedCrashSiteFacts>,
     ignored_backedges: &std::collections::BTreeSet<EdgeId>,
 ) {
+    // Continuing edges discharge cleanup against the facts before successor
+    // binding. Return edges below additionally establish their result facts.
+    if matches!(
+        terminator,
+        Terminator::Jump { .. }
+            | Terminator::Conditional { .. }
+            | Terminator::StructuralCase { .. }
+    ) {
+        for (edge, actions) in terminator.cleanup_rosters() {
+            if ignored_backedges.contains(&edge) {
+                continue;
+            }
+            let mut edge_axioms = axioms.clone();
+            match terminator {
+                Terminator::Conditional {
+                    condition,
+                    when_true,
+                    ..
+                } => {
+                    if reconstruct_path_facts
+                        && let Some(fact) = path_facts::condition_fact(
+                            *condition,
+                            edge == when_true.edge,
+                            &axioms,
+                            value_term,
+                            proposition_context,
+                        )
+                    {
+                        crate::verification::substitution::push_unique_fact(
+                            &mut edge_axioms,
+                            fact.proposition,
+                        );
+                    }
+                }
+                Terminator::StructuralCase { source, cases } => {
+                    if let Some(successor) = cases.iter().find(|successor| successor.edge == edge) {
+                        edge_axioms.push(Proposition::StructuralCaseMembership {
+                            subject: StructuralCaseSubject::new(*source, Vec::new()),
+                            case: successor.case,
+                        });
+                    }
+                }
+                _ => {}
+            }
+            for (position, action) in actions.iter().enumerate() {
+                if let terminal_psi::TerminalAffineCleanupAction::InvokeNominal(cleanup) = action {
+                    append_nominal_cleanup_obligations(
+                        module,
+                        cleanup,
+                        machine,
+                        edge,
+                        position,
+                        machines,
+                        &edge_axioms,
+                        operation_obligations,
+                    );
+                }
+            }
+        }
+    }
     match terminator {
         Terminator::Jump {
             edge,
@@ -222,8 +282,9 @@ pub(super) fn append_terminator(
                     })
             {
                 append_nominal_cleanup_obligations(
+                    module,
                     cleanup,
-                    machine.id,
+                    machine,
                     *edge,
                     cleanup_position,
                     machines,
@@ -249,8 +310,9 @@ pub(super) fn append_terminator(
                     })
             {
                 append_nominal_cleanup_obligations(
+                    module,
                     cleanup,
-                    machine.id,
+                    machine,
                     *edge,
                     cleanup_position,
                     machines,
@@ -291,8 +353,9 @@ pub(super) fn append_terminator(
             for (position, action) in cleanup_actions.iter().enumerate() {
                 if let terminal_psi::TerminalAffineCleanupAction::InvokeNominal(cleanup) = action {
                     append_nominal_cleanup_obligations(
+                        module,
                         cleanup,
-                        machine.id,
+                        machine,
                         *edge,
                         position,
                         machines,
@@ -373,8 +436,9 @@ fn selected_payload_refinement<'module>(
 }
 
 fn append_nominal_cleanup_obligations(
+    module: &terminal_psi::TerminalModule,
     cleanup: &terminal_psi::NominalAffineCleanup,
-    machine: MachineId,
+    machine: &TerminalMachine,
     edge: semantic_vocabulary::EdgeId,
     cleanup_position: usize,
     machines: &BTreeMap<MachineId, &TerminalMachine>,
@@ -387,7 +451,16 @@ fn append_nominal_cleanup_obligations(
         .expect("validated nominal cleanup target exists");
     let receiver = cleanup
         .cleanup_receiver
-        .map(|receiver| BTreeMap::from([(receiver, cleanup.place)]))
+        .map(|receiver| {
+            let path = crate::validation::canonical_field_path(
+                module,
+                machine,
+                cleanup.place,
+                &cleanup.path,
+            )
+            .expect("validated cleanup has an exact static receiver path");
+            BTreeMap::from([(receiver, (cleanup.place, path))])
+        })
         .unwrap_or_default();
     for (requirement_position, (required, obligation)) in target
         .contract
@@ -398,7 +471,7 @@ fn append_nominal_cleanup_obligations(
     {
         operation_obligations.push(ReconstructedOperationObligation {
             owner: ReconstructedTerminalObligationOwner::NominalCleanupRequires {
-                machine,
+                machine: machine.id,
                 edge,
                 cleanup_position: u32::try_from(cleanup_position)
                     .expect("validated cleanup position fits u32"),
@@ -407,7 +480,9 @@ fn append_nominal_cleanup_obligations(
             },
             obligation: Obligation {
                 id: *obligation,
-                proposition: substitute_proposition_places(required, &receiver),
+                proposition: super::super::substitute_proposition_structural_places(
+                    required, &receiver,
+                ),
                 class: ObligationClass::Derivable,
             },
             semantic_axioms: axioms.to_vec(),

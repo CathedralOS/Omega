@@ -1,0 +1,85 @@
+use omega::language::core::binding;
+use omega::language::core::external_binding;
+
+// This fixture explicitly assumes finite, normal completion of one byte write
+// from its reviewed external provider. It does not strengthen std::Console.
+pub boundary trait Console {
+    machine write_byte(byte: i32)
+    reaches Console
+    terminates;
+
+    machine exit_process(return_code: i32)
+    reaches Console;
+}
+
+pub data ConsoleNativeProvider {}
+
+macos_arm64 boundary machine ConsoleNativeProvider::write_byte(byte: i32)
+    satisfies Console::write_byte;
+macos_arm64 boundary machine ConsoleNativeProvider::exit_process(return_code: i32)
+    satisfies Console::exit_process;
+linux_x86_64 boundary machine ConsoleNativeProvider::write_byte(byte: i32)
+    satisfies Console::write_byte;
+linux_x86_64 boundary machine ConsoleNativeProvider::exit_process(return_code: i32)
+    satisfies Console::exit_process;
+linux_arm64 boundary machine ConsoleNativeProvider::write_byte(byte: i32)
+    satisfies Console::write_byte;
+linux_arm64 boundary machine ConsoleNativeProvider::exit_process(return_code: i32)
+    satisfies Console::exit_process;
+
+windows_x86_64 machine ConsoleNativeProvider::write_byte(byte: i32)
+    satisfies Console::write_byte
+    via ForeignBinding::CompilerIntrinsic;
+windows_x86_64 machine exit_process_binding() -> ForeignBinding<12, 11, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::PeByName {
+            library: "kernel32.dll",
+            export: "ExitProcess",
+        },
+    }
+}
+windows_x86_64 machine ConsoleNativeProvider::exit_process(return_code: i32)
+    satisfies Console::exit_process
+    via exit_process_binding();
+
+data Token { ready: bool; byte: i32; }
+data Pair { left: Token; right: Token; }
+
+machine Token::drop(token: &mut Token)
+requires token.ready
+reaches Console
+{
+    Console::write_byte(token.byte);
+    token.ready = false;
+}
+
+machine outgoing() -> i32 reaches Console {
+    Console::write_byte(88);
+    69
+}
+
+// Capture X first. Dispose local D, parameter C, then residual field B.
+// The successor prints E and only then disposes the transferred child A.
+machine select(input: Pair, marker: Token)
+requires input.left.ready, input.right.ready, marker.ready
+reaches Console
+{
+    let local: Token = Token { ready: true, byte: 68 };
+    transition { _ -> finish(input.left, outgoing()) }
+    state finish(selected: Token, byte: i32)
+    requires selected.ready
+    {
+        Console::write_byte(byte);
+    }
+}
+
+data Main { console: Binding<Console>; }
+machine Main::main(main: &mut Main) reaches Console {
+    let input: Pair = Pair {
+        left: Token { ready: true, byte: 65 },
+        right: Token { ready: true, byte: 66 }
+    };
+    let marker: Token = Token { ready: true, byte: 67 };
+    select(input, marker);
+    main.console.write_byte(10);
+}

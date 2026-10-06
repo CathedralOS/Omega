@@ -89,6 +89,7 @@ pub(crate) fn lower_nominal_cleanup_action(
     cleanup: &CheckedUnitNominalAffineCleanupPlan,
     place: PlaceId,
     structural_type: StructuralTypeId,
+    path: Vec<terminal_psi::StructuralPathSegment>,
     type_ids: &[(String, StructuralTypeId)],
     machine_ids: &[(SymbolHandle, MachineId)],
     receivers: &[(SymbolHandle, PlaceId)],
@@ -98,9 +99,12 @@ pub(crate) fn lower_nominal_cleanup_action(
         UnitPlans::published(&checked.facts.flow.terminal_unit_effects),
         cleanup.cleanup_machine,
     )?;
-    lookup_type_id(type_ids, &cleanup.type_identity)?;
+    if lookup_type_id(type_ids, &cleanup.type_identity)? != structural_type {
+        return unsupported("nominal cleanup receiver type differs from its checked subject");
+    }
     Ok(NominalAffineCleanup {
         place,
+        path,
         structural_type,
         cleanup_machine: lookup_machine_id(machine_ids, cleanup.cleanup_machine)?,
         consumed_claims: Vec::new(),
@@ -218,6 +222,7 @@ fn finalize_nominal_cleanup_machine(
             cleanup,
             parameter.place,
             parameter.structural_type,
+            Vec::new(),
             type_ids,
             machine_ids,
             receivers,

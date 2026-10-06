@@ -48,6 +48,7 @@ fn decode_cleanup(
         ),
         3 => {
             let place = decode_place(cursor)?;
+            let path = decode_path(cursor)?;
             let structural_type = decode_structural_type(cursor)?;
             let cleanup_machine = decode_machine(cursor)?;
             let consumed_claims = decode_claim_ids(cursor)?;
@@ -60,6 +61,7 @@ fn decode_cleanup(
             terminal_psi::TerminalAffineCleanupAction::InvokeNominal(
                 terminal_psi::NominalAffineCleanup {
                     place,
+                    path,
                     structural_type,
                     cleanup_machine,
                     consumed_claims,
@@ -134,6 +136,50 @@ mod tests {
         StructuralAffineDiscard, StructuralPathSegment, TerminalAffineCleanupAction,
     };
 
+    #[test]
+    fn nominal_cleanup_round_trip_retains_projected_path() {
+        let mut previous_encoding = None;
+        for path in [
+            Vec::new(),
+            vec![StructuralPathSegment::Field("children".into())],
+            vec![
+                StructuralPathSegment::Field("children".into()),
+                StructuralPathSegment::FixedIndex(1),
+            ],
+        ] {
+            let action =
+                TerminalAffineCleanupAction::InvokeNominal(terminal_psi::NominalAffineCleanup {
+                    place: PlaceId::new(1).unwrap(),
+                    path,
+                    structural_type: StructuralTypeId::new(2).unwrap(),
+                    cleanup_machine: semantic_vocabulary::MachineId::new(3).unwrap(),
+                    consumed_claims: vec![ClaimId::new(4).unwrap()],
+                    cleanup_receiver: Some(PlaceId::new(5).unwrap()),
+                    requirement_obligations: vec![ObligationId::new(6).unwrap()],
+                });
+            let mut encoded = Vec::new();
+            crate::selected_instructions::effects::program::identity::encode_cleanup(
+                &mut encoded,
+                &action,
+            );
+            let mut cursor = Cursor::new(&encoded);
+            assert_eq!(decode_cleanup(&mut cursor).unwrap(), action);
+            assert_eq!(cursor.remaining(), 0);
+            if let Some(previous) = previous_encoding {
+                assert_ne!(encoded, previous);
+            }
+            previous_encoding = Some(encoded);
+        }
+
+        let mut retired_envelope = super::super::MAGIC.to_vec();
+        retired_envelope.extend_from_slice(&33_u32.to_le_bytes());
+        assert_eq!(
+            super::super::decode_terminal_pre_allocation_machine_effect_plan(&retired_envelope),
+            Err(PreAllocationMachineEffectDecodeError::UnsupportedVersion(
+                33
+            ))
+        );
+    }
     #[test]
     fn cleanup_action_round_trip_retains_every_path_segment() {
         let action = TerminalAffineCleanupAction::DiscardResidual(StructuralAffineDiscard {

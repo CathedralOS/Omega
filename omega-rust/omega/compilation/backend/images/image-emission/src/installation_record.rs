@@ -84,6 +84,7 @@ use unit_dynamic_descriptor_join::validate_installed_unit_dynamic_descriptor_joi
 
 /// The current vocabulary includes owned incoming stack pointers and AArch64's
 /// dedicated indirect-result register. Earlier envelopes cannot carry those roles.
+/// Marker 107 retains the exact owned subtree path for nominal cleanup.
 /// Marker 106 encodes explicit structural parameters without a receiver flag.
 /// Marker 100 retains byte-field predicate sets and exact carrier access.
 /// Marker 101 retains 32-bit aggregate sizes and placement offsets.
@@ -97,7 +98,7 @@ use unit_dynamic_descriptor_join::validate_installed_unit_dynamic_descriptor_joi
 /// result source rosters. Marker 97 seals complete placed-region inventory
 /// identities for the bound image; marker 96 records carry no complete-custody
 /// digests.
-pub const INSTALLATION_FORMAT_MARKER: u16 = 106;
+pub const INSTALLATION_FORMAT_MARKER: u16 = 107;
 
 fn direct_structural_return_placement(placement: &ValuePlacement) -> bool {
     if placement.shape.class != ValueClass::Integer

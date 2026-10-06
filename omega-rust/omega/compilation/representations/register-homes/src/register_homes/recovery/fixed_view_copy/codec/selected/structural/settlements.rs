@@ -514,6 +514,7 @@ fn encode_cleanup(bytes: &mut Vec<u8>, action: &TerminalAffineCleanupAction) {
         TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
             bytes.push(3);
             bytes.extend_from_slice(&cleanup.place.get().to_le_bytes());
+            encode_path(bytes, &cleanup.path);
             bytes.extend_from_slice(&cleanup.structural_type.get().to_le_bytes());
             bytes.extend_from_slice(&cleanup.cleanup_machine.get().to_le_bytes());
             encode_ids(
@@ -555,6 +556,7 @@ pub(in super::super) fn decode_cleanup(
         )),
         3 => {
             let place = decode_id(cursor, PlaceId::new)?;
+            let path = decode_path(cursor)?;
             let structural_type = decode_id(cursor, StructuralTypeId::new)?;
             let cleanup_machine = decode_id(cursor, MachineId::new)?;
             let consumed_claims = decode_ids(cursor, ClaimId::new)?;
@@ -566,6 +568,7 @@ pub(in super::super) fn decode_cleanup(
             Ok(TerminalAffineCleanupAction::InvokeNominal(
                 terminal_psi::NominalAffineCleanup {
                     place,
+                    path,
                     structural_type,
                     cleanup_machine,
                     consumed_claims,

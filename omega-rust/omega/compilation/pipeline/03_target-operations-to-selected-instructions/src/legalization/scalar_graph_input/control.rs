@@ -14,7 +14,7 @@ pub(super) fn validate(
     match (&node.operation, &function.result) {
         (AbstractOperation::Crash { psi_edge, .. }, _) => terminal_edge(node, *psi_edge),
         (AbstractOperation::StructuralCase { .. }, _) => {
-            super::structural_case::validate(node, function)
+            super::structural_case::validate(node, function, structural_types)
         }
         (
             AbstractOperation::ReturnStructural {
@@ -33,7 +33,11 @@ pub(super) fn validate(
                 if !super::byte_views::shared_return(function, *source, structural_types)
                     || !returned_claims.is_empty()
                     || !trivial_affine_locals.is_empty()
-                    || !super::aggregate_results::cleanup(function, &cleanup_actions)
+                    || !super::aggregate_results::cleanup(
+                        function,
+                        &cleanup_actions,
+                        structural_types,
+                    )
                 {
                     return Err(LegalizationError::custody());
                 }
@@ -101,7 +105,7 @@ pub(super) fn validate(
                 || !declared.projected_qualifications.is_empty()
                 || !returned_claims.is_empty()
                 || !trivial_affine_locals.is_empty()
-                || !super::aggregate_results::cleanup(function, &cleanup_actions)
+                || !super::aggregate_results::cleanup(function, &cleanup_actions, structural_types)
             {
                 return Err(LegalizationError::custody());
             }
@@ -114,7 +118,7 @@ pub(super) fn validate(
             },
             AbstractFunctionResult::Unit,
         ) if cleanup_actions.is_empty()
-            || (super::aggregate_results::cleanup(function, cleanup_actions)
+            || (super::aggregate_results::cleanup(function, cleanup_actions, structural_types)
                 && node.ownership
                     == [optimization_unit::OwnershipEvent::Cleanup(
                         cleanup_actions.clone(),
@@ -145,11 +149,14 @@ pub(super) fn validate(
             && *scalar_type == declared.scalar_type
             && value_type(function, *value) == Some(*scalar_type)
             && (cleanup_actions.is_empty()
-                || (super::aggregate_results::cleanup(function, cleanup_actions)
-                    && node.ownership
-                        == [optimization_unit::OwnershipEvent::Cleanup(
-                            cleanup_actions.clone(),
-                        )])
+                || (super::aggregate_results::cleanup(
+                    function,
+                    cleanup_actions,
+                    structural_types,
+                ) && node.ownership
+                    == [optimization_unit::OwnershipEvent::Cleanup(
+                        cleanup_actions.clone(),
+                    )])
                 || (super::unobserved_owned::body(function)
                     && node.ownership
                         == [optimization_unit::OwnershipEvent::Cleanup(
@@ -179,7 +186,7 @@ pub(super) fn validate(
             {
                 return Err(LegalizationError::custody());
             }
-            branch_edges(node, function)
+            branch_edges(node, function, structural_types)
         }
         (
             AbstractOperation::Conditional {
@@ -205,7 +212,7 @@ pub(super) fn validate(
                     return Err(LegalizationError::custody());
                 }
             }
-            branch_edges(node, function)
+            branch_edges(node, function, structural_types)
         }
         _ => Err(LegalizationError::custody()),
     }
@@ -258,11 +265,12 @@ fn terminal_edge(
 fn branch_edges(
     node: &OptimizationNode,
     function: &PsiOptimizationFunction,
+    structural_types: &[terminal_psi::StructuralTypeDeclaration],
 ) -> Result<(), LegalizationError> {
     if !node.provenance.is_empty()
         || !node.fuel.is_empty()
         || node.successors.iter().any(|edge| {
-            !super::aggregate_results::cleanup(function, &edge.cleanup_actions)
+            !super::aggregate_results::cleanup(function, &edge.cleanup_actions, structural_types)
                 || edge.provenance != [PsiProvenance::Edge(edge.psi_edge)]
                 || edge.fuel.is_empty()
                 || edge

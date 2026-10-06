@@ -44,7 +44,7 @@ pub(super) fn validate_tails(
             ) && (position + 2 != block.nodes.len()
                 || !matches!(&block.nodes[position + 1].operation,
                         AbstractOperation::ReturnUnit { cleanup_actions, .. }
-                            if super::aggregate_results::cleanup(optimized, cleanup_actions)))
+                            if super::aggregate_results::cleanup(optimized, cleanup_actions, &plan.structural_types)))
             {
                 return Err(LegalizationError::custody());
             }

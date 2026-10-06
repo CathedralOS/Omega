@@ -351,6 +351,10 @@ impl PredicateTerms for ScalarContractTerms<'_> {
 
     fn boolean(&self, expression: &CheckedBooleanExpression) -> Result<ScalarTerm, LoweringError> {
         match expression {
+            CheckedBooleanExpression::StructuralParameterField {
+                parameter_position,
+                path,
+            } => self.structural_member_term(*parameter_position, path, ScalarType::Boolean),
             CheckedBooleanExpression::ByteSequencePredicate {
                 predicate,
                 root,
@@ -432,6 +436,22 @@ impl PredicateTerms for ScalarContractTerms<'_> {
 }
 
 impl ScalarContractTerms<'_> {
+    fn structural_member_term(
+        &self,
+        parameter_position: u32,
+        path: &[checked_trees::CheckedStructuralPredicatePathSegment],
+        scalar_type: ScalarType,
+    ) -> Result<ScalarTerm, LoweringError> {
+        let parameters = self.authored_structural_parameters();
+        crate::proofs::crash_routes::lower_structural_member_term(
+            parameter_position,
+            path,
+            scalar_type,
+            &parameters,
+            self.views.structural_types,
+        )
+    }
+
     // Checked leaves use authored source positions, while Terminal separates
     // scalar and structural parameter lanes. Rejoin by the retained source key,
     // never by a coincidentally equal dense structural ordinal.
@@ -463,14 +483,11 @@ impl ScalarContractTerms<'_> {
             // position — the coordinate checked member operands name — so the
             // lookup copies carry that position rather than the block-dense
             // one the emitted block parameters use.
-            let parameters = self.authored_structural_parameters();
             // IEEE leaves keep their exact format, as entry requirements do.
-            return crate::proofs::crash_routes::lower_structural_member_term(
+            return self.structural_member_term(
                 *parameter_position,
                 path,
                 crate::emission::scalar_types::terminal_scalar_type(*primitive_type)?,
-                &parameters,
-                self.views.structural_types,
             );
         }
         crate::proofs::crash_routes::checked_scalar_term_with_views(

@@ -76,7 +76,7 @@ pub(in crate::legalization) fn expected(
                 }
                 let semantic = StructuralArgument {
                     place: cleanup.place,
-                    path: Vec::new(),
+                    path: cleanup.path.clone(),
                     access: parameter.access,
                 };
                 let target = super::aggregate_results::borrowed_arguments::reconstruct_at_owner(

@@ -260,24 +260,101 @@ fn residuals(
         .collect())
 }
 
-fn take_residuals(
-    frontier: &mut Frontier,
-    place: PlaceId,
-    roots: &[(PlaceId, StructuralTypeId)],
+/// One already checked cleanup subject. Nominal subjects retain their hook
+/// in the original action stream; this pass only checks their storage partition.
+#[derive(PartialEq, Eq)]
+struct CleanupSubject {
+    path: Vec<StructuralPathSegment>,
+    structural_type: StructuralTypeId,
+    nominal: bool,
+}
+
+fn partition_residual(
+    residual: StructuralAffineDiscard,
+    nominal: &[&CleanupSubject],
     types: &[StructuralTypeDeclaration],
-) -> Result<Vec<StructuralAffineDiscard>, LoweringError> {
-    let position = frontier
+    limit: usize,
+    output: &mut Vec<CleanupSubject>,
+) -> Result<(), LoweringError> {
+    let selected = nominal
         .iter()
-        .position(|root| root.place == place)
-        .expect("selected partial root");
-    let result = residuals(&frontier[position], roots, types)?;
-    frontier.remove(position);
-    Ok(result)
+        .filter(|subject| subject.path.starts_with(&residual.path))
+        .copied()
+        .collect::<Vec<_>>();
+    if selected.is_empty() || selected.iter().any(|subject| subject.path == residual.path) {
+        if output.len() == limit {
+            return unsupported("scheduled cleanup exceeds its residual partition");
+        }
+        output.push(CleanupSubject {
+            path: residual.path,
+            structural_type: residual.structural_type,
+            nominal: !selected.is_empty(),
+        });
+        return Ok(());
+    }
+    let declaration = types
+        .iter()
+        .find(|declaration| declaration.id == residual.structural_type)
+        .ok_or(LoweringError::Unsupported(
+            "scheduled cleanup subtree declaration is absent",
+        ))?;
+    match &declaration.shape {
+        terminal_psi::StructuralTypeShape::Record { fields } => {
+            for field in fields
+                .iter()
+                .rev()
+                .filter(|field| !field.relevance.is_erased())
+            {
+                let terminal_psi::StructuralFieldType::Structural(child) = field.field_type else {
+                    continue;
+                };
+                let mut path = residual.path.clone();
+                path.push(StructuralPathSegment::Field(field.identity.clone()));
+                partition_residual(
+                    StructuralAffineDiscard {
+                        place: residual.place,
+                        path,
+                        structural_type: child,
+                    },
+                    &selected,
+                    types,
+                    limit,
+                    output,
+                )?;
+            }
+        }
+        terminal_psi::StructuralTypeShape::FixedArray { element, length } => {
+            if u128::from(*length) > limit.saturating_sub(output.len()) as u128 {
+                return unsupported("scheduled array cleanup exceeds its residual partition");
+            }
+            for index in (0..*length).rev() {
+                let mut path = residual.path.clone();
+                path.push(StructuralPathSegment::FixedIndex(index));
+                partition_residual(
+                    StructuralAffineDiscard {
+                        place: residual.place,
+                        path,
+                        structural_type: *element,
+                    },
+                    &selected,
+                    types,
+                    limit,
+                    output,
+                )?;
+            }
+        }
+        _ => {
+            return unsupported(
+                "scheduled nominal cleanup is not an owned record or array projection",
+            );
+        }
+    }
+    Ok(())
 }
 
 fn close_existing(
     frontier: &mut Frontier,
-    scheduled: &[StructuralAffineDiscard],
+    scheduled: &[TerminalAffineCleanupAction],
     roots: &[(PlaceId, StructuralTypeId)],
     types: &[StructuralTypeDeclaration],
 ) -> Result<(), LoweringError> {
@@ -285,18 +362,47 @@ fn close_existing(
     for root in frontier.iter() {
         let group = scheduled
             .iter()
-            .filter(|discard| discard.place == root.place)
-            .cloned()
-            .collect::<Vec<_>>();
+            .filter(|action| action.place() == root.place)
+            .map(|action| match action {
+                TerminalAffineCleanupAction::DiscardResidual(discard) => Ok(CleanupSubject {
+                    path: discard.path.clone(),
+                    structural_type: discard.structural_type,
+                    nominal: false,
+                }),
+                TerminalAffineCleanupAction::InvokeNominal(cleanup) => Ok(CleanupSubject {
+                    path: cleanup.path.clone(),
+                    structural_type: cleanup.structural_type,
+                    nominal: true,
+                }),
+                TerminalAffineCleanupAction::DiscardRoot(_) => {
+                    unsupported("whole cleanup consumes a partially transferred root")
+                }
+            })
+            .collect::<Result<Vec<_>, _>>()?;
         if group.is_empty() {
             continue;
         }
-        // Already authored cleanup remains owned by its existing exact replay.
-        // When a declaration is available also ensure this pass's history agrees.
-        if roots.iter().any(|(place, _)| *place == root.place)
-            && group != residuals(root, roots, types)?
-        {
-            return unsupported("scheduled residual cleanup differs from current transfers");
+        if group.iter().any(|subject| {
+            root.paths
+                .iter()
+                .any(|moved| subject.path.starts_with(moved) || moved.starts_with(&subject.path))
+        }) {
+            return unsupported("scheduled cleanup overlaps a transferred subtree");
+        }
+        let nominal = group
+            .iter()
+            .filter(|subject| subject.nominal)
+            .collect::<Vec<_>>();
+        let mut expected = Vec::new();
+        for residual in residuals(root, roots, types)? {
+            partition_residual(residual, &nominal, types, group.len(), &mut expected)?;
+        }
+        // The exact selected types and recursive reverse order are derived
+        // from declarations. No-code regions stay maximal around nominal
+        // subjects; the pass neither manufactures a hook nor weakens its
+        // upstream prerequisites or whole-value requirement.
+        if group != expected {
+            return unsupported("scheduled cleanup differs from current residual partition");
         }
         closed.push(root.place);
     }
@@ -304,42 +410,40 @@ fn close_existing(
     Ok(())
 }
 
-/// All normal exits share the same ordered residual disposal. A
-/// nominal owner cannot be partially moved before its whole-value hook.
+/// Every normal exit retains one ordered subject stream. An intact nominal
+/// child can die after its sibling moves, but no hook can cover a moved path.
 fn complete_actions(
     frontier: &mut Frontier,
     cleanup_actions: &mut Vec<TerminalAffineCleanupAction>,
     roots: &[(PlaceId, StructuralTypeId)],
     types: &[StructuralTypeDeclaration],
 ) -> Result<(), LoweringError> {
-    let scheduled = cleanup_actions
-        .iter()
-        .filter_map(|action| match action {
-            TerminalAffineCleanupAction::DiscardResidual(discard) => Some(discard.clone()),
-            _ => None,
-        })
-        .collect::<Vec<_>>();
-    close_existing(frontier, &scheduled, roots, types)?;
     let mut actions = Vec::new();
+    let mut placeholders = BTreeSet::new();
     for action in cleanup_actions.iter() {
         match action {
             TerminalAffineCleanupAction::DiscardRoot(place)
                 if frontier.iter().any(|root| root.place == *place) =>
             {
+                if !placeholders.insert(*place) {
+                    return unsupported("duplicate scheduled whole cleanup");
+                }
+                let root = frontier.iter().find(|root| root.place == *place).ok_or(
+                    LoweringError::Unsupported("scheduled partial cleanup root is absent"),
+                )?;
                 actions.extend(
-                    take_residuals(frontier, *place, roots, types)?
+                    residuals(root, roots, types)?
                         .into_iter()
                         .map(TerminalAffineCleanupAction::DiscardResidual),
                 );
             }
-            TerminalAffineCleanupAction::InvokeNominal(cleanup)
-                if frontier.iter().any(|root| root.place == cleanup.place) =>
-            {
-                return unsupported("nominal cleanup consumes a partially transferred root");
-            }
             _ => actions.push(action.clone()),
         }
     }
+    close_existing(frontier, &actions, roots, types)?;
+    // A scheduled whole placeholder also retires a root with an empty
+    // complement. No action is emitted, but its storage occurrence is closed.
+    frontier.retain(|root| !placeholders.contains(&root.place));
     *cleanup_actions = actions;
     Ok(())
 }

@@ -1,8 +1,8 @@
 //! Independent aggregate layout and ordinary graph signature custody.
 use super::{
     AbstractFunction, AbstractFunctionResult, AbstractOperation, AbstractOperationPlan, CallPlan,
-    CallSignature, CallingPolicy, PsiOptimizationFunction, TargetFunction,
-    TargetOperationPlan, ValueDefinitionSite, ValueShape, evaluate_call_plan, scalar_shape,
+    CallSignature, CallingPolicy, PsiOptimizationFunction, TargetFunction, TargetOperationPlan,
+    ValueDefinitionSite, ValueShape, evaluate_call_plan, scalar_shape,
 };
 use crate::LegalizationError;
 use abstract_operations::AbstractStructuralCallResult;
@@ -146,9 +146,12 @@ pub(in crate::legalization) fn sum_type_layout(
 pub(super) fn cleanup(
     function: &PsiOptimizationFunction,
     actions: &[terminal_psi::TerminalAffineCleanupAction],
+    structural_types: &[terminal_psi::StructuralTypeDeclaration],
 ) -> bool {
-    let mut discarded = std::collections::BTreeSet::new();
-    let mut residuals = std::collections::BTreeSet::new();
+    let mut disposed: std::collections::BTreeSet<(
+        semantic_vocabulary::PlaceId,
+        Vec<terminal_psi::StructuralPathSegment>,
+    )> = std::collections::BTreeSet::new();
     // This reconstructs the retained owner declaration, not permission to
     // dispose it. Unit custody independently checks the action's exact live
     // claim frontier and authorized nominal hook before native lowering.
@@ -203,47 +206,53 @@ pub(super) fn cleanup(
         owner(place).is_some_and(|(_, multiplicity)| multiplicity == StructuralMultiplicity::Affine)
     };
     actions.iter().all(|action| {
-        match action {
-            terminal_psi::TerminalAffineCleanupAction::DiscardRoot(place) => {
-                discarded.insert(*place) && discardable(*place)
+        let (place, path) = match action {
+            terminal_psi::TerminalAffineCleanupAction::DiscardRoot(place) => (*place, &[][..]),
+            terminal_psi::TerminalAffineCleanupAction::DiscardResidual(discard) => {
+                (discard.place, discard.path.as_slice())
             }
+            terminal_psi::TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
+                (cleanup.place, cleanup.path.as_slice())
+            }
+        };
+        if disposed.iter().any(|(previous_place, previous_path)| {
+            *previous_place == place
+                && (previous_path.starts_with(path) || path.starts_with(previous_path))
+        }) {
+            return false;
+        }
+        disposed.insert((place, path.to_vec()));
+        let selected_type = |root| {
+            terminal_semantics::canonical_static_projection(structural_types.iter(), root, path)
+                .map(|(_, declaration)| declaration.id)
+        };
+        match action {
+            terminal_psi::TerminalAffineCleanupAction::DiscardRoot(place) => discardable(*place),
             terminal_psi::TerminalAffineCleanupAction::DiscardResidual(discard) => {
                 // A residual is a strictly projected plain subtree of a still
                 // eligible root; overlapping boundaries or a discarded root
                 // cannot be replayed twice.
                 !discard.path.is_empty()
-                    && !discarded.contains(&discard.place)
-                    && !residuals.iter().any(
-                        |(place, path): &(
-                            semantic_vocabulary::PlaceId,
-                            Vec<terminal_psi::StructuralPathSegment>,
-                        )| {
-                            *place == discard.place
-                                && (path.starts_with(&discard.path)
-                                    || discard.path.starts_with(path))
-                        },
-                    )
                     && discardable(discard.place)
-                    && residuals.insert((discard.place, discard.path.clone()))
+                    && owner(discard.place).and_then(|(root, _)| selected_type(root))
+                        == Some(discard.structural_type)
             }
             terminal_psi::TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
-                discarded.insert(cleanup.place)
-                    && owner(cleanup.place).is_some_and(|(structural_type, multiplicity)| {
-                        structural_type == cleanup.structural_type
-                            && match multiplicity {
-                                StructuralMultiplicity::Affine => {
-                                    cleanup.consumed_claims.is_empty()
-                                }
-                                StructuralMultiplicity::Linear => {
-                                    !cleanup.consumed_claims.is_empty()
-                                        && cleanup
-                                            .consumed_claims
-                                            .windows(2)
-                                            .all(|pair| pair[0] < pair[1])
-                                }
-                                StructuralMultiplicity::Unrestricted => false,
-                            }
-                    })
+                owner(cleanup.place).is_some_and(|(structural_type, multiplicity)| {
+                    // A projected owner's multiplicity belongs to the selected
+                    // obligation, not its containing root. Semantic custody
+                    // checks its exact claim roster before target lowering.
+                    let whole_claim_contract = match multiplicity {
+                        StructuralMultiplicity::Affine => cleanup.consumed_claims.is_empty(),
+                        StructuralMultiplicity::Linear => !cleanup.consumed_claims.is_empty(),
+                        StructuralMultiplicity::Unrestricted => false,
+                    };
+                    selected_type(structural_type) == Some(cleanup.structural_type)
+                        && (!cleanup.path.is_empty() || whole_claim_contract)
+                }) && cleanup
+                    .consumed_claims
+                    .windows(2)
+                    .all(|pair| pair[0] < pair[1])
                     && cleanup.requirement_obligations.is_empty()
             }
         }

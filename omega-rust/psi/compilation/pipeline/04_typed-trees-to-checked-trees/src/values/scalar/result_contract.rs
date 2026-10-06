@@ -81,6 +81,30 @@ struct ContractPredicates<'program, 'budget> {
 }
 
 impl ContractPredicates<'_, '_> {
+    /// All scalar field observations share the formal-place and access check.
+    /// The leaf's type chooses its Boolean or numeric denotation, not a second
+    /// contract namespace or a separate source-shape admission rule.
+    fn structural_observation(
+        &self,
+        expression: ExpressionHandle,
+    ) -> Option<(CheckedScalarExpression, TypeReferenceHandle)> {
+        let (position, _, reference) = super::structural_fields::structural_parameter_place(
+            self.program,
+            self.parameters,
+            expression,
+        )?;
+        let parameter = self.parameters.get(position as usize)?;
+        if !contract_storage_root(self.program, parameter, self.allow_result) {
+            return None;
+        }
+        let (term, _) = super::structural_fields::lower_structural_parameter_field(
+            self.program,
+            self.parameters,
+            expression,
+        )?;
+        Some((term, reference))
+    }
+
     fn subject(&self, expression: ExpressionHandle) -> Option<(usize, TypeReferenceHandle, bool)> {
         let program = self.program;
         let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
@@ -259,7 +283,7 @@ impl ContractPredicates<'_, '_> {
                     };
                 Some((term, reference))
             }
-            ExpressionNode::Member(_) => {
+            ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
                 // `subject.len` reads the live extent of a borrowed view or
                 // bounded byte field parameter in the same closed namespace
                 // the body's scalar lowering publishes. Its carrier is the
@@ -292,36 +316,9 @@ impl ContractPredicates<'_, '_> {
                     )?;
                     return Some((term, reference));
                 }
-                // A scalar member read (`self.rows`, `picker.picks`) names
-                // statically selected field storage below one structural
-                // parameter, so the contract operand resolves against its
-                // declaration at that parameter's authored position.
-                let (position, _, reference) =
-                    super::structural_fields::structural_parameter_place(
-                        program,
-                        self.parameters,
-                        expression,
-                    )?;
-                if !self
-                    .parameters
-                    .get(position as usize)
-                    .is_some_and(|parameter| {
-                        contract_storage_root(program, parameter, self.allow_result)
-                    })
-                {
-                    return None;
-                }
-                let (term, _) = super::structural_fields::lower_structural_parameter_field(
-                    program,
-                    self.parameters,
-                    expression,
-                )?;
-                let CheckedScalarExpression::StructuralParameterField { .. } = term else {
-                    return None;
-                };
                 // Reading a field for comparison preserves its carrier value;
                 // its arithmetic policy constrains operations, not observation.
-                Some((term, reference))
+                self.structural_observation(expression)
             }
             _ => None,
         }
@@ -438,6 +435,14 @@ impl ContractPredicates<'_, '_> {
         }
         *self.remaining -= 1;
         let program = self.program;
+        if matches!(
+            program.expression_table.expression(expression),
+            ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Indexed(_)
+        ) && let Some((CheckedScalarExpression::Boolean(predicate), _)) =
+            self.structural_observation(expression)
+        {
+            return Some(*predicate);
+        }
         match program.expression_table.expression(expression) {
             ExpressionNode::Boolean(value) => Some(CheckedBooleanExpression::Constant(*value)),
             ExpressionNode::Call(_) => {

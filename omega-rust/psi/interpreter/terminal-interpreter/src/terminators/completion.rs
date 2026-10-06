@@ -130,26 +130,15 @@ impl TerminalExecution {
                 remaining,
                 continuation,
             } => {
-                if completed.value != TerminalExecutionResult::Unit
-                    || if cleanup.0.consumed_claims.is_empty() {
-                        !self.live_affine_frontier.remove(&StructuralAffineDiscard {
-                            place: cleanup.0.place,
-                            path: Vec::new(),
-                            structural_type: cleanup.1.structural_type,
-                        })
-                    } else {
-                        self.live_affine_frontier
-                            .iter()
-                            .any(|entry| entry.place == cleanup.0.place)
-                            || cleanup
-                                .0
-                                .consumed_claims
-                                .iter()
-                                .any(|claim| self.live_claims.contains_key(claim))
-                    }
-                {
+                if completed.value != TerminalExecutionResult::Unit {
                     return Err(TerminalInterpretError::AffineFrontierMismatch);
                 }
+                crate::custody::complete_nominal_cleanup(
+                    &mut self.structural_values,
+                    &mut self.live_affine_frontier,
+                    &self.live_claims,
+                    &cleanup.0,
+                )?;
                 self.continue_cleanup_actions(remaining, continuation)
             }
             SuspendedCallResult::Unit => {

@@ -100,6 +100,7 @@ pub struct CheckedUnitNominalAffineCallerRequirementPlan {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedUnitNominalAffineCleanupPlan {
     pub source: CheckedUnitStructuralArgumentSourcePlan,
+    pub path: Vec<CheckedUnitStructuralPathSegment>,
     pub type_identity: String,
     pub cleanup_machine: SymbolHandle,
     pub cleanup_state: SymbolHandle,

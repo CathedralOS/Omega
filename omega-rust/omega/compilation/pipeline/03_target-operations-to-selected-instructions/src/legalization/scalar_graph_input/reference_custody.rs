@@ -1837,13 +1837,22 @@ fn apply_cleanup_actions(
             TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
                 if !cleanup.requirement_obligations.is_empty()
                     || source_contract(function, custody, cleanup.place)
+                        .and_then(|root| leaf_type(types, root, &cleanup.path))
                         != Some(cleanup.structural_type)
+                    || is_suspended_storage_region(
+                        function,
+                        custody,
+                        types,
+                        cleanup.place,
+                        &cleanup.path,
+                    )
                 {
                     return Err(invalid());
                 }
-                // cleanup_calls reconstructs the exact borrowed call; normal
-                // completion retires its original root and embedded loans.
-                cleanup.place
+                // The borrowed call retains the selected original storage;
+                // completing it retires only this subject's contained loans.
+                discard_subtree(function, custody, types, cleanup.place, &cleanup.path)?;
+                continue;
             }
         };
         // A suspended referent root cannot be discarded while its loan lives.

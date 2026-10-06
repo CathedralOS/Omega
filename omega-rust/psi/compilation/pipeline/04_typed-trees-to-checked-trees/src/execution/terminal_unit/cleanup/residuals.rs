@@ -65,11 +65,20 @@ fn visit(
     source: &CheckedUnitStructuralArgumentSourcePlan,
     current_type: &str,
     moved_paths: &[(&[CheckedUnitStructuralPathSegment], &str)],
+    boundaries: &[(&[CheckedUnitStructuralPathSegment], &str)],
     prefix: &mut Vec<CheckedUnitStructuralPathSegment>,
     residuals: &mut Vec<CheckedUnitPartialAffineDiscardPlan>,
     emit: bool,
 ) -> Option<usize> {
-    if moved_paths.is_empty() {
+    if moved_paths.is_empty()
+        && (boundaries.is_empty() || boundaries.iter().any(|(path, _)| path.is_empty()))
+    {
+        if boundaries
+            .iter()
+            .any(|(path, identity)| path.is_empty() && *identity != current_type)
+        {
+            return None;
+        }
         // Only the complement is discarded here, so only the complement must
         // be a finite record/array tree of cleanup-free leaves. A moved
         // subtree leaves whole with its own custody and is never inspected.
@@ -86,6 +95,9 @@ fn visit(
     if moved_paths.iter().any(|(path, _)| path.is_empty()) {
         return (moved_paths.len() == 1 && moved_paths[0].1 == current_type).then_some(0);
     }
+    if boundaries.iter().any(|(path, _)| path.is_empty()) {
+        return None;
+    }
     let declaration = types.get(current_type)?;
     let mut count = 0_usize;
     match &declaration.shape {
@@ -101,16 +113,22 @@ fn visit(
                 return None;
             }
             let mut matched = 0_usize;
+            let mut matched_boundaries = 0_usize;
             for field in fields.iter().rev() {
                 let matching = moved_paths.iter().filter_map(|(path, moved_type)| {
                     matches!(&path[0], CheckedUnitStructuralPathSegment::Field(identity) if identity == &field.identity)
                         .then_some((&path[1..], *moved_type))
                 }).collect::<Vec<_>>();
+                let child_boundaries = boundaries.iter().filter_map(|(path, boundary_type)| {
+                    matches!(path.first(), Some(CheckedUnitStructuralPathSegment::Field(identity)) if identity == &field.identity)
+                        .then_some((&path[1..], *boundary_type))
+                }).collect::<Vec<_>>();
                 matched = matched.checked_add(matching.len())?;
+                matched_boundaries = matched_boundaries.checked_add(child_boundaries.len())?;
                 let CheckedUnitStructuralFieldType::Structural { type_identity } =
                     &field.field_type
                 else {
-                    if !matching.is_empty() {
+                    if !matching.is_empty() || !child_boundaries.is_empty() {
                         return None;
                     }
                     continue;
@@ -123,13 +141,14 @@ fn visit(
                     source,
                     type_identity,
                     &matching,
+                    &child_boundaries,
                     prefix,
                     residuals,
                     emit,
                 )?)?;
                 prefix.pop();
             }
-            if matched != moved_paths.len() {
+            if matched != moved_paths.len() || matched_boundaries != boundaries.len() {
                 return None;
             }
         }
@@ -147,6 +166,15 @@ fn visit(
                 }
                 touched.push(index);
             }
+            for (path, _) in boundaries {
+                let [CheckedUnitStructuralPathSegment::FixedIndex(index), ..] = *path else {
+                    return None;
+                };
+                if *index >= *length {
+                    return None;
+                }
+                touched.push(*index);
+            }
             touched.sort_unstable();
             touched.dedup();
             let untouched = usize::try_from(*length).ok()?.checked_sub(touched.len())?;
@@ -162,12 +190,17 @@ fn visit(
                     matches!(path[0], CheckedUnitStructuralPathSegment::FixedIndex(candidate) if candidate == index)
                         .then_some((&path[1..], *moved_type))
                 }).collect::<Vec<_>>();
+                let child_boundaries = boundaries.iter().filter_map(|(path, boundary_type)| {
+                    matches!(path.first(), Some(CheckedUnitStructuralPathSegment::FixedIndex(candidate)) if *candidate == index)
+                        .then_some((&path[1..], *boundary_type))
+                }).collect::<Vec<_>>();
                 prefix.push(CheckedUnitStructuralPathSegment::FixedIndex(index));
                 count = count.checked_add(visit(
                     types,
                     source,
                     element_type_identity,
                     &matching,
+                    &child_boundaries,
                     prefix,
                     residuals,
                     emit,
@@ -187,14 +220,37 @@ pub(super) fn reconstruct(
     moved_paths: &[(&[CheckedUnitStructuralPathSegment], &str)],
     max_residuals: usize,
 ) -> Option<Vec<CheckedUnitPartialAffineDiscardPlan>> {
-    if moved_paths.is_empty()
-        || moved_paths.iter().enumerate().any(|(index, (path, _))| {
-            path.is_empty()
-                || moved_paths[..index]
-                    .iter()
-                    .any(|(earlier, _)| path.starts_with(earlier) || earlier.starts_with(path))
-        })
-    {
+    reconstruct_with_boundaries(types, source, root_type, moved_paths, &[], max_residuals)
+}
+
+/// Preserve cleanup operation boundaries inside the maximal live complement.
+/// A boundary selects an intact subtree with its own disposition; it is not a
+/// move and does not grant permission to discard that subtree without its hook.
+/// The same count-before-enumeration walk serves ordinary no-code residuals.
+pub(super) fn reconstruct_with_boundaries(
+    types: &BTreeMap<String, CheckedUnitStructuralTypePlan>,
+    source: &CheckedUnitStructuralArgumentSourcePlan,
+    root_type: &str,
+    moved_paths: &[(&[CheckedUnitStructuralPathSegment], &str)],
+    boundaries: &[(&[CheckedUnitStructuralPathSegment], &str)],
+    max_residuals: usize,
+) -> Option<Vec<CheckedUnitPartialAffineDiscardPlan>> {
+    if boundaries.iter().enumerate().any(|(position, (path, _))| {
+        boundaries[..position]
+            .iter()
+            .any(|(earlier, _)| path.starts_with(earlier) || earlier.starts_with(path))
+            || moved_paths
+                .iter()
+                .any(|(moved, _)| path.starts_with(moved) || moved.starts_with(path))
+    }) {
+        return None;
+    }
+    if moved_paths.iter().enumerate().any(|(index, (path, _))| {
+        path.is_empty()
+            || moved_paths[..index]
+                .iter()
+                .any(|(earlier, _)| path.starts_with(earlier) || earlier.starts_with(path))
+    }) {
         return None;
     }
     let mut residuals = Vec::new();
@@ -203,6 +259,7 @@ pub(super) fn reconstruct(
         source,
         root_type,
         moved_paths,
+        boundaries,
         &mut Vec::new(),
         &mut residuals,
         false,
@@ -216,6 +273,7 @@ pub(super) fn reconstruct(
         source,
         root_type,
         moved_paths,
+        boundaries,
         &mut Vec::new(),
         &mut residuals,
         true,

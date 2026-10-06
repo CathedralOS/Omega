@@ -287,7 +287,7 @@ pub(super) fn check_root_access(
 /// A selected loan suspends every candidate region, not every sibling under
 /// their shared root. Whole-root consumers use the same rule with an empty
 /// path. Geometry grants no permission through a reference carrier.
-fn check_region_access(
+pub(super) fn check_region_access(
     function: &PsiOptimizationFunction,
     block: BlockId,
     node: u32,

@@ -49,6 +49,7 @@ pub(crate) fn encode_cleanup(bytes: &mut Vec<u8>, action: &TerminalAffineCleanup
         TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
             bytes.push(3);
             bytes.extend_from_slice(&cleanup.place.get().to_le_bytes());
+            encode_path(bytes, &cleanup.path);
             bytes.extend_from_slice(&cleanup.structural_type.get().to_le_bytes());
             bytes.extend_from_slice(&cleanup.cleanup_machine.get().to_le_bytes());
             encode_ids(

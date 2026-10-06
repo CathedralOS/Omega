@@ -1,7 +1,7 @@
 //! Optimizer module role: executable entrance. Versioned fixed-view-copy artifact envelope.
 //!
-//! Owns admission and authentication order. V50 retains the source storage
-//! offset of whole-value snapshots, including projected owned state arrivals.
+//! Owns admission and authentication order. V51 retains the owned subtree
+//! path of nominal cleanup actions alongside whole-value snapshot offsets.
 //! Atomic field identity remains distinct from its scalar representation.
 //! Every older envelope is rejected before its payload is interpreted.
 
@@ -14,11 +14,11 @@ mod primitives;
 mod selected;
 mod values;
 
-use self::envelope::v50_identity;
+use self::envelope::v51_identity;
 use crate::{FixedViewCopyDecodeError, FixedViewCopyPlan};
 
 const MAGIC: &[u8; 8] = b"OMGFCV\0\0";
-const VERSION: u32 = 50;
+const VERSION: u32 = 51;
 impl FixedViewCopyPlan {
     /// Canonical self-authenticating artifact. Decoding returns plain content;
     /// independent fixed-view-copy validation is still required for custody.
@@ -28,7 +28,7 @@ impl FixedViewCopyPlan {
         let mut encoded = Vec::new();
         encoded.extend_from_slice(MAGIC);
         encoded.extend_from_slice(&VERSION.to_le_bytes());
-        encoded.extend_from_slice(&v50_identity(self, &content));
+        encoded.extend_from_slice(&v51_identity(self, &content));
         encoded.extend_from_slice(&content);
         Ok(encoded)
     }

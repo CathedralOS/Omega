@@ -1,17 +1,15 @@
+//! Ordered cleanup consumes exact live subjects, independent of root origin or action kind.
 use crate::OptimizationUnitValidationError;
-use crate::current_ownership::mutations::expected_trivial_affine_discards;
 use crate::current_ownership::residuals::partial_affine_residuals;
-use crate::current_ownership::structural::{
-    has_live_owned_operation_result, partial_affine_root_type, place_structural_type,
-};
+use crate::current_ownership::structural::place_structural_type;
 use crate::current_ownership::{CurrentOwnership, parameter_establishment_order};
 use abstract_operations::AbstractFunctionResult;
 use optimization_unit::PsiOptimizationFunction;
-use semantic_vocabulary::{BlockId, MachineId, StructuralTypeId};
-use std::collections::BTreeMap;
+use semantic_vocabulary::{BlockId, MachineId, PlaceId, StructuralTypeId};
+use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{
-    StructuralAffineDiscard, StructuralFieldType, StructuralMultiplicity,
-    StructuralTypeDeclaration, StructuralTypeShape, TerminalAffineCleanupAction,
+    StructuralFieldType, StructuralMultiplicity, StructuralPathSegment, StructuralTypeDeclaration,
+    StructuralTypeShape, TerminalAffineCleanupAction,
 };
 
 pub(super) fn validate_unit_cleanup_actions(
@@ -22,183 +20,15 @@ pub(super) fn validate_unit_cleanup_actions(
     frontier: &CurrentOwnership,
     actions: &[TerminalAffineCleanupAction],
 ) -> Result<(), OptimizationUnitValidationError> {
-    let mismatch = || OptimizationUnitValidationError::CurrentCleanupMismatch {
-        machine: function.machine,
+    validate_scalar_cleanup_actions(
+        function,
+        functions,
+        structural_types,
         block,
-    };
-    let mut remaining_storage = frontier.clone();
-    forget_drained_partial_roots(function, structural_types, &mut remaining_storage);
-    let frontier = &remaining_storage;
-    let has_residual = actions
-        .iter()
-        .any(|action| matches!(action, TerminalAffineCleanupAction::DiscardResidual(_)));
-    let has_nominal = actions
-        .iter()
-        .any(|action| matches!(action, TerminalAffineCleanupAction::InvokeNominal(_)));
-    if !has_nominal {
-        super::mutations::reject_live_linear_claim(function, block, frontier)?;
-    }
-    if has_residual && has_nominal {
-        return Err(mismatch());
-    }
-
-    if has_residual {
-        let first_residual = actions
-            .iter()
-            .position(|action| matches!(action, TerminalAffineCleanupAction::DiscardResidual(_)))
-            .expect("residual action was observed");
-        let roots = actions[..first_residual]
-            .iter()
-            .map(|action| match action {
-                TerminalAffineCleanupAction::DiscardRoot(place) => Some(*place),
-                TerminalAffineCleanupAction::DiscardResidual(_)
-                | TerminalAffineCleanupAction::InvokeNominal(_) => None,
-            })
-            .collect::<Option<Vec<_>>>()
-            .ok_or_else(mismatch)?;
-        let residuals = actions[first_residual..]
-            .iter()
-            .map(|action| match action {
-                TerminalAffineCleanupAction::DiscardResidual(discard) => Some(discard),
-                TerminalAffineCleanupAction::DiscardRoot(_)
-                | TerminalAffineCleanupAction::InvokeNominal(_) => None,
-            })
-            .collect::<Option<Vec<_>>>()
-            .ok_or_else(mismatch)?;
-        let root = residuals.first().ok_or_else(mismatch)?.place;
-        let root_type = partial_affine_root_type(function, root).ok_or_else(mismatch)?;
-        if residuals.iter().any(|discard| discard.place != root)
-            || frontier
-                .claims
-                .values()
-                .any(|claim| claim.input == Some(root))
-            || function
-                .content_entry_claims
-                .iter()
-                .any(|claim| claim.input.root == root)
-        {
-            return Err(mismatch());
-        }
-        let mut remaining = frontier.clone();
-        let moved = remaining
-            .partial_custody_paths
-            .remove(&root)
-            .ok_or_else(mismatch)?;
-        let expected =
-            partial_affine_residuals(structural_types, root_type, &moved, residuals.len())
-                .ok_or_else(mismatch)?;
-        if moved.is_empty()
-            || residuals.len() != expected.len()
-            || residuals
-                .iter()
-                .zip(expected)
-                .any(|(actual, (path, structural_type))| {
-                    actual.path != path || actual.structural_type != structural_type
-                })
-            || remaining.owned_places.remove(&root) != Some(StructuralMultiplicity::Affine)
-            || roots != expected_trivial_affine_discards(function, &remaining)
-            || !remaining.partial_custody_paths.is_empty()
-            || has_live_owned_operation_result(function, &remaining, &roots)
-        {
-            return Err(mismatch());
-        }
-        // Whole roots and partial complements share exact subtree disposal.
-        for place in &roots {
-            super::references::discard_owned(
-                function,
-                structural_types,
-                block,
-                &mut remaining.live_references,
-                *place,
-            )?;
-        }
-        for discard in &residuals {
-            super::references::discard_subtree(
-                function,
-                structural_types,
-                block,
-                &mut remaining.live_references,
-                discard.place,
-                &discard.path,
-            )?;
-        }
-        super::references::validate_normal_return(
-            function,
-            structural_types,
-            block,
-            &remaining.live_references,
-        )?;
-        // Result-root cleanup currently has one remaining owner. Do not let
-        // the parameter/local discard roster hide a second live call result.
-        if !function
-            .structural_parameters
-            .iter()
-            .any(|parameter| parameter.place == root)
-            && (!roots.is_empty()
-                || !remaining.owned_places.is_empty()
-                || !remaining.claims.is_empty())
-        {
-            return Err(mismatch());
-        }
-        return Ok(());
-    }
-
-    if has_nominal {
-        let mut remaining = frontier.clone();
-        for action in actions {
-            let TerminalAffineCleanupAction::InvokeNominal(cleanup) = action else {
-                return Err(mismatch());
-            };
-            consume_nominal_cleanup(
-                function,
-                functions,
-                structural_types,
-                block,
-                &mut remaining,
-                cleanup,
-            )?;
-        }
-        if !remaining.partial_custody_paths.is_empty()
-            || !remaining.claims.is_empty()
-            || !remaining.owned_places.is_empty()
-        {
-            return Err(mismatch());
-        }
-        super::references::validate_normal_return(
-            function,
-            structural_types,
-            block,
-            &remaining.live_references,
-        )?;
-        return Ok(());
-    }
-
-    let roots = actions
-        .iter()
-        .map(|action| match action {
-            TerminalAffineCleanupAction::DiscardRoot(place) => Some(*place),
-            TerminalAffineCleanupAction::DiscardResidual(_)
-            | TerminalAffineCleanupAction::InvokeNominal(_) => None,
-        })
-        .collect::<Option<Vec<_>>>()
-        .ok_or_else(mismatch)?;
-    if !frontier.partial_custody_paths.is_empty()
-        || roots != expected_trivial_affine_discards(function, frontier)
-        || has_live_owned_operation_result(function, frontier, &roots)
-    {
-        return Err(mismatch());
-    }
-    let mut live_references = frontier.live_references.clone();
-    for place in &roots {
-        super::references::discard_owned(
-            function,
-            structural_types,
-            block,
-            &mut live_references,
-            *place,
-        )?;
-    }
-    super::references::validate_normal_return(function, structural_types, block, &live_references)
+        frontier,
+        actions,
+    )?;
+    Ok(())
 }
 
 pub(super) fn validate_scalar_cleanup_actions(
@@ -209,154 +39,24 @@ pub(super) fn validate_scalar_cleanup_actions(
     frontier: &CurrentOwnership,
     actions: &[TerminalAffineCleanupAction],
 ) -> Result<CurrentOwnership, OptimizationUnitValidationError> {
-    let mismatch = || OptimizationUnitValidationError::CurrentCleanupMismatch {
-        machine: function.machine,
-        block,
-    };
     let mut remaining = frontier.clone();
     forget_drained_partial_roots(function, structural_types, &mut remaining);
-    let mut actions = actions.iter();
-
-    // Completed affine results are cleaned before locals and parameters, in
-    // the same reverse establishment order as unit and structural exits. A
-    // root that still owns live carrier leaves joins the same early sweep so
-    // its discard ends those loans.
-    for place in expected_trivial_affine_discards(function, &remaining) {
-        if !function.structural_places.iter().any(|declared| {
-            declared.id == place
-                && matches!(
-                    declared.kind,
-                    semantic_vocabulary::StructuralPlaceKind::OperationResult { .. }
-                )
-        }) && !remaining
-            .live_references
-            .iter()
-            .any(|reference| reference.carrier == place)
-        {
-            continue;
-        }
-        if remaining.partial_custody_paths.contains_key(&place) {
-            validate_scalar_residual_cleanup(
-                function,
-                structural_types,
-                block,
-                &mut remaining,
-                place,
-                &mut actions,
-            )?;
-            remaining.owned_places.remove(&place);
-            continue;
-        }
-        if actions.next() != Some(&TerminalAffineCleanupAction::DiscardRoot(place)) {
-            return Err(mismatch());
-        }
-        super::references::discard_owned(
-            function,
-            structural_types,
-            block,
-            &mut remaining.live_references,
-            place,
-        )?;
-        remaining.owned_places.remove(&place);
-    }
-
-    let mut locals = function
-        .structural_places
-        .iter()
-        .filter_map(|place| match place.kind {
-            semantic_vocabulary::StructuralPlaceKind::TrivialAffineLocal {
-                declaration_ordinal,
-                ..
-            } if remaining.owned_places.contains_key(&place.id) => {
-                Some((declaration_ordinal, place.id))
-            }
-            _ => None,
-        })
-        .collect::<Vec<_>>();
-    locals.sort_by_key(|(ordinal, _)| std::cmp::Reverse(*ordinal));
-    for (_, place) in locals {
-        if actions.next() != Some(&TerminalAffineCleanupAction::DiscardRoot(place)) {
-            return Err(mismatch());
-        }
-        remaining.owned_places.remove(&place);
-    }
-
-    for parameter in parameter_establishment_order(function).into_iter().rev() {
-        if !remaining.owned_places.contains_key(&parameter.place) {
-            continue;
-        }
-        if function
-            .content_entry_claims
-            .iter()
-            .any(|claim| claim.input.root == parameter.place)
-        {
-            return Err(mismatch());
-        }
-        if remaining
-            .partial_custody_paths
-            .contains_key(&parameter.place)
-        {
-            if parameter.multiplicity != StructuralMultiplicity::Affine
-                || remaining
-                    .claims
-                    .values()
-                    .any(|claim| claim.input == Some(parameter.place))
-            {
-                return Err(mismatch());
-            }
-            validate_scalar_residual_cleanup(
-                function,
-                structural_types,
-                block,
-                &mut remaining,
-                parameter.place,
-                &mut actions,
-            )?;
-        } else {
-            let Some(action) = actions.next() else {
-                return Err(mismatch());
-            };
-            match action {
-                TerminalAffineCleanupAction::DiscardRoot(place)
-                    if *place == parameter.place
-                        && parameter.multiplicity == StructuralMultiplicity::Affine
-                        && !remaining
-                            .claims
-                            .values()
-                            .any(|claim| claim.input == Some(*place)) => {}
-                TerminalAffineCleanupAction::InvokeNominal(cleanup)
-                    if cleanup.place == parameter.place
-                        && cleanup.structural_type == parameter.structural_type
-                        && cleanup.requirement_obligations.is_empty()
-                        && valid_nominal_cleanup(
-                            function,
-                            functions,
-                            structural_types,
-                            cleanup,
-                        ) =>
-                {
-                    consume_nominal_cleanup(
-                        function,
-                        functions,
-                        structural_types,
-                        block,
-                        &mut remaining,
-                        cleanup,
-                    )?;
-                }
-                TerminalAffineCleanupAction::DiscardRoot(_)
-                | TerminalAffineCleanupAction::DiscardResidual(_)
-                | TerminalAffineCleanupAction::InvokeNominal(_) => return Err(mismatch()),
-            }
-        }
-        remaining.owned_places.remove(&parameter.place);
-    }
-
-    if actions.next().is_some()
-        || !remaining.owned_places.is_empty()
+    super::continuation::apply_edge_cleanup_actions(
+        function,
+        functions,
+        structural_types,
+        block,
+        &mut remaining,
+        actions,
+    )?;
+    if !remaining.owned_places.is_empty()
         || !remaining.partial_custody_paths.is_empty()
+        || !remaining.claims.is_empty()
     {
-        return Err(mismatch());
+        return Err(OptimizationUnitValidationError::CurrentCleanupMismatch {
+            machine: function.machine,
+            block,
+        });
     }
     super::references::validate_normal_return(
         function,
@@ -367,53 +67,305 @@ pub(super) fn validate_scalar_cleanup_actions(
     Ok(remaining)
 }
 
-/// Replay each partially moved owner's exact complement in the same lifetime
-/// order as whole disposal; result producers do not define a cleanup category.
-fn validate_scalar_residual_cleanup(
+/// Root ordering includes nominal and linear owners. Their eligibility is
+/// checked separately; cleanup kind cannot change establishment order.
+pub(super) fn cleanup_root_order(
     function: &PsiOptimizationFunction,
+    frontier: &CurrentOwnership,
+) -> Vec<PlaceId> {
+    let mut results = Vec::new();
+    let mut locals = Vec::new();
+    for place in &function.structural_places {
+        if !frontier.owned_places.contains_key(&place.id) {
+            continue;
+        }
+        match place.kind {
+            semantic_vocabulary::StructuralPlaceKind::OperationResult { producer, .. } => {
+                results.push((producer, place.id))
+            }
+            semantic_vocabulary::StructuralPlaceKind::TrivialAffineLocal {
+                declaration_ordinal,
+                ..
+            } => locals.push((declaration_ordinal, place.id)),
+            _ => {}
+        }
+    }
+    results.sort_by_key(|(producer, _)| std::cmp::Reverse(*producer));
+    locals.sort_by_key(|(ordinal, _)| std::cmp::Reverse(*ordinal));
+    results
+        .into_iter()
+        .map(|(_, place)| place)
+        .chain(locals.into_iter().map(|(_, place)| place))
+        .chain(
+            parameter_establishment_order(function)
+                .into_iter()
+                .rev()
+                .filter(|parameter| frontier.owned_places.contains_key(&parameter.place))
+                .map(|parameter| parameter.place),
+        )
+        .collect()
+}
+
+struct CleanupSubject {
+    path: Vec<StructuralPathSegment>,
+    structural_type: StructuralTypeId,
+    nominal: bool,
+}
+
+/// Expand only containers that own executable child cleanup. Untouched
+/// no-code subtrees remain maximal; the bound is the supplied action count.
+fn cleanup_subjects(
+    functions: &BTreeMap<MachineId, &PsiOptimizationFunction>,
+    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    root: StructuralTypeId,
+    moved: Option<&BTreeSet<Vec<StructuralPathSegment>>>,
+    limit: usize,
+) -> Option<Vec<CleanupSubject>> {
+    let nominal: BTreeSet<_> = functions
+        .values()
+        .filter_map(|function| function.nominal_cleanup_subject)
+        .collect();
+    if let Some(moved) = moved {
+        for path in moved {
+            for depth in 0..path.len() {
+                let ancestor = crate::unit_validation::structural_catalog::resolve_structural_path(
+                    types,
+                    root,
+                    &path[..depth],
+                )?;
+                if nominal.contains(&ancestor) {
+                    return None;
+                }
+            }
+        }
+    }
+    let roots = match moved {
+        Some(moved) => partial_affine_residuals(types, root, moved, limit)?,
+        None => vec![(Vec::new(), root)],
+    };
+    let mut subjects = Vec::new();
+    let mut contains = BTreeMap::new();
+    for (path, structural_type) in roots {
+        append_cleanup_subjects(
+            types,
+            &nominal,
+            &mut contains,
+            structural_type,
+            path,
+            limit,
+            &mut subjects,
+        )?;
+    }
+    Some(subjects)
+}
+
+fn contains_nominal_cleanup(
+    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    nominal: &BTreeSet<StructuralTypeId>,
+    cache: &mut BTreeMap<StructuralTypeId, bool>,
+    active: &mut BTreeSet<StructuralTypeId>,
+    structural_type: StructuralTypeId,
+) -> Option<bool> {
+    if nominal.contains(&structural_type) {
+        return Some(true);
+    }
+    if let Some(result) = cache.get(&structural_type) {
+        return Some(*result);
+    }
+    if !active.insert(structural_type) {
+        return None;
+    }
+    let mut result = false;
+    match &types.get(&structural_type)?.shape {
+        StructuralTypeShape::Record { fields } => {
+            for field in fields.iter().filter(|field| !field.relevance.is_erased()) {
+                if let StructuralFieldType::Structural(child) = field.field_type {
+                    result |= contains_nominal_cleanup(types, nominal, cache, active, child)?;
+                }
+            }
+        }
+        StructuralTypeShape::FixedArray { element, length } if *length != 0 => {
+            result = contains_nominal_cleanup(types, nominal, cache, active, *element)?
+        }
+        StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. } => {
+            let common = match &types.get(&structural_type)?.shape {
+                StructuralTypeShape::Mixed { fields, .. } => fields.as_slice(),
+                _ => &[],
+            };
+            for field in common
+                .iter()
+                .chain(cases.iter().flat_map(|case| &case.fields))
+            {
+                if !field.relevance.is_erased()
+                    && let StructuralFieldType::Structural(child) = field.field_type
+                {
+                    result |= contains_nominal_cleanup(types, nominal, cache, active, child)?;
+                }
+            }
+        }
+        _ => {}
+    }
+    active.remove(&structural_type);
+    cache.insert(structural_type, result);
+    Some(result)
+}
+
+fn append_cleanup_subjects(
+    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    nominal: &BTreeSet<StructuralTypeId>,
+    cache: &mut BTreeMap<StructuralTypeId, bool>,
+    structural_type: StructuralTypeId,
+    path: Vec<StructuralPathSegment>,
+    limit: usize,
+    subjects: &mut Vec<CleanupSubject>,
+) -> Option<()> {
+    if nominal.contains(&structural_type)
+        || !contains_nominal_cleanup(types, nominal, cache, &mut BTreeSet::new(), structural_type)?
+    {
+        if subjects.len() >= limit {
+            return None;
+        }
+        subjects.push(CleanupSubject {
+            path,
+            structural_type,
+            nominal: nominal.contains(&structural_type),
+        });
+        return Some(());
+    }
+    match &types.get(&structural_type)?.shape {
+        StructuralTypeShape::Record { fields } => {
+            for field in fields
+                .iter()
+                .rev()
+                .filter(|field| !field.relevance.is_erased())
+            {
+                if let StructuralFieldType::Structural(child) = field.field_type {
+                    let mut child_path = path.clone();
+                    child_path.push(StructuralPathSegment::Field(field.identity.clone()));
+                    append_cleanup_subjects(
+                        types, nominal, cache, child, child_path, limit, subjects,
+                    )?;
+                }
+            }
+        }
+        StructuralTypeShape::FixedArray { element, length } => {
+            if u128::from(*length) > limit.checked_sub(subjects.len())? as u128 {
+                return None;
+            }
+            for index in (0..*length).rev() {
+                let mut child_path = path.clone();
+                child_path.push(StructuralPathSegment::FixedIndex(index));
+                append_cleanup_subjects(
+                    types, nominal, cache, *element, child_path, limit, subjects,
+                )?;
+            }
+        }
+        _ => return None,
+    }
+    Some(())
+}
+
+/// Check one root's complete live partition before retiring that root. Hook
+/// and no-code subjects share the same exact path/type order.
+pub(super) fn consume_owner_cleanup(
+    function: &PsiOptimizationFunction,
+    functions: &BTreeMap<MachineId, &PsiOptimizationFunction>,
     types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     block: BlockId,
-    remaining: &mut CurrentOwnership,
-    place: semantic_vocabulary::PlaceId,
-    actions: &mut std::slice::Iter<'_, TerminalAffineCleanupAction>,
+    frontier: &mut CurrentOwnership,
+    place: PlaceId,
+    actions: &[TerminalAffineCleanupAction],
 ) -> Result<(), OptimizationUnitValidationError> {
     let mismatch = || OptimizationUnitValidationError::CurrentCleanupMismatch {
         machine: function.machine,
         block,
     };
-    let root_type = partial_affine_root_type(function, place).ok_or_else(mismatch)?;
-    let moved = remaining
-        .partial_custody_paths
-        .remove(&place)
-        .ok_or_else(mismatch)?;
-    let residuals =
-        partial_affine_residuals(types, root_type, &moved, actions.len()).ok_or_else(mismatch)?;
-    if residuals.is_empty() {
+    let multiplicity = *frontier.owned_places.get(&place).ok_or_else(mismatch)?;
+    let root = place_structural_type(function, place).ok_or_else(mismatch)?;
+    if function
+        .content_entry_claims
+        .iter()
+        .any(|claim| claim.input.root == place)
+    {
         return Err(mismatch());
     }
-    for (path, structural_type) in residuals {
-        super::references::discard_subtree(
-            function,
-            types,
-            block,
-            &mut remaining.live_references,
-            place,
-            &path,
-        )?;
-        let expected = TerminalAffineCleanupAction::DiscardResidual(StructuralAffineDiscard {
-            place,
-            path,
-            structural_type,
-        });
-        if actions.next() != Some(&expected) {
+    let subjects = cleanup_subjects(
+        functions,
+        types,
+        root,
+        frontier.partial_custody_paths.get(&place),
+        actions.len(),
+    )
+    .ok_or_else(mismatch)?;
+    if subjects.len() != actions.len() {
+        return Err(mismatch());
+    }
+    for (subject, action) in subjects.iter().zip(actions) {
+        if action.place() != place {
             return Err(mismatch());
         }
+        match action {
+            TerminalAffineCleanupAction::InvokeNominal(cleanup)
+                if subject.nominal
+                    && cleanup.path == subject.path
+                    && cleanup.structural_type == subject.structural_type =>
+            {
+                consume_nominal_cleanup(function, functions, types, block, frontier, cleanup)?;
+            }
+            TerminalAffineCleanupAction::DiscardRoot(_)
+                if !subject.nominal
+                    && subject.path.is_empty()
+                    && multiplicity == StructuralMultiplicity::Affine
+                    && !frontier
+                        .claims
+                        .values()
+                        .any(|claim| claim.input == Some(place)) =>
+            {
+                super::references::discard_owned(
+                    function,
+                    types,
+                    block,
+                    &mut frontier.live_references,
+                    place,
+                )?;
+            }
+            TerminalAffineCleanupAction::DiscardResidual(discard)
+                if !subject.nominal
+                    && !subject.path.is_empty()
+                    && discard.path == subject.path
+                    && discard.structural_type == subject.structural_type
+                    && multiplicity == StructuralMultiplicity::Affine
+                    && !frontier
+                        .claims
+                        .values()
+                        .any(|claim| claim.input == Some(place)) =>
+            {
+                super::references::discard_subtree(
+                    function,
+                    types,
+                    block,
+                    &mut frontier.live_references,
+                    place,
+                    &subject.path,
+                )?;
+            }
+            _ => return Err(mismatch()),
+        }
     }
+    if frontier
+        .claims
+        .values()
+        .any(|claim| claim.input == Some(place))
+    {
+        return Err(mismatch());
+    }
+    frontier.owned_places.remove(&place);
+    frontier.partial_custody_paths.remove(&place);
     Ok(())
 }
 
-/// Commit only the complete whole-owner claim roster, after independently
-/// authenticating its designated hook and absence of projected/loan custody.
+/// Authenticate the exact nominal subject and its claim roster. The enclosing
+/// ordered partition retires the root only after all sibling subjects finish.
 pub(super) fn consume_nominal_cleanup(
     function: &PsiOptimizationFunction,
     functions: &BTreeMap<MachineId, &PsiOptimizationFunction>,
@@ -430,27 +382,41 @@ pub(super) fn consume_nominal_cleanup(
         .owned_places
         .get(&cleanup.place)
         .ok_or_else(mismatch)?;
+    let root = place_structural_type(function, cleanup.place).ok_or_else(mismatch)?;
     let claims = frontier
         .claims
         .iter()
-        .filter(|(_, claim)| claim.input == Some(cleanup.place))
+        .filter(|(_, claim)| {
+            claim.input == Some(cleanup.place)
+                && terminal_semantics::structural_paths_may_overlap(&claim.path, &cleanup.path)
+        })
         .collect::<Vec<_>>();
+    let selected = crate::unit_validation::structural_catalog::resolve_structural_path(
+        structural_types,
+        root,
+        &cleanup.path,
+    );
     if !cleanup.requirement_obligations.is_empty()
-        || place_structural_type(function, cleanup.place) != Some(cleanup.structural_type)
+        || selected != Some(cleanup.structural_type)
         || !valid_nominal_cleanup(function, functions, structural_types, cleanup)
-        || frontier.partial_custody_paths.contains_key(&cleanup.place)
-        || function
-            .content_entry_claims
-            .iter()
-            .any(|claim| claim.input.root == cleanup.place)
-        || claims
-            .iter()
-            .any(|(_, claim)| !claim.path.is_empty() || claim.multiplicity != Some(multiplicity))
-        || match multiplicity {
-            StructuralMultiplicity::Affine => !claims.is_empty(),
-            StructuralMultiplicity::Linear => claims.len() != 1,
-            StructuralMultiplicity::Unrestricted => true,
-        }
+        || frontier
+            .partial_custody_paths
+            .get(&cleanup.place)
+            .is_some_and(|paths| {
+                paths.iter().any(|path| {
+                    terminal_semantics::structural_paths_may_overlap(path, &cleanup.path)
+                })
+            })
+        || claims.iter().any(|(_, claim)| {
+            claim.path != cleanup.path || claim.multiplicity != Some(StructuralMultiplicity::Linear)
+        })
+        || (cleanup.path.is_empty()
+            && match multiplicity {
+                StructuralMultiplicity::Affine => !claims.is_empty(),
+                StructuralMultiplicity::Linear => claims.len() != 1,
+                StructuralMultiplicity::Unrestricted => true,
+            })
+        || (!cleanup.path.is_empty() && claims.len() > 1)
         || cleanup.consumed_claims
             != claims
                 .iter()
@@ -465,17 +431,17 @@ pub(super) fn consume_nominal_cleanup(
         .find(|candidate| candidate.id == block)
         .and_then(|block| u32::try_from(block.nodes.len().saturating_sub(1)).ok())
         .ok_or_else(mismatch)?;
-    super::references::check_root_access(
+    super::references::check_region_access(
         function,
         block,
         ordinal,
         &frontier.live_references,
         cleanup.place,
+        &cleanup.path,
     )?;
     for claim in &cleanup.consumed_claims {
         frontier.claims.remove(claim);
     }
-    frontier.owned_places.remove(&cleanup.place);
     Ok(())
 }
 

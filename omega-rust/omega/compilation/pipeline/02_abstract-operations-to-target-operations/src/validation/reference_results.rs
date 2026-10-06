@@ -1333,17 +1333,7 @@ fn discard_owned(
     let Some((contract, _)) = source_contract(function, custody, source) else {
         return Some(());
     };
-    if !contains_reference(declarations, contract) {
-        return Some(());
-    }
-    let paths = leaf_paths(declarations, contract, custody.leaves.len())?;
-    for path in paths.iter().rev() {
-        custody.leaves.remove(&(source, path.clone()))?;
-    }
-    if custody.leaves.keys().any(|(carrier, _)| *carrier == source) {
-        return None;
-    }
-    Some(())
+    discard_subtree(declarations, custody, source, &[], contract)
 }
 
 /// A residual retires the declaration-derived descriptor roster below its
@@ -1362,22 +1352,40 @@ fn discard_residual(
     {
         return None;
     }
-    let paths = leaf_paths(declarations, discard.structural_type, custody.leaves.len())?;
+    discard_subtree(
+        declarations,
+        custody,
+        discard.place,
+        &discard.path,
+        discard.structural_type,
+    )
+}
+
+/// Descriptor retirement is the same exact subtree operation for no-code and
+/// executable cleanup. The action's owner checks remain with its caller.
+fn discard_subtree(
+    declarations: &[StructuralTypeDeclaration],
+    custody: &mut Custody,
+    place: PlaceId,
+    prefix: &[StructuralPathSegment],
+    structural_type: StructuralTypeId,
+) -> Option<()> {
+    let paths = leaf_paths(declarations, structural_type, custody.leaves.len())?;
     let mut selected = BTreeSet::new();
     for path in paths {
-        let mut path_at_root = discard.path.clone();
+        let mut path_at_root = prefix.to_vec();
         path_at_root.extend(path);
-        custody.leaves.get(&(discard.place, path_at_root.clone()))?;
+        custody.leaves.get(&(place, path_at_root.clone()))?;
         selected.insert(path_at_root);
     }
     if custody.leaves.keys().any(|(carrier, path)| {
-        *carrier == discard.place && path.starts_with(&discard.path) && !selected.contains(path)
+        *carrier == place && path.starts_with(prefix) && !selected.contains(path)
     }) {
         return None;
     }
     custody
         .leaves
-        .retain(|(carrier, path), _| *carrier != discard.place || !selected.contains(path));
+        .retain(|(carrier, path), _| *carrier != place || !selected.contains(path));
     Some(())
 }
 
@@ -1608,8 +1616,19 @@ fn apply_cleanup_actions(
                 discard_residual(function, declarations, custody, &discard)?
             }
             TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
-                // The edge-owned call completes before this root is retired.
-                discard_owned(function, declarations, custody, cleanup.place)?;
+                let (root, _) = source_contract(function, custody, cleanup.place)?;
+                if leaf_type(declarations, root, &cleanup.path) != Some(cleanup.structural_type) {
+                    return None;
+                }
+                // Completing the edge-owned call retires its selected subject,
+                // not the surrounding storage or a transferred sibling.
+                discard_subtree(
+                    declarations,
+                    custody,
+                    cleanup.place,
+                    &cleanup.path,
+                    cleanup.structural_type,
+                )?;
             }
         }
     }
