@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": null, "load1_end": 10.76, "load1_start": 10.76, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": null, "load1_end": 8.03, "load1_start": 8.21, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -2079,8 +2079,7 @@ pass/contracts/named_tail_return_contract checked 1210ms check-target:macos_arm6
 pass/contracts/proof_fact_indexed_domain_application checked 293ms @2d8ed253669f
 pass/contracts/requires_narrow_ceiling_unproven checked 3054ms check-target:macos_arm64 @527c7c316c6f+wt
 pass/contracts/requires_u8_ceiling_below_carrier checked 3035ms check-target:macos_arm64 @527c7c316c6f+wt
-pass/control_flow/affine_call_result_state_transfer_exit rejected 3017ms check-target:macos_arm64 @faca6c5c7f5
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "main", reason: "attached Unit closure is missing a checked transitive machine plan", omission: Some("`main` has no admitted body (local construction stopped at state graph: result custody accounting, state 0)") })
+pass/control_flow/affine_call_result_state_transfer_exit checked 1527ms check-target:macos_arm64 @e28fa01a1e73+wt
 pass/control_flow/affine_record_state_cycle_exit checked 704ms check-target:macos_arm64 @7f2bd2604102
 pass/control_flow/arm_pattern_rest_optout_exit checked 3464ms check-target:macos_arm64 @b5d8c6882a8
 pass/control_flow/borrowed_state_argument checked 3409ms check-target:macos_arm64 @527c7c316c6f+wt
@@ -2312,8 +2311,7 @@ pass/expressions/owned_match_record_values checked 171ms @1fa864024c44+wt
 pass/expressions/owned_match_values checked 282ms @2d8ed253669f
 pass/expressions/qualified_call_result_argument checked 297ms @2d8ed253669f
 pass/expressions/runtime_flat_boolean_logic_exit checked 1517ms check-target:macos_arm64 @2d8ed253669f
-pass/expressions/runtime_float_record_field_reads_exit rejected 3937ms check-target:macos_arm64 @faca6c5c7f5
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: result custody accounting` (state 0)
+pass/expressions/runtime_float_record_field_reads_exit checked 4007ms check-target:macos_arm64 @e28fa01a1e73+wt
 pass/expressions/runtime_indexed_float_record_fields_exit checked 5021ms check-target:macos_arm64 @2d8ed253669f
 pass/expressions/runtime_nested_record_field_call_exit checked 684ms check-target:macos_arm64 @91c11fd524d0
 pass/expressions/runtime_nested_record_field_reads_exit checked 5883ms check-target:macos_arm64 @cfe60a3a242

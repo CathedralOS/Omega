@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": null, "load1_end": 8.48, "load1_start": 7.3, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": null, "load1_end": 7.95, "load1_start": 8.03, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 189ms
 pass/arithmetic/anonymous_rational_integer_landing checked 186ms
 pass/arithmetic/bounded_assignment checked 197ms
@@ -506,8 +506,7 @@ pass/contracts/named_tail_return_contract built 3616ms exit:70 @9beb2be72f2d+wt
 pass/contracts/proof_fact_indexed_domain_application checked 176ms
 pass/contracts/requires_narrow_ceiling_unproven built 2806ms exit:70 @527c7c316c6f+wt
 pass/contracts/requires_u8_ceiling_below_carrier built 2894ms exit:70 @527c7c316c6f+wt
-pass/control_flow/affine_call_result_state_transfer_exit rejected 1081ms regressed-from:built+exit:70 @2d0afe1bdfe6+wt
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "main", reason: "attached Unit closure is missing a checked transitive machine plan", omission: Some("`main` has no admitted body (local construction stopped at state graph: result custody accounting, state 0)") })
+pass/control_flow/affine_call_result_state_transfer_exit built 1607ms exit:70 @e28fa01a1e73+wt
 pass/control_flow/affine_record_state_cycle_exit built 849ms exit:70 @7f2bd2604102+wt
 pass/control_flow/arm_pattern_rest_optout_exit built 723ms exit:70 @48008365d839
 pass/control_flow/borrowed_state_argument built 3255ms exit:5 @527c7c316c6f+wt
@@ -739,8 +738,7 @@ pass/expressions/owned_match_record_values checked 169ms @1fa864024c44+wt
 pass/expressions/owned_match_values checked 193ms
 pass/expressions/qualified_call_result_argument checked 204ms
 pass/expressions/runtime_flat_boolean_logic_exit built 786ms exit:70
-pass/expressions/runtime_float_record_field_reads_exit rejected 1653ms regressed-from:built+exit:70 @2d0afe1bdfe6+wt
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: result custody accounting` (state 0)
+pass/expressions/runtime_float_record_field_reads_exit built 4168ms exit:70 @e28fa01a1e73+wt
 pass/expressions/runtime_indexed_float_record_fields_exit built 5290ms exit:70 @48008365d839
 pass/expressions/runtime_nested_record_field_call_exit built 4516ms exit:0 @9beb2be72f2d+wt
 pass/expressions/runtime_nested_record_field_reads_exit built 3520ms exit:70 stdout:match @9beb2be72f2d+wt
