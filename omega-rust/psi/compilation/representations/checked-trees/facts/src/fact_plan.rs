@@ -375,31 +375,6 @@ impl FactPlan {
         self.contexts.handles_in_group(group)
     }
 
-    pub fn facts_at_point(&self, point: ProgramPoint) -> impl Iterator<Item = &Fact> {
-        self.contexts_at_point(point)
-            .flat_map(|context| context.facts())
-    }
-
-    pub fn proves_domain_membership_at_point(
-        &self,
-        program: &TypedTrees,
-        point: ProgramPoint,
-        value: ExpressionHandle,
-        domain_symbol: SymbolHandle,
-    ) -> bool {
-        self.contexts_at_point(point)
-            .any(|context| context.proves_domain_membership(program, value, domain_symbol))
-    }
-
-    pub fn symbol_references_domain(
-        &self,
-        symbol: SymbolHandle,
-        domain_symbol: SymbolHandle,
-    ) -> bool {
-        self.domain_memberships_for_symbol(symbol)
-            .any(|fact| self.domain_implies(fact.domain_symbol, domain_symbol))
-    }
-
     pub fn domain_implies(
         &self,
         source_domain_symbol: SymbolHandle,

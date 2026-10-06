@@ -239,15 +239,6 @@ impl CheckedUnitCallPlan {
         self.retains_source_site().then_some(self.source_site)
     }
 
-    /// The retained source site; `None` when the call retains no site.
-    pub fn source_site_mut(&mut self) -> Option<&mut Option<NominalMachineUseSite>> {
-        if self.retains_source_site() {
-            Some(&mut self.source_site)
-        } else {
-            None
-        }
-    }
-
     /// The target's contract commitment, retained by ordinary scalar and
     /// structural calls only.
     pub fn contract_commitment(&self) -> Option<MachineContractCommitment> {
@@ -260,32 +251,10 @@ impl CheckedUnitCallPlan {
         }
     }
 
-    /// The retained contract commitment; `None` when the call retains none.
-    /// A retained commitment can change but cannot be removed.
-    pub fn contract_commitment_mut(&mut self) -> Option<&mut MachineContractCommitment> {
-        match &mut self.route {
-            CheckedUnitCallRoute::Module {
-                contract_commitment,
-                ..
-            } => contract_commitment.as_mut(),
-            CheckedUnitCallRoute::Boundary => None,
-        }
-    }
-
     /// Proof-only erased actuals in the target's erased-formal order; `None`
     /// for a boundary call, which retains no erased lane.
     pub fn erased_scalar_arguments(&self) -> Option<&[CheckedCallScalarArgument]> {
         match &self.route {
-            CheckedUnitCallRoute::Module {
-                erased_scalar_arguments,
-                ..
-            } => Some(erased_scalar_arguments),
-            CheckedUnitCallRoute::Boundary => None,
-        }
-    }
-
-    pub fn erased_scalar_arguments_mut(&mut self) -> Option<&mut Vec<CheckedCallScalarArgument>> {
-        match &mut self.route {
             CheckedUnitCallRoute::Module {
                 erased_scalar_arguments,
                 ..
@@ -306,26 +275,9 @@ impl CheckedUnitCallPlan {
         }
     }
 
-    pub fn erased_proof_arguments_mut(&mut self) -> Option<&mut Vec<CheckedProofTerm>> {
-        match &mut self.route {
-            CheckedUnitCallRoute::Module {
-                erased_proof_arguments,
-                ..
-            } => Some(erased_proof_arguments),
-            CheckedUnitCallRoute::Boundary => None,
-        }
-    }
-
     /// The primitive result binding of a scalar call.
     pub fn scalar_result(&self) -> Option<&CheckedUnitScalarResultBindingPlan> {
         match &self.result {
-            CheckedUnitCallResult::Scalar(result) => Some(result),
-            _ => None,
-        }
-    }
-
-    pub fn scalar_result_mut(&mut self) -> Option<&mut CheckedUnitScalarResultBindingPlan> {
-        match &mut self.result {
             CheckedUnitCallResult::Scalar(result) => Some(result),
             _ => None,
         }
@@ -372,14 +324,6 @@ impl CheckedUnitCallPlan {
             CheckedUnitCallTransfers::Claims(claims)
             | CheckedUnitCallTransfers::CompletionReceipts(claims) => claims,
             CheckedUnitCallTransfers::StructuralCustody(custody) => &custody.claim_transfers,
-        }
-    }
-
-    pub fn claim_transfers_mut(&mut self) -> &mut Vec<CheckedUnitClaimTransferPlan> {
-        match &mut self.transfers {
-            CheckedUnitCallTransfers::Claims(claims)
-            | CheckedUnitCallTransfers::CompletionReceipts(claims) => claims,
-            CheckedUnitCallTransfers::StructuralCustody(custody) => &mut custody.claim_transfers,
         }
     }
 

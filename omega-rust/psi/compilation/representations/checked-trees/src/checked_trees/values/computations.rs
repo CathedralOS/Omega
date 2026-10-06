@@ -48,12 +48,6 @@ impl CheckedScalarComputationStructuralArgument {
         }
     }
 
-    pub fn as_place_mut(&mut self) -> Option<&mut CheckedUnitStructuralArgumentPlan> {
-        match self {
-            Self::Place(place) => Some(place),
-            Self::Case(_) => None,
-        }
-    }
 }
 
 /// One admitted temporary owner retired after its consuming call returns.

@@ -1,8 +1,7 @@
 use arena::{Handle, HandleSpan};
 
 use crate::{
-    BorrowArgumentAccessFact, BorrowCallFact, BorrowLoanFact, BorrowWritableRootFact,
-    StateBorrowFact,
+    BorrowCallFact, BorrowLoanFact, BorrowWritableRootFact,
 };
 
 use super::super::{FlowConstraintKind, FlowConstraintRef, FlowFacts};
@@ -22,23 +21,6 @@ impl FlowFacts {
                 FlowConstraintKind::SemanticContext { context } => Some(context),
                 FlowConstraintKind::Unknown
                 | FlowConstraintKind::BorrowState { .. }
-                | FlowConstraintKind::BorrowCall { .. }
-                | FlowConstraintKind::BorrowWritableRoot { .. }
-                | FlowConstraintKind::BorrowAccess { .. }
-                | FlowConstraintKind::BorrowLoan { .. } => None,
-            })
-    }
-
-    pub fn borrow_state_constraints(
-        &self,
-        constraints: HandleSpan<FlowConstraintRef>,
-    ) -> impl Iterator<Item = Handle<StateBorrowFact>> + '_ {
-        self.constraints(constraints)
-            .iter()
-            .filter_map(|constraint| match constraint.kind {
-                FlowConstraintKind::BorrowState { state } => Some(state),
-                FlowConstraintKind::Unknown
-                | FlowConstraintKind::SemanticContext { .. }
                 | FlowConstraintKind::BorrowCall { .. }
                 | FlowConstraintKind::BorrowWritableRoot { .. }
                 | FlowConstraintKind::BorrowAccess { .. }
@@ -76,23 +58,6 @@ impl FlowFacts {
                 | FlowConstraintKind::BorrowState { .. }
                 | FlowConstraintKind::BorrowCall { .. }
                 | FlowConstraintKind::BorrowAccess { .. }
-                | FlowConstraintKind::BorrowLoan { .. } => None,
-            })
-    }
-
-    pub fn borrow_access_constraints(
-        &self,
-        constraints: HandleSpan<FlowConstraintRef>,
-    ) -> impl Iterator<Item = Handle<BorrowArgumentAccessFact>> + '_ {
-        self.constraints(constraints)
-            .iter()
-            .filter_map(|constraint| match constraint.kind {
-                FlowConstraintKind::BorrowAccess { access } => Some(access),
-                FlowConstraintKind::Unknown
-                | FlowConstraintKind::SemanticContext { .. }
-                | FlowConstraintKind::BorrowState { .. }
-                | FlowConstraintKind::BorrowCall { .. }
-                | FlowConstraintKind::BorrowWritableRoot { .. }
                 | FlowConstraintKind::BorrowLoan { .. } => None,
             })
     }

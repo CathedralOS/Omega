@@ -125,15 +125,6 @@ impl CheckedUnitEffectPlans {
         self.machines.iter().find(|plan| plan.machine == machine)
     }
 
-    pub fn boundary_for_machine(
-        &self,
-        machine: SymbolHandle,
-    ) -> Option<&CheckedBoundaryMachinePlan> {
-        self.boundary_machines
-            .iter()
-            .find(|plan| plan.machine == machine)
-    }
-
     pub fn composed_for_machine(
         &self,
         machine: SymbolHandle,

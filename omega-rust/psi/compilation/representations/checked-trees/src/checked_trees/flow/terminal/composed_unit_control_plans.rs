@@ -376,16 +376,6 @@ impl CheckedComposedUnitControlTerminatorPlan {
             .collect()
     }
 
-    /// `arm_calls`, for reconciling each call's operands in place.
-    pub fn arm_calls_mut(&mut self) -> Vec<&mut CheckedUnitEffectOperationPlan> {
-        self.return_arms_mut()
-            .into_iter()
-            .filter_map(|arm| match arm {
-                CheckedConditionalReturnArm::Call { operation, .. } => Some(operation),
-                _ => None,
-            })
-            .collect()
-    }
 }
 
 /// How a returning state of a scalar-result graph completes its value. These

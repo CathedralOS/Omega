@@ -161,19 +161,6 @@ impl super::FlowOwnershipFacts {
         matches.next().is_none().then_some(receipt)
     }
 
-    pub fn owned_selection_transfer(
-        &self,
-        receipt: &FlowOwnedSelectionReceipt,
-        expression: typed_trees::expression::ExpressionHandle,
-    ) -> Option<&FlowOwnedSelectionTransfer> {
-        let mut matches = self
-            .selection_transfers
-            .span(receipt.transfers)?
-            .iter()
-            .filter(|transfer| transfer.expression == expression);
-        let transfer = matches.next()?;
-        matches.next().is_none().then_some(transfer)
-    }
 }
 
 /// One normalized source for a claim transferred through a checked state's

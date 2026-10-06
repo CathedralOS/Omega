@@ -33,11 +33,6 @@ pub struct CheckedBoundaryApplicationOperands {
 }
 
 impl CheckedBoundaryApplicationOperands {
-    /// The scalar operand at one authored position, with its carrier.
-    pub fn scalar_operand(&self, position: usize) -> Option<(ExpressionHandle, PrimitiveType)> {
-        let (expression, primitive_type) = self.operands.get(position)?;
-        Some((*expression, (*primitive_type)?))
-    }
 }
 
 impl CheckedOperatorFacts {
