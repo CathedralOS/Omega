@@ -6,7 +6,7 @@ use crate::execution::terminal_unit::calls::{
 use crate::execution::terminal_unit::cleanup::{
     checked_requires_expressions, machine_has_content_evidence,
     nominal_cleanup_boolean_requirements, nominal_cleanup_missing_requirement,
-    nominal_cleanup_target_matches, nominal_scalar_caller_requirements,
+    nominal_cleanup_shape, nominal_cleanup_target_matches, nominal_scalar_caller_requirements,
     scalar_nominal_cleanup_missing_requirement_diagnostic,
 };
 use crate::execution::terminal_unit::returns::primitive_effects;
@@ -27,9 +27,9 @@ use crate::execution::terminal_unit::{
     CheckedStructuralAccess, CheckedStructuralScalarReturnMachinePlan,
     CheckedTraitOperatorScalarReturnMachinePlan, CheckedUnitEffectPlans,
     CheckedUnitNominalAffineCleanupPlan, CheckedUnitStructuralParameterPlan, Diagnostic,
-    ExpressionNode, MachineSupplyMode, Multiplicity, PermissionAccess, PermissionEventKind,
-    PermissionEventSource, PrimitiveType, StatementNode, TypeReferenceNode, TypedTrees,
-    checked_shared_boolean_convergence, is_reference, shared_convergence,
+    ExpressionNode, Multiplicity, PermissionAccess, PermissionEventKind, PermissionEventSource,
+    PrimitiveType, StatementNode, TypedTrees, checked_shared_boolean_convergence, is_reference,
+    shared_convergence,
 };
 
 pub(crate) fn build_trait_operator_scalar_return_machine(
@@ -573,35 +573,8 @@ pub(crate) fn build_structural_scalar_return_machine(
                 ));
             }
             let nominal_cleanup = (|| {
-                let TypeReferenceNode::Named {
-                    symbol: parameter_data_symbol,
-                    ..
-                } = program
-                    .type_reference_table
-                    .type_reference(source_parameter.type_reference)
-                else {
-                    return None;
-                };
-                let parameter_data = program
-                    .data_definitions()
-                    .iter()
-                    .find(|data| data.symbol == *parameter_data_symbol)?;
-                let cleanup_machines = program
-                    .machines()
-                    .iter()
-                    .filter(|candidate| {
-                        candidate.supply_mode == MachineSupplyMode::CheckedBody
-                            && candidate.name.as_str().ends_with("::drop")
-                            && candidate.attached_data_symbol == parameter_data.symbol
-                    })
-                    .collect::<Vec<_>>();
-                let [cleanup_machine] = cleanup_machines.as_slice() else {
-                    return None;
-                };
-                let cleanup_state = program.machine_states(cleanup_machine).first()?;
-                let [cleanup_receiver] = program.state_parameters(cleanup_state) else {
-                    return None;
-                };
+                let (cleanup_machine, cleanup_state, cleanup_receiver) =
+                    nominal_cleanup_shape(program, source_parameter.type_reference)?;
                 let unit_effects = unit_effects?;
                 let cleanup_target =
                     unit_effects.callable_entry_for_machine(cleanup_machine.symbol)?;

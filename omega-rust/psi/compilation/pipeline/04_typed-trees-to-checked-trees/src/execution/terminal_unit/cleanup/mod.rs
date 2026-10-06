@@ -217,33 +217,9 @@ pub(super) fn build_nominal_affine_unit_cleanup_machine(
         .enumerate()
         .rev()
     {
-        let TypeReferenceNode::Named {
-            symbol: parameter_data_symbol,
-            ..
-        } = program
-            .type_reference_table
-            .type_reference(source_parameter.type_reference)
+        let Some((cleanup_machine, cleanup_state, cleanup_receiver)) =
+            nominal_cleanup_shape(program, source_parameter.type_reference)
         else {
-            return None;
-        };
-        let parameter_data = program
-            .data_definitions()
-            .iter()
-            .find(|data| data.symbol == *parameter_data_symbol)?;
-        let cleanup_machines = program
-            .machines()
-            .iter()
-            .filter(|candidate| {
-                candidate.supply_mode == MachineSupplyMode::CheckedBody
-                    && candidate.name.as_str().ends_with("::drop")
-                    && candidate.attached_data_symbol == parameter_data.symbol
-            })
-            .collect::<Vec<_>>();
-        let [cleanup_machine] = cleanup_machines.as_slice() else {
-            return None;
-        };
-        let cleanup_state = program.machine_states(cleanup_machine).first()?;
-        let [cleanup_receiver] = program.state_parameters(cleanup_state) else {
             return None;
         };
         let cleanup_target = callable_target(plans, cleanup_machine.symbol)?;
@@ -323,6 +299,48 @@ pub(super) fn build_nominal_affine_unit_cleanup_machine(
         caller_requirements,
         cleanups,
     })
+}
+
+/// The nominal `::drop` machine selected for a parameter's data type and its
+/// sole receiver: the named type reference's data definition owns exactly one
+/// attached checked-body `::drop` machine whose first state takes one
+/// parameter.
+pub(crate) fn nominal_cleanup_shape<'a>(
+    program: &'a TypedTrees,
+    type_reference: typed_trees::types::TypeReferenceHandle,
+) -> Option<(
+    &'a typed_trees::machine::Machine,
+    &'a typed_trees::state::State,
+    &'a typed_trees::signature::StateParameter,
+)> {
+    let TypeReferenceNode::Named {
+        symbol: parameter_data_symbol,
+        ..
+    } = program.type_reference_table.type_reference(type_reference)
+    else {
+        return None;
+    };
+    let parameter_data = program
+        .data_definitions()
+        .iter()
+        .find(|data| data.symbol == *parameter_data_symbol)?;
+    let cleanup_machines = program
+        .machines()
+        .iter()
+        .filter(|candidate| {
+            candidate.supply_mode == MachineSupplyMode::CheckedBody
+                && candidate.name.as_str().ends_with("::drop")
+                && candidate.attached_data_symbol == parameter_data.symbol
+        })
+        .collect::<Vec<_>>();
+    let [cleanup_machine] = cleanup_machines.as_slice() else {
+        return None;
+    };
+    let cleanup_state = program.machine_states(cleanup_machine).first()?;
+    let [cleanup_receiver] = program.state_parameters(cleanup_state) else {
+        return None;
+    };
+    Some((cleanup_machine, cleanup_state, cleanup_receiver))
 }
 
 /// The selected owner hook is an ordinary Unit callable, whether its body is
