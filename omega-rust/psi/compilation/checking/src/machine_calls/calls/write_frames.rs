@@ -72,6 +72,8 @@ pub(crate) use transition_topology::named_state_transition_subgraph_is_acyclic;
 
 use super::receiver_member_chain;
 use crate::declarations::symbols::{MachineSymbols, TopLevelSymbols};
+use std::sync::Mutex;
+use symbols::SymbolKeyMap as HashMap;
 use language_core::is_self_receiver;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
@@ -421,4 +423,24 @@ fn summarize_resolved_call(
     }
 
     Some(written)
+}
+
+/// Run `compute` once per key for the resolver's immutable program. The lock
+/// is not held across `compute`, so nested resolver queries through it cannot
+/// deadlock; concurrent misses may compute twice and publish the same value.
+fn memoized<K, V>(cache: &Mutex<HashMap<K, V>>, key: K, compute: impl FnOnce() -> V) -> V
+where
+    K: Eq + std::hash::Hash,
+    V: Clone,
+{
+    if let Ok(cache) = cache.lock()
+        && let Some(hit) = cache.get(&key)
+    {
+        return hit.clone();
+    }
+    let value = compute();
+    if let Ok(mut cache) = cache.lock() {
+        cache.insert(key, value.clone());
+    }
+    value
 }

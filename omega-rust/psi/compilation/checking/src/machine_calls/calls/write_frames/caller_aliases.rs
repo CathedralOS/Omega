@@ -9,8 +9,8 @@ use super::stored_origins::{StoredLocalOrigins, expand_write_paths, place_suffix
 use super::{
     ExpressionHandle, ExpressionNode, FrameInference, FramePathPrecision, FramePlaceOrigin,
     Machine, StatementNode, SymbolHandle, TableCall, TopLevelSymbols, TypedTrees,
-    append_place_suffix, statement_value_expression_roots, type_is_caller_isolated_local,
-    type_may_carry_write,
+    append_place_suffix, memoized, statement_value_expression_roots,
+    type_is_caller_isolated_local, type_may_carry_write,
 };
 use crate::declarations::symbols::PrefixSiteEntry;
 use crate::machine_calls::calls::write_frames::state_write_walk::{
@@ -778,22 +778,6 @@ fn caller_site_key(site: CallerWriteSite<'_>) -> (u8, usize) {
     }
 }
 
-fn memoized<K, V>(cache: &Mutex<HashMap<K, V>>, key: K, compute: impl FnOnce() -> V) -> V
-where
-    K: Eq + std::hash::Hash,
-    V: Clone,
-{
-    if let Ok(cache) = cache.lock()
-        && let Some(hit) = cache.get(&key)
-    {
-        return hit.clone();
-    }
-    let value = compute();
-    if let Ok(mut cache) = cache.lock() {
-        cache.insert(key, value.clone());
-    }
-    value
-}
 
 /// Whether any of the machine's states can carry caller origins: an incoming
 /// non-reference carrier parameter, or a local declaration able to hold one.

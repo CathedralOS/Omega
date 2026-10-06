@@ -16,7 +16,7 @@ use super::caller_aliases::{
 };
 use super::{
     coarse_place_path, known_boundary_call_written_paths_for_parts, known_call_written_paths,
-    known_call_written_paths_for_parts_with_origins, normalize_state_relative_path,
+    known_call_written_paths_for_parts_with_origins, memoized, normalize_state_relative_path,
     receiver_member_chain,
 };
 use crate::declarations::symbols::{MachineSymbols, TopLevelSymbols};
@@ -145,25 +145,6 @@ impl CallFrameCaches {
     }
 }
 
-/// Run `compute` once per key for the resolver's immutable program. The lock
-/// is not held across `compute`, so nested resolver queries through it cannot
-/// deadlock; concurrent misses may compute twice and publish the same value.
-fn memoized<K, V>(cache: &Mutex<HashMap<K, V>>, key: K, compute: impl FnOnce() -> V) -> V
-where
-    K: Eq + std::hash::Hash,
-    V: Clone,
-{
-    if let Ok(cache) = cache.lock()
-        && let Some(hit) = cache.get(&key)
-    {
-        return hit.clone();
-    }
-    let value = compute();
-    if let Ok(mut cache) = cache.lock() {
-        cache.insert(key, value.clone());
-    }
-    value
-}
 
 fn compute_call_plans(
     program: &TypedTrees,
