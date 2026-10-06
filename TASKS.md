@@ -3308,56 +3308,36 @@ the validation `src/` (written `omega-rust/psi/compilation/checking/src/`) unles
 
 Each item removes one verified copy, rescan or repeated validation in the
 compiler's flow from source bytes to image bytes. Re-read the cited symbol
-before starting; paths drift. Each item lands alone with the cited corpus
+before starting; paths drift. Each coherent repair lands with the cited corpus
 slice unchanged (check plus `--native` where the code is backend-visible).
 Re-checking stays allowed at trust boundaries; these items remove repetition
 of a check the same flow already performed, not the check itself.
 
-- **CALLABLE-IDENTITY-INTERNED.** (new-scope) `NormalizedNamedCallableIdentity`
+- **TYPE-IDENTITY-INTERNED.** (new-scope) `NormalizedTypeIdentity(String)`
   (`omega-rust/psi/compilation/representations/typed-trees/src/typed_trees/type_system/type_identity/normalized_identities.rs`)
-  holds its `path` and `parameters` as rendered, escaped `String`s, and
-  `TypedTrees::machine_by_normalized_overload_identity(&str)` finds a machine
-  by rendering every machine's identity and comparing strings. In one commit:
-  - intern each machine, requirement and operator overload identity once
-    during typing, in a `TypedTrees` table mapping a `CallableIdentityId`
-    handle to its declaration;
-  - replace the string identity type and the `&str` lookup with that handle
-    and an O(1) table read;
-  - render text only for diagnostics and at artifact encoding.
-
-  Acceptance: `NormalizedNamedCallableIdentity` holds no `String`, no function
-  looks a machine up by a string identity, and full check plus native corpus
-  are unchanged.
-
-- **TYPE-IDENTITY-INTERNED.** (new-scope) `NormalizedTypeIdentity(String)` (same
-  file) is rendered afresh on every `TypedTrees::normalized_type_identity` call
+  is rendered afresh on every `TypedTrees::normalized_type_identity` call
   across stages 04, 05 and checking, and compared as text. Keep a hash-consed
   table of structural type keys in `TypedTrees` that issues one
   `TypeIdentityId` handle per distinct type, and switch every comparison and
-  map key to that handle in one commit. Rendering stays only for diagnostics
+  map key to that handle. Rendering stays only for diagnostics
   and artifact encoding. Acceptance: `NormalizedTypeIdentity` holds no
   `String`, type identity equality is a handle comparison, and full check plus
   native corpus are unchanged.
 
-  An unfinished attempt exists and is NOT on any branch: 125 modified files,
-  reaching layout, Omega stages 00 and 03, and provider planning. It was
-  stopped mid-task to relieve a load average of 140, with the handle
-  conversions for its regenerated files, formatting and the workspace check
-  still outstanding, so it is not known to compile. Preserved as a patch at
-  `<session scratchpad>/PRESERVED_type_identity_interning.patch` against
-  `dfb4587153c`; ask the coordinator for it rather than restarting from zero,
-  but treat it as a sketch, not a candidate. Note how far the blast radius
-  reaches: a change described as "one commit" in this item touched 125 files,
-  so plan the measurement before the edit.
+  Include layout, Omega stages 00/03 and provider-planning consumers in the
+  migration. Use coherent producer/consumer cuts, deleting each replaced
+  route rather than carrying parallel text and handle implementations.
 
-- **CHECKED-IDENTITY-IDS.** (new-scope) Depends on
-  **CALLABLE-IDENTITY-INTERNED** and **TYPE-IDENTITY-INTERNED**.
+- **CHECKED-IDENTITY-IDS.** (new-scope) Depends on **TYPE-IDENTITY-INTERNED**;
+  reuse the existing program-owned `CallableIdentityId` interner in
+  `omega-rust/psi/compilation/representations/typed-trees/src/typed_trees/type_system/type_identity/callable_identity.rs`
+  for callable identities.
   `checked-trees` declares many `*identity: String` fields, concentrated in
   `omega-rust/psi/compilation/representations/checked-trees/src/checked_trees/flow/dynamic_scalar_calls.rs`
   and `.../flow/terminal/structural_type_plans.rs`, with others in
   composed-unit, affine-cleanup, result-binding, termination and
   service-parameter plans. Replace each with the callable or type identity
-  handle (or the existing symbol handle) in one commit. Acceptance: no
+  handle (or the existing symbol handle). Acceptance: no
   `String`-typed identity field remains in `checked-trees`, enforced by a
   source-scanning guard in that crate; full check corpus unchanged.
 
@@ -3381,19 +3361,18 @@ of a check the same flow already performed, not the check itself.
     newtypes in
     `omega-rust/omega/compilation/backend/artifacts/boundary-applications/src/boundary_applications.rs`.
 
-  Carry Terminal identity-table indices instead, in one commit. Acceptance:
+  Carry Terminal identity-table indices instead. Acceptance:
   none of those crates declares a `String`-typed identity (source-scanning
   guard in each), and the native corpus is unchanged.
 
-- **PROVIDER-SCHEMA-IDENTITY-IDS.** (new-scope) Depends on
-  **CALLABLE-IDENTITY-INTERNED**. The `effects` crate's
+- **PROVIDER-SCHEMA-IDENTITY-IDS.** (new-scope) The `effects` crate's
   `ServiceSchema`/`ServiceMethod`
   (`omega-rust/omega/compilation/backend/plans/provider-evidence/src/provider_evidence/providers/provider_plan/service_schemas.rs`)
   carry `trait_name` and `requirement_identity`, and
   `ProviderBinding::CheckedAdapter` carries `machine_identity`, all as rendered
-  `String`s that selection, dispatch and digest code compare as text. Hold
-  callable identity handles in-process; only the plan's digest encoder writes
-  the canonical content. One commit. Acceptance: those schema and binding
+  `String`s that selection, dispatch and digest code compare as text. Reuse
+  `CallableIdentityId` for in-process identity; only the plan's digest encoder writes
+  the canonical content. Acceptance: those schema and binding
   fields hold no `String`, plan digests (and so package-review records) are
   unchanged, and the provider and native corpus slices are unchanged.
 
@@ -3431,7 +3410,7 @@ of a check the same flow already performed, not the check itself.
     `finalize_checked_authored_selections(&mut program, &facts)`
     (`src/authored_selections/finalization.rs`).
 
-  In one commit, move the specialization fixed point and its rebinding passes
+  Move the specialization fixed point and its rebinding passes
   into a new `typed-trees-to-typed-trees` stage between stages 03 and 04,
   calling each pass once at its required point; record finalized authored
   selections in `CheckFacts` instead of the typed program; delete the moved
@@ -3450,7 +3429,7 @@ of a check the same flow already performed, not the check itself.
   and `validation::expression_result_type_reference`. Have checking record
   each resolved place and expression type once, in a dense `CheckFacts` table
   indexed by expression handle, and replace every stage 05 call with a read of
-  that table in one commit. Acceptance: stage 05 non-test sources call none of
+  that table. Acceptance: stage 05 non-test sources call none of
   the three functions (stage 05 source-scanning guard); check and native
   corpus unchanged.
 
@@ -3477,11 +3456,6 @@ of a check the same flow already performed, not the check itself.
     four calling-convention `validate_*_footprint` functions, and
     `validate_target_register_environment` and `_with_reservations`. Give
     those tests a constructor and delete the verifiers.
-
-  A verifier stays only where a retained-artifact reader calls it; one with no
-  caller is deleted with the replay. Acceptance: no producer calls a replay or
-  validator of its own fresh output, and the check and native corpus are
-  unchanged.
 
   A verifier stays only where a retained-artifact reader calls it; one with no
   caller is deleted with the replay. Acceptance: no producer calls a replay or
