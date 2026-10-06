@@ -98,6 +98,32 @@ pub fn visit_post_order(
     inner(program, root, visited, &mut arm);
 }
 
+/// The symbol a single-member `Name` argument resolves, through a shared
+/// borrow: `&field` and `field` name the same symbol.
+pub fn single_member_argument_symbol(
+    program: &TypedTrees,
+    argument: ExpressionHandle,
+) -> Option<symbols::SymbolHandle> {
+    let named = match program.expression_table.expression(argument) {
+        ExpressionNode::Borrow(borrow)
+            if borrow.access == language_core::ReferenceAccess::Shared =>
+        {
+            borrow.target
+        }
+        _ => argument,
+    };
+    let ExpressionNode::Name(path) = program.expression_table.expression(named) else {
+        return None;
+    };
+    (path.symbol.is_valid()
+        && program
+            .expression_table
+            .name_path_members(path.members)
+            .len()
+            == 1)
+    .then_some(path.symbol)
+}
+
 /// The last member of the `Name` path `value` names, when it names one.
 pub fn name_path_last_member<'a>(
     program: &'a TypedTrees,

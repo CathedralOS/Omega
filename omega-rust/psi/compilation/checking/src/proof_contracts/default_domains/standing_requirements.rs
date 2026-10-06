@@ -119,27 +119,8 @@ fn formal_position(
     parameters: &[StateParameter],
     argument: ExpressionHandle,
 ) -> Option<usize> {
-    let named = match program.expression_table.expression(argument) {
-        ExpressionNode::Borrow(borrow)
-            if borrow.access == language_core::ReferenceAccess::Shared =>
-        {
-            borrow.target
-        }
-        _ => argument,
-    };
-    let ExpressionNode::Name(path) = program.expression_table.expression(named) else {
-        return None;
-    };
-    if !path.symbol.is_valid()
-        || program
-            .expression_table
-            .name_path_members(path.members)
-            .len()
-            != 1
-    {
-        return None;
-    }
+    let symbol = crate::expression_traversal::single_member_argument_symbol(program, argument)?;
     parameters
         .iter()
-        .position(|parameter| parameter.symbol == path.symbol)
+        .position(|parameter| parameter.symbol == symbol)
 }

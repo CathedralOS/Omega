@@ -237,31 +237,12 @@ pub(crate) fn fact_argument_field<'program>(
     definition: &DataDefinition,
     argument: ExpressionHandle,
 ) -> Option<&'program DataField> {
-    let named = match program.expression_table.expression(argument) {
-        ExpressionNode::Borrow(borrow)
-            if borrow.access == language_core::ReferenceAccess::Shared =>
-        {
-            borrow.target
-        }
-        _ => argument,
-    };
-    let ExpressionNode::Name(path) = program.expression_table.expression(named) else {
-        return None;
-    };
-    if !path.symbol.is_valid()
-        || program
-            .expression_table
-            .name_path_members(path.members)
-            .len()
-            != 1
-    {
-        return None;
-    }
+    let symbol = crate::expression_traversal::single_member_argument_symbol(program, argument)?;
     program
         .data_members(definition)
         .iter()
         .find_map(|member| match member {
-            DataMember::Field(field) if field.symbol == path.symbol => Some(field),
+            DataMember::Field(field) if field.symbol == symbol => Some(field),
             _ => None,
         })
 }
