@@ -35,7 +35,7 @@ mod qualification_facts;
 mod requirement_call_specializations;
 pub(crate) mod review_sources;
 
-pub(crate) use canonical_encoding::{domain_is_vacuous, encode_contract_set_canonical};
+pub(crate) use canonical_encoding::domain_is_vacuous;
 pub(crate) use crash_calls::{infer_checked_crash_causes, infer_checked_machine_crash_causes};
 pub(crate) use crash_plan_facts::{
     canonical_crash_binary_path_predicate, canonical_crash_operand_identity,

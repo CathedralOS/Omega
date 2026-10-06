@@ -668,41 +668,20 @@ impl std::fmt::Debug for CheckedOperatorFacts {
 }
 
 /// Retained checked baseline for one machine-to-operator realization.
-///
-/// Admission shape, canonical contract encodings, and exact typed semantic
-/// snapshots are retained in full rather than represented by a hash. Package
-/// review can therefore rederive the association from the final typed graph and
-/// require exact equality without relying only on mutable proof-fact handles or
-/// a collision-prone digest. Trusted compiler components remain inside the TCB.
+/// Package review can rederive the association from the final typed graph and
+/// require exact equality without relying on mutable proof-fact handles or a
+/// collision-prone digest. Trusted compiler components remain inside the TCB.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedOperatorRealizationContract {
     machine_symbol: SymbolHandle,
     operator_symbol: SymbolHandle,
-    provider_contracts: Vec<Vec<u8>>,
-    requirement_contracts: Vec<Vec<u8>>,
-    provider_contract_snapshot: Vec<u8>,
-    requirement_contract_snapshot: Vec<u8>,
-    admission_snapshot: Vec<u8>,
 }
 
 impl CheckedOperatorRealizationContract {
-    pub fn new(
-        machine_symbol: SymbolHandle,
-        operator_symbol: SymbolHandle,
-        provider_contracts: Vec<Vec<u8>>,
-        requirement_contracts: Vec<Vec<u8>>,
-        provider_contract_snapshot: Vec<u8>,
-        requirement_contract_snapshot: Vec<u8>,
-        admission_snapshot: Vec<u8>,
-    ) -> Self {
+    pub fn new(machine_symbol: SymbolHandle, operator_symbol: SymbolHandle) -> Self {
         Self {
             machine_symbol,
             operator_symbol,
-            provider_contracts,
-            requirement_contracts,
-            provider_contract_snapshot,
-            requirement_contract_snapshot,
-            admission_snapshot,
         }
     }
 
@@ -712,26 +691,6 @@ impl CheckedOperatorRealizationContract {
 
     pub const fn operator_symbol(&self) -> SymbolHandle {
         self.operator_symbol
-    }
-
-    pub fn provider_contracts(&self) -> &[Vec<u8>] {
-        &self.provider_contracts
-    }
-
-    pub fn requirement_contracts(&self) -> &[Vec<u8>] {
-        &self.requirement_contracts
-    }
-
-    pub fn provider_contract_snapshot(&self) -> &[u8] {
-        &self.provider_contract_snapshot
-    }
-
-    pub fn requirement_contract_snapshot(&self) -> &[u8] {
-        &self.requirement_contract_snapshot
-    }
-
-    pub fn admission_snapshot(&self) -> &[u8] {
-        &self.admission_snapshot
     }
 }
 
