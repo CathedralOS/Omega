@@ -231,6 +231,60 @@ fn discharged_in_body(
         .collect()
 }
 
+/// Carriers a deferred reference release leaves for this exit to retire.
+///
+/// Stage 04 schedules a loan whose last use is the state's transition one
+/// statement past the authored body, where the per-statement emitter has no
+/// position, so the selected edge owns the disposal (`result_custody` states
+/// the same division: only loans whose last use belongs to a transition remain
+/// for the selected edge to drop). Ordinary releases instead reach the body as
+/// an emitted `ReleaseReference` and need nothing here.
+///
+/// These carriers precede the exit's owned roots. `ownership.md` requires that
+/// "an owner cannot die before cleanup depending on its borrow", and the
+/// borrowed owner dies on this same edge; a carrier left for a later exit
+/// outlives the storage it names.
+fn deferred_carrier_releases(
+    state: &CheckedComposedUnitControlStatePlan,
+    evaluation: &Evaluation,
+    operations: &OperationBuffer,
+) -> Result<Vec<TerminalAffineCleanupAction>, LoweringError> {
+    let mut carriers = Vec::new();
+    // Reverse operation order is reverse declaration order: the last carrier
+    // established is the first retired.
+    for operation in state.operations.iter().rev() {
+        let CheckedUnitEffectOperationPlan::ReleaseReference {
+            binding_ordinal,
+            path,
+            defer_to_exit: true,
+            ..
+        } = operation
+        else {
+            continue;
+        };
+        if !path.is_empty() {
+            return Err(LoweringError::Unsupported(
+                "deferred reference release is not its whole carrier",
+            ));
+        }
+        let (_, result) = operations
+            .structural_values
+            .iter()
+            .find(|(ordinal, _)| ordinal == binding_ordinal)
+            .ok_or(LoweringError::Unsupported(
+                "deferred reference release has no established carrier",
+            ))?;
+        let place = evaluation.current_structural_place(result.place());
+        if !carriers.contains(&place) {
+            carriers.push(place);
+        }
+    }
+    Ok(carriers
+        .into_iter()
+        .map(TerminalAffineCleanupAction::DiscardRoot)
+        .collect())
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(super) fn for_exit(
     checked: &CheckedTrees,
@@ -263,7 +317,7 @@ pub(super) fn for_exit(
         })
         .collect::<Vec<_>>();
     let discharged = discharged_in_body(state);
-    selected_exit.actions.iter().filter(|action| match action {
+    let rows = selected_exit.actions.iter().filter(|action| match action {
         // A body continuation cleanup already committed this exact
         // disposition, so the exit retains only the obligation whose last use
         // is the exit itself. A nominal hook is never a body discard.
@@ -296,7 +350,11 @@ pub(super) fn for_exit(
                 )?))
             }
         }
-    }).collect::<Result<Vec<_>, _>>()
+    }).collect::<Result<Vec<_>, _>>()?;
+    let mut actions = deferred_carrier_releases(state, evaluation, operations)?;
+    actions.retain(|carrier| !rows.iter().any(|row| row.place() == carrier.place()));
+    actions.extend(rows);
+    Ok(actions)
 }
 
 fn source(
