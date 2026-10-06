@@ -2,15 +2,15 @@
 //! Primitive loans share the original addressable home. Coordinate snapshots
 //! stay private across joins; later observations cannot overwrite them.
 use super::{Evaluation, LoweringError, StructuralTypeDeclaration, ValueDeclaration};
-use crate::emission::operation_emission::buffer::OperationBuffer;
+use crate::emission::operation_emission::buffer::{OperationBuffer, structural_result_declaration};
 use crate::emission::operation_emission::expressions::emit_direct_expression;
 use crate::expression_preparation::bindings::ScalarBindings;
 use crate::expression_preparation::bindings::place_observations::LoanedSource;
 use crate::expression_preparation::prepare_expression::exact_u64_index;
 use crate::unit::{StructuralPlaceKind, allocate_dense, place_id};
 use terminal_psi::{
-    Operation, OperationKind, OperationResult, StructuralMultiplicity, StructuralOperationResult,
-    StructuralPlaceDeclaration, StructuralTypeShape,
+    Operation, OperationKind, StructuralMultiplicity, StructuralPlaceDeclaration,
+    StructuralTypeShape,
 };
 
 impl Evaluation {
@@ -112,15 +112,11 @@ impl Evaluation {
                 static_reach_binding: None,
                 suspension_crossing: None,
                 id: producer,
-                result: OperationResult::Structural(StructuralOperationResult {
+                result: structural_result_declaration(
                     place,
                     structural_type,
-                    multiplicity: StructuralMultiplicity::Unrestricted,
-                    qualifications: Vec::new(),
-                    projected_qualifications: Vec::new(),
-                    claims: Vec::new(),
-                    qualification_establishments: Vec::new(),
-                }),
+                    StructuralMultiplicity::Unrestricted,
+                ),
                 kind: OperationKind::EstablishPrimitiveLocal { value },
             });
             private_places.push(StructuralPlaceDeclaration {

@@ -4,11 +4,11 @@
 //! operation transfers completed operands atomically; evaluation or suspension
 //! before it keeps those operands under their existing temporary custody.
 use super::super::{
-    LoweringError, Operation, OperationKind, OperationResult, PlaceId, StructuralOperationResult,
-    StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeShape, allocate_dense, place_id,
-    unsupported,
+    LoweringError, Operation, OperationKind, PlaceId, StructuralPlaceDeclaration,
+    StructuralPlaceKind, StructuralTypeShape, allocate_dense, place_id, unsupported,
 };
 use super::emission;
+use crate::emission::operation_emission::buffer::structural_result_declaration;
 use checked_trees::CheckedStructuralValueHandle;
 
 impl emission::Emission<'_, '_, '_> {
@@ -73,15 +73,7 @@ impl emission::Emission<'_, '_, '_> {
             static_reach_binding: None,
             suspension_crossing: None,
             id: operation,
-            result: OperationResult::Structural(StructuralOperationResult {
-                qualification_establishments: Vec::new(),
-                place,
-                structural_type: self.structural_type,
-                multiplicity: self.multiplicity,
-                qualifications: Vec::new(),
-                projected_qualifications: Vec::new(),
-                claims: Vec::new(),
-            }),
+            result: structural_result_declaration(place, self.structural_type, self.multiplicity),
             kind: OperationKind::EstablishZeroedStructural {},
         });
         self.temporary_places.push(StructuralPlaceDeclaration {
@@ -110,15 +102,7 @@ pub(crate) fn emit_completed(
         static_reach_binding: None,
         suspension_crossing: None,
         id: operation,
-        result: OperationResult::Structural(StructuralOperationResult {
-            qualification_establishments: Vec::new(),
-            place,
-            structural_type,
-            multiplicity,
-            qualifications: Vec::new(),
-            projected_qualifications: Vec::new(),
-            claims: Vec::new(),
-        }),
+        result: structural_result_declaration(place, structural_type, multiplicity),
         kind: OperationKind::EstablishStructuralArray { elements },
     });
     StructuralPlaceDeclaration {

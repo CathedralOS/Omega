@@ -13,7 +13,9 @@ pub(crate) mod place_declarations;
 pub(crate) mod view_subslice;
 
 use crate::emission::expression_validation::direct_expression_contains_short_circuit;
-use crate::emission::operation_emission::buffer::scalar_result_declaration;
+use crate::emission::operation_emission::buffer::{
+    scalar_result_declaration, structural_result_declaration,
+};
 use crate::emission::selected_comparison::SelectedComparisonMeaning;
 use crate::lowering_error::LoweringError;
 use crate::lowering_error::unsupported;
@@ -29,8 +31,7 @@ use lowered_psi::{
 };
 use semantic_vocabulary::{QualifiedScalarType, ScalarType, ValueId};
 use terminal_psi::{
-    Operation, OperationKind, OperationResult, StructuralMultiplicity, StructuralOperationResult,
-    ValueDeclaration,
+    Operation, OperationKind, OperationResult, StructuralMultiplicity, ValueDeclaration,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -228,15 +229,11 @@ pub(crate) fn emit_scalar_binding(
                     place,
                     structural_type,
                 } => (
-                    OperationResult::Structural(StructuralOperationResult {
-                        qualification_establishments: Vec::new(),
+                    structural_result_declaration(
                         place,
                         structural_type,
-                        multiplicity: StructuralMultiplicity::Unrestricted,
-                        qualifications: Vec::new(),
-                        projected_qualifications: Vec::new(),
-                        claims: Vec::new(),
-                    }),
+                        StructuralMultiplicity::Unrestricted,
+                    ),
                     OperationKind::EstablishPrimitiveLocal { value },
                 ),
                 StoreDestination::Assign { place } => (

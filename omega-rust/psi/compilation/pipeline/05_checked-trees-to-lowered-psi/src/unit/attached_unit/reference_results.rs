@@ -3,10 +3,10 @@ use super::super::StructuralArgument;
 use super::admission::CallerView;
 use super::{
     CheckedTrees, CheckedUnitEffectOperationPlan, LoweringError, Operation, OperationKind,
-    OperationResult, StructuralMultiplicity, StructuralOperationResult, StructuralPlaceDeclaration,
-    StructuralPlaceKind, StructuralTypeId, allocate_dense, lookup_type_id, place_id, unsupported,
+    StructuralMultiplicity, StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeId,
+    allocate_dense, lookup_type_id, place_id, unsupported,
 };
-use crate::emission::operation_emission::buffer::OperationBuffer;
+use crate::emission::operation_emission::buffer::{OperationBuffer, structural_result_declaration};
 use checked_trees::CheckedUnitStructuralResultBindingPlan;
 use checked_trees::statement::StatementNode;
 
@@ -209,15 +209,11 @@ pub(super) fn emit_carrier(
         static_reach_binding: None,
         suspension_crossing: None,
         id,
-        result: OperationResult::Structural(StructuralOperationResult {
-            qualification_establishments: Vec::new(),
+        result: structural_result_declaration(
             place,
             structural_type,
-            multiplicity: StructuralMultiplicity::Affine,
-            qualifications: Vec::new(),
-            projected_qualifications: Vec::new(),
-            claims: Vec::new(),
-        }),
+            StructuralMultiplicity::Affine,
+        ),
         kind: OperationKind::EstablishReference { source },
     });
     Ok(StructuralPlaceDeclaration {

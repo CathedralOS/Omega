@@ -128,6 +128,25 @@ pub(crate) fn scalar_result_declaration(
     })
 }
 
+/// The structural operation result an establishing operation produces:
+/// declared memberships arrive through qualification establishments and
+/// claims, so both rosters plus the projected list start empty.
+pub(crate) fn structural_result_declaration(
+    place: PlaceId,
+    structural_type: semantic_vocabulary::StructuralTypeId,
+    multiplicity: terminal_psi::StructuralMultiplicity,
+) -> terminal_psi::OperationResult {
+    terminal_psi::OperationResult::Structural(terminal_psi::StructuralOperationResult {
+        qualification_establishments: Vec::new(),
+        place,
+        structural_type,
+        multiplicity,
+        qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
+        claims: Vec::new(),
+    })
+}
+
 /// Module-wide operation identities for one machine namespace. Machine zero
 /// uses the historical one-based range; additional machines receive disjoint
 /// ranges when source call-closure production composes them.

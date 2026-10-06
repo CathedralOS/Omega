@@ -4,12 +4,12 @@
 //! in the selected evaluation path does so; Terminal independently checks that
 //! this producer dominates each use. No array payload crosses a block parameter.
 use super::super::{
-    Operation, OperationKind, OperationResult, StructuralMultiplicity, StructuralOperationResult,
-    StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeDeclaration, StructuralTypeId,
-    StructuralTypeShape, ValueDeclaration, emit_direct_expression,
+    Operation, OperationKind, OperationResult, StructuralMultiplicity, StructuralPlaceDeclaration,
+    StructuralPlaceKind, StructuralTypeDeclaration, StructuralTypeId, StructuralTypeShape,
+    ValueDeclaration, emit_direct_expression,
 };
 use super::{LoweringError, unsupported, validate_direct_parameter_types};
-use crate::emission::operation_emission::buffer::OperationBuffer;
+use crate::emission::operation_emission::buffer::{OperationBuffer, structural_result_declaration};
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use crate::scalar_graph::scalar_graph_lowering::prepared_graph::LoweredScalarArrayConstruction;
 
@@ -73,15 +73,11 @@ pub(crate) fn emit(
             static_reach_binding: None,
             suspension_crossing: None,
             id,
-            result: OperationResult::Structural(StructuralOperationResult {
-                qualification_establishments: Vec::new(),
-                place: effect.place,
-                structural_type: effect.structural_type,
-                multiplicity: StructuralMultiplicity::Unrestricted,
-                qualifications: Vec::new(),
-                projected_qualifications: Vec::new(),
-                claims: Vec::new(),
-            }),
+            result: structural_result_declaration(
+                effect.place,
+                effect.structural_type,
+                StructuralMultiplicity::Unrestricted,
+            ),
             kind: OperationKind::EstablishScalarArray { elements },
         });
     }

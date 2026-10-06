@@ -1,13 +1,12 @@
 //! Complete fields in authored order before committing a declaration-ordered case.
 use super::super::super::StructuralFieldType;
 use super::super::{
-    CheckedScalarExpressionRole, LoweringError, Operation, OperationKind, OperationResult, PlaceId,
-    StructuralMultiplicity, StructuralOperationResult, StructuralPlaceDeclaration,
-    StructuralPlaceKind, StructuralTypeId, StructuralTypeShape, allocate_dense, obligation_id,
-    place_id, unsupported,
+    CheckedScalarExpressionRole, LoweringError, Operation, OperationKind, PlaceId,
+    StructuralMultiplicity, StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeId,
+    StructuralTypeShape, allocate_dense, obligation_id, place_id, unsupported,
 };
 use super::emission;
-use crate::emission::operation_emission::buffer::OperationBuffer;
+use crate::emission::operation_emission::buffer::{OperationBuffer, structural_result_declaration};
 use crate::emission::operation_emission::expressions::emit_scalar_leaf;
 
 impl emission::Emission<'_, '_, '_> {
@@ -289,15 +288,7 @@ pub(crate) fn emit_completed(
         static_reach_binding: None,
         suspension_crossing: None,
         id: operation,
-        result: OperationResult::Structural(StructuralOperationResult {
-            qualification_establishments: Vec::new(),
-            place,
-            structural_type,
-            multiplicity,
-            qualifications: Vec::new(),
-            projected_qualifications: Vec::new(),
-            claims: Vec::new(),
-        }),
+        result: structural_result_declaration(place, structural_type, multiplicity),
         kind: OperationKind::EstablishStructuralCase {
             result_case,
             fields,

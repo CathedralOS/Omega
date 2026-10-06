@@ -4,11 +4,10 @@
 //! array shape, storage and operand correspondence.
 use super::{
     CheckedScalarExpressionRole, CheckedTrees, LoweringError, Operation, OperationKind,
-    OperationResult, StructuralMultiplicity, StructuralOperationResult, StructuralPlaceDeclaration,
-    StructuralPlaceKind, StructuralTypeId, ValueDeclaration, allocate_dense, lookup_type_id,
-    place_id, unsupported,
+    StructuralMultiplicity, StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeId,
+    ValueDeclaration, allocate_dense, lookup_type_id, place_id, unsupported,
 };
-use crate::emission::operation_emission::buffer::OperationBuffer;
+use crate::emission::operation_emission::buffer::{OperationBuffer, structural_result_declaration};
 use crate::expression_preparation::source_custody::array_sources::construction_expression;
 use checked_trees::CheckedArrayConstructionSource;
 use checked_trees::{CheckedCallScalarArgument, CheckedUnitStructuralResultBindingPlan};
@@ -159,15 +158,11 @@ pub(super) fn emit(
         static_reach_binding: None,
         suspension_crossing: None,
         id,
-        result: OperationResult::Structural(StructuralOperationResult {
-            qualification_establishments: Vec::new(),
+        result: structural_result_declaration(
             place,
             structural_type,
-            multiplicity: StructuralMultiplicity::Unrestricted,
-            qualifications: Vec::new(),
-            projected_qualifications: Vec::new(),
-            claims: Vec::new(),
-        }),
+            StructuralMultiplicity::Unrestricted,
+        ),
         kind: OperationKind::EstablishScalarArray {
             elements: elements.iter().map(|element| element.id).collect(),
         },

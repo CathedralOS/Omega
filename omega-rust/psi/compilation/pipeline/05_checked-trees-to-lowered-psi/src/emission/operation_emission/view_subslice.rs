@@ -10,7 +10,7 @@
 use crate::emission::expression_validation::{
     direct_expression_contains_short_circuit, validate_direct_parameter_types,
 };
-use crate::emission::operation_emission::buffer::OperationBuffer;
+use crate::emission::operation_emission::buffer::{OperationBuffer, structural_result_declaration};
 use crate::emission::operation_emission::expressions::{
     LoweredDirectExpression, emit_byte_length, emit_direct_expression, emit_element_length,
 };
@@ -20,8 +20,7 @@ use crate::terminal_identities::obligation_id;
 use checked_trees::types::PrimitiveType;
 use semantic_vocabulary::{IntegerValue, PlaceId, StructuralPlaceKind, StructuralTypeId, ValueId};
 use terminal_psi::{
-    Operation, OperationKind, OperationResult, StructuralMultiplicity, StructuralOperationResult,
-    StructuralPlaceDeclaration, ValueDeclaration,
+    Operation, OperationKind, StructuralMultiplicity, StructuralPlaceDeclaration, ValueDeclaration,
 };
 
 /// Which Terminal view family the range narrows: byte views count bytes,
@@ -108,15 +107,7 @@ pub(crate) fn emit(
         static_reach_binding: None,
         suspension_crossing: None,
         id: producer,
-        result: OperationResult::Structural(StructuralOperationResult {
-            qualification_establishments: Vec::new(),
-            place: destination,
-            structural_type,
-            multiplicity,
-            qualifications: Vec::new(),
-            projected_qualifications: Vec::new(),
-            claims: Vec::new(),
-        }),
+        result: structural_result_declaration(destination, structural_type, multiplicity),
         kind,
     });
     Ok(StructuralPlaceDeclaration {

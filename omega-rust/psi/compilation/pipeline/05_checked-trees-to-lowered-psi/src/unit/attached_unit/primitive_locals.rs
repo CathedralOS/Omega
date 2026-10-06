@@ -13,10 +13,11 @@
 use super::operation_frame::{OperationFrame, StructuralTypeRoster};
 use super::{
     CheckedScalarExpressionRole, CheckedTrees, CheckedUnitEffectOperationPlan, LoweringError,
-    Operation, OperationKind, OperationResult, StructuralMultiplicity, StructuralOperationResult,
-    StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeShape, allocate_dense,
-    lookup_type_id, place_id, terminal_scalar_type, unsupported,
+    Operation, OperationKind, StructuralMultiplicity, StructuralPlaceDeclaration,
+    StructuralPlaceKind, StructuralTypeShape, allocate_dense, lookup_type_id, place_id,
+    terminal_scalar_type, unsupported,
 };
+use crate::emission::operation_emission::buffer::structural_result_declaration;
 use crate::unit::StructuralTypeDeclaration;
 use checked_trees::CheckedCallScalarArgument;
 use checked_trees::statement::{StatementNode, TableLocalData};
@@ -233,15 +234,11 @@ impl OperationFrame<'_, '_> {
             static_reach_binding: None,
             suspension_crossing: None,
             id: producer,
-            result: OperationResult::Structural(StructuralOperationResult {
-                qualification_establishments: Vec::new(),
+            result: structural_result_declaration(
                 place,
                 structural_type,
-                multiplicity: StructuralMultiplicity::Unrestricted,
-                qualifications: Vec::new(),
-                projected_qualifications: Vec::new(),
-                claims: Vec::new(),
-            }),
+                StructuralMultiplicity::Unrestricted,
+            ),
             kind: OperationKind::EstablishPrimitiveLocal {
                 value: initializer.id,
             },
@@ -385,15 +382,11 @@ impl super::argument_evaluation::Evaluation {
             static_reach_binding: None,
             suspension_crossing: None,
             id: producer,
-            result: OperationResult::Structural(StructuralOperationResult {
+            result: structural_result_declaration(
                 place,
                 structural_type,
-                multiplicity: StructuralMultiplicity::Unrestricted,
-                qualifications: Vec::new(),
-                projected_qualifications: Vec::new(),
-                claims: Vec::new(),
-                qualification_establishments: Vec::new(),
-            }),
+                StructuralMultiplicity::Unrestricted,
+            ),
             kind: OperationKind::EstablishPrimitiveLocal { value: value.id },
         });
         places.push(StructuralPlaceDeclaration {

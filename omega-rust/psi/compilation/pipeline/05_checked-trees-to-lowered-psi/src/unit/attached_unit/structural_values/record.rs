@@ -4,13 +4,12 @@
 //! Terminal replay checks each completed operand before establishing the record.
 use super::super::super::StructuralFieldType;
 use super::super::{
-    CheckedScalarExpressionRole, LoweringError, Operation, OperationKind, OperationResult, PlaceId,
-    ScalarType, StructuralMultiplicity, StructuralOperationResult, StructuralPlaceDeclaration,
-    StructuralPlaceKind, StructuralTypeId, StructuralTypeShape, ValueDeclaration, allocate_dense,
-    obligation_id, place_id, unsupported,
+    CheckedScalarExpressionRole, LoweringError, Operation, OperationKind, PlaceId, ScalarType,
+    StructuralMultiplicity, StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeId,
+    StructuralTypeShape, ValueDeclaration, allocate_dense, obligation_id, place_id, unsupported,
 };
 use super::emission;
-use crate::emission::operation_emission::buffer::OperationBuffer;
+use crate::emission::operation_emission::buffer::{OperationBuffer, structural_result_declaration};
 use crate::emission::operation_emission::expressions::emit_scalar_leaf;
 use semantic_vocabulary::{IeeeFloatFormat, IeeeFloatValue, IntegerSign, IntegerValue};
 
@@ -269,15 +268,7 @@ pub(crate) fn emit_completed(
         static_reach_binding: None,
         suspension_crossing: None,
         id: operation,
-        result: OperationResult::Structural(StructuralOperationResult {
-            qualification_establishments: Vec::new(),
-            place,
-            structural_type,
-            multiplicity,
-            qualifications: Vec::new(),
-            projected_qualifications: Vec::new(),
-            claims: Vec::new(),
-        }),
+        result: structural_result_declaration(place, structural_type, multiplicity),
         kind: OperationKind::EstablishRecord { fields },
     });
     StructuralPlaceDeclaration {
