@@ -1251,23 +1251,8 @@ impl Replay<'_> {
             .enumerate()
             .zip(declaration.parameter_positions(terminal_psi::BoundaryParameterKind::Scalar))
         {
-            let placed_byte_size = match actual.placement.locations.as_slice() {
-                [
-                    ValueLocation::Register {
-                        value_byte_offset: 0,
-                        byte_size,
-                        ..
-                    },
-                ]
-                | [
-                    ValueLocation::Stack {
-                        value_byte_offset: 0,
-                        byte_size,
-                        ..
-                    },
-                ] => *byte_size,
-                _ => return Err(psi_operation),
-            };
+            let placed_byte_size =
+                placed_word_byte_size(&actual.placement.locations).ok_or(psi_operation)?;
             let source_invalid = match &actual.source {
                 TargetUnitScalarArgumentSource::Parameter { .. }
                 | TargetUnitScalarArgumentSource::BlockParameter(_) => self
@@ -1642,23 +1627,8 @@ impl Replay<'_> {
                         && destination.shape.class != ValueClass::BorrowedReference
                 }
                 _ => {
-                    let placed_pointer_word = match destination.locations.as_slice() {
-                        [
-                            ValueLocation::Register {
-                                value_byte_offset: 0,
-                                byte_size,
-                                ..
-                            },
-                        ]
-                        | [
-                            ValueLocation::Stack {
-                                value_byte_offset: 0,
-                                byte_size,
-                                ..
-                            },
-                        ] => *byte_size,
-                        _ => return Err(psi_operation),
-                    };
+                    let placed_pointer_word =
+                        placed_word_byte_size(&destination.locations).ok_or(psi_operation)?;
                     destination.shape == pointer_shape
                         && placed_pointer_word == u32::from(pointer_size)
                 }
@@ -3534,6 +3504,29 @@ fn matches_argument_identity(
         && actual.access == semantic.access
         && actual.access == declared.access
         && actual.structural_type == declared.structural_type
+}
+
+/// The byte size a one-slot offset-zero placement carries — register and
+/// stack occupancy name the same placed word; any other occupancy has none
+/// to compare.
+fn placed_word_byte_size(locations: &[ValueLocation]) -> Option<u32> {
+    match locations {
+        [
+            ValueLocation::Register {
+                value_byte_offset: 0,
+                byte_size,
+                ..
+            },
+        ]
+        | [
+            ValueLocation::Stack {
+                value_byte_offset: 0,
+                byte_size,
+                ..
+            },
+        ] => Some(*byte_size),
+        _ => None,
+    }
 }
 
 fn no_code_cleanup(actions: &[TerminalAffineCleanupAction]) -> bool {
