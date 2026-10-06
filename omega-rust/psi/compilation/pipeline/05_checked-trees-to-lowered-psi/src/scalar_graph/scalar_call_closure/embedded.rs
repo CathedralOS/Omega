@@ -16,6 +16,10 @@ pub(crate) use discovery::{
 };
 
 pub(crate) struct EmbeddedScalarCalls {
+    claim_bindings: Vec<(
+        language_semantics::PermissionClaimIdentity,
+        semantic_vocabulary::ClaimId,
+    )>,
     cleanup_receivers: Vec<(symbols::SymbolHandle, semantic_vocabulary::PlaceId)>,
     pub(crate) machine_ids: Vec<(symbols::SymbolHandle, MachineId)>,
     pub(crate) requirement_counts: Vec<(symbols::SymbolHandle, usize)>,
@@ -34,6 +38,7 @@ impl EmbeddedScalarCalls {
         next_call_obligation: u64,
     ) -> Self {
         Self {
+            claim_bindings: Vec::new(),
             cleanup_receivers: Vec::new(),
             machine_ids,
             requirement_counts,
@@ -56,6 +61,7 @@ impl EmbeddedScalarCalls {
 
     pub(crate) fn emission_context(&self) -> CallEmissionContext<'_> {
         CallEmissionContext {
+            claims: crate::emission::claim_bindings::ClaimBindings::Fixed(&self.claim_bindings),
             cleanup_receivers: &self.cleanup_receivers,
             machine_ids: &self.machine_ids,
             requirement_counts: &self.requirement_counts,
@@ -63,6 +69,19 @@ impl EmbeddedScalarCalls {
             next_obligation_identity: self.next_call_obligation,
             obligation_limit: u64::MAX,
         }
+    }
+
+    /// Composed source graphs publish their claim roster before emitting any
+    /// evaluation. Every temporary and ordinary call borrows that same roster.
+    pub(crate) fn bind_claim_namespace(
+        &mut self,
+        bindings: &[(
+            language_semantics::PermissionClaimIdentity,
+            semantic_vocabulary::ClaimId,
+        )],
+    ) {
+        self.claim_bindings.clear();
+        self.claim_bindings.extend_from_slice(bindings);
     }
 
     /// Dynamic dispatch selects its realization prefix after the leaf catalog.
@@ -261,6 +280,7 @@ impl EmbeddedScalarCalls {
             .map(|symbol| (symbol, machine_id(1)))
             .collect();
         let mut selected = EmbeddedScalarCalls {
+            claim_bindings: Vec::new(),
             cleanup_receivers: Vec::new(),
             machine_ids,
             requirement_counts,

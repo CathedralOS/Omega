@@ -51,7 +51,7 @@ pub(in crate::unit::attached_unit) fn establishment_claims(
     machine: symbols::SymbolHandle,
     state: symbols::SymbolHandle,
     result: &checked_trees::CheckedUnitStructuralResultBindingPlan,
-    claims: &mut super::super::operation_frame::ClaimBindings<'_>,
+    claims: &mut crate::emission::claim_bindings::ClaimBindings<'_>,
 ) -> Result<Vec<terminal_psi::StructuralResultClaimBinding>, LoweringError> {
     let authored_state = crate::declarations::state_declaration(checked, state)?.1;
     let Some(checked_trees::statement::StatementNode::LocalData(local)) = checked
@@ -59,84 +59,25 @@ pub(in crate::unit::attached_unit) fn establishment_claims(
         .statements(authored_state.statement_nodes)
         .get(result.statement_index as usize)
     else {
-        // Every claim path the checker recorded is rooted at an authored
-        // local's symbol, so only such a statement can carry establishment
-        // claims. A linear result owes its whole-root claim and cannot lose
-        // that root; a result of any other multiplicity carries a claim only
-        // for a contained linear member, and without the local root there is
-        // no path to rebase one onto.
+        // This plan is the named-local producer, so its owner must be the
+        // checked local. Anonymous producers use their expression root at
+        // preparation, then share the same claim namespace and rebase below.
         return if result.multiplicity == Multiplicity::Linear {
             unsupported("linear structural value has no authored local")
         } else {
             Ok(Vec::new())
         };
     };
-    let mut result_claims = checked
-        .facts
-        .flow
-        .ownership
-        .permissions
-        .iter()
-        .map(|(_, event)| event)
-        .filter(|event| {
-            event.machine_symbol == machine
-                && event.state_symbol == state
-                && event.source
-                    == language_semantics::PermissionEventSource::Statement {
-                        statement_index: result.statement_index as usize,
-                    }
-                && event.kind == language_semantics::PermissionEventKind::Establish
-                && event.access == language_semantics::PermissionAccess::Owned
-                && event.multiplicity == Multiplicity::Linear
-                && event.obligation_live
-                && event.root == facts::PlaceRoot::Symbol(local.symbol)
-        })
-        .map(|event| {
-            let path = lower_structural_path(
-                &validation::structural_claim_path(
-                    &checked.typed,
-                    local.type_reference,
-                    checked
-                        .facts
-                        .flow
-                        .ownership
-                        .segments
-                        .span_or_empty(event.segments),
-                )
-                .map_err(LoweringError::Unsupported)?,
-            )?;
-            let transferred = checked
-                .facts
-                .flow
-                .ownership
-                .permissions
-                .iter()
-                .any(|(_, source)| {
-                    source.machine_symbol == machine
-                        && source.state_symbol == state
-                        && source.source == event.source
-                        && source.kind == language_semantics::PermissionEventKind::Transfer
-                        && source.access == language_semantics::PermissionAccess::Owned
-                        && source.multiplicity == Multiplicity::Linear
-                        && source.obligation_live
-                        && source.claim_identity == event.claim_identity
-                });
-            let claim = if transferred {
-                // A move can only resolve an identity this caller already
-                // holds. A malformed paired establishment cannot mint it.
-                super::super::lookup_claim_id(claims.bindings(), event.claim_identity)
-            } else {
-                super::super::operation_frame::resolve_established_claim(
-                    claims,
-                    machine,
-                    state,
-                    result.statement_index as usize,
-                    event,
-                )
-            }?;
-            Ok::<_, LoweringError>(terminal_psi::StructuralResultClaimBinding { claim, path })
-        })
-        .collect::<Result<Vec<_>, LoweringError>>()?;
+    let prepared = crate::emission::claim_bindings::prepare_establishment_claims(
+        checked,
+        machine,
+        state,
+        result.statement_index as usize,
+        facts::PlaceRoot::Symbol(local.symbol),
+        local.type_reference,
+    )?;
+    let mut result_claims =
+        crate::emission::claim_bindings::emit_establishment_claims(&prepared, claims)?;
     result_claims.sort();
     Ok(result_claims)
 }

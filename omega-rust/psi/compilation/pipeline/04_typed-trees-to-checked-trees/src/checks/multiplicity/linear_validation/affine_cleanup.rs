@@ -34,7 +34,7 @@ pub(crate) fn append_owned_cleanup_permission_events(
     let mut append = |symbol: SymbolHandle, type_reference: TypeReferenceHandle| {
         let tracked_root = tracked_places
             .iter()
-            .find(|place| place.symbol == symbol && place.path.is_empty());
+            .find(|place| place.root == facts::PlaceRoot::Symbol(symbol) && place.path.is_empty());
         if let Some(place) = tracked_root {
             if !place.live && !remaining.is_reserved(facts::PlaceRoot::Symbol(symbol)) {
                 return;
@@ -48,7 +48,9 @@ pub(crate) fn append_owned_cleanup_permission_events(
             {
                 return;
             }
-        } else if tracked_places.iter().any(|place| place.symbol == symbol)
+        } else if tracked_places
+            .iter()
+            .any(|place| place.root == facts::PlaceRoot::Symbol(symbol))
             || type_multiplicity(program, type_reference) == Multiplicity::Unrestricted
         {
             return;
@@ -179,7 +181,9 @@ pub(crate) fn apply_recorded_cleanup_events(
             };
             let place = places
                 .iter_mut()
-                .find(|place| place.symbol == symbol && place.path.is_empty())
+                .find(|place| {
+                    place.root == facts::PlaceRoot::Symbol(symbol) && place.path.is_empty()
+                })
                 .expect("reconstructed whole cleanup has its live source claim");
             place.live = false;
         }

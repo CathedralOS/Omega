@@ -38,9 +38,9 @@
 //! - `StructuralTypeRoster`: a body that owns its type roster may add the
 //!   generated literal-view carrier; a composed callee borrowing the closure's
 //!   published roster may not.
-//! - `ClaimBindings`: the ordinary machine's claim table grows when a linear
-//!   boundary result mints a caller binding; a composed state reads the
-//!   machine-wide table and cannot mint.
+//! - The call context's shared claim namespace grows with completed scalar
+//!   and Unit producers. A composed state borrows its published machine-wide
+//!   roster. Nested operands do not start another identity namespace.
 //!
 //! Private declarations share one machine-owned roster in both routes. A
 //! constructor can produce literals as well as temporary values: splitting
@@ -75,12 +75,11 @@ use crate::expression_preparation::bindings::structural_paths::lower_structural_
 use crate::scalar_graph::scalar_call_closure::callee::PreparedScalarCallee;
 use crate::unit::{
     BoundaryMachineId, CheckedScalarExpressionRole, CheckedTrees, CheckedUnitEffectOperationPlan,
-    ClaimId, LoweringError, Operation, OperationKind, OperationResult, PermissionClaimIdentity,
-    PlaceId, ScalarType, ServiceId, ServiceReachId, ServiceReachSummary, StructuralAccess,
-    StructuralArgument, StructuralDomainId, StructuralParameterDeclaration,
-    StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeDeclaration, StructuralTypeId,
-    ValueDeclaration, allocate_dense, claim_id, lookup_claim_id, lookup_service_id, lookup_type_id,
-    place_id, terminal_scalar_type, unsupported,
+    LoweringError, Operation, OperationKind, OperationResult, PlaceId, ScalarType, ServiceId,
+    ServiceReachId, ServiceReachSummary, StructuralAccess, StructuralArgument, StructuralDomainId,
+    StructuralParameterDeclaration, StructuralPlaceDeclaration, StructuralPlaceKind,
+    StructuralTypeDeclaration, StructuralTypeId, ValueDeclaration, allocate_dense,
+    lookup_service_id, lookup_type_id, place_id, terminal_scalar_type, unsupported,
 };
 use checked_trees::{CheckedComposedUnitControlStatePlan, CheckedUnitStructuralArgumentPlan};
 use std::borrow::Cow;
@@ -169,112 +168,11 @@ pub(super) struct CallerCustody<'f> {
     pub(super) erased_scalar_parameters: &'f [ValueDeclaration],
     /// The caller's erased proof-only roster; `Formal` actuals resolve in it.
     pub(super) erased_proof_parameters: &'f [checked_trees::CheckedErasedProofParameterPlan],
-    pub(super) claims: ClaimBindings<'f>,
     /// The ordinary machine's trivial affine locals; a composed state has none.
     pub(super) local_places: &'f [StructuralPlaceDeclaration],
 }
 
-/// The caller's claim namespace.
-pub(super) enum ClaimBindings<'f> {
-    /// The ordinary machine's table: its lowered entry claims plus every
-    /// caller-local binding a linear boundary result mints for a claim
-    /// established at its own binding statement. `next_claim` is the dense
-    /// tail past the entry claims.
-    Growable {
-        bindings: &'f mut Vec<(PermissionClaimIdentity, ClaimId)>,
-        next_claim: &'f mut u64,
-    },
-    /// A composed state's machine-wide table. The graph publishes its claim
-    /// roster before any state emits, so a state cannot mint a binding.
-    Fixed(&'f [(PermissionClaimIdentity, ClaimId)]),
-}
-
-impl ClaimBindings<'_> {
-    pub(super) fn bindings(&self) -> &[(PermissionClaimIdentity, ClaimId)] {
-        match self {
-            Self::Growable { bindings, .. } => bindings,
-            Self::Fixed(bindings) => bindings,
-        }
-    }
-
-    /// Mint the caller binding for a claim this call's own statement
-    /// established.
-    fn mint(&mut self, identity: PermissionClaimIdentity) -> Result<ClaimId, LoweringError> {
-        let Self::Growable {
-            bindings,
-            next_claim,
-        } = self
-        else {
-            return unsupported("composed state cannot mint a boundary result claim binding");
-        };
-        let claim = claim_id(allocate_dense(next_claim)?);
-        bindings.push((identity, claim));
-        Ok(claim)
-    }
-}
-
-/// Rebase one completed-establishment claim occurrence onto this body's claim
-/// namespace. An identity the caller already holds — an entry claim, or a
-/// binding an earlier establishment minted — resolves through the grown
-/// table. A claim the checker established at this body's own statement mints
-/// its caller binding here instead: the identity's establishment coordinate
-/// is exactly that statement, so the minted `ClaimId` is that claim's only
-/// caller binding, and every later receipt, transfer and custody join
-/// resolves it the same way. Any other identity is custody this caller never
-/// held — the body cannot mint a binding for a claim some other point owns.
-pub(super) fn resolve_established_claim(
-    claims: &mut ClaimBindings<'_>,
-    machine: symbols::SymbolHandle,
-    state: symbols::SymbolHandle,
-    statement_index: usize,
-    event: &checked_trees::FlowPermissionEventFact,
-) -> Result<ClaimId, LoweringError> {
-    if let Ok(bound) = lookup_claim_id(claims.bindings(), event.claim_identity) {
-        return Ok(bound);
-    }
-    if !claim_established_here(machine, state, statement_index, event) {
-        return lookup_claim_id(claims.bindings(), event.claim_identity);
-    }
-    claims.mint(event.claim_identity)
-}
-
-/// Authenticate a fresh claim at its actual establishment coordinate. Graph
-/// publication and ordinary emission share this minting boundary; transported
-/// claims instead resolve the identity their original establishment published.
-pub(super) fn claim_established_here(
-    machine: symbols::SymbolHandle,
-    state: symbols::SymbolHandle,
-    statement_index: usize,
-    event: &checked_trees::FlowPermissionEventFact,
-) -> bool {
-    event.machine_symbol == machine
-        && event.state_symbol == state
-        && event.source == language_semantics::PermissionEventSource::Statement { statement_index }
-        && event.kind == language_semantics::PermissionEventKind::Establish
-        && event.access == language_semantics::PermissionAccess::Owned
-        && event.multiplicity == language_semantics::Multiplicity::Linear
-        && event.obligation_live
-        && matches!(
-            event.claim_identity,
-            PermissionClaimIdentity::Established {
-                machine_symbol,
-                state_symbol,
-                source:
-                    language_semantics::PermissionEventSource::Statement {
-                        statement_index: establishment,
-                    },
-                ..
-            } if machine_symbol == machine
-                && state_symbol == state
-                && establishment == statement_index
-        )
-        && event.provenance
-            == (language_semantics::PermissionProvenance::Established {
-                machine_symbol: machine,
-                state_symbol: state,
-                source: language_semantics::PermissionEventSource::Statement { statement_index },
-            })
-}
+pub(crate) use crate::emission::claim_bindings::claim_established_here;
 
 /// The structural type roster a frame reads.
 pub(super) enum StructuralTypeRoster<'f> {

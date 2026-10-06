@@ -24,13 +24,10 @@ pub(crate) fn apply_recorded_state_entry_events(
         event.source == PermissionEventSource::StateEntry
             && event.kind == PermissionEventKind::Establish
     }) {
-        let facts::PlaceRoot::Symbol(symbol) = event.root else {
-            continue;
-        };
         let event_path = segments.span_or_empty(event.segments);
         let Some(place) = places
             .iter_mut()
-            .find(|place| place.symbol == symbol && place.path.as_slice() == event_path)
+            .find(|place| place.root == event.root && place.path.as_slice() == event_path)
         else {
             continue;
         };
@@ -55,13 +52,10 @@ pub(crate) fn apply_recorded_statement_events(
             && event.evaluation == evaluation
             && event.kind != PermissionEventKind::AffineDrop
     }) {
-        let facts::PlaceRoot::Symbol(symbol) = event.root else {
-            continue;
-        };
         let event_path = segments.span_or_empty(event.segments);
         let Some(place) = places
             .iter_mut()
-            .find(|place| place.symbol == symbol && place.path.as_slice() == event_path)
+            .find(|place| place.root == event.root && place.path.as_slice() == event_path)
         else {
             continue;
         };

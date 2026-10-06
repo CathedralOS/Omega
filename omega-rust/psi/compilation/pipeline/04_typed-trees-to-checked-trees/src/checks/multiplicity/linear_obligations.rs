@@ -22,9 +22,11 @@ use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 #[derive(Debug, Clone)]
 pub(crate) struct LinearPlace {
-    pub(crate) symbol: SymbolHandle,
+    /// Custody is rooted at a real named place or producer expression. An
+    /// anonymous owner does not acquire a fabricated local to carry claims.
+    pub(crate) root: facts::PlaceRoot,
     pub(crate) name: String,
-    /// Canonical claim path below `symbol`. An empty path is one nominal claim;
+    /// Canonical claim path below `root`. An empty path is one nominal claim;
     /// transparent records, active cases, and fixed arrays contribute one
     /// entry per contained linear claim instead of inventing an aggregate root.
     pub(crate) path: Vec<facts::PlaceSegment>,

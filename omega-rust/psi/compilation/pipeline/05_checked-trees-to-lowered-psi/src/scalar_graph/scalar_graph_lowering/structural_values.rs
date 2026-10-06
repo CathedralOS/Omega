@@ -20,6 +20,9 @@ use super::{
     StructuralArgument, StructuralMultiplicity, StructuralParameterDeclaration,
     StructuralTypeDeclaration, computations, storage, unsupported,
 };
+use crate::emission::claim_bindings::{
+    PreparedClaim, claims_below_path, emit_establishment_claims, prepare_establishment_claims,
+};
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
@@ -123,6 +126,7 @@ enum Step {
         place: PlaceId,
         structural_type: StructuralTypeId,
         multiplicity: StructuralMultiplicity,
+        claims: Vec<PreparedClaim>,
         prefix: Vec<QualifiedScalarType>,
     },
 }
@@ -132,6 +136,7 @@ pub(crate) struct Construction {
     place: PlaceId,
     structural_type: StructuralTypeId,
     multiplicity: StructuralMultiplicity,
+    claims: Vec<PreparedClaim>,
     contents: AggregateContents,
 }
 
@@ -209,6 +214,7 @@ pub(super) fn prepare(
         checked,
         qualifications,
         state,
+        facts::PlaceRoot::Symbol(local.symbol),
         result.statement_index,
         *value,
         calls,
@@ -234,6 +240,7 @@ pub(crate) fn prepare_value(
     checked: &CheckedTrees,
     qualifications: &PreparedScalarQualifications,
     state: symbols::SymbolHandle,
+    owner: facts::PlaceRoot,
     statement: u32,
     value: checked_trees::CheckedStructuralValueHandle,
     calls: &[checked_trees::CheckedStructuralValueCall],
@@ -243,6 +250,15 @@ pub(crate) fn prepare_value(
     types: &[StructuralTypeDeclaration],
     reserved: &Storage,
 ) -> Result<PreparedValue, LoweringError> {
+    let (machine, _) = crate::declarations::state_declaration(checked, state)?;
+    let claims = prepare_establishment_claims(
+        checked,
+        machine.symbol,
+        state,
+        statement as usize,
+        owner,
+        reference,
+    )?;
     let mut preparation = Preparation {
         checked,
         qualifications,
@@ -255,9 +271,10 @@ pub(crate) fn prepare_value(
         prefix: value_types.to_vec(),
         steps: Vec::new(),
         consumed: Vec::new(),
+        claims,
     };
     let structural_type = carrier_declaration(checked, types, reference)?.id;
-    let mut place = preparation.value(value, reference)?;
+    let mut place = preparation.value(value, reference, &[])?;
     if preparation.consumed_calls.len() != calls.len() {
         return unsupported("structural value contains unconsumed call producers");
     }
@@ -321,6 +338,7 @@ struct Preparation<'a> {
     prefix: Vec<QualifiedScalarType>,
     steps: Vec<Step>,
     consumed: Vec<(symbols::SymbolHandle, PlaceId)>,
+    claims: Vec<PreparedClaim>,
 }
 
 impl Preparation<'_> {
@@ -328,6 +346,7 @@ impl Preparation<'_> {
         &mut self,
         value: checked_trees::CheckedStructuralValueHandle,
         reference: checked_trees::types::TypeReferenceHandle,
+        claim_path: &[terminal_psi::StructuralPathSegment],
     ) -> Result<PlaceId, LoweringError> {
         let plans = &self.checked.facts.values.structural_values;
         let node = plans.nodes.get(value);
@@ -416,17 +435,14 @@ impl Preparation<'_> {
             let multiplicity = match self.checked.type_multiplicity(reference) {
                 Multiplicity::Unrestricted => StructuralMultiplicity::Unrestricted,
                 Multiplicity::Affine => StructuralMultiplicity::Affine,
-                Multiplicity::Linear => {
-                    return unsupported(
-                        "scalar zeroed construction cannot establish linear authority",
-                    );
-                }
+                Multiplicity::Linear => StructuralMultiplicity::Linear,
             };
             let place = self.reserved.place(value)?;
             self.steps.push(Step::Zeroed {
                 place,
                 structural_type: declaration.id,
                 multiplicity,
+                claims: claims_below_path(&self.claims, claim_path),
                 prefix: self.prefix.clone(),
             });
             return Ok(place);
@@ -497,6 +513,7 @@ impl Preparation<'_> {
                         multiplicity: slot.multiplicity,
                         case: slot.case,
                         fields: completed,
+                        claims: claims_below_path(&self.claims, claim_path),
                     },
                 ),
                 prefix: self.prefix.clone(),
@@ -564,22 +581,26 @@ impl Preparation<'_> {
                 return unsupported("structural array elements differ from their declared carrier");
             }
             let mut completed = Vec::with_capacity(elements.len());
-            for child in elements {
-                completed.push(self.value(*child, element_reference)?);
+            for (element_index, child) in elements.iter().enumerate() {
+                let mut child_path = claim_path.to_vec();
+                child_path.push(terminal_psi::StructuralPathSegment::FixedIndex(
+                    u64::try_from(element_index)
+                        .map_err(|_| LoweringError::Unsupported("array claim index exceeds u64"))?,
+                ));
+                completed.push(self.value(*child, element_reference, &child_path)?);
             }
             let place = self.reserved.place(value)?;
             let multiplicity = match self.checked.type_multiplicity(reference) {
                 Multiplicity::Unrestricted => StructuralMultiplicity::Unrestricted,
                 Multiplicity::Affine => StructuralMultiplicity::Affine,
-                Multiplicity::Linear => {
-                    return unsupported("aggregate construction cannot establish linear authority");
-                }
+                Multiplicity::Linear => StructuralMultiplicity::Linear,
             };
             self.steps.push(Step::Aggregate {
                 construction: Construction {
                     place,
                     structural_type: declaration.id,
                     multiplicity,
+                    claims: claims_below_path(&self.claims, claim_path),
                     contents: AggregateContents::Elements(completed),
                 },
                 prefix: self.prefix.clone(),
@@ -761,7 +782,16 @@ impl Preparation<'_> {
                     {
                         return unsupported("nested record substituted its structural carrier");
                     }
-                    Field::Structural(self.value(child, field.type_reference)?)
+                    let mut child_path = claim_path.to_vec();
+                    if let AggregateKind::Case(case) = kind {
+                        if !declared_fields[position].2 {
+                            child_path.push(terminal_psi::StructuralPathSegment::Case(case));
+                        }
+                    }
+                    child_path.push(terminal_psi::StructuralPathSegment::Field(
+                        target.identity.clone(),
+                    ));
+                    Field::Structural(self.value(child, field.type_reference, &child_path)?)
                 }
             };
             initialized.push((position, (target.id, field_value)));
@@ -812,9 +842,7 @@ impl Preparation<'_> {
         let multiplicity = match self.checked.type_multiplicity(reference) {
             Multiplicity::Unrestricted => StructuralMultiplicity::Unrestricted,
             Multiplicity::Affine => StructuralMultiplicity::Affine,
-            Multiplicity::Linear => {
-                return unsupported("aggregate construction cannot establish linear authority");
-            }
+            Multiplicity::Linear => StructuralMultiplicity::Linear,
         };
         let place = self.reserved.place(value)?;
         self.steps.push(Step::Aggregate {
@@ -822,6 +850,7 @@ impl Preparation<'_> {
                 place,
                 structural_type: declaration.id,
                 multiplicity,
+                claims: claims_below_path(&self.claims, claim_path),
                 contents: AggregateContents::Fields {
                     kind,
                     fields: initialized.into_iter().map(|(_, field)| field).collect(),
@@ -1024,6 +1053,7 @@ impl PreparedValue {
                     place,
                     structural_type,
                     multiplicity,
+                    claims,
                     prefix,
                 } => computations.push(LoweredScalarBranchState {
                     structural_parameters: Vec::new(),
@@ -1035,6 +1065,7 @@ impl PreparedValue {
                         place,
                         structural_type,
                         multiplicity,
+                        claims,
                     }],
                     terminator: LoweredScalarBranchTerminator::Jump {
                         target,
@@ -1058,6 +1089,7 @@ pub(crate) fn emit(
     operations: &mut OperationBuffer,
     calls: &mut CallEmissionContext<'_>,
 ) -> Result<(), LoweringError> {
+    let claims = emit_establishment_claims(&construction.claims, &mut calls.claims)?;
     let (kind, selected_fields) = match &construction.contents {
         AggregateContents::Fields { kind, fields } => (kind, fields),
         AggregateContents::Elements(elements) => {
@@ -1075,6 +1107,7 @@ pub(crate) fn emit(
                     .collect(),
                 operations,
             );
+            attach_result_claims(construction.place, claims, operations)?;
             return Ok(());
         }
     };
@@ -1151,6 +1184,28 @@ pub(crate) fn emit(
             )
         }
     };
+    attach_result_claims(construction.place, claims, operations)?;
+    Ok(())
+}
+
+fn attach_result_claims(
+    place: PlaceId,
+    claims: Vec<terminal_psi::StructuralResultClaimBinding>,
+    operations: &mut OperationBuffer,
+) -> Result<(), LoweringError> {
+    let result = operations
+        .iter_mut()
+        .filter_map(|operation| match &mut operation.result {
+            super::super::OperationResult::Structural(result) if result.place == place => {
+                Some(result)
+            }
+            _ => None,
+        })
+        .next()
+        .ok_or(LoweringError::Unsupported(
+            "constructed value lost its result claim home",
+        ))?;
+    result.claims = claims;
     Ok(())
 }
 

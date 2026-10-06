@@ -667,23 +667,11 @@ fn derive_receipts(
         {
             continue;
         }
-        let PermissionEventSource::Statement { statement_index } = event.source else {
+        let Some((statement_index, expression)) = super::receiving_value(program, event) else {
             continue;
         };
         let Some(state) = crate::semantic::calls::find_state(program, event.state_symbol) else {
             continue;
-        };
-        let Some(statement) = program
-            .statement_table
-            .statements(state.statement_nodes)
-            .get(statement_index)
-        else {
-            continue;
-        };
-        let expression = match statement {
-            StatementNode::LocalData(local) => local.initial_value,
-            StatementNode::Assignment(assignment) => assignment.value,
-            _ => continue,
         };
         let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
             continue;

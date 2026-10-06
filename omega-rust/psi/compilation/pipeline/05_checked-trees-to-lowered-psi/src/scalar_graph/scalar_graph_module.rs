@@ -255,6 +255,7 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
         .checked_add(TERMINAL_MACHINE_IDENTITY_STRIDE / 2)
         .expect("call obligation range fits the machine identity namespace");
     let call_emission = CallEmissionContext {
+        claims: crate::emission::claim_bindings::ClaimBindings::new(Vec::new(), 1),
         cleanup_receivers,
         machine_ids,
         requirement_counts,

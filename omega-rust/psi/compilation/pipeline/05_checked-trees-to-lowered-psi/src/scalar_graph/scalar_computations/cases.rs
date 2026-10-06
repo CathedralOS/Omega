@@ -73,6 +73,7 @@ pub(crate) struct Construction {
     pub(crate) multiplicity: StructuralMultiplicity,
     pub(crate) case: StructuralCaseId,
     pub(crate) fields: Vec<ConstructedField>,
+    pub(crate) claims: Vec<crate::emission::claim_bindings::PreparedClaim>,
 }
 
 pub(crate) fn prepare(
@@ -211,9 +212,7 @@ pub(crate) fn reserve(
     let multiplicity = match checked.type_multiplicity(source.type_reference) {
         Multiplicity::Unrestricted => StructuralMultiplicity::Unrestricted,
         Multiplicity::Affine => StructuralMultiplicity::Affine,
-        Multiplicity::Linear => {
-            return unsupported("computed case cannot discard linear custody");
-        }
+        Multiplicity::Linear => StructuralMultiplicity::Linear,
     };
     Ok(Slot {
         expression,
@@ -248,6 +247,7 @@ impl Slot {
             multiplicity: self.multiplicity,
             case: self.case,
             fields,
+            claims: Vec::new(),
         })
     }
 }
@@ -388,6 +388,18 @@ impl Expansion<'_> {
                 ));
             }
         };
+        // This observer has only a no-code retirement, unlike a call operand
+        // whose normal continuation carries the checked nominal action roster.
+        // Constructor identity itself grants neither kind of disposition.
+        if !crate::content_classes::plain_owned_with_numeric_constraints(
+            self.checked,
+            subject.type_reference,
+        ) || !matches!(
+            self.checked.type_multiplicity(subject.type_reference),
+            Multiplicity::Affine | Multiplicity::Unrestricted
+        ) {
+            return unsupported("computed case observation requires its nontrivial cleanup plan");
+        }
         let slot = self
             .cases
             .iter()
@@ -469,6 +481,7 @@ impl Expansion<'_> {
                 multiplicity: slot.multiplicity,
                 case: slot.case,
                 fields: completed_fields,
+                claims: Vec::new(),
             })],
             terminator: LoweredScalarBranchTerminator::Jump {
                 target: observation,
@@ -530,7 +543,10 @@ pub(crate) fn emit(
             multiplicity: effect.multiplicity,
             qualifications: Vec::new(),
             projected_qualifications: Vec::new(),
-            claims: Vec::new(),
+            claims: crate::emission::claim_bindings::emit_establishment_claims(
+                &effect.claims,
+                &mut calls.claims,
+            )?,
         }),
         kind: OperationKind::EstablishScalarCase {
             result_case: effect.case,

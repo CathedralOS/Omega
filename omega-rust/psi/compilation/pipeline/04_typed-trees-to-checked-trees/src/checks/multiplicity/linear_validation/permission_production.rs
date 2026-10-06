@@ -1,7 +1,9 @@
 //! Statement permission production, moves and static case selection.
 
 use crate::checks::multiplicity::linear_obligations::{ClaimIdentityAllocator, LinearPlace};
-use crate::checks::multiplicity::linear_validation::claim_provenance::written_linear_targets;
+use crate::checks::multiplicity::linear_validation::claim_provenance::{
+    written_linear_targets, written_owner_targets,
+};
 use crate::checks::multiplicity::{projected_affine, temporary_results};
 use crate::flow::FlowOwnershipEventSource;
 use checked_trees::{CheckFacts, FlowPermissionEventFact};
@@ -20,6 +22,7 @@ pub(crate) fn apply_statement_permission_production(
     state_symbol: SymbolHandle,
     moves: &[crate::flow::DiscoveredMoveEvent],
     state_calls: &[checked_trees::FlowCallFact],
+    temporary_owners: &[temporary_results::SharedTemporaryOwner],
     statement_index: usize,
     statement: &StatementNode,
     evaluation: checked_trees::FlowPermissionEvaluation,
@@ -37,8 +40,20 @@ pub(crate) fn apply_statement_permission_production(
     }
 
     let event_start = permission_events.len();
-    let written_targets =
-        written_linear_targets(program, state_symbol, statement_index, statement, places);
+    let statement_source = PermissionEventSource::Statement { statement_index };
+    let mut written_targets =
+        written_linear_targets(program, state_symbol, statement_index, statement, places)
+            .into_iter()
+            .map(|target| (target, statement_source))
+            .collect::<Vec<_>>();
+    for owner in temporary_owners.iter().filter(|owner| {
+        matches!(owner.consumer, PermissionEventSource::Call { statement_index: index, .. } if index == statement_index)
+            && owner.evaluation == evaluation
+    }) {
+        let target = crate::flow::CanonicalPlace { root: facts::PlaceRoot::Expression(owner.expression), segments: Vec::new() };
+        written_targets.extend(written_owner_targets(program, state_symbol, statement_index, &target, owner.expression, places)
+            .into_iter().map(|target| (target, owner.producer)));
+    }
 
     // Moves out of initializer/assignment sources happen before the
     // destination becomes established. The old move-only summary also
@@ -89,7 +104,9 @@ pub(crate) fn apply_statement_permission_production(
         FlowOwnershipEventSource::Statement { .. } => calls.len(),
     });
     for event in statement_moves {
-        if matches!(event.root, facts::PlaceRoot::Expression(_)) {
+        if matches!(event.root, facts::PlaceRoot::Expression(_))
+            && !places.iter().any(|place| place.root == event.root)
+        {
             temporary_results::append_whole_affine_transfer(
                 program,
                 facts,
@@ -101,16 +118,13 @@ pub(crate) fn apply_statement_permission_production(
             );
             continue;
         }
-        let facts::PlaceRoot::Symbol(symbol) = event.root else {
-            continue;
-        };
         let event_path = facts
             .flow
             .ownership
             .segments
             .span_or_empty(event.segments)
             .to_vec();
-        select_static_case_alternative(symbol, &event_path, places);
+        select_static_case_alternative(event.root, &event_path, places);
         if crate::semantic::calls::find_state(program, state_symbol).is_some_and(|state| {
             super::super::linear_obligations::move_event_is_production_target(
                 program,
@@ -125,7 +139,8 @@ pub(crate) fn apply_statement_permission_production(
             .iter()
             .enumerate()
             .filter_map(|(index, place)| {
-                (place.symbol == symbol && move_selects_claim(&event_path, place)).then_some(index)
+                (place.root == event.root && move_selects_claim(&event_path, place))
+                    .then_some(index)
             })
             .collect::<Vec<_>>();
         if matching.is_empty() {
@@ -225,21 +240,12 @@ pub(crate) fn apply_statement_permission_production(
         );
     }
 
-    for target in written_targets {
-        let facts::PlaceRoot::Symbol(symbol) = target.root else {
-            continue;
-        };
+    for (target, source) in written_targets {
         let place_index = target.place_index;
         let obligation_live = target.obligation_live;
         let claim_identity = target.claim_identity.unwrap_or_else(|| {
             if obligation_live {
-                {
-                    claim_identities.mint(
-                        machine_symbol,
-                        state_symbol,
-                        PermissionEventSource::Statement { statement_index },
-                    )
-                }
+                claim_identities.mint(machine_symbol, state_symbol, source)
             } else {
                 PermissionClaimIdentity::Unknown
             }
@@ -248,18 +254,16 @@ pub(crate) fn apply_statement_permission_production(
         let claim_path = places[place_index].path.clone();
         let segments = facts.flow.ownership.segments.insert_many(claim_path);
         let place = &mut places[place_index];
-        debug_assert_eq!(place.symbol, symbol);
+        debug_assert_eq!(place.root, target.root);
         // Replacement settles the old affine value before establishing the
         // new one. A source transferred into the replacement call is already
         // dead here and must not also receive a caller-side drop.
         if place.multiplicity == Multiplicity::Affine
-            && (place.live || replacement_custody.is_reserved(facts::PlaceRoot::Symbol(symbol)))
+            && (place.live || replacement_custody.is_reserved(target.root))
         {
-            for path in
-                replacement_custody.disposal_paths(facts::PlaceRoot::Symbol(symbol), &place.path)
-            {
+            for path in replacement_custody.disposal_paths(target.root, &place.path) {
                 let discarded = crate::flow::CanonicalPlace {
-                    root: facts::PlaceRoot::Symbol(symbol),
+                    root: target.root,
                     segments: path,
                 };
                 if crate::flow::canonical_place_type_reference(
@@ -290,7 +294,7 @@ pub(crate) fn apply_statement_permission_production(
                         .claim_identity
                         .unwrap_or(PermissionClaimIdentity::Unknown),
                     provenance: place.provenance.unwrap_or(PermissionProvenance::Unknown),
-                    root: facts::PlaceRoot::Symbol(symbol),
+                    root: target.root,
                     segments: discarded_segments,
                     obligation_live: false,
                 });
@@ -300,18 +304,15 @@ pub(crate) fn apply_statement_permission_production(
         place.case_excluded = place.conditional && !obligation_live;
         place.ever_established = true;
         place.claim_identity = Some(claim_identity);
-        place.provenance = Some(provenance.unwrap_or_else(|| {
-            established_provenance(
-                machine_symbol,
-                state_symbol,
-                PermissionEventSource::Statement { statement_index },
-            )
-        }));
+        place.provenance = Some(
+            provenance
+                .unwrap_or_else(|| established_provenance(machine_symbol, state_symbol, source)),
+        );
         permission_events.push(FlowPermissionEventFact {
             evaluation: checked_trees::FlowPermissionEvaluation::Statement,
             machine_symbol,
             state_symbol,
-            source: PermissionEventSource::Statement { statement_index },
+            source,
             kind: PermissionEventKind::Establish,
             multiplicity: place.multiplicity,
             access: PermissionAccess::Owned,
@@ -319,7 +320,7 @@ pub(crate) fn apply_statement_permission_production(
             provenance: place
                 .provenance
                 .expect("an established place has explicit provenance"),
-            root: facts::PlaceRoot::Symbol(symbol),
+            root: target.root,
             segments,
             obligation_live,
         });
@@ -335,7 +336,7 @@ fn move_selects_claim(event_path: &[facts::PlaceSegment], claim: &LinearPlace) -
 }
 
 pub(crate) fn select_static_case_alternative(
-    symbol: SymbolHandle,
+    root: facts::PlaceRoot,
     event_path: &[facts::PlaceSegment],
     places: &mut [LinearPlace],
 ) {
@@ -352,7 +353,7 @@ pub(crate) fn select_static_case_alternative(
     };
     let prefix = &event_path[..case_index];
     for place in places {
-        if place.symbol != symbol
+        if place.root != root
             || place.path.get(..case_index) != Some(prefix)
             || place.path.get(case_index)
                 == Some(&facts::PlaceSegment::Case {

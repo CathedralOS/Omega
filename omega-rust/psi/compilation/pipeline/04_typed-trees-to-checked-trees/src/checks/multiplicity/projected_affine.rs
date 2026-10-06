@@ -43,7 +43,9 @@ pub(super) fn append_transfer(
     {
         return;
     }
-    let mut owners = places.iter().filter(|place| place.symbol == symbol);
+    let mut owners = places
+        .iter()
+        .filter(|place| place.root == facts::PlaceRoot::Symbol(symbol));
     let Some(owner) = owners.next() else {
         return;
     };
@@ -201,7 +203,7 @@ pub(super) fn append_replacement(
         return;
     }
     let Some(owner) = places.iter().find(|owner| {
-        owner.symbol == symbol
+        owner.root == facts::PlaceRoot::Symbol(symbol)
             && owner.path.is_empty()
             && (owner.live || remaining.is_reserved(place.root))
             && owner.multiplicity == Multiplicity::Affine

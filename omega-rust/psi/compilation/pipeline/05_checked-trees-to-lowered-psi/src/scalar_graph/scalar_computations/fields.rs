@@ -91,6 +91,7 @@ impl super::Expansion<'_> {
                 self.checked,
                 self.qualifications,
                 site.state,
+                facts::PlaceRoot::Expression(values.nodes.get(receiver).expression),
                 site.statement,
                 receiver,
                 values.calls_for_root(receiver).unwrap_or(&[]),

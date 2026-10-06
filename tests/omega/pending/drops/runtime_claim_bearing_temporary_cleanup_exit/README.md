@@ -3,13 +3,19 @@ the scalar consumer borrows one complete temporary, and its normal continuation
 must retire the two owner-authorized linear fields in reverse declaration order.
 The false branch establishes no temporary or obligation.
 
-The baseline passes `omega --check main.omg` but native production refuses
-`scalar computation needs one checked expression and one source binding`.
-Stage 04's anonymous shared-argument admission still excludes contained linear
-obligations; stage 05's scalar structural construction and result schedules
-explicitly lack linear claim establishment/transport. CML4 owns the exact
-temporary disposition; STATE-LOCAL-VALUE-FRONTIER owns its produced value
-frontier. Keep the authored program while completing those shared operations.
+`omega --check main.omg` succeeds. On macOS ARM64, `omega run main.omg` now
+reaches Terminal production but the retiring verifier rejects a claim-bearing
+child result with `UnknownStructuralArgument`. Its operation-result argument
+policy only admits claim-free affine results. OMEGA-READS-TERMINAL-UNVERIFIED
+and TERMINAL-VERIFIER-DELETED own removal of that replay, not an exception for
+this program. This fixture stays pending until native and Terminal execution
+produce the authored result.
+
+CML4 owns the exact temporary disposition; STATE-LOCAL-VALUE-FRONTIER owns
+the shared produced-value frontier. Scalar materialization of moved linear
+places and claim-bearing call results is still incomplete. A returned owner
+without a unique conserved claim mapping must reject, never receive invented
+replacement identities.
 
 The invalid controls require a disposition for the whole anonymous owner,
 including siblings outside a borrowed projection. No lowering omission grants

@@ -409,6 +409,7 @@ pub(crate) fn materialize_helper_body(
     let mut values = Vec::new();
     let mut locals = body.scalar_locals.iter();
     let mut calls = CallEmissionContext {
+        claims: crate::emission::claim_bindings::ClaimBindings::new(Vec::new(), 1),
         cleanup_receivers: &[],
         machine_ids: &[],
         requirement_counts: &[],

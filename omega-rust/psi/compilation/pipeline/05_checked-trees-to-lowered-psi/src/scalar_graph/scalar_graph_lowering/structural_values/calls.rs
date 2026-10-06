@@ -247,6 +247,7 @@ impl Preparation<'_> {
                         self.checked,
                         self.qualifications,
                         self.state,
+                        facts::PlaceRoot::Expression(expression),
                         result.statement_index,
                         *value,
                         calls,

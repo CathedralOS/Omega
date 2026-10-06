@@ -78,7 +78,7 @@ pub(crate) fn initial_linear_places(
             }
         {
             places.push(LinearPlace {
-                symbol: place_symbol,
+                root: facts::PlaceRoot::Symbol(place_symbol),
                 name: parameter.name.as_str().to_owned(),
                 path: Vec::new(),
                 multiplicity: Multiplicity::Affine,
@@ -92,7 +92,7 @@ pub(crate) fn initial_linear_places(
         }
         for claim in claims {
             places.push(LinearPlace {
-                symbol: place_symbol,
+                root: facts::PlaceRoot::Symbol(place_symbol),
                 name: claim_place_name(program, parameter.name.as_str(), &claim.path),
                 path: claim.path,
                 multiplicity: claim.multiplicity,
@@ -116,7 +116,7 @@ pub(crate) fn initial_linear_places(
         let claims = linear_claim_frontier(program, local.type_reference);
         for claim in &claims {
             places.push(LinearPlace {
-                symbol: local.symbol,
+                root: facts::PlaceRoot::Symbol(local.symbol),
                 name: claim_place_name(program, local.name.as_str(), &claim.path),
                 path: claim.path.clone(),
                 multiplicity: claim.multiplicity,
@@ -158,7 +158,7 @@ pub(crate) fn initial_linear_places(
             )
         {
             places.push(LinearPlace {
-                symbol: local.symbol,
+                root: facts::PlaceRoot::Symbol(local.symbol),
                 name: local.name.as_str().to_owned(),
                 path: Vec::new(),
                 multiplicity: Multiplicity::Affine,
@@ -191,6 +191,53 @@ pub(crate) fn linear_claim_frontier(
             conditional: claim.conditional,
         })
         .collect()
+}
+
+/// Reserve custody at a real producer root. No claim exists before the value
+/// completes; permission production preserves transferred identities or mints
+/// the genuinely new claims at that completion.
+pub(crate) fn reserve_owner_places(
+    program: &typed_trees::TypedTrees,
+    root: facts::PlaceRoot,
+    type_reference: TypeReferenceHandle,
+    places: &mut Vec<LinearPlace>,
+) {
+    if places.iter().any(|place| place.root == root) {
+        return;
+    }
+    let name = program.normalized_type_identity(type_reference).to_string();
+    let claims = linear_claim_frontier(program, type_reference);
+    if claims.is_empty()
+        && type_multiplicity(program, type_reference) == language_semantics::Multiplicity::Affine
+    {
+        places.push(LinearPlace {
+            root,
+            name,
+            path: Vec::new(),
+            multiplicity: Multiplicity::Affine,
+            claim_identity: None,
+            provenance: None,
+            live: false,
+            ever_established: false,
+            conditional: false,
+            case_excluded: false,
+        });
+    } else {
+        for claim in claims {
+            places.push(LinearPlace {
+                root,
+                name: claim_place_name(program, &name, &claim.path),
+                path: claim.path,
+                multiplicity: claim.multiplicity,
+                claim_identity: None,
+                provenance: None,
+                live: false,
+                ever_established: false,
+                conditional: claim.conditional,
+                case_excluded: false,
+            });
+        }
+    }
 }
 
 fn claim_place_name(

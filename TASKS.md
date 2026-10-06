@@ -785,10 +785,14 @@ defines the complete product bar.
     residual complement under the original owner, never a second whole
     temporary for the selected field.
     `pending/drops/runtime_claim_bearing_temporary_cleanup_exit` passes source
-    checking but `omega run` still refuses "scalar computation needs one
-    checked expression and one source binding". Stage 04's executable shared
-    argument admission still needs the owner/claim frontier, and stage 05's
-    scalar structural producer lacks linear claim establishment/transport.
+    checking and now reaches Terminal production, but `omega run` on macOS
+    ARM64 stops at `UnknownStructuralArgument` for its claim-bearing child
+    result. **OMEGA-READS-TERMINAL-UNVERIFIED** and
+    **TERMINAL-VERIFIER-DELETED** own removal of that claim-free affine-only
+    result replay; do not add a linear exception to it. Scalar materialization
+    of moved linear places and claim-bearing call results remains unfinished;
+    an anonymous returned owner without a unique conserved claim map must
+    still reject rather than mint replacement identities.
     Preserve existing identities through moved fields and exact call-result
     maps; new per-field identities cannot replace forwarded claims. Complete that shared
     value frontier with **STATE-LOCAL-VALUE-FRONTIER**, not another caller shape.

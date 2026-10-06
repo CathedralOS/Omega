@@ -571,8 +571,12 @@ impl Expansion<'_> {
         // The checked call owns retirement, not the producer's source family
         // or its borrowed access. Keep the scalar result and caller prefix live
         // across the exact normal continuation; a crashing call never reaches it.
-        let discards =
-            self.temporary_cleanup_actions(source_call, structural, temporary_cleanups)?;
+        let discards = self.temporary_cleanup_actions(
+            site.state,
+            source_call,
+            structural,
+            temporary_cleanups,
+        )?;
         let target = if temporary_cleanups.is_empty() {
             target
         } else {
@@ -658,6 +662,7 @@ impl Expansion<'_> {
                         self.checked,
                         self.qualifications,
                         site.state,
+                        facts::PlaceRoot::Expression(values.nodes.get(slot.root).expression),
                         site.statement,
                         slot.root,
                         values.calls_for_root(slot.root).unwrap_or(&[]),
@@ -686,6 +691,7 @@ impl Expansion<'_> {
     /// exact source to storage and lowers the already selected subtree paths.
     fn temporary_cleanup_actions(
         &self,
+        state: symbols::SymbolHandle,
         source_call: Handle<checked_trees::FlowCallFact>,
         arguments: &[CheckedScalarComputationStructuralArgument],
         retained: HandleSpan<CheckedScalarComputationTemporaryCleanup>,
@@ -730,6 +736,28 @@ impl Expansion<'_> {
                 .ok_or(LoweringError::Unsupported(
                     "temporary retirement has stale residual rows",
                 ))?;
+            let call = self.checked.facts.flow.control.calls.get(source_call);
+            let owner = self
+                .checked
+                .facts
+                .values
+                .structural_values
+                .nodes
+                .get(slot.root)
+                .expression;
+            let claims = crate::emission::claim_bindings::prepare_claim_dispositions(
+                self.checked,
+                self.machine,
+                state,
+                language_semantics::PermissionEventSource::Call {
+                    statement_index: call.statement_index,
+                    call_ordinal: call.call_ordinal,
+                    target_symbol: call.target_symbol,
+                },
+                facts::PlaceRoot::Expression(owner),
+                slot.type_reference,
+            )?;
+            let action_start = actions.len();
             for action in discards {
                 use crate::unit::unit_cleanup::PreparedNormalCleanupAction;
                 if action.source() != &argument.source {
@@ -761,14 +789,49 @@ impl Expansion<'_> {
                         )
                     }
                     checked_trees::CheckedNormalCleanupAction::InvokeNominal(cleanup) => {
+                        let consumed_claims = claims
+                            .iter()
+                            .filter(|claim| claim.path == path)
+                            .map(|claim| claim.identity)
+                            .collect();
                         PreparedNormalCleanupAction::InvokeNominal {
                             cleanup: cleanup.clone(),
                             place: slot.place,
                             path,
                             structural_type,
+                            consumed_claims,
                         }
                     }
                 });
+            }
+            let selected = claims
+                .iter()
+                .map(|claim| claim.identity)
+                .collect::<Vec<_>>();
+            let emitted = actions[action_start..]
+                .iter()
+                .flat_map(|action| match action {
+                    crate::unit::unit_cleanup::PreparedNormalCleanupAction::InvokeNominal {
+                        consumed_claims,
+                        ..
+                    } => consumed_claims.as_slice(),
+                    _ => &[],
+                })
+                .copied()
+                .collect::<Vec<_>>();
+            if selected.len() != emitted.len()
+                || selected.iter().any(|identity| {
+                    emitted
+                        .iter()
+                        .filter(|candidate| *candidate == identity)
+                        .count()
+                        != 1
+                })
+                || emitted.iter().any(|identity| !selected.contains(identity))
+            {
+                return unsupported(
+                    "temporary cleanup did not bind each selected claim exactly once",
+                );
             }
         }
         Ok(actions)

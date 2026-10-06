@@ -86,7 +86,6 @@ pub(super) fn prepare(
     structural_locals: &[crate::expression_preparation::bindings::StructuralLocalBinding],
     structural_types: &[StructuralTypeDeclaration],
     call_byte_places: &[PlaceId],
-    claim_bindings: &[(PermissionClaimIdentity, ClaimId)],
     calls: &mut CallEmissionContext<'_>,
     selector_fields: &[crate::expression_preparation::bindings::StructuralScalarFieldBinding],
     next_value: &mut u64,
@@ -168,7 +167,7 @@ pub(super) fn prepare(
     )?
     .into_iter();
 
-    let claim_transfers = emitted_claim_transfers(claim_transfers, claim_bindings)?;
+    let claim_transfers = emitted_claim_transfers(claim_transfers, calls.claims.bindings())?;
     let terminal_arguments = lower_structural_arguments(
         structural_arguments,
         structural_types,

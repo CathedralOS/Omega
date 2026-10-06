@@ -12,7 +12,8 @@ use crate::checks::multiplicity::linear_obligations::{
 use crate::checks::multiplicity::linear_validation::{
     append_borrow_permission_events, append_owned_cleanup_permission_events,
     apply_recorded_state_entry_events, apply_recorded_statement_events,
-    apply_statement_permission_production, initial_linear_places, select_static_case_alternative,
+    apply_statement_permission_production, initial_linear_places, reserve_owner_places,
+    select_static_case_alternative,
 };
 use crate::checks::multiplicity::owned_selection;
 use crate::checks::multiplicity::temporary_results;
@@ -89,7 +90,7 @@ pub(crate) fn prepare_permission_events(
                 access: PermissionAccess::Owned,
                 claim_identity,
                 provenance: place.provenance.expect("entry place has provenance"),
-                root: facts::PlaceRoot::Symbol(place.symbol),
+                root: place.root,
                 segments,
                 obligation_live: true,
             });
@@ -111,6 +112,16 @@ pub(crate) fn prepare_permission_events(
             .calls
             .span_or_empty(state_flow.calls)
             .to_vec();
+        let temporary_owners =
+            temporary_results::shared_temporary_owners(program, facts, machine, state, &calls);
+        for owner in &temporary_owners {
+            reserve_owner_places(
+                program,
+                facts::PlaceRoot::Expression(owner.expression),
+                owner.type_reference,
+                &mut places,
+            );
+        }
         if moves
             .iter()
             .any(|event| event.evaluation == checked_trees::FlowPermissionEvaluation::Unknown)
@@ -158,6 +169,7 @@ pub(crate) fn prepare_permission_events(
                         state.symbol,
                         &moves,
                         &calls,
+                        &temporary_owners,
                         statement_index,
                         &statements[statement_index],
                         evaluation,
@@ -166,6 +178,19 @@ pub(crate) fn prepare_permission_events(
                         &mut permission_events,
                         &mut claim_identities,
                         &mut conditional_carrier_transfers,
+                    );
+                    temporary_results::append_shared_borrow(
+                        program,
+                        facts,
+                        machine.symbol,
+                        state.symbol,
+                        statement_index,
+                        evaluation,
+                        &temporary_owners,
+                        places,
+                        &mut permission_events,
+                        &mut selection_diagnostics,
+                        &mut cleanup_dispositions,
                     );
                     remaining.observe(
                         program,
@@ -202,26 +227,6 @@ pub(crate) fn prepare_permission_events(
                 | super::permission_schedule::PermissionStep::MissedGuard { .. } => {}
             }
         });
-
-        let temporary_start = permission_events.len();
-        temporary_results::append_shared_borrow(
-            program,
-            facts,
-            machine,
-            state,
-            &mut permission_events,
-            &mut selection_diagnostics,
-            &mut cleanup_dispositions,
-        );
-        // These are expression-rooted temporaries with their own complete
-        // establishment/drop sequence, independent of state-exit roots.
-        RemainingCustody::default().observe(
-            program,
-            &permission_events[temporary_start..],
-            &facts.flow.ownership.segments,
-            &mut cleanup_dispositions,
-            FlowClaimJoinExit::default(),
-        );
     }
 
     append_borrow_permission_events(
@@ -486,7 +491,7 @@ fn proven_conditional_entry_claims(
         let all_cases_proven = place.path.iter().all(|segment| {
             let proven = match segment {
                 facts::PlaceSegment::Case { variant } => memberships.iter().any(|evidence| {
-                    evidence.parameter == place.symbol
+                    facts::PlaceRoot::Symbol(evidence.parameter) == place.root
                         && evidence.subject_path == subject_path
                         && evidence.variant == *variant
                 }),
@@ -684,7 +689,7 @@ pub(crate) fn select_case_alternative_from_guard(
     };
     let mut selected_path = place.segments;
     selected_path.push(facts::PlaceSegment::Case { variant });
-    select_static_case_alternative(symbol, &selected_path, places);
+    select_static_case_alternative(facts::PlaceRoot::Symbol(symbol), &selected_path, places);
 }
 
 pub(crate) fn exclude_case_alternative(
@@ -708,7 +713,7 @@ pub(crate) fn exclude_case_alternative(
     };
     let case_index = place.segments.len();
     for candidate in places.iter_mut().filter(|candidate| {
-        candidate.symbol == symbol
+        candidate.root == facts::PlaceRoot::Symbol(symbol)
             && candidate.path.get(..case_index) == Some(place.segments.as_slice())
             && candidate.path.get(case_index) == Some(&facts::PlaceSegment::Case { variant })
     }) {
@@ -763,19 +768,7 @@ fn apply_statically_inactive_call_results(
             {
                 return None;
             }
-            let PermissionEventSource::Statement { statement_index } = event.source else {
-                return None;
-            };
-            let state = crate::semantic::calls::find_state(program, event.state_symbol)?;
-            let statement = program
-                .statement_table
-                .statements(state.statement_nodes)
-                .get(statement_index)?;
-            let expression = match statement {
-                StatementNode::LocalData(local) => local.initial_value,
-                StatementNode::Assignment(assignment) => assignment.value,
-                _ => return None,
-            };
+            let (_, expression) = super::claim_outcomes::receiving_value(program, event)?;
             let typed_trees::expression::ExpressionNode::Call(call) =
                 program.expression_table.expression(expression)
             else {

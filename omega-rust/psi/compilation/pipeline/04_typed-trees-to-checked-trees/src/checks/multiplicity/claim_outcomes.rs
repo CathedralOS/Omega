@@ -999,6 +999,31 @@ fn argument_for_parameter(
     arguments.get(position).copied()
 }
 
+/// Rejoin a produced value through its actual owner root. Anonymous results
+/// retain their expression identity; named destinations retain their write.
+pub(crate) fn receiving_value(
+    program: &typed_trees::TypedTrees,
+    event: &FlowPermissionEventFact,
+) -> Option<(usize, typed_trees::expression::ExpressionHandle)> {
+    let statement_index = super::linear_validation::permission_event_statement_index(event.source)?;
+    if let facts::PlaceRoot::Expression(expression) = event.root {
+        return Some((statement_index, expression));
+    }
+    let state = crate::semantic::calls::find_state(program, event.state_symbol)?;
+    let statement = program
+        .statement_table
+        .statements(state.statement_nodes)
+        .get(statement_index)?;
+    let expression = match statement {
+        StatementNode::LocalData(local) => local.initial_value,
+        StatementNode::Assignment(assignment) => assignment.value,
+        _ => return None,
+    };
+    expression
+        .is_valid()
+        .then_some((statement_index, expression))
+}
+
 pub(crate) fn call_result_origin_rewrites(
     program: &typed_trees::TypedTrees,
     segments: &arena::Arena<facts::PlaceSegment>,
@@ -1018,7 +1043,7 @@ pub(crate) fn call_result_origin_rewrites(
         {
             continue;
         }
-        let PermissionEventSource::Statement { statement_index } = event.source else {
+        let Some((statement_index, result_expression)) = receiving_value(program, event) else {
             continue;
         };
         let locally_minted =
@@ -1030,18 +1055,6 @@ pub(crate) fn call_result_origin_rewrites(
         }
         let Some(state) = crate::semantic::calls::find_state(program, event.state_symbol) else {
             continue;
-        };
-        let Some(statement) = program
-            .statement_table
-            .statements(state.statement_nodes)
-            .get(statement_index)
-        else {
-            continue;
-        };
-        let result_expression = match statement {
-            StatementNode::LocalData(local) => local.initial_value,
-            StatementNode::Assignment(assignment) => assignment.value,
-            _ => continue,
         };
         let typed_trees::expression::ExpressionNode::Call(call) =
             program.expression_table.expression(result_expression)

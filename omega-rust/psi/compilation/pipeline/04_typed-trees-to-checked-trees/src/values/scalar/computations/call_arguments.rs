@@ -204,16 +204,15 @@ impl Builder<'_, '_> {
                                     self.program, self.flow, self.machine, self.state,
                                     self.flow.control.calls.get(source_call), expression,
                                 )?;
-                                match self.program.type_multiplicity(referent) {
-                                    language_semantics::Multiplicity::Affine => {
+                                match self.program.type_multiplicity(owner_type) {
+                                    language_semantics::Multiplicity::Affine | language_semantics::Multiplicity::Linear => {
                                         discards = Some(vec![checked_trees::CheckedUnitPartialAffineDiscardPlan {
                                             source: argument_plan.source.clone(),
                                             path: Vec::new(),
-                                            type_identity: argument_plan.type_identity.clone(),
+                                            type_identity: self.program.normalized_type_identity(owner_type).into_string(),
                                         }]);
                                     }
                                     language_semantics::Multiplicity::Unrestricted => {}
-                                    _ => return None,
                                 }
                             } else if !argument_plan.path.is_empty() {
                                 discards = Some(crate::execution::terminal_unit::cleanup::projected_temporary_residuals(

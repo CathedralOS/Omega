@@ -270,7 +270,9 @@ pub(super) fn record_statement(
             let provenance = if consumed_paths.is_empty() {
                 places
                     .iter()
-                    .find(|place| place.symbol == symbol && place.path.is_empty())
+                    .find(|place| {
+                        place.root == facts::PlaceRoot::Symbol(symbol) && place.path.is_empty()
+                    })
                     .ok_or_else(unsupported)?
                     .provenance
             } else {
@@ -279,7 +281,10 @@ pub(super) fn record_statement(
                     .map(|claim_path| {
                         places
                             .iter()
-                            .find(|place| place.symbol == symbol && place.path == *claim_path)
+                            .find(|place| {
+                                place.root == facts::PlaceRoot::Symbol(symbol)
+                                    && place.path == *claim_path
+                            })
                             .and_then(|place| place.provenance)
                             .unwrap_or(PermissionProvenance::Unknown)
                     })
@@ -315,12 +320,14 @@ pub(super) fn record_statement(
         // unconditional linear place.
         let root_place = places
             .iter()
-            .find(|place| place.symbol == symbol && place.path.is_empty());
+            .find(|place| place.root == facts::PlaceRoot::Symbol(symbol) && place.path.is_empty());
         let mut consumed = Vec::new();
         for claim_path in &consumed_paths {
             let place = places
                 .iter()
-                .find(|place| place.symbol == symbol && place.path == *claim_path)
+                .find(|place| {
+                    place.root == facts::PlaceRoot::Symbol(symbol) && place.path == *claim_path
+                })
                 .ok_or_else(unsupported)?;
             if !place.live
                 || !place.ever_established
@@ -443,7 +450,10 @@ pub(super) fn record_statement(
                         claim_path.extend_from_slice(&template.path);
                         let place = places
                             .iter()
-                            .find(|place| place.symbol == symbol && place.path == claim_path)
+                            .find(|place| {
+                                place.root == facts::PlaceRoot::Symbol(symbol)
+                                    && place.path == claim_path
+                            })
                             .ok_or_else(unsupported)?;
                         Ok(FlowOwnedSelectionClaim {
                             path: facts
@@ -514,10 +524,9 @@ pub(super) fn apply_availability(
     // `live` here is the all-path availability summary, not disposition. The
     // conditional complement remains owed in the receipt's source roster.
     for source in ownership.selection_sources.span_or_empty(receipt.sources) {
-        if let Some(place) = places
-            .iter_mut()
-            .find(|place| place.symbol == source.symbol && place.path.is_empty())
-        {
+        if let Some(place) = places.iter_mut().find(|place| {
+            place.root == facts::PlaceRoot::Symbol(source.symbol) && place.path.is_empty()
+        }) {
             place.live = false;
         }
     }
@@ -539,10 +548,9 @@ pub(super) fn apply_availability(
             .span_or_empty(transfer.claims)
         {
             let claim_path = ownership.segments.span_or_empty(claim.path);
-            if let Some(place) = places
-                .iter_mut()
-                .find(|place| place.symbol == source.symbol && place.path == claim_path)
-            {
+            if let Some(place) = places.iter_mut().find(|place| {
+                place.root == facts::PlaceRoot::Symbol(source.symbol) && place.path == claim_path
+            }) {
                 place.live = false;
             }
         }
@@ -568,10 +576,9 @@ pub(super) fn apply_availability(
                 })
         })
         .flatten();
-    if let Some(place) = places
-        .iter_mut()
-        .find(|place| place.symbol == receipt.destination && place.path.is_empty())
-    {
+    if let Some(place) = places.iter_mut().find(|place| {
+        place.root == facts::PlaceRoot::Symbol(receipt.destination) && place.path.is_empty()
+    }) {
         place.live = true;
         place.case_excluded = false;
         place.ever_established = true;
@@ -599,7 +606,10 @@ pub(super) fn apply_availability(
             && transfers.iter().all(|transfer| transfer.source.is_valid());
         for (position, place) in places
             .iter_mut()
-            .filter(|place| place.symbol == receipt.destination && !place.path.is_empty())
+            .filter(|place| {
+                place.root == facts::PlaceRoot::Symbol(receipt.destination)
+                    && !place.path.is_empty()
+            })
             .enumerate()
         {
             let inherited_claim = fully_sourced.then(|| {

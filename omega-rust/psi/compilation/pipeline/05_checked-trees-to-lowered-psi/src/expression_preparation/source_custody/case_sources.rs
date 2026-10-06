@@ -4,7 +4,6 @@ use crate::expression_preparation::computation_graph::fields;
 use crate::lowering_error::{LoweringError, unsupported};
 use checked_trees::CheckedScalarCaseConstruction;
 use checked_trees::CheckedTrees;
-use language_semantics::Multiplicity;
 type Computation = checked_trees::CheckedScalarComputationHandle;
 use checked_trees::expression::ExpressionHandle;
 
@@ -17,17 +16,6 @@ pub(crate) fn construction(
     )?;
     if source.type_reference != subject.type_reference || source.case != subject.case {
         return unsupported("computed case constructor type or case changed");
-    }
-    // This is the existing no-code ownership classifier, not an inference
-    // from the currently selected payload being scalar.
-    if !crate::content_classes::plain_owned_with_numeric_constraints(
-        checked,
-        subject.type_reference,
-    ) || !matches!(
-        checked.type_multiplicity(subject.type_reference),
-        Multiplicity::Affine | Multiplicity::Unrestricted
-    ) {
-        return unsupported("computed case has no eligible no-code disposition");
     }
     let retained = fields(checked, subject)?;
     if retained.len() != source.fields.len() {

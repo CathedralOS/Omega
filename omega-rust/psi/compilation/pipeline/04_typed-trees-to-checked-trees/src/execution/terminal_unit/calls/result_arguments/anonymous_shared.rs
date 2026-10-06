@@ -1,4 +1,6 @@
-//! A shared call retains its temporary owner and discharges any affine debt.
+//! A shared call retains its complete temporary owner through normal completion.
+//! Admission rejoins the published loan and each exact claim occurrence;
+//! source checking owns eligibility and contextual hook requirements.
 use super::{
     ExpressionNode, Multiplicity, PermissionAccess, PermissionClaimIdentity, PermissionEventKind,
     PermissionEventSource, SymbolHandle, TypedTrees,
@@ -13,117 +15,68 @@ pub(crate) fn validate(
     consumer: &checked_trees::FlowCallFact,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Option<()> {
-    let target = program.machines().iter().find(|target| {
-        program
-            .machine_states(target)
-            .iter()
-            .any(|target_state| target_state.symbol == consumer.target_symbol)
-    })?;
+    let target = crate::lookup::machine_by_symbol(
+        program,
+        crate::semantic::calls::find_state_with_machine(program, consumer.target_symbol)?
+            .0
+            .symbol,
+    )?;
     if target.supply_mode != MachineSupplyMode::CheckedBody {
         return None;
     }
-    let source = crate::semantic::calls::find_call_site(
+    let site = crate::semantic::calls::find_call_site(
         program,
         machine,
         state,
         consumer.statement_index,
         consumer.call_ordinal,
     )?;
-    // The loan belongs to one exact operand, not to a one-argument source
-    // idiom. Sibling producers, scalar results and surrounding computations
-    // do not change this owner's establishment or its dying continuation.
-    let arguments = crate::semantic::calls::call_site_argument_expressions(program, &source);
+    let arguments = crate::semantic::calls::call_site_argument_expressions(program, &site);
     let parameters =
         crate::semantic::calls::call_target_parameters(program, consumer.target_symbol)?;
     if parameters.len() != arguments.len() {
         return None;
     }
-    let mut borrowed_parameters =
+    let root = facts::PlaceRoot::Expression(expression);
+    let mut operands =
         arguments
             .iter()
             .zip(parameters.iter())
             .filter_map(|(argument, parameter)| {
-                let (referent, referee) = crate::semantic::calls::shared_argument_referent(
+                if parameter.is_const || parameter.is_mutable || parameter.relevance.is_erased() {
+                    return None;
+                }
+                let (borrowed, _) = crate::semantic::calls::shared_argument_referent(
                     program,
                     *argument,
                     parameter.type_reference,
                 )?;
-                (referent == expression).then_some((parameter, referee))
+                let place = crate::flow::canonical_place_from_expression_in_state(
+                    program,
+                    state,
+                    consumer.statement_index,
+                    borrowed,
+                )?;
+                (place.root == root).then_some(place)
             });
-    let (parameter, referee) = borrowed_parameters.next()?;
-    if borrowed_parameters.next().is_some()
-        || parameter.is_const
-        || parameter.is_mutable
-        || parameter.relevance.is_erased()
-    {
+    let borrowed = operands.next()?;
+    if operands.next().is_some() {
         return None;
     }
-    let place = crate::flow::canonical_place_from_expression_in_state(
+    let owner = crate::flow::CanonicalPlace {
+        root,
+        segments: Vec::new(),
+    };
+    let owner_type = crate::flow::canonical_place_type_reference(
         program,
         state,
         consumer.statement_index,
-        expression,
+        &owner,
     )?;
-    if place.root != facts::PlaceRoot::Expression(expression)
-        || !place.segments.is_empty()
-        || !validation::checked_argument_matches_type_reference(program, expression, referee)
-        || !validation::has_borrow_free_contents(program, referee)
-        || crate::checks::type_carries_linear_obligation(program, referee)
-    {
+    if !validation::has_borrow_free_contents(program, owner_type) {
         return None;
     }
-    let multiplicity = crate::checks::type_multiplicity(program, referee);
-    if !matches!(
-        multiplicity,
-        Multiplicity::Affine | Multiplicity::Unrestricted
-    ) {
-        return None;
-    }
-    let producer_source =
-        if let ExpressionNode::Call(authored) = program.expression_table.expression(expression) {
-            let (_, state_flow) = flow.control.states.iter().find(|(_, candidate)| {
-                candidate.machine_symbol == machine && candidate.state_symbol == state
-            })?;
-            let mut producers = flow
-                .control
-                .calls
-                .span(state_flow.calls)?
-                .iter()
-                .filter(|call| {
-                    call.statement_index == consumer.statement_index
-                        && call.authored_expression == expression
-                });
-            let producer = producers.next()?;
-            if producers.next().is_some()
-                || producer.call_ordinal <= consumer.call_ordinal
-                || crate::flow::call_target_symbol(program, authored) != producer.target_symbol
-                || program.normalized_type_identity(crate::flow::call_target_return_type(
-                    program,
-                    producer.target_symbol,
-                )?) != program.normalized_type_identity(referee)
-            {
-                return None;
-            }
-            PermissionEventSource::Call {
-                statement_index: consumer.statement_index,
-                call_ordinal: producer.call_ordinal,
-                target_symbol: producer.target_symbol,
-            }
-        } else {
-            PermissionEventSource::Statement {
-                statement_index: consumer.statement_index,
-            }
-        };
-    let consumer_source = PermissionEventSource::Call {
-        statement_index: consumer.statement_index,
-        call_ordinal: consumer.call_ordinal,
-        target_symbol: consumer.target_symbol,
-    };
-    let provenance = language_semantics::PermissionProvenance::Established {
-        machine_symbol: machine,
-        state_symbol: state,
-        source: producer_source,
-    };
+    let multiplicity = crate::checks::type_multiplicity(program, owner_type);
     let (source_machine, source_state) =
         crate::semantic::calls::find_state_with_machine(program, state)?;
     if source_machine.symbol != machine {
@@ -139,70 +92,133 @@ pub(crate) fn validate(
     if evaluation == checked_trees::FlowPermissionEvaluation::Unknown {
         return None;
     }
-    if let PermissionEventSource::Call {
-        statement_index,
-        call_ordinal,
-        ..
-    } = producer_source
-        && crate::flow::call_permission_evaluation(
-            program,
-            source_machine,
-            source_state,
-            statement_index,
-            call_ordinal,
-        ) != evaluation
-    {
-        return None;
-    }
-    // An unrestricted completed value has no affine disposal obligation.
-    // Exact producer, argument and plain-owned type admission above still
-    // apply; no fictional permission or cleanup event is manufactured.
+    let producer_source =
+        if let ExpressionNode::Call(_) = program.expression_table.expression(expression) {
+            let (_, state_flow) = flow.control.states.iter().find(|(_, candidate)| {
+                candidate.machine_symbol == machine && candidate.state_symbol == state
+            })?;
+            let mut producers = flow
+                .control
+                .calls
+                .span(state_flow.calls)?
+                .iter()
+                .filter(|call| {
+                    call.statement_index == consumer.statement_index
+                        && call.authored_expression == expression
+                });
+            let producer = producers.next()?;
+            if producers.next().is_some()
+                || crate::flow::call_permission_evaluation(
+                    program,
+                    source_machine,
+                    source_state,
+                    producer.statement_index,
+                    producer.call_ordinal,
+                ) != evaluation
+            {
+                return None;
+            }
+            PermissionEventSource::Call {
+                statement_index: producer.statement_index,
+                call_ordinal: producer.call_ordinal,
+                target_symbol: producer.target_symbol,
+            }
+        } else {
+            PermissionEventSource::Statement {
+                statement_index: consumer.statement_index,
+            }
+        };
     if multiplicity == Multiplicity::Unrestricted {
         return Some(());
     }
-    let mut events = flow
+    if !crate::flow::whole_cleanup_is_eligible(program, owner_type) {
+        return None;
+    }
+    let consumer_source = PermissionEventSource::Call {
+        statement_index: consumer.statement_index,
+        call_ordinal: consumer.call_ordinal,
+        target_symbol: consumer.target_symbol,
+    };
+    let events = flow
         .ownership
         .permissions
         .iter()
         .map(|(_, event)| event)
         .filter(|event| {
-            event.machine_symbol == machine
-                && event.state_symbol == state
-                && event.root == facts::PlaceRoot::Expression(expression)
+            event.machine_symbol == machine && event.state_symbol == state && event.root == root
+        })
+        .collect::<Vec<_>>();
+    if events.iter().any(|event| event.evaluation != evaluation) {
+        return None;
+    }
+    let mut loans = events
+        .iter()
+        .copied()
+        .filter(|event| event.access == PermissionAccess::Shared);
+    let loan = loans.next()?;
+    if loans.next().is_some()
+        || loan.kind != PermissionEventKind::Establish
+        || loan.source != consumer_source
+        || loan.multiplicity != Multiplicity::Unrestricted
+        || loan.claim_identity != PermissionClaimIdentity::Unknown
+        || loan.obligation_live
+        || flow.ownership.segments.span(loan.segments)? != borrowed.segments.as_slice()
+    {
+        return None;
+    }
+    let frontier = validation::linear_claim_frontier(program, owner_type);
+    let paths = if frontier.is_empty() {
+        vec![(Vec::new(), Multiplicity::Affine, false)]
+    } else {
+        frontier
+            .into_iter()
+            .map(|claim| (claim.path, Multiplicity::Linear, claim.conditional))
+            .collect()
+    };
+    let mut covered = 1;
+    for (path, claim_multiplicity, conditional) in paths {
+        let mut establishments = events.iter().copied().filter(|event| {
+            event.access == PermissionAccess::Owned
+                && event.kind == PermissionEventKind::Establish
+                && flow.ownership.segments.span_or_empty(event.segments) == path
         });
-    for (kind, access, multiplicity, source) in [
-        (
-            PermissionEventKind::Establish,
-            PermissionAccess::Owned,
-            Multiplicity::Affine,
-            producer_source,
-        ),
-        (
-            PermissionEventKind::Establish,
-            PermissionAccess::Shared,
-            Multiplicity::Unrestricted,
-            consumer_source,
-        ),
-        (
-            PermissionEventKind::AffineDrop,
-            PermissionAccess::Owned,
-            Multiplicity::Affine,
-            consumer_source,
-        ),
-    ] {
-        let event = events.next()?;
-        if event.evaluation != evaluation
-            || event.kind != kind
-            || event.access != access
-            || event.multiplicity != multiplicity
-            || event.source != source
-            || event.provenance != provenance
-            || event.claim_identity != PermissionClaimIdentity::Unknown
-            || event.obligation_live
-            || !flow.ownership.segments.span(event.segments)?.is_empty()
+        let establishment = establishments.next()?;
+        if establishments.next().is_some()
+            || establishment.source != producer_source
+            || establishment.multiplicity != claim_multiplicity
+            || (claim_multiplicity == Multiplicity::Linear
+                && !establishment.obligation_live
+                && !conditional)
+            || (establishment.obligation_live
+                && establishment.claim_identity == PermissionClaimIdentity::Unknown)
         {
             return None;
         }
+        covered += 1;
+        if claim_multiplicity == Multiplicity::Linear && !establishment.obligation_live {
+            continue;
+        }
+        let mut deaths = events.iter().copied().filter(|event| {
+            event.access == PermissionAccess::Owned
+                && event.kind
+                    == if claim_multiplicity == Multiplicity::Linear {
+                        PermissionEventKind::Consume
+                    } else {
+                        PermissionEventKind::AffineDrop
+                    }
+                && flow.ownership.segments.span_or_empty(event.segments) == path
+        });
+        let death = deaths.next()?;
+        if deaths.next().is_some()
+            || death.source != consumer_source
+            || death.multiplicity != claim_multiplicity
+            || death.obligation_live
+            || death.claim_identity != establishment.claim_identity
+            || death.provenance != establishment.provenance
+        {
+            return None;
+        }
+        covered += 1;
     }
-    events.next().is_none().then_some(())
+    (covered == events.len()).then_some(())
 }

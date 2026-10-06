@@ -138,9 +138,12 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         .iter()
         .map(|(_, event)| event)
     {
-        let language_semantics::PermissionEventSource::Statement { statement_index } = event.source
-        else {
-            continue;
+        let statement_index = match event.source {
+            language_semantics::PermissionEventSource::Statement { statement_index }
+            | language_semantics::PermissionEventSource::Call {
+                statement_index, ..
+            } => statement_index,
+            _ => continue,
         };
         if !crate::unit::attached_unit::operation_frame::claim_established_here(
             plan.machine,
@@ -157,6 +160,9 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         let claim = claim_id(allocate_dense(&mut next_claim)?);
         claims.source_claims.push((event.claim_identity, claim));
     }
+    catalogs
+        .scalar_calls
+        .bind_claim_namespace(&claims.source_claims);
     let content_entry_claims =
         crate::proofs::content_conservation::lower_whole_content_entry_claims(
             checked,

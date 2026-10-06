@@ -27,14 +27,12 @@ pub(crate) fn expression_establishes_obligation(
         state_symbol,
         statement_index,
         expression,
-    ) && let facts::PlaceRoot::Symbol(symbol) = source.root
-    {
+    ) {
         let mut source_path = source.segments;
         source_path.extend_from_slice(relative_path);
-        if let Some(place) = places
-            .iter()
-            .find(|place| place.symbol == symbol && place.path == source_path)
-        {
+        if let Some(place) = places.iter().find(|place| {
+            place.root == source.root && place.path == source_path && place.ever_established
+        }) {
             return place.live;
         }
     }

@@ -345,6 +345,7 @@ pub(super) fn emit(
                     "scalar wrapper boundary is absent from the shared catalog",
                 ))?;
             let mut context = CallEmissionContext {
+                claims: crate::emission::claim_bindings::ClaimBindings::new(Vec::new(), 1),
                 cleanup_receivers: &[],
                 machine_ids: catalog.machine_ids,
                 requirement_counts: catalog.requirement_counts,

@@ -267,6 +267,7 @@ pub(crate) enum LoweredScalarEffect {
         place: PlaceId,
         structural_type: StructuralTypeId,
         multiplicity: StructuralMultiplicity,
+        claims: Vec<crate::emission::claim_bindings::PreparedClaim>,
     },
     EstablishScalarArray(LoweredScalarArrayConstruction),
     EstablishElementView(crate::unit::attached_unit::view_ranges::CollectionView),

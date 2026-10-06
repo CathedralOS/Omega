@@ -364,7 +364,6 @@ impl OperationFrame<'_, '_> {
             &self.evaluation.structural_locals,
             self.structural_types.declarations(),
             inputs.byte_places,
-            self.caller.claims.bindings(),
             self.calls,
             &self.evaluation.structural_fields,
             self.next_value,
@@ -389,7 +388,7 @@ impl OperationFrame<'_, '_> {
                 self.type_ids,
                 self.structural_types.declarations(),
                 self.callees.domain_ids,
-                self.caller.claims.bindings(),
+                self.calls.claims.bindings(),
                 register,
                 self.next_place,
                 self.operations,
@@ -489,7 +488,7 @@ impl OperationFrame<'_, '_> {
             calls,
             operations,
             callees,
-            mut caller,
+            caller,
             ..
         } = self;
         let structural_types = structural_types.declarations();
@@ -512,7 +511,7 @@ impl OperationFrame<'_, '_> {
             machine,
             state,
             result,
-            &mut caller.claims,
+            &mut calls.claims,
         )?;
         // The evaluator supplies its current namespaces at the exact operand
         // occurrence. Recursive construction and calls share normal frame
@@ -570,18 +569,6 @@ impl OperationFrame<'_, '_> {
                         erased_scalar_parameters: caller.erased_scalar_parameters,
                         erased_proof_parameters: caller.erased_proof_parameters,
                         local_places: caller.local_places,
-                        claims: match &mut caller.claims {
-                            super::ClaimBindings::Fixed(bindings) => {
-                                super::ClaimBindings::Fixed(bindings)
-                            }
-                            super::ClaimBindings::Growable {
-                                bindings,
-                                next_claim,
-                            } => super::ClaimBindings::Growable {
-                                bindings,
-                                next_claim,
-                            },
-                        },
                     },
                 };
                 if OperationFrame::lowers(operand) {
@@ -869,7 +856,7 @@ impl OperationFrame<'_, '_> {
                     Some(&mut *self.calls),
                     Some((self.next_value, self.operations)),
                 )?,
-                emitted_claim_transfers(claim_transfers, self.caller.claims.bindings())?,
+                emitted_claim_transfers(claim_transfers, self.calls.claims.bindings())?,
             )
         } else {
             (Vec::new(), Vec::new())

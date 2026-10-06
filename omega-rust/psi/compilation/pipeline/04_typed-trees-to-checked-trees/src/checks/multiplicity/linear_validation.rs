@@ -18,7 +18,9 @@ pub(crate) use applied_events::{
     append_borrow_permission_events, apply_recorded_state_entry_events,
     apply_recorded_statement_events, permission_event_statement_index,
 };
-pub(crate) use claim_frontier::{initial_linear_places, linear_claim_frontier};
+pub(crate) use claim_frontier::{
+    initial_linear_places, linear_claim_frontier, reserve_owner_places,
+};
 pub(crate) use permission_production::{
     apply_statement_permission_production, established_provenance, event_statement_index,
     permission_source, select_static_case_alternative,
@@ -33,7 +35,6 @@ use language_semantics::{
     PermissionEventSource,
 };
 use symbols::SymbolHandle;
-use typed_trees::statement::StatementNode;
 
 pub(crate) fn validate_linear_permission_events(
     program: &typed_trees::TypedTrees,
@@ -75,6 +76,30 @@ pub(crate) fn validate_linear_permission_events(
                     .then_some(event)
             })
             .collect::<Vec<_>>();
+        // Anonymous custody comes from the producer's published roster, not a
+        // second AST discovery. Replay checks the same identities through the
+        // same establishment/transfer/consumption rules as named owners.
+        for event in events
+            .iter()
+            .filter(|event| event.kind == PermissionEventKind::Establish)
+        {
+            if !matches!(event.root, facts::PlaceRoot::Expression(_)) {
+                continue;
+            }
+            let root = crate::flow::CanonicalPlace {
+                root: event.root,
+                segments: Vec::new(),
+            };
+            let Some(type_reference) = crate::flow::canonical_place_type_reference(
+                program,
+                state.symbol,
+                permission_event_statement_index(event.source).unwrap_or_default(),
+                &root,
+            ) else {
+                continue;
+            };
+            reserve_owner_places(program, event.root, type_reference, &mut places);
+        }
         // Replay entry establishment so a parameter source's minted claim
         // identity reaches the receipt roster exactly as the recording pass
         // observed it.
@@ -163,8 +188,7 @@ pub(crate) fn validate_linear_permission_events(
                             "linear value `{}` has inconsistent treatment across transition arms; every path must consume/transfer it or every path must preserve the same live obligation",
                             places[place_index].name
                         )));
-                    mixed_places
-                        .push((places[place_index].symbol, places[place_index].path.clone()));
+                    mixed_places.push((places[place_index].root, places[place_index].path.clone()));
                 } else {
                     places[place_index].live = live;
                     places[place_index].ever_established = outcomes
@@ -180,7 +204,7 @@ pub(crate) fn validate_linear_permission_events(
                     && place.live
                     && !mixed_places
                         .iter()
-                        .any(|(symbol, path)| *symbol == place.symbol && *path == place.path)
+                        .any(|(symbol, path)| *symbol == place.root && *path == place.path)
             }) {
                 diagnostics.push(Diagnostic::error(format!(
                     "linear value `{}` reaches scope exit without being consumed or transferred",
@@ -297,7 +321,6 @@ fn append_unresolved_state_result_mapping_diagnostics(
     ownership: &checked_trees::FlowOwnershipFacts,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let statements = program.statement_table.statements(state.statement_nodes);
     let mut unresolved_statements = Vec::new();
     for event in events {
         if event.kind != PermissionEventKind::Establish
@@ -306,16 +329,10 @@ fn append_unresolved_state_result_mapping_diagnostics(
         {
             continue;
         }
-        let PermissionEventSource::Statement { statement_index } = event.source else {
+        let Some((statement_index, result_expression)) =
+            super::claim_outcomes::receiving_value(program, event)
+        else {
             continue;
-        };
-        let Some(statement) = statements.get(statement_index) else {
-            continue;
-        };
-        let result_expression = match statement {
-            StatementNode::LocalData(local) => local.initial_value,
-            StatementNode::Assignment(assignment) => assignment.value,
-            _ => continue,
         };
         let typed_trees::expression::ExpressionNode::Call(call) =
             program.expression_table.expression(result_expression)

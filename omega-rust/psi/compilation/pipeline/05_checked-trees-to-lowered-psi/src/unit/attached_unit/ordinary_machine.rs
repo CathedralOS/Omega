@@ -21,8 +21,7 @@ use super::bodies::{UnitBody, UnitPlans};
 use super::catalog::lower_provider_candidate_service_ceiling;
 use super::composed_control::callable::EmissionCounters;
 use super::operation_frame::{
-    CallInputs, Callees, CallerCustody, ClaimBindings, OperationFrame, StructuralResults,
-    StructuralTypeRoster,
+    CallInputs, Callees, CallerCustody, OperationFrame, StructuralResults, StructuralTypeRoster,
 };
 use super::parameters::lower_declared_service_reach;
 use super::parameters::lower_installation_machine_service_ceiling;
@@ -38,13 +37,13 @@ use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::scalar_graph::scalar_call_closure::callee::PreparedScalarCallee;
 use crate::terminal_identities::{StructuralDomainBinding, lookup_domain_id_for_carrier};
 use crate::unit::{
-    Block, CheckedTrees, CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan, ClaimId,
-    LoweringError, MachineContract, Multiplicity, Operation, OperationKind,
-    PermissionClaimIdentity, PlaceId, StructuralMultiplicity, StructuralPlaceDeclaration,
-    StructuralPlaceKind, StructuralTypeId, TerminalMachine, TerminalMachineResult, Terminator,
-    ValueDeclaration, allocate_dense, content_conservation, contract_id, dense_identity, edge_id,
-    lookup_type_id, lower_checked_crash_route_buckets, lower_structural_crash_route_buckets,
-    place_id, terminal_scalar_type, unsupported, value_id,
+    Block, CheckedTrees, CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan,
+    LoweringError, MachineContract, Multiplicity, Operation, OperationKind, PlaceId,
+    StructuralMultiplicity, StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeId,
+    TerminalMachine, TerminalMachineResult, Terminator, ValueDeclaration, allocate_dense,
+    content_conservation, contract_id, dense_identity, edge_id, lookup_type_id,
+    lower_checked_crash_route_buckets, lower_structural_crash_route_buckets, place_id,
+    terminal_scalar_type, unsupported, value_id,
 };
 use crate::unit::{
     MachineId, ServiceId, ServiceReachId, StructuralParameterDeclaration, StructuralTypeDeclaration,
@@ -94,23 +93,12 @@ pub(super) struct MachineEmission<'a> {
     signature: &'a MachineSignature,
     parameters: &'a Vec<StructuralParameterDeclaration>,
     scalar_parameter_count: usize,
-    /// The caller's claim bindings: the lowered entry claims plus every
-    /// caller-local binding a boundary result mints for a claim established
-    /// at its own binding statement. The table grows during emission so
-    /// later receipts, transfers and result custody resolve the same
-    /// semantic identity to the same `ClaimId`.
-    claim_bindings: Vec<(PermissionClaimIdentity, ClaimId)>,
-    /// Dense tail past the lowered entry claims; each minted boundary result
-    /// claim allocates the next value so two claims never share an id.
-    next_claim: u64,
     structural_types: &'a mut Vec<StructuralTypeDeclaration>,
     type_ids: &'a [(String, StructuralTypeId)],
     domain_ids: &'a [StructuralDomainBinding],
     service_ids: &'a [(ServiceReachId, ServiceId)],
     lowered_boundary_parameters: &'a [super::operation_frame::BoundaryParameters],
-    machine_ids: &'a [(symbols::SymbolHandle, MachineId)],
     machine_signatures: &'a [MachineSignature],
-    scalar_requirement_counts: &'a [(symbols::SymbolHandle, usize)],
     closure: &'a [symbols::SymbolHandle],
     prepared_scalar_machines: &'a [PreparedScalarCallee<'a>],
     next_place: u64,
@@ -398,17 +386,13 @@ pub(super) fn emit(
         signature,
         parameters,
         scalar_parameter_count,
-        claim_bindings: claim_bindings.clone(),
-        next_claim: dense_identity(claim_bindings.len())?,
         borrowed_windows: Default::default(),
         structural_types,
         type_ids,
         domain_ids,
         service_ids,
         lowered_boundary_parameters,
-        machine_ids,
         machine_signatures,
-        scalar_requirement_counts,
         closure,
         prepared_scalar_machines,
         next_place,
@@ -430,6 +414,10 @@ pub(super) fn emit(
         retained_scalar_prefix,
         staged_scalar_result,
         scalar_calls: CallEmissionContext {
+            claims: crate::emission::claim_bindings::ClaimBindings::new(
+                claim_bindings.clone(),
+                dense_identity(claim_bindings.len())?,
+            ),
             cleanup_receivers: &cleanup_receivers,
             machine_ids,
             requirement_counts: scalar_requirement_counts,
@@ -458,6 +446,7 @@ pub(super) fn emit(
         next_literal_argument,
         subslice_places,
         borrowed_windows,
+        mut scalar_calls,
         ..
     } = emission;
     borrowed_windows.require_closed()?;
@@ -468,14 +457,7 @@ pub(super) fn emit(
     let controlled_result = if let Some(control) = &plan.scalar_control {
         // Prefix values and structural locals are already established. The
         // completion adds only the selected guard/arm evaluation and join.
-        let mut scalar_calls = CallEmissionContext {
-            cleanup_receivers: &cleanup_receivers,
-            machine_ids,
-            requirement_counts: scalar_requirement_counts,
-            boundaries: lowered_boundary_parameters,
-            next_obligation_identity: next_call_obligation,
-            obligation_limit: u64::MAX,
-        };
+        scalar_calls.next_obligation_identity = next_call_obligation;
         let result = evaluation.scalar_control_result(
             checked,
             plan.machine,
@@ -1100,14 +1082,7 @@ impl MachineEmission<'_> {
     fn lower_step(&mut self, step: argument_schedule::Step) -> Result<(), LoweringError> {
         let checked = self.checked;
         let plan = self.plan;
-        self.scalar_calls = CallEmissionContext {
-            cleanup_receivers: self.scalar_calls.cleanup_receivers,
-            machine_ids: self.machine_ids,
-            requirement_counts: self.scalar_requirement_counts,
-            boundaries: self.lowered_boundary_parameters,
-            next_obligation_identity: self.next_call_obligation,
-            obligation_limit: u64::MAX,
-        };
+        self.scalar_calls.next_obligation_identity = self.next_call_obligation;
         let (operation_index, staged) = match step {
             argument_schedule::Step::CaptureBefore(statement) => {
                 self.evaluation.prepare_observations_before(
@@ -1441,10 +1416,6 @@ impl<'a> MachineEmission<'a> {
             caller: CallerCustody {
                 erased_scalar_parameters: &self.signature.erased_scalar_parameters,
                 erased_proof_parameters: &self.signature.erased_proof_parameters,
-                claims: ClaimBindings::Growable {
-                    bindings: &mut self.claim_bindings,
-                    next_claim: &mut self.next_claim,
-                },
                 local_places: &self.local_places,
             },
         }

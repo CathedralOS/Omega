@@ -16,8 +16,7 @@ use super::super::super::{
 use super::super::argument_schedule::{self, Step};
 use super::super::bodies::UnitPlans;
 use super::super::operation_frame::{
-    CallInputs, Callees, CallerCustody, ClaimBindings, OperationFrame, StructuralResults,
-    StructuralTypeRoster,
+    CallInputs, Callees, CallerCustody, OperationFrame, StructuralResults, StructuralTypeRoster,
 };
 use super::super::primitive_locals::PrimitiveLocal;
 use super::super::{
@@ -390,6 +389,7 @@ pub(super) fn emit_call_operations(
             values.truncate(source_value_count);
         }
         let mut calls = catalogs.scalar_calls.emission_context();
+        calls.claims = crate::emission::claim_bindings::ClaimBindings::Fixed(claim_bindings);
         let frame = OperationFrame {
             checked,
             machine,
@@ -432,7 +432,6 @@ pub(super) fn emit_call_operations(
             caller: CallerCustody {
                 erased_scalar_parameters: erased_parameters,
                 erased_proof_parameters: &state.erased_proof_parameters,
-                claims: ClaimBindings::Fixed(claim_bindings),
                 local_places: &[],
             },
         };

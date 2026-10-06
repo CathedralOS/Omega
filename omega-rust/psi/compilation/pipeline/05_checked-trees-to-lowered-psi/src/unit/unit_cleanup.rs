@@ -268,6 +268,7 @@ pub(crate) enum PreparedNormalCleanupAction {
         place: PlaceId,
         structural_type: StructuralTypeId,
         path: Vec<terminal_psi::StructuralPathSegment>,
+        consumed_claims: Vec<language_semantics::PermissionClaimIdentity>,
     },
 }
 
@@ -305,6 +306,7 @@ pub(crate) fn emit_prepared_cleanup_actions(
                     place,
                     structural_type,
                     path,
+                    consumed_claims,
                 } => {
                     let machine_ids = calls.machine_ids;
                     let receiver = calls
@@ -313,20 +315,28 @@ pub(crate) fn emit_prepared_cleanup_actions(
                         .find_map(|(source, receiver)| {
                             (*source == cleanup.cleanup_machine).then_some(*receiver)
                         });
-                    terminal_psi::TerminalAffineCleanupAction::InvokeNominal(
-                        materialize_nominal_cleanup_action(
-                            cleanup,
-                            *place,
-                            *structural_type,
-                            path.clone(),
-                            machine_ids,
-                            receiver,
-                            requirement_count(calls.requirement_counts, cleanup.cleanup_machine)?,
-                            // Scalar helpers own bounded identity ranges. Use
-                            // their allocator rather than an unbounded counter.
-                            &mut || calls.allocate_requirement(),
-                        )?,
-                    )
+                    let mut action = materialize_nominal_cleanup_action(
+                        cleanup,
+                        *place,
+                        *structural_type,
+                        path.clone(),
+                        machine_ids,
+                        receiver,
+                        requirement_count(calls.requirement_counts, cleanup.cleanup_machine)?,
+                        // Scalar helpers own bounded identity ranges. Use
+                        // their allocator rather than an unbounded counter.
+                        &mut || calls.allocate_requirement(),
+                    )?;
+                    action.consumed_claims = consumed_claims
+                        .iter()
+                        .map(|identity| {
+                            crate::terminal_identities::lookup_claim_id(
+                                calls.claims.bindings(),
+                                *identity,
+                            )
+                        })
+                        .collect::<Result<Vec<_>, _>>()?;
+                    terminal_psi::TerminalAffineCleanupAction::InvokeNominal(action)
                 }
             })
         })

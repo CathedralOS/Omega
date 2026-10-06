@@ -149,6 +149,7 @@ pub(crate) fn emit(
                 place,
                 structural_type,
                 multiplicity,
+                claims,
             } => {
                 let id = operations.allocate();
                 operations.push(Operation {
@@ -162,7 +163,10 @@ pub(crate) fn emit(
                         multiplicity: *multiplicity,
                         qualifications: Vec::new(),
                         projected_qualifications: Vec::new(),
-                        claims: Vec::new(),
+                        claims: crate::emission::claim_bindings::emit_establishment_claims(
+                            claims,
+                            &mut calls.claims,
+                        )?,
                     }),
                     kind: OperationKind::EstablishZeroedStructural {},
                 });

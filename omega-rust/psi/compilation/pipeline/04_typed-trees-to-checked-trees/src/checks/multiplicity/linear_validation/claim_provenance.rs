@@ -29,7 +29,7 @@ pub(crate) fn written_linear_targets(
                     .iter()
                     .enumerate()
                     .filter(|(_, tracked)| {
-                        tracked.symbol == local.symbol
+                        tracked.root == facts::PlaceRoot::Symbol(local.symbol)
                             && tracked.multiplicity == Multiplicity::Affine
                             && tracked.path.is_empty()
                     })
@@ -64,15 +64,33 @@ pub(crate) fn written_linear_targets(
         }
         _ => return Vec::new(),
     };
-    let facts::PlaceRoot::Symbol(symbol) = target.root else {
-        return Vec::new();
-    };
+    written_owner_targets(
+        program,
+        state_symbol,
+        statement_index,
+        &target,
+        value,
+        places,
+    )
+}
 
+/// Establishment follows the completed value, not whether its destination has
+/// a source name. Both local writes and anonymous owners retain the same input
+/// identities, provenance and conditional claim frontier.
+pub(crate) fn written_owner_targets(
+    program: &typed_trees::TypedTrees,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    target: &crate::flow::CanonicalPlace,
+    value: typed_trees::expression::ExpressionHandle,
+    places: &[LinearPlace],
+) -> Vec<WrittenLinearTarget> {
     places
         .iter()
         .enumerate()
         .filter_map(|(place_index, tracked)| {
-            if tracked.symbol != symbol || !tracked.path.starts_with(target.segments.as_slice()) {
+            if tracked.root != target.root || !tracked.path.starts_with(target.segments.as_slice())
+            {
                 return None;
             }
             let relative_path = &tracked.path[target.segments.len()..];
@@ -256,15 +274,12 @@ fn expression_permission_claim_identity_for_claim(
         statement_index,
         expression,
     )?;
-    let facts::PlaceRoot::Symbol(symbol) = source.root else {
-        return None;
-    };
     let mut source_path = source.segments;
     source_path.extend_from_slice(relative_path);
     let matches = places
         .iter()
         .filter(|place| {
-            place.symbol == symbol
+            place.root == source.root
                 && place.live
                 && (place.path == source_path
                     || (place.conditional && source_path.starts_with(place.path.as_slice())))
@@ -385,15 +400,12 @@ fn expression_permission_provenance_for_claim(
         statement_index,
         expression,
     )?;
-    let facts::PlaceRoot::Symbol(symbol) = source.root else {
-        return None;
-    };
     let mut source_path = source.segments;
     source_path.extend_from_slice(relative_path);
     let matches = places
         .iter()
         .filter(|place| {
-            place.symbol == symbol
+            place.root == source.root
                 && place.live
                 && (place.path == source_path
                     || (place.conditional && source_path.starts_with(place.path.as_slice())))

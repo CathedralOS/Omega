@@ -287,7 +287,7 @@ impl OperationFrame<'_, '_> {
             .map(|settlement| {
                 Ok(CompletionReceipt {
                     claim: lookup_claim_id(
-                        self.caller.claims.bindings(),
+                        self.calls.claims.bindings(),
                         settlement.claim_identity,
                     )?,
                     argument_index: settlement.argument_index,
@@ -376,8 +376,8 @@ impl OperationFrame<'_, '_> {
         result: &checked_trees::CheckedUnitStructuralResultBindingPlan,
         event: &checked_trees::FlowPermissionEventFact,
     ) -> Result<ClaimId, LoweringError> {
-        super::resolve_established_claim(
-            &mut self.caller.claims,
+        crate::emission::claim_bindings::resolve_established_claim(
+            &mut self.calls.claims,
             self.machine,
             state,
             result.statement_index as usize,
