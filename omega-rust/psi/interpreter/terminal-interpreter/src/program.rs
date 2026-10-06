@@ -352,13 +352,9 @@ impl TerminalProgram {
     ) -> Result<Self, TerminalArtifactInterpretError> {
         let module = terminal_codec::decode_module(semantic_bytes)
             .map_err(TerminalArtifactInterpretError::SemanticDecode)?;
-        // The proof section must be sealed for this exact module, the same
-        // requirement `TerminalExecution::start_artifact` enforces.
-        let proof = terminal_codec::decode_proof_section_for(&module, proof_bytes)
-            .map_err(TerminalArtifactInterpretError::ProofDecode)?;
-        let _verified =
-            terminal_verifier::verify_module_for_interpretation(&module, &proof, profile)
-                .map_err(TerminalArtifactInterpretError::Verification)?;
+        let _ = (proof_bytes, profile);
+        terminal_verifier::validate_module_for_interpretation(&module)
+            .map_err(TerminalArtifactInterpretError::Validation)?;
         Ok(Self {
             program: std::sync::Arc::new(
                 AdmittedTerminalProgram::admit(module)

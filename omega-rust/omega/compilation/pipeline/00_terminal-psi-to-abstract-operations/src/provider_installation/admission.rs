@@ -1,8 +1,6 @@
 use super::error::ProviderInstallationError;
 use super::replay::replay_installed_provider_calls;
 use super::{AdmittedProviderInstallation, SelectedProviderAdapter};
-use crate::artifact_admission::ArtifactLoweringError;
-use crate::lowering::lower_decoded_verified_module;
 use abstract_operations::AbstractOperationPlan;
 
 /// Admit one provider installation against an already decoded module and the
@@ -24,21 +22,7 @@ pub(crate) fn admit_provider_installation_with_projection(
     profile: &proof_admission::AdmissionProfile,
     selected: &[SelectedProviderAdapter],
 ) -> Result<AdmittedProviderInstallation, ProviderInstallationError> {
-    // Provider admission requires the sealed proof section: the seal must
-    // name this module's reconstructed identity, so a proof sealed for
-    // another artifact cannot underwrite this installation.
-    let proof = terminal_codec::decode_proof_section_for(module, proof_bytes)
-        .map_err(ArtifactLoweringError::ProofDecode)
-        .map_err(ProviderInstallationError::ArtifactReplay)?;
-    let verified = terminal_verifier::verify_module(module, &proof, profile)
-        .map_err(ArtifactLoweringError::Verification)
-        .map_err(ProviderInstallationError::ArtifactReplay)?;
-    let replayed = lower_decoded_verified_module(&verified)
-        .map_err(ArtifactLoweringError::Lowering)
-        .map_err(ProviderInstallationError::ArtifactReplay)?;
-    if &replayed != plan {
-        return Err(ProviderInstallationError::PlanReplayMismatch);
-    }
+
     let mut selections = Vec::new();
     let mut installed_candidates = Vec::new();
     let mut boundaries = plan
@@ -99,7 +83,7 @@ pub(crate) fn admit_provider_installation_with_projection(
         installed_candidates.push((**candidate).clone());
     }
     let installed_calls =
-        replay_installed_provider_calls(plan, verified.module(), &installed_candidates)?;
+        replay_installed_provider_calls(plan, module, &installed_candidates)?;
     let installation = terminal_interpreter::admit_provider_installation_from_artifact(
         semantic_bytes,
         proof_bytes,

@@ -654,17 +654,11 @@ pub fn verify_component(
             expected: Box::new(request.expected_subject),
         });
     }
-    // The component artifact's proof section must be sealed to this exact
-    // module, and the module must verify against it under the request's
-    // admission profile: a decoded, subject-matched module whose obligations
-    // go undischargeable is not a verified component.
-    let proof_bundle = terminal_codec::decode_proof_section_for(module, artifact.proof_bytes())
-        .map_err(|error| ComponentVerificationRejection::ProofSection(error.to_string()))?;
-    let verified_module =
-        terminal_verifier::verify_module(module, &proof_bundle, &request.admission_profile)
-            .map_err(|error| {
-                ComponentVerificationRejection::ModuleVerification(error.to_string())
-            })?;
+    // A received component is structurally validated before its inventory
+    // is read; proof-carrying admission is retired.
+    let verified_module = terminal_verifier::validate_module(module).map_err(|error| {
+        ComponentVerificationRejection::ModuleVerification(error.to_string())
+    })?;
     if description.frontier != DescriptionFrontier::TerminalArtifactClosure {
         return Err(ComponentVerificationRejection::EarlyFrontier(
             description.frontier,

@@ -4,7 +4,6 @@
 
 use abstract_operations::AbstractOperationPlan;
 use terminal_codec::terminal_psi_identity;
-use terminal_verifier::VerifiedTerminalModule;
 mod block_bindings;
 mod error;
 mod machine;
@@ -14,15 +13,9 @@ pub use error::LoweringError;
 use machine::lower_machine;
 use terminal_psi::TerminalModule;
 
-/// Consume the complete module after artifact decoding and independent
-/// verification, retaining its explicit control-flow and operation relationships.
-pub(crate) fn lower_decoded_verified_module(
-    verified: &VerifiedTerminalModule<'_>,
-) -> Result<AbstractOperationPlan, LoweringError> {
-    lower_decoded_module(verified.module())
-}
-
-fn lower_decoded_module(module: &TerminalModule) -> Result<AbstractOperationPlan, LoweringError> {
+/// Lower a decoded, structurally validated module, retaining its explicit
+/// control-flow and operation relationships.
+pub(crate) fn lower_decoded_module(module: &TerminalModule) -> Result<AbstractOperationPlan, LoweringError> {
     // Boundary crash contracts ride through `boundary_machines` unchanged.
     // Terminal verification already covered every caller continuation against
     // them; the realized provider body or builtin settlement commits the trap

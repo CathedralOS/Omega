@@ -4,7 +4,8 @@ pub(super) fn project_proof_questions(
     input: &VerifiedPsiOptimizationInput,
 ) -> Result<Vec<optimization_unit::ProofQuestion>, VerifiedPsiOptimizationUnitBuildError> {
     let context = input.context();
-    let proof_fingerprint = *context.proof_bundle_fingerprint().as_bytes();
+    // No proof bundle exists; questions carry the zero fingerprint.
+    let proof_fingerprint = [0; 32];
     context
         .reconstructed_obligations()
         .obligations()

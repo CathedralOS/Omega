@@ -65,10 +65,7 @@ impl VerifiedPsiOptimizationInput {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VerifiedPsiOptimizationContext {
     pub(crate) module: terminal_psi::TerminalModule,
-    pub(crate) proof_bundle: terminal_verifier::ProofBundle,
-    pub(crate) proof_bundle_fingerprint: terminal_codec::ProofBundleFingerprint,
     pub(crate) reconstructed_obligations: terminal_verifier::ReconstructedTerminalObligationSet,
-    pub(crate) accepted_facts: Vec<proof_admission::AcceptedFact>,
     pub(crate) structural_frontiers: terminal_verifier::VerifiedTerminalStructuralFrontiers,
 }
 
@@ -77,22 +74,10 @@ impl VerifiedPsiOptimizationContext {
         &self.module
     }
 
-    pub const fn proof_bundle(&self) -> &terminal_verifier::ProofBundle {
-        &self.proof_bundle
-    }
-
-    pub const fn proof_bundle_fingerprint(&self) -> terminal_codec::ProofBundleFingerprint {
-        self.proof_bundle_fingerprint
-    }
-
     pub const fn reconstructed_obligations(
         &self,
     ) -> &terminal_verifier::ReconstructedTerminalObligationSet {
         &self.reconstructed_obligations
-    }
-
-    pub fn accepted_facts(&self) -> &[proof_admission::AcceptedFact] {
-        &self.accepted_facts
     }
 
     pub const fn structural_frontiers(

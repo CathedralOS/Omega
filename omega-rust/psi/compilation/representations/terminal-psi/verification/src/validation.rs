@@ -188,7 +188,7 @@ pub fn validate_module(
 /// Validate a module and keep the structural ownership frontiers the
 /// validation walk computed, so verification consumes the snapshots that
 /// admitted the module rather than walking every machine again.
-pub(crate) fn validate_module_retaining_frontiers(
+pub fn validate_module_retaining_frontiers(
     module: &TerminalModule,
 ) -> Result<
     (

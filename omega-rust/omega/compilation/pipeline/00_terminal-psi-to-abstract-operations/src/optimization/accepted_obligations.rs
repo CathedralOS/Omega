@@ -4,7 +4,10 @@ pub(super) fn project_accepted_obligation_facts(
     seed: &optimization_unit::PsiOptimizationUnit,
     context: &VerifiedPsiOptimizationContext,
 ) -> Result<Vec<optimization_unit::AcceptedObligationFact>, VerifiedPsiOptimizationUnitBuildError> {
-    let proof_fingerprint = *context.proof_bundle_fingerprint().as_bytes();
+    // The checker decides every operation obligation under the language
+    // specification; with proof-carrying admission retired, each
+    // reconstructed operation obligation is an accepted fact.
+    let proof_fingerprint = [0; 32];
     let mut facts = Vec::new();
     for function in &seed.functions {
         for reference in &function.facts {
@@ -34,20 +37,9 @@ pub(super) fn project_accepted_obligation_facts(
                         obligation: *obligation,
                     },
                 )?;
-            let accepted = context
-                .accepted_facts()
-                .iter()
-                .find(|fact| fact.obligation == *obligation)
-                .filter(|fact| fact.proposition == reconstructed.obligation.proposition)
-                .ok_or(
-                    VerifiedPsiOptimizationUnitBuildError::MissingAcceptedObligation {
-                        machine: function.machine,
-                        operation: *support,
-                        obligation: *obligation,
-                    },
-                )?;
-            let proposition =
-                terminal_codec::canonical_proposition_order_key(&accepted.proposition)?;
+            let proposition = terminal_codec::canonical_proposition_order_key(
+                &reconstructed.obligation.proposition,
+            )?;
             facts.push(optimization_unit::AcceptedObligationFact::new(
                 seed.psi,
                 proof_fingerprint,

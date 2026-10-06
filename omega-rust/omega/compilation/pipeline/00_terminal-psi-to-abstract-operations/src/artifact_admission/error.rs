@@ -9,7 +9,7 @@ pub enum ArtifactLoweringError {
     ObligationReplay(terminal_codec::CodecError),
     ProofDecode(terminal_codec::ProofCodecError),
     ProofFingerprint(terminal_codec::ProofCodecError),
-    Verification(terminal_verifier::VerificationError),
+    Validation(terminal_verifier::ModuleError),
     /// A placed-view roster row is bound by its call rather than by the
     /// executable's host, or a declared direct-entry row was left without a
     /// supply; the input boundary cannot silently discard either.

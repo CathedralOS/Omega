@@ -1,7 +1,5 @@
-use super::error::ArtifactLoweringError;
 use crate::optimization::{VerifiedPsiOptimizationContext, VerifiedPsiOptimizationInput};
 use abstract_operations::AbstractOperationPlan;
-use terminal_verifier::VerifiedOptimizableTerminalModule;
 
 /// One canonical optimizer-admitted program plus its exact plan-laid input
 /// roster. Construction is private to artifact admission — it exists only as
@@ -47,18 +45,14 @@ impl AdmittedOptimizationArtifact {
     }
 }
 
-pub(super) fn retain_verified_optimization_context(
-    verified: &VerifiedOptimizableTerminalModule<'_>,
-) -> Result<VerifiedPsiOptimizationContext, ArtifactLoweringError> {
-    let proof_bundle_fingerprint =
-        terminal_codec::proof_bundle_fingerprint(verified.proof_bundle())
-            .map_err(ArtifactLoweringError::ProofFingerprint)?;
-    Ok(VerifiedPsiOptimizationContext {
-        module: verified.module().clone(),
-        proof_bundle: verified.proof_bundle().clone(),
-        proof_bundle_fingerprint,
-        reconstructed_obligations: verified.reconstructed_obligations().clone(),
-        accepted_facts: verified.accepted_facts().to_vec(),
-        structural_frontiers: verified.structural_frontiers().clone(),
-    })
+pub(super) fn retain_optimization_context(
+    module: &terminal_psi::TerminalModule,
+    reconstructed_obligations: terminal_verifier::ReconstructedTerminalObligationSet,
+    structural_frontiers: terminal_verifier::VerifiedTerminalStructuralFrontiers,
+) -> VerifiedPsiOptimizationContext {
+    VerifiedPsiOptimizationContext {
+        module: module.clone(),
+        reconstructed_obligations,
+        structural_frontiers,
+    }
 }

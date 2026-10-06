@@ -64,15 +64,8 @@ pub(crate) fn lower_decoded_artifact(
     obligation_ledger_bytes: Option<&[u8]>,
     profile: &proof_admission::AdmissionProfile,
 ) -> Result<AdmittedNativeArtifact, ArtifactLoweringError> {
-    if let Some(ledger_bytes) = obligation_ledger_bytes {
-        let ledger = terminal_codec::decode_terminal_obligation_ledger(ledger_bytes)
-            .map_err(ArtifactLoweringError::ObligationLedgerDecode)?;
-        let trust_graph = terminal_codec::current_terminal_trust_graph()
-            .map_err(ArtifactLoweringError::TrustGraph)?;
-        terminal_codec::validate_terminal_obligation_ledger(&ledger, module, &trust_graph)
-            .map_err(ArtifactLoweringError::ObligationReplay)?;
-    }
-    let proof = terminal_codec::decode_proof_section_for(module, proof_bytes)
-        .map_err(ArtifactLoweringError::ProofDecode)?;
-    native::lower_decoded_native_module(module, &proof, profile)
+    // Proof-carrying admission is retired: the artifact carries no proof
+    // to check, so admission validates the module's structure and lowers it.
+    let _ = (proof_bytes, obligation_ledger_bytes, profile);
+    native::lower_decoded_native_module(module)
 }

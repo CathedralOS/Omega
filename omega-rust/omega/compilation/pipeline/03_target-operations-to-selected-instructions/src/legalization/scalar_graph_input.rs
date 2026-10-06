@@ -25,7 +25,6 @@ use target_operations::{TargetFunction, TargetOperationPlan};
 pub(super) mod call_origin;
 pub(in crate::legalization) mod cleanup_calls;
 mod control;
-mod custody;
 pub(super) mod address_joins;
 pub(super) mod aggregate_results;
 pub(super) mod atomic_access;

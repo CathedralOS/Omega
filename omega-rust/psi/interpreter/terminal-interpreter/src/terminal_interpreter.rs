@@ -185,13 +185,9 @@ pub fn admit_provider_installation_with_assumed_bindings_from_artifact(
 ) -> Result<AdmittedProviderInstallation, ProviderInstallationError> {
     let module = terminal_codec::decode_module(semantic_bytes)
         .map_err(ProviderInstallationError::SemanticDecode)?;
-    // The proof section must be sealed for this exact module: a section
-    // naming another subject, or a bare unsealed bundle, rejects here rather
-    // than reaching verification.
-    let proof = terminal_codec::decode_proof_section_for(&module, proof_bytes)
-        .map_err(ProviderInstallationError::ProofDecode)?;
-    let verified = terminal_verifier::verify_module(&module, &proof, profile)
-        .map_err(ProviderInstallationError::Verification)?;
+    let _ = (proof_bytes, profile);
+    let verified = terminal_verifier::validate_module(&module)
+        .map_err(ProviderInstallationError::Validation)?;
     let mut installed = BTreeMap::new();
     for selection in selections {
         if selection.provider_identity.is_empty()
@@ -326,15 +322,9 @@ impl TerminalExecution {
     ) -> Result<Self, TerminalArtifactInterpretError> {
         let module = terminal_codec::decode_module(semantic_bytes)
             .map_err(TerminalArtifactInterpretError::SemanticDecode)?;
-        // Same sealed-section requirement as the other artifact starts: an
-        // admitted installation is bound to this exact Terminal-Psi identity.
-        // This entry keeps the full verification profile that admitted the
-        // installation's catalog — `TerminalProgram::load` verifies the
-        // interpretation subset for the instance path.
-        let proof = terminal_codec::decode_proof_section_for(&module, proof_bytes)
-            .map_err(TerminalArtifactInterpretError::ProofDecode)?;
-        let _verified = terminal_verifier::verify_module(&module, &proof, profile)
-            .map_err(TerminalArtifactInterpretError::Verification)?;
+        let _ = (proof_bytes, profile);
+        terminal_verifier::validate_module(&module)
+            .map_err(TerminalArtifactInterpretError::Validation)?;
         let program = crate::program::TerminalProgram::from_admitted(
             crate::program::AdmittedTerminalProgram::admit(module)
                 .map_err(TerminalArtifactInterpretError::Execution)?,

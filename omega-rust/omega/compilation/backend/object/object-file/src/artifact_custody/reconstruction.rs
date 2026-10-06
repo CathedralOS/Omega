@@ -22,16 +22,9 @@ pub(super) fn validate_terminal_join(
     let module = terminal
         .semantic_module()
         .map_err(|_| OptimizedObjectArtifactError::InvalidTerminalArtifact)?;
-    let proof = terminal_codec::decode_proof_section_for(module, terminal.proof_bytes())
-        .map_err(|_| OptimizedObjectArtifactError::InvalidTerminalArtifact)?;
     let input = source.verified_input();
     if module != input.context().module() || terminal_manifest.semantic() != source.object().psi {
         return Err(OptimizedObjectArtifactError::SemanticMismatch);
-    }
-    if proof != *input.context().proof_bundle()
-        || terminal_manifest.proof() != input.context().proof_bundle_fingerprint()
-    {
-        return Err(OptimizedObjectArtifactError::ProofMismatch);
     }
     if module.entry != source.object().semantic_entry {
         return Err(OptimizedObjectArtifactError::EntryMismatch);

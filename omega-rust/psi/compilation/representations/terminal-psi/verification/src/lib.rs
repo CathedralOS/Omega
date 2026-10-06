@@ -52,7 +52,7 @@ pub use terminal_trace_v1::{
     reconstruct_terminal_trace_v1_rows,
 };
 pub use validation::trapping_integer::reconstruct_trapping_integer_normal_return_equation;
-pub(crate) use validation::validate_module_retaining_frontiers;
+pub use validation::validate_module_retaining_frontiers;
 pub use validation::{
     AtomicAccessRefusal, BoundaryCrashOutcomeError, ContractClauseKind, ControlCycleIneligibility,
     ModuleError, ServiceCeilingOwner, StructuralSignatureOwner, SuspensionCallPlanError,
