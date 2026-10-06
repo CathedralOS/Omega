@@ -10,7 +10,7 @@ use super::super::{
     edge_id, lookup_type_id, lower_structural_path,
     operation_frame::{
         allocate_structural_result, block_parameter_declaration, operation_result_declaration,
-        structural_parameter_declaration,
+        structural_parameter_declaration, structural_type_declaration,
     },
     place_id, unsupported, value_id,
 };
@@ -2299,14 +2299,12 @@ impl Emission<'_, '_, '_> {
         continuation: Option<&ValueContinuation>,
     ) -> Result<PlaceId, LoweringError> {
         let leaf_type = self.structural_type;
-        let StructuralTypeShape::Sum { cases } = &self
-            .structural_types
-            .iter()
-            .find(|declaration| declaration.id == leaf_type)
-            .ok_or(LoweringError::Unsupported(
-                "projected case copy lost its leaf type",
-            ))?
-            .shape
+        let StructuralTypeShape::Sum { cases } = &structural_type_declaration(
+            self.structural_types,
+            leaf_type,
+            "projected case copy lost its leaf type",
+        )?
+        .shape
         else {
             return unsupported("projected case copy requires a case-sum leaf");
         };

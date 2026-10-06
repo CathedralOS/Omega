@@ -1842,14 +1842,11 @@ impl OperationFrame<'_, '_> {
         let terminal_psi::StructuralFieldType::Structural(hole_type) = field.field_type else {
             return unsupported("structural case literal field store names a non-structural field");
         };
-        let declaration = self
-            .structural_types
-            .declarations()
-            .iter()
-            .find(|declaration| declaration.id == hole_type)
-            .ok_or(LoweringError::Unsupported(
-                "structural case literal field store type missing",
-            ))?;
+        let declaration = structural_type_declaration(
+            self.structural_types.declarations(),
+            hole_type,
+            "structural case literal field store type missing",
+        )?;
         let (common, cases) = match &declaration.shape {
             terminal_psi::StructuralTypeShape::Sum { cases } => (Vec::new(), cases.clone()),
             terminal_psi::StructuralTypeShape::Mixed { fields, cases } => (
@@ -2968,6 +2965,19 @@ impl OperationFrame<'_, '_> {
             )
             .map(|_| ())
     }
+}
+
+/// The structural type's declaration in `declarations`, or `context` as
+/// the rejection when it is absent.
+pub(super) fn structural_type_declaration<'d>(
+    declarations: &'d [StructuralTypeDeclaration],
+    id: StructuralTypeId,
+    context: &'static str,
+) -> Result<&'d StructuralTypeDeclaration, LoweringError> {
+    declarations
+        .iter()
+        .find(|declaration| declaration.id == id)
+        .ok_or(LoweringError::Unsupported(context))
 }
 
 /// The owned argument a field store's repair window names: the carrier
