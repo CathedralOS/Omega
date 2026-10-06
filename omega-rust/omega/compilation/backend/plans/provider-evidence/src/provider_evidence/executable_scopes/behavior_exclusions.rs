@@ -1214,36 +1214,19 @@ fn inspect_machine<'module>(
     }
 }
 
-/// The executable cleanup-machine invocations one terminator commits. Only
-/// nominal affine cleanups carry a `cleanup_machine` — the exact selected
-/// cleanup body that runs for a whole affine structural parameter —
-/// reached through `Return`'s ordered cleanup actions and through the
-/// nominal-affine `ReturnUnit` variant's cleanup list. The walk must not
-/// rely on upstream shape validation having bounded those bodies: an
-/// independently replayed module needs no second checker to see that a
-/// cleanup edge runs code.
-fn nominal_cleanup_machines(terminator: &Terminator) -> Vec<MachineId> {
-    match terminator {
-        Terminator::Return {
-            cleanup_actions, ..
-        }
-        | Terminator::ReturnUnit {
-            cleanup_actions, ..
-        }
-        | Terminator::ReturnStructural {
-            cleanup_actions, ..
-        } => cleanup_actions
-            .iter()
-            .filter_map(|action| match action {
-                terminal_psi::TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
-                    Some(cleanup.cleanup_machine)
-                }
-                terminal_psi::TerminalAffineCleanupAction::DiscardRoot(_)
-                | terminal_psi::TerminalAffineCleanupAction::DiscardResidual(_) => None,
-            })
-            .collect(),
-        _ => Vec::new(),
-    }
+/// Cleanup dependencies on every possible edge join behavior reach. This
+/// enumerates possible calls; it does not execute unselected successor actions.
+fn nominal_cleanup_machines(terminator: &Terminator) -> impl Iterator<Item = MachineId> {
+    terminator
+        .cleanup_rosters()
+        .flat_map(|(_, actions)| actions)
+        .filter_map(|action| match action {
+            terminal_psi::TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
+                Some(cleanup.cleanup_machine)
+            }
+            terminal_psi::TerminalAffineCleanupAction::DiscardRoot(_)
+            | terminal_psi::TerminalAffineCleanupAction::DiscardResidual(_) => None,
+        })
 }
 
 mod authored;

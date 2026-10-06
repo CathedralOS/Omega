@@ -359,8 +359,7 @@ fn successor(
             case: case.case,
             case_tag: case.case_tag,
             payloads,
-            trivial_affine_discards: case.trivial_affine_discards.clone(),
-            residual_affine_discards: case.residual_affine_discards.clone(),
+            cleanup_actions: case.cleanup_actions.clone(),
         }),
     })
 }

@@ -113,23 +113,18 @@ impl CallAccesses {
                 // require an additional authority mapping.
                 return;
             }
-            if let O::Return {
-                cleanup_actions, ..
-            }
-            | O::ReturnUnit {
-                cleanup_actions, ..
-            }
-            | O::ReturnStructural {
-                cleanup_actions, ..
-            } = &node.operation
-                && cleanup_actions.iter().any(|action| {
+            if node
+                .operation
+                .cleanup_rosters()
+                .flat_map(|(_, actions)| actions)
+                .any(|action| {
                     matches!(
                         action,
                         terminal_psi::TerminalAffineCleanupAction::InvokeNominal(_)
                     )
                 })
             {
-                // Nominal cleanup executes code after the result is observed;
+                // Nominal cleanup executes code after outgoing values are observed;
                 // absence of an explicit store node does not make it read-only.
                 return;
             }

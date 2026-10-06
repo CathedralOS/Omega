@@ -589,7 +589,7 @@ impl Evaluation {
         next_edge: &mut u64,
         operations: &OperationBuffer,
     ) -> Result<semantic_vocabulary::EdgeId, LoweringError> {
-        let discards = discards
+        let discards: Vec<_> = discards
             .into_iter()
             .map(|place| self.current_structural_place(place))
             .collect();
@@ -627,8 +627,15 @@ impl Evaluation {
                         )
                     })
                     .collect::<Result<Vec<_>, LoweringError>>()?,
-                residual_affine_discards: residuals,
-                trivial_affine_discards: discards,
+                cleanup_actions: discards
+                    .into_iter()
+                    .map(terminal_psi::TerminalAffineCleanupAction::DiscardRoot)
+                    .chain(
+                        residuals
+                            .into_iter()
+                            .map(terminal_psi::TerminalAffineCleanupAction::DiscardResidual),
+                    )
+                    .collect(),
             },
         });
         *values = parameters.clone();
@@ -1172,8 +1179,7 @@ impl Evaluation {
                         )
                     })
                     .collect::<Result<Vec<_>, LoweringError>>()?,
-                residual_affine_discards: Vec::new(),
-                trivial_affine_discards: Vec::new(),
+                cleanup_actions: Vec::new(),
             },
         });
         for index in scalar_state_emission_order(
@@ -1469,8 +1475,11 @@ fn emit_state(
                     )
                 })
                 .collect::<Result<Vec<_>, _>>()?,
-            residual_affine_discards: Vec::new(),
-            trivial_affine_discards: trivial_affine_discards.clone(),
+            cleanup_actions: trivial_affine_discards
+                .iter()
+                .copied()
+                .map(terminal_psi::TerminalAffineCleanupAction::DiscardRoot)
+                .collect(),
         },
         LoweredScalarBranchTerminator::Conditional {
             condition,
@@ -1594,8 +1603,7 @@ fn emit_state(
                     arguments: when_true_arguments,
                     erased_arguments: when_true_erased_arguments,
                     erased_proof_arguments: when_true_erased_proof_arguments,
-                    trivial_affine_discards: Vec::new(),
-                    residual_affine_discards: Vec::new(),
+                    cleanup_actions: Vec::new(),
                 },
                 when_false: SuccessorEdge {
                     structural_arguments: Vec::new(),
@@ -1606,8 +1614,7 @@ fn emit_state(
                     arguments: when_false_arguments,
                     erased_arguments: when_false_erased_arguments,
                     erased_proof_arguments: when_false_erased_proof_arguments,
-                    trivial_affine_discards: Vec::new(),
-                    residual_affine_discards: Vec::new(),
+                    cleanup_actions: Vec::new(),
                 },
             }
         }
@@ -1725,8 +1732,7 @@ fn emit_state(
                     arguments: when_true_arguments,
                     erased_arguments: when_true_erased_arguments,
                     erased_proof_arguments: when_true_erased_proof_arguments,
-                    residual_affine_discards: Vec::new(),
-                    trivial_affine_discards: Vec::new(),
+                    cleanup_actions: Vec::new(),
                 },
             });
             if let Some(fallback_block) = fallback_block {
@@ -1746,8 +1752,7 @@ fn emit_state(
                         arguments: when_false_arguments,
                         erased_arguments: when_false_erased_arguments,
                         erased_proof_arguments: when_false_erased_proof_arguments,
-                        residual_affine_discards: Vec::new(),
-                        trivial_affine_discards: Vec::new(),
+                        cleanup_actions: Vec::new(),
                     },
                 });
             }
@@ -1766,8 +1771,7 @@ fn emit_state(
                     } else {
                         Vec::new()
                     },
-                    trivial_affine_discards: Vec::new(),
-                    residual_affine_discards: Vec::new(),
+                    cleanup_actions: Vec::new(),
                 });
             }
             Terminator::StructuralCase {
@@ -1847,8 +1851,7 @@ fn emit_state(
                             arguments,
                             erased_arguments,
                             erased_proof_arguments,
-                            residual_affine_discards: Vec::new(),
-                            trivial_affine_discards: Vec::new(),
+                            cleanup_actions: Vec::new(),
                         },
                     });
                     case_edges.push(terminal_psi::StructuralCaseSuccessorEdge {
@@ -1856,8 +1859,7 @@ fn emit_state(
                         target: selected_block,
                         case: *case,
                         payload_fields: arm.payloads.iter().map(|(field, _)| *field).collect(),
-                        trivial_affine_discards: Vec::new(),
-                        residual_affine_discards: Vec::new(),
+                        cleanup_actions: Vec::new(),
                     });
                 } else {
                     if fallback_block.is_none() {
@@ -1906,8 +1908,7 @@ fn emit_state(
                                 arguments,
                                 erased_arguments,
                                 erased_proof_arguments,
-                                residual_affine_discards: Vec::new(),
-                                trivial_affine_discards: Vec::new(),
+                                cleanup_actions: Vec::new(),
                             },
                         });
                         fallback_block = Some(block);
@@ -1917,8 +1918,7 @@ fn emit_state(
                         target: fallback_block.expect("armed-edge loop emitted fallback"),
                         case: *case,
                         payload_fields: Vec::new(),
-                        trivial_affine_discards: Vec::new(),
-                        residual_affine_discards: Vec::new(),
+                        cleanup_actions: Vec::new(),
                     });
                 }
             }

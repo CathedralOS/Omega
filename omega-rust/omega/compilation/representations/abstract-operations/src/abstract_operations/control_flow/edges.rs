@@ -10,8 +10,7 @@ pub struct AbstractSuccessor {
     pub bindings: Vec<ValueBinding>,
     pub structural_bindings: Vec<AbstractStructuralBinding>,
     /// Exact Terminal-Psi cleanup order for this conditional edge.
-    pub trivial_affine_discards: Vec<PlaceId>,
-    pub residual_affine_discards: Vec<terminal_psi::StructuralAffineDiscard>,
+    pub cleanup_actions: Vec<terminal_psi::TerminalAffineCleanupAction>,
 }
 
 /// Exact positional shared-place arrival, independent of the scalar telescope.
@@ -27,8 +26,7 @@ pub struct AbstractStructuralCaseSuccessor {
     pub target: BlockId,
     pub case: StructuralCaseId,
     pub payloads: Vec<AbstractStructuralCasePayloadBinding>,
-    pub trivial_affine_discards: Vec<PlaceId>,
-    pub residual_affine_discards: Vec<terminal_psi::StructuralAffineDiscard>,
+    pub cleanup_actions: Vec<terminal_psi::TerminalAffineCleanupAction>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

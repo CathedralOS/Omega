@@ -38,7 +38,6 @@ pub(crate) use structural::partial_affine_root_type;
 
 use block_parameters::bind_owned_parameters;
 pub(crate) use block_parameters::parameter_establishment_order;
-use continuation::apply_edge_partial_affine_discards;
 pub(crate) use continuation::valid_partial_continuation_complement;
 
 pub(super) fn validate_current_ownership_frontier_collecting(

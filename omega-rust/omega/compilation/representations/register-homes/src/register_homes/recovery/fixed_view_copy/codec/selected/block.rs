@@ -462,25 +462,15 @@ fn decode_case(
         });
     }
     let count = cursor.length()?;
-    let mut trivial_affine_discards = Vec::with_capacity(count.min(cursor.remaining()));
+    let mut cleanup_actions = Vec::with_capacity(count.min(cursor.remaining()));
     for _ in 0..count {
-        trivial_affine_discards.push(decode_id(cursor, semantic_vocabulary::PlaceId::new)?);
-    }
-    let count = cursor.length()?;
-    let mut residual_affine_discards = Vec::with_capacity(count.min(cursor.remaining()));
-    for _ in 0..count {
-        residual_affine_discards.push(terminal_psi::StructuralAffineDiscard {
-            place: decode_id(cursor, semantic_vocabulary::PlaceId::new)?,
-            path: super::structural::decode_path(cursor)?,
-            structural_type: decode_id(cursor, semantic_vocabulary::StructuralTypeId::new)?,
-        });
+        cleanup_actions.push(super::structural::decode_cleanup(cursor)?);
     }
     Ok(Some(selected_instructions::SelectedStructuralCaseEdge {
         source,
         case,
         case_tag,
         payloads,
-        trivial_affine_discards,
-        residual_affine_discards,
+        cleanup_actions,
     }))
 }

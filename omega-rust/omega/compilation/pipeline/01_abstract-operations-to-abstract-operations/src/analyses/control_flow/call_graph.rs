@@ -21,6 +21,17 @@ pub(in crate::analyses) fn call_graph(unit: &PsiOptimizationUnit) -> CallGraphAn
             .iter()
             .flat_map(|block| block.nodes.iter().map(|node| &node.operation))
         {
+            callees.extend(
+                operation
+                    .cleanup_rosters()
+                    .flat_map(|(_, actions)| actions)
+                    .filter_map(|action| match action {
+                        TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
+                            Some(cleanup.cleanup_machine)
+                        }
+                        _ => None,
+                    }),
+            );
             match operation {
                 O::Call { callee, .. } => callees.push(*callee),
                 O::CallStructural {
@@ -49,17 +60,6 @@ pub(in crate::analyses) fn call_graph(unit: &PsiOptimizationUnit) -> CallGraphAn
                     }
                 }
                 O::CallDynamic { dispatch, .. } => callees.extend(dispatch.realization()),
-                O::Return {
-                    cleanup_actions, ..
-                }
-                | O::ReturnUnit {
-                    cleanup_actions, ..
-                } => callees.extend(cleanup_actions.iter().filter_map(|action| match action {
-                    TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
-                        Some(cleanup.cleanup_machine)
-                    }
-                    _ => None,
-                })),
                 _ => {}
             }
         }

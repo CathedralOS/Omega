@@ -198,11 +198,10 @@ fn case_result_owned_sites(
             }
             for edge in &node.successors {
                 in_edges.entry(edge.target).or_default().push(edge.psi_edge);
-                if edge.trivial_affine_discards.contains(&place)
-                    || edge
-                        .residual_affine_discards
-                        .iter()
-                        .any(|discard| discard.place == place)
+                if edge
+                    .cleanup_actions
+                    .iter()
+                    .any(|action| action.place() == place)
                     || edge.structural_bindings.iter().any(|binding| {
                         binding.argument.place == place
                             && binding.argument.path.is_empty()

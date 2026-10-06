@@ -369,8 +369,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
                         access: parameter.access,
                     })
                     .collect(),
-                trivial_affine_discards: Vec::new(),
-                residual_affine_discards: Vec::new(),
+                cleanup_actions: Vec::new(),
             },
         });
     }

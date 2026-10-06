@@ -955,16 +955,14 @@ pub(super) fn mutable_availability(
                     Terminator::Jump {
                         target,
                         structural_arguments,
-                        trivial_affine_discards,
-                        residual_affine_discards,
+                        cleanup_actions,
                         ..
                     } => vec![(
                         *target,
                         structural_arguments,
-                        trivial_affine_discards
+                        cleanup_actions
                             .iter()
-                            .copied()
-                            .chain(residual_affine_discards.iter().map(|discard| discard.place))
+                            .map(|action| action.place())
                             .collect(),
                     )],
                     Terminator::Conditional {

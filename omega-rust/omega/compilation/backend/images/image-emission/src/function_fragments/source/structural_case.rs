@@ -41,8 +41,7 @@ pub(super) fn retained(
                 && successor.source_target == case.target
                 && source_slot_matches(&retained.source, source, source_blocks, source_parameters)
                 && retained.case == case.case
-                && retained.trivial_affine_discards == case.trivial_affine_discards
-                && retained.residual_affine_discards == case.residual_affine_discards
+                && retained.cleanup_actions == case.cleanup_actions
                 && retained.payloads.len() == case.payloads.len()
                 && retained
                     .payloads

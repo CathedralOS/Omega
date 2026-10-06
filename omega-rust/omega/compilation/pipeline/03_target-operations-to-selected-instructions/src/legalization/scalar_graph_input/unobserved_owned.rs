@@ -139,19 +139,15 @@ pub(super) fn body(function: &PsiOptimizationFunction) -> bool {
                     cleanup_actions, ..
                 } => cleanup(function, cleanup_actions),
                 AbstractOperation::Jump {
-                    trivial_affine_discards,
-                    residual_affine_discards,
+                    cleanup_actions,
                     ..
-                } => trivial_affine_discards.is_empty() && residual_affine_discards.is_empty(),
+                } => cleanup_actions.is_empty(),
                 AbstractOperation::Conditional {
                     when_true,
                     when_false,
                     ..
                 } => {
-                    when_true.trivial_affine_discards.is_empty()
-                        && when_true.residual_affine_discards.is_empty()
-                        && when_false.trivial_affine_discards.is_empty()
-                        && when_false.residual_affine_discards.is_empty()
+                    when_true.cleanup_actions.is_empty() && when_false.cleanup_actions.is_empty()
                 }
                 _ => false,
             })

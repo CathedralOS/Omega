@@ -114,8 +114,7 @@ impl PsiOptimizationRule for NonAdjacentBlockMergeRule {
                     psi_edge: incoming_edge,
                     target: target_id,
                     bindings,
-                    trivial_affine_discards,
-                    residual_affine_discards,
+                    cleanup_actions,
                 } = &predecessor_node.operation
                 else {
                     continue;
@@ -128,8 +127,7 @@ impl PsiOptimizationRule for NonAdjacentBlockMergeRule {
                 else {
                     continue;
                 };
-                if !trivial_affine_discards.is_empty()
-                    || !residual_affine_discards.is_empty()
+                if !cleanup_actions.is_empty()
                     || target.id == function.entry
                     || target_position == predecessor_position.saturating_add(1)
                     || !non_adjacent_merge_target_is_nonempty(target)

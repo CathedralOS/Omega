@@ -103,11 +103,10 @@ pub(super) fn parameter_home_required(source: &LegalizedScalarFunction, place: P
             } if declaration.place == place
         )
     });
-    let cleanup_borrow = source.blocks.iter().any(|block| matches!(&block.terminator,
-        legalized_operations::LegalizedScalarTerminator::ReturnCleanup { calls, .. }
-            if calls.iter().any(|(_, call)| call.arguments.iter().any(|argument|
-                matches!(argument, legalized_operations::LegalizedScalarArgument::Structural { semantic, target, .. }
-                    if semantic.place == place && argument_transport_requires_home(target))))));
+    let cleanup_borrow = source.blocks.iter().any(|block| block.terminator.cleanup_calls().any(|(_, call)|
+        call.arguments.iter().any(|argument|
+            matches!(argument, legalized_operations::LegalizedScalarArgument::Structural { semantic, target, .. }
+                if semantic.place == place && argument_transport_requires_home(target)))));
     forwarded || dispatched || cleanup_borrow || source.blocks.iter().flat_map(|block| &block.instructions).any(|row| {
         match &row.kind {
             LegalizedScalarInstructionKind::StructuralScalarFieldRead { source, .. }

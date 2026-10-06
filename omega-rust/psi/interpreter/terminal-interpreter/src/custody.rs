@@ -67,13 +67,18 @@ pub(crate) fn commit_cleanup_action(
             {
                 return Err(TerminalInterpretError::AffineFrontierMismatch);
             }
+            // A projected transfer may already retain descendants of this root.
+            // Retire only this disposed subtree, never the transferred sibling.
+            let mut path = root.path.clone();
+            path.extend_from_slice(&discard.path);
+            reference_referents.retain(|carrier, _| {
+                carrier.opaque_identity != root.opaque_identity || !carrier.path.starts_with(&path)
+            });
+            element_views.retain(|carrier, _| {
+                carrier.opaque_identity != root.opaque_identity || !carrier.path.starts_with(&path)
+            });
             if !frontier.iter().any(|entry| entry.place == discard.place) {
-                reference::discard_structural_value(
-                    structural_values,
-                    reference_referents,
-                    element_views,
-                    discard.place,
-                );
+                structural_values.remove(&discard.place);
             }
         }
         TerminalAffineCleanupAction::InvokeNominal(cleanup) => {

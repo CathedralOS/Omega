@@ -634,8 +634,7 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
                         access: parameter.access,
                     })
                     .collect(),
-                trivial_affine_discards: Vec::new(),
-                residual_affine_discards: Vec::new(),
+                cleanup_actions: Vec::new(),
             },
         });
         entry

@@ -15,10 +15,9 @@ use crate::custody::{
 };
 use crate::errors::TerminalInterpretError;
 use crate::execution::{
-    CompletedReturn, LiveClaim, SuspendedCall, SuspendedCallResult, TerminalExecution,
-    TerminatorFlow,
+    CleanupContinuation, CompletedReturn, LiveClaim, SuspendedCall, SuspendedCallResult,
+    TerminalExecution, TerminatorFlow,
 };
-use crate::reference;
 use crate::results::meter_status;
 use crate::results::{
     TerminalCrash, TerminalCrashSite, TerminalExecutionResult, TerminalExecutionStatus,
@@ -40,8 +39,7 @@ struct SelectedSuccessor<'edge> {
     target: BlockId,
     arguments: &'edge [ValueId],
     structural_arguments: &'edge [StructuralArgument],
-    trivial_affine_discards: &'edge [PlaceId],
-    residual_affine_discards: &'edge [StructuralAffineDiscard],
+    cleanup_actions: &'edge [terminal_psi::TerminalAffineCleanupAction],
 }
 
 impl TerminalExecution {
@@ -55,8 +53,7 @@ impl TerminalExecution {
             target,
             arguments,
             structural_arguments,
-            trivial_affine_discards,
-            residual_affine_discards,
+            cleanup_actions,
             ..
         } = terminator
         else {
@@ -68,8 +65,7 @@ impl TerminalExecution {
                 target: *target,
                 arguments,
                 structural_arguments,
-                trivial_affine_discards,
-                residual_affine_discards,
+                cleanup_actions,
             },
             terminator,
             meter,
@@ -140,50 +136,6 @@ impl TerminalExecution {
         Ok(residual_roots)
     }
 
-    fn commit_residual_disposal(
-        &mut self,
-        structural_arguments: &[StructuralArgument],
-        residual_affine_discards: &[StructuralAffineDiscard],
-        residual_roots: &BTreeSet<PlaceId>,
-    ) -> Result<(), TerminalInterpretError> {
-        // The edge committed: each projected argument retires the
-        // containing root entry and leaves the residual sibling
-        // subtrees live; the residual list then closes exactly
-        // that remainder.
-        for argument in structural_arguments.iter().filter(|argument| {
-            argument.access == StructuralAccess::Owned && !argument.path.is_empty()
-        }) {
-            consume_affine_projection(
-                &self.program.structural_types,
-                &self.structural_values,
-                &mut self.live_affine_frontier,
-                argument,
-            )?;
-        }
-        for discard in residual_affine_discards {
-            self.live_affine_frontier.remove(discard);
-            let root = self.structural_values.get(&discard.place).ok_or(
-                TerminalInterpretError::VerifiedStructuralPlaceMissing(discard.place),
-            )?;
-            let mut path = root.path.clone();
-            path.extend_from_slice(&discard.path);
-            // A transferred child retains its captured identity, including
-            // transfers on earlier edges. Only the declared residual subtree
-            // dies here; deleting all descriptors under the old root would
-            // also erase those surviving children.
-            self.reference_referents.retain(|carrier, _| {
-                carrier.opaque_identity != root.opaque_identity || !carrier.path.starts_with(&path)
-            });
-            self.structural_element_view_fields.retain(|carrier, _| {
-                carrier.opaque_identity != root.opaque_identity || !carrier.path.starts_with(&path)
-            });
-        }
-        for place in residual_roots {
-            self.structural_values.remove(place);
-        }
-        Ok(())
-    }
-
     fn settle_successor(
         &mut self,
         successor: SelectedSuccessor<'_>,
@@ -195,41 +147,42 @@ impl TerminalExecution {
             target,
             arguments,
             structural_arguments,
-            trivial_affine_discards,
-            residual_affine_discards,
+            cleanup_actions,
         } = successor;
-        let residual_roots =
-            self.prepare_residual_disposal(structural_arguments, residual_affine_discards)?;
+        let residuals = cleanup_actions
+            .iter()
+            .filter_map(|action| match action {
+                terminal_psi::TerminalAffineCleanupAction::DiscardResidual(discard) => {
+                    Some(discard.clone())
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        self.prepare_residual_disposal(structural_arguments, &residuals)?;
+        let bindings = self.prepare_block_bindings(target, arguments, structural_arguments)?;
+        bindings.validate_cleanup_actions(self, cleanup_actions)?;
         if let Err(error) = meter.charge_edge(edge, terminator) {
             return meter_status(error).map(TerminatorFlow::Yield);
         }
-        let bindings = self.prepare_block_bindings(target, arguments, structural_arguments)?;
-        bindings.validate_discards(self, trivial_affine_discards, residual_affine_discards)?;
-        for place in trivial_affine_discards {
-            if reference::discard_structural_value(
-                &mut self.structural_values,
-                &mut self.reference_referents,
-                &mut self.structural_element_view_fields,
-                *place,
-            )
-            .is_none()
-                && self.scalar_case_values.remove(place).is_none()
-            {
-                return Err(TerminalInterpretError::VerifiedStructuralPlaceMissing(
-                    *place,
-                ));
-            }
-            remove_affine_root(&mut self.live_affine_frontier, *place);
+        bindings.reserve_identities(self);
+        // Snapshot first: hooks may change storage, and a target may reuse a
+        // source name. Projected ownership splits commit exactly once here.
+        for argument in structural_arguments.iter().filter(|argument| {
+            argument.access == StructuralAccess::Owned && !argument.path.is_empty()
+        }) {
+            consume_affine_projection(
+                &self.program.structural_types,
+                &self.structural_values,
+                &mut self.live_affine_frontier,
+                argument,
+            )?;
         }
-        self.commit_residual_disposal(
-            structural_arguments,
-            residual_affine_discards,
-            &residual_roots,
-        )?;
-        bindings.commit(self);
-        self.current = target;
-        self.next_operation = 0;
-        Ok(TerminatorFlow::Continue)
+        // The suspended frame owns the remaining cursor across a hook call.
+        let remaining = cleanup_actions.to_vec();
+        self.continue_cleanup_actions(
+            remaining.into_iter(),
+            CleanupContinuation::Successor { target, bindings },
+        )
     }
 
     pub(crate) fn settle_conditional(
@@ -260,8 +213,7 @@ impl TerminalExecution {
                 target: successor.target,
                 arguments: &successor.arguments,
                 structural_arguments: &successor.structural_arguments,
-                trivial_affine_discards: &successor.trivial_affine_discards,
-                residual_affine_discards: &successor.residual_affine_discards,
+                cleanup_actions: &successor.cleanup_actions,
             },
             terminator,
             meter,
@@ -334,35 +286,29 @@ impl TerminalExecution {
             }
             bindings.push((parameter.id, scalar));
         }
-        let residual_roots =
-            self.prepare_residual_disposal(&[], &successor.residual_affine_discards)?;
-        for place in &successor.trivial_affine_discards {
-            if !self.structural_values.contains_key(place)
-                && !self.scalar_case_values.contains_key(place)
-            {
-                return Err(TerminalInterpretError::VerifiedStructuralPlaceMissing(
-                    *place,
-                ));
-            }
-        }
+        let bindings = block_bindings::BlockBindings::from_scalars(bindings);
+        let residuals = successor
+            .cleanup_actions
+            .iter()
+            .filter_map(|action| match action {
+                terminal_psi::TerminalAffineCleanupAction::DiscardResidual(discard) => {
+                    Some(discard.clone())
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        self.prepare_residual_disposal(&[], &residuals)?;
+        bindings.validate_cleanup_actions(self, &successor.cleanup_actions)?;
         if let Err(error) = meter.charge_edge(successor.edge, terminator) {
             return meter_status(error).map(TerminatorFlow::Yield);
         }
-        for place in &successor.trivial_affine_discards {
-            reference::discard_structural_value(
-                &mut self.structural_values,
-                &mut self.reference_referents,
-                &mut self.structural_element_view_fields,
-                *place,
-            );
-            self.scalar_case_values.remove(place);
-            remove_affine_root(&mut self.live_affine_frontier, *place);
-        }
-        self.commit_residual_disposal(&[], &successor.residual_affine_discards, &residual_roots)?;
-        self.values.extend(bindings);
-        self.current = successor.target;
-        self.next_operation = 0;
-        Ok(TerminatorFlow::Continue)
+        self.continue_cleanup_actions(
+            successor.cleanup_actions.clone().into_iter(),
+            CleanupContinuation::Successor {
+                target: successor.target,
+                bindings,
+            },
+        )
     }
 
     pub(crate) fn settle_return(
@@ -395,7 +341,9 @@ impl TerminalExecution {
         self.retire_return_inputs();
         self.continue_cleanup_actions(
             cleanup_actions.clone().into_iter(),
-            CompletedReturn::plain(TerminalExecutionResult::Scalar(result)),
+            CleanupContinuation::Return(CompletedReturn::plain(TerminalExecutionResult::Scalar(
+                result,
+            ))),
         )
     }
 
@@ -422,7 +370,7 @@ impl TerminalExecution {
         self.retire_return_inputs();
         self.continue_cleanup_actions(
             cleanup_actions.clone().into_iter(),
-            CompletedReturn::plain(TerminalExecutionResult::Unit),
+            CleanupContinuation::Return(CompletedReturn::plain(TerminalExecutionResult::Unit)),
         )
     }
 

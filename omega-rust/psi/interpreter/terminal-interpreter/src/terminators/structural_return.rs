@@ -197,7 +197,10 @@ impl TerminalExecution {
             self.live_claims.remove(claim);
         }
         self.retire_return_inputs();
-        self.continue_cleanup_actions(cleanup_actions.clone().into_iter(), completed)
+        self.continue_cleanup_actions(
+            cleanup_actions.clone().into_iter(),
+            CleanupContinuation::Return(completed),
+        )
     }
 
     fn claim_free_structural_destination(&self) -> bool {

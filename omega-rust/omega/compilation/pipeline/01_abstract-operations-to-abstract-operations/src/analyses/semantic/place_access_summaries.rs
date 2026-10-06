@@ -619,6 +619,30 @@ fn scan_operation(
     pending: &mut PendingSurface,
     operation: &O,
 ) {
+    // Effect summaries include every possible selected edge, while execution
+    // still owns precisely one roster. A hook's external reach must not vanish
+    // merely because it precedes a successor rather than a return.
+    for (_, actions) in operation.cleanup_rosters() {
+        for action in actions {
+            match action {
+                TerminalAffineCleanupAction::DiscardRoot(place) => {
+                    pending.attribute(context, *place, Vec::new(), AccessKind::Write);
+                }
+                TerminalAffineCleanupAction::DiscardResidual(discard) => {
+                    pending.attribute(
+                        context,
+                        discard.place,
+                        runtime_prefix(&discard.path),
+                        AccessKind::Write,
+                    );
+                }
+                TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
+                    pending.attribute(context, cleanup.place, Vec::new(), AccessKind::Write);
+                    pending.push_reach(machines, cleanup.cleanup_machine);
+                }
+            }
+        }
+    }
     match operation {
         O::PrimitiveScalarRead { source, path, .. } => {
             pending.attribute(context, *source, runtime_prefix(path), AccessKind::Read);
@@ -636,21 +660,8 @@ fn scan_operation(
         O::StructuralCaseMembership { source, path, .. } => {
             pending.attribute(context, *source, runtime_prefix(path), AccessKind::Read);
         }
-        O::StructuralCase { source, cases, .. } => {
+        O::StructuralCase { source, .. } => {
             pending.attribute(context, *source, Vec::new(), AccessKind::Read);
-            for case in cases {
-                for place in &case.trivial_affine_discards {
-                    pending.attribute(context, *place, Vec::new(), AccessKind::Write);
-                }
-                for discard in &case.residual_affine_discards {
-                    pending.attribute(
-                        context,
-                        discard.place,
-                        runtime_prefix(&discard.path),
-                        AccessKind::Write,
-                    );
-                }
-            }
         }
         O::StructuralLeafCopy { source, path, .. } => {
             let view = match path {
@@ -842,76 +853,10 @@ fn scan_operation(
                 pending.attribute(context, outcome.place, Vec::new(), AccessKind::Write);
             }
         }
-        O::Jump {
-            trivial_affine_discards,
-            residual_affine_discards,
-            ..
-        } => {
-            for place in trivial_affine_discards {
-                pending.attribute(context, *place, Vec::new(), AccessKind::Write);
-            }
-            for discard in residual_affine_discards {
-                pending.attribute(
-                    context,
-                    discard.place,
-                    runtime_prefix(&discard.path),
-                    AccessKind::Write,
-                );
-            }
+        O::ReturnStructural { source, .. } => {
+            pending.attribute(context, *source, Vec::new(), AccessKind::Read);
         }
-        O::Conditional {
-            when_true,
-            when_false,
-            ..
-        } => {
-            for successor in [when_true, when_false] {
-                for place in &successor.trivial_affine_discards {
-                    pending.attribute(context, *place, Vec::new(), AccessKind::Write);
-                }
-                for discard in &successor.residual_affine_discards {
-                    pending.attribute(
-                        context,
-                        discard.place,
-                        runtime_prefix(&discard.path),
-                        AccessKind::Write,
-                    );
-                }
-            }
-        }
-        O::Return {
-            cleanup_actions, ..
-        }
-        | O::ReturnUnit {
-            cleanup_actions, ..
-        }
-        | O::ReturnStructural {
-            cleanup_actions, ..
-        } => {
-            if let O::ReturnStructural { source, .. } = operation {
-                pending.attribute(context, *source, Vec::new(), AccessKind::Read);
-            }
-            for action in cleanup_actions {
-                match action {
-                    TerminalAffineCleanupAction::DiscardRoot(place) => {
-                        pending.attribute(context, *place, Vec::new(), AccessKind::Write);
-                    }
-                    TerminalAffineCleanupAction::DiscardResidual(discard) => {
-                        pending.attribute(
-                            context,
-                            discard.place,
-                            runtime_prefix(&discard.path),
-                            AccessKind::Write,
-                        );
-                    }
-                    TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
-                        // The hook consumes the passed cell; anything else it
-                        // reaches joins through the reach edge.
-                        pending.attribute(context, cleanup.place, Vec::new(), AccessKind::Write);
-                        pending.push_reach(machines, cleanup.cleanup_machine);
-                    }
-                }
-            }
-        }
+        O::Jump { .. } | O::Conditional { .. } | O::Return { .. } | O::ReturnUnit { .. } => {}
         O::CallStructural {
             callee,
             structural_arguments,

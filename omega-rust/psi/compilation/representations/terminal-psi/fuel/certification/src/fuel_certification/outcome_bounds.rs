@@ -2737,16 +2737,14 @@ pub(super) fn block_crash_visit_units(
                 checked_optional_add(Some(prefix), schedule.terminator_units(&block.terminator))?,
             );
         }
-        Terminator::Return { .. }
-        | Terminator::ReturnStructural { .. }
-        | Terminator::ReturnUnit { .. } => {
+        _ => {
             // The committed edge suspends into each nominal cleanup machine
             // in order; a crash inside one is a machine crash after the
             // completed prefix — the same crash column
             // `compose_cleanup_outcomes` accumulates for the entry
             // derivation.
-            crash_units = compose_cleanup_outcomes(
-                terminator_cleanup_machines(&block.terminator),
+            crash_units = compose_terminator_cleanup_outcomes(
+                &block.terminator,
                 OutcomeBounds {
                     returned: Some(
                         prefix
@@ -2765,7 +2763,6 @@ pub(super) fn block_crash_visit_units(
             )?
             .crashed;
         }
-        _ => {}
     }
     Ok(crash_units)
 }
@@ -2837,27 +2834,21 @@ pub(super) fn block_return_visit_units(
     units = units
         .checked_add(schedule.terminator_units(&block.terminator))
         .ok_or(FixedFuelError::BoundOverflow)?;
-    for cleanup_machine in terminator_cleanup_machines(&block.terminator) {
-        let cleanup_bounds = maximum_machine_outcomes(
-            cleanup_machine,
-            machines,
-            dynamic_call_targets,
-            provider_candidates,
-            invariants,
-            schedule,
-            memoized_machines,
-            active_machines,
-        )?;
-        // A returning traversal crosses every suspended cleanup in order, so
-        // one that can never return ends commit-reachable visits here.
-        let Some(returned) = cleanup_bounds.returned else {
-            return Ok(None);
-        };
-        units = units
-            .checked_add(returned)
-            .ok_or(FixedFuelError::BoundOverflow)?;
-    }
-    Ok(Some(units))
+    Ok(compose_terminator_cleanup_outcomes(
+        &block.terminator,
+        OutcomeBounds {
+            returned: Some(units),
+            crashed: None,
+        },
+        machines,
+        dynamic_call_targets,
+        provider_candidates,
+        invariants,
+        schedule,
+        memoized_machines,
+        active_machines,
+    )?
+    .returned)
 }
 
 /// Closure failures on a component member name the verifier-derived
@@ -2982,31 +2973,85 @@ pub(super) fn terminator_edge_targets(terminator: &Terminator) -> Vec<(EdgeId, B
     }
 }
 
-/// The nominal cleanup machines a terminator's edge suspends into, in the
-/// terminator's own execution order. Scalar and structural action returns,
-/// and Unit returns, all use the same invocation composition.
-pub(super) fn terminator_cleanup_machines(terminator: &Terminator) -> Vec<MachineId> {
-    match terminator {
-        Terminator::Return {
-            cleanup_actions, ..
+/// One selected edge's ordered invocations. Alternative edges are never
+/// concatenated: only one successor cleanup executes per traversal.
+pub(super) fn terminator_cleanup_machines(
+    terminator: &Terminator,
+    selected: EdgeId,
+) -> Vec<MachineId> {
+    let actions = match terminator {
+        Terminator::Jump {
+            edge,
+            cleanup_actions,
+            ..
+        }
+        | Terminator::Return {
+            edge,
+            cleanup_actions,
+            ..
         }
         | Terminator::ReturnUnit {
-            cleanup_actions, ..
+            edge,
+            cleanup_actions,
+            ..
         }
         | Terminator::ReturnStructural {
-            cleanup_actions, ..
-        } => cleanup_actions
+            edge,
+            cleanup_actions,
+            ..
+        } if *edge == selected => cleanup_actions.as_slice(),
+        Terminator::Conditional {
+            when_true,
+            when_false,
+            ..
+        } => [when_true, when_false]
+            .into_iter()
+            .find(|edge| edge.edge == selected)
+            .map_or(&[][..], |edge| edge.cleanup_actions.as_slice()),
+        Terminator::StructuralCase { cases, .. } => cases
             .iter()
-            .filter_map(|action| match action {
-                TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
-                    Some(cleanup.cleanup_machine)
-                }
-                TerminalAffineCleanupAction::DiscardRoot(_)
-                | TerminalAffineCleanupAction::DiscardResidual(_) => None,
-            })
-            .collect(),
-        _ => Vec::new(),
+            .find(|edge| edge.edge == selected)
+            .map_or(&[][..], |edge| edge.cleanup_actions.as_slice()),
+        _ => &[],
+    };
+    actions
+        .iter()
+        .filter_map(|action| match action {
+            TerminalAffineCleanupAction::InvokeNominal(cleanup) => Some(cleanup.cleanup_machine),
+            _ => None,
+        })
+        .collect()
+}
+
+/// A block-level bound may not know which successor is selected. Compose each
+/// exact action stream independently, then merge alternative outcomes by max.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn compose_terminator_cleanup_outcomes(
+    terminator: &Terminator,
+    bounds: OutcomeBounds,
+    machines: &BTreeMap<MachineId, &TerminalMachine>,
+    dynamic_call_targets: &BTreeMap<(MachineId, OperationId), MachineId>,
+    provider_candidates: &BTreeMap<BoundaryMachineId, Vec<MachineId>>,
+    invariants: &[ScalarBlockInvariant],
+    schedule: TerminalFuelSchedule,
+    memoized_machines: &mut BTreeMap<MachineId, OutcomeBounds>,
+    active_machines: &mut BTreeSet<MachineId>,
+) -> Result<OutcomeBounds, FixedFuelError> {
+    let mut alternatives = OutcomeBounds::default();
+    for edge in terminator.edges() {
+        alternatives = alternatives.merge(compose_cleanup_outcomes(
+            terminator_cleanup_machines(terminator, edge),
+            bounds,
+            machines,
+            dynamic_call_targets,
+            provider_candidates,
+            invariants,
+            schedule,
+            memoized_machines,
+            active_machines,
+        )?);
     }
+    Ok(alternatives)
 }
 
 fn outcome_bounds_from(
@@ -3119,88 +3164,30 @@ fn outcome_bounds_from(
                     .ok_or(FixedFuelError::BoundOverflow)?,
             ),
         },
-        (Terminator::Jump { target, .. }, Some(prefix)) => outcome_bounds_from(
-            machine,
-            *target,
-            blocks,
-            machines,
-            dynamic_call_targets,
-            provider_candidates,
-            invariants,
-            schedule,
-            memoized,
-            active,
-            memoized_machines,
-            active_machines,
-        )?
-        .with_prefix(
-            prefix
-                .checked_add(terminator_units)
-                .ok_or(FixedFuelError::BoundOverflow)?,
-        )?,
-        (
-            Terminator::Conditional {
-                when_true,
-                when_false,
-                ..
-            },
-            Some(prefix),
-        ) => outcome_bounds_from(
-            machine,
-            when_true.target,
-            blocks,
-            machines,
-            dynamic_call_targets,
-            provider_candidates,
-            invariants,
-            schedule,
-            memoized,
-            active,
-            memoized_machines,
-            active_machines,
-        )?
-        .merge(outcome_bounds_from(
-            machine,
-            when_false.target,
-            blocks,
-            machines,
-            dynamic_call_targets,
-            provider_candidates,
-            invariants,
-            schedule,
-            memoized,
-            active,
-            memoized_machines,
-            active_machines,
-        )?)
-        .with_prefix(
-            prefix
-                .checked_add(terminator_units)
-                .ok_or(FixedFuelError::BoundOverflow)?,
-        )?,
-        (Terminator::StructuralCase { cases, .. }, Some(prefix)) => {
-            let mut cases = cases.iter();
-            let first = cases
-                .next()
-                .ok_or(FixedFuelError::BranchingNotYetSupported(current))?;
-            let mut bounds = outcome_bounds_from(
-                machine,
-                first.target,
-                blocks,
-                machines,
-                dynamic_call_targets,
-                provider_candidates,
-                invariants,
-                schedule,
-                memoized,
-                active,
-                memoized_machines,
-                active_machines,
-            )?;
-            for case in cases {
-                bounds = bounds.merge(outcome_bounds_from(
+        (terminator, Some(prefix)) => {
+            let mut alternatives = OutcomeBounds::default();
+            for (edge, target) in terminator_edge_targets(terminator) {
+                let cleanup = compose_cleanup_outcomes(
+                    terminator_cleanup_machines(terminator, edge),
+                    OutcomeBounds {
+                        returned: Some(
+                            prefix
+                                .checked_add(terminator_units)
+                                .ok_or(FixedFuelError::BoundOverflow)?,
+                        ),
+                        crashed: None,
+                    },
+                    machines,
+                    dynamic_call_targets,
+                    provider_candidates,
+                    invariants,
+                    schedule,
+                    memoized_machines,
+                    active_machines,
+                )?;
+                let tail = outcome_bounds_from(
                     machine,
-                    case.target,
+                    target,
                     blocks,
                     machines,
                     dynamic_call_targets,
@@ -3211,13 +3198,17 @@ fn outcome_bounds_from(
                     active,
                     memoized_machines,
                     active_machines,
-                )?);
+                )?;
+                let continued = match cleanup.returned {
+                    Some(units) => tail.with_prefix(units)?,
+                    None => OutcomeBounds::default(),
+                };
+                alternatives = alternatives.merge(OutcomeBounds {
+                    returned: continued.returned,
+                    crashed: maximum_optional(cleanup.crashed, continued.crashed),
+                });
             }
-            bounds.with_prefix(
-                prefix
-                    .checked_add(terminator_units)
-                    .ok_or(FixedFuelError::BoundOverflow)?,
-            )?
+            alternatives
         }
     };
     active.remove(&current);

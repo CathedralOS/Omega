@@ -72,57 +72,6 @@ pub(super) fn complete(
                 }),
         )
         .collect::<Vec<_>>();
-    let producers = blocks
-        .iter()
-        .flat_map(|block| &block.operations)
-        .filter_map(|operation| {
-            operation
-                .result
-                .structural()
-                .map(|result| (result.place, operation.id))
-        })
-        .collect::<Vec<_>>();
-    let successors = blocks
-        .iter()
-        .map(|block| {
-            let targets = match &block.terminator {
-                Terminator::Jump { target, .. } => vec![*target],
-                Terminator::Conditional {
-                    when_true,
-                    when_false,
-                    ..
-                } => vec![when_true.target, when_false.target],
-                Terminator::StructuralCase { cases, .. } => {
-                    cases.iter().map(|edge| edge.target).collect()
-                }
-                _ => Vec::new(),
-            };
-            targets
-                .into_iter()
-                .map(|target| block_position(blocks, target))
-                .collect::<Result<Vec<_>, _>>()
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    let dominators = crate::emission::control_flow::block_dominators(
-        Some(block_position(blocks, entry)?),
-        &successors,
-    );
-    let mut parameter_blocks = blocks
-        .iter()
-        .enumerate()
-        .filter(|(_, block)| !block.structural_parameters.is_empty())
-        .collect::<Vec<_>>();
-    parameter_blocks.sort_by_key(|(position, _)| dominators[*position].len());
-    let parameter_order = parameters
-        .iter()
-        .map(|parameter| parameter.place)
-        .chain(parameter_blocks.iter().flat_map(|(_, block)| {
-            block
-                .structural_parameters
-                .iter()
-                .map(|parameter| parameter.place)
-        }))
-        .collect::<Vec<_>>();
     let mut incoming = vec![None; blocks.len()];
     let entry = block_position(blocks, entry)?;
     incoming[entry] = Some(Vec::new());
@@ -150,21 +99,13 @@ pub(super) fn complete(
             Terminator::Jump {
                 target,
                 structural_arguments,
-                trivial_affine_discards,
-                residual_affine_discards,
+                cleanup_actions,
                 ..
             } => {
                 for argument in structural_arguments {
                     transfer(&mut frontier, argument)?;
                 }
-                close_existing(&mut frontier, residual_affine_discards, &roots, types)?;
-                rewrite_discards(
-                    &mut frontier,
-                    trivial_affine_discards,
-                    residual_affine_discards,
-                    &roots,
-                    types,
-                )?;
+                complete_actions(&mut frontier, cleanup_actions, &roots, types)?;
                 successors.push((*target, frontier));
             }
             Terminator::Conditional {
@@ -177,14 +118,7 @@ pub(super) fn complete(
                     for argument in &edge.structural_arguments {
                         transfer(&mut branch, argument)?;
                     }
-                    close_existing(&mut branch, &edge.residual_affine_discards, &roots, types)?;
-                    rewrite_discards(
-                        &mut branch,
-                        &mut edge.trivial_affine_discards,
-                        &mut edge.residual_affine_discards,
-                        &roots,
-                        types,
-                    )?;
+                    complete_actions(&mut branch, &mut edge.cleanup_actions, &roots, types)?;
                     successors.push((edge.target, branch));
                 }
             }
@@ -194,14 +128,7 @@ pub(super) fn complete(
                 }
                 for edge in cases {
                     let mut branch = frontier.clone();
-                    close_existing(&mut branch, &edge.residual_affine_discards, &roots, types)?;
-                    rewrite_discards(
-                        &mut branch,
-                        &mut edge.trivial_affine_discards,
-                        &mut edge.residual_affine_discards,
-                        &roots,
-                        types,
-                    )?;
+                    complete_actions(&mut branch, &mut edge.cleanup_actions, &roots, types)?;
                     successors.push((edge.target, branch));
                 }
             }
@@ -224,53 +151,6 @@ pub(super) fn complete(
                 complete_actions(&mut frontier, cleanup_actions, &roots, types)?;
             }
             Terminator::Crash { .. } => {}
-        }
-        let residual_rosters = match &mut completed[position] {
-            Terminator::Jump {
-                residual_affine_discards,
-                ..
-            } => vec![residual_affine_discards],
-            Terminator::Conditional {
-                when_true,
-                when_false,
-                ..
-            } => vec![
-                &mut when_true.residual_affine_discards,
-                &mut when_false.residual_affine_discards,
-            ],
-            Terminator::StructuralCase { cases, .. } => cases
-                .iter_mut()
-                .map(|edge| &mut edge.residual_affine_discards)
-                .collect(),
-            _ => Vec::new(),
-        };
-        for residual_affine_discards in residual_rosters {
-            if residual_affine_discards.iter().any(|discard| {
-                !producers.iter().any(|(place, _)| *place == discard.place)
-                    && !parameter_order.contains(&discard.place)
-            }) {
-                return unsupported(
-                    "residual cleanup root is absent from the emitted ownership roster",
-                );
-            }
-            // Operation results precede block and machine parameters.
-            // Simultaneously live block roots have comparable dominating
-            // definitions; reverse dominance/declaration order is exactly
-            // the receiver's disposal order, independent of block IDs.
-            residual_affine_discards.sort_by_key(|discard| {
-                if let Some((_, producer)) =
-                    producers.iter().find(|(place, _)| *place == discard.place)
-                {
-                    (0u8, std::cmp::Reverse(u128::from(producer.get())))
-                } else if let Some(position) = parameter_order
-                    .iter()
-                    .rposition(|place| *place == discard.place)
-                {
-                    (1, std::cmp::Reverse(position as u128))
-                } else {
-                    unreachable!("residual root roster validated above")
-                }
-            });
         }
         for (target, mut outgoing) in successors {
             // Empty ownership complements do not end the storage occurrence:
@@ -395,25 +275,6 @@ fn take_residuals(
     Ok(result)
 }
 
-fn rewrite_discards(
-    frontier: &mut Frontier,
-    whole: &mut Vec<PlaceId>,
-    residual: &mut Vec<StructuralAffineDiscard>,
-    roots: &[(PlaceId, StructuralTypeId)],
-    types: &[StructuralTypeDeclaration],
-) -> Result<(), LoweringError> {
-    let mut retained = Vec::new();
-    for place in whole.iter().copied() {
-        if frontier.iter().any(|root| root.place == place) {
-            residual.extend(take_residuals(frontier, place, roots, types)?);
-        } else {
-            retained.push(place);
-        }
-    }
-    *whole = retained;
-    Ok(())
-}
-
 fn close_existing(
     frontier: &mut Frontier,
     scheduled: &[StructuralAffineDiscard],
@@ -443,7 +304,7 @@ fn close_existing(
     Ok(())
 }
 
-/// All normal returns share the same ordered residual disposal. A
+/// All normal exits share the same ordered residual disposal. A
 /// nominal owner cannot be partially moved before its whole-value hook.
 fn complete_actions(
     frontier: &mut Frontier,

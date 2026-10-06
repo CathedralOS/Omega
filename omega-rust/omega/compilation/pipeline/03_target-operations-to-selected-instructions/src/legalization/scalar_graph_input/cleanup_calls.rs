@@ -1,4 +1,4 @@
-//! Reconstruct return-owned invocations from source custody, not target rows.
+//! Reconstruct edge-owned invocations from source custody, not target rows.
 //! The selected hook has ordinary ABI and body validation. This join owns only
 //! its exact nominal owner, borrowed root, action order, and normal return.
 use crate::LegalizationError;
@@ -16,112 +16,97 @@ pub(in crate::legalization) fn expected(
     plan: &AbstractOperationPlan,
     unit: &PsiOptimizationUnit,
 ) -> Result<Vec<(CallSiteOwner, LegalizedScalarCall)>, LegalizationError> {
-    let (edge, actions) = match operation {
-        AbstractOperation::ReturnUnit {
-            psi_edge,
-            cleanup_actions,
-        }
-        | AbstractOperation::Return {
-            psi_edge,
-            cleanup_actions,
-            ..
-        }
-        | AbstractOperation::ReturnStructural {
-            psi_edge,
-            cleanup_actions,
-            ..
-        } => (*psi_edge, cleanup_actions),
-        _ => return Ok(Vec::new()),
-    };
     let mut calls = Vec::new();
-    for (ordinal, action) in actions.iter().enumerate() {
-        let TerminalAffineCleanupAction::InvokeNominal(cleanup) = action else {
-            continue;
-        };
-        let invalid = LegalizationError::custody;
-        let callee = unit
-            .functions
-            .iter()
-            .find(|function| function.machine == cleanup.cleanup_machine)
-            .ok_or_else(invalid)?;
-        if callee.machine == caller.machine
-            || callee.attachment != Some(cleanup.structural_type)
-            || callee.nominal_cleanup_subject != Some(cleanup.structural_type)
-            || callee.result != AbstractFunctionResult::Unit
-            || !callee.parameters.is_empty()
-            || callee.structural_parameters.len() > 1
-            || !cleanup.requirement_obligations.is_empty()
-        {
-            return Err(invalid());
-        }
-        let owner = CallSiteOwner::CleanupAction {
-            edge,
-            action_ordinal: ordinal.try_into().map_err(|_| invalid())?,
-        };
-        let shapes = callee
-            .structural_parameters
-            .iter()
-            .map(|parameter| {
-                crate::structural_inputs::structural_reference_input::parameter_shape(
-                    parameter,
-                    &plan.structural_types,
-                )
-                .ok_or_else(invalid)
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        let call_plan = evaluate_call_plan(
-            CallingPolicy::native_for_target(native.target),
-            &CallSignature {
-                parameters: shapes,
-                result: None,
-            },
-        )
-        .map_err(|_| invalid())?;
-        let mut arguments = Vec::new();
-        for (position, parameter) in callee.structural_parameters.iter().enumerate() {
-            if position != 0
-                || parameter.position != 0
-                || parameter.structural_type != cleanup.structural_type
-                || cleanup.cleanup_receiver != Some(parameter.place)
-                || !matches!(
-                    parameter.access,
-                    StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
-                )
+    for (edge, actions) in operation.cleanup_rosters() {
+        for (ordinal, action) in actions.iter().enumerate() {
+            let TerminalAffineCleanupAction::InvokeNominal(cleanup) = action else {
+                continue;
+            };
+            let invalid = LegalizationError::custody;
+            let callee = unit
+                .functions
+                .iter()
+                .find(|function| function.machine == cleanup.cleanup_machine)
+                .ok_or_else(invalid)?;
+            if callee.machine == caller.machine
+                || callee.attachment != Some(cleanup.structural_type)
+                || callee.nominal_cleanup_subject != Some(cleanup.structural_type)
+                || callee.result != AbstractFunctionResult::Unit
+                || !callee.parameters.is_empty()
+                || callee.structural_parameters.len() > 1
+                || !cleanup.requirement_obligations.is_empty()
             {
                 return Err(invalid());
             }
-            let semantic = StructuralArgument {
-                place: cleanup.place,
-                path: Vec::new(),
-                access: parameter.access,
+            let owner = CallSiteOwner::CleanupAction {
+                edge,
+                action_ordinal: ordinal.try_into().map_err(|_| invalid())?,
             };
-            let target = super::aggregate_results::borrowed_arguments::reconstruct_at_owner(
-                &semantic, position, owner, caller, callee, &call_plan, native, plan,
-            )?;
-            arguments.push(LegalizedScalarArgument::Structural {
-                semantic,
-                target,
-                indices: Vec::new(),
-            });
+            let shapes = callee
+                .structural_parameters
+                .iter()
+                .map(|parameter| {
+                    crate::structural_inputs::structural_reference_input::parameter_shape(
+                        parameter,
+                        &plan.structural_types,
+                    )
+                    .ok_or_else(invalid)
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            let call_plan = evaluate_call_plan(
+                CallingPolicy::native_for_target(native.target),
+                &CallSignature {
+                    parameters: shapes,
+                    result: None,
+                },
+            )
+            .map_err(|_| invalid())?;
+            let mut arguments = Vec::new();
+            for (position, parameter) in callee.structural_parameters.iter().enumerate() {
+                if position != 0
+                    || parameter.position != 0
+                    || parameter.structural_type != cleanup.structural_type
+                    || cleanup.cleanup_receiver != Some(parameter.place)
+                    || !matches!(
+                        parameter.access,
+                        StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+                    )
+                {
+                    return Err(invalid());
+                }
+                let semantic = StructuralArgument {
+                    place: cleanup.place,
+                    path: Vec::new(),
+                    access: parameter.access,
+                };
+                let target = super::aggregate_results::borrowed_arguments::reconstruct_at_owner(
+                    &semantic, position, owner, caller, callee, &call_plan, native, plan,
+                )?;
+                arguments.push(LegalizedScalarArgument::Structural {
+                    semantic,
+                    target,
+                    indices: Vec::new(),
+                });
+            }
+            if callee.structural_parameters.is_empty() && cleanup.cleanup_receiver.is_some() {
+                return Err(invalid());
+            }
+            calls.push((
+                owner,
+                LegalizedScalarCall {
+                    source: target_operations::NativeCallOrigin::Authored,
+                    callee: callee.machine,
+                    call_plan,
+                    arguments,
+                    result_placement: None,
+                    structural_result: None,
+                    descriptor_origins: Vec::new(),
+                    claim_transfers: Vec::new(),
+                    requirement_obligations: Vec::new(),
+                    crash_continuations: Vec::new(),
+                },
+            ));
         }
-        if callee.structural_parameters.is_empty() && cleanup.cleanup_receiver.is_some() {
-            return Err(invalid());
-        }
-        calls.push((
-            owner,
-            LegalizedScalarCall {
-                source: target_operations::NativeCallOrigin::Authored,
-                callee: callee.machine,
-                call_plan,
-                arguments,
-                result_placement: None,
-                structural_result: None,
-                descriptor_origins: Vec::new(),
-                claim_transfers: Vec::new(),
-                requirement_obligations: Vec::new(),
-                crash_continuations: Vec::new(),
-            },
-        ));
     }
     Ok(calls)
 }

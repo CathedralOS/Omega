@@ -201,19 +201,16 @@ fn complete_carriers(
             Terminator::Jump {
                 target,
                 structural_arguments,
-                residual_affine_discards,
-                trivial_affine_discards,
+                cleanup_actions,
                 ..
             } => {
                 if (structural_arguments.iter().any(|argument| {
                     affine.contains(&argument.place) && argument.access == StructuralAccess::Owned
                 }) && !(reentered && *target == entry))
-                    || residual_affine_discards
-                        .iter()
-                        .any(|discard| managed.contains(&discard.place))
-                    || trivial_affine_discards
-                        .iter()
-                        .any(|place| affine.contains(place))
+                    || cleanup_actions.iter().any(|action| match action {
+                        TerminalAffineCleanupAction::DiscardRoot(place) => affine.contains(place),
+                        _ => managed.contains(&action.place()),
+                    })
                 {
                     return unsupported(
                         "scalar graph whole parameter cleanup cannot replace existing edge custody",
@@ -235,11 +232,10 @@ fn complete_carriers(
                     edge.structural_arguments.iter().any(|argument| {
                         affine.contains(&argument.place)
                             && argument.access == StructuralAccess::Owned
-                    }) || edge
-                        .trivial_affine_discards
-                        .iter()
-                        .any(|place| affine.contains(place))
-                        || (reentered && edge.target == entry)
+                    }) || edge.cleanup_actions.iter().any(|action| match action {
+                        TerminalAffineCleanupAction::DiscardRoot(place) => affine.contains(place),
+                        _ => managed.contains(&action.place()),
+                    }) || (reentered && edge.target == entry)
                 }) {
                     return unsupported(
                         "scalar graph whole parameter cleanup cannot replace existing branch custody",
@@ -249,10 +245,10 @@ fn complete_carriers(
             }
             Terminator::StructuralCase { cases, .. } => {
                 if cases.iter().any(|edge| {
-                    edge.trivial_affine_discards
-                        .iter()
-                        .any(|place| affine.contains(place))
-                        || (reentered && edge.target == entry)
+                    edge.cleanup_actions.iter().any(|action| match action {
+                        TerminalAffineCleanupAction::DiscardRoot(place) => affine.contains(place),
+                        _ => managed.contains(&action.place()),
+                    }) || (reentered && edge.target == entry)
                 }) {
                     return unsupported(
                         "scalar graph whole parameter cleanup cannot replace existing branch custody",
@@ -347,7 +343,7 @@ fn complete_carriers(
             Terminator::Jump {
                 target,
                 structural_arguments,
-                trivial_affine_discards,
+                cleanup_actions,
                 ..
             } => {
                 if reentered && *target == entry {
@@ -374,7 +370,7 @@ fn complete_carriers(
                         }
                     }
                     replace_managed_discards(
-                        trivial_affine_discards,
+                        cleanup_actions,
                         remaining,
                         &managed,
                         &producers,
@@ -382,7 +378,7 @@ fn complete_carriers(
                     );
                 } else {
                     replace_managed_discards(
-                        trivial_affine_discards,
+                        cleanup_actions,
                         discards(0, successors[position][0]),
                         &managed,
                         &producers,
@@ -396,14 +392,14 @@ fn complete_carriers(
                 ..
             } => {
                 replace_managed_discards(
-                    &mut when_true.trivial_affine_discards,
+                    &mut when_true.cleanup_actions,
                     discards(0, successors[position][0]),
                     &managed,
                     &producers,
                     &parameter_order,
                 );
                 replace_managed_discards(
-                    &mut when_false.trivial_affine_discards,
+                    &mut when_false.cleanup_actions,
                     discards(1, successors[position][1]),
                     &managed,
                     &producers,
@@ -415,7 +411,7 @@ fn complete_carriers(
                     cases.iter_mut().zip(&successors[position]).enumerate()
                 {
                     replace_managed_discards(
-                        &mut edge.trivial_affine_discards,
+                        &mut edge.cleanup_actions,
                         discards(edge_position, *successor),
                         &managed,
                         &producers,
@@ -455,7 +451,7 @@ fn complete_carriers(
 /// Recompute only the disposal this invocation owns. Unrelated statement,
 /// residual, claim-bearing and nominal obligations keep their existing owner.
 fn replace_managed_discards(
-    existing: &mut Vec<semantic_vocabulary::PlaceId>,
+    existing: &mut Vec<TerminalAffineCleanupAction>,
     additions: Vec<semantic_vocabulary::PlaceId>,
     managed: &[semantic_vocabulary::PlaceId],
     producers: &[(
@@ -464,7 +460,7 @@ fn replace_managed_discards(
     )],
     parameter_order: &[semantic_vocabulary::PlaceId],
 ) {
-    existing.retain(|place| !managed.contains(place));
+    existing.retain(|action| !managed.contains(&action.place()));
     merge_discards(existing, additions, producers, parameter_order);
 }
 
@@ -499,7 +495,7 @@ fn block_position(blocks: &[Block], target: BlockId) -> Result<usize, LoweringEr
 /// Insert new result cleanup in reverse producer order without rearranging an
 /// already scheduled statement cleanup. Entry parameters follow local results.
 fn merge_discards(
-    existing: &mut Vec<semantic_vocabulary::PlaceId>,
+    existing: &mut Vec<TerminalAffineCleanupAction>,
     additions: Vec<semantic_vocabulary::PlaceId>,
     producers: &[(
         semantic_vocabulary::PlaceId,
@@ -508,9 +504,13 @@ fn merge_discards(
     parameter_order: &[semantic_vocabulary::PlaceId],
 ) {
     for place in additions {
-        let insertion =
-            disposal_position(existing.iter().copied(), place, producers, parameter_order);
-        existing.insert(insertion, place);
+        let insertion = disposal_position(
+            existing.iter().map(TerminalAffineCleanupAction::place),
+            place,
+            producers,
+            parameter_order,
+        );
+        existing.insert(insertion, TerminalAffineCleanupAction::DiscardRoot(place));
     }
 }
 
@@ -554,16 +554,26 @@ fn disposal_position(
 fn scheduled_discards(terminator: &Terminator) -> Vec<semantic_vocabulary::PlaceId> {
     match terminator {
         Terminator::Jump {
-            trivial_affine_discards,
-            ..
-        } => trivial_affine_discards.clone(),
+            cleanup_actions, ..
+        } => cleanup_actions
+            .iter()
+            .filter_map(|action| match action {
+                TerminalAffineCleanupAction::DiscardRoot(place) => Some(*place),
+                _ => None,
+            })
+            .collect(),
         Terminator::Conditional {
             when_true,
             when_false,
             ..
         } => when_true
-            .affine_discard_roots()
-            .chain(when_false.affine_discard_roots())
+            .cleanup_actions
+            .iter()
+            .chain(&when_false.cleanup_actions)
+            .filter_map(|action| match action {
+                TerminalAffineCleanupAction::DiscardRoot(place) => Some(*place),
+                _ => None,
+            })
             .collect(),
         Terminator::Return {
             cleanup_actions, ..
@@ -582,7 +592,11 @@ fn scheduled_discards(terminator: &Terminator) -> Vec<semantic_vocabulary::Place
             .collect(),
         Terminator::StructuralCase { cases, .. } => cases
             .iter()
-            .flat_map(|edge| edge.affine_discard_roots())
+            .flat_map(|edge| &edge.cleanup_actions)
+            .filter_map(|action| match action {
+                TerminalAffineCleanupAction::DiscardRoot(place) => Some(*place),
+                _ => None,
+            })
             .collect(),
         _ => Vec::new(),
     }

@@ -24,16 +24,18 @@ pub(super) fn prepare(
     next_instruction: &mut usize,
     constraints: &SelectedSelectionConstraints,
     catalog: &ValidatedRegisterConstraintCatalog,
+    mut cleanup: Vec<selected_instructions::SelectedInstruction>,
 ) -> Result<Option<SelectedBlock>, SelectedInstructionError> {
     let invalid = || super::super::invalid(function);
     let case = successor.structural_case.as_ref().ok_or_else(invalid)?;
     if !successor.bindings.is_empty() || !successor.structural_bindings.is_empty() {
         return Err(invalid());
     }
-    if case
-        .payloads
-        .iter()
-        .all(|payload| payload.transport == SelectedCasePayloadTransport::Unused)
+    if cleanup.is_empty()
+        && case
+            .payloads
+            .iter()
+            .all(|payload| payload.transport == SelectedCasePayloadTransport::Unused)
     {
         return Ok(None);
     }
@@ -57,8 +59,7 @@ pub(super) fn prepare(
     continuation.role = SelectedSuccessorRole::EdgeTransferContinuation;
     continuation.fuel.clear();
     let continued = continuation.structural_case.as_mut().ok_or_else(invalid)?;
-    continued.trivial_affine_discards.clear();
-    continued.residual_affine_discards.clear();
+    continued.cleanup_actions.clear();
     let mut instructions = Vec::new();
     for payload in &mut continued.payloads {
         let parameter = match payload.transport {
@@ -201,6 +202,8 @@ pub(super) fn prepare(
             parameter,
         };
     }
+    // Payloads have been loaded; the destination still owns none of them.
+    instructions.append(&mut cleanup);
     let jump_id = SelectedInstructionId((*next_instruction).try_into().map_err(|_| invalid())?);
     *next_instruction += 1;
     let jump = crate::selection::constraints::instruction(

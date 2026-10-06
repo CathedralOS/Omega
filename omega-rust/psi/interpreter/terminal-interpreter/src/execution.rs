@@ -203,7 +203,16 @@ pub(crate) enum SuspendedCallResult {
     NominalCleanups {
         completed: (NominalAffineCleanup, TerminalStructuralValue),
         remaining: std::vec::IntoIter<terminal_psi::TerminalAffineCleanupAction>,
-        final_result: CompletedReturn,
+        continuation: CleanupContinuation,
+    },
+}
+
+/// Captured edge output survives every nominal hook without re-evaluation.
+pub(crate) enum CleanupContinuation {
+    Return(CompletedReturn),
+    Successor {
+        target: BlockId,
+        bindings: crate::terminators::block_bindings::BlockBindings,
     },
 }
 

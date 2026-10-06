@@ -680,9 +680,9 @@ impl ChainExit<'_> {
             Terminator::Jump {
                 target,
                 structural_arguments,
-                trivial_affine_discards,
+                cleanup_actions,
                 ..
-            } => self.leave(*target, structural_arguments, trivial_affine_discards),
+            } => self.leave(*target, structural_arguments, cleanup_actions),
             Terminator::Conditional {
                 when_true,
                 when_false,
@@ -692,14 +692,14 @@ impl ChainExit<'_> {
                     self.leave(
                         arm.target,
                         &arm.structural_arguments,
-                        &mut arm.trivial_affine_discards,
+                        &mut arm.cleanup_actions,
                     )?;
                 }
                 Ok(())
             }
             Terminator::StructuralCase { cases, .. } => {
                 for arm in cases {
-                    self.leave(arm.target, &[], &mut arm.trivial_affine_discards)?;
+                    self.leave(arm.target, &[], &mut arm.cleanup_actions)?;
                 }
                 Ok(())
             }
@@ -732,7 +732,7 @@ impl ChainExit<'_> {
         &self,
         target: BlockId,
         arguments: &[StructuralArgument],
-        discards: &mut Vec<PlaceId>,
+        discards: &mut Vec<TerminalAffineCleanupAction>,
     ) -> Result<(), LoweringError> {
         if !self.headers.contains(&target) {
             return Ok(());
@@ -754,7 +754,7 @@ impl ChainExit<'_> {
             }
             Forwarding::IntoMember(_) => {}
         }
-        self.insert(discards)
+        self.insert_actions(discards)
     }
 
     fn insert_actions(

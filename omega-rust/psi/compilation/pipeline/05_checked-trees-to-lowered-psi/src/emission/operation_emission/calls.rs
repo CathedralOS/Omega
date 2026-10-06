@@ -311,8 +311,7 @@ pub(crate) fn emit_staged_scalar_call_binding(
                     erased_proof_arguments: Vec::new(),
                     target: next_stage,
                     arguments,
-                    residual_affine_discards: Vec::new(),
-                    trivial_affine_discards: Vec::new(),
+                    cleanup_actions: Vec::new(),
                 },
             });
             next_stage
@@ -362,8 +361,7 @@ pub(crate) fn emit_staged_scalar_call_binding(
             arguments: continuation_arguments,
             erased_arguments: Vec::new(),
             erased_proof_arguments: Vec::new(),
-            residual_affine_discards: Vec::new(),
-            trivial_affine_discards: Vec::new(),
+            cleanup_actions: Vec::new(),
         },
     });
     Ok((continuation, blocks))

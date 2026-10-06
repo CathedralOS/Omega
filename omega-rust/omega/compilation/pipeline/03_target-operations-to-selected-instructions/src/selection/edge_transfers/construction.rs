@@ -20,9 +20,16 @@ pub(in crate::selection) fn prepare(
     function: &mut SelectedFunction,
     constraints: &SelectedSelectionConstraints,
     catalog: &ValidatedRegisterConstraintCatalog,
+    mut cleanups: Vec<super::EdgeCleanup>,
 ) -> Result<(), SelectedInstructionError> {
     let source_count = function.blocks.len();
-    let mut next_instruction = instruction_count(function);
+    // Detached cleanup rows already own IDs and call/memory contracts. Reserve
+    // them before allocating snapshots, copies, or continuation instructions.
+    let mut next_instruction = instruction_count(function)
+        + cleanups
+            .iter()
+            .map(|cleanup| cleanup.instructions.len())
+            .sum::<usize>();
     let mut bridges = Vec::new();
     let mut unbridged_fallthroughs = Vec::new();
     for source in &mut function.blocks {
@@ -36,6 +43,14 @@ pub(in crate::selection) fn prepare(
             .into_iter()
             .enumerate()
         {
+            let mut cleanup = cleanups
+                .iter()
+                .position(|cleanup| {
+                    successor.role == SelectedSuccessorRole::Semantic
+                        && cleanup.edge == successor.psi_edge
+                })
+                .map(|position| cleanups.remove(position).instructions)
+                .unwrap_or_default();
             if successor.structural_case.is_some() {
                 if let Some(bridge) = structural_case::prepare(
                     function_index,
@@ -47,6 +62,7 @@ pub(in crate::selection) fn prepare(
                     &mut next_instruction,
                     constraints,
                     catalog,
+                    cleanup,
                 )? {
                     bridges.push(bridge);
                 }
@@ -63,7 +79,8 @@ pub(in crate::selection) fn prepare(
                     SelectedValueTransport::Unused => None,
                 })
                 .collect::<Vec<_>>();
-            if active.is_empty()
+            if cleanup.is_empty()
+                && active.is_empty()
                 && successor.structural_bindings.iter().all(|binding| {
                     binding.transport == selected_instructions::SelectedStructuralTransport::Unused
                 })
@@ -102,6 +119,9 @@ pub(in crate::selection) fn prepare(
                         constraints,
                         catalog,
                     )?;
+                    // All outgoing values are now snapshots. Hooks can clobber
+                    // registers but cannot observe partially installed bindings.
+                    instructions.append(&mut cleanup);
                 }
                 for (position, (semantic, argument, _)) in active.iter().enumerate() {
                     let input = if phase == 0 {
@@ -213,6 +233,9 @@ pub(in crate::selection) fn prepare(
                 binding.transport = selected_instructions::SelectedStructuralTransport::Unused;
             }
         }
+    }
+    if !cleanups.is_empty() {
+        return Err(invalid(function_index));
     }
     function.blocks.extend(bridges);
     Ok(())

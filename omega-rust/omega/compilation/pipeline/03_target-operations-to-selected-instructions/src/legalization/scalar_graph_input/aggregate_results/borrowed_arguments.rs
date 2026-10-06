@@ -132,11 +132,19 @@ pub(in crate::legalization::scalar_graph_input) fn reconstruct_at_owner(
         let after = if let Some(operation) = owner.operation() {
             site(operation)
         } else {
-            caller.blocks.iter().find_map(|block| block.nodes.iter().position(|node| {
-                matches!(&node.operation, AbstractOperation::ReturnUnit { psi_edge, .. } | AbstractOperation::Return { psi_edge, .. }
-                    if Some(*psi_edge) == owner.edge())
-            }).map(|position| (block.id, position)))
-        }.ok_or(LegalizationError::custody())?;
+            caller.blocks.iter().find_map(|block| {
+                block
+                    .nodes
+                    .iter()
+                    .position(|node| {
+                        node.operation
+                            .cleanup_rosters()
+                            .any(|(edge, _)| Some(edge) == owner.edge())
+                    })
+                    .map(|position| (block.id, position))
+            })
+        }
+        .ok_or(LegalizationError::custody())?;
         if let Some((producer, view_type)) = element_view_producer(caller, argument.place) {
             // An element view is a descriptor root: the argument names its
             // establishing producer, never a storage home, and the projected

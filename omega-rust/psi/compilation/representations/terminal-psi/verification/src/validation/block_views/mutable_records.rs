@@ -434,13 +434,11 @@ pub(crate) fn validate_terminator(
         Terminator::Jump {
             edge,
             structural_arguments,
-            trivial_affine_discards,
-            residual_affine_discards,
+            cleanup_actions,
             ..
         } => {
-            reject_cleanup(*edge, structural_arguments, trivial_affine_discards)?;
-            for discard in residual_affine_discards {
-                reject_cleanup(*edge, structural_arguments, &[discard.place])?;
+            for action in cleanup_actions {
+                reject_cleanup(*edge, structural_arguments, &[action.place()])?;
             }
         }
         Terminator::Conditional {
@@ -449,19 +447,16 @@ pub(crate) fn validate_terminator(
             ..
         } => {
             for arm in [when_true, when_false] {
-                reject_cleanup(
-                    arm.edge,
-                    &arm.structural_arguments,
-                    &arm.trivial_affine_discards,
-                )?;
-                for discard in &arm.residual_affine_discards {
-                    reject_cleanup(arm.edge, &arm.structural_arguments, &[discard.place])?;
+                for action in &arm.cleanup_actions {
+                    reject_cleanup(arm.edge, &arm.structural_arguments, &[action.place()])?;
                 }
             }
         }
         Terminator::StructuralCase { cases, .. } => {
             for arm in cases {
-                reject_cleanup(arm.edge, &[], &arm.trivial_affine_discards)?;
+                for action in &arm.cleanup_actions {
+                    reject_cleanup(arm.edge, &[], &[action.place()])?;
+                }
             }
         }
         _ => {}

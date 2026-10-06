@@ -121,6 +121,11 @@ pub(crate) fn validate_operation_places(
             Err(OptimizationUnitValidationError::UnknownPlace { machine, place })
         }
     };
+    for (_, actions) in operation.cleanup_rosters() {
+        for action in actions {
+            require(action.place(), known)?;
+        }
+    }
     match operation {
         O::EstablishByteSequenceConcatenation { left, right, .. } => {
             require(left.source(), known)?;
@@ -138,16 +143,8 @@ pub(crate) fn validate_operation_places(
                 }
             }
         }
-        O::StructuralCase { source, cases } => {
+        O::StructuralCase { source, .. } => {
             require(*source, known)?;
-            for case in cases {
-                for place in &case.trivial_affine_discards {
-                    require(*place, known)?;
-                }
-                for discard in &case.residual_affine_discards {
-                    require(discard.place, known)?;
-                }
-            }
         }
         O::Jump {
             structural_bindings,
@@ -272,31 +269,7 @@ pub(crate) fn validate_operation_places(
             }
             abstract_operations::AbstractDynamicDispatch::Parameter(_) => {}
         },
-        O::Return {
-            cleanup_actions, ..
-        }
-        | O::ReturnUnit {
-            cleanup_actions, ..
-        }
-        | O::ReturnStructural {
-            cleanup_actions, ..
-        } => {
-            if let O::ReturnStructural { source, .. } = operation {
-                require(*source, known)?;
-            }
-            for cleanup in cleanup_actions {
-                let place = match cleanup {
-                    terminal_psi::TerminalAffineCleanupAction::DiscardRoot(place) => *place,
-                    terminal_psi::TerminalAffineCleanupAction::DiscardResidual(discard) => {
-                        discard.place
-                    }
-                    terminal_psi::TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
-                        cleanup.place
-                    }
-                };
-                require(place, known)?;
-            }
-        }
+        O::ReturnStructural { source, .. } => require(*source, known)?,
         _ => {}
     }
     Ok(())

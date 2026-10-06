@@ -400,8 +400,7 @@ pub(super) fn validate(
                     target,
                     bindings,
                     structural_bindings,
-                    trivial_affine_discards,
-                    residual_affine_discards,
+                    cleanup_actions,
                 },
             ) => {
                 successor.psi_edge == *psi_edge
@@ -415,12 +414,7 @@ pub(super) fn validate(
                         structural_bindings,
                         plan,
                     )
-                    && edge_cleanup_matches(
-                        optimized,
-                        &successor.cleanup_actions,
-                        trivial_affine_discards,
-                        residual_affine_discards,
-                    )
+                    && edge_cleanup_matches(optimized, &successor.cleanup_actions, cleanup_actions)
             }
             (
                 TargetControlTerminator::Conditional {
@@ -473,30 +467,13 @@ fn successor_matches(
             &source.structural_bindings,
             plan,
         )
-        && edge_cleanup_matches(
-            function,
-            &target.cleanup_actions,
-            &source.trivial_affine_discards,
-            &source.residual_affine_discards,
-        )
+        && edge_cleanup_matches(function, &target.cleanup_actions, &source.cleanup_actions)
 }
 
 fn edge_cleanup_matches(
     function: &PsiOptimizationFunction,
     actions: &[terminal_psi::TerminalAffineCleanupAction],
-    places: &[semantic_vocabulary::PlaceId],
-    residuals: &[terminal_psi::StructuralAffineDiscard],
+    expected: &[terminal_psi::TerminalAffineCleanupAction],
 ) -> bool {
-    let expected = places
-        .iter()
-        .copied()
-        .map(terminal_psi::TerminalAffineCleanupAction::DiscardRoot)
-        .chain(
-            residuals
-                .iter()
-                .cloned()
-                .map(terminal_psi::TerminalAffineCleanupAction::DiscardResidual),
-        )
-        .collect::<Vec<_>>();
-    actions == expected.as_slice() && super::super::aggregate_results::cleanup(function, actions)
+    actions == expected && super::super::aggregate_results::cleanup(function, actions)
 }

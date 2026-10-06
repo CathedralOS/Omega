@@ -2345,12 +2345,11 @@ impl Emission<'_, '_, '_> {
         if let Some(place) = displaced_place {
             trivial_affine_discards.push(place);
         }
-        let mut edge = self.edge(
+        let edge = self.edge(
             continuation.block,
             self.values.iter().map(|value| value.id).collect(),
             structural_arguments,
         )?;
-        edge.trivial_affine_discards = trivial_affine_discards.clone();
         self.finish(Terminator::Jump {
             edge: edge.edge,
             target: edge.target,
@@ -2358,8 +2357,15 @@ impl Emission<'_, '_, '_> {
             erased_arguments: Vec::new(),
             erased_proof_arguments: Vec::new(),
             structural_arguments: edge.structural_arguments,
-            trivial_affine_discards,
-            residual_affine_discards,
+            cleanup_actions: trivial_affine_discards
+                .into_iter()
+                .map(terminal_psi::TerminalAffineCleanupAction::DiscardRoot)
+                .chain(
+                    residual_affine_discards
+                        .into_iter()
+                        .map(terminal_psi::TerminalAffineCleanupAction::DiscardResidual),
+                )
+                .collect(),
         });
         Ok(())
     }
@@ -2398,8 +2404,7 @@ impl Emission<'_, '_, '_> {
             erased_arguments: Vec::new(),
             erased_proof_arguments: Vec::new(),
             structural_arguments: edge.structural_arguments,
-            trivial_affine_discards: Vec::new(),
-            residual_affine_discards: Vec::new(),
+            cleanup_actions: Vec::new(),
         });
         Ok(())
     }
@@ -2844,8 +2849,7 @@ impl Emission<'_, '_, '_> {
             structural_arguments,
             erased_arguments: Vec::new(),
             erased_proof_arguments: Vec::new(),
-            trivial_affine_discards: Vec::new(),
-            residual_affine_discards: Vec::new(),
+            cleanup_actions: Vec::new(),
         })
     }
 

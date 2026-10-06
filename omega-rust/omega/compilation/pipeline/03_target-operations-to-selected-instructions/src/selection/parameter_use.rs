@@ -14,10 +14,9 @@ use semantic_vocabulary::PlaceId;
 
 pub(super) fn referent_used(source: &LegalizedScalarFunction, place: PlaceId) -> bool {
     super::established_view_input::transferred(source, place)
-        || source.blocks.iter().any(|block| matches!(&block.terminator,
-            legalized_operations::LegalizedScalarTerminator::ReturnCleanup { calls, .. }
-                if calls.iter().any(|(_, call)| call.arguments.iter().any(|argument|
-                    matches!(argument, LegalizedScalarArgument::Structural { semantic, .. } if semantic.place == place)))))
+        || source.blocks.iter().any(|block| block.terminator.cleanup_calls().any(|(_, call)|
+            call.arguments.iter().any(|argument|
+                matches!(argument, LegalizedScalarArgument::Structural { semantic, .. } if semantic.place == place))))
         || source.blocks.iter().any(|block| {
             match &block.terminator {
                 legalized_operations::LegalizedScalarTerminator::StructuralCase { source, .. } => source.place() == place,

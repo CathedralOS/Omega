@@ -665,14 +665,22 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
                 }
             }
             if let Terminator::Jump {
-                residual_affine_discards,
-                ..
+                cleanup_actions, ..
             } = &block.terminator
             {
                 let mut places_and_paths = BTreeSet::new();
-                if residual_affine_discards.iter().any(|discard| {
-                    !places_and_paths.insert((discard.place, discard.path.as_slice()))
-                }) {
+                if cleanup_actions
+                    .iter()
+                    .filter_map(|action| match action {
+                        terminal_psi::TerminalAffineCleanupAction::DiscardResidual(discard) => {
+                            Some(discard)
+                        }
+                        _ => None,
+                    })
+                    .any(|discard| {
+                        !places_and_paths.insert((discard.place, discard.path.as_slice()))
+                    })
+                {
                     return Err(CodecError::NonCanonicalOrder(
                         "partial affine residual discards are unique",
                     ));

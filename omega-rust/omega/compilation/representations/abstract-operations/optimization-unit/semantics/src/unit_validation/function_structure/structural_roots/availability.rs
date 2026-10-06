@@ -221,53 +221,8 @@ pub(crate) fn operation_place_accesses(operation: &O) -> Vec<PlaceId> {
 
 pub(crate) fn operation_place_inputs(operation: &O) -> Vec<PlaceId> {
     let mut inputs = operation_place_accesses(operation);
-    match operation {
-        O::Jump {
-            trivial_affine_discards,
-            residual_affine_discards,
-            ..
-        } => {
-            inputs.extend(trivial_affine_discards.iter().copied());
-            inputs.extend(residual_affine_discards.iter().map(|discard| discard.place));
-        }
-        O::Conditional {
-            when_true,
-            when_false,
-            ..
-        } => {
-            for edge in [when_true, when_false] {
-                inputs.extend(edge.trivial_affine_discards.iter().copied());
-                inputs.extend(
-                    edge.residual_affine_discards
-                        .iter()
-                        .map(|discard| discard.place),
-                );
-            }
-        }
-        O::StructuralCase { cases, .. } => {
-            for edge in cases {
-                inputs.extend(edge.trivial_affine_discards.iter().copied());
-                inputs.extend(
-                    edge.residual_affine_discards
-                        .iter()
-                        .map(|discard| discard.place),
-                );
-            }
-        }
-        O::Return {
-            cleanup_actions, ..
-        }
-        | O::ReturnUnit {
-            cleanup_actions, ..
-        } => inputs.extend(cleanup_actions.iter().map(|cleanup| match cleanup {
-            terminal_psi::TerminalAffineCleanupAction::DiscardRoot(place) => *place,
-            terminal_psi::TerminalAffineCleanupAction::DiscardResidual(discard) => discard.place,
-            terminal_psi::TerminalAffineCleanupAction::InvokeNominal(cleanup) => cleanup.place,
-        })),
-        O::ReturnStructural {
-            cleanup_actions, ..
-        } => inputs.extend(cleanup_actions.iter().map(|action| action.place())),
-        _ => {}
+    for (_, actions) in operation.cleanup_rosters() {
+        inputs.extend(actions.iter().map(|action| action.place()));
     }
     inputs
 }

@@ -329,15 +329,13 @@ pub(super) fn admit_incoming_edge(
             psi_edge,
             target,
             structural_bindings,
-            trivial_affine_discards,
-            residual_affine_discards,
+            cleanup_actions,
             ..
         } => {
             if *psi_edge != edge.psi_edge
                 || *target != evidence.dispatch
                 || !structural_bindings.is_empty()
-                || !trivial_affine_discards.is_empty()
-                || !residual_affine_discards.is_empty()
+                || !cleanup_actions.is_empty()
             {
                 return None;
             }
@@ -356,18 +354,14 @@ pub(super) fn admit_incoming_edge(
                 .find(|arm| arm.psi_edge == edge.psi_edge)?;
             if arm.target != evidence.dispatch
                 || !arm.structural_bindings.is_empty()
-                || !arm.trivial_affine_discards.is_empty()
-                || !arm.residual_affine_discards.is_empty()
+                || !arm.cleanup_actions.is_empty()
             {
                 return None;
             }
         }
         _ => return None,
     }
-    if !edge.structural_bindings.is_empty()
-        || !edge.trivial_affine_discards.is_empty()
-        || !edge.residual_affine_discards.is_empty()
-    {
+    if !edge.structural_bindings.is_empty() || !edge.cleanup_actions.is_empty() {
         return None;
     }
     let binding = edge
@@ -397,10 +391,7 @@ pub(super) fn admit_incoming_edge(
     } else {
         (evidence.when_false, evidence.when_true)
     };
-    if !resolved.structural_bindings.is_empty()
-        || !resolved.trivial_affine_discards.is_empty()
-        || !resolved.residual_affine_discards.is_empty()
-    {
+    if !resolved.structural_bindings.is_empty() || !resolved.cleanup_actions.is_empty() {
         return None;
     }
     let resolved_block = evidence

@@ -269,24 +269,12 @@ pub(super) fn lower(
         // qualifications. This checks the supported cleanup carrier, not
         // ownership liveness; the validated abstract graph remains the
         // custody authority.
-        let mut discards = case
-            .trivial_affine_discards
-            .iter()
-            .copied()
-            .map(terminal_psi::TerminalAffineCleanupAction::DiscardRoot)
-            .collect::<Vec<_>>();
-        discards.extend(
-            case.residual_affine_discards
-                .iter()
-                .cloned()
-                .map(terminal_psi::TerminalAffineCleanupAction::DiscardResidual),
-        );
         let mut edge_live = live.clone();
         if !super::terminator::plain_home_cleanup(
             function,
             &mut edge_live,
             structural_types,
-            &discards,
+            &case.cleanup_actions,
         )? {
             return Err(invalid());
         }
@@ -335,8 +323,7 @@ pub(super) fn lower(
             case_tag: i32::try_from(case_ordinal).map_err(|_| invalid())?,
             target: case.target,
             payloads,
-            trivial_affine_discards: case.trivial_affine_discards.clone(),
-            residual_affine_discards: case.residual_affine_discards.clone(),
+            cleanup_actions: case.cleanup_actions.clone(),
         });
     }
     live.finish_reference_edges(reference_exits);

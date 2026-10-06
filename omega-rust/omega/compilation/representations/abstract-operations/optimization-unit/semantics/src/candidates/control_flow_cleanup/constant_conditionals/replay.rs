@@ -141,8 +141,7 @@ pub(super) fn validate(
         psi_edge: selected.psi_edge,
         target: selected.target,
         bindings: selected.bindings.clone(),
-        trivial_affine_discards: selected.trivial_affine_discards.clone(),
-        residual_affine_discards: selected.residual_affine_discards.clone(),
+        cleanup_actions: selected.cleanup_actions.clone(),
     };
     output_node.definitions.clear();
     output_node.uses = selected
@@ -159,8 +158,7 @@ pub(super) fn validate(
         psi_edge: selected.psi_edge,
         target: selected.target,
         bindings: selected.bindings.clone(),
-        trivial_affine_discards: selected.trivial_affine_discards.clone(),
-        residual_affine_discards: selected.residual_affine_discards.clone(),
+        cleanup_actions: selected.cleanup_actions.clone(),
         provenance: vec![PsiProvenance::Edge(selected.psi_edge)],
         fuel: selected_fuel,
     }];

@@ -141,14 +141,12 @@ pub(crate) fn accepts(function: &LegalizedScalarFunction) -> bool {
                 .chain(function.blocks.iter().flat_map(|block| &block.structural_parameters))
                 .any(|parameter| parameter.place == source.place())
         })
-        // Return cleanup calls can observe an original owned parameter even
+        // Edge cleanup calls can observe an original owned parameter even
         // when there is no ordinary body instruction using that parameter.
-        && !function.blocks.iter().any(|block| matches!(&block.terminator,
-            legalized_operations::LegalizedScalarTerminator::ReturnCleanup { calls, .. }
-                if calls.iter().any(|(_, call)| call.arguments.iter().any(|argument|
+        && !function.blocks.iter().any(|block| block.terminator.cleanup_calls().any(|(_, call)| call.arguments.iter().any(|argument|
                     matches!(argument, LegalizedScalarArgument::Structural { semantic, .. }
                         if contract.parameters.iter().any(|parameter| parameter.semantic.place == semantic.place)
-                            || function.blocks.iter().flat_map(|block| &block.structural_parameters).any(|parameter| parameter.place == semantic.place))))))
+                            || function.blocks.iter().flat_map(|block| &block.structural_parameters).any(|parameter| parameter.place == semantic.place)))))
         && !function.blocks.iter().any(|block| matches!(&block.terminator,
             legalized_operations::LegalizedScalarTerminator::Return(returned)
                 if matches!(returned.value, legalized_operations::LegalizedScalarReturnValue::StructuralParameter { .. })))

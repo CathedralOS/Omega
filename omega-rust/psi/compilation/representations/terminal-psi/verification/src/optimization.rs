@@ -15,8 +15,7 @@ mod proof_context_transport;
 mod sparse_conditional_constant_propagation;
 
 pub use control_flow_cleanup::{ControlFlowCleanupRewriteError, validate_control_flow_cleanup};
-pub use copy_propagation::{
-    CopyPropagationRewriteError, transport_copy_propagation_evidence, };
+pub use copy_propagation::{CopyPropagationRewriteError, transport_copy_propagation_evidence};
 pub use dead_scalar_elimination::{
     DeadScalarRewriteError, transport_dead_scalar_elimination_evidence,
     validate_dead_scalar_elimination,
@@ -454,23 +453,18 @@ fn machine_transitions(machine: &terminal_psi::TerminalMachine) -> Vec<MachineId
                 _ => {}
             }
         }
-        match &block.terminator {
-            terminal_psi::Terminator::Return {
-                cleanup_actions, ..
-            }
-            | terminal_psi::Terminator::ReturnUnit {
-                cleanup_actions, ..
-            } => {
-                for action in cleanup_actions {
-                    if let terminal_psi::TerminalAffineCleanupAction::InvokeNominal(cleanup) =
-                        action
-                    {
-                        targets.push(cleanup.cleanup_machine);
+        targets.extend(
+            block
+                .terminator
+                .cleanup_rosters()
+                .flat_map(|(_, actions)| actions)
+                .filter_map(|action| match action {
+                    terminal_psi::TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
+                        Some(cleanup.cleanup_machine)
                     }
-                }
-            }
-            _ => {}
-        }
+                    _ => None,
+                }),
+        );
     }
     if let Some(application) = &machine.closed_reach_application {
         for parameter in &application.telescope {

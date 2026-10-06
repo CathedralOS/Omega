@@ -50,34 +50,8 @@ impl StateGraphEmission<'_, '_> {
             case_subject,
             inherited_lengths,
             inherited_field_lengths,
-            consumed_case_subjects,
         } = *frame;
         let state = &plan.states[position];
-        // Successors still carry the existing no-code root/residual lists.
-        // Source admission may now retain nominal local cleanup as an exact
-        // normal-edge action; that hook cannot become a root discard merely
-        // because this consumer has no executable successor-action stream yet.
-        // Returning siblings and residual-only successors keep their own
-        // existing routes.
-        let exit = checked_trees::FlowClaimJoinExit {
-            state_symbol: state.state,
-            statement_index: edge.statement_ordinal as usize,
-            kind: checked_trees::FlowClaimJoinExitKind::TransitionTarget,
-        };
-        if state
-            .normal_exit_cleanups
-            .iter()
-            .filter(|cleanup| cleanup.exit == exit)
-            .flat_map(|cleanup| &cleanup.actions)
-            .any(|action| {
-                matches!(
-                    action,
-                    checked_trees::CheckedNormalCleanupAction::InvokeNominal(_)
-                )
-            })
-        {
-            return unsupported("named successor requires executable normal-edge cleanup actions");
-        }
         let arrival_decided = checked.facts.call_requires_decided(
             state.state,
             edge.statement_ordinal,
@@ -95,70 +69,6 @@ impl StateGraphEmission<'_, '_> {
             next_edge,
             edge_blocks,
         } = emitted;
-        // Every edge retains its local remainder until selected operands
-        // finish. A case edge has already consumed only its subject.
-        let mut trivial_affine_discards = if evaluation.selection_cleanups.is_empty() {
-            result_custody::local_discards(
-                checked,
-                owner,
-                self.admitted.authored[position].1,
-                state,
-                Some(edge),
-            )?
-            .into_iter()
-            .map(|ordinal| {
-                let result = case_emission::result(state, ordinal, operations)?;
-                Ok(evaluation.current_structural_place(result.place()))
-            })
-            .collect::<Result<Vec<_>, LoweringError>>()?
-        } else {
-            // An owned selection's residual and transported parameters die
-            // or transfer per edge; the receipt's cleanup correspondence
-            // substitutes each source's positional row exactly.
-            result_custody::selection_edge_discards(
-                checked,
-                owner,
-                self.admitted.authored[position].1,
-                state,
-                edge,
-                operations,
-                evaluation,
-            )?
-        };
-        // Owned parameters the target does not receive die on this edge,
-        // at whatever place their value occupies when control leaves, in
-        // reverse declaration order.
-        let mut dying = edge.trivial_affine_discard_parameter_positions.clone();
-        if let Some((_, subject)) = consumed_case_subjects
-            .iter()
-            .find(|(ordinal, _)| *ordinal == edge.statement_ordinal)
-            && !dying.contains(subject)
-            && evaluation
-                .structural_parameters
-                .iter()
-                .any(|(position, parameter)| {
-                    position == subject && parameter.access == StructuralAccess::Owned
-                })
-        {
-            dying.push(*subject);
-            dying.sort_by_key(|position| std::cmp::Reverse(*position));
-        }
-        for position in &dying {
-            let (_, parameter) = evaluation
-                .structural_parameters
-                .iter()
-                .find(|(source_position, _)| source_position == position)
-                .ok_or(LoweringError::Unsupported(
-                    "Unit graph edge discards a parameter its state does not declare",
-                ))?;
-            trivial_affine_discards.push(evaluation.current_structural_place(parameter.place));
-        }
-        if case_edge {
-            let consumed = case_subject.ok_or(LoweringError::Unsupported(
-                "Unit graph case edge lost its consumed subject",
-            ))?;
-            trivial_affine_discards.retain(|place| *place != consumed);
-        }
         operations.byte_lengths = inherited_lengths.to_vec();
         operations.field_byte_lengths = inherited_field_lengths.to_vec();
         let target = plan
@@ -782,6 +692,62 @@ impl StateGraphEmission<'_, '_> {
                 operations,
             ));
         }
+        // Operand evaluation establishes the outgoing values before the exact
+        // selected source exit determines the remaining owned dispositions.
+        // Keep action kinds and their checked order through private staging.
+        let exit = super::super::cleanup::coordinate(
+            checked,
+            state,
+            edge.statement_ordinal as usize,
+            false,
+        )?;
+        let mut cleanup_actions = super::super::cleanup::for_exit(
+            checked,
+            state,
+            exit,
+            self.catalogs,
+            state_parameters,
+            &edge_evaluation,
+            operations,
+        )?;
+        if !edge_evaluation.selection_cleanups.is_empty() {
+            let selected = result_custody::selection_edge_discards(
+                checked,
+                owner,
+                self.admitted.authored[position].1,
+                state,
+                edge,
+                operations,
+                &edge_evaluation,
+            )?;
+            let previous = std::mem::take(&mut cleanup_actions);
+            for place in &selected {
+                let mut retained = previous
+                    .iter()
+                    .filter(|action| action.place() == *place)
+                    .peekable();
+                if retained.peek().is_some() {
+                    cleanup_actions.extend(retained.cloned());
+                } else {
+                    cleanup_actions.push(terminal_psi::TerminalAffineCleanupAction::DiscardRoot(
+                        *place,
+                    ));
+                }
+            }
+            cleanup_actions.extend(previous.into_iter().filter(|action| {
+                !selected.contains(&action.place())
+                    && !edge_evaluation
+                        .selection_cleanups
+                        .iter()
+                        .any(|cleanup| cleanup.sources.contains(&action.place()))
+            }));
+        }
+        if case_edge {
+            let consumed = case_subject.ok_or(LoweringError::Unsupported(
+                "Unit graph case edge lost its consumed subject",
+            ))?;
+            cleanup_actions.retain(|action| action.place() != consumed);
+        }
         // Proof-only actuals never evaluate: each checked erased row
         // lowers to a term over the emitting state's scalar values and
         // erased formals, in the target's erased-roster order.
@@ -948,8 +914,7 @@ impl StateGraphEmission<'_, '_> {
                     structural_arguments,
                     erased_arguments,
                     erased_proof_arguments,
-                    trivial_affine_discards,
-                    residual_affine_discards: Vec::new(),
+                    cleanup_actions,
                 },
             });
             Ok(SuccessorEdge {
@@ -964,8 +929,7 @@ impl StateGraphEmission<'_, '_> {
                     })
                     .collect(),
                 structural_arguments: Vec::new(),
-                trivial_affine_discards: Vec::new(),
-                residual_affine_discards: Vec::new(),
+                cleanup_actions: Vec::new(),
             })
         } else {
             let successor_edge = edge_id(allocate_dense(next_edge)?);
@@ -989,8 +953,7 @@ impl StateGraphEmission<'_, '_> {
                 structural_arguments,
                 erased_arguments,
                 erased_proof_arguments,
-                trivial_affine_discards,
-                residual_affine_discards: Vec::new(),
+                cleanup_actions,
             })
         }
     }
@@ -1014,7 +977,6 @@ pub(super) struct SuccessorFrame<'f> {
         StructuralFieldId,
         ValueId,
     )],
-    pub(super) consumed_case_subjects: &'f [(u32, u32)],
 }
 
 /// The state's emission in flight that each successor edge extends.

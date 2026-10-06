@@ -130,8 +130,9 @@ fn current_vocabulary_has_explicit_costs_and_attribution() {
         arguments: vec![value_id(1)],
         erased_arguments: Vec::new(),
         erased_proof_arguments: Vec::new(),
-        residual_affine_discards: Vec::new(),
-        trivial_affine_discards: vec![place_id(1)],
+        cleanup_actions: vec![terminal_psi::TerminalAffineCleanupAction::DiscardRoot(
+            place_id(1),
+        )],
     };
     let return_edge = Terminator::Return {
         edge: edge_id(2),

@@ -15,7 +15,7 @@ pub(super) fn project(
 ) -> Result<LegalizedScalarTerminator, LegalizationError> {
     let cleanup_calls =
         scalar_graph_input::cleanup_calls::expected(&node.operation, function, native, plan, unit)?;
-    let result = match &node.operation {
+    let mut result = match &node.operation {
         AbstractOperation::Crash {
             psi_edge,
             cause,
@@ -114,13 +114,44 @@ pub(super) fn project(
     if cleanup_calls.is_empty() {
         return Ok(result);
     }
-    let LegalizedScalarTerminator::Return(returned) = result else {
-        return Err(Error::custody());
-    };
-    Ok(LegalizedScalarTerminator::ReturnCleanup {
-        returned,
-        calls: cleanup_calls,
-    })
+    if let LegalizedScalarTerminator::Return(returned) = result {
+        return Ok(LegalizedScalarTerminator::ReturnCleanup {
+            returned,
+            calls: cleanup_calls,
+        });
+    }
+    for (owner, call) in cleanup_calls {
+        let calls = match &mut result {
+            LegalizedScalarTerminator::Jump { successor, .. }
+                if owner.edge() == Some(successor.edge) =>
+            {
+                &mut successor.cleanup_calls
+            }
+            LegalizedScalarTerminator::Conditional {
+                when_true,
+                when_false,
+                ..
+            } => {
+                if owner.edge() == Some(when_true.edge) {
+                    &mut when_true.cleanup_calls
+                } else if owner.edge() == Some(when_false.edge) {
+                    &mut when_false.cleanup_calls
+                } else {
+                    return Err(Error::custody());
+                }
+            }
+            LegalizedScalarTerminator::StructuralCase { cases, .. } => {
+                &mut cases
+                    .iter_mut()
+                    .find(|case| owner.edge() == Some(case.edge))
+                    .ok_or_else(Error::custody)?
+                    .cleanup_calls
+            }
+            _ => return Err(Error::custody()),
+        };
+        calls.push((owner, call));
+    }
+    Ok(result)
 }
 fn successor(edge: &optimization_unit::OptimizationEdge) -> LegalizedScalarSuccessor {
     LegalizedScalarSuccessor {
@@ -129,5 +160,6 @@ fn successor(edge: &optimization_unit::OptimizationEdge) -> LegalizedScalarSucce
         bindings: edge.bindings.clone(),
         structural_bindings: edge.structural_bindings.clone(),
         fuel: edge.fuel.clone(),
+        cleanup_calls: Vec::new(),
     }
 }

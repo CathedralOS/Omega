@@ -234,15 +234,11 @@ pub(crate) fn forward_private_state_borrows(
             Terminator::Jump {
                 target,
                 structural_arguments,
-                trivial_affine_discards,
-                residual_affine_discards,
+                cleanup_actions,
                 ..
             } => {
                 forward(*target, structural_arguments);
-                remap_roots(trivial_affine_discards, names);
-                for discard in residual_affine_discards {
-                    discard.place = mapped(names, discard.place);
-                }
+                remap_cleanup_actions(cleanup_actions, names);
             }
             Terminator::Conditional {
                 when_true,
@@ -251,7 +247,7 @@ pub(crate) fn forward_private_state_borrows(
             } => {
                 for edge in [when_true, when_false] {
                     forward(edge.target, &mut edge.structural_arguments);
-                    remap_roots(&mut edge.trivial_affine_discards, names);
+                    remap_cleanup_actions(&mut edge.cleanup_actions, names);
                 }
             }
             Terminator::ReturnStructural {
@@ -281,7 +277,7 @@ pub(crate) fn forward_private_state_borrows(
                             "private case dispatch needs explicit exclusive state-borrow forwarding",
                         );
                     }
-                    remap_roots(&mut case.trivial_affine_discards, names);
+                    remap_cleanup_actions(&mut case.cleanup_actions, names);
                 }
             }
             // Guards and proof propositions keep their original storage
@@ -319,12 +315,6 @@ fn has_explicit_transfer(blocks: &[Block], place: PlaceId) -> bool {
         }),
         _ => false,
     })
-}
-
-fn remap_roots(places: &mut [PlaceId], names: &[(PlaceId, PlaceId, StructuralAccess)]) {
-    for place in places {
-        *place = mapped(names, *place);
-    }
 }
 
 fn remap_cleanup_actions(

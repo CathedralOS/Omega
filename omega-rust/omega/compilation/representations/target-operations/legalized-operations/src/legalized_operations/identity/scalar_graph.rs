@@ -1081,6 +1081,7 @@ fn encode_structural_source(bytes: &mut Vec<u8>, source: &crate::LegalizedStruct
 }
 
 fn encode_successor(bytes: &mut Vec<u8>, successor: &LegalizedScalarSuccessor) {
+    encode_cleanup_calls(bytes, &successor.cleanup_calls);
     bytes.extend_from_slice(&successor.edge.get().to_le_bytes());
     bytes.extend_from_slice(&successor.target.get().to_le_bytes());
     encode_bindings(bytes, &successor.bindings);
@@ -1092,31 +1093,38 @@ fn encode_successor(bytes: &mut Vec<u8>, successor: &LegalizedScalarSuccessor) {
     encode_fuel(bytes, &successor.fuel);
 }
 
+fn encode_cleanup_calls(
+    bytes: &mut Vec<u8>,
+    calls: &[(target_operations::CallSiteOwner, crate::LegalizedScalarCall)],
+) {
+    encode_len(bytes, calls.len());
+    for (owner, call) in calls {
+        match owner {
+            target_operations::CallSiteOwner::Operation(operation) => {
+                bytes.push(0);
+                bytes.extend_from_slice(&operation.get().to_le_bytes());
+            }
+            target_operations::CallSiteOwner::CleanupAction {
+                edge,
+                action_ordinal,
+            } => {
+                bytes.push(1);
+                bytes.extend_from_slice(&edge.get().to_le_bytes());
+                bytes.extend_from_slice(&action_ordinal.to_le_bytes());
+            }
+        }
+        let encoded = call.canonical_bytes();
+        encode_len(bytes, encoded.len());
+        bytes.extend_from_slice(&encoded);
+    }
+}
+
 fn encode_terminator(bytes: &mut Vec<u8>, terminator: &LegalizedScalarTerminator) {
     match terminator {
         LegalizedScalarTerminator::ReturnCleanup { returned, calls } => {
             bytes.push(5);
             encode_terminator(bytes, &LegalizedScalarTerminator::Return(returned.clone()));
-            encode_len(bytes, calls.len());
-            for (owner, call) in calls {
-                match owner {
-                    target_operations::CallSiteOwner::Operation(operation) => {
-                        bytes.push(0);
-                        bytes.extend_from_slice(&operation.get().to_le_bytes());
-                    }
-                    target_operations::CallSiteOwner::CleanupAction {
-                        edge,
-                        action_ordinal,
-                    } => {
-                        bytes.push(1);
-                        bytes.extend_from_slice(&edge.get().to_le_bytes());
-                        bytes.extend_from_slice(&action_ordinal.to_le_bytes());
-                    }
-                }
-                let encoded = call.canonical_bytes();
-                encode_len(bytes, encoded.len());
-                bytes.extend_from_slice(&encoded);
-            }
+            encode_cleanup_calls(bytes, calls);
         }
         LegalizedScalarTerminator::Crash {
             psi_edge,
@@ -1170,16 +1178,11 @@ fn encode_terminator(bytes: &mut Vec<u8>, terminator: &LegalizedScalarTerminator
                     encode_scalar_type(bytes, payload.parameter.scalar_type);
                     encode_value_definition_site_identity(bytes, payload.parameter.definition_site);
                 }
-                encode_ids(
-                    bytes,
-                    case.trivial_affine_discards.iter().map(|place| place.get()),
-                );
-                encode_len(bytes, case.residual_affine_discards.len());
-                for discard in &case.residual_affine_discards {
-                    bytes.extend_from_slice(&discard.place.get().to_le_bytes());
-                    super::structural_types::encode_structural_path(bytes, &discard.path);
-                    bytes.extend_from_slice(&discard.structural_type.get().to_le_bytes());
+                encode_len(bytes, case.cleanup_actions.len());
+                for action in &case.cleanup_actions {
+                    super::structural::encode_cleanup_action(bytes, action);
                 }
+                encode_cleanup_calls(bytes, &case.cleanup_calls);
                 encode_fuel(bytes, &case.fuel);
             }
             encode_effect(bytes, *effect);

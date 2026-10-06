@@ -1055,6 +1055,8 @@ pub struct LegalizedScalarSuccessor {
     pub bindings: Vec<ValueBinding>,
     pub structural_bindings: Vec<abstract_operations::AbstractStructuralBinding>,
     pub fuel: Vec<FuelSettlement>,
+    /// Ordinary calls owned by this edge, executed before successor binding.
+    pub cleanup_calls: Vec<(target_operations::CallSiteOwner, LegalizedScalarCall)>,
 }
 
 /// Exact semantic owner of stored structural data observed by a terminator.
@@ -1140,6 +1142,31 @@ pub enum LegalizedScalarTerminator {
 }
 
 impl LegalizedScalarTerminator {
+    /// Cleanup receiver uses count on every normal edge, including selected arms.
+    pub fn cleanup_calls(
+        &self,
+    ) -> impl Iterator<Item = &(target_operations::CallSiteOwner, LegalizedScalarCall)> {
+        let (direct, alternative, cases) = match self {
+            Self::ReturnCleanup { calls, .. } => (calls.as_slice(), &[][..], &[][..]),
+            Self::Jump { successor, .. } => (successor.cleanup_calls.as_slice(), &[][..], &[][..]),
+            Self::Conditional {
+                when_true,
+                when_false,
+                ..
+            } => (
+                when_true.cleanup_calls.as_slice(),
+                when_false.cleanup_calls.as_slice(),
+                &[][..],
+            ),
+            Self::StructuralCase { cases, .. } => (&[][..], &[][..], cases.as_slice()),
+            _ => (&[][..], &[][..], &[][..]),
+        };
+        direct
+            .iter()
+            .chain(alternative)
+            .chain(cases.iter().flat_map(|case| &case.cleanup_calls))
+    }
+
     /// Reads on the outgoing edges count even when the destination drops the value.
     pub fn references_value(&self, value: ValueId) -> bool {
         let binds = |successor: &LegalizedScalarSuccessor| {

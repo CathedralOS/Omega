@@ -13,7 +13,7 @@ mod tests;
 use crate::{PreAllocationMachineEffectIdentity, PreAllocationMachineEffectPlan};
 
 use instruction::encode_cfg_instruction;
-pub(crate) use ownership::encode_path;
+pub(crate) use ownership::encode_cleanup;
 pub use ownership::{encode_effect_link, encode_ownership};
 pub use provenance::encode_provenance;
 use values::{encode_len, encode_target};
@@ -21,7 +21,7 @@ use values::{encode_len, encode_target};
 pub fn pre_allocation_machine_effect_identity(
     plan: &PreAllocationMachineEffectPlan,
 ) -> PreAllocationMachineEffectIdentity {
-    identity_with_domain(plan, b"omega.terminal-preallocation-machine-effects.v25\0")
+    identity_with_domain(plan, b"omega.terminal-preallocation-machine-effects.v26\0")
 }
 
 fn identity_with_domain(

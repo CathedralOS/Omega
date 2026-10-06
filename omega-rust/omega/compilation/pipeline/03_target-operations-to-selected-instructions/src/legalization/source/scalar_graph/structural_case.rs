@@ -75,8 +75,8 @@ pub(super) fn project(
             case: case.case,
             case_tag: i32::try_from(case_position).map_err(|_| Error::custody())?,
             payloads,
-            trivial_affine_discards: case.trivial_affine_discards.clone(),
-            residual_affine_discards: case.residual_affine_discards.clone(),
+            cleanup_actions: case.cleanup_actions.clone(),
+            cleanup_calls: Vec::new(),
             fuel: edge.fuel.clone(),
         });
     }

@@ -192,8 +192,7 @@ impl GraphEmission<'_> {
                             arguments,
                             erased_arguments: Vec::new(),
                             erased_proof_arguments: Vec::new(),
-                            residual_affine_discards: Vec::new(),
-                            trivial_affine_discards: Vec::new(),
+                            cleanup_actions: Vec::new(),
                         },
                     };
                     if binding_index == 0 {
@@ -475,8 +474,7 @@ impl GraphEmission<'_> {
                         arguments: when_true.arguments,
                         erased_arguments: Vec::new(),
                         erased_proof_arguments: Vec::new(),
-                        trivial_affine_discards: Vec::new(),
-                        residual_affine_discards: Vec::new(),
+                        cleanup_actions: Vec::new(),
                     },
                     when_false: SuccessorEdge {
                         structural_arguments: Vec::new(),
@@ -485,8 +483,7 @@ impl GraphEmission<'_> {
                         arguments: when_false.arguments,
                         erased_arguments: Vec::new(),
                         erased_proof_arguments: Vec::new(),
-                        trivial_affine_discards: Vec::new(),
-                        residual_affine_discards: Vec::new(),
+                        cleanup_actions: Vec::new(),
                     },
                 }
             }
@@ -532,8 +529,7 @@ impl GraphEmission<'_> {
                         arguments: target.arguments,
                         erased_arguments: Vec::new(),
                         erased_proof_arguments: Vec::new(),
-                        residual_affine_discards: Vec::new(),
-                        trivial_affine_discards: Vec::new(),
+                        cleanup_actions: Vec::new(),
                     }
                 } else {
                     let arguments = arguments
@@ -554,8 +550,10 @@ impl GraphEmission<'_> {
                         arguments,
                         erased_arguments: Vec::new(),
                         erased_proof_arguments: Vec::new(),
-                        residual_affine_discards: Vec::new(),
-                        trivial_affine_discards,
+                        cleanup_actions: trivial_affine_discards
+                            .into_iter()
+                            .map(terminal_psi::TerminalAffineCleanupAction::DiscardRoot)
+                            .collect(),
                     }
                 }
             }

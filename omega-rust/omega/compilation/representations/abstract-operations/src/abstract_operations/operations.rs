@@ -662,12 +662,9 @@ pub enum AbstractOperation {
         target: BlockId,
         bindings: Vec<ValueBinding>,
         structural_bindings: Vec<crate::AbstractStructuralBinding>,
-        /// Exact Terminal-Psi edge cleanup order. These no-ABI affine
-        /// discards still participate in ownership semantics and therefore
-        /// cannot be reconstructed from the target block alone.
-        trivial_affine_discards: Vec<PlaceId>,
-        /// Exact ordered complement of the partially transferred owner.
-        residual_affine_discards: Vec<terminal_psi::StructuralAffineDiscard>,
+        /// Exact selected-edge action order, after outgoing values are captured
+        /// and before destination parameters are bound. Never regroup by kind.
+        cleanup_actions: Vec<TerminalAffineCleanupAction>,
     },
     Conditional {
         condition: ValueId,
@@ -739,6 +736,50 @@ pub enum AbstractOperation {
 }
 
 impl AbstractOperation {
+    /// Cleanup belongs to a selected semantic edge, not to the containing
+    /// block. Enumerating these rosters does not execute conditional siblings.
+    pub fn cleanup_rosters(
+        &self,
+    ) -> impl Iterator<Item = (EdgeId, &[TerminalAffineCleanupAction])> {
+        let (first, second, cases): (_, _, &[crate::AbstractStructuralCaseSuccessor]) = match self {
+            Self::Jump {
+                psi_edge,
+                cleanup_actions,
+                ..
+            }
+            | Self::Return {
+                psi_edge,
+                cleanup_actions,
+                ..
+            }
+            | Self::ReturnUnit {
+                psi_edge,
+                cleanup_actions,
+            }
+            | Self::ReturnStructural {
+                psi_edge,
+                cleanup_actions,
+                ..
+            } => (Some((*psi_edge, cleanup_actions.as_slice())), None, &[]),
+            Self::Conditional {
+                when_true,
+                when_false,
+                ..
+            } => (
+                Some((when_true.psi_edge, when_true.cleanup_actions.as_slice())),
+                Some((when_false.psi_edge, when_false.cleanup_actions.as_slice())),
+                &[],
+            ),
+            Self::StructuralCase { cases, .. } => (None, None, cases),
+            _ => (None, None, &[]),
+        };
+        first.into_iter().chain(second).chain(
+            cases
+                .iter()
+                .map(|case| (case.psi_edge, case.cleanup_actions.as_slice())),
+        )
+    }
+
     /// The declared structural value produced by this operation, independent
     /// of its constructor or call origin. This is semantic custody, not an
     /// assertion that the value owns storage: views and primitive locals also

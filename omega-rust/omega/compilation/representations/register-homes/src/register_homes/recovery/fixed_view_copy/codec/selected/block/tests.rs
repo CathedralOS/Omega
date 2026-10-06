@@ -296,6 +296,7 @@ fn case_payload_codec_retains_every_semantic_and_transport_field() {
         SelectedCasePayloadTransport, SelectedStructuralCaseEdge,
     };
     use semantic_vocabulary::{OperationId, PlaceId, StructuralCaseId, StructuralFieldId};
+    use terminal_psi::TerminalAffineCleanupAction;
     let mut original = successor();
     original.structural_case = Some(SelectedStructuralCaseEdge {
         source: SelectedCaseDispatchSource::Local {
@@ -321,14 +322,16 @@ fn case_payload_codec_retains_every_semantic_and_transport_field() {
             },
             transport: SelectedCasePayloadTransport::Unused,
         }],
-        trivial_affine_discards: vec![PlaceId::new(11).unwrap()],
-        residual_affine_discards: vec![terminal_psi::StructuralAffineDiscard {
-            place: PlaceId::new(12).unwrap(),
-            path: vec![terminal_psi::StructuralPathSegment::Field(
-                "remaining".into(),
-            )],
-            structural_type: semantic_vocabulary::StructuralTypeId::new(4).unwrap(),
-        }],
+        cleanup_actions: vec![
+            TerminalAffineCleanupAction::DiscardRoot(PlaceId::new(11).unwrap()),
+            TerminalAffineCleanupAction::DiscardResidual(terminal_psi::StructuralAffineDiscard {
+                place: PlaceId::new(12).unwrap(),
+                path: vec![terminal_psi::StructuralPathSegment::Field(
+                    "remaining".into(),
+                )],
+                structural_type: semantic_vocabulary::StructuralTypeId::new(4).unwrap(),
+            }),
+        ],
     });
     let mut encodings = Vec::new();
     for transport in [
@@ -362,8 +365,12 @@ fn case_payload_codec_retains_every_semantic_and_transport_field() {
             0 => case.case_tag = 0,
             1 => case.payloads[0].semantic.field_byte_offset += 4,
             2 => case.payloads[0].semantic.parameter.value = ValueId::new(10).unwrap(),
-            3 => case.trivial_affine_discards.clear(),
-            6 => case.residual_affine_discards.clear(),
+            3 => case
+                .cleanup_actions
+                .retain(|action| !matches!(action, TerminalAffineCleanupAction::DiscardRoot(_))),
+            6 => case.cleanup_actions.retain(|action| {
+                !matches!(action, TerminalAffineCleanupAction::DiscardResidual(_))
+            }),
             4 => {
                 case.source = SelectedCaseDispatchSource::Local {
                     slot: LocalStorageSlotId::Boundary {
@@ -524,4 +531,59 @@ fn address_transport_round_trips_both_bases_and_rejects_forged_carriers() {
             );
         }
     }
+}
+
+#[test]
+fn successor_case_round_trip_retains_ordered_cleanup_actions() {
+    use selected_instructions::{SelectedCaseDispatchSource, SelectedStructuralCaseEdge};
+    use semantic_vocabulary::{
+        ClaimId, MachineId, ObligationId, PlaceId, StructuralCaseId, StructuralTypeId,
+    };
+    use terminal_psi::{
+        NominalAffineCleanup, StructuralAffineDiscard, StructuralPathSegment,
+        TerminalAffineCleanupAction,
+    };
+
+    let mut original = successor();
+    original.structural_case = Some(SelectedStructuralCaseEdge {
+        source: SelectedCaseDispatchSource::Borrowed {
+            place: PlaceId::new(10).unwrap(),
+            pointer: VirtualRegisterId(11),
+            byte_size: 16,
+        },
+        case: StructuralCaseId::new(12).unwrap(),
+        case_tag: 3,
+        payloads: Vec::new(),
+        cleanup_actions: vec![
+            TerminalAffineCleanupAction::DiscardRoot(PlaceId::new(13).unwrap()),
+            TerminalAffineCleanupAction::InvokeNominal(NominalAffineCleanup {
+                place: PlaceId::new(14).unwrap(),
+                structural_type: StructuralTypeId::new(15).unwrap(),
+                cleanup_machine: MachineId::new(16).unwrap(),
+                consumed_claims: vec![ClaimId::new(17).unwrap()],
+                cleanup_receiver: Some(PlaceId::new(18).unwrap()),
+                requirement_obligations: vec![ObligationId::new(19).unwrap()],
+            }),
+            TerminalAffineCleanupAction::DiscardResidual(StructuralAffineDiscard {
+                place: PlaceId::new(20).unwrap(),
+                structural_type: StructuralTypeId::new(21).unwrap(),
+                path: vec![
+                    StructuralPathSegment::Case(StructuralCaseId::new(22).unwrap()),
+                    StructuralPathSegment::Field("payload".into()),
+                    StructuralPathSegment::Referent,
+                    StructuralPathSegment::FixedIndex(1),
+                    StructuralPathSegment::FixedByteRange { start: 2, end: 4 },
+                    StructuralPathSegment::RuntimeIndex {
+                        index: ValueId::new(23).unwrap(),
+                        obligation: ObligationId::new(24).unwrap(),
+                    },
+                ],
+            }),
+        ],
+    });
+    let mut encoded = Vec::new();
+    encode_successor(&mut encoded, &original);
+    let mut cursor = Cursor::new(&encoded);
+    assert_eq!(decode_successor(&mut cursor).unwrap(), original);
+    assert_eq!(cursor.remaining(), 0);
 }

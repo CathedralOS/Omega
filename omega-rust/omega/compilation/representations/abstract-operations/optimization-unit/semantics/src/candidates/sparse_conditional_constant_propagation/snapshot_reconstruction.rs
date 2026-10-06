@@ -227,15 +227,13 @@ pub(crate) fn validator_scalar_operation_successors(
             target,
             bindings,
             structural_bindings,
-            trivial_affine_discards,
-            residual_affine_discards,
+            cleanup_actions,
         } => vec![OptimizationEdge {
             structural_bindings: structural_bindings.clone(),
             psi_edge: *psi_edge,
             target: *target,
             bindings: bindings.clone(),
-            trivial_affine_discards: trivial_affine_discards.clone(),
-            residual_affine_discards: residual_affine_discards.clone(),
+            cleanup_actions: cleanup_actions.clone(),
             provenance: vec![PsiProvenance::Edge(*psi_edge)],
             fuel: vec![optimization_unit::FuelSettlement {
                 site: PsiProvenance::Edge(*psi_edge),
@@ -253,8 +251,7 @@ pub(crate) fn validator_scalar_operation_successors(
                 psi_edge: successor.psi_edge,
                 target: successor.target,
                 bindings: successor.bindings.clone(),
-                trivial_affine_discards: successor.trivial_affine_discards.clone(),
-                residual_affine_discards: successor.residual_affine_discards.clone(),
+                cleanup_actions: successor.cleanup_actions.clone(),
                 provenance: vec![PsiProvenance::Edge(successor.psi_edge)],
                 fuel: vec![optimization_unit::FuelSettlement {
                     site: PsiProvenance::Edge(successor.psi_edge),
@@ -269,8 +266,7 @@ pub(crate) fn validator_scalar_operation_successors(
                 target: case.target,
                 bindings: Vec::new(),
                 structural_bindings: Vec::new(),
-                trivial_affine_discards: case.trivial_affine_discards.clone(),
-                residual_affine_discards: case.residual_affine_discards.clone(),
+                cleanup_actions: case.cleanup_actions.clone(),
                 provenance: vec![PsiProvenance::Edge(case.psi_edge)],
                 fuel: vec![optimization_unit::FuelSettlement {
                     site: PsiProvenance::Edge(case.psi_edge),

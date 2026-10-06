@@ -696,30 +696,30 @@ defines the complete product bar.
   suspension/resume/cancellation and crash/process-exit abandonment without
   invented rollback.
 
-- **CLEANUP-HOOK-SELECTION-AND-ERASED-OWNERSHIP.** Run nominal cleanup for
-  dying local owners on selected state successors, composed with contextual
+- **CLEANUP-HOOK-SELECTION-AND-ERASED-OWNERSHIP.** Complete nominal cleanup for
+  dying local owners before scalar-exit result joins, composed with contextual
   hooks and ordinary consuming `drop<T>`, under
   [nominal cleanup](wiki/spec/terminal-psi/ownership.md#nominal-cleanup).
-  - Local return cleanup runs: `pass/drops/runtime_local_nominal_return_exit`
-    interleaves a Console write between two local establishments, then prints
-    `SBA` with exit 0 natively and in the checked interpreter on macOS ARM64.
-    Unit, scalar and structural returns share ordered cleanup actions;
-    `fail/drops/local_cleanup_unmet_prerequisite` still rejects a false hook
-    prerequisite. The corpus harness supplies explicit custom-Console provider
-    acceptance; bare CLI execution does not supply that test policy.
-    At `27a604037e7`, `python3 tools/corpus_gate.py --both --filter
-    drops/runtime_local_nominal_return_exit` observes matching output and
-    interpreter/native exit 0. Eleven selected runtime controls pass.
-  - Remaining implementation: preserve those actions through Terminal and
-    Abstract jumps/selected successors, checked-interpreter continuation and
-    native edge-transfer blocks. Stage 05's
-    `.../unit/attached_unit/composed_control/state_graph/emission/successor_edge.rs`
-    explicitly refuses executable cleanup on named successors. Keep the
-    unchanged return-plus-transition witness under
-    `tests/omega/pending/drops/runtime_local_nominal_cleanup_exit/` (`BADCE`,
-    exit 0); graduate it when both engines execute the hook before `done`.
-    Scalar `Exits` completions also need selected cleanup before their result
-    reconvergence; no-code cleanup remains supported there.
+  - Return and named-successor cleanup now run. On macOS ARM64,
+    `python3 tools/corpus_gate.py --both --filter
+    drops/runtime_local_nominal_cleanup_exit,drops/runtime_nominal_successor_argument_order_exit`
+    produces `BADCE` and `XBAGEXBAGF`, respectively, with matching native and
+    checked-interpreter output and exit 0. The second program evaluates effectful
+    outgoing operands before hooks on either branch, retaining the result across
+    cleanup. Returns and successors share ordered actions through Terminal,
+    Abstract and native edge-transfer blocks. The corpus harness supplies explicit
+    custom-Console provider acceptance; bare CLI execution lacks that test policy.
+    Public-artifact Terminal execution also agrees uninterrupted and at one unit
+    of fuel per resume on four paths, with identical attribution and no repeated
+    effects. Eleven existing runtime controls remain passing; false prerequisites
+    and consumed-owner reads still reject.
+  - Remaining implementation: stage 05's
+    `.../unit/attached_unit/composed_control/state_graph/emission/state.rs`
+    refuses executable cleanup for `CheckedScalarReturnPlan::Exits`:
+    `scalar exit cleanup requires selected actions before the result join`.
+    Its argument evaluator reconverges before emission receives the exact arm's
+    cleanup. Carry selected-exit cleanup through that evaluation boundary before
+    the join, using the same action stream; no-code cleanup already works there.
   - Keep exact selected-exit, named-transition and operand-time ownership,
     exact-place premises without invented caller demands, and outgoing result
     homes. **CML4** owns residual partitions and mixed-root order;
@@ -727,9 +727,9 @@ defines the complete product bar.
   - Cleanup prerequisites are call contracts, distinct from primitive
     operation conditions. **CHECKER-DISCHARGES-OPERATION-OBLIGATIONS** owns
     the remaining operation gate; add no cleanup-specific proof machinery.
-  Acceptance: graduate the pending corpus fixture where local owners with
-  nominal hooks die at return and at a named transition, running once in order
-  natively and in the checked interpreter. Keep the passing controls
+  Acceptance: nominal cleanup runs once on the selected scalar-exit arm before
+  result reconvergence, preserving the result and exact arm premises, natively
+  and in the checked interpreter. Keep the two successor witnesses and controls
   `pass/drops/{core_drop_explicit_consume,core_drop_owner_hook,core_drop_owner_hook_body}`,
   `pass/drops/erased_record_initializer_exit` (70),
   `pass/drops/{contextual_cleanup_exit,contextual_core_drop_exit,conditional_structural_return_cleanup_exit}`
@@ -755,12 +755,10 @@ defines the complete product bar.
     parameter and mixed dying roots; keep machine parameter custody distinct
     from edge cleanup. No runtime liveness flags, untouched-array leaf
     expansion or deferral to final return.
-  - Add ordered residual cleanup to conditional/structural-case successors:
-    `SuccessorEdge` and `StructuralCaseSuccessorEdge`
-    (`omega-rust/psi/compilation/representations/terminal-psi/src/terminal_module/control_flow/termination.rs`)
-    retain separate root/residual lists; normal Unit, scalar and structural
-    returns now share ordered actions. Change successor producers,
-    representations, interpreter and native consumers together.
+  - Successors and returns now transport one ordered cleanup-action stream
+    through Terminal, Abstract, interpreter and native consumers. Use that stream
+    for the missing composed projected-edge plans above; preserve mixed-root
+    establishment order rather than regrouping residuals behind whole roots.
   - Generalize temporary cleanup beyond empty effect-free Unit consumers
     (other argument effects, non-Unit results, borrowed/owned mixtures,
     claims) on **STATE-LOCAL-VALUE-FRONTIER**'s evaluation path.

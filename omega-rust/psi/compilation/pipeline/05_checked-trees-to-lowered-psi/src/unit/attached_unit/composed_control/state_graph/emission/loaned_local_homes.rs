@@ -34,10 +34,10 @@ pub(super) fn finish(
             // this pass retains its storage for the entire activation and owns
             // the one return cleanup, including the non-lending path.
             Terminator::Jump {
-                trivial_affine_discards,
-                ..
+                cleanup_actions, ..
             } => {
-                trivial_affine_discards.retain(|place| !homes.values().any(|home| home == place));
+                cleanup_actions
+                    .retain(|action| !homes.values().any(|home| *home == action.place()));
             }
             Terminator::Conditional {
                 when_true,
@@ -45,14 +45,14 @@ pub(super) fn finish(
                 ..
             } => {
                 for arm in [when_true, when_false] {
-                    arm.trivial_affine_discards
-                        .retain(|place| !homes.values().any(|home| home == place));
+                    arm.cleanup_actions
+                        .retain(|action| !homes.values().any(|home| *home == action.place()));
                 }
             }
             Terminator::StructuralCase { cases, .. } => {
                 for arm in cases {
-                    arm.trivial_affine_discards
-                        .retain(|place| !homes.values().any(|home| home == place));
+                    arm.cleanup_actions
+                        .retain(|action| !homes.values().any(|home| *home == action.place()));
                 }
             }
             Terminator::ReturnStructural {

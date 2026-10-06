@@ -164,8 +164,7 @@ pub(super) fn validate(
                 target,
                 bindings,
                 structural_bindings,
-                trivial_affine_discards,
-                residual_affine_discards,
+                cleanup_actions,
             },
             _,
         ) => {
@@ -176,8 +175,7 @@ pub(super) fn validate(
                 || edge.target != *target
                 || edge.bindings != *bindings
                 || edge.structural_bindings != *structural_bindings
-                || edge.trivial_affine_discards != *trivial_affine_discards
-                || edge.residual_affine_discards != *residual_affine_discards
+                || edge.cleanup_actions != *cleanup_actions
             {
                 return Err(LegalizationError::custody());
             }
@@ -202,8 +200,7 @@ pub(super) fn validate(
                     || actual.target != expected.target
                     || actual.bindings != expected.bindings
                     || actual.structural_bindings != expected.structural_bindings
-                    || actual.trivial_affine_discards != expected.trivial_affine_discards
-                    || actual.residual_affine_discards != expected.residual_affine_discards
+                    || actual.cleanup_actions != expected.cleanup_actions
                 {
                     return Err(LegalizationError::custody());
                 }
@@ -265,21 +262,8 @@ fn branch_edges(
     if !node.provenance.is_empty()
         || !node.fuel.is_empty()
         || node.successors.iter().any(|edge| {
-            !super::aggregate_results::cleanup(
-                function,
-                &edge
-                    .trivial_affine_discards
-                    .iter()
-                    .copied()
-                    .map(terminal_psi::TerminalAffineCleanupAction::DiscardRoot)
-                    .chain(
-                        edge.residual_affine_discards
-                            .iter()
-                            .cloned()
-                            .map(terminal_psi::TerminalAffineCleanupAction::DiscardResidual),
-                    )
-                    .collect::<Vec<_>>(),
-            ) || edge.provenance != [PsiProvenance::Edge(edge.psi_edge)]
+            !super::aggregate_results::cleanup(function, &edge.cleanup_actions)
+                || edge.provenance != [PsiProvenance::Edge(edge.psi_edge)]
                 || edge.fuel.is_empty()
                 || edge
                     .fuel

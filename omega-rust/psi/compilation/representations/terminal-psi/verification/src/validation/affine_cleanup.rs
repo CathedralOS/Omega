@@ -40,23 +40,15 @@ pub(super) fn nominal_cleanup_contract_receiver(
 
 pub(crate) fn nominal_cleanups(
     terminator: &Terminator,
-) -> Box<dyn Iterator<Item = &terminal_psi::NominalAffineCleanup> + '_> {
-    match terminator {
-        Terminator::Return {
-            cleanup_actions, ..
-        }
-        | Terminator::ReturnUnit {
-            cleanup_actions, ..
-        }
-        | Terminator::ReturnStructural {
-            cleanup_actions, ..
-        } => Box::new(cleanup_actions.iter().filter_map(|action| match action {
+) -> impl Iterator<Item = &terminal_psi::NominalAffineCleanup> {
+    terminator
+        .cleanup_rosters()
+        .flat_map(|(_, actions)| actions)
+        .filter_map(|action| match action {
             TerminalAffineCleanupAction::InvokeNominal(cleanup) => Some(cleanup),
             TerminalAffineCleanupAction::DiscardRoot(_)
             | TerminalAffineCleanupAction::DiscardResidual(_) => None,
-        })),
-        _ => Box::new(std::iter::empty()),
-    }
+        })
 }
 
 /// Reconstruct each operation's finite owned transfer before residual cleanup.

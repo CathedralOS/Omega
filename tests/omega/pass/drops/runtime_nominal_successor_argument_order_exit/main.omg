@@ -1,7 +1,3 @@
-// Local owners run their selected hooks in reverse declaration order, both at
-// return and before a named successor starts. Each hook owes its own prerequisite.
-// Pending: named successor requires executable normal-edge cleanup actions.
-// The return-only rule runs in pass/drops/runtime_local_nominal_return_exit.
 use omega::language::core::binding;
 use omega::language::core::external_binding;
 
@@ -59,21 +55,33 @@ reaches Console
     token.ready = false;
 }
 
-machine scope_return() reaches Console {
-    let first: Token = Token { ready: true, byte: 65 };
-    let second: Token = Token { ready: true, byte: 66 };
+// The outgoing call writes X before either local hook. Only the selected
+// successor runs; both destinations observe the captured scalar unchanged.
+machine outgoing() -> i32 reaches Console {
+    Console::write_byte(88);
+    71
 }
 
-machine scope_transition() reaches Console {
-    let first: Token = Token { ready: true, byte: 67 };
-    let second: Token = Token { ready: true, byte: 68 };
-    transition { _ -> done() }
-    state done() { Console::write_byte(69); }
+machine choose(first_path: bool) reaches Console {
+    let first: Token = Token { ready: true, byte: 65 };
+    let second: Token = Token { ready: true, byte: 66 };
+    transition first_path {
+        true -> first_done(outgoing())
+        _ -> second_done(outgoing())
+    }
+    state first_done(captured: i32) {
+        Console::write_byte(captured);
+        Console::write_byte(69);
+    }
+    state second_done(captured: i32) {
+        Console::write_byte(captured);
+        Console::write_byte(70);
+    }
 }
 
 data Main { console: Binding<Console>; }
 machine Main::main(main: &mut Main) reaches Console {
-    scope_return();
-    scope_transition();
+    choose(true);
+    choose(false);
     main.console.write_byte(10);
 }

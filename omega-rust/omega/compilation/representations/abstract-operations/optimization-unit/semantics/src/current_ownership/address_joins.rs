@@ -494,11 +494,10 @@ impl AddressJoinPins {
                     })
                     .count()
                     != 1
-                || edge.trivial_affine_discards.contains(&place)
                 || edge
-                    .residual_affine_discards
+                    .cleanup_actions
                     .iter()
-                    .any(|discard| discard.place == place)
+                    .any(|action| action.place() == place)
             {
                 return Err(
                     OptimizationUnitValidationError::CurrentSharedJoinOriginDisturbed {
@@ -538,15 +537,14 @@ impl AddressJoinPins {
                 .iter()
                 .map(|binding| binding.argument.place)
                 .chain(
-                    edge.trivial_affine_discards
+                    edge.cleanup_actions
                         .iter()
-                        .copied()
-                        .filter(|place| exclusive_read_after(place)),
-                )
-                .chain(
-                    edge.residual_affine_discards
-                        .iter()
-                        .map(|discard| discard.place),
+                        .filter_map(|action| match action {
+                            terminal_psi::TerminalAffineCleanupAction::DiscardRoot(place) => {
+                                exclusive_read_after(place).then_some(*place)
+                            }
+                            action => Some(action.place()),
+                        }),
                 )
                 .find(|place| pinned.contains(place))
         {
@@ -598,16 +596,12 @@ impl AddressJoinPins {
                 StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow => true,
             })
             .map(|(binding, _)| (binding.argument.place, binding.argument.path.as_slice()))
-            .chain(
-                edge.trivial_affine_discards
-                    .iter()
-                    .map(|place| (*place, &[][..])),
-            )
-            .chain(
-                edge.residual_affine_discards
-                    .iter()
-                    .map(|discard| (discard.place, discard.path.as_slice())),
-            )
+            .chain(edge.cleanup_actions.iter().map(|action| match action {
+                terminal_psi::TerminalAffineCleanupAction::DiscardResidual(discard) => {
+                    (discard.place, discard.path.as_slice())
+                }
+                action => (action.place(), &[][..]),
+            }))
             .find(|(place, path)| {
                 self.borrowed_regions.overlaps(pinned, *place, path) && read_after(place)
             })

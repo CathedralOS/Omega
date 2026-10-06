@@ -2,13 +2,9 @@ use crate::OptimizationUnitValidationError;
 use crate::current_ownership::cleanup::{
     validate_scalar_cleanup_actions, validate_unit_cleanup_actions,
 };
-use crate::current_ownership::mutations::{
-    apply_edge_trivial_affine_discards, insert_owned_result, reject_live_linear_claim,
-};
+use crate::current_ownership::mutations::{insert_owned_result, reject_live_linear_claim};
 use crate::current_ownership::structural::projected_root_is_fully_consumed;
-use crate::current_ownership::{
-    CurrentOwnership, LiveClaim, apply_edge_partial_affine_discards, bind_owned_parameters,
-};
+use crate::current_ownership::{CurrentOwnership, LiveClaim, bind_owned_parameters};
 use abstract_operations::AbstractOperation as O;
 use abstract_operations::AbstractStructuralCallResult;
 use optimization_unit::{OptimizationBlock, PsiOptimizationFunction};
@@ -955,20 +951,13 @@ pub(super) fn validate_current_ownership_cfg(
                 &frontier,
             )?;
             let mut outgoing = frontier.clone();
-            apply_edge_trivial_affine_discards(
+            super::continuation::apply_edge_cleanup_actions(
                 function,
+                functions,
                 structural_types,
                 block_id,
                 &mut outgoing,
-                &edge.trivial_affine_discards,
-            )?;
-            apply_edge_partial_affine_discards(
-                function,
-                structural_types,
-                block_id,
-                &mut outgoing,
-                &edge.trivial_affine_discards,
-                &edge.residual_affine_discards,
+                &edge.cleanup_actions,
             )?;
             bind_owned_parameters(
                 function,

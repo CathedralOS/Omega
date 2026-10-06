@@ -1236,6 +1236,84 @@ fn unrestricted_owned_parameter(machine: &TerminalMachine, place: PlaceId) -> bo
         })
 }
 
+/// Replay the selected semantic stream without regrouping kinds. Root-order
+/// eligibility and each exact residual/nominal obligation remain independently
+/// checked by the same primitives as before.
+fn apply_edge_cleanup_actions(
+    walk: &FrontierWalk<'_>,
+    block: BlockId,
+    frontier: &mut StructuralOwnershipFrontier,
+    edge: EdgeId,
+    actions: &[TerminalAffineCleanupAction],
+) -> Result<(), ModuleError> {
+    let eligible = expected_trivial_affine_discards(walk.machine, walk.parameter_order, frontier);
+    let mut next_root = 0;
+    let mut next_residual = 0;
+    let mut offset = 0;
+    while offset < actions.len() {
+        match &actions[offset] {
+            TerminalAffineCleanupAction::DiscardRoot(place) => {
+                if !unrestricted_owned_parameter(walk.machine, *place) {
+                    let position = eligible[next_root..]
+                        .iter()
+                        .position(|candidate| candidate == place)
+                        .ok_or(ModuleError::EdgeAffineDiscardsInvalid { edge })?;
+                    next_root += position + 1;
+                }
+                apply_edge_trivial_affine_discards(
+                    walk.module,
+                    walk.machine,
+                    walk.parameter_order,
+                    frontier,
+                    edge,
+                    std::slice::from_ref(place),
+                )?;
+                offset += 1;
+            }
+            TerminalAffineCleanupAction::DiscardResidual(first) => {
+                let position = eligible[next_residual..]
+                    .iter()
+                    .position(|candidate| *candidate == first.place)
+                    .ok_or(ModuleError::InvalidPartialAffineCleanup {
+                        machine: walk.machine.id,
+                        block,
+                    })?;
+                next_residual += position + 1;
+                let mut residuals = Vec::new();
+                while let Some(TerminalAffineCleanupAction::DiscardResidual(discard)) =
+                    actions.get(offset)
+                {
+                    if discard.place != first.place {
+                        break;
+                    }
+                    residuals.push(discard.clone());
+                    offset += 1;
+                }
+                apply_continuation_residual_discards(
+                    walk.module,
+                    walk.machine,
+                    block,
+                    walk.parameter_order,
+                    frontier,
+                    &residuals,
+                )?;
+            }
+            TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
+                consume_nominal_cleanup(
+                    walk.module,
+                    walk.machine,
+                    walk.machines,
+                    block,
+                    frontier,
+                    cleanup,
+                )?;
+                offset += 1;
+            }
+        }
+    }
+    Ok(())
+}
+
 fn apply_edge_trivial_affine_discards(
     module: &TerminalModule,
     machine: &TerminalMachine,

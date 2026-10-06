@@ -142,7 +142,7 @@ pub(crate) fn restricted_member_produced_root(
 /// so that one terminator shape refuses; every other member terminator is
 /// expressible: member `Return`/`ReturnUnit` blocks insert
 /// `DiscardRoot(picked)` in schedule order, a member `ReturnStructural` either
-/// returns `picked` outright or lists it in `trivial_affine_discards`, and a
+/// returns `picked` outright or lists it in `cleanup_actions`, and a
 /// `Crash` carries only claims.
 ///
 /// The second family is the consumed shape [`scalar_case_result_consumed`]
@@ -330,18 +330,21 @@ pub(crate) fn scalar_case_result_contained(
                 // which the custody rewrite adjusts; under the consumed
                 // family the dead place must leave every roster alone, so
                 // the discard refuses too.
-                if edge
-                    .residual_affine_discards
+                if edge.cleanup_actions.iter().any(|action| {
+                    action.place() == picked
+                        && !matches!(
+                            action,
+                            terminal_psi::TerminalAffineCleanupAction::DiscardRoot(_)
+                        )
+                }) || edge
+                    .structural_bindings
                     .iter()
-                    .any(|discard| discard.place == picked)
-                    || edge.structural_bindings.iter().any(|binding| {
-                        binding.parameter == picked || binding.argument.place == picked
-                    })
+                    .any(|binding| binding.parameter == picked || binding.argument.place == picked)
                     || (consumed
                         && edge
-                            .trivial_affine_discards
+                            .cleanup_actions
                             .iter()
-                            .any(|place| *place == picked))
+                            .any(|action| action.place() == picked))
                 {
                     return false;
                 }
@@ -356,11 +359,10 @@ pub(crate) fn scalar_case_result_contained(
         .filter(|block| !members.contains(&block.id))
         .flat_map(|block| block.nodes.iter().flat_map(|node| node.successors.iter()))
         .all(|edge| {
-            !edge.trivial_affine_discards.contains(&picked)
-                && !edge
-                    .residual_affine_discards
-                    .iter()
-                    .any(|discard| discard.place == picked)
+            !edge
+                .cleanup_actions
+                .iter()
+                .any(|action| action.place() == picked)
         })
 }
 
@@ -373,7 +375,7 @@ pub(crate) fn scalar_case_result_contained(
 /// dispatch — and insert it, in the Terminal cleanup schedule's order, on
 /// every exit edge that did not already dispose it, in every member
 /// `Return`/`ReturnUnit` cleanup roster, and in a member `ReturnStructural`'s
-/// `trivial_affine_discards` when some other root is returned. The operation's
+/// `cleanup_actions` when some other root is returned. The operation's
 /// own edge lists, the `successors` mirror, and the `Cleanup` ownership
 /// mirror are rewritten in lockstep so the transformed node still satisfies
 /// `successors_match_operation` and `expected_ownership`. The same rewrite
@@ -392,7 +394,7 @@ pub(crate) fn rewrite_scalar_case_custody(
     match &mut node.operation {
         O::Jump {
             target,
-            trivial_affine_discards,
+            cleanup_actions,
             ..
         } => {
             rewrite_case_edge_discards(
@@ -400,7 +402,7 @@ pub(crate) fn rewrite_scalar_case_custody(
                 members,
                 *target,
                 case_results,
-                trivial_affine_discards,
+                cleanup_actions,
             );
         }
         O::Conditional {
@@ -414,7 +416,7 @@ pub(crate) fn rewrite_scalar_case_custody(
                     members,
                     successor.target,
                     case_results,
-                    &mut successor.trivial_affine_discards,
+                    &mut successor.cleanup_actions,
                 );
             }
         }
@@ -425,7 +427,7 @@ pub(crate) fn rewrite_scalar_case_custody(
                     members,
                     case.target,
                     case_results,
-                    &mut case.trivial_affine_discards,
+                    &mut case.cleanup_actions,
                 );
             }
         }
@@ -441,12 +443,12 @@ pub(crate) fn rewrite_scalar_case_custody(
         }
         O::ReturnStructural {
             source,
-            cleanup_actions: trivial_affine_discards,
+            cleanup_actions,
             ..
         } => {
             for place in case_results {
                 if *source != *place {
-                    insert_case_cleanup_discard(structural_places, trivial_affine_discards, *place);
+                    insert_case_cleanup_discard(structural_places, cleanup_actions, *place);
                 }
             }
         }
@@ -458,7 +460,7 @@ pub(crate) fn rewrite_scalar_case_custody(
             members,
             edge.target,
             case_results,
-            &mut edge.trivial_affine_discards,
+            &mut edge.cleanup_actions,
         );
     }
     for event in &mut node.ownership {
@@ -470,7 +472,7 @@ pub(crate) fn rewrite_scalar_case_custody(
     }
 }
 
-/// Adjust one edge's `trivial_affine_discards` for relocated scalar-case
+/// Adjust one edge's `cleanup_actions` for relocated scalar-case
 /// results: a member-internal target keeps the persistent place live, so its
 /// discard is stripped; an exit target disposes it at the position the
 /// Terminal cleanup schedule assigns — operation-result places precede
@@ -480,49 +482,26 @@ fn rewrite_case_edge_discards(
     members: &BTreeSet<BlockId>,
     target: BlockId,
     case_results: &BTreeSet<PlaceId>,
-    discards: &mut Vec<PlaceId>,
+    discards: &mut Vec<terminal_psi::TerminalAffineCleanupAction>,
 ) {
     if members.contains(&target) {
-        discards.retain(|place| !case_results.contains(place));
+        discards.retain(|action| !matches!(action,
+            terminal_psi::TerminalAffineCleanupAction::DiscardRoot(place) if case_results.contains(place)));
     } else {
         for place in case_results {
-            insert_case_discard_ordered(structural_places, discards, *place);
+            insert_case_cleanup_discard(structural_places, discards, *place);
         }
     }
 }
 
-/// Insert `place` into an ordered `trivial_affine_discards` roster at the
+/// Insert `place` into an ordered `cleanup_actions` roster at the
 /// slot the Terminal cleanup schedule assigns: a relocated case result or
 /// trivial affine local sorts ahead of parameters, with operation results
 /// ordered by descending producer and locals by descending declaration
 /// ordinal — see [`case_result_schedule_key`]. A roster already listing
 /// `place` — a dispatch edge that exits the component — is left byte-exact.
-fn insert_case_discard_ordered(
-    structural_places: &[terminal_psi::StructuralPlaceDeclaration],
-    discards: &mut Vec<PlaceId>,
-    place: PlaceId,
-) {
-    if discards.contains(&place) {
-        return;
-    }
-    let Some(key) = case_result_schedule_key(structural_places, place) else {
-        return;
-    };
-    let position = discards
-        .iter()
-        .position(|existing| {
-            case_result_schedule_key(structural_places, *existing)
-                .is_none_or(|existing_key| existing_key >= key)
-        })
-        .unwrap_or(discards.len());
-    discards.insert(position, place);
-}
-
-/// Insert `DiscardRoot(place)` into a `Return`/`ReturnUnit` cleanup roster at
-/// the same schedule slot [`insert_case_discard_ordered`] computes: ahead of
-/// the first action that is not an operation-result root with a strictly
-/// earlier schedule key, which keeps it inside the leading root run ahead of
-/// any residual or parameter actions.
+/// All edges use the same insertion operation; the existing cleanup actions
+/// retain their relative order.
 fn insert_case_cleanup_discard(
     structural_places: &[terminal_psi::StructuralPlaceDeclaration],
     actions: &mut Vec<terminal_psi::TerminalAffineCleanupAction>,
@@ -543,12 +522,8 @@ fn insert_case_cleanup_discard(
     let position = actions
         .iter()
         .position(|action| {
-            !matches!(
-                action,
-                terminal_psi::TerminalAffineCleanupAction::DiscardRoot(existing)
-                    if case_result_schedule_key(structural_places, *existing)
-                        .is_some_and(|existing_key| existing_key < key)
-            )
+            case_result_schedule_key(structural_places, action.place())
+                .is_none_or(|existing_key| existing_key >= key)
         })
         .unwrap_or(actions.len());
     actions.insert(

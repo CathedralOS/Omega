@@ -1756,110 +1756,35 @@ pub(in crate::legalization) fn apply_terminator(
     plan: &AbstractOperationPlan,
 ) -> Result<(), LegalizationError> {
     let types = &plan.structural_types[..];
-    use terminal_psi::TerminalAffineCleanupAction;
-    let mut actions = Vec::new();
-    match operation {
-        AbstractOperation::Return {
-            cleanup_actions, ..
+    let mut exits = Vec::new();
+    for (edge, actions) in operation.cleanup_rosters() {
+        let target = match operation {
+            AbstractOperation::Conditional {
+                when_true,
+                when_false,
+                ..
+            } => [when_true, when_false]
+                .into_iter()
+                .find(|successor| successor.psi_edge == edge)
+                .map(|successor| successor.target),
+            AbstractOperation::StructuralCase { cases, .. } => cases
+                .iter()
+                .find(|successor| successor.psi_edge == edge)
+                .map(|successor| successor.target),
+            _ => None,
+        };
+        if let Some(target) = target {
+            let mut exit = custody.clone();
+            apply_cleanup_actions(&mut exit, actions.iter().cloned(), function, types)?;
+            exits.push((target, exit.leaves));
+        } else {
+            apply_cleanup_actions(custody, actions.iter().cloned(), function, types)?;
         }
-        | AbstractOperation::ReturnUnit {
-            cleanup_actions, ..
-        }
-        | AbstractOperation::ReturnStructural {
-            cleanup_actions, ..
-        } => {
-            for action in cleanup_actions {
-                let place = match action {
-                    terminal_psi::TerminalAffineCleanupAction::DiscardRoot(place) => *place,
-                    terminal_psi::TerminalAffineCleanupAction::DiscardResidual(discard) => {
-                        actions.push(TerminalAffineCleanupAction::DiscardResidual(
-                            discard.clone(),
-                        ));
-                        continue;
-                    }
-                    terminal_psi::TerminalAffineCleanupAction::InvokeNominal(cleanup)
-                        if cleanup.requirement_obligations.is_empty()
-                            && source_contract(function, custody, cleanup.place)
-                                == Some(cleanup.structural_type) =>
-                    {
-                        // The call's exact callee, borrowed receiver and action
-                        // ordinal are independently reconstructed by cleanup_calls.
-                        // Its normal completion retires this same owned root and
-                        // must release embedded loans under the usual checks.
-                        cleanup.place
-                    }
-                    _ => return Err(invalid()),
-                };
-                actions.push(TerminalAffineCleanupAction::DiscardRoot(place));
-            }
-        }
-        AbstractOperation::Jump {
-            trivial_affine_discards,
-            residual_affine_discards,
-            ..
-        } => {
-            actions.extend(
-                trivial_affine_discards
-                    .iter()
-                    .copied()
-                    .map(TerminalAffineCleanupAction::DiscardRoot),
-            );
-            actions.extend(
-                residual_affine_discards
-                    .iter()
-                    .cloned()
-                    .map(TerminalAffineCleanupAction::DiscardResidual),
-            );
-        }
-        AbstractOperation::Conditional {
-            when_true,
-            when_false,
-            ..
-        } => {
-            let mut exits = Vec::new();
-            for edge in [when_true, when_false] {
-                let mut exit = custody.clone();
-                let actions = edge
-                    .trivial_affine_discards
-                    .iter()
-                    .copied()
-                    .map(TerminalAffineCleanupAction::DiscardRoot)
-                    .chain(
-                        edge.residual_affine_discards
-                            .iter()
-                            .cloned()
-                            .map(TerminalAffineCleanupAction::DiscardResidual),
-                    );
-                apply_cleanup_actions(&mut exit, actions, function, types)?;
-                exits.push((edge.target, exit.leaves));
-            }
-            custody.finish_edges(exits);
-            return Ok(());
-        }
-        AbstractOperation::StructuralCase { cases, .. } => {
-            let mut exits = Vec::new();
-            for edge in cases {
-                let mut exit = custody.clone();
-                let actions = edge
-                    .trivial_affine_discards
-                    .iter()
-                    .copied()
-                    .map(TerminalAffineCleanupAction::DiscardRoot)
-                    .chain(
-                        edge.residual_affine_discards
-                            .iter()
-                            .cloned()
-                            .map(TerminalAffineCleanupAction::DiscardResidual),
-                    );
-                apply_cleanup_actions(&mut exit, actions, function, types)?;
-                exits.push((edge.target, exit.leaves));
-            }
-            custody.finish_edges(exits);
-            return Ok(());
-        }
-        _ => {}
     }
-    apply_cleanup_actions(custody, actions, function, types)
+    if !exits.is_empty() {
+        custody.finish_edges(exits);
+    }
+    Ok(())
 }
 
 fn apply_cleanup_actions(
@@ -1876,7 +1801,17 @@ fn apply_cleanup_actions(
                 discard_residual(function, custody, types, &discard)?;
                 continue;
             }
-            TerminalAffineCleanupAction::InvokeNominal(_) => return Err(invalid()),
+            TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
+                if !cleanup.requirement_obligations.is_empty()
+                    || source_contract(function, custody, cleanup.place)
+                        != Some(cleanup.structural_type)
+                {
+                    return Err(invalid());
+                }
+                // cleanup_calls reconstructs the exact borrowed call; normal
+                // completion retires its original root and embedded loans.
+                cleanup.place
+            }
         };
         // A suspended referent root cannot be discarded while its loan lives.
         if is_suspended_root(custody, place) {

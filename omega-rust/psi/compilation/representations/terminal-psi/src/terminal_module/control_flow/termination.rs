@@ -1,6 +1,4 @@
-use crate::{
-    CrashPredicateTerm, StructuralAffineDiscard, StructuralArgument, TerminalAffineCleanupAction,
-};
+use crate::{CrashPredicateTerm, StructuralArgument, TerminalAffineCleanupAction};
 use semantic_vocabulary::{
     BlockId, ClaimId, EdgeId, PlaceId, ProofTerm, ScalarTerm, StructuralCaseId, StructuralFieldId,
     ValueId,
@@ -22,12 +20,9 @@ pub enum Terminator {
         erased_proof_arguments: Vec<ProofTerm>,
         /// Positional bindings for the target block's structural parameters.
         structural_arguments: Vec<StructuralArgument>,
-        /// Exact no-code affine discards performed after edge fuel and outgoing
-        /// scalar materialization, in reverse parameter declaration order.
-        trivial_affine_discards: Vec<PlaceId>,
-        /// Exact maximal live residual subtrees, disposed in type-directed
-        /// reverse order after outgoing scalar materialization.
-        residual_affine_discards: Vec<StructuralAffineDiscard>,
+        /// Ordered disposal after outgoing operands are captured and before
+        /// destination bindings are installed. Only this selected edge runs it.
+        cleanup_actions: Vec<TerminalAffineCleanupAction>,
     },
     /// Select exactly one ordered successor from an already-defined Boolean
     /// value. Exhaustiveness and mutual exclusion are structural.
@@ -90,6 +85,50 @@ pub enum CrashCause {
 }
 
 impl Terminator {
+    /// Enumerate edge-owned cleanup dependencies without selecting or executing
+    /// a branch. Each roster keeps its authored action order and edge identity.
+    pub fn cleanup_rosters(
+        &self,
+    ) -> impl Iterator<Item = (EdgeId, &[TerminalAffineCleanupAction])> {
+        let (first, second, cases): (_, _, &[StructuralCaseSuccessorEdge]) = match self {
+            Self::Jump {
+                edge,
+                cleanup_actions,
+                ..
+            }
+            | Self::Return {
+                edge,
+                cleanup_actions,
+                ..
+            }
+            | Self::ReturnUnit {
+                edge,
+                cleanup_actions,
+            }
+            | Self::ReturnStructural {
+                edge,
+                cleanup_actions,
+                ..
+            } => (Some((*edge, cleanup_actions.as_slice())), None, &[]),
+            Self::Conditional {
+                when_true,
+                when_false,
+                ..
+            } => (
+                Some((when_true.edge, when_true.cleanup_actions.as_slice())),
+                Some((when_false.edge, when_false.cleanup_actions.as_slice())),
+                &[],
+            ),
+            Self::StructuralCase { cases, .. } => (None, None, cases),
+            Self::Crash { .. } => (None, None, &[]),
+        };
+        first.into_iter().chain(second).chain(
+            cases
+                .iter()
+                .map(|case| (case.edge, case.cleanup_actions.as_slice())),
+        )
+    }
+
     /// The sole edge of an unconditional terminator.
     ///
     /// Conditional consumers must use [`Self::edges`] or inspect the selected
@@ -179,11 +218,8 @@ pub struct SuccessorEdge {
     pub erased_proof_arguments: Vec<ProofTerm>,
     /// Positional bindings for the target block's structural parameters.
     pub structural_arguments: Vec<StructuralArgument>,
-    /// Exact no-code affine discards committed only when this successor is
-    /// selected, in reverse parameter declaration order.
-    pub trivial_affine_discards: Vec<PlaceId>,
-    /// Exact maximal live residual subtrees disposed on this selected edge.
-    pub residual_affine_discards: Vec<StructuralAffineDiscard>,
+    /// Ordered actions committed only on this selected edge.
+    pub cleanup_actions: Vec<TerminalAffineCleanupAction>,
 }
 
 /// One exhaustive closed-sum successor. `payload_fields` is positional with
@@ -195,29 +231,28 @@ pub struct StructuralCaseSuccessorEdge {
     pub target: BlockId,
     pub case: StructuralCaseId,
     pub payload_fields: Vec<StructuralFieldId>,
-    pub trivial_affine_discards: Vec<PlaceId>,
-    /// Exact maximal live residual subtrees disposed after payload observation.
-    pub residual_affine_discards: Vec<StructuralAffineDiscard>,
+    /// Ordered actions after payload capture and before destination binding.
+    pub cleanup_actions: Vec<TerminalAffineCleanupAction>,
 }
 
 impl SuccessorEdge {
     /// Roots whose whole value or exact remaining subtrees this edge disposes.
     pub fn affine_discard_roots(&self) -> impl Iterator<Item = PlaceId> + '_ {
-        self.trivial_affine_discards.iter().copied().chain(
-            self.residual_affine_discards
-                .iter()
-                .map(|discard| discard.place),
-        )
+        self.cleanup_actions.iter().map(|action| match action {
+            TerminalAffineCleanupAction::DiscardRoot(place) => *place,
+            TerminalAffineCleanupAction::DiscardResidual(discard) => discard.place,
+            TerminalAffineCleanupAction::InvokeNominal(cleanup) => cleanup.place,
+        })
     }
 }
 
 impl StructuralCaseSuccessorEdge {
     /// Roots whose whole value or exact remaining subtrees this edge disposes.
     pub fn affine_discard_roots(&self) -> impl Iterator<Item = PlaceId> + '_ {
-        self.trivial_affine_discards.iter().copied().chain(
-            self.residual_affine_discards
-                .iter()
-                .map(|discard| discard.place),
-        )
+        self.cleanup_actions.iter().map(|action| match action {
+            TerminalAffineCleanupAction::DiscardRoot(place) => *place,
+            TerminalAffineCleanupAction::DiscardResidual(discard) => discard.place,
+            TerminalAffineCleanupAction::InvokeNominal(cleanup) => cleanup.place,
+        })
     }
 }

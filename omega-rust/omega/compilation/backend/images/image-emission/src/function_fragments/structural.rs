@@ -81,6 +81,15 @@ pub(super) fn published_call(
     selected: &SelectedFunction,
     contract: &selected_instructions::SelectedCallContract,
 ) -> bool {
+    // Cleanup belongs to an edge/action ordinal, not an authored operation or
+    // a legacy return-shaped affine-cleanup record. Its complete call contract
+    // and instruction remain in the selected graph for every normal edge and
+    // receiver ABI, including erased receivers. source::requires_graph_storage_replay
+    // makes that retained evidence mandatory; omitting this duplicate projection
+    // does not omit the call, its original home, or its physical realization.
+    if matches!(contract.owner, CallSiteOwner::CleanupAction { .. }) {
+        return false;
+    }
     // Fresh aggregate results use complete selected call/storage replay. The
     // legacy singular structural-result record describes a different family
     // (whole-input returns); recording that here would misstate result custody.

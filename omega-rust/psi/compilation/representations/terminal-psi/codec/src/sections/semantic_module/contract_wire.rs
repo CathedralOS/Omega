@@ -7,7 +7,7 @@
 use terminal_psi::{
     ContractClause, CrashCause, CrashPredicateTerm, CrashRouteBucket, CrashRouteGuard,
     MachineContract, OutcomeSpecificEnsure, OutcomeSpecificEvidence, OutcomeSpecificGuard,
-    StructuralAffineDiscard, SuccessorEdge,
+    SuccessorEdge,
 };
 
 use super::wire::{Reader, Writer};
@@ -20,8 +20,8 @@ use crate::sections::semantic_module::scalar_term_wire::{
     decode_scalar_terms, encode_scalar_terms,
 };
 use crate::sections::semantic_module::structural_place_wire::{
-    decode_structural_arguments, decode_structural_path, encode_structural_arguments,
-    encode_structural_path,
+    decode_affine_cleanup_action, decode_structural_arguments, encode_affine_cleanup_action,
+    encode_structural_arguments,
 };
 use crate::sections::semantic_module::wire::decode_counted;
 
@@ -38,39 +38,11 @@ pub(crate) fn encode_successor_edge(
     encode_scalar_terms(writer, &successor.erased_arguments)?;
     encode_proof_terms(writer, &successor.erased_proof_arguments)?;
     encode_structural_arguments(writer, &successor.structural_arguments)?;
-    writer.len(
-        "conditional successor trivial affine discards",
-        successor.trivial_affine_discards.len(),
-    )?;
-    for place in &successor.trivial_affine_discards {
-        writer.id(*place);
+    writer.len("successor cleanup actions", successor.cleanup_actions.len())?;
+    for action in &successor.cleanup_actions {
+        encode_affine_cleanup_action(writer, action)?;
     }
     Ok(())
-}
-
-pub(crate) fn encode_residual_affine_discards(
-    writer: &mut Writer,
-    discards: &[StructuralAffineDiscard],
-) -> Result<(), CodecError> {
-    writer.len("successor residual affine discards", discards.len())?;
-    for discard in discards {
-        writer.id(discard.place);
-        encode_structural_path(writer, "partial affine discard path", &discard.path)?;
-        writer.id(discard.structural_type);
-    }
-    Ok(())
-}
-
-pub(crate) fn decode_residual_affine_discards(
-    reader: &mut Reader<'_>,
-) -> Result<Vec<StructuralAffineDiscard>, CodecError> {
-    decode_counted(reader, |reader| {
-        Ok(StructuralAffineDiscard {
-            place: reader.id("PlaceId")?,
-            path: decode_structural_path(reader)?,
-            structural_type: reader.id("StructuralTypeId")?,
-        })
-    })
 }
 
 pub(crate) fn encode_contract(
@@ -169,8 +141,7 @@ pub(crate) fn decode_successor_edge(reader: &mut Reader<'_>) -> Result<Successor
         erased_arguments: decode_scalar_terms(reader)?,
         erased_proof_arguments: decode_proof_terms(reader)?,
         structural_arguments: decode_structural_arguments(reader)?,
-        trivial_affine_discards: decode_counted(reader, |reader| reader.id("PlaceId"))?,
-        residual_affine_discards: Vec::new(),
+        cleanup_actions: decode_counted(reader, decode_affine_cleanup_action)?,
     })
 }
 

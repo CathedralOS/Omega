@@ -1069,8 +1069,7 @@ fn edge_preserves(
     }
     if let Some(case) = &successor.structural_case {
         if case.source.place().is_some()
-            || !case.trivial_affine_discards.is_empty()
-            || !case.residual_affine_discards.is_empty()
+            || !case.cleanup_actions.is_empty()
         {
             return Err(StoredLoadForwardingError::AliasingWrite);
         }

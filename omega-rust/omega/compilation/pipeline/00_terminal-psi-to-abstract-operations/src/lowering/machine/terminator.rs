@@ -19,8 +19,7 @@ pub(super) fn lower_terminator(
             edge,
             target,
             arguments,
-            trivial_affine_discards,
-            residual_affine_discards,
+            cleanup_actions,
             structural_arguments,
             // Proof-only lanes; runtime lowering has no erased actuals to read.
             erased_arguments: _,
@@ -63,8 +62,7 @@ pub(super) fn lower_terminator(
                         scalar_type: parameter.scalar_type,
                     })
                     .collect(),
-                trivial_affine_discards: trivial_affine_discards.clone(),
-                residual_affine_discards: residual_affine_discards.clone(),
+                cleanup_actions: runtime_cleanup_actions(module, cleanup_actions),
             });
         }
         Terminator::Conditional {
@@ -111,8 +109,7 @@ pub(super) fn lower_terminator(
                             scalar_type: parameter.scalar_type,
                         })
                         .collect(),
-                    trivial_affine_discards: successor.trivial_affine_discards.clone(),
-                    residual_affine_discards: successor.residual_affine_discards.clone(),
+                    cleanup_actions: runtime_cleanup_actions(module, &successor.cleanup_actions),
                 })
             };
             operations.push(AbstractOperation::Conditional {
@@ -152,8 +149,10 @@ pub(super) fn lower_terminator(
                                 }
                             })
                             .collect(),
-                        trivial_affine_discards: successor.trivial_affine_discards.clone(),
-                        residual_affine_discards: successor.residual_affine_discards.clone(),
+                        cleanup_actions: runtime_cleanup_actions(
+                            module,
+                            &successor.cleanup_actions,
+                        ),
                     })
                 })
                 .collect::<Result<Vec<_>, LoweringError>>()?;
@@ -173,20 +172,7 @@ pub(super) fn lower_terminator(
                 result: result.id,
                 value: *value,
                 scalar_type: result.scalar_type,
-                cleanup_actions: cleanup_actions
-                    .iter()
-                    .cloned()
-                    .map(|action| match action {
-                        TerminalAffineCleanupAction::InvokeNominal(mut cleanup) => {
-                            // Derive runtime receiver custody from the verified declaration;
-                            // contextual-only roots and proof obligations stay in Psi.
-                            cleanup.cleanup_receiver = runtime_cleanup_receiver(module, &cleanup);
-                            cleanup.requirement_obligations.clear();
-                            TerminalAffineCleanupAction::InvokeNominal(cleanup)
-                        }
-                        action => action,
-                    })
-                    .collect(),
+                cleanup_actions: runtime_cleanup_actions(module, cleanup_actions),
             });
         }
         Terminator::ReturnUnit {
@@ -198,18 +184,7 @@ pub(super) fn lower_terminator(
             }
             operations.push(AbstractOperation::ReturnUnit {
                 psi_edge: *edge,
-                cleanup_actions: cleanup_actions
-                    .iter()
-                    .cloned()
-                    .map(|action| match action {
-                        TerminalAffineCleanupAction::InvokeNominal(mut cleanup) => {
-                            cleanup.cleanup_receiver = runtime_cleanup_receiver(module, &cleanup);
-                            cleanup.requirement_obligations.clear();
-                            TerminalAffineCleanupAction::InvokeNominal(cleanup)
-                        }
-                        action => action,
-                    })
-                    .collect(),
+                cleanup_actions: runtime_cleanup_actions(module, cleanup_actions),
             });
         }
         Terminator::ReturnStructural {
@@ -223,18 +198,7 @@ pub(super) fn lower_terminator(
                 source: *source,
                 returned_claims: returned_claims.clone(),
                 trivial_affine_locals: Vec::new(),
-                cleanup_actions: cleanup_actions
-                    .iter()
-                    .cloned()
-                    .map(|action| match action {
-                        TerminalAffineCleanupAction::InvokeNominal(mut cleanup) => {
-                            cleanup.cleanup_receiver = runtime_cleanup_receiver(module, &cleanup);
-                            cleanup.requirement_obligations.clear();
-                            TerminalAffineCleanupAction::InvokeNominal(cleanup)
-                        }
-                        action => action,
-                    })
-                    .collect(),
+                cleanup_actions: runtime_cleanup_actions(module, cleanup_actions),
             });
         }
         Terminator::ReturnStructural { edge, .. } => {
@@ -258,6 +222,26 @@ pub(super) fn lower_terminator(
         }
     }
     Ok(())
+}
+
+/// All normal edges cross the same firewall: preserve action order and actual
+/// receiver custody, but erase the proof-site identities owned by Psi.
+fn runtime_cleanup_actions(
+    module: &terminal_psi::TerminalModule,
+    actions: &[TerminalAffineCleanupAction],
+) -> Vec<TerminalAffineCleanupAction> {
+    actions
+        .iter()
+        .cloned()
+        .map(|action| match action {
+            TerminalAffineCleanupAction::InvokeNominal(mut cleanup) => {
+                cleanup.cleanup_receiver = runtime_cleanup_receiver(module, &cleanup);
+                cleanup.requirement_obligations.clear();
+                TerminalAffineCleanupAction::InvokeNominal(cleanup)
+            }
+            action => action,
+        })
+        .collect()
 }
 
 /// The verified hook's parameter is operational custody. A contextual-only

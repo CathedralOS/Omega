@@ -248,8 +248,7 @@ impl GraphEmission<'_> {
                         arguments: target.arguments,
                         erased_arguments: Vec::new(),
                         erased_proof_arguments: Vec::new(),
-                        residual_affine_discards: Vec::new(),
-                        trivial_affine_discards: Vec::new(),
+                        cleanup_actions: Vec::new(),
                     }
                 } else {
                     let arguments = arguments
@@ -295,8 +294,11 @@ impl GraphEmission<'_> {
                         arguments,
                         erased_arguments,
                         erased_proof_arguments,
-                        residual_affine_discards: Vec::new(),
-                        trivial_affine_discards: trivial_affine_discards.clone(),
+                        cleanup_actions: trivial_affine_discards
+                            .iter()
+                            .copied()
+                            .map(terminal_psi::TerminalAffineCleanupAction::DiscardRoot)
+                            .collect(),
                     }
                 }
             }
@@ -510,8 +512,7 @@ impl GraphEmission<'_> {
                             arguments: when_true.arguments,
                             erased_arguments: when_true_erased,
                             erased_proof_arguments: when_true_proof,
-                            trivial_affine_discards: Vec::new(),
-                            residual_affine_discards: Vec::new(),
+                            cleanup_actions: Vec::new(),
                         },
                         when_false: SuccessorEdge {
                             structural_arguments: Vec::new(),
@@ -520,8 +521,7 @@ impl GraphEmission<'_> {
                             arguments: when_false.arguments,
                             erased_arguments: when_false_erased,
                             erased_proof_arguments: when_false_proof,
-                            trivial_affine_discards: Vec::new(),
-                            residual_affine_discards: Vec::new(),
+                            cleanup_actions: Vec::new(),
                         },
                     }
                 }
@@ -673,8 +673,7 @@ impl GraphEmission<'_> {
                         arguments: when_true.arguments,
                         erased_arguments: when_true_erased,
                         erased_proof_arguments: when_true_proof,
-                        trivial_affine_discards: Vec::new(),
-                        residual_affine_discards: Vec::new(),
+                        cleanup_actions: Vec::new(),
                     },
                 });
                 if let Some((fallback_block, when_false)) = fallback_block.zip(when_false) {
@@ -692,8 +691,7 @@ impl GraphEmission<'_> {
                             arguments: when_false.arguments,
                             erased_arguments: when_false_erased,
                             erased_proof_arguments: when_false_proof,
-                            trivial_affine_discards: Vec::new(),
-                            residual_affine_discards: Vec::new(),
+                            cleanup_actions: Vec::new(),
                         },
                     });
                 }
@@ -715,8 +713,7 @@ impl GraphEmission<'_> {
                             } else {
                                 Vec::new()
                             },
-                            trivial_affine_discards: Vec::new(),
-                            residual_affine_discards: Vec::new(),
+                            cleanup_actions: Vec::new(),
                         })
                         .collect(),
                 }
@@ -864,8 +861,7 @@ impl GraphEmission<'_> {
                                     arguments: fallback_staged.arguments,
                                     erased_arguments: fallback_erased,
                                     erased_proof_arguments: fallback_proof,
-                                    trivial_affine_discards: Vec::new(),
-                                    residual_affine_discards: Vec::new(),
+                                    cleanup_actions: Vec::new(),
                                 },
                             });
                             fallback_block = Some(block);
@@ -875,8 +871,7 @@ impl GraphEmission<'_> {
                             target: fallback_block.expect("the fallback block exists once pushed"),
                             case: *case,
                             payload_fields: Vec::new(),
-                            trivial_affine_discards: Vec::new(),
-                            residual_affine_discards: Vec::new(),
+                            cleanup_actions: Vec::new(),
                         });
                         continue;
                     };
@@ -951,8 +946,7 @@ impl GraphEmission<'_> {
                             arguments: staged.arguments,
                             erased_arguments,
                             erased_proof_arguments,
-                            trivial_affine_discards: Vec::new(),
-                            residual_affine_discards: Vec::new(),
+                            cleanup_actions: Vec::new(),
                         },
                     });
                     case_edges.push(terminal_psi::StructuralCaseSuccessorEdge {
@@ -960,8 +954,7 @@ impl GraphEmission<'_> {
                         target: arm_block,
                         case: *case,
                         payload_fields: arm.payloads.iter().map(|(field, _)| *field).collect(),
-                        trivial_affine_discards: Vec::new(),
-                        residual_affine_discards: Vec::new(),
+                        cleanup_actions: Vec::new(),
                     });
                 }
                 Terminator::StructuralCase {

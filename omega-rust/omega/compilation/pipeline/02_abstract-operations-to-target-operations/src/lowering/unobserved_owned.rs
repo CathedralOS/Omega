@@ -113,18 +113,11 @@ pub(super) fn accepts(
         } => cleanup(function, cleanup_actions),
         AbstractOperation::Jump {
             structural_bindings,
-            trivial_affine_discards,
-            residual_affine_discards,
+            cleanup_actions,
             ..
         } => {
             bindings(&declarations, structural_bindings)
-                && edge_discards(
-                    &declarations,
-                    structural_bindings,
-                    trivial_affine_discards,
-                    residual_affine_discards,
-                    types,
-                )
+                && edge_discards(&declarations, structural_bindings, cleanup_actions, types)
         }
         AbstractOperation::Conditional {
             when_true,
@@ -135,8 +128,7 @@ pub(super) fn accepts(
                 && edge_discards(
                     &declarations,
                     &edge.structural_bindings,
-                    &edge.trivial_affine_discards,
-                    &edge.residual_affine_discards,
+                    &edge.cleanup_actions,
                     types,
                 )
         }),
@@ -186,38 +178,55 @@ fn discardable_root(
 fn edge_discards(
     declarations: &[&terminal_psi::StructuralParameterDeclaration],
     structural_bindings: &[abstract_operations::AbstractStructuralBinding],
-    trivial_discards: &[PlaceId],
-    residual_discards: &[terminal_psi::StructuralAffineDiscard],
+    actions: &[TerminalAffineCleanupAction],
     types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
 ) -> bool {
     let mut roots = BTreeSet::new();
-    if !trivial_discards
+    if actions
         .iter()
+        .any(|action| matches!(action, TerminalAffineCleanupAction::InvokeNominal(_)))
+    {
+        // A hook observes its original home, so this storage-suppression route
+        // cannot apply even when ordinary instructions do not read the owner.
+        return false;
+    }
+    if !actions
+        .iter()
+        .filter_map(|action| match action {
+            TerminalAffineCleanupAction::DiscardRoot(place) => Some(place),
+            _ => None,
+        })
         .all(|place| roots.insert(*place) && discardable_root(declarations, *place))
     {
         return false;
     }
     let mut residuals = BTreeSet::new();
-    residual_discards.iter().all(|discard| {
-        let overlaps_prior =
-            residuals
-                .iter()
-                .any(|(place, path): &(PlaceId, Vec<StructuralPathSegment>)| {
-                    *place == discard.place
-                        && (path.starts_with(&discard.path) || discard.path.starts_with(path))
-                });
-        !discard.path.is_empty()
-            && discardable_root(declarations, discard.place)
-            && !roots.contains(&discard.place)
-            && !overlaps_prior
-            && !structural_bindings.iter().any(|binding| {
-                binding.argument.place == discard.place
-                    && (binding.argument.path.starts_with(&discard.path)
-                        || discard.path.starts_with(&binding.argument.path))
-            })
-            && plain_type(discard.structural_type, types, &mut BTreeSet::new())
-            && residuals.insert((discard.place, discard.path.clone()))
-    })
+    actions
+        .iter()
+        .filter_map(|action| match action {
+            TerminalAffineCleanupAction::DiscardResidual(discard) => Some(discard),
+            _ => None,
+        })
+        .all(|discard| {
+            let overlaps_prior =
+                residuals
+                    .iter()
+                    .any(|(place, path): &(PlaceId, Vec<StructuralPathSegment>)| {
+                        *place == discard.place
+                            && (path.starts_with(&discard.path) || discard.path.starts_with(path))
+                    });
+            !discard.path.is_empty()
+                && discardable_root(declarations, discard.place)
+                && !roots.contains(&discard.place)
+                && !overlaps_prior
+                && !structural_bindings.iter().any(|binding| {
+                    binding.argument.place == discard.place
+                        && (binding.argument.path.starts_with(&discard.path)
+                            || discard.path.starts_with(&binding.argument.path))
+                })
+                && plain_type(discard.structural_type, types, &mut BTreeSet::new())
+                && residuals.insert((discard.place, discard.path.clone()))
+        })
 }
 
 /// Every cleanup action an unobserved-owned function carries must be a discard

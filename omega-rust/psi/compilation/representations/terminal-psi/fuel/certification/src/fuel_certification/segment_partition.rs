@@ -2,9 +2,9 @@
 
 use super::outcome_bounds::{
     NaturalGeometry, NaturalGraphNode, OutcomeBounds, PremiseRow, boundary_call_candidates,
-    component_entry_rank_bound, compose_cleanup_outcomes, dynamic_call_targets,
-    maximum_machine_outcomes, maximum_optional, natural_component_geometry, operation_callees,
-    premise_proposition, terminator_cleanup_machines, terminator_edge_targets,
+    component_entry_rank_bound, compose_cleanup_outcomes, compose_terminator_cleanup_outcomes,
+    dynamic_call_targets, maximum_machine_outcomes, maximum_optional, natural_component_geometry,
+    operation_callees, premise_proposition, terminator_cleanup_machines, terminator_edge_targets,
     unbounded_cycle_report, unbounded_rank_report,
 };
 use crate::{FixedFuelError, FixedSegmentFuelCertificate};
@@ -266,6 +266,7 @@ impl<'prepared, 'module> PreparedSegments<'prepared, 'module> {
         let Some(units) = self.block_charge_units(
             block,
             current,
+            walk.end_edge,
             walk.memoized_machines,
             walk.active_machines,
             &mut walk.first_dead_end,
@@ -283,7 +284,7 @@ impl<'prepared, 'module> PreparedSegments<'prepared, 'module> {
             // invoke no cleanup machines and return `units` unchanged.
             Some(
                 compose_cleanup_outcomes(
-                    terminator_cleanup_machines(&block.terminator),
+                    terminator_cleanup_machines(&block.terminator, walk.end_edge),
                     OutcomeBounds {
                         returned: Some(units),
                         crashed: None,
@@ -348,6 +349,7 @@ impl<'prepared, 'module> PreparedSegments<'prepared, 'module> {
         &self,
         block: &Block,
         block_id: BlockId,
+        end_edge: EdgeId,
         memoized_machines: &mut BTreeMap<MachineId, OutcomeBounds>,
         active_machines: &mut BTreeSet<MachineId>,
         first_dead_end: &mut Option<FixedFuelError>,
@@ -401,10 +403,31 @@ impl<'prepared, 'module> PreparedSegments<'prepared, 'module> {
                     .ok_or(FixedFuelError::BoundOverflow)?;
             }
         }
-        units
+        units = units
             .checked_add(schedule.terminator_units(&block.terminator))
-            .map(Some)
-            .ok_or(FixedFuelError::BoundOverflow)
+            .ok_or(FixedFuelError::BoundOverflow)?;
+        if block.terminator.edges().any(|edge| edge == end_edge) {
+            // The caller composes the exact endpoint action stream once.
+            return Ok(Some(units));
+        }
+        // Intermediate successors execute cleanup before entering the next
+        // block. This block-level charge bounds the selected alternative by
+        // its maximum, never by summing mutually exclusive edge streams.
+        Ok(compose_terminator_cleanup_outcomes(
+            &block.terminator,
+            OutcomeBounds {
+                returned: Some(units),
+                crashed: None,
+            },
+            machines,
+            dynamic_call_targets,
+            provider_candidates,
+            &self.subject.module.scalar_block_invariants,
+            schedule,
+            memoized_machines,
+            active_machines,
+        )?
+        .returned)
     }
 
     /// Maximum charge over walks that commit `end_edge` in a verified
@@ -556,6 +579,7 @@ impl<'prepared, 'module> PreparedSegments<'prepared, 'module> {
         let Some(units) = self.block_charge_units(
             block,
             block_id,
+            walk.end_edge,
             walk.memoized_machines,
             walk.active_machines,
             &mut walk.first_dead_end,
@@ -569,7 +593,7 @@ impl<'prepared, 'module> PreparedSegments<'prepared, 'module> {
             // them.
             return Ok(Some(u128::from(
                 compose_cleanup_outcomes(
-                    terminator_cleanup_machines(&block.terminator),
+                    terminator_cleanup_machines(&block.terminator, walk.end_edge),
                     OutcomeBounds {
                         returned: Some(units),
                         crashed: None,
@@ -684,6 +708,7 @@ impl<'prepared, 'module> PreparedSegments<'prepared, 'module> {
                 .block_charge_units(
                     block,
                     rank.block,
+                    walk.end_edge,
                     walk.memoized_machines,
                     walk.active_machines,
                     &mut walk.first_dead_end,
@@ -733,7 +758,7 @@ impl<'prepared, 'module> PreparedSegments<'prepared, 'module> {
                     .ok_or(FixedFuelError::UnknownBlock(member))?;
                 cleanup = cleanup.max(
                     compose_cleanup_outcomes(
-                        terminator_cleanup_machines(&block.terminator),
+                        terminator_cleanup_machines(&block.terminator, walk.end_edge),
                         OutcomeBounds {
                             returned: Some(0),
                             crashed: None,
@@ -1010,6 +1035,7 @@ impl<'prepared, 'module> PreparedSegments<'prepared, 'module> {
             let Some(units) = self.block_charge_units(
                 block,
                 member,
+                walk.end_edge,
                 walk.memoized_machines,
                 walk.active_machines,
                 &mut walk.first_dead_end,
@@ -1021,7 +1047,7 @@ impl<'prepared, 'module> PreparedSegments<'prepared, 'module> {
             if committing.contains(&member) {
                 best = Some(u128::from(
                     compose_cleanup_outcomes(
-                        terminator_cleanup_machines(&block.terminator),
+                        terminator_cleanup_machines(&block.terminator, walk.end_edge),
                         OutcomeBounds {
                             returned: Some(units),
                             crashed: None,
@@ -1139,6 +1165,7 @@ impl<'prepared, 'module> PreparedSegments<'prepared, 'module> {
             let Some(units) = self.block_charge_units(
                 block,
                 member,
+                walk.end_edge,
                 walk.memoized_machines,
                 walk.active_machines,
                 &mut walk.first_dead_end,

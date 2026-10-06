@@ -414,7 +414,7 @@ fn validate_scalar_residual_cleanup(
 
 /// Commit only the complete whole-owner claim roster, after independently
 /// authenticating its designated hook and absence of projected/loan custody.
-fn consume_nominal_cleanup(
+pub(super) fn consume_nominal_cleanup(
     function: &PsiOptimizationFunction,
     functions: &BTreeMap<MachineId, &PsiOptimizationFunction>,
     structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,

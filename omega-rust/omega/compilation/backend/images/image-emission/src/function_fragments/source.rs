@@ -19,6 +19,19 @@ mod tests;
 
 pub(super) fn requires_graph_storage_replay(operations: &[AbstractOperation]) -> bool {
     operations.iter().any(|operation| {
+        // Edge-owned calls have no honest legacy return-cleanup projection.
+        // Even an erased receiver still needs exact action identity, ordering,
+        // ABI, and selected instruction custody in retained graph evidence.
+        if operation.cleanup_rosters().any(|(_, actions)| {
+            actions.iter().any(|action| {
+                matches!(
+                    action,
+                    terminal_psi::TerminalAffineCleanupAction::InvokeNominal(_)
+                )
+            })
+        }) {
+            return true;
+        }
         if matches!(operation,
             AbstractOperation::WriteOnlyPrimitiveStore { path, .. } if !path.is_empty())
         {

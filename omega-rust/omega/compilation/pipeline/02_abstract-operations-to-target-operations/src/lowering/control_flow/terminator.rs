@@ -242,6 +242,10 @@ pub(super) fn plain_home_cleanup(
                 {
                     return Ok(false);
                 }
+                // Normal hook completion retires the same owner's embedded
+                // loans before the next action or successor. Physical storage
+                // stays live through the edge-owned call selected above.
+                super::references::discard_owned(function, structural_types, live, cleanup.place)?;
             }
         }
     }
@@ -274,24 +278,11 @@ pub(super) fn lower_terminator(
     // Owned parameters owe the same no-code disposition after observation;
     // current ownership validation, not their physical home kind, establishes
     // availability and exact disposal order.
-    let cleanup = |live: &mut LiveDefinitions,
-                   places: &[PlaceId],
-                   residuals: &[terminal_psi::StructuralAffineDiscard]| {
-        let mut actions = places
-            .iter()
-            .copied()
-            .map(TerminalAffineCleanupAction::DiscardRoot)
-            .collect::<Vec<_>>();
-        actions.extend(
-            residuals
-                .iter()
-                .cloned()
-                .map(TerminalAffineCleanupAction::DiscardResidual),
-        );
-        if !plain_home_cleanup(function, live, structural_types, &actions)? {
+    let cleanup = |live: &mut LiveDefinitions, actions: &[TerminalAffineCleanupAction]| {
+        if !plain_home_cleanup(function, live, structural_types, actions)? {
             return Err(LoweringError::unsupported_control_flow(function.machine));
         }
-        Ok(actions)
+        Ok(actions.to_vec())
     };
     let successor = |live: &mut LiveDefinitions,
                      edge: &abstract_operations::AbstractSuccessor|
@@ -301,11 +292,7 @@ pub(super) fn lower_terminator(
             target: edge.target,
             bindings: edge.bindings.clone(),
             structural_bindings: edge.structural_bindings.clone(),
-            cleanup_actions: cleanup(
-                live,
-                &edge.trivial_affine_discards,
-                &edge.residual_affine_discards,
-            )?,
+            cleanup_actions: cleanup(live, &edge.cleanup_actions)?,
         })
     };
     match operation {
@@ -544,8 +531,8 @@ pub(super) fn lower_terminator(
                 return Err(LoweringError::unsupported_control_flow(function.machine));
             }
             // Current ownership validation owns the exact live frontier and
-            // discard order. Native admission only proves each retained action
-            // is a no-code discard of an available boundary result home.
+            // action order. Native admission retains each original owner home;
+            // executable actions use the independently reconstructed call ABI.
             if !plain_home_cleanup(function, live, structural_types, cleanup_actions)? {
                 return Err(LoweringError::unsupported_control_flow(function.machine));
             }
@@ -560,13 +547,15 @@ pub(super) fn lower_terminator(
             target,
             bindings,
             structural_bindings,
-            trivial_affine_discards,
-            residual_affine_discards,
+            cleanup_actions,
         } => {
             // A residual boundary overlapping a transferred subtree would
             // dispose of moved storage; residuals live strictly beside the
             // edge's projected arguments.
-            if residual_affine_discards.iter().any(|discard| {
+            if cleanup_actions.iter().any(|action| {
+                let TerminalAffineCleanupAction::DiscardResidual(discard) = action else {
+                    return false;
+                };
                 structural_bindings.iter().any(|binding| {
                     binding.argument.place == discard.place
                         && (binding.argument.path.starts_with(&discard.path)
@@ -575,7 +564,7 @@ pub(super) fn lower_terminator(
             }) {
                 return Err(LoweringError::unsupported_control_flow(function.machine));
             }
-            let cleanup_actions = cleanup(live, trivial_affine_discards, residual_affine_discards)?;
+            let cleanup_actions = cleanup(live, cleanup_actions)?;
             provenance.edges.push(*psi_edge);
             Ok(TargetControlTerminator::Jump {
                 successor: TargetControlSuccessor {

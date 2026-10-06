@@ -1,6 +1,6 @@
 //! Case edges define destination parameters after observing the selected payload.
 use optimization_unit::FuelSettlement;
-use semantic_vocabulary::{BlockId, EdgeId, PlaceId, StructuralCaseId, StructuralFieldId};
+use semantic_vocabulary::{BlockId, EdgeId, StructuralCaseId, StructuralFieldId};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LegalizedStructuralCaseSuccessor {
@@ -9,8 +9,8 @@ pub struct LegalizedStructuralCaseSuccessor {
     pub case: StructuralCaseId,
     pub case_tag: i32,
     pub payloads: Vec<LegalizedStructuralCasePayload>,
-    pub trivial_affine_discards: Vec<PlaceId>,
-    pub residual_affine_discards: Vec<terminal_psi::StructuralAffineDiscard>,
+    pub cleanup_actions: Vec<terminal_psi::TerminalAffineCleanupAction>,
+    pub cleanup_calls: Vec<(target_operations::CallSiteOwner, super::LegalizedScalarCall)>,
     pub fuel: Vec<FuelSettlement>,
 }
 

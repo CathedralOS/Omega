@@ -447,8 +447,7 @@ impl DescriptorLoans {
                 edge,
                 target,
                 structural_arguments,
-                trivial_affine_discards,
-                residual_affine_discards,
+                cleanup_actions,
                 ..
             } => check(
                 *edge,
@@ -459,10 +458,7 @@ impl DescriptorLoans {
                     position,
                     *target,
                     structural_arguments,
-                    trivial_affine_discards
-                        .iter()
-                        .copied()
-                        .chain(residual_affine_discards.iter().map(|discard| discard.place)),
+                    cleanup_actions.iter().map(|action| action.place()),
                 ),
             ),
             Terminator::Conditional {

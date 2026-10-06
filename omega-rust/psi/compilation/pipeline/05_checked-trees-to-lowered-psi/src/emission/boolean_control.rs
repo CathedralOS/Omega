@@ -329,8 +329,7 @@ fn reserve_case_entry(
             erased_arguments: Vec::new(),
             erased_proof_arguments: Vec::new(),
             structural_arguments: Vec::new(),
-            trivial_affine_discards: Vec::new(),
-            residual_affine_discards: Vec::new(),
+            cleanup_actions: Vec::new(),
         },
     }));
     LoweredBooleanDecisionTarget {
@@ -432,8 +431,7 @@ fn emit_reserved_boolean_guard_decision_blocks(
                         arguments: when_true.arguments,
                         erased_arguments: Vec::new(),
                         erased_proof_arguments: Vec::new(),
-                        trivial_affine_discards: Vec::new(),
-                        residual_affine_discards: Vec::new(),
+                        cleanup_actions: Vec::new(),
                     },
                     when_false: SuccessorEdge {
                         structural_arguments: Vec::new(),
@@ -442,8 +440,7 @@ fn emit_reserved_boolean_guard_decision_blocks(
                         arguments: when_false.arguments,
                         erased_arguments: Vec::new(),
                         erased_proof_arguments: Vec::new(),
-                        trivial_affine_discards: Vec::new(),
-                        residual_affine_discards: Vec::new(),
+                        cleanup_actions: Vec::new(),
                     },
                 },
             });
@@ -561,8 +558,7 @@ fn emit_reserved_boolean_guard_decision_blocks(
                         } else {
                             Vec::new()
                         },
-                        trivial_affine_discards: Vec::new(),
-                        residual_affine_discards: Vec::new(),
+                        cleanup_actions: Vec::new(),
                     }
                 })
                 .collect();
@@ -645,8 +641,7 @@ fn emit_reserved_boolean_value_blocks(
                     arguments: vec![value],
                     erased_arguments: Vec::new(),
                     erased_proof_arguments: Vec::new(),
-                    residual_affine_discards: Vec::new(),
-                    trivial_affine_discards: Vec::new(),
+                    cleanup_actions: Vec::new(),
                 },
             };
             (terminator, all_operations.len())
@@ -703,8 +698,7 @@ fn emit_reserved_boolean_value_blocks(
                         arguments: Vec::new(),
                         erased_arguments: Vec::new(),
                         erased_proof_arguments: Vec::new(),
-                        trivial_affine_discards: Vec::new(),
-                        residual_affine_discards: Vec::new(),
+                        cleanup_actions: Vec::new(),
                     },
                     when_false: SuccessorEdge {
                         structural_arguments: Vec::new(),
@@ -713,8 +707,7 @@ fn emit_reserved_boolean_value_blocks(
                         arguments: Vec::new(),
                         erased_arguments: Vec::new(),
                         erased_proof_arguments: Vec::new(),
-                        trivial_affine_discards: Vec::new(),
-                        residual_affine_discards: Vec::new(),
+                        cleanup_actions: Vec::new(),
                     },
                 },
                 operation_end,
@@ -870,8 +863,7 @@ pub(crate) fn emit_reserved_boolean_tuple_stage_blocks(
                     erased_arguments: Vec::new(),
                     erased_proof_arguments: Vec::new(),
                     arguments,
-                    residual_affine_discards: Vec::new(),
-                    trivial_affine_discards: Vec::new(),
+                    cleanup_actions: Vec::new(),
                 },
                 all_operations.len(),
             )
@@ -930,8 +922,7 @@ pub(crate) fn emit_reserved_boolean_tuple_stage_blocks(
                         arguments: Vec::new(),
                         erased_arguments: Vec::new(),
                         erased_proof_arguments: Vec::new(),
-                        trivial_affine_discards: Vec::new(),
-                        residual_affine_discards: Vec::new(),
+                        cleanup_actions: Vec::new(),
                     },
                     when_false: SuccessorEdge {
                         structural_arguments: Vec::new(),
@@ -940,8 +931,7 @@ pub(crate) fn emit_reserved_boolean_tuple_stage_blocks(
                         arguments: Vec::new(),
                         erased_arguments: Vec::new(),
                         erased_proof_arguments: Vec::new(),
-                        trivial_affine_discards: Vec::new(),
-                        residual_affine_discards: Vec::new(),
+                        cleanup_actions: Vec::new(),
                     },
                 },
                 operation_end,

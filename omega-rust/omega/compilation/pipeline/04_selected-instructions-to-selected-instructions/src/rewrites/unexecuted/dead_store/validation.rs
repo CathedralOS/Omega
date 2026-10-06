@@ -878,11 +878,7 @@ fn edge_keeps(
             SubjectStorage::Staging(slot) => case.source.local_slot() == Some(slot),
         };
         let discard_touches = matches!(subject.storage, SubjectStorage::Place)
-            && (case.trivial_affine_discards.contains(&subject.place)
-                || case
-                    .residual_affine_discards
-                    .iter()
-                    .any(|discard| discard.place == subject.place));
+            && (case.cleanup_actions.iter().any(|action| action.place() == subject.place));
         if slot_touches || discard_touches {
             return Err(DeadStoreEliminationError::InterveningAccess);
         }

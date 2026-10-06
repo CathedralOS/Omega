@@ -59,8 +59,7 @@ pub(super) fn validate(
         psi_edge: outgoing_edge,
         target,
         bindings: outgoing_bindings,
-        trivial_affine_discards: outgoing_discards,
-        residual_affine_discards: outgoing_residuals,
+        cleanup_actions: outgoing_cleanup_actions,
     } = &empty_node.operation
     else {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
@@ -111,16 +110,13 @@ pub(super) fn validate(
         psi_edge: incoming_edge,
         target: predecessor_target,
         bindings: incoming_bindings,
-        trivial_affine_discards: incoming_discards,
-        residual_affine_discards: incoming_residuals,
+        cleanup_actions: incoming_cleanup_actions,
     } = &predecessor_node.operation
     else {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     };
-    if !incoming_discards.is_empty()
-        || !incoming_residuals.is_empty()
-        || !outgoing_discards.is_empty()
-        || !outgoing_residuals.is_empty()
+    if !incoming_cleanup_actions.is_empty()
+        || !outgoing_cleanup_actions.is_empty()
         || predecessor_location != patch.predecessor
         || *incoming_edge != patch.incoming_edge
         || *predecessor_target != patch.empty.block
@@ -206,8 +202,7 @@ pub(super) fn validate(
         psi_edge: patch.incoming_edge,
         target: patch.target,
         bindings: composed_bindings,
-        trivial_affine_discards: Vec::new(),
-        residual_affine_discards: Vec::new(),
+        cleanup_actions: Vec::new(),
     };
     output_predecessor.definitions = expected_definitions(
         &output_predecessor.operation,

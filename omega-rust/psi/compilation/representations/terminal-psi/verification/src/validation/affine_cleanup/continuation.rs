@@ -15,7 +15,7 @@ pub(super) fn validate(
     let Terminator::Jump {
         target,
         structural_arguments,
-        residual_affine_discards,
+        cleanup_actions,
         ..
     } = &block.terminator
     else {
@@ -25,7 +25,10 @@ pub(super) fn validate(
         machine: machine.id,
         block: block.id,
     };
-    for residual in residual_affine_discards {
+    for residual in cleanup_actions.iter().filter_map(|action| match action {
+        terminal_psi::TerminalAffineCleanupAction::DiscardResidual(discard) => Some(discard),
+        _ => None,
+    }) {
         let root = partial_affine_root_type(machine, residual.place).ok_or_else(invalid)?;
         if residual.path.is_empty()
             || resolve_structural_path(module, root, &residual.path)

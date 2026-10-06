@@ -451,8 +451,7 @@ pub(super) fn validate(
             || edge.target != case.target
             || !edge.bindings.is_empty()
             || !edge.structural_bindings.is_empty()
-            || edge.trivial_affine_discards != case.trivial_affine_discards
-            || edge.residual_affine_discards != case.residual_affine_discards
+            || edge.cleanup_actions != case.cleanup_actions
             || edge.provenance != [PsiProvenance::Edge(case.psi_edge)]
             || edge.fuel.is_empty()
             || edge
@@ -466,19 +465,7 @@ pub(super) fn validate(
         // edge's and every return's: a plain affine result, block arrival, or
         // the function's own owned parameter — which is what a dispatch on an
         // owned parameter leaves behind on each arm.
-        let mut actions = case
-            .trivial_affine_discards
-            .iter()
-            .copied()
-            .map(terminal_psi::TerminalAffineCleanupAction::DiscardRoot)
-            .collect::<Vec<_>>();
-        actions.extend(
-            case.residual_affine_discards
-                .iter()
-                .cloned()
-                .map(terminal_psi::TerminalAffineCleanupAction::DiscardResidual),
-        );
-        if !super::aggregate_results::cleanup(function, &actions) {
+        if !super::aggregate_results::cleanup(function, &case.cleanup_actions) {
             return Err(LegalizationError::custody());
         }
     }

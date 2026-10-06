@@ -12,8 +12,7 @@ pub(crate) fn successors_match_operation(
                 && actual.target == expected.target
                 && actual.bindings == expected.bindings
                 && actual.structural_bindings == expected.structural_bindings
-                && actual.trivial_affine_discards == expected.trivial_affine_discards
-                && actual.residual_affine_discards == expected.residual_affine_discards
+                && actual.cleanup_actions == expected.cleanup_actions
                 && actual.provenance.first() == Some(&PsiProvenance::Edge(actual.psi_edge))
                 && actual
                     .provenance
@@ -32,15 +31,13 @@ pub(crate) fn expected_edges(
             target,
             bindings,
             structural_bindings,
-            trivial_affine_discards,
-            residual_affine_discards,
+            cleanup_actions,
         } => vec![OptimizationEdge {
             structural_bindings: structural_bindings.clone(),
             psi_edge: *psi_edge,
             target: *target,
             bindings: bindings.clone(),
-            trivial_affine_discards: trivial_affine_discards.clone(),
-            residual_affine_discards: residual_affine_discards.clone(),
+            cleanup_actions: cleanup_actions.clone(),
             provenance: vec![PsiProvenance::Edge(*psi_edge)],
             fuel: vec![optimization_unit::FuelSettlement {
                 site: PsiProvenance::Edge(*psi_edge),
@@ -58,8 +55,7 @@ pub(crate) fn expected_edges(
                 psi_edge: edge.psi_edge,
                 target: edge.target,
                 bindings: edge.bindings.clone(),
-                trivial_affine_discards: edge.trivial_affine_discards.clone(),
-                residual_affine_discards: edge.residual_affine_discards.clone(),
+                cleanup_actions: edge.cleanup_actions.clone(),
                 provenance: vec![PsiProvenance::Edge(edge.psi_edge)],
                 fuel: vec![optimization_unit::FuelSettlement {
                     site: PsiProvenance::Edge(edge.psi_edge),
@@ -74,8 +70,7 @@ pub(crate) fn expected_edges(
                 target: case.target,
                 bindings: Vec::new(),
                 structural_bindings: Vec::new(),
-                trivial_affine_discards: case.trivial_affine_discards.clone(),
-                residual_affine_discards: case.residual_affine_discards.clone(),
+                cleanup_actions: case.cleanup_actions.clone(),
                 provenance: vec![PsiProvenance::Edge(case.psi_edge)],
                 fuel: vec![optimization_unit::FuelSettlement {
                     site: PsiProvenance::Edge(case.psi_edge),

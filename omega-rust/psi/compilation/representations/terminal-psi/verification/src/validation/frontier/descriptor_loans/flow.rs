@@ -36,59 +36,11 @@ pub(super) fn reconstruct(
             }
         };
         let disposal = |place| !descriptor_disposal(module, machine, place);
-        match &block.terminator {
+        let rosters = match &block.terminator {
             Terminator::Jump {
-                trivial_affine_discards,
-                residual_affine_discards,
-                ..
-            } => {
-                for place in trivial_affine_discards
-                    .iter()
-                    .copied()
-                    .filter(|place| disposal(*place))
-                {
-                    observe(place);
-                }
-                for discard in residual_affine_discards {
-                    observe(discard.place);
-                }
+                cleanup_actions, ..
             }
-            Terminator::Conditional {
-                when_true,
-                when_false,
-                ..
-            } => {
-                for edge in [when_true, when_false] {
-                    for place in edge
-                        .trivial_affine_discards
-                        .iter()
-                        .copied()
-                        .filter(|place| disposal(*place))
-                    {
-                        observe(place);
-                    }
-                    for discard in &edge.residual_affine_discards {
-                        observe(discard.place);
-                    }
-                }
-            }
-            Terminator::StructuralCase { source, cases } => {
-                observe(*source);
-                for edge in cases {
-                    for place in edge
-                        .trivial_affine_discards
-                        .iter()
-                        .copied()
-                        .filter(|place| disposal(*place))
-                    {
-                        observe(place);
-                    }
-                    for discard in &edge.residual_affine_discards {
-                        observe(discard.place);
-                    }
-                }
-            }
-            Terminator::Return {
+            | Terminator::Return {
                 cleanup_actions, ..
             }
             | Terminator::ReturnUnit {
@@ -96,23 +48,29 @@ pub(super) fn reconstruct(
             }
             | Terminator::ReturnStructural {
                 cleanup_actions, ..
-            } => {
-                for action in cleanup_actions {
-                    match action {
-                        TerminalAffineCleanupAction::DiscardRoot(place) if disposal(*place) => {
-                            observe(*place)
-                        }
-                        TerminalAffineCleanupAction::DiscardRoot(_) => {}
-                        TerminalAffineCleanupAction::DiscardResidual(discard) => {
-                            observe(discard.place)
-                        }
-                        TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
-                            observe(cleanup.place)
-                        }
+            } => vec![cleanup_actions],
+            Terminator::Conditional {
+                when_true,
+                when_false,
+                ..
+            } => vec![&when_true.cleanup_actions, &when_false.cleanup_actions],
+            Terminator::StructuralCase { source, cases } => {
+                observe(*source);
+                cases.iter().map(|edge| &edge.cleanup_actions).collect()
+            }
+            Terminator::Crash { .. } => Vec::new(),
+        };
+        for actions in rosters {
+            for action in actions {
+                match action {
+                    TerminalAffineCleanupAction::DiscardRoot(place) if disposal(*place) => {
+                        observe(*place)
                     }
+                    TerminalAffineCleanupAction::DiscardRoot(_) => {}
+                    TerminalAffineCleanupAction::DiscardResidual(discard) => observe(discard.place),
+                    TerminalAffineCleanupAction::InvokeNominal(cleanup) => observe(cleanup.place),
                 }
             }
-            Terminator::Crash { .. } => {}
         }
     }
     steps

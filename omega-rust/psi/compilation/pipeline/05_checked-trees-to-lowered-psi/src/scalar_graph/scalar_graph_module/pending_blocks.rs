@@ -52,8 +52,7 @@ impl GraphEmission<'_> {
                             arguments,
                             erased_arguments: Vec::new(),
                             erased_proof_arguments: Vec::new(),
-                            residual_affine_discards: Vec::new(),
-                            trivial_affine_discards: Vec::new(),
+                            cleanup_actions: Vec::new(),
                         },
                     });
                 }
@@ -129,8 +128,7 @@ impl GraphEmission<'_> {
                                     arguments,
                                     erased_arguments: Vec::new(),
                                     erased_proof_arguments: Vec::new(),
-                                    residual_affine_discards: Vec::new(),
-                                    trivial_affine_discards: Vec::new(),
+                                    cleanup_actions: Vec::new(),
                                 },
                             }));
                             next_stage_identity = next_stage.get();
@@ -162,8 +160,7 @@ impl GraphEmission<'_> {
                                 .collect(),
                             erased_arguments: Vec::new(),
                             erased_proof_arguments: Vec::new(),
-                            residual_affine_discards: Vec::new(),
-                            trivial_affine_discards: Vec::new(),
+                            cleanup_actions: Vec::new(),
                         },
                     }));
                     self.blocks

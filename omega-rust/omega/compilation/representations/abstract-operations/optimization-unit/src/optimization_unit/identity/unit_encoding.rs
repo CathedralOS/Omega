@@ -18,11 +18,11 @@ use crate::optimization_unit::identity::operation_encoding::encode_operation;
 use crate::optimization_unit::identity::structural_encoding::{
     encode_boundary_machine, encode_cleanup, encode_content_entry_claim, encode_entry_claim,
     encode_evidence_contract_lane, encode_machine_contract, encode_place_declaration,
-    encode_projected_qualification_roster, encode_provider_candidate, encode_residual_cleanup,
-    encode_structural_domain, encode_structural_type,
+    encode_projected_qualification_roster, encode_provider_candidate, encode_structural_domain,
+    encode_structural_type,
 };
 
-const UNIT_IDENTITY_DOMAIN: &[u8] = b"omega.psi-optimization-unit-content.v36\0";
+const UNIT_IDENTITY_DOMAIN: &[u8] = b"omega.psi-optimization-unit-content.v37\0";
 const STRUCTURAL_DOMAIN_CATALOG_IDENTITY_DOMAIN: &[u8] =
     b"omega.psi-optimization-structural-domain-catalog.v1\0";
 
@@ -494,8 +494,7 @@ fn encode_edge(bytes: &mut CanonicalBytes, edge: &OptimizationEdge) {
     bytes.id(edge.target);
     bytes.slice(&edge.bindings, encode_binding);
     bytes.slice(&edge.structural_bindings, encode_structural_binding);
-    encode_ids(bytes, &edge.trivial_affine_discards);
-    bytes.slice(&edge.residual_affine_discards, encode_residual_cleanup);
+    bytes.slice(&edge.cleanup_actions, encode_cleanup);
     bytes.slice(&edge.provenance, |bytes, provenance| {
         encode_provenance(bytes, *provenance)
     });

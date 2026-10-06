@@ -325,39 +325,26 @@ fn terminator_leaves_custody(
 ) -> bool {
     let clears = |place: &PlaceId| !roots.contains(place);
     let edge_leaves_custody =
-        |structural_arguments: &[StructuralArgument],
-         trivial_affine_discards: &[PlaceId],
-         residual_affine_discards: &[terminal_psi::StructuralAffineDiscard]| {
+        |structural_arguments: &[terminal_psi::StructuralArgument],
+         actions: &[TerminalAffineCleanupAction]| {
             structural_arguments
                 .iter()
                 .all(|argument| clears(&argument.place))
-                && trivial_affine_discards.iter().all(clears)
-                && residual_affine_discards
-                    .iter()
-                    .all(|discard| clears(&discard.place))
+                && actions.iter().all(|action| clears(&action.place()))
         };
     match terminator {
         Terminator::Jump {
             structural_arguments,
-            trivial_affine_discards,
-            residual_affine_discards,
+            cleanup_actions,
             ..
-        } => edge_leaves_custody(
-            structural_arguments,
-            trivial_affine_discards,
-            residual_affine_discards,
-        ),
+        } => edge_leaves_custody(structural_arguments, cleanup_actions),
         Terminator::Conditional {
             when_true,
             when_false,
             ..
-        } => [when_true, when_false].iter().all(|edge| {
-            edge_leaves_custody(
-                &edge.structural_arguments,
-                &edge.trivial_affine_discards,
-                &edge.residual_affine_discards,
-            )
-        }),
+        } => [when_true, when_false]
+            .iter()
+            .all(|edge| edge_leaves_custody(&edge.structural_arguments, &edge.cleanup_actions)),
         Terminator::StructuralCase { source, cases } => {
             clears(source)
                 && cases
@@ -502,13 +489,10 @@ fn successor_bindings(terminator: &Terminator) -> Vec<(BlockId, &[StructuralArgu
 fn terminator_discards(terminator: &Terminator) -> Vec<PlaceId> {
     match terminator {
         Terminator::Jump {
-            trivial_affine_discards,
-            residual_affine_discards,
-            ..
-        } => trivial_affine_discards
+            cleanup_actions, ..
+        } => cleanup_actions
             .iter()
-            .copied()
-            .chain(residual_affine_discards.iter().map(|discard| discard.place))
+            .map(|action| action.place())
             .collect(),
         Terminator::Conditional {
             when_true,
@@ -992,7 +976,7 @@ fn confined_case_source(
     if cases.is_empty()
         || cases
             .iter()
-            .any(|case| case.trivial_affine_discards != [*source])
+            .any(|case| case.cleanup_actions != [TerminalAffineCleanupAction::DiscardRoot(*source)])
     {
         return None;
     }

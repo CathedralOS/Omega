@@ -186,36 +186,23 @@ fn validate_partial_affine_discards(
 ) -> Result<(), CodecError> {
     let rosters = match &block.terminator {
         Terminator::Jump {
-            trivial_affine_discards,
-            residual_affine_discards,
-            ..
-        } => vec![(trivial_affine_discards, residual_affine_discards)],
+            cleanup_actions, ..
+        } => vec![cleanup_actions],
         Terminator::Conditional {
             when_true,
             when_false,
             ..
-        } => [when_true, when_false]
-            .into_iter()
-            .map(|edge| {
-                (
-                    &edge.trivial_affine_discards,
-                    &edge.residual_affine_discards,
-                )
-            })
-            .collect(),
-        Terminator::StructuralCase { cases, .. } => cases
-            .iter()
-            .map(|edge| {
-                (
-                    &edge.trivial_affine_discards,
-                    &edge.residual_affine_discards,
-                )
-            })
-            .collect(),
+        } => vec![&when_true.cleanup_actions, &when_false.cleanup_actions],
+        Terminator::StructuralCase { cases, .. } => {
+            cases.iter().map(|edge| &edge.cleanup_actions).collect()
+        }
         _ => return Ok(()),
     };
-    for (trivial_affine_discards, residual_affine_discards) in rosters {
-        for discard in residual_affine_discards {
+    for actions in rosters {
+        for discard in actions.iter().filter_map(|action| match action {
+            terminal_psi::TerminalAffineCleanupAction::DiscardResidual(discard) => Some(discard),
+            _ => None,
+        }) {
             let parameter = machine
                 .structural_parameters
                 .iter()
@@ -253,7 +240,7 @@ fn validate_partial_affine_discards(
             );
             if !supported_root
                 || discard.path.is_empty()
-                || trivial_affine_discards.contains(&discard.place)
+                || actions.iter().any(|action| matches!(action, terminal_psi::TerminalAffineCleanupAction::DiscardRoot(place) if *place == discard.place))
                 || machine
                     .entry_claims
                     .iter()

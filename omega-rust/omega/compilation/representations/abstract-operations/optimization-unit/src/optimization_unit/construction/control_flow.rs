@@ -10,15 +10,13 @@ pub(super) fn operation_edges(operation: &AbstractOperation) -> Vec<Optimization
             target,
             bindings,
             structural_bindings,
-            trivial_affine_discards,
-            residual_affine_discards,
+            cleanup_actions,
         } => vec![OptimizationEdge {
             structural_bindings: structural_bindings.clone(),
             psi_edge: *psi_edge,
             target: *target,
             bindings: bindings.clone(),
-            trivial_affine_discards: trivial_affine_discards.clone(),
-            residual_affine_discards: residual_affine_discards.clone(),
+            cleanup_actions: cleanup_actions.clone(),
             provenance: vec![PsiProvenance::Edge(*psi_edge)],
             fuel: vec![FuelSettlement {
                 site: PsiProvenance::Edge(*psi_edge),
@@ -39,8 +37,7 @@ pub(super) fn operation_edges(operation: &AbstractOperation) -> Vec<Optimization
                 // operations. Their complete telescope stays on StructuralCase.
                 bindings: Vec::new(),
                 structural_bindings: Vec::new(),
-                trivial_affine_discards: case.trivial_affine_discards.clone(),
-                residual_affine_discards: case.residual_affine_discards.clone(),
+                cleanup_actions: case.cleanup_actions.clone(),
                 provenance: vec![PsiProvenance::Edge(case.psi_edge)],
                 fuel: vec![FuelSettlement {
                     site: PsiProvenance::Edge(case.psi_edge),
@@ -58,8 +55,7 @@ fn successor_edge(successor: &AbstractSuccessor) -> OptimizationEdge {
         psi_edge: successor.psi_edge,
         target: successor.target,
         bindings: successor.bindings.clone(),
-        trivial_affine_discards: successor.trivial_affine_discards.clone(),
-        residual_affine_discards: successor.residual_affine_discards.clone(),
+        cleanup_actions: successor.cleanup_actions.clone(),
         provenance: vec![PsiProvenance::Edge(successor.psi_edge)],
         fuel: vec![FuelSettlement {
             site: PsiProvenance::Edge(successor.psi_edge),

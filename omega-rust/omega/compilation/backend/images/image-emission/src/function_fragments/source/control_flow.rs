@@ -48,7 +48,7 @@ pub(super) fn retained(source: &AbstractOperation, target: &TargetFunction) -> b
     let Some(candidate) = candidates.next() else {
         return false;
     };
-    if candidates.next().is_some() {
+    if candidates.next().is_some() || !cleanup_rosters_match(source, &candidate.operations) {
         return false;
     }
     match (source, &candidate.terminator) {
@@ -121,8 +121,7 @@ pub(super) fn retained(source: &AbstractOperation, target: &TargetFunction) -> b
                 target,
                 bindings,
                 structural_bindings,
-                trivial_affine_discards,
-                residual_affine_discards,
+                cleanup_actions,
             },
             TargetControlTerminator::Jump { successor },
         ) => {
@@ -130,11 +129,7 @@ pub(super) fn retained(source: &AbstractOperation, target: &TargetFunction) -> b
                 && successor.target == *target
                 && successor.bindings == *bindings
                 && successor.structural_bindings == *structural_bindings
-                && cleanup_matches_residuals(
-                    &successor.cleanup_actions,
-                    trivial_affine_discards,
-                    residual_affine_discards,
-                )
+                && successor.cleanup_actions == *cleanup_actions
         }
         (
             AbstractOperation::Conditional {
@@ -162,29 +157,27 @@ fn successor_matches(source: &AbstractSuccessor, target: &TargetControlSuccessor
         && source.target == target.target
         && source.bindings == target.bindings
         && source.structural_bindings == target.structural_bindings
-        && cleanup_matches_residuals(
-            &target.cleanup_actions,
-            &source.trivial_affine_discards,
-            &source.residual_affine_discards,
-        )
+        && target.cleanup_actions == source.cleanup_actions
 }
 
-/// The source edge schedules roots before residual subtrees. Preserve that
-/// complete roster; mandatory graph replay separately validates its custody.
-fn cleanup_matches_residuals(
-    actions: &[TerminalAffineCleanupAction],
-    places: &[semantic_vocabulary::PlaceId],
-    residuals: &[terminal_psi::StructuralAffineDiscard],
+/// The target suffix materializes all possible calls; exact edge ownership
+/// selects execution later. Reject extra calls as well as missing arm rosters.
+fn cleanup_rosters_match(
+    source: &AbstractOperation,
+    operations: &[target_operations::TargetUnitOperation],
 ) -> bool {
-    let Some((roots, retained_residuals)) = actions.split_at_checked(places.len()) else {
-        return false;
-    };
-    roots.iter().zip(places).all(|(action, place)| {
-        matches!(action, TerminalAffineCleanupAction::DiscardRoot(source) if source == place)
-    }) && retained_residuals.len() == residuals.len()
-        && retained_residuals.iter().zip(residuals).all(|(action, residual)| {
-            matches!(action, TerminalAffineCleanupAction::DiscardResidual(source) if source == residual)
+    let expected = source
+        .cleanup_rosters()
+        .map(|(_, actions)| {
+            actions
+                .iter()
+                .filter(|action| matches!(action, TerminalAffineCleanupAction::InvokeNominal(_)))
+                .count()
         })
+        .sum::<usize>();
+    expected == operations.iter().filter(|operation| matches!(operation, target_operations::TargetUnitOperation::CleanupCall { .. })).count()
+        && source.cleanup_rosters().all(|(edge, actions)| edge_cleanup_calls_match(actions, operations.iter().filter(|operation|
+            matches!(operation, target_operations::TargetUnitOperation::CleanupCall { owner, .. } if owner.edge() == Some(edge))), edge))
 }
 
 /// Earlier graph admission owns the live frontier and callee ABI/body. This
@@ -194,7 +187,15 @@ pub(super) fn return_cleanup_calls_match(
     operations: &[target_operations::TargetUnitOperation],
     edge: semantic_vocabulary::EdgeId,
 ) -> bool {
-    let mut calls = operations.iter().filter_map(|operation| match operation {
+    edge_cleanup_calls_match(actions, operations.iter(), edge)
+}
+
+fn edge_cleanup_calls_match<'a>(
+    actions: &[TerminalAffineCleanupAction],
+    operations: impl Iterator<Item = &'a target_operations::TargetUnitOperation>,
+    edge: semantic_vocabulary::EdgeId,
+) -> bool {
+    let mut calls = operations.filter_map(|operation| match operation {
         target_operations::TargetUnitOperation::CleanupCall {
             owner,
             callee,
@@ -426,8 +427,7 @@ mod cleanup_tests {
             target: destination,
             bindings: vec![],
             structural_bindings: vec![],
-            trivial_affine_discards: vec![root],
-            residual_affine_discards: vec![residual],
+            cleanup_actions: actions.clone(),
         };
         let return_unit = AbstractOperation::ReturnUnit {
             psi_edge: edge,

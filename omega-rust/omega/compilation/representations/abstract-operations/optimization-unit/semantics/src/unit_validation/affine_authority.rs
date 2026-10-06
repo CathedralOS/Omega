@@ -62,25 +62,70 @@ pub(super) fn validate_retained_ownership_authority(
                                 },
                             );
                         };
-                        let discards = if source_index == 0 {
-                            edge.trivial_affine_discards.as_slice()
+                        let actions = if source_index == 0 {
+                            edge.cleanup_actions.as_slice()
                         } else {
                             // Every implemented edge-combining rewrite fences
                             // nonempty inherited cleanup work.
                             &[]
                         };
-                        let residuals = if source_index == 0 {
-                            edge.residual_affine_discards.as_slice()
-                        } else {
-                            &[]
-                        };
+                        let mut discards = Vec::new();
+                        let mut residuals = Vec::new();
+                        let mut after_nominal = (*entry).clone();
+                        for action in actions {
+                            match action {
+                                terminal_psi::TerminalAffineCleanupAction::DiscardRoot(place) => {
+                                    discards.push(*place)
+                                }
+                                terminal_psi::TerminalAffineCleanupAction::DiscardResidual(
+                                    discard,
+                                ) => residuals.push(discard.clone()),
+                                terminal_psi::TerminalAffineCleanupAction::InvokeNominal(
+                                    cleanup,
+                                ) => {
+                                    // Current-frontier replay authenticates the
+                                    // hook. Here retain its exact conservation
+                                    // relationship to the source edge snapshot;
+                                    // nominal consumption is not an affine discard.
+                                    let claims = after_nominal
+                                        .claims
+                                        .iter()
+                                        .filter(|claim| claim.input == Some(cleanup.place))
+                                        .map(|claim| claim.claim)
+                                        .collect::<Vec<_>>();
+                                    let Some(position) = after_nominal
+                                        .owned_places
+                                        .iter()
+                                        .position(|owned| owned.place == cleanup.place)
+                                    else {
+                                        return Err(OptimizationUnitValidationError::StructuralEdgeAffineDiscardsMismatch {
+                                            machine: function.machine, edge: edge.psi_edge,
+                                        });
+                                    };
+                                    if claims != cleanup.consumed_claims
+                                        || after_nominal
+                                            .partial_custody
+                                            .iter()
+                                            .any(|partial| partial.place == cleanup.place)
+                                    {
+                                        return Err(OptimizationUnitValidationError::StructuralEdgeAffineDiscardsMismatch {
+                                            machine: function.machine, edge: edge.psi_edge,
+                                        });
+                                    }
+                                    after_nominal.owned_places.remove(position);
+                                    after_nominal
+                                        .claims
+                                        .retain(|claim| !claims.contains(&claim.claim));
+                                }
+                            }
+                        }
                         if !block_bindings::valid_transition(
                             function,
                             &structural_types,
-                            entry,
+                            &after_nominal,
                             exit,
-                            discards,
-                            residuals,
+                            &discards,
+                            &residuals,
                             if source_index == 0 {
                                 &edge.structural_bindings
                             } else {

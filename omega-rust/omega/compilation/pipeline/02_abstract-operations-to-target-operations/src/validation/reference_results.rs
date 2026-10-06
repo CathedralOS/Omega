@@ -1562,100 +1562,35 @@ fn apply_terminator(
     function: &AbstractFunction,
     declarations: &[StructuralTypeDeclaration],
 ) -> Option<()> {
-    let mut actions = Vec::new();
-    match operation {
-        AbstractOperation::Return {
-            cleanup_actions, ..
+    let mut exits = Vec::new();
+    for (edge, actions) in operation.cleanup_rosters() {
+        let target = match operation {
+            AbstractOperation::Conditional {
+                when_true,
+                when_false,
+                ..
+            } => [when_true, when_false]
+                .into_iter()
+                .find(|successor| successor.psi_edge == edge)
+                .map(|successor| successor.target),
+            AbstractOperation::StructuralCase { cases, .. } => cases
+                .iter()
+                .find(|successor| successor.psi_edge == edge)
+                .map(|successor| successor.target),
+            _ => None,
+        };
+        if let Some(target) = target {
+            let mut exit = custody.clone();
+            apply_cleanup_actions(&mut exit, actions.iter().cloned(), function, declarations)?;
+            exits.push((target, exit.leaves));
+        } else {
+            apply_cleanup_actions(custody, actions.iter().cloned(), function, declarations)?;
         }
-        | AbstractOperation::ReturnUnit {
-            cleanup_actions, ..
-        }
-        | AbstractOperation::ReturnStructural {
-            cleanup_actions, ..
-        } => {
-            for action in cleanup_actions {
-                match action {
-                    TerminalAffineCleanupAction::DiscardRoot(place) => {
-                        actions.push(TerminalAffineCleanupAction::DiscardRoot(*place))
-                    }
-                    TerminalAffineCleanupAction::DiscardResidual(discard) => {
-                        actions.push(TerminalAffineCleanupAction::DiscardResidual(
-                            discard.clone(),
-                        ));
-                    }
-                    TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
-                        actions.push(TerminalAffineCleanupAction::DiscardRoot(cleanup.place))
-                    }
-                }
-            }
-        }
-        AbstractOperation::Jump {
-            trivial_affine_discards,
-            residual_affine_discards,
-            ..
-        } => {
-            actions.extend(
-                trivial_affine_discards
-                    .iter()
-                    .copied()
-                    .map(TerminalAffineCleanupAction::DiscardRoot),
-            );
-            actions.extend(
-                residual_affine_discards
-                    .iter()
-                    .cloned()
-                    .map(TerminalAffineCleanupAction::DiscardResidual),
-            );
-        }
-        AbstractOperation::Conditional {
-            when_true,
-            when_false,
-            ..
-        } => {
-            let mut exits = Vec::new();
-            for edge in [when_true, when_false] {
-                let mut exit = custody.clone();
-                let actions = edge
-                    .trivial_affine_discards
-                    .iter()
-                    .copied()
-                    .map(TerminalAffineCleanupAction::DiscardRoot)
-                    .chain(
-                        edge.residual_affine_discards
-                            .iter()
-                            .cloned()
-                            .map(TerminalAffineCleanupAction::DiscardResidual),
-                    );
-                apply_cleanup_actions(&mut exit, actions, function, declarations)?;
-                exits.push((edge.target, exit.leaves));
-            }
-            custody.finish_edges(exits);
-            return Some(());
-        }
-        AbstractOperation::StructuralCase { cases, .. } => {
-            let mut exits = Vec::new();
-            for edge in cases {
-                let mut exit = custody.clone();
-                let actions = edge
-                    .trivial_affine_discards
-                    .iter()
-                    .copied()
-                    .map(TerminalAffineCleanupAction::DiscardRoot)
-                    .chain(
-                        edge.residual_affine_discards
-                            .iter()
-                            .cloned()
-                            .map(TerminalAffineCleanupAction::DiscardResidual),
-                    );
-                apply_cleanup_actions(&mut exit, actions, function, declarations)?;
-                exits.push((edge.target, exit.leaves));
-            }
-            custody.finish_edges(exits);
-            return Some(());
-        }
-        _ => {}
     }
-    apply_cleanup_actions(custody, actions, function, declarations)
+    if !exits.is_empty() {
+        custody.finish_edges(exits);
+    }
+    Some(())
 }
 
 fn apply_cleanup_actions(
@@ -1672,7 +1607,10 @@ fn apply_cleanup_actions(
             TerminalAffineCleanupAction::DiscardResidual(discard) => {
                 discard_residual(function, declarations, custody, &discard)?
             }
-            TerminalAffineCleanupAction::InvokeNominal(_) => return None,
+            TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
+                // The edge-owned call completes before this root is retired.
+                discard_owned(function, declarations, custody, cleanup.place)?;
+            }
         }
     }
     Some(())

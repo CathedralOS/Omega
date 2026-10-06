@@ -28,9 +28,6 @@ pub(super) fn build_plan(
         })
         .collect::<Result<Vec<_>, _>>()?;
     functions.sort_by_key(|function| function.machine);
-    for (index, function) in functions.iter_mut().enumerate() {
-        super::edge_transfers::prepare(index, function, constraints, catalog)?;
-    }
     Ok(SelectedInstructionPlan {
         psi: target.psi,
         fuel_schedule: target.fuel_schedule,

@@ -21,6 +21,7 @@ use crate::execution::{LiveClaim, TerminalExecution};
 use crate::scalar_array::TerminalScalarArrayValue;
 use crate::values::{TerminalScalarCaseValue, TerminalScalarValue, TerminalStructuralValue};
 
+#[derive(Default)]
 pub(crate) struct BlockBindings {
     scalars: BTreeMap<ValueId, TerminalScalarValue>,
     structural: BTreeMap<PlaceId, TerminalStructuralValue>,
@@ -42,14 +43,26 @@ pub(crate) struct BlockBindings {
 }
 
 impl BlockBindings {
+    pub(crate) fn from_scalars(scalars: Vec<(ValueId, TerminalScalarValue)>) -> Self {
+        Self {
+            scalars: scalars.into_iter().collect(),
+            ..Self::default()
+        }
+    }
+
     /// All operands have been captured, including descriptors whose source
     /// places are also destinations. Updating one destination cannot affect
     /// another binding. Affine and borrowed descriptors retain their backing;
     /// owned unrestricted records publish independent staged payloads.
-    pub(crate) fn commit(self, execution: &mut TerminalExecution) {
+    /// Reserve staged identities after edge fuel succeeds but before hooks can
+    /// allocate. Completion must not rewind the allocator to this saved cursor.
+    pub(crate) fn reserve_identities(&self, execution: &mut TerminalExecution) {
         execution
             .local_structural_identities
             .commit_cursor(self.identity_cursor);
+    }
+
+    pub(crate) fn commit(self, execution: &mut TerminalExecution) {
         execution
             .structural_scalar_fields
             .extend(self.record_payload);
@@ -89,52 +102,74 @@ impl BlockBindings {
             .extend(self.affine_destinations);
     }
 
-    pub(crate) fn validate_discards(
+    pub(crate) fn validate_cleanup_actions(
         &self,
         execution: &TerminalExecution,
-        trivial: &[PlaceId],
-        residual: &[StructuralAffineDiscard],
+        actions: &[terminal_psi::TerminalAffineCleanupAction],
     ) -> Result<(), TerminalInterpretError> {
+        use terminal_psi::TerminalAffineCleanupAction;
         let mut discarded = BTreeSet::new();
-        for place in trivial {
-            let structural_type = execution
-                .structural_values
-                .get(place)
-                .map(|value| value.structural_type)
-                .or_else(|| {
-                    execution
-                        .scalar_case_values
-                        .get(place)
-                        .map(|value| value.structural_type)
-                })
-                .ok_or(TerminalInterpretError::VerifiedStructuralPlaceMissing(
-                    *place,
-                ))?;
-            if !discarded.insert(*place)
-                || self.owned_sources.contains(place)
-                || self.projected_sources.contains(place)
-                || execution
-                    .live_claims
-                    .values()
-                    .any(|claim| claim.place == Some(*place))
-                || execution
-                    .live_affine_frontier
-                    .iter()
-                    .filter(|entry| entry.place == *place)
-                    .ne(std::iter::once(&StructuralAffineDiscard {
-                        place: *place,
-                        path: Vec::new(),
-                        structural_type,
-                    }))
+        for action in actions {
+            let place = match action {
+                TerminalAffineCleanupAction::DiscardRoot(place) => *place,
+                TerminalAffineCleanupAction::InvokeNominal(cleanup) => cleanup.place,
+                TerminalAffineCleanupAction::DiscardResidual(discard) => {
+                    if self.owned_sources.contains(&discard.place) {
+                        return Err(TerminalInterpretError::AffineFrontierMismatch);
+                    }
+                    continue;
+                }
+            };
+            if !discarded.insert(place)
+                || self.owned_sources.contains(&place)
+                || self.projected_sources.contains(&place)
             {
                 return Err(TerminalInterpretError::AffineFrontierMismatch);
             }
-        }
-        if residual
-            .iter()
-            .any(|discard| self.owned_sources.contains(&discard.place))
-        {
-            return Err(TerminalInterpretError::AffineFrontierMismatch);
+            match action {
+                TerminalAffineCleanupAction::DiscardRoot(_) => {
+                    let structural_type = execution
+                        .structural_values
+                        .get(&place)
+                        .map(|value| value.structural_type)
+                        .or_else(|| {
+                            execution
+                                .scalar_case_values
+                                .get(&place)
+                                .map(|value| value.structural_type)
+                        })
+                        .ok_or(TerminalInterpretError::VerifiedStructuralPlaceMissing(
+                            place,
+                        ))?;
+                    if execution
+                        .live_claims
+                        .values()
+                        .any(|claim| claim.place == Some(place))
+                        || execution
+                            .live_affine_frontier
+                            .iter()
+                            .filter(|entry| entry.place == place)
+                            .ne(std::iter::once(&StructuralAffineDiscard {
+                                place,
+                                path: Vec::new(),
+                                structural_type,
+                            }))
+                    {
+                        return Err(TerminalInterpretError::AffineFrontierMismatch);
+                    }
+                }
+                TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
+                    crate::custody::validate_nominal_cleanup_action(
+                        &execution.program.structural_types,
+                        &execution.program.machines,
+                        &execution.structural_values,
+                        &execution.live_affine_frontier,
+                        &execution.live_claims,
+                        cleanup,
+                    )?;
+                }
+                TerminalAffineCleanupAction::DiscardResidual(_) => {}
+            }
         }
         // A swap may replace another transferred root. Replacing a different
         // live destination requires its explicit whole-root discard first.

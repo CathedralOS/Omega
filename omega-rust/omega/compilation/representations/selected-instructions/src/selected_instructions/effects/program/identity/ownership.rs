@@ -34,7 +34,7 @@ pub fn encode_ownership(bytes: &mut Vec<u8>, ownership: &[OwnershipEvent]) {
     }
 }
 
-fn encode_cleanup(bytes: &mut Vec<u8>, action: &TerminalAffineCleanupAction) {
+pub(crate) fn encode_cleanup(bytes: &mut Vec<u8>, action: &TerminalAffineCleanupAction) {
     match action {
         TerminalAffineCleanupAction::DiscardRoot(place) => {
             bytes.push(1);
@@ -94,7 +94,7 @@ pub(crate) fn encode_path(bytes: &mut Vec<u8>, path: &[StructuralPathSegment]) {
                 bytes.extend_from_slice(&index.to_le_bytes());
             }
             StructuralPathSegment::RuntimeIndex { index, obligation } => {
-                bytes.push(5);
+                bytes.push(6);
                 bytes.extend_from_slice(&index.get().to_le_bytes());
                 bytes.extend_from_slice(&obligation.get().to_le_bytes());
             }

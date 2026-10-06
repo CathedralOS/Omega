@@ -60,14 +60,12 @@ pub(super) fn validate(
         psi_edge,
         target: jump_target,
         bindings,
-        trivial_affine_discards,
-        residual_affine_discards,
+        cleanup_actions,
     } = &predecessor_node.operation
     else {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     };
-    if !trivial_affine_discards.is_empty()
-        || !residual_affine_discards.is_empty()
+    if !cleanup_actions.is_empty()
         || *psi_edge != patch.incoming_edge
         || *jump_target != patch.target
     {

@@ -1,5 +1,5 @@
-//! One completion continuation for every result carrier. Hooks borrow consumed
-//! roots while the result and original caller frame remain suspended together.
+//! Ordered cleanup for returns and selected successors. Captured outgoing values
+//! and the original frame survive hook suspension; only completion installs them.
 use super::*;
 use crate::values::TerminalStructuralValue;
 use terminal_psi::{NominalAffineCleanup, TerminalAffineCleanupAction};
@@ -8,7 +8,7 @@ impl TerminalExecution {
     pub(super) fn continue_cleanup_actions(
         &mut self,
         mut remaining: std::vec::IntoIter<TerminalAffineCleanupAction>,
-        final_result: CompletedReturn,
+        continuation: CleanupContinuation,
     ) -> Result<TerminatorFlow, TerminalInterpretError> {
         while let Some(action) = remaining.next() {
             let nominal = commit_cleanup_action(
@@ -23,23 +23,33 @@ impl TerminalExecution {
                 &action,
             )?;
             if let Some(completed) = nominal {
-                return self.start_nominal_cleanup(completed, remaining, final_result);
+                return self.start_nominal_cleanup(completed, remaining, continuation);
             }
         }
-        if !self.structural_values.is_empty()
-            || !self.live_affine_frontier.is_empty()
-            || !self.live_claims.is_empty()
-        {
-            return Err(TerminalInterpretError::AffineFrontierMismatch);
+        match continuation {
+            CleanupContinuation::Return(result) => {
+                if !self.structural_values.is_empty()
+                    || !self.live_affine_frontier.is_empty()
+                    || !self.live_claims.is_empty()
+                {
+                    return Err(TerminalInterpretError::AffineFrontierMismatch);
+                }
+                self.finish_return(result)
+            }
+            CleanupContinuation::Successor { target, bindings } => {
+                bindings.commit(self);
+                self.current = target;
+                self.next_operation = 0;
+                Ok(TerminatorFlow::Continue)
+            }
         }
-        self.finish_return(final_result)
     }
 
     fn start_nominal_cleanup(
         &mut self,
         completed: (NominalAffineCleanup, TerminalStructuralValue),
         remaining: std::vec::IntoIter<TerminalAffineCleanupAction>,
-        final_result: CompletedReturn,
+        continuation: CleanupContinuation,
     ) -> Result<TerminatorFlow, TerminalInterpretError> {
         let callee = self
             .program
@@ -70,7 +80,7 @@ impl TerminalExecution {
             result: SuspendedCallResult::NominalCleanups {
                 completed,
                 remaining,
-                final_result,
+                continuation,
             },
         });
         if let Some((place, value)) = receiver {
@@ -118,7 +128,7 @@ impl TerminalExecution {
             SuspendedCallResult::NominalCleanups {
                 completed: cleanup,
                 remaining,
-                final_result,
+                continuation,
             } => {
                 if completed.value != TerminalExecutionResult::Unit
                     || if cleanup.0.consumed_claims.is_empty() {
@@ -140,7 +150,7 @@ impl TerminalExecution {
                 {
                     return Err(TerminalInterpretError::AffineFrontierMismatch);
                 }
-                self.continue_cleanup_actions(remaining, final_result)
+                self.continue_cleanup_actions(remaining, continuation)
             }
             SuspendedCallResult::Unit => {
                 if completed.value != TerminalExecutionResult::Unit {

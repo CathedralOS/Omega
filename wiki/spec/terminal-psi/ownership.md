@@ -46,10 +46,13 @@ declaration/index order. An untouched array is one residual subtree, not an
 expanded list of leaves. A partially moved ancestor cannot be discarded whole.
 An empty complement needs no residual row.
 
-Jump, conditional, and case successors carry this same residual schedule. Only
-the selected edge disposes its listed subtrees, after capturing outgoing
-arguments and disposing its whole-root cleanup. A transferred subtree retains
-its descriptors even when a later edge disposes its former owner's complement.
+Jump, conditional, and case successors carry this same residual schedule within
+their ordered cleanup actions. Only the selected edge disposes its listed
+subtrees, after capturing outgoing arguments and before establishing destination
+bindings. Whole-root, residual and nominal actions follow the same reverse
+establishment order; consumers must not regroup them by action kind. A transferred
+subtree retains its descriptors even when a later edge disposes its former
+owner's complement.
 
 Structural fields carry their required cleanup; primitive and bounded-owned-byte
 fields keep their no-cleanup classification. Numeric range or arithmetic policy

@@ -74,6 +74,7 @@ fn select_function(
 ) -> Result<SelectedFunction, SelectedInstructionError> {
     let invalid = || SelectedInstructionError::unsupported_shape(function);
     let order = control::block_order(source)?;
+    let mut edge_cleanups = Vec::new();
     let catalog = environment.constraints();
     let materialize = row(catalog, constraints.keys.materialize_i64)?;
     let [operand] = materialize.operands.as_slice() else {
@@ -463,13 +464,43 @@ fn select_function(
             instructions: builder.instructions[start..body_end].to_vec(),
             terminator,
         });
+        // Calls retain the ordinary receiver-home and ABI contracts, but are
+        // not predecessor instructions: only the selected successor runs them.
+        let effect = match &block.terminator {
+            legalized_operations::LegalizedScalarTerminator::Jump { effect, .. }
+            | legalized_operations::LegalizedScalarTerminator::Conditional { effect, .. }
+            | legalized_operations::LegalizedScalarTerminator::StructuralCase { effect, .. } => {
+                Some(*effect)
+            }
+            _ => None,
+        };
+        if let Some(effect) = effect {
+            for (owner, call) in block.terminator.cleanup_calls() {
+                let edge = owner.edge().ok_or_else(invalid)?;
+                let start = builder.instructions.len();
+                cleanup_call::emit(*owner, call, effect, &mut builder, environment)?;
+                if edge_cleanups.last().is_none_or(
+                    |cleanup: &crate::selection::edge_transfers::EdgeCleanup| cleanup.edge != edge,
+                ) {
+                    edge_cleanups.push(crate::selection::edge_transfers::EdgeCleanup {
+                        edge,
+                        instructions: Vec::new(),
+                    });
+                }
+                edge_cleanups
+                    .last_mut()
+                    .ok_or_else(invalid)?
+                    .instructions
+                    .extend_from_slice(&builder.instructions[start..]);
+            }
+        }
     }
     blocks.append(&mut builder.case_blocks);
     crate::selection::returned_view_input::replay_memory_origins(
         source,
         &mut builder.transport.memory,
     )?;
-    Ok(SelectedFunction {
+    let mut selected = SelectedFunction {
         machine: source.machine,
         attachment: source.attachment,
         nominal_cleanup_subject: source.nominal_cleanup_subject,
@@ -484,7 +515,15 @@ fn select_function(
         entry_block: SelectedBlockId(0),
         virtual_registers: builder.registers,
         blocks,
-    })
+    };
+    crate::selection::edge_transfers::prepare(
+        function,
+        &mut selected,
+        constraints,
+        catalog,
+        edge_cleanups,
+    )?;
+    Ok(selected)
 }
 
 struct Builder<'a> {

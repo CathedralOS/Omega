@@ -18,8 +18,7 @@ use super::super::{
 };
 use super::{
     FrontierWalk, StructuralOwnershipFrontier, VerifiedMachineStructuralFrontiers,
-    apply_continuation_residual_discards, apply_edge_trivial_affine_discards,
-    validate_return_cleanup_actions,
+    apply_edge_cleanup_actions, validate_return_cleanup_actions,
 };
 
 /// Closes a block: successful exits close owned loans and restore borrowed
@@ -74,15 +73,13 @@ fn close_jump(
         module,
         machine,
         blocks,
-        parameter_order,
         ..
     } = *walk;
     let Terminator::Jump {
         edge,
         target,
         structural_arguments,
-        trivial_affine_discards,
-        residual_affine_discards,
+        cleanup_actions,
         ..
     } = &block.terminator
     else {
@@ -99,22 +96,7 @@ fn close_jump(
         structural_arguments,
         walk.window_aliases,
     )?;
-    apply_edge_trivial_affine_discards(
-        module,
-        machine,
-        parameter_order,
-        &mut frontier,
-        *edge,
-        trivial_affine_discards,
-    )?;
-    apply_continuation_residual_discards(
-        module,
-        machine,
-        block.id,
-        parameter_order,
-        &mut frontier,
-        residual_affine_discards,
-    )?;
+    apply_edge_cleanup_actions(walk, block.id, &mut frontier, *edge, cleanup_actions)?;
     super::block_parameters::establish(
         module,
         machine,
@@ -141,7 +123,6 @@ fn close_conditional(
         module,
         machine,
         blocks,
-        parameter_order,
         ..
     } = *walk;
     let Terminator::Conditional {
@@ -162,21 +143,12 @@ fn close_conditional(
         &when_true.structural_arguments,
         walk.window_aliases,
     )?;
-    apply_edge_trivial_affine_discards(
-        module,
-        machine,
-        parameter_order,
+    apply_edge_cleanup_actions(
+        walk,
+        block.id,
         &mut true_frontier,
         when_true.edge,
-        &when_true.trivial_affine_discards,
-    )?;
-    apply_continuation_residual_discards(
-        module,
-        machine,
-        block.id,
-        parameter_order,
-        &mut true_frontier,
-        &when_true.residual_affine_discards,
+        &when_true.cleanup_actions,
     )?;
     super::block_parameters::establish(
         module,
@@ -203,21 +175,12 @@ fn close_conditional(
         &when_false.structural_arguments,
         walk.window_aliases,
     )?;
-    apply_edge_trivial_affine_discards(
-        module,
-        machine,
-        parameter_order,
+    apply_edge_cleanup_actions(
+        walk,
+        block.id,
         &mut frontier,
         when_false.edge,
-        &when_false.trivial_affine_discards,
-    )?;
-    apply_continuation_residual_discards(
-        module,
-        machine,
-        block.id,
-        parameter_order,
-        &mut frontier,
-        &when_false.residual_affine_discards,
+        &when_false.cleanup_actions,
     )?;
     super::block_parameters::establish(
         module,
@@ -246,12 +209,7 @@ fn close_structural_case(
     snapshots: &mut VerifiedMachineStructuralFrontiers,
     incoming: &mut BTreeMap<BlockId, Vec<StructuralOwnershipFrontier>>,
 ) -> Result<(), ModuleError> {
-    let FrontierWalk {
-        module,
-        machine,
-        parameter_order,
-        ..
-    } = *walk;
+    let FrontierWalk { machine, .. } = *walk;
     let Terminator::StructuralCase { source, cases } = &block.terminator else {
         unreachable!("dispatched close_structural_case")
     };
@@ -298,21 +256,12 @@ fn close_structural_case(
     }
     for case in cases {
         let mut case_frontier = frontier.clone();
-        apply_edge_trivial_affine_discards(
-            module,
-            machine,
-            parameter_order,
+        apply_edge_cleanup_actions(
+            walk,
+            block.id,
             &mut case_frontier,
             case.edge,
-            &case.trivial_affine_discards,
-        )?;
-        apply_continuation_residual_discards(
-            module,
-            machine,
-            block.id,
-            parameter_order,
-            &mut case_frontier,
-            &case.residual_affine_discards,
+            &case.cleanup_actions,
         )?;
         snapshots
             .edge_exits
@@ -343,7 +292,6 @@ fn close_return(
         module,
         machine,
         machines,
-        parameter_order,
         ..
     } = *walk;
     let (Terminator::Return {
@@ -365,7 +313,7 @@ fn close_return(
     let frontier = validate_return_cleanup_actions(
         module,
         machine,
-        parameter_order,
+        walk.parameter_order,
         machines,
         block.id,
         &frontier,
@@ -407,7 +355,6 @@ fn close_return_structural(
         module,
         machine,
         machines,
-        parameter_order,
         ..
     } = *walk;
     let Terminator::ReturnStructural {
@@ -666,7 +613,7 @@ fn close_return_structural(
     let frontier = validate_return_cleanup_actions(
         module,
         machine,
-        parameter_order,
+        walk.parameter_order,
         machines,
         block.id,
         &frontier,

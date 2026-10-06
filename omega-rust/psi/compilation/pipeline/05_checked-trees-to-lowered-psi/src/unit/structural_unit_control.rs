@@ -470,10 +470,7 @@ pub(crate) fn lower_structural_unit_control_machine(
                         .collect::<Result<Vec<_>, _>>()?,
                     erased_arguments: Vec::new(),
                 erased_proof_arguments: Vec::new(),
-                    residual_affine_discards: Vec::new(),
-                    trivial_affine_discards: lower_discards(
-                        trivial_affine_discard_parameter_positions,
-                    )?,
+                    cleanup_actions: lower_discards(trivial_affine_discard_parameter_positions)?.into_iter().map(terminal_psi::TerminalAffineCleanupAction::DiscardRoot).collect(),
                 }
             }
             CheckedStructuralUnitControlTerminatorPlan::Conditional {
@@ -535,10 +532,7 @@ pub(crate) fn lower_structural_unit_control_machine(
                                 .collect::<Result<Vec<_>, _>>()?,
                             erased_arguments: Vec::new(),
                 erased_proof_arguments: Vec::new(),
-                            trivial_affine_discards: lower_discards(
-                                &successor.trivial_affine_discard_parameter_positions,
-                            )?,
-                            residual_affine_discards: Vec::new(),
+                            cleanup_actions: lower_discards(&successor.trivial_affine_discard_parameter_positions)?.into_iter().map(terminal_psi::TerminalAffineCleanupAction::DiscardRoot).collect(),
                         })
                     };
                 let false_edge = edge_id(allocate_dense(&mut next_edge)?);
@@ -844,8 +838,7 @@ fn lower_ranked_structural_unit_countdown(
                     arguments: vec![initial],
                     erased_arguments: Vec::new(),
                     erased_proof_arguments: Vec::new(),
-                    residual_affine_discards: Vec::new(),
-                    trivial_affine_discards: Vec::new(),
+                    cleanup_actions: Vec::new(),
                 },
             },
             Block {
@@ -892,8 +885,7 @@ fn lower_ranked_structural_unit_countdown(
                         arguments: Vec::new(),
                         erased_arguments: Vec::new(),
                         erased_proof_arguments: Vec::new(),
-                        trivial_affine_discards: Vec::new(),
-                        residual_affine_discards: Vec::new(),
+                        cleanup_actions: Vec::new(),
                     },
                     when_false: SuccessorEdge {
                         structural_arguments: Vec::new(),
@@ -902,8 +894,7 @@ fn lower_ranked_structural_unit_countdown(
                         arguments: Vec::new(),
                         erased_arguments: Vec::new(),
                         erased_proof_arguments: Vec::new(),
-                        trivial_affine_discards: Vec::new(),
-                        residual_affine_discards: Vec::new(),
+                        cleanup_actions: Vec::new(),
                     },
                 },
             },
@@ -950,8 +941,7 @@ fn lower_ranked_structural_unit_countdown(
                     arguments: vec![next],
                     erased_arguments: Vec::new(),
                     erased_proof_arguments: Vec::new(),
-                    residual_affine_discards: Vec::new(),
-                    trivial_affine_discards: Vec::new(),
+                    cleanup_actions: Vec::new(),
                 },
             },
             Block {

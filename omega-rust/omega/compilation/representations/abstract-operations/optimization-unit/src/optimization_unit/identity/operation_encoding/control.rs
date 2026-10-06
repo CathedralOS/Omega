@@ -7,7 +7,7 @@ use crate::optimization_unit::identity::carrier_encoding::{
 };
 use crate::optimization_unit::identity::structural_encoding::{
     encode_cleanup, encode_crash_cause, encode_crash_predicate, encode_place_declaration,
-    encode_residual_cleanup, encode_structural_type,
+    encode_structural_type,
 };
 pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) {
     use AbstractOperation as O;
@@ -17,16 +17,14 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             target,
             bindings,
             structural_bindings,
-            trivial_affine_discards,
-            residual_affine_discards,
+            cleanup_actions,
         } => {
             bytes.u8(42);
             bytes.id(*psi_edge);
             bytes.id(*target);
             bytes.slice(bindings, encode_binding);
             bytes.slice(structural_bindings, encode_structural_binding);
-            encode_ids(bytes, trivial_affine_discards);
-            bytes.slice(residual_affine_discards, encode_residual_cleanup);
+            bytes.slice(cleanup_actions, encode_cleanup);
         }
         O::Conditional {
             condition,
@@ -52,8 +50,7 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
                     bytes.id(payload.field);
                     encode_scalar_type(bytes, payload.scalar_type);
                 }
-                encode_ids(bytes, &case.trivial_affine_discards);
-                bytes.slice(&case.residual_affine_discards, encode_residual_cleanup);
+                bytes.slice(&case.cleanup_actions, encode_cleanup);
             }
         }
         O::Return {
@@ -118,6 +115,5 @@ fn encode_successor(bytes: &mut CanonicalBytes, successor: &AbstractSuccessor) {
     bytes.id(successor.target);
     bytes.slice(&successor.bindings, encode_binding);
     bytes.slice(&successor.structural_bindings, encode_structural_binding);
-    encode_ids(bytes, &successor.trivial_affine_discards);
-    bytes.slice(&successor.residual_affine_discards, encode_residual_cleanup);
+    bytes.slice(&successor.cleanup_actions, encode_cleanup);
 }

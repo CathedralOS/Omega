@@ -9,6 +9,13 @@ mod construction;
 mod descriptors;
 pub(super) use construction::prepare;
 
+/// Selection scratch: edge-owned calls are materialized with the caller's
+/// storage facts, then installed only in the selected edge's transfer block.
+pub(in crate::selection) struct EdgeCleanup {
+    pub edge: semantic_vocabulary::EdgeId,
+    pub instructions: Vec<selected_instructions::SelectedInstruction>,
+}
+
 fn successors_mut(terminator: &mut SelectedTerminator) -> Vec<&mut SelectedSuccessor> {
     match terminator {
         SelectedTerminator::Jump { successor, .. } => vec![successor],

@@ -87,6 +87,21 @@ fn decode_path(
                 terminal_psi::StructuralPathSegment::Field(name.to_owned())
             }
             2 => terminal_psi::StructuralPathSegment::FixedIndex(cursor.u64()?),
+            3 => terminal_psi::StructuralPathSegment::Referent,
+            4 => terminal_psi::StructuralPathSegment::FixedByteRange {
+                start: cursor.u64()?,
+                end: cursor.u64()?,
+            },
+            6 => terminal_psi::StructuralPathSegment::RuntimeIndex {
+                index: semantic_vocabulary::ValueId::new(cursor.u64()?)
+                    .ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?,
+                obligation: ObligationId::new(cursor.u64()?)
+                    .ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?,
+            },
+            7 => terminal_psi::StructuralPathSegment::Case(
+                semantic_vocabulary::StructuralCaseId::new(cursor.u64()?)
+                    .ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?,
+            ),
             _ => return Err(PreAllocationMachineEffectDecodeError::InvalidField),
         });
     }
@@ -110,4 +125,55 @@ pub fn decode_effect_link(
         input: cursor.u64()?,
         output: cursor.u64()?,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use terminal_psi::{
+        StructuralAffineDiscard, StructuralPathSegment, TerminalAffineCleanupAction,
+    };
+
+    #[test]
+    fn cleanup_action_round_trip_retains_every_path_segment() {
+        let action = TerminalAffineCleanupAction::DiscardResidual(StructuralAffineDiscard {
+            place: PlaceId::new(1).unwrap(),
+            structural_type: StructuralTypeId::new(2).unwrap(),
+            path: vec![
+                StructuralPathSegment::Field("payload".into()),
+                StructuralPathSegment::FixedIndex(3),
+                StructuralPathSegment::Referent,
+                StructuralPathSegment::FixedByteRange { start: 4, end: 8 },
+                StructuralPathSegment::RuntimeIndex {
+                    index: semantic_vocabulary::ValueId::new(5).unwrap(),
+                    obligation: ObligationId::new(6).unwrap(),
+                },
+                StructuralPathSegment::Case(semantic_vocabulary::StructuralCaseId::new(7).unwrap()),
+            ],
+        });
+        let mut encoded = Vec::new();
+        crate::selected_instructions::effects::program::identity::encode_cleanup(
+            &mut encoded,
+            &action,
+        );
+        let mut cursor = Cursor::new(&encoded);
+        assert_eq!(decode_cleanup(&mut cursor).unwrap(), action);
+        assert_eq!(cursor.remaining(), 0);
+
+        let mut retired_path = 1_u64.to_le_bytes().to_vec();
+        retired_path.push(5);
+        assert_eq!(
+            decode_path(&mut Cursor::new(&retired_path)),
+            Err(PreAllocationMachineEffectDecodeError::InvalidField)
+        );
+
+        let mut retired_envelope = super::super::MAGIC.to_vec();
+        retired_envelope.extend_from_slice(&32_u32.to_le_bytes());
+        assert_eq!(
+            super::super::decode_terminal_pre_allocation_machine_effect_plan(&retired_envelope),
+            Err(PreAllocationMachineEffectDecodeError::UnsupportedVersion(
+                32
+            ))
+        );
+    }
 }

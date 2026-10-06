@@ -321,8 +321,7 @@ fn validate_case_transport(
     if case.source.place().is_none()
         || case.case_tag < 0
         || (edge.role == SelectedSuccessorRole::EdgeTransferContinuation
-            && (!case.trivial_affine_discards.is_empty()
-                || !case.residual_affine_discards.is_empty()))
+            && (!case.cleanup_actions.is_empty()))
     {
         return Err(mismatch());
     }
@@ -340,7 +339,7 @@ fn validate_case_transport(
         if next_case.source != case.source
             || next_case.case != case.case
             || next_case.case_tag != case.case_tag
-            || !next_case.trivial_affine_discards.is_empty()
+            || !next_case.cleanup_actions.is_empty()
             || next_case.payloads.len() != case.payloads.len()
             || next_case
                 .payloads

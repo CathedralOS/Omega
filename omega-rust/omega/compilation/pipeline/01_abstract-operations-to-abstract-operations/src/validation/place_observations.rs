@@ -154,11 +154,11 @@ pub(super) fn component_preserves_place_observations_tolerating(
         })
         .filter(|(_, edge)| adjacent.contains(&edge.psi_edge))
         .all(|(member_departing, edge)| {
-            edge.residual_affine_discards.is_empty()
-                && edge
-                    .trivial_affine_discards
-                    .iter()
-                    .all(|place| member_departing && tolerated.contains(place))
+            edge.cleanup_actions.iter().all(|action| {
+                matches!(action,
+                terminal_psi::TerminalAffineCleanupAction::DiscardRoot(place)
+                    if member_departing && tolerated.contains(place))
+            })
         })
 }
 
@@ -450,13 +450,9 @@ fn borrowed_roots_exclusive(
             // parameter is already accounted by the taint fixpoint.
             for edge in &node.successors {
                 if edge
-                    .trivial_affine_discards
+                    .cleanup_actions
                     .iter()
-                    .any(|place| tainted.contains(place))
-                    || edge
-                        .residual_affine_discards
-                        .iter()
-                        .any(|discard| tainted.contains(&discard.place))
+                    .any(|action| tainted.contains(&action.place()))
                 {
                     return false;
                 }

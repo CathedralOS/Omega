@@ -11,6 +11,94 @@ use terminal_psi::{
     StructuralTypeDeclaration,
 };
 
+/// Apply the selected edge's stream without grouping whole owners ahead of
+/// partial owners or hooks. A residual group is one exact owner's complement;
+/// outgoing ownership bindings are installed only after this transaction.
+pub(super) fn apply_edge_cleanup_actions(
+    function: &PsiOptimizationFunction,
+    functions: &BTreeMap<semantic_vocabulary::MachineId, &PsiOptimizationFunction>,
+    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    block: BlockId,
+    frontier: &mut CurrentOwnership,
+    actions: &[terminal_psi::TerminalAffineCleanupAction],
+) -> Result<(), OptimizationUnitValidationError> {
+    use terminal_psi::TerminalAffineCleanupAction as Action;
+    // Preserve the existing no-code subsequence ordering checks before any
+    // mutation. Dispatching one action at a time must not accidentally admit
+    // a reordered or duplicated root schedule.
+    let eligible = super::mutations::expected_trivial_affine_discards(function, frontier);
+    let mut whole_order = eligible.iter();
+    let mut residual_order = eligible.iter();
+    let mut previous_residual = None;
+    for action in actions {
+        let ordered = match action {
+            Action::DiscardRoot(place) => whole_order.any(|candidate| candidate == place),
+            Action::DiscardResidual(discard) if previous_residual == Some(discard.place) => true,
+            Action::DiscardResidual(discard) => {
+                residual_order.any(|candidate| *candidate == discard.place)
+            }
+            Action::InvokeNominal(_) => true,
+        };
+        previous_residual = match action {
+            Action::DiscardResidual(discard) => Some(discard.place),
+            _ => None,
+        };
+        if !ordered {
+            return Err(OptimizationUnitValidationError::CurrentCleanupMismatch {
+                machine: function.machine,
+                block,
+            });
+        }
+    }
+    let mut remaining = actions;
+    while let Some(action) = remaining.first() {
+        match action {
+            Action::DiscardRoot(place) => {
+                super::mutations::apply_edge_trivial_affine_discards(
+                    function,
+                    structural_types,
+                    block,
+                    frontier,
+                    std::slice::from_ref(place),
+                )?;
+                remaining = &remaining[1..];
+            }
+            Action::DiscardResidual(first) => {
+                let residuals = remaining
+                    .iter()
+                    .map_while(|action| match action {
+                        Action::DiscardResidual(discard) if discard.place == first.place => {
+                            Some(discard.clone())
+                        }
+                        _ => None,
+                    })
+                    .collect::<Vec<_>>();
+                apply_edge_partial_affine_discards(
+                    function,
+                    structural_types,
+                    block,
+                    frontier,
+                    &[],
+                    &residuals,
+                )?;
+                remaining = &remaining[residuals.len()..];
+            }
+            Action::InvokeNominal(cleanup) => {
+                super::cleanup::consume_nominal_cleanup(
+                    function,
+                    functions,
+                    structural_types,
+                    block,
+                    frontier,
+                    cleanup,
+                )?;
+                remaining = &remaining[1..];
+            }
+        }
+    }
+    Ok(())
+}
+
 pub(crate) fn valid_partial_continuation_complement(
     function: &PsiOptimizationFunction,
     structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,

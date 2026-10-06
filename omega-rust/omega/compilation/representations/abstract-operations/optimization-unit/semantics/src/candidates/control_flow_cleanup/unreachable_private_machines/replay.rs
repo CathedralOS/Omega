@@ -139,6 +139,17 @@ pub(crate) fn validator_machine_references(
         .iter()
         .flat_map(|block| block.nodes.iter().map(|node| &node.operation))
     {
+        references.extend(
+            operation
+                .cleanup_rosters()
+                .flat_map(|(_, actions)| actions)
+                .filter_map(|action| match action {
+                    terminal_psi::TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
+                        Some(cleanup.cleanup_machine)
+                    }
+                    _ => None,
+                }),
+        );
         match operation {
             O::Call { callee, .. } => {
                 references.insert(*callee);
@@ -169,23 +180,6 @@ pub(crate) fn validator_machine_references(
                 }
             }
             O::CallDynamic { dispatch, .. } => references.extend(dispatch.realization()),
-            O::Return {
-                cleanup_actions, ..
-            }
-            | O::ReturnUnit {
-                cleanup_actions, ..
-            }
-            | O::ReturnStructural {
-                cleanup_actions, ..
-            } => {
-                references.extend(cleanup_actions.iter().filter_map(|action| match action {
-                    terminal_psi::TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
-                        Some(cleanup.cleanup_machine)
-                    }
-                    terminal_psi::TerminalAffineCleanupAction::DiscardRoot(_)
-                    | terminal_psi::TerminalAffineCleanupAction::DiscardResidual(_) => None,
-                }));
-            }
             _ => {}
         }
     }

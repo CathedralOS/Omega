@@ -179,8 +179,7 @@ pub(super) fn emit(
                 erased_arguments: Vec::new(),
                 erased_proof_arguments: Vec::new(),
                 structural_arguments: Vec::new(),
-                trivial_affine_discards: Vec::new(),
-                residual_affine_discards: Vec::new(),
+                cleanup_actions: Vec::new(),
             })
         };
         evaluation.blocks.push(Block {

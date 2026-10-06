@@ -59,6 +59,7 @@ fn structural_control_identity_binds_descriptor_telescope_and_actual_source() {
         .push(parameter);
     plan.scalar_functions[0].blocks[0].terminator = LegalizedScalarTerminator::Jump {
         successor: LegalizedScalarSuccessor {
+            cleanup_calls: Vec::new(),
             edge: id(502),
             target: id(503),
             bindings: Vec::new(),
@@ -136,6 +137,7 @@ fn scalar_control_identity_binds_parameters_edges_and_comparisons() {
             ownership: vec![],
         });
     let successor = |edge, target, argument| LegalizedScalarSuccessor {
+        cleanup_calls: Vec::new(),
         structural_bindings: Vec::new(),
         edge: id(edge),
         target: id(target),
@@ -173,6 +175,7 @@ fn scalar_control_identity_binds_parameters_edges_and_comparisons() {
         instructions: vec![],
         terminator: LegalizedScalarTerminator::Jump {
             successor: LegalizedScalarSuccessor {
+                cleanup_calls: Vec::new(),
                 structural_bindings: Vec::new(),
                 edge: id(125),
                 target: id(126),

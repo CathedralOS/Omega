@@ -330,15 +330,13 @@ fn plan_dispatch(
                 psi_edge,
                 target,
                 structural_bindings,
-                trivial_affine_discards,
-                residual_affine_discards,
+                cleanup_actions,
                 ..
             } => {
                 if *psi_edge != edge.psi_edge
                     || *target != dispatch
                     || !structural_bindings.is_empty()
-                    || !trivial_affine_discards.is_empty()
-                    || !residual_affine_discards.is_empty()
+                    || !cleanup_actions.is_empty()
                 {
                     continue;
                 }
@@ -361,18 +359,14 @@ fn plan_dispatch(
                 };
                 if arm.target != dispatch
                     || !arm.structural_bindings.is_empty()
-                    || !arm.trivial_affine_discards.is_empty()
-                    || !arm.residual_affine_discards.is_empty()
+                    || !arm.cleanup_actions.is_empty()
                 {
                     continue;
                 }
             }
             _ => continue,
         }
-        if !edge.structural_bindings.is_empty()
-            || !edge.trivial_affine_discards.is_empty()
-            || !edge.residual_affine_discards.is_empty()
-        {
+        if !edge.structural_bindings.is_empty() || !edge.cleanup_actions.is_empty() {
             continue;
         }
         let Some(binding) = edge
@@ -400,10 +394,7 @@ fn plan_dispatch(
         } else {
             (when_false_edge, when_true_edge)
         };
-        if !resolved.structural_bindings.is_empty()
-            || !resolved.trivial_affine_discards.is_empty()
-            || !resolved.residual_affine_discards.is_empty()
-        {
+        if !resolved.structural_bindings.is_empty() || !resolved.cleanup_actions.is_empty() {
             continue;
         }
         let Some(resolved_block) = function
@@ -582,8 +573,7 @@ fn fused_node(
             psi_edge,
             target,
             structural_bindings,
-            trivial_affine_discards,
-            residual_affine_discards,
+            cleanup_actions,
             ..
         } => {
             // A jump owns exactly one edge, so exactly one row may land here.
@@ -594,8 +584,7 @@ fn fused_node(
                 || *psi_edge != first.incoming_edge
                 || *target != dispatch
                 || !structural_bindings.is_empty()
-                || !trivial_affine_discards.is_empty()
-                || !residual_affine_discards.is_empty()
+                || !cleanup_actions.is_empty()
             {
                 return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
             }
@@ -606,8 +595,7 @@ fn fused_node(
                 .ok_or(OptimizationUnitValidationError::CandidatePatchMismatch)?;
             if incoming.target != dispatch
                 || !incoming.structural_bindings.is_empty()
-                || !incoming.trivial_affine_discards.is_empty()
-                || !incoming.residual_affine_discards.is_empty()
+                || !incoming.cleanup_actions.is_empty()
             {
                 return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
             }
@@ -617,8 +605,7 @@ fn fused_node(
                 target: fused_edge.target,
                 bindings: fused_edge.bindings.clone(),
                 structural_bindings: structural_bindings.clone(),
-                trivial_affine_discards: trivial_affine_discards.clone(),
-                residual_affine_discards: residual_affine_discards.clone(),
+                cleanup_actions: cleanup_actions.clone(),
             };
             Ok(OptimizationNode {
                 uses: node_uses(&operation, first.predecessor),
@@ -657,8 +644,7 @@ fn fused_node(
                 };
                 if arm.target != dispatch
                     || !arm.structural_bindings.is_empty()
-                    || !arm.trivial_affine_discards.is_empty()
-                    || !arm.residual_affine_discards.is_empty()
+                    || !arm.cleanup_actions.is_empty()
                 {
                     return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
                 }
@@ -671,8 +657,7 @@ fn fused_node(
                 let incoming = &successors[index];
                 if incoming.target != dispatch
                     || !incoming.structural_bindings.is_empty()
-                    || !incoming.trivial_affine_discards.is_empty()
-                    || !incoming.residual_affine_discards.is_empty()
+                    || !incoming.cleanup_actions.is_empty()
                 {
                     return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
                 }
@@ -682,8 +667,7 @@ fn fused_node(
                     target: fused.target,
                     bindings: fused.bindings.clone(),
                     structural_bindings: fused.structural_bindings.clone(),
-                    trivial_affine_discards: fused.trivial_affine_discards.clone(),
-                    residual_affine_discards: fused.residual_affine_discards.clone(),
+                    cleanup_actions: fused.cleanup_actions.clone(),
                 };
                 successors[index] = fused;
             }
@@ -761,8 +745,7 @@ fn fused_edge(
         target: resolved.target,
         bindings,
         structural_bindings: Vec::new(),
-        trivial_affine_discards: Vec::new(),
-        residual_affine_discards: Vec::new(),
+        cleanup_actions: Vec::new(),
         provenance,
         fuel,
     })

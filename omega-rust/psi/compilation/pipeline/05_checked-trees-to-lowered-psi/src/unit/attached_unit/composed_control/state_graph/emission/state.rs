@@ -12,9 +12,9 @@ use super::super::super::super::super::{
     CheckedComposedUnitControlTerminatorPlan, StructuralCaseSuccessorEdge, SuccessorEdge, block_id,
 };
 use super::super::super::super::{
-    Block, CheckedScalarExpression, Operation, OperationKind, OperationResult,
-    StructuralPlaceDeclaration, StructuralPlaceKind, Terminator, ValueDeclaration, allocate_dense,
-    edge_id, lookup_claim_id, place_id, unsupported,
+    Block, Operation, OperationKind, OperationResult, StructuralPlaceDeclaration,
+    StructuralPlaceKind, Terminator, ValueDeclaration, allocate_dense, edge_id, lookup_claim_id,
+    place_id, unsupported,
 };
 use super::super::super::LoweringError;
 use super::super::{
@@ -787,7 +787,6 @@ impl StateGraphEmission<'_, '_> {
         // arm's edge and the dispatch's closing `_` edge dispose of it where
         // control leaves the state. A closed-sum dispatch disposes of it on its
         // own case edges instead.
-        let consumed_case_subjects = case_subject_consumptions(&state.terminator);
         let mut edge_blocks = Vec::new();
         let frame = super::successor_edge::SuccessorFrame {
             position,
@@ -798,7 +797,6 @@ impl StateGraphEmission<'_, '_> {
             case_subject: prepared_cases.as_ref().map(|prepared| prepared.source),
             inherited_lengths: &inherited_lengths,
             inherited_field_lengths: &inherited_field_lengths,
-            consumed_case_subjects: &consumed_case_subjects,
         };
         let mut successor = |edge: &CheckedStructuralControlSuccessorPlan,
                              payload_values: &[(u32, ValueDeclaration)],
@@ -1020,8 +1018,7 @@ impl StateGraphEmission<'_, '_> {
                     erased_arguments: edge.erased_arguments,
                     erased_proof_arguments: edge.erased_proof_arguments,
                     structural_arguments: edge.structural_arguments,
-                    trivial_affine_discards: edge.trivial_affine_discards,
-                    residual_affine_discards: Vec::new(),
+                    cleanup_actions: edge.cleanup_actions,
                 }
             }
             CheckedComposedUnitControlTerminatorPlan::Conditional { .. }
@@ -1307,8 +1304,7 @@ impl StateGraphEmission<'_, '_> {
                             target: edge.target,
                             case: case.identity,
                             payload_fields: case.fields.clone(),
-                            trivial_affine_discards: case_subject_discards.clone(),
-                            residual_affine_discards: Vec::new(),
+                            cleanup_actions: case_subject_discards.iter().copied().map(terminal_psi::TerminalAffineCleanupAction::DiscardRoot).collect(),
                         })
                     })
                     .collect::<Result<Vec<_>, LoweringError>>()?;
@@ -1370,61 +1366,6 @@ fn scalar_exit_root_discards(
 /// The owned parameter each edge of a case-test dispatch consumes, keyed by
 /// the edge's transition ordinal: a tested arm consumes its own subject, and
 /// the dispatch's closing `_` arm the subject of the arm before it.
-fn case_subject_consumptions(
-    terminator: &checked_trees::CheckedComposedUnitControlTerminatorPlan,
-) -> Vec<(u32, u32)> {
-    fn subject(guard: &checked_trees::CheckedCallScalarArgument) -> Option<u32> {
-        let CheckedScalarExpression::Boolean(guard) = guard.as_pure()? else {
-            return None;
-        };
-        let membership = match guard.as_ref() {
-            checked_trees::CheckedBooleanExpression::Equal { left, right } => {
-                match (left.as_ref(), right.as_ref()) {
-                    (checked_trees::CheckedBooleanExpression::Constant(true), tested)
-                    | (tested, checked_trees::CheckedBooleanExpression::Constant(true)) => tested,
-                    _ => return None,
-                }
-            }
-            tested => tested,
-        };
-        match membership {
-            checked_trees::CheckedBooleanExpression::StructuralCaseMembership {
-                subject, ..
-            } if subject.path.is_empty() => Some(subject.parameter_position),
-            _ => None,
-        }
-    }
-    match terminator {
-        checked_trees::CheckedComposedUnitControlTerminatorPlan::Conditional {
-            guard,
-            when_true,
-            when_false,
-        } => subject(guard)
-            .map(|position| {
-                vec![
-                    (when_true.statement_ordinal, position),
-                    (when_false.statement_ordinal, position),
-                ]
-            })
-            .unwrap_or_default(),
-        checked_trees::CheckedComposedUnitControlTerminatorPlan::GuardedJumps {
-            arms,
-            fallback,
-        } => {
-            let mut consumed = arms
-                .iter()
-                .filter_map(|arm| {
-                    subject(arm.guard()).map(|position| (arm.statement_ordinal(), position))
-                })
-                .collect::<Vec<_>>();
-            if let Some(position) = arms.last().and_then(|arm| subject(arm.guard())) {
-                consumed.push((fallback.statement_ordinal(), position));
-            }
-            consumed
-        }
-        _ => Vec::new(),
-    }
-}
 
 /// Whether a successor evaluates any argument from an expression, which may
 /// read a case payload its guard selected. Parameter forwards read none.
@@ -1588,8 +1529,7 @@ fn emit_short_circuit_decision(
                 erased_arguments: successor.erased_arguments,
                 erased_proof_arguments: successor.erased_proof_arguments.clone(),
                 structural_arguments: successor.structural_arguments,
-                trivial_affine_discards: successor.trivial_affine_discards,
-                residual_affine_discards: Vec::new(),
+                cleanup_actions: successor.cleanup_actions,
             },
         });
     }
@@ -1648,8 +1588,7 @@ fn emit_short_circuit_decision(
         erased_arguments: Vec::new(),
         erased_proof_arguments: Vec::new(),
         structural_arguments: Vec::new(),
-        trivial_affine_discards: Vec::new(),
-        residual_affine_discards: Vec::new(),
+        cleanup_actions: Vec::new(),
     })
 }
 
@@ -1690,7 +1629,6 @@ fn decision_edge(
             })
             .collect(),
         structural_arguments: Vec::new(),
-        trivial_affine_discards: Vec::new(),
-        residual_affine_discards: Vec::new(),
+        cleanup_actions: Vec::new(),
     })
 }

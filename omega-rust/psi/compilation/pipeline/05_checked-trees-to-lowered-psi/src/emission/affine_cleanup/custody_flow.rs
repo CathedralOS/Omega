@@ -24,12 +24,15 @@ struct EdgeEffects {
 }
 
 fn edge_effects(block: &Block, managed: &[PlaceId]) -> Result<Vec<EdgeEffects>, LoweringError> {
-    let edges: Vec<(&[terminal_psi::StructuralArgument], &[PlaceId])> = match &block.terminator {
+    let edges: Vec<(
+        &[terminal_psi::StructuralArgument],
+        &[terminal_psi::TerminalAffineCleanupAction],
+    )> = match &block.terminator {
         Terminator::Jump {
             structural_arguments,
-            trivial_affine_discards,
+            cleanup_actions,
             ..
-        } => vec![(structural_arguments, trivial_affine_discards)],
+        } => vec![(structural_arguments, cleanup_actions)],
         Terminator::Conditional {
             when_true,
             when_false,
@@ -39,13 +42,13 @@ fn edge_effects(block: &Block, managed: &[PlaceId]) -> Result<Vec<EdgeEffects>, 
             .map(|edge| {
                 (
                     edge.structural_arguments.as_slice(),
-                    edge.trivial_affine_discards.as_slice(),
+                    edge.cleanup_actions.as_slice(),
                 )
             })
             .collect(),
         Terminator::StructuralCase { cases, .. } => cases
             .iter()
-            .map(|edge| (&[][..], edge.trivial_affine_discards.as_slice()))
+            .map(|edge| (&[][..], edge.cleanup_actions.as_slice()))
             .collect(),
         _ => Vec::new(),
     };
@@ -68,7 +71,12 @@ fn edge_effects(block: &Block, managed: &[PlaceId]) -> Result<Vec<EdgeEffects>, 
             }
             let disposed = discards
                 .iter()
-                .filter_map(|place| managed.iter().position(|candidate| candidate == place))
+                .filter_map(|action| match action {
+                    terminal_psi::TerminalAffineCleanupAction::DiscardRoot(place) => {
+                        managed.iter().position(|candidate| candidate == place)
+                    }
+                    _ => None,
+                })
                 .collect();
             Ok(EdgeEffects { consumed, disposed })
         })

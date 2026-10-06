@@ -103,8 +103,7 @@ impl PsiOptimizationRule for SharedJumpFusionRule {
                     psi_edge: incoming_edge,
                     target: target_id,
                     bindings,
-                    trivial_affine_discards,
-                    residual_affine_discards,
+                    cleanup_actions,
                 } = &predecessor_node.operation
                 else {
                     continue;
@@ -123,8 +122,7 @@ impl PsiOptimizationRule for SharedJumpFusionRule {
                 let [terminal] = target.nodes.as_slice() else {
                     continue;
                 };
-                if !trivial_affine_discards.is_empty()
-                    || !residual_affine_discards.is_empty()
+                if !cleanup_actions.is_empty()
                     || target.id == function.entry
                     || !terminal.successors.is_empty()
                     || !matches!(terminal.provenance.first(), Some(PsiProvenance::Edge(_)))

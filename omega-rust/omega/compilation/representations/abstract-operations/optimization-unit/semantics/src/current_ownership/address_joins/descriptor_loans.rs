@@ -449,14 +449,9 @@ impl DescriptorLoans {
                     )
                 })
                 .chain(
-                    edge.trivial_affine_discards
+                    edge.cleanup_actions
                         .iter()
-                        .map(|place| (*place, Projection::new(&[]), true)),
-                )
-                .chain(
-                    edge.residual_affine_discards
-                        .iter()
-                        .map(|discard| (discard.place, Projection::new(&[]), true)),
+                        .map(|action| (action.place(), Projection::new(&[]), true)),
                 );
             for (place, projection, forced) in disturbed {
                 let location =
@@ -859,14 +854,9 @@ fn descriptor_inputs(
     };
     match operation {
         O::Jump {
-            trivial_affine_discards,
-            ..
-        } => {
-            for place in trivial_affine_discards {
-                dispose(*place);
-            }
+            cleanup_actions, ..
         }
-        O::Return {
+        | O::Return {
             cleanup_actions, ..
         }
         | O::ReturnUnit {

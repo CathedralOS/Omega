@@ -200,18 +200,20 @@ does not establish safe intermediates.
 The [ownership contract](ownership.md) defines claim paths, partial moves,
 residual complements, and nominal cleanup eligibility.
 
-The normal return carries an exact ordered cleanup-action stream, empty when
-nothing remains live. Actions distinguish:
+Each normal return or successor edge carries an exact ordered cleanup-action
+stream, empty when nothing remains to dispose. Actions distinguish:
 
 - Whole-root no-code disposal.
 - Typed residual disposal.
 - Executable nominal cleanup.
 
 The verifier reconstructs the complete live frontier and reverse declaration
-order, checking each nominal target and obligation. Return evaluation charges
-the edge and materializes the result before cleanup commits. Nominal bodies run
-resumably; budget exhaustion must neither replay an action nor partially commit
-the exit. Logical-work analysis composes their invocations.
+order, checking each nominal target and obligation. Evaluation captures outgoing
+results or arguments before cleanup commits. Only the selected edge's actions
+run, after its charge succeeds; destination bindings are established after the
+actions complete. Nominal bodies run resumably; exhaustion preserves the action
+cursor and captured values without repeating effects or charging the edge again.
+Logical-work analysis composes their invocations.
 
 Lowering and publication preserve action order and call ownership. A no-code
 disposition produces no target instruction. Register-held results alone are not

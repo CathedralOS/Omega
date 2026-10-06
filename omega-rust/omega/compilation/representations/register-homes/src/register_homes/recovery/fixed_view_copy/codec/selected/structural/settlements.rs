@@ -538,7 +538,7 @@ fn encode_cleanup(bytes: &mut Vec<u8>, action: &TerminalAffineCleanupAction) {
     }
 }
 
-fn decode_cleanup(
+pub(in super::super) fn decode_cleanup(
     cursor: &mut Cursor<'_>,
 ) -> Result<TerminalAffineCleanupAction, FixedViewCopyDecodeError> {
     match cursor.byte()? {

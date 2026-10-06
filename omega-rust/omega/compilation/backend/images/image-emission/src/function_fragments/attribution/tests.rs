@@ -405,8 +405,7 @@ fn case_edges_share_the_authored_case_ordinal_without_fabricated_operations() {
                     target: BlockId::new(identity).unwrap(),
                     case: semantic_vocabulary::StructuralCaseId::new(identity).unwrap(),
                     payloads: Vec::new(),
-                    trivial_affine_discards: Vec::new(),
-                    residual_affine_discards: Vec::new(),
+                    cleanup_actions: Vec::new(),
                 },
             )
             .collect(),
@@ -566,8 +565,7 @@ fn bridge_continuation_does_not_attribute_the_semantic_edge_twice() {
         psi_edge: edge,
         target: BlockId::new(2).unwrap(),
         bindings: Vec::new(),
-        trivial_affine_discards: Vec::new(),
-        residual_affine_discards: Vec::new(),
+        cleanup_actions: Vec::new(),
     });
     let successor = machine_code::FunctionFragmentSuccessorProvenance {
         role: SelectedSuccessorRole::Semantic,
