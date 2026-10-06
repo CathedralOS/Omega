@@ -203,21 +203,6 @@ helper that passes does not close an item.
   and the app meets the oracle in
   [its README](samples/cli/games/dungeon_crawler_cli/README.md#runtime-acceptance).
 
-- **NAME-KEYED-RANGE-TYPE-SHADOW-UNREACHED.** (new-scope)
-  `checks/ranges/types.rs`'s `type_reference_for_name` is a five-arm
-  name-keyed shadow of the adjacent `type_reference_for_symbol` -- the same
-  five `or_else` arms keyed on spelling instead of handle. Both call sites
-  reach it only as an `or_else` fallback, one gated on
-  `!extent_symbol.is_valid()`. A whole-corpus probe over 2001 fixtures took
-  **0 reaches at both call sites**, and `proof/src/typed_expressions.rs`'s
-  `!path.symbol.is_valid()` branch is likewise 0-reach. So the corpus neither
-  exercises the shadow nor licenses removing it: an unreached path cannot be
-  proved equivalent by measurement. Frontier: decide whether an unresolved
-  single-member name can still arrive at either site after stage 02 assigns
-  contract symbols, then retire both paths on that argument or keep them with
-  the arrival recorded. This needs a non-corpus justification and is the
-  largest standing cleanup of its family. Measured at `b0a48cde065`.
-
 
 - **STATIC-BOUNDARY-REQUIREMENT-CALL-FORM.** (split-of:STATIC-MACHINE-MIGRATION)
   Finish realization of explicit completion calls under

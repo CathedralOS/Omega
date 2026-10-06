@@ -442,11 +442,11 @@ pub(in crate::checks::ranges) fn collection_symbolic_extent_floor(
             .copied()
     })();
     let Some(actual) = actual else {
-        return symbolic_extent_floor(program, machine, state, extent.0, &extent.1);
+        return symbolic_extent_floor(program, machine, state, extent.0);
     };
     match program.type_reference_table.type_reference(actual) {
-        TypeReferenceNode::Named { symbol, name } if symbol.is_valid() => {
-            symbolic_extent_floor(program, machine, state, *symbol, name)
+        TypeReferenceNode::Named { symbol, .. } if symbol.is_valid() => {
+            symbolic_extent_floor(program, machine, state, *symbol)
         }
         // `validate_closed_const_argument` admits closed values as symbol-less
         // Named atoms; ShapeCollector's const-length reader uses this encoding.
@@ -455,11 +455,7 @@ pub(in crate::checks::ranges) fn collection_symbolic_extent_floor(
         TypeReferenceNode::ConstExpression(expression) => {
             match program.expression_table.expression(*expression) {
                 ExpressionNode::Name(path) if path.symbol.is_valid() => {
-                    let name = program
-                        .expression_table
-                        .name_path_members(path.members)
-                        .last()?;
-                    symbolic_extent_floor(program, machine, state, path.symbol, name)
+                    symbolic_extent_floor(program, machine, state, path.symbol)
                 }
                 ExpressionNode::Integer(literal) => literal.value_bignum()?.to_i64(),
                 _ => None,
@@ -473,23 +469,17 @@ pub(in crate::checks::ranges) fn collection_symbolic_extent_floor(
 /// declared range minimum of the binder (`const N: u64[1..=18446744073709551615]` contributes 1),
 /// else its unsigned carrier's zero. `None` means the binder contributes no
 /// usable floor: an unranged signed carrier could in principle specialize a
-/// negative "length", so nothing below it is provable.
-pub(in crate::checks::ranges) fn symbolic_extent_floor(
+/// negative "length", so nothing below it is provable. Checking admits a
+/// symbolic extent only when its symbol is an in-scope binder's, so the
+/// binder is found by identity alone.
+fn symbolic_extent_floor(
     program: &typed_trees::TypedTrees,
     machine: &Machine,
     state: &State,
     extent_symbol: SymbolHandle,
-    extent_name: &typed_trees::name::Identifier,
 ) -> Option<i64> {
     let reference = type_reference_for_symbol(program, machine, state, extent_symbol)
-        .or_else(|| {
-            (!extent_symbol.is_valid())
-                .then(|| type_reference_for_name(program, machine, state, extent_name))
-                .flatten()
-        })
-        .or_else(|| {
-            attached_data_const_parameter_reference(program, machine, extent_symbol, extent_name)
-        })?;
+        .or_else(|| attached_data_const_parameter_reference(program, machine, extent_symbol))?;
     let declared = constrained_minimum_of_type_reference(program, reference).or_else(|| {
         primitive_of_type_reference(program, reference).and_then(|primitive| {
             matches!(
@@ -593,13 +583,12 @@ fn const_extent_requires_floor(
 
 /// The declared carrier of a const binder that lives on the machine's ATTACHED
 /// data (`data Buffer<const N: u64>` in `Buffer::push`), where the machine's own
-/// parameter list is empty. Symbol match is authoritative; the terminal name is
-/// only a fallback when the data declaration never resolved.
+/// parameter list is empty. The binder is matched by symbol; the data
+/// declaration's name is only a fallback when its symbol never resolved.
 fn attached_data_const_parameter_reference(
     program: &typed_trees::TypedTrees,
     machine: &Machine,
     extent_symbol: SymbolHandle,
-    extent_name: &typed_trees::name::Identifier,
 ) -> Option<TypeReferenceHandle> {
     let data = program
         .data_definitions()
@@ -619,8 +608,7 @@ fn attached_data_const_parameter_reference(
         .find_map(|parameter| match &parameter.kind {
             typed_trees::data::TypeParameterKind::Const { type_reference }
             | typed_trees::data::TypeParameterKind::Value { type_reference }
-                if parameter.symbol == extent_symbol
-                    || (!extent_symbol.is_valid() && parameter.name == *extent_name) =>
+                if extent_symbol.is_valid() && parameter.symbol == extent_symbol =>
             {
                 Some(*type_reference)
             }
@@ -789,14 +777,11 @@ pub(in crate::checks::ranges) fn expression_type_reference(
                 }],
             )
         }
+        // Checking refuses a value name that resolved to no in-scope binder
+        // before ranges run. A same-spelled binder elsewhere in the machine is
+        // a different declaration and lends no type.
         ExpressionNode::Name(path) => {
-            type_reference_for_symbol(program, machine, state, path.symbol).or_else(|| {
-                let name = program
-                    .expression_table
-                    .name_path_members(path.members)
-                    .last()?;
-                type_reference_for_name(program, machine, state, name)
-            })
+            type_reference_for_symbol(program, machine, state, path.symbol)
         }
         ExpressionNode::Member(member) => {
             validation::exact_self_field(program, machine, expression)
@@ -883,71 +868,6 @@ fn type_reference_for_symbol(
                     .find(|parameter| parameter.symbol == symbol)
                     .map(|parameter| parameter.type_reference)
             })
-        })
-}
-
-fn type_reference_for_name(
-    program: &typed_trees::TypedTrees,
-    machine: &Machine,
-    state: &State,
-    name: &typed_trees::name::Identifier,
-) -> Option<TypeReferenceHandle> {
-    program
-        .state_parameters(state)
-        .iter()
-        .find(|parameter| parameter.name == *name)
-        .map(|parameter| parameter.type_reference)
-        .or_else(|| {
-            program
-                .statement_table
-                .statements(state.statement_nodes)
-                .iter()
-                .find_map(|statement| {
-                    let typed_trees::statement::StatementNode::LocalData(local) = statement else {
-                        return None;
-                    };
-                    (local.name == *name).then_some(local.type_reference)
-                })
-        })
-        .or_else(|| {
-            program
-                .machine_owned_data(machine)
-                .iter()
-                .find(|owned| owned.name == *name)
-                .map(|owned| owned.type_reference)
-        })
-        .or_else(|| {
-            // The const/value binder carrier, as in the symbol twin above.
-            // A local or parameter of the same name wins earlier.
-            program
-                .machine_type_parameters(machine)
-                .iter()
-                .find_map(|parameter| match &parameter.kind {
-                    typed_trees::data::TypeParameterKind::Const { type_reference }
-                    | typed_trees::data::TypeParameterKind::Value { type_reference }
-                        if parameter.name == *name =>
-                    {
-                        Some(*type_reference)
-                    }
-                    _ => None,
-                })
-        })
-        .or_else(|| {
-            // Whole-machine param scope (see the symbol twin above). A NAME
-            // match is only sound when it is unambiguous machine-wide: two
-            // states declaring same-named params with different ranges must
-            // not prove against an arbitrary pick -- bail to unproven.
-            let mut matches = program.machine_states(machine).iter().flat_map(|other| {
-                program
-                    .state_parameters(other)
-                    .iter()
-                    .filter(|parameter| parameter.name == *name)
-            });
-            let first = matches.next()?;
-            if matches.next().is_some() {
-                return None;
-            }
-            Some(first.type_reference)
         })
 }
 

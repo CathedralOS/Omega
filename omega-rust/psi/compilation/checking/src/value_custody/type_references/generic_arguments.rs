@@ -104,13 +104,14 @@ pub(super) fn validate_symbolic_array_length(
     let FixedArrayLength::ConstParameter { symbol, name } = length else {
         return;
     };
+    // Stage 02 binds an extent to the binder its owner declares. A spelling
+    // that never resolved is not that binder, even when the scope holds a
+    // same-named one: an attached machine that omits `<const N: ...>` names
+    // its data's `N` without binding it.
     let parameter = type_parameter_scope
         .type_parameters
         .iter()
-        .find(|parameter| {
-            (symbol.is_valid() && parameter.symbol == *symbol)
-                || parameter.name.as_str() == name.as_str()
-        });
+        .find(|parameter| symbol.is_valid() && parameter.symbol == *symbol);
     let Some(parameter) = parameter else {
         diagnostics.push(Diagnostic::error(format!(
             "{owner} uses unresolved fixed-array length `{name}`; a symbolic array length \

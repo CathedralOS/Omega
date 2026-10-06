@@ -1,0 +1,13 @@
+// An attached machine declares its own binders. `Buffer::scratch` omits
+// `<const N: ...>`, so the `N` in its parameter type binds nothing; the
+// data's same-spelled `N` must not supply the extent or its `[1..=8]` floor
+// that would prove `copy[0]`.
+data Buffer<const N: u64 [1..=8]> {
+    items: [u8; N];
+}
+
+machine Buffer::scratch(copy: [u8; N]) -> u8 {
+    transition { _ -> (copy[0]) }
+}
+
+machine main() {}

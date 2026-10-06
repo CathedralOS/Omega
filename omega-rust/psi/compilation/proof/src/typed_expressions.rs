@@ -31,33 +31,10 @@ pub(crate) fn expression_type_reference(
         ExpressionNode::Borrow(inner) => {
             expression_type_reference(program, machine, state, inner.target)
         }
-        ExpressionNode::Name(path) => {
-            if path.symbol.is_valid() {
-                return type_reference_for_symbol(program, machine, state, path.symbol);
-            }
-
-            let name = match program.expression_table.name_path_members(path.members) {
-                [name] => name,
-                [receiver, name] if receiver.is_self_receiver() => name,
-                _ => return None,
-            };
-
-            program
-                .state_parameters(state)
-                .iter()
-                .find(|parameter| parameter.name == *name)
-                .map(|parameter| parameter.type_reference)
-                .or_else(|| {
-                    local_data_by_name(program, state, name)
-                        .map(|local_data| local_data.type_reference)
-                })
-                .or_else(|| {
-                    program
-                        .machine_owned_data(machine)
-                        .iter()
-                        .find(|owned_data| owned_data.name == *name)
-                        .map(|owned_data| owned_data.type_reference)
-                })
+        // Checking refuses a value name that resolved to no in-scope binder
+        // before obligations are built; a same-spelled binder lends no type.
+        ExpressionNode::Name(path) if path.symbol.is_valid() => {
+            type_reference_for_symbol(program, machine, state, path.symbol)
         }
         ExpressionNode::Member(member) => {
             expression_type_reference(program, machine, state, member.receiver)

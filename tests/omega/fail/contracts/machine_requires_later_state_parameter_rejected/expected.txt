@@ -1,0 +1,1 @@
+machine `first` state `entry` arrival contract value `later_bound` is not in the state's explicit parameter scope
