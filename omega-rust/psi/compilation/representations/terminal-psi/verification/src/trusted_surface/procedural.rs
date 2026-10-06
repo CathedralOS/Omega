@@ -162,7 +162,7 @@ rows! {
         "the machine's blocks traversed in dominance order from the entry parameters",
         "facts reconstructed at a point are exactly those of operations and terminators dominating it; nothing downstream is assumed",
         &["formation:control-flow-validation"],
-        &[tv!( "verification/reconstruction/machine_flow.rs"), tv!( "control_graph.rs")]
+        &[tv!( "verification/reconstruction/machine_flow.rs"), ts!( "control_graph.rs")]
     );
     SCOPE_HEADER_EDGE => (
         "scope:header-edge-arrival",
@@ -442,7 +442,7 @@ rows! {
         "the machine's blocks, edges, terminators, and declared cycle structure",
         "validated control flow: successors, dominance, and cycle declarations agree before reconstruction relies on them; operation and terminator cycle eligibility applies to repeated blocks, while acyclic prefixes and normal exits retain ordinary declaration, operation, result, backing and frontier validation; invocation result shape supplies no loop-custody authority, and every backedge still preserves the exact ownership, claim, reference and restoration frontier; unrestricted constructors share a disposal-free lifetime but retain each operation's initialization and evidence checks, while records and affine cases retain ordinary frontier replay and their applicable disposal rules; a returned shared byte or element descriptor, and each shared byte-descriptor slot of an owned aggregate result, requires a body-derived origin for the exact available source, including ordinary and nested call results; nominal result shape alone does not discharge the original backing lifetime; shared and mutable bounded-owner parameters use the ordinary exact carrier and primitive-predicate loan rule in cycles; writes and calls must preserve the owner invariant, while entry content and length facts gain no stability merely from that parameter admission; byte-content predicate observations retain no custody on a backedge and may occur in unranked cycles only under ordinary readable-operand and current-length validation; descriptor field replacement remains independently subject to live source/destination custody and stored-loan replay, while neither a predicate Boolean nor an unrelated scalar can substitute for a descriptor length",
         &["formation:module-structure"],
-        &[tv!( "validation/control_flow.rs"), tv!( "validation/control_flow/block_checks.rs"), tv!( "validation/control_flow/block_graph.rs"), tv!( "validation/control_flow/definitions.rs"), tv!( "validation/control_flow/unranked_cycles.rs"), tv!( "control_graph.rs"), ts!( "descriptor_results.rs")]
+        &[tv!( "validation/control_flow.rs"), tv!( "validation/control_flow/block_checks.rs"), tv!( "validation/control_flow/block_graph.rs"), tv!( "validation/control_flow/definitions.rs"), tv!( "validation/control_flow/unranked_cycles.rs"), ts!( "control_graph.rs"), ts!( "descriptor_results.rs")]
     );
     FORM_CONTRACT => (
         "formation:contract-validation",

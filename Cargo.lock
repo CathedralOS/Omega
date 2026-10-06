@@ -770,7 +770,6 @@ dependencies = [
  "terminal-psi",
  "terminal-psi-to-abstract-operations",
  "terminal-semantics",
- "terminal-verifier",
  "tokens-to-syntax-trees",
  "typed-trees-to-checked-trees",
  "x86-encoding",
@@ -2031,7 +2030,6 @@ dependencies = [
  "terminal-psi",
  "terminal-psi-to-abstract-operations",
  "terminal-semantics",
- "terminal-verifier",
 ]
 
 [[package]]
@@ -2162,6 +2160,7 @@ dependencies = [
  "numerics",
  "proof-admission",
  "semantic-vocabulary",
+ "sha2",
  "terminal-psi",
 ]
 

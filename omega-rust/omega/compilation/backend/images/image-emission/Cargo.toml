@@ -42,7 +42,6 @@ terminal-psi = { path = "../../../../../psi/compilation/representations/terminal
 terminal-semantics = { path = "../../../../../psi/compilation/representations/terminal-psi/semantics" }
 terminal-codec = { path = "../../../../../psi/compilation/representations/terminal-psi/codec" }
 terminal-fuel = { path = "../../../../../psi/compilation/representations/terminal-psi/fuel" }
-terminal-verifier = { path = "../../../../../psi/compilation/representations/terminal-psi/verification" }
 proof-admission = { path = "../../../../../psi/compilation/proof/admission" }
 sha2 = "0.10"
 iced-x86 = { version = "1.21", default-features = false, features = ["std", "decoder", "instr_info"] }

@@ -161,7 +161,7 @@ const BYTE_SUBSLICE_VALIDATION_SOURCE: &[u8] =
     include_bytes!("../../verification/src/validation/byte_sequence/subslice.rs");
 const BYTE_VIEW_DOMINANCE_SOURCE: &[u8] =
     include_bytes!("../../verification/src/validation/control_flow.rs");
-const CONTROL_GRAPH_SOURCE: &[u8] = include_bytes!("../../verification/src/control_graph.rs");
+const CONTROL_GRAPH_SOURCE: &[u8] = include_bytes!("../../semantics/src/control_graph.rs");
 const BYTE_CYCLIC_ELIGIBILITY_SOURCE: &[u8] =
     include_bytes!("../../verification/src/validation/control_flow/unranked_cycles.rs");
 const BYTE_BLOCK_BINDINGS_SOURCE: &[u8] =

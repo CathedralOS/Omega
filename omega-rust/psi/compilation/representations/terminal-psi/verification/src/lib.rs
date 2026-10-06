@@ -19,7 +19,7 @@
 //! and `terminal_trace_v1` (the bounded observation profile).
 
 mod control_cycles;
-mod control_graph;
+use terminal_semantics::control_graph;
 pub mod trusted_surface;
 pub use control_cycles::{
     AcceptedControlCycle, ReconstructedControlCycleObligation, control_cycle_components,

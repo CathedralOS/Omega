@@ -1,11 +1,16 @@
-//! Source-independent analysis of an already target-validated control graph.
+//! Source-independent analysis of a Terminal machine's control graph:
+//! successors, cyclic components, dominators, feedback edges, and the
+//! topology identities of control cycles. Producers, the optimizer, fuel
+//! certification and the verifier all read the same derivation.
 
 use std::collections::{BTreeMap, BTreeSet};
 
 use semantic_vocabulary::{BlockId, EdgeId};
-use terminal_psi::{TerminalMachine, Terminator};
+use terminal_psi::{TerminalMachine, TerminalNaturalCycle, Terminator};
+use semantic_vocabulary::{CycleComponentId, PsiSemanticId};
+use sha2::{Digest, Sha256};
 
-pub(crate) fn successors(machine: &TerminalMachine) -> BTreeMap<BlockId, Vec<(EdgeId, BlockId)>> {
+pub fn successors(machine: &TerminalMachine) -> BTreeMap<BlockId, Vec<(EdgeId, BlockId)>> {
     machine
         .blocks
         .iter()
@@ -36,7 +41,7 @@ pub(crate) fn successors(machine: &TerminalMachine) -> BTreeMap<BlockId, Vec<(Ed
 
 /// Complete cyclic components in canonical member order. Targets and entry
 /// must have passed ordinary graph validation before this private query.
-pub(crate) fn cyclic_components(machine: &TerminalMachine) -> Vec<Vec<BlockId>> {
+pub fn cyclic_components(machine: &TerminalMachine) -> Vec<Vec<BlockId>> {
     let outgoing = successors(machine);
     let mut entered = BTreeSet::from([machine.entry]);
     let mut finished = Vec::new();
@@ -92,7 +97,7 @@ pub(crate) fn cyclic_components(machine: &TerminalMachine) -> Vec<Vec<BlockId>> 
 /// Reachable blocks in reverse postorder: every dominator precedes each block
 /// it dominates, so a scan in this order meets every definition before its
 /// dominated uses.
-pub(crate) fn reverse_postorder(machine: &TerminalMachine) -> Vec<BlockId> {
+pub fn reverse_postorder(machine: &TerminalMachine) -> Vec<BlockId> {
     let outgoing = successors(machine);
     reverse_postorder_from_successors(machine.entry, &outgoing)
 }
@@ -122,7 +127,7 @@ fn reverse_postorder_from_successors(
 /// One interval per block replaces the expanded set of all its ancestors.
 /// Block identities are sparse; only the private reverse-postorder positions
 /// index contiguous working storage.
-pub(crate) struct DominatorTree {
+pub struct DominatorTree {
     positions: BTreeMap<BlockId, usize>,
     nodes: Vec<DominatorNode>,
     /// Reverse-postorder position to block identity.
@@ -138,7 +143,7 @@ struct DominatorNode {
 }
 
 impl DominatorTree {
-    pub(crate) fn dominates(&self, definition: BlockId, use_block: BlockId) -> bool {
+    pub fn dominates(&self, definition: BlockId, use_block: BlockId) -> bool {
         let (Some(&definition), Some(&use_block)) = (
             self.positions.get(&definition),
             self.positions.get(&use_block),
@@ -155,7 +160,7 @@ impl DominatorTree {
     /// tree ancestors. Unreachable or unknown blocks have none. Walking this
     /// chain costs its length, where testing every candidate definition
     /// block with [`Self::dominates`] costs the number of candidates.
-    pub(crate) fn strict_dominators(&self, block: BlockId) -> impl Iterator<Item = BlockId> + '_ {
+    pub fn strict_dominators(&self, block: BlockId) -> impl Iterator<Item = BlockId> + '_ {
         let mut position = self.positions.get(&block).copied();
         std::iter::from_fn(move || {
             // Position zero is the entry, which has no strict dominator.
@@ -167,7 +172,7 @@ impl DominatorTree {
     }
 
     /// Number of dominators including the block itself; the entry has depth 1.
-    pub(crate) fn depth(&self, block: BlockId) -> Option<usize> {
+    pub fn depth(&self, block: BlockId) -> Option<usize> {
         self.positions
             .get(&block)
             .map(|&position| self.nodes[position].depth)
@@ -177,7 +182,7 @@ impl DominatorTree {
 /// A cyclic block definition is available only when it dominates the use in
 /// the full graph, not merely a traversal with backedges removed. Entry,
 /// targets, unique identities and reachability must already be validated.
-pub(crate) fn dominators(machine: &TerminalMachine) -> DominatorTree {
+pub fn dominators(machine: &TerminalMachine) -> DominatorTree {
     let outgoing = successors(machine);
     let ordered = reverse_postorder_from_successors(machine.entry, &outgoing);
     let positions = ordered
@@ -272,7 +277,7 @@ fn intersect_dominator_chains(mut first: usize, mut second: usize, immediate: &[
 /// Removing DFS ancestor edges makes the remaining graph acyclic. Their
 /// targets must be treated as arbitrary iteration entries for proof facts;
 /// deleting the edges does not prove a loop invariant or termination.
-pub(crate) fn feedback_edges(machine: &TerminalMachine) -> BTreeMap<EdgeId, BlockId> {
+pub fn feedback_edges(machine: &TerminalMachine) -> BTreeMap<EdgeId, BlockId> {
     let successors = successors(machine);
     let mut entered = BTreeSet::from([machine.entry]);
     let mut finished = BTreeSet::new();
@@ -294,4 +299,62 @@ pub(crate) fn feedback_edges(machine: &TerminalMachine) -> BTreeMap<EdgeId, Bloc
         }
     }
     feedback
+}
+
+/// Topology identity has no producer-supplied component key. Rank bindings
+/// separately enter the question commitment, so changing a witness invalidates
+/// its comparison evidence even when the component topology is unchanged.
+pub fn control_cycle_identity(
+    machine: &TerminalMachine,
+    component: &TerminalNaturalCycle,
+) -> CycleComponentId {
+    let edges = component
+        .edges
+        .iter()
+        .map(|edge| (edge.edge, edge.source, edge.target));
+    topology_identity(machine, edges)
+}
+
+/// Topology-derived component identity for a cyclic component that carries no
+/// producer ranking row — the name an absence-of-bound report uses when an
+/// unranked component is the directed cause. Validation pins a producer's
+/// component edges to ascending edge-id order covering exactly the members'
+/// internal edges, so for any member set a producer later ranks this identity
+/// equals `control_cycle_identity` on that row.
+pub fn cyclic_component_identity(
+    machine: &TerminalMachine,
+    members: &[BlockId],
+) -> CycleComponentId {
+    let member_set: std::collections::BTreeSet<BlockId> = members.iter().copied().collect();
+    let outgoing = successors(machine);
+    let mut internal: Vec<(EdgeId, BlockId, BlockId)> = Vec::new();
+    for member in members {
+        for (edge, target) in outgoing.get(member).into_iter().flatten() {
+            if member_set.contains(target) {
+                internal.push((*edge, *member, *target));
+            }
+        }
+    }
+    internal.sort();
+    topology_identity(machine, internal)
+}
+
+fn topology_identity(
+    machine: &TerminalMachine,
+    edges: impl IntoIterator<Item = (EdgeId, BlockId, BlockId)>,
+) -> CycleComponentId {
+    let mut digest = Sha256::new();
+    digest.update(b"psi.control-cycle.topology.v1\0");
+    digest.update(machine.id.get().to_le_bytes());
+    for (edge, source, target) in edges {
+        digest.update(edge.get().to_le_bytes());
+        digest.update(source.get().to_le_bytes());
+        digest.update(target.get().to_le_bytes());
+    }
+    semantic_id(&digest.finalize().into())
+}
+
+fn semantic_id<Identity: PsiSemanticId>(digest: &[u8; 32]) -> Identity {
+    let raw = u64::from_le_bytes(digest[..8].try_into().expect("SHA-256 prefix")) | 1;
+    Identity::new(raw).expect("the low bit establishes a nonzero semantic identity")
 }
