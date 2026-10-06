@@ -115,3 +115,15 @@ pub(crate) fn unconstrained_base(
     }
     reference
 }
+
+/// The data symbol a type reference names through its `Named`/`Generic` head.
+pub(crate) fn head_data_symbol(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+) -> Option<symbols::SymbolHandle> {
+    match program.type_reference_table.type_reference(reference) {
+        TypeReferenceNode::Named { symbol, .. } => Some(*symbol),
+        TypeReferenceNode::Generic { base_symbol, .. } => Some(*base_symbol),
+        _ => None,
+    }
+}

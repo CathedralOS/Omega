@@ -114,3 +114,21 @@ pub(crate) fn memoized_call_argument_destinations(
     }
     destinations
 }
+
+/// The single machine state `symbol` selects, when exactly one state carries
+/// it.
+pub(crate) fn unique_state_by_symbol<'p>(
+    program: &'p typed_trees::TypedTrees,
+    symbol: symbols::SymbolHandle,
+) -> Option<&'p typed_trees::state::State> {
+    let matches = program
+        .machines()
+        .iter()
+        .flat_map(|machine| program.machine_states(machine))
+        .filter(|state| state.symbol == symbol)
+        .collect::<Vec<_>>();
+    let [state] = matches.as_slice() else {
+        return None;
+    };
+    Some(state)
+}

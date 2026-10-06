@@ -41,22 +41,17 @@ pub fn transparent_proposition_application_entailed(
             {
                 return structural_term(program, expression);
             }
-            let matches = program
-                .machines()
-                .iter()
-                .flat_map(|machine| program.machine_states(machine))
-                .filter(|state| state.symbol == call.target_symbol)
-                .collect::<Vec<_>>();
-            let [state] = matches.as_slice() else {
+            let Some(state) = crate::program_scope::call_targets::unique_state_by_symbol(
+                program,
+                call.target_symbol,
+            ) else {
                 return None;
             };
-            let data_symbol = match program
-                .type_reference_table
-                .type_reference(state.return_type)
-            {
-                typed_trees::types::TypeReferenceNode::Named { symbol, .. } => *symbol,
-                typed_trees::types::TypeReferenceNode::Generic { base_symbol, .. } => *base_symbol,
-                _ => return structural_term(program, expression),
+            let Some(data_symbol) = crate::program_scope::type_shape::head_data_symbol(
+                program,
+                state.return_type,
+            ) else {
+                return structural_term(program, expression);
             };
             let data = crate::program_scope::data_definitions::data_definition_by_symbol(
                 program,
