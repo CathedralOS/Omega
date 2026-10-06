@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": "2", "load1_end": 3.05, "load1_start": 3.05, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "3", "load1_end": 16.71, "load1_start": 25.82, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -537,8 +537,8 @@ fail/capabilities/cyclic_synchronous_invocation rejected 108ms expected @2d8ed25
 	selected providers realize a cyclic synchronous `invokes` graph: Alpha -> Beta -> Alpha; break one edge with a mailbox, queue, scheduler handoff, or other new activation
 fail/capabilities/effect_ceiling_exceeded rejected 140ms expected @c08960bee2b1+wt
 	machine `Worker::run` publishes service reach `Console` but its checked body reaches undeclared service `Disk`
-fail/capabilities/native_slice_external_leaf_rejected rejected 120ms unexpected @c5d32a00863
-	cannot evaluate compatibility calling plan for `NativeSlice::send`: aggregate integer classification is not normalized for this calling policy
+fail/capabilities/native_slice_external_leaf_rejected rejected 138ms expected @7be03351b68c+wt
+	external leaf `send` cannot use safe slice `&[u8]` as a default-native parameter for `NativeSlice::send`; declare the foreign pointer/length/terminator or record shape explicitly in a checked adapter, or select a custom `Calling<C>` policy that publishes a canonical representation
 fail/capabilities/provider_widens_requirement_ceiling rejected 284ms expected @2d8ed253669f
 	machine `sneaky` state `entry` does not satisfy trait `Meter` machine `read_value`: service `Filesystem` is not allowed by the trait requirement
 fail/capabilities/undeclared_synchronous_invocation rejected 214ms expected @fea536d0a672+wt
@@ -2542,32 +2542,32 @@ pass/operators/runtime_xorshift_prng_exit checked 1292ms check-target:macos_arm6
 pass/operators/slice_index_bounds_from_operator_contract checked 295ms @2d8ed253669f
 pass/operators/slice_range_bounds_from_operator_contract checked 317ms @2d8ed253669f
 pass/operators/unary_negation_exit checked 1266ms check-target:macos_arm64 @2d8ed253669f
-pass/optimizer/address_offset_selection_exit checked 5957ms check-target:macos_arm64 @3aa9587aec19+wt
-pass/optimizer/constant_branch_selection_compile checked 4163ms check-target:macos_arm64 @3aa9587aec19+wt
-pass/optimizer/copied_call_operand_selection_exit checked 4538ms check-target:macos_arm64 @3aa9587aec19+wt
-pass/optimizer/dead_compare_selection_compile checked 6066ms check-target:macos_arm64 @3aa9587aec19+wt
-pass/optimizer/equivalent_compare_selection_compile checked 4762ms check-target:macos_arm64 @3aa9587aec19+wt
-pass/optimizer/join_invariant_copy_transport_selected checked 9344ms rollback:requested=[CopyPropagation];applied=[CopyPropagation];effective=[DeadPureScalarElimination] unrolled-receipt:none unrolled-semantic:978dada1ff24c11e rolled-back-semantic:22091dc50ee2a5a6 module:differs check-target:macos_arm64 @d5cd96d8851e+wt
-pass/optimizer/join_invariant_dead_scalar_transport_selected checked 9321ms rollback:requested=[DeadPureScalarElimination];applied=[DeadPureScalarElimination];effective=[CopyPropagation] unrolled-receipt:none unrolled-semantic:978dada1ff24c11e rolled-back-semantic:d9e7a66f20f119a6 module:differs check-target:macos_arm64 @d5cd96d8851e+wt
-pass/optimizer/join_invariant_transport_control checked 3043ms check-target:macos_arm64 @d5cd96d8851e+wt
-pass/optimizer/ordinary_copy_membership_selected checked 3349ms check-target:macos_arm64 @f89ce561a84
-pass/optimizer/redundant_compare_selection_compile checked 5276ms check-target:macos_arm64 @3aa9587aec19+wt
-pass/optimizer/rollback_composed_partial_control checked 10553ms rollback:requested=[CopyPropagation];applied=[];effective=[DeadPureScalarElimination] unrolled-receipt:none unrolled-semantic:18df686bc3cb918c rolled-back-semantic:18df686bc3cb918c module:same check-target:macos_arm64 @3aa9587aec19+wt
-pass/optimizer/rollback_composed_partial_selected checked 11893ms rollback:requested=[CopyPropagation];applied=[CopyPropagation];effective=[DeadPureScalarElimination] unrolled-receipt:none unrolled-semantic:d1eaced1be4ee93b rolled-back-semantic:18df686bc3cb918c module:differs check-target:macos_arm64 @3aa9587aec19+wt
-pass/optimizer/rollback_control_flow_cleanup_control checked 8674ms rollback:requested=[ControlFlowCleanup];applied=[];effective=[] unrolled-receipt:none unrolled-semantic:16e4a37b3b4a75e8 rolled-back-semantic:16e4a37b3b4a75e8 module:same check-target:macos_arm64 @3aa9587aec19+wt
-pass/optimizer/rollback_control_flow_cleanup_selected checked 9252ms rollback:requested=[ControlFlowCleanup];applied=[ControlFlowCleanup];effective=[] unrolled-receipt:none unrolled-semantic:446a23be3d7c2984 rolled-back-semantic:16e4a37b3b4a75e8 module:differs check-target:macos_arm64 @3aa9587aec19+wt
-pass/optimizer/rollback_copy_propagation_control checked 10527ms rollback:requested=[CopyPropagation];applied=[];effective=[] unrolled-receipt:none unrolled-semantic:a653736d59cdf4e8 rolled-back-semantic:a653736d59cdf4e8 module:same check-target:macos_arm64 @3aa9587aec19+wt
-pass/optimizer/rollback_copy_propagation_selected checked 6386ms rollback:requested=[CopyPropagation];applied=[CopyPropagation];effective=[] unrolled-receipt:none unrolled-semantic:305fb3c93e8e4ee3 rolled-back-semantic:a653736d59cdf4e8 module:differs check-target:macos_arm64 @3aa9587aec19+wt
-pass/optimizer/rollback_dead_pure_scalar_elimination_control checked 11463ms rollback:requested=[DeadPureScalarElimination];applied=[];effective=[] unrolled-receipt:none unrolled-semantic:3f550750409ea670 rolled-back-semantic:3f550750409ea670 module:same check-target:macos_arm64 @3aa9587aec19+wt
-pass/optimizer/rollback_dead_pure_scalar_elimination_selected checked 8756ms rollback:requested=[DeadPureScalarElimination];applied=[DeadPureScalarElimination];effective=[] unrolled-receipt:none unrolled-semantic:4307ac24884057da rolled-back-semantic:3f550750409ea670 module:differs check-target:macos_arm64 @3aa9587aec19+wt
-pass/optimizer/rollback_global_value_numbering_control checked 8250ms rollback:requested=[GlobalValueNumbering];applied=[];effective=[] unrolled-receipt:none unrolled-semantic:1282bd48afb23c97 rolled-back-semantic:1282bd48afb23c97 module:same check-target:macos_arm64 @3aa9587aec19+wt
-pass/optimizer/rollback_global_value_numbering_selected checked 9148ms rollback:requested=[GlobalValueNumbering];applied=[GlobalValueNumbering];effective=[] unrolled-receipt:none unrolled-semantic:6c38482f92db028b rolled-back-semantic:1282bd48afb23c97 module:differs check-target:macos_arm64 @3aa9587aec19+wt
-pass/optimizer/rollback_proof_check_elision_control checked 6120ms rollback:requested=[ProofCheckElision];applied=[];effective=[] unrolled-receipt:none unrolled-semantic:2b8930f406a15181 rolled-back-semantic:2b8930f406a15181 module:same check-target:macos_arm64 @3aa9587aec19+wt
-pass/optimizer/rollback_proof_check_elision_selected checked 9496ms rollback:requested=[ProofCheckElision];applied=[ProofCheckElision];effective=[] unrolled-receipt:none unrolled-semantic:d22f002f1818bb7b rolled-back-semantic:2b8930f406a15181 module:differs check-target:macos_arm64 @3aa9587aec19+wt
-pass/optimizer/rollback_sparse_conditional_constant_propagation_control checked 5343ms rollback:requested=[SparseConditionalConstantPropagation];applied=[];effective=[] unrolled-receipt:none unrolled-semantic:8c52c82cf03f3980 rolled-back-semantic:8c52c82cf03f3980 module:same check-target:macos_arm64 @3aa9587aec19+wt
-pass/optimizer/rollback_sparse_conditional_constant_propagation_selected checked 6240ms rollback:requested=[SparseConditionalConstantPropagation];applied=[SparseConditionalConstantPropagation];effective=[] unrolled-receipt:none unrolled-semantic:81d4d26469c919ab rolled-back-semantic:8c52c82cf03f3980 module:differs check-target:macos_arm64 @3aa9587aec19+wt
-pass/optimizer/rollback_to_no_selection_empty_entry checked 4563ms rollback:requested=[ControlFlowCleanup,CopyPropagation];applied=[ControlFlowCleanup];effective=[] unrolled-receipt:none unrolled-semantic:0a709b2e2a4a0fde rolled-back-semantic:0a709b2e2a4a0fde module:same check-target:macos_arm64 @3aa9587aec19+wt
-pass/optimizer/stored_load_forwarding_selection_exit checked 4919ms check-target:macos_arm64 @3aa9587aec19+wt
+pass/optimizer/address_offset_selection_exit checked 1792ms check-target:macos_arm64 @7be03351b68c+wt
+pass/optimizer/constant_branch_selection_compile checked 1749ms check-target:macos_arm64 @7be03351b68c+wt
+pass/optimizer/copied_call_operand_selection_exit checked 1691ms check-target:macos_arm64 @7be03351b68c+wt
+pass/optimizer/dead_compare_selection_compile checked 1250ms check-target:macos_arm64 @7be03351b68c+wt
+pass/optimizer/equivalent_compare_selection_compile checked 1278ms check-target:macos_arm64 @7be03351b68c+wt
+pass/optimizer/join_invariant_copy_transport_selected checked 8000ms rollback:requested=[CopyPropagation];applied=[CopyPropagation];effective=[DeadPureScalarElimination] unrolled-receipt:none unrolled-semantic:0a001bbea59a1d4b rolled-back-semantic:22472024a791e414 module:differs check-target:macos_arm64 @7be03351b68c+wt
+pass/optimizer/join_invariant_dead_scalar_transport_selected checked 9444ms rollback:requested=[DeadPureScalarElimination];applied=[DeadPureScalarElimination];effective=[CopyPropagation] unrolled-receipt:none unrolled-semantic:0a001bbea59a1d4b rolled-back-semantic:05933b939bfb2450 module:differs check-target:macos_arm64 @7be03351b68c+wt
+pass/optimizer/join_invariant_transport_control checked 3561ms check-target:macos_arm64 @7be03351b68c+wt
+pass/optimizer/ordinary_copy_membership_selected checked 3131ms check-target:macos_arm64 @7be03351b68c+wt
+pass/optimizer/redundant_compare_selection_compile checked 2367ms check-target:macos_arm64 @7be03351b68c+wt
+pass/optimizer/rollback_composed_partial_control checked 5602ms rollback:requested=[CopyPropagation];applied=[];effective=[DeadPureScalarElimination] unrolled-receipt:none unrolled-semantic:96de0abf361a2f2f rolled-back-semantic:96de0abf361a2f2f module:same check-target:macos_arm64 @7be03351b68c+wt
+pass/optimizer/rollback_composed_partial_selected checked 5766ms rollback:requested=[CopyPropagation];applied=[CopyPropagation];effective=[DeadPureScalarElimination] unrolled-receipt:none unrolled-semantic:3468ee543327d7e7 rolled-back-semantic:96de0abf361a2f2f module:differs check-target:macos_arm64 @7be03351b68c+wt
+pass/optimizer/rollback_control_flow_cleanup_control checked 5801ms rollback:requested=[ControlFlowCleanup];applied=[];effective=[] unrolled-receipt:none unrolled-semantic:a8414330bdd00fe8 rolled-back-semantic:a8414330bdd00fe8 module:same check-target:macos_arm64 @7be03351b68c+wt
+pass/optimizer/rollback_control_flow_cleanup_selected checked 8099ms rollback:requested=[ControlFlowCleanup];applied=[ControlFlowCleanup];effective=[] unrolled-receipt:none unrolled-semantic:67a98ebb68555aa0 rolled-back-semantic:a8414330bdd00fe8 module:differs check-target:macos_arm64 @7be03351b68c+wt
+pass/optimizer/rollback_copy_propagation_control checked 8082ms rollback:requested=[CopyPropagation];applied=[];effective=[] unrolled-receipt:none unrolled-semantic:2938c586b30291c8 rolled-back-semantic:2938c586b30291c8 module:same check-target:macos_arm64 @7be03351b68c+wt
+pass/optimizer/rollback_copy_propagation_selected checked 8029ms rollback:requested=[CopyPropagation];applied=[CopyPropagation];effective=[] unrolled-receipt:none unrolled-semantic:4b503a833db6d310 rolled-back-semantic:2938c586b30291c8 module:differs check-target:macos_arm64 @7be03351b68c+wt
+pass/optimizer/rollback_dead_pure_scalar_elimination_control checked 5266ms rollback:requested=[DeadPureScalarElimination];applied=[];effective=[] unrolled-receipt:none unrolled-semantic:b0e687a57ca00317 rolled-back-semantic:b0e687a57ca00317 module:same check-target:macos_arm64 @7be03351b68c+wt
+pass/optimizer/rollback_dead_pure_scalar_elimination_selected checked 4068ms rollback:requested=[DeadPureScalarElimination];applied=[DeadPureScalarElimination];effective=[] unrolled-receipt:none unrolled-semantic:4781344ebba7c071 rolled-back-semantic:b0e687a57ca00317 module:differs check-target:macos_arm64 @7be03351b68c+wt
+pass/optimizer/rollback_global_value_numbering_control checked 3905ms rollback:requested=[GlobalValueNumbering];applied=[];effective=[] unrolled-receipt:none unrolled-semantic:9074d54adbbba016 rolled-back-semantic:9074d54adbbba016 module:same check-target:macos_arm64 @7be03351b68c+wt
+pass/optimizer/rollback_global_value_numbering_selected checked 3517ms rollback:requested=[GlobalValueNumbering];applied=[GlobalValueNumbering];effective=[] unrolled-receipt:none unrolled-semantic:adaaff37e576f0b7 rolled-back-semantic:9074d54adbbba016 module:differs check-target:macos_arm64 @7be03351b68c+wt
+pass/optimizer/rollback_proof_check_elision_control checked 3707ms rollback:requested=[ProofCheckElision];applied=[];effective=[] unrolled-receipt:none unrolled-semantic:c75605627c6ef978 rolled-back-semantic:c75605627c6ef978 module:same check-target:macos_arm64 @7be03351b68c+wt
+pass/optimizer/rollback_proof_check_elision_selected checked 3749ms rollback:requested=[ProofCheckElision];applied=[ProofCheckElision];effective=[] unrolled-receipt:none unrolled-semantic:b27bbf905961efe7 rolled-back-semantic:c75605627c6ef978 module:differs check-target:macos_arm64 @7be03351b68c+wt
+pass/optimizer/rollback_sparse_conditional_constant_propagation_control checked 3919ms rollback:requested=[SparseConditionalConstantPropagation];applied=[];effective=[] unrolled-receipt:none unrolled-semantic:9850cbd2fd37618f rolled-back-semantic:9850cbd2fd37618f module:same check-target:macos_arm64 @7be03351b68c+wt
+pass/optimizer/rollback_sparse_conditional_constant_propagation_selected checked 3715ms rollback:requested=[SparseConditionalConstantPropagation];applied=[SparseConditionalConstantPropagation];effective=[] unrolled-receipt:none unrolled-semantic:3f084b257f9855c8 rolled-back-semantic:9850cbd2fd37618f module:differs check-target:macos_arm64 @7be03351b68c+wt
+pass/optimizer/rollback_to_no_selection_empty_entry checked 3665ms rollback:requested=[ControlFlowCleanup,CopyPropagation];applied=[ControlFlowCleanup];effective=[] unrolled-receipt:none unrolled-semantic:7e535fbdabff72f0 rolled-back-semantic:7e535fbdabff72f0 module:same check-target:macos_arm64 @7be03351b68c+wt
+pass/optimizer/stored_load_forwarding_selection_exit checked 1159ms check-target:macos_arm64 @7be03351b68c+wt
 pass/ownership/conditional_linear_sum checked 285ms @2d8ed253669f
 pass/ownership/linear_ambiguous_state_result_mapping rejected 602ms check-target:linux_x86_64 @82ec69a91ce
 	terminal-artifact production failed: Lowering(Unsupported("conditional result custody requires Terminal exit-alternative correspondence"))

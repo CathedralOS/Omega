@@ -2283,17 +2283,6 @@ crash and native exit behavior.
   about 2058 commits behind, so the golden cannot date the loss -- bisect the
   window. Acceptance: the row reaches `checked` again.
 
-- **OPTIMIZER-ROLLBACK-DIGESTS-STALE-SIXTEEN.** (new-scope)
-  Sixteen `pass/optimizer/{join_invariant_*,rollback_*}` rows pin
-  `unrolled-semantic`/`rolled-back-semantic` digests that no longer match, and
-  `fail/capabilities/native_slice_external_leaf_rejected` pins
-  `expected_satisfied False` where the fixture now satisfies its fragment. All
-  seventeen are **identical with and without** `8ed612f5cc6`, measured as an A/B
-  of two runners at one base, so they are earlier drift rather than a move.
-  `module:same`/`module:differs` is unchanged on every row -- only the digests.
-  Re-record them from an observed run rather than carrying them as permanent
-  gate noise: a digest-only row that never matches hides the next real semantic
-  move behind it.
 
 - **CONSTRUCTED-ARGUMENT-SCHEDULE-REGRESSED-NINE.** (new-scope)
   Five customers still need the shared constructed-argument schedule completed:
