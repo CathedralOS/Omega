@@ -653,6 +653,27 @@ fn wire_schema_members(
     Some(members)
 }
 
+/// A constrained member's qualification counts for the wire codec only when
+/// every constraint is an argument-free domain — parameterized constraints
+/// are beyond the wire surface.
+fn constraints_are_plain_domains(
+    syntax_trees: &SyntaxTrees,
+    constraints: HandleSpan<syntax_trees::types::TypeConstraintNode>,
+) -> bool {
+    syntax_trees
+        .tables
+        .type_references
+        .constraints(constraints)
+        .iter()
+        .all(|constraint| {
+            matches!(
+                constraint,
+                syntax_trees::types::TypeConstraintNode::Domain(domain)
+                    if domain.arguments.is_empty()
+            )
+        })
+}
+
 fn member_shape(
     syntax_trees: &SyntaxTrees,
     data_fields: &HashMap<String, HashMap<String, TypeReferenceHandle>>,
@@ -707,19 +728,7 @@ fn member_shape(
                 constraints,
             } = syntax_trees.tables.type_references.type_reference(referee)
             {
-                if !syntax_trees
-                    .tables
-                    .type_references
-                    .constraints(*constraints)
-                    .iter()
-                    .all(|constraint| {
-                        matches!(
-                            constraint,
-                            syntax_trees::types::TypeConstraintNode::Domain(domain)
-                                if domain.arguments.is_empty()
-                        )
-                    })
-                {
+                if !constraints_are_plain_domains(syntax_trees, *constraints) {
                     return None;
                 }
                 referee = *base_type;
@@ -738,19 +747,7 @@ fn member_shape(
         TypeReferenceNode::Constrained {
             base_type,
             constraints,
-        } if syntax_trees
-            .tables
-            .type_references
-            .constraints(*constraints)
-            .iter()
-            .all(|constraint| {
-                matches!(
-                    constraint,
-                    syntax_trees::types::TypeConstraintNode::Domain(domain)
-                        if domain.arguments.is_empty()
-                )
-            }) =>
-        {
+        } if constraints_are_plain_domains(syntax_trees, *constraints) => {
             member_shape(syntax_trees, data_fields, *base_type)
         }
         _ => None,
@@ -1138,6 +1135,23 @@ impl MachineEmitter<'_> {
             };
             self.dec_byte(&label(index), *byte, &byte_next, carry, carry_arg);
         }
+    }
+
+    /// A bool member encodes as one byte selected by a transition on the
+    /// value itself: `name` hosts the selector state, `next` follows either
+    /// store.
+    fn enc_bool_member(&mut self, name: &str, value: &str, next: &str) {
+        self.state(
+            name,
+            "",
+            "",
+            &format!(
+                "        transition {value} {{\n            true -> {name}_one{}\n            _ -> {name}_zero{}\n        }}\n",
+                self.call, self.call
+            ),
+        );
+        self.enc_byte(&format!("{name}_one"), 1, next);
+        self.enc_byte(&format!("{name}_zero"), 0, next);
     }
 
     /// Canonical LEB128 emission of u64 `bits`, entering with `bits` already a
@@ -1617,17 +1631,7 @@ impl MachineEmitter<'_> {
                 continue;
             };
             if *kind == ScalarKind::Bool {
-                self.state(
-                    &content,
-                    "",
-                    "",
-                    &format!(
-                        "        transition value.{field}.{} {{\n            true -> {content}_one{}\n            _ -> {content}_zero{}\n        }}\n",
-                        sub.name, self.call, self.call
-                    ),
-                );
-                self.enc_byte(&format!("{content}_one"), 1, &after_sub);
-                self.enc_byte(&format!("{content}_zero"), 0, &after_sub);
+                self.enc_bool_member(&content, &format!("value.{field}.{}", sub.name), &after_sub);
             } else {
                 self.enc_varint(
                     &content,
@@ -2352,17 +2356,7 @@ fn emit_encode_machine(
         );
         match &member.shape {
             MemberShape::Scalar(ScalarKind::Bool) => {
-                emitter.state(
-                    &content_label,
-                    "",
-                    "",
-                    &format!(
-                        "        transition value.{} {{\n            true -> {}_one{}\n            _ -> {}_zero{}\n        }}\n",
-                        member.name, content_label, emitter.call, content_label, emitter.call
-                    ),
-                );
-                emitter.enc_byte(&format!("{content_label}_one"), 1, &after);
-                emitter.enc_byte(&format!("{content_label}_zero"), 0, &after);
+                emitter.enc_bool_member(&content_label, &format!("value.{}", member.name), &after);
             }
             MemberShape::Scalar(kind) => {
                 let bits = kind.encode_bits_expression(&format!("value.{}", member.name));
