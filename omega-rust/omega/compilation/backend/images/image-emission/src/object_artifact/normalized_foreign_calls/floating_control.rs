@@ -28,10 +28,11 @@ pub(super) fn derive(
     let slot = LocalStorageSlotId::Boundary {
         operation: record.operation,
     };
-    let call_position = block
-        .instructions
-        .iter()
-        .position(|instruction| instruction.id == record.instruction)?;
+    let transport = selected_instructions::calls::normalized_foreign::return_transport::resolve(
+        function, block, record,
+    )?;
+    let call_position = transport.call_position;
+    let restore_position = transport.restore_position?;
     let mut saves = block
         .instructions
         .iter()
@@ -40,11 +41,11 @@ pub(super) fn derive(
             instruction.kind == (SelectedInstructionKind::SaveFloatingControl { slot })
         });
     let (save_position, save) = saves.next()?;
-    let restore = block.instructions.get(call_position.checked_add(1)?)?;
+    let restore = block.instructions.get(restore_position)?;
     if saves.next().is_some()
         || save_position >= call_position
         || restore.kind != (SelectedInstructionKind::RestoreFloatingControl { slot })
-        || block.instructions[save_position..=call_position + 1]
+        || block.instructions[save_position..=call_position]
             .iter()
             .any(|instruction| {
                 !instruction
@@ -86,8 +87,16 @@ pub(super) fn derive(
     let (save_offset, save_byte_count) = super::instruction_span(fragment, save.id)?;
     let (restore_offset, restore_byte_count) = super::instruction_span(fragment, restore.id)?;
     let (call_offset, call_byte_count) = super::instruction_span(fragment, record.instruction)?;
-    if save_offset.checked_add(save_byte_count)? > call_offset
-        || restore_offset != call_offset.checked_add(call_byte_count)?
+    // Every intervening instruction is an authenticated result transport copy.
+    // Its placed bytes must cover the whole gap, without hiding other effects.
+    let transported_end = block.instructions[call_position + 1..restore_position]
+        .iter()
+        .try_fold(call_offset.checked_add(call_byte_count)?, |end, copy| {
+            let (offset, count) = super::instruction_span(fragment, copy.id)?;
+            (offset == end).then_some(())?;
+            offset.checked_add(count)
+        })?;
+    if save_offset.checked_add(save_byte_count)? > call_offset || restore_offset != transported_end
     {
         return None;
     }

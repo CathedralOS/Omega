@@ -1084,42 +1084,18 @@ fn foreign_scalar_result_custody(
     {
         return Err(invalid());
     }
-    let Some(position) = block
+    let transport = selected_instructions::calls::normalized_foreign::return_transport::resolve(
+        function, block, record,
+    )
+    .ok_or_else(invalid)?;
+    let normalization = block
         .instructions
-        .iter()
-        .position(|candidate| candidate.id == record.instruction)
-    else {
-        return Err(invalid());
-    };
-    // Only imports restore user-space floating controls before normalizing
-    // their result. Kernel entries normalize immediately after supervisor return.
-    let normalization_position = if record.call.binding.import().is_some() {
-        let Some(restore) = block.instructions.get(position + 1) else {
-            return Err(invalid());
-        };
-        if restore.kind
-            != (selected_instructions::SelectedInstructionKind::RestoreFloatingControl {
-                slot: selected_instructions::LocalStorageSlotId::Boundary {
-                    operation: record.operation,
-                },
-            })
-        {
-            return Err(invalid());
-        }
-        position + 2
-    } else {
-        position + 1
-    };
-    let Some(normalization) = block.instructions.get(normalization_position) else {
-        return Err(invalid());
-    };
+        .get(transport.normalization_position)
+        .ok_or_else(invalid)?;
     let Some(kind) = scalar_result_normalization_kind(home.scalar_type) else {
         return Err(invalid());
     };
     let [input, output] = normalization.operands.as_slice() else {
-        return Err(invalid());
-    };
-    let Some(call_result) = instruction.operands.last() else {
         return Err(invalid());
     };
     let output_origin = function
@@ -1127,7 +1103,7 @@ fn foreign_scalar_result_custody(
         .get(output.virtual_register.0 as usize)
         .map(|register| register.origin);
     if normalization.kind != kind
-        || input.virtual_register != call_result.virtual_register
+        || Some(input.virtual_register) != transport.result_register
         || normalization.provenance.operations.as_slice() != [record.operation]
         || normalization.provenance.values.as_slice() != [home.source_value]
         || output_origin
@@ -1143,6 +1119,21 @@ fn foreign_scalar_result_custody(
     let Some((offset, byte_count)) = instruction_span(fragment, normalization.id) else {
         return Err(invalid());
     };
+    let transported_end = block.instructions
+        [transport.call_position..transport.normalization_position]
+        .iter()
+        .try_fold(None, |previous, step| {
+            let (start, count) = instruction_span(fragment, step.id)?;
+            if previous.is_some_and(|end| end != start) {
+                return None;
+            }
+            Some(Some(start.checked_add(count)?))
+        })
+        .flatten()
+        .ok_or_else(invalid)?;
+    if transported_end != offset {
+        return Err(invalid());
+    }
     let Some(byte_offset) = home_offsets
         .iter()
         .find(|(operation, _)| *operation == home.defining_operation)

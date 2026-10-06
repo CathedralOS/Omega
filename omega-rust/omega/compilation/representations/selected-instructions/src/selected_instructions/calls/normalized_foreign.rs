@@ -14,3 +14,5 @@ pub struct SelectedNormalizedForeignCall {
     pub effect: EffectLink,
     pub ownership: Vec<OwnershipEvent>,
 }
+
+pub mod return_transport;

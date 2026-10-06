@@ -78,11 +78,11 @@ fn check(
         return None;
     }
 
-    let call_position = block
-        .instructions
-        .iter()
-        .position(|instruction| instruction.id == record.instruction)?;
-    let restore_position = call_position.checked_add(1)?;
+    let transport = selected_instructions::calls::normalized_foreign::return_transport::resolve(
+        function, block, record,
+    )?;
+    let call_position = transport.call_position;
+    let restore_position = transport.restore_position?;
     let restore = block.instructions.get(restore_position)?;
     let mut saves = block
         .instructions
@@ -95,7 +95,7 @@ fn check(
     if saves.next().is_some()
         || save_position >= call_position
         || restore.kind != (SelectedInstructionKind::RestoreFloatingControl { slot })
-        || block.instructions[save_position..=restore_position]
+        || block.instructions[save_position..=call_position]
             .iter()
             .any(|instruction| {
                 !instruction
@@ -112,10 +112,17 @@ fn check(
         })
     };
     let (call_start, call_size) = super::fragment_instruction_span(fragment, record.instruction)?;
+    let transported_end = block.instructions[call_position + 1..restore_position]
+        .iter()
+        .try_fold(call_start.checked_add(call_size)?, |end, copy| {
+            let (offset, count) = super::fragment_instruction_span(fragment, copy.id)?;
+            (offset == end).then_some(())?;
+            offset.checked_add(count)
+        })?;
     if !matches_span(save.id, save_offset, save_count)
         || !matches_span(restore.id, restore_offset, restore_count)
         || u64::try_from(save_offset.checked_add(save_count)?).ok()? > call_start
-        || u64::try_from(restore_offset).ok()? != call_start.checked_add(call_size)?
+        || u64::try_from(restore_offset).ok()? != transported_end
     {
         return None;
     }

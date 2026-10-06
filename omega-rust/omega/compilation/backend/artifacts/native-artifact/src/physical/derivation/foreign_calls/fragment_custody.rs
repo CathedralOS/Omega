@@ -958,39 +958,17 @@ fn fragment_scalar_result_custody_rejoin(
     {
         return false;
     }
-    let Some(position) = block
-        .instructions
-        .iter()
-        .position(|candidate| candidate.id == record.instruction)
+    let Some(transport) =
+        selected_instructions::calls::normalized_foreign::return_transport::resolve(
+            function, block, record,
+        )
     else {
         return false;
     };
-    // Only imports restore user-space floating controls before normalizing
-    // their result. Kernel entries normalize immediately after supervisor return.
-    let normalization_position = if record.call.binding.import().is_some() {
-        let Some(restore) = block.instructions.get(position + 1) else {
-            return false;
-        };
-        if restore.kind
-            != (selected_instructions::SelectedInstructionKind::RestoreFloatingControl {
-                slot: selected_instructions::LocalStorageSlotId::Boundary {
-                    operation: record.operation,
-                },
-            })
-        {
-            return false;
-        }
-        position + 2
-    } else {
-        position + 1
-    };
-    let Some(normalization) = block.instructions.get(normalization_position) else {
+    let Some(normalization) = block.instructions.get(transport.normalization_position) else {
         return false;
     };
     let [input, output] = normalization.operands.as_slice() else {
-        return false;
-    };
-    let Some(call_result) = instruction.operands.last() else {
         return false;
     };
     let output_origin = function
@@ -1001,7 +979,7 @@ fn fragment_scalar_result_custody_rejoin(
         return false;
     };
     if normalization.kind != expected_kind
-        || input.virtual_register != call_result.virtual_register
+        || Some(input.virtual_register) != transport.result_register
         || normalization.provenance.operations.as_slice() != [record.operation]
         || normalization.provenance.values.as_slice() != [home.source_value]
         || output_origin
@@ -1017,6 +995,20 @@ fn fragment_scalar_result_custody_rejoin(
     let Some((offset, byte_count)) = fragment_instruction_span(fragment, normalization.id) else {
         return false;
     };
+    let transported_end = block.instructions
+        [transport.call_position..transport.normalization_position]
+        .iter()
+        .try_fold(None, |previous, step| {
+            let (start, count) = fragment_instruction_span(fragment, step.id)?;
+            if previous.is_some_and(|end| end != start) {
+                return None;
+            }
+            Some(Some(start.checked_add(count)?))
+        })
+        .flatten();
+    if transported_end != Some(offset) {
+        return false;
+    }
     let Some(byte_offset) = home_offsets
         .iter()
         .find(|(operation, _)| *operation == home.defining_operation)
