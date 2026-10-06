@@ -57,8 +57,6 @@ implies deletion.
 - [Psi interpreters](psi/interpreter): separate checked-tree and Terminal Psi
   engines. [Build-time evaluation](psi/compilation/compile-time) uses
   target-neutral execution without depending on the Omega compiler coordinator.
-- [Runtime component installation](omega/compilation/backend/runtime/component-deployment/README.md):
-  custody composition under backend runtime ownership.
 - [Topology library](library/topology/README.md): an ordinary package-defined
   plan, policy, and installation contract, separate from compiler ownership.
 

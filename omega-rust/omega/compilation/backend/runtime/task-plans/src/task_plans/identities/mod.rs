@@ -60,11 +60,6 @@ normalized_id!(
     "executor-preservation-evidence"
 );
 normalized_id!(ExecutorSelectionId, "executor-selection");
-normalized_id!(ActivationInstanceId, "activation-instance");
-normalized_id!(TaskStorageOwnerId, "task-storage-owner");
-normalized_id!(TaskStorageLeaseId, "task-storage-lease");
-normalized_id!(TaskArgumentCustodyId, "task-argument-custody");
-normalized_id!(TaskLifecycleClaimId, "task-lifecycle-claim");
 normalized_id!(LiveCarryPlaceId, "live-carry-place");
 normalized_id!(LiveCarryTypeId, "live-carry-type");
 normalized_id!(CompositionModelId, "composition-model");

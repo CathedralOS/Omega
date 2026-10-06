@@ -391,9 +391,9 @@ Omega owns normalized identities, contract/resource validation, relocatable
 artifacts, and generic entry/quiescence obligations. Cathedral or another runtime
 owns selection policy, provision, mapping cohorts, scheduler/device quiescence,
 era/drain limits, migration, rollback/retention, and concrete entry algorithms.
-The [runtime implementation note](../../../omega-rust/omega/compilation/backend/runtime/component-publication/README.md)
-records current installation/lifetime support; neither it nor these contracts
-claims ordinary source `Independent` execution is implemented.
+No compiler-owned runtime implementation supplies those responsibilities;
+these contracts do not claim ordinary source `Independent` execution is
+implemented.
 
 ## Products and authority
 

@@ -28,33 +28,11 @@ partial bound rather than minting authority for the covered subgraph alone.
 Static runtime binding and instance invocation are different evidence. The
 specialization SHA-256 commitment is authoritative; historical compact values
 are report fingerprints. Each demanded CPU/thread axis has exact evidence.
-The ledger is downstream of this selection, not a generalized runtime-behavior
-or continuation-capacity admission layer. It rejects premature close/reclaim
-and cross-instance settlement, and requires fresh storage lease eras on reuse.
-Its start boundary is the contract's ownership transaction: moved-argument
-custody and the supplied nonmoving `StackLease` enter `accept_invocation`
-together, every rejection returns them whole, the ledger retains the lease
-while the claim lives, and settlement releases the spent authority. The
-moved arguments are no token stub: `MovedTaskArguments` is marshalled under
-the plan's exact `TaskArgumentLayout` — each source parameter's bytes packed
-at its canonical field offset with zeroed padding — the provider holds that
-image as activation custody while the claim lives, the claim fingerprint
-commits to it byte-for-byte, and a rejected start returns the same image
-unchanged. A
-cancellation request is a recorded provider-side transition on the exact
-live claim — never a disposal — and settlement reports a `Cancelled`
-outcome only when that request was recorded and then observed at a
-canonical safe point of the plan, so the cooperative outcome cannot be
-fabricated, a never-suspending activation can never settle cancelled, and
-an inline completion can never settle cancelled.
-
-Live activations carry an execution state: a claim can `park` only at a
-canonical suspension crossing of its plan, `resume` continues that same
-invocation under unchanged bindings, and a parked claim cannot settle —
-resumption must precede the terminal outcome. `observe_cancellation`
-records where a recorded request was observed: at the parked crossing for
-a suspended activation, or at any canonical crossing a running activation
-traverses.
+`runtime_invocation` validates the exact selected provider, activation plan,
+runtime instance and preservation evidence one invocation receipt names. This
+crate stops there: it does not execute a task, allocate a stack, retain a live
+claim or implement park, resume, cancellation and settlement. Those are
+ordinary selected-runtime responsibilities.
 
 Each canonical crossing also retains its exact live frontier — one
 `LiveCarryDemand` row per live place naming the place, its checked type,
@@ -70,35 +48,11 @@ a frontier that disagrees with the demand it declares, and a live place
 whose policy forbids suspension fails closed rather than licensing or
 dropping the loan.
 
-[provider_admission.rs](src/task_plans/provider_admission.rs) is the provider-side
-gate consuming those carriers: one admitted runtime instance owns its
-ledger plus its fixed stack provisioning, mints fresh lease eras, and
-commits the slot spend and the claim inside one admission, so capacity is
-real authority rather than an `available >= 1` observation. Provider-
-provisioned rejections conserve the moved arguments (the minted lease was
-never caller custody); caller-supplied storage rejections return it whole
-through `TaskStartRejection`. Settlement returns provisioned backing to
-the free set while the spent era stays burned. It is also where a sealed
-unresolved call site finally names its concrete checked-body callee:
-`bind_call_targets` charges the bound subtree into the recomposed WCSU
-demand and joins the subtree's canonical suspension crossings into the
-plan's roster — deduplicated by crossing identity, failing closed on a
-conflicting row — then re-seals and revalidates the plan, so a bound
-callee that suspends parks at a crossing of its own subtree while a
-crossing no roster names still rejects.
-
-Routed `Task<T>` establishment exists: `accept_invocation` mints the exact
-`provider`/`activation` field pair a source `Task<T>` value carries
-(`claim_route.rs`), the pair resolves back to exactly one live claim on the
-minting instance, and foreign-instance, fabricated, and settled pairs all
-fail closed — so a runtime serving `request_cancel`/`finish`/`settle` from
-a bare value needs no shadow map alongside the ledger, and every
-`*_by_route` transition shares the claim-object checks. What still does not
-exist is a selected runtime executing the transitions the ledger models:
-the marshalled argument image is provider-domain custody a real runtime
-would write into the activation's argument area, but real park/resume of a
-native stack and observation at a checked-source safe point remain separate
-consumers. The bounded
+Unresolved call sites remain explicit in the sealed stack demand until provider
+planning supplies exact target bindings and recomposes the WCSU projection.
+The selected runtime consumes the validated plan and invocation receipt, owns
+capacity and backing, and returns ordinary source-visible task outcomes. The
+bounded
 scalar suspension carrier likewise does not license receiver/structural/claim
 frontiers without their exact joins; the plan frontier records the claims
 the checked producer already established but cannot yet authorize forms

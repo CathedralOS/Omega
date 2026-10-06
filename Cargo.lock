@@ -492,25 +492,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "component-deployment"
-version = "0.1.0"
-dependencies = [
- "boundary-applications",
- "calling-conventions",
- "component-candidate",
- "component-publication",
- "effects",
- "executable-installation",
- "extents",
- "external-roots",
- "image-emission",
- "installation-evidence",
- "layout-plans",
- "semantic-vocabulary",
- "target",
-]
-
-[[package]]
 name = "component-description"
 version = "0.1.0"
 dependencies = [
@@ -521,17 +502,6 @@ dependencies = [
  "terminal-codec",
  "terminal-psi",
  "terminal-verifier",
-]
-
-[[package]]
-name = "component-publication"
-version = "0.1.0"
-dependencies = [
- "boundary-applications",
- "effects",
- "executable-installation",
- "external-roots",
- "image-emission",
 ]
 
 [[package]]

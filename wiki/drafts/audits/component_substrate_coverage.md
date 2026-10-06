@@ -69,12 +69,12 @@ edge out of both product routes before Terminal production.
    artifact — symbolic imports/exports, entry/leave, resource demands, and
    installation/replacement obligations have no product-side representation
    yet.
-4. **No installation/replacement consumer.** `component-deployment`,
-   `component-publication`, `executable-installation`, `external-roots` are
-   all inside the runtime quarantine; the only consumer of
-   `verify_component` today is the settle-time join. An
-   admission/replacement route and the TOPOLOGY-PLAN-VERIFICATION join do
-   not exist.
+4. **No installation/replacement consumer.** The unconnected
+   `component-deployment` and `component-publication` simulators were deleted.
+   `executable-installation` and `external-roots` retain general evidence, but
+   the only consumer of `verify_component` today is the settle-time join. An
+   authored runtime/Cathedral admission and replacement route and the
+   TOPOLOGY-PLAN-VERIFICATION join do not exist.
 
 ## Consequence for the row's named legs
 
@@ -84,6 +84,6 @@ edge out of both product routes before Terminal production.
 - "Realize the settled edge" is the carrier design: new product-side
   representation for the obligations/symbolic rows the description already
   publishes.
-- "Expose the consumer to independent admission/replacement" needs the
-  runtime-quarantined deployment/publication owners as consumers — new
-  admission plumbing, not description changes.
+- "Expose the consumer to independent admission/replacement" needs an authored
+   runtime/library or Cathedral consumer — new product/runtime integration, not
+   another compiler-owned deployment model.

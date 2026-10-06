@@ -232,11 +232,12 @@ and semantic libraries, not on candidate-producing stages. The representation
 does not acquire a dependency on the checker. Domain-local placement does not
 turn checking into IR data or justify a general `verification/` bucket.
 
-Installed-component custody composition belongs to
-`omega/compilation/backend/runtime/component-deployment/`, alongside installation and
-publication support. It is not a top-level deployment subsystem. The
-package-defined topology implementation lives separately at `library/topology/`:
-its graph policies, plan codec, verifier, and installer are ordinary library
+The compiler owns component descriptions, candidates, emitted products and
+generic installation evidence. Live deployment, replacement, entry routing,
+era retirement and update policy belong to an ordinary runtime/library package
+or Cathedral; no compiler runtime crate models them. The package-defined
+topology implementation lives separately at `library/topology/`: its graph
+policies, plan codec, verifier and installer are ordinary library
 responsibilities, not compiler primitives or backend realization plans.
 
 Omega `foundation/` owns shared host primitives and native compiler vocabulary:

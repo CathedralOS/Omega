@@ -6,13 +6,8 @@
 //! The areas beneath it: `activation_plan_facts` are the facts a provider
 //! publishes about a plan and `diagnostic` its failure type;
 //! `executor_selection` binds an executor to a plan's preservation axes;
-//! `runtime_invocation` receipts one activation; `stack_leases` issues the
-//! nonmoving stack authority; `lifecycle_ledger` runs the transactional
-//! start over the marshalled argument image, tracks park/resume at canonical
-//! suspension crossings and the safe-point cancellation observation, and
-//! accounts for claims until outcome-bound settlement; `provider_admission`
-//! is the provider-side gate consuming those carriers for one admitted
-//! runtime instance; `stack_composition` projects WCSU stack plans;
+//! `runtime_invocation` receipts one activation; `stack_composition` projects
+//! WCSU stack plans;
 //! `composition_model` extracts the sealed whole-composition record proof
 //! machines consume at composition/deployment; `identities` holds every
 //! coordinate and `report_fingerprints` the compact report values.
@@ -22,12 +17,9 @@ pub(crate) mod composition_model;
 pub(crate) mod diagnostic;
 pub(crate) mod executor_selection;
 pub(crate) mod identities;
-pub(crate) mod lifecycle_ledger;
-pub(crate) mod provider_admission;
 pub(crate) mod report_fingerprints;
 pub(crate) mod runtime_invocation;
 pub(crate) mod stack_composition;
-pub(crate) mod stack_leases;
 
 use crate::task_plans::report_fingerprints::activation_plan_report_fingerprint;
 use crate::task_plans::stack_composition::WcsuStackPlanProjection;
@@ -294,8 +286,8 @@ pub struct ActivationPlanCandidate {
     pub may_block: bool,
     /// The canonical roster of semantic crossings at which the activation
     /// can park: one row per crossing identity, in canonical identity order.
-    /// `TaskLifecycleLedger::park` accepts only an identity this roster
-    /// names and retains that row's exact live frontier.
+    /// A selected runtime may park only at an identity this roster names and
+    /// must preserve that row's exact live frontier.
     pub canonical_suspension_crossings: Vec<CanonicalSuspensionCrossing>,
     pub carry_obligations: ActivationCarryObligations,
     pub cancellation_required: bool,
@@ -328,7 +320,6 @@ impl ValidatedActivationPlan {
         ))
     }
 }
-
 
 /// Validate an activation whose fixed-stack shape is projected from sealed
 /// whole-call-graph WCSU evidence.

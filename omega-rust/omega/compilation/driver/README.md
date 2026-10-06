@@ -440,7 +440,6 @@ relocation, and final executable region without inventing a Terminal operand.
 The direct route supplies the declared native parameter, not a source-specific
 host operation or compiler-inserted callback storage object. Function/image
 evidence does not establish registration or lifetime. Generic runtime registration
-primitives in [component-publication](../backend/runtime/component-publication/src/callback_registration.rs)
-are separate from connecting an authored registrar result to capacity, leases,
-source registration, cleanup, and retry. Their existence alone does not close
-that end-to-end path.
+belongs to the authored host/runtime; connecting a registrar result to capacity,
+leases, source registration, cleanup and retry remains end-to-end runtime work,
+not a compiler-side callback ledger.

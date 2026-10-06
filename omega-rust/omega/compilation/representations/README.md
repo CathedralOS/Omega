@@ -135,5 +135,6 @@ valid across a component boundary. Existing frame and spill work owns wider
 physical support; historical selection failures do not by themselves establish
 frame overlap.
 
-[Component publication](../backend/runtime/component-publication/README.md)
-records current artifact and deployment limits separately from language meaning.
+Component descriptions and installation evidence record artifact and deployment
+requirements separately from language meaning; a runtime package or Cathedral
+owns live deployment and replacement policy.

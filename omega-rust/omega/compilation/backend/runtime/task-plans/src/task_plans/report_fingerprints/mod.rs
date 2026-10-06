@@ -4,10 +4,9 @@
 use crate::task_plans::composition_model::CompositionActivation;
 use crate::task_plans::stack_composition::WcsuStackPlanProjection;
 use crate::{
-    ActivationInstanceId, ActivationPlanCandidate, ExecutorPreservationAxis,
-    ExecutorSelectionCandidate, LiveCarryStorage, MovedTaskArguments, TaskActivationPlanFact,
-    TaskRuntimeInvocationReceiptCandidate, TaskStartOperation, TaskStorageBinding,
-    ValidatedActivationPlan, ValidatedExecutorSelection, ValidatedTaskRuntimeInvocationReceipt,
+    ActivationPlanCandidate, ExecutorPreservationAxis, ExecutorSelectionCandidate,
+    LiveCarryStorage, TaskActivationPlanFact, TaskRuntimeInvocationReceiptCandidate,
+    TaskStartOperation, ValidatedActivationPlan, ValidatedExecutorSelection,
 };
 use language_core::{CarryAddress, CarryCpu, CarryHostThread, CarrySuspension};
 
@@ -80,35 +79,6 @@ pub(crate) fn executor_selection_report_fingerprint(
             ExecutorPreservationAxis::HostThread => 2,
         });
         fingerprint.word(evidence.identity().normalized_identity());
-    }
-    fingerprint.finish()
-}
-
-pub(crate) fn task_claim_report_fingerprint(
-    invocation: &ValidatedTaskRuntimeInvocationReceipt,
-    activation: ActivationInstanceId,
-    arguments: &MovedTaskArguments,
-    storage: TaskStorageBinding,
-) -> u64 {
-    let mut fingerprint = Fingerprint::new();
-    fingerprint.word(invocation.identity().normalized_identity());
-    fingerprint.word(invocation.candidate().invocation.normalized_identity());
-    fingerprint.word(invocation.candidate().receipt.normalized_identity());
-    fingerprint.word(activation.normalized_identity());
-    fingerprint.word(arguments.custody().normalized_identity());
-    // The claim commits to the exact marshalled bytes that crossed the
-    // boundary, not only the custody coordinate they were presented under.
-    fingerprint.word(arguments.image().len() as u64);
-    for byte in arguments.image() {
-        fingerprint.byte(*byte);
-    }
-    match storage {
-        TaskStorageBinding::Persistent(provenance) => {
-            fingerprint.byte(1);
-            fingerprint.word(provenance.owner.normalized_identity());
-            fingerprint.word(provenance.lease.normalized_identity());
-        }
-        TaskStorageBinding::InlineCompletion => fingerprint.byte(2),
     }
     fingerprint.finish()
 }

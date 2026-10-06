@@ -8,7 +8,7 @@
 //! A live call the producer cannot resolve to a checked callee or an admitted
 //! contribution is not dropped: it enters the frame summary's
 //! [`UnresolvedCallSite`] roster, the composed demand publishes as partial,
-//! and the roster rides the sealed projection so no `StackLease` can treat
+//! and the roster rides the sealed projection so no selected runtime can treat
 //! the covered subgraph as the whole call graph.
 //! Provider admission covers a sealed site by presenting a
 //! [`CallTargetBinding`]: [`cover_unresolved_call_sites`] moves the site to a
@@ -227,7 +227,7 @@ pub enum UnresolvedCallKind {
 /// it publishes as partial rather than exact, and each entry names the exact
 /// call coordinate provider admission must later cover with an
 /// [`AdmittedSameStackContribution`] — or prove transfers off this stack —
-/// before the plan can back a `StackLease`. The coordinate mirrors the
+/// before the plan can establish exact stack demand. The coordinate mirrors the
 /// canonical suspension-crossing coordinate: `frame` supplies the machine
 /// and entry, `state` the reachable state inside that frame, and
 /// `(statement_index, call_ordinal)` the exact call within that state.
@@ -564,7 +564,7 @@ impl WcsuStackPlanProjection {
     }
 
     /// Whether the projected bound covers every live call in the reachable
-    /// graph. A partial projection cannot back a `StackLease`.
+    /// graph. A partial projection cannot authorize runtime stack backing.
     pub fn is_exact(&self) -> bool {
         self.unresolved_calls.is_empty()
     }

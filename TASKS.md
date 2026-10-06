@@ -4420,9 +4420,10 @@ rejects at build and `mapped` needs a Windows full-i32 measurement.
   interpretation: `omega-rust/psi/interpreter/terminal-interpreter/src/calls.rs`
   rejects projected result qualifications and affine results carrying
   claims/qualifications. A valid roster must come from authored evidence, not
-  removal of the gate (reuse interpreter `live_claims`). Join success to the
-  live-registration capacity, external root and code/component leases through
-  `omega-rust/omega/compilation/backend/runtime/component-publication/src/callback_registration.rs`.
+  removal of the gate (reuse interpreter `live_claims`). Join success through
+  the authored registrar/runtime to live-registration capacity, the external
+  root and exact code/component leases; the compiler emits callback and
+  installation evidence but owns no registration ledger.
   Rejection creates no root and keeps capacity; unregister and quiescence
   precede lease release and return the same capacity occurrence; capacity
   counts live registrations, not thunks.
@@ -4626,9 +4627,8 @@ wait for Cathedral's instruction coverage. The interpreter is
   waiting/completion protocol. Extend the instance-owned adapter roster, which
   already remains bound across fuel pauses; do not build the public lifecycle
   on raw effect sinks that permit substituting a handler on resume.
-  `RunnableComponentEraLedger` in
-  `omega-rust/omega/compilation/backend/runtime/component-publication/` has
-  registration/teardown; runtime lifecycle integration is missing.
+  The host/runtime owns registration, teardown and component eras; compiler
+  descriptions and installation evidence grant no live lifecycle authority.
 
   Acceptance: a pause inside an invariant window rejects conflicting
   inspection/mutation (including edits that keep the type invariant but break
@@ -4644,9 +4644,9 @@ wait for Cathedral's instruction coverage. The interpreter is
   **COMPONENT-SUBSTRATE** and **EMBEDDING-RESOURCE-LIFETIMES**.
   `omega-rust/omega/compilation/realization/provider-planning/src/provider_settlement/composition_modes.rs`
   rejects independent products. Connect Psi instances/entries to the
-  import/export and era contracts in
-  `omega-rust/omega/compilation/backend/runtime/component-publication/`; no
-  second module manager. Root/nested build composition produces the
+  component contract's import/export and era requirements through the
+  embedding runtime's existing instance owner; no second module manager or
+  compiler-owned era ledger. Root/nested build composition produces the
   replacement Psi, and the guest stages and publishes it under delegated
   authority. The application owns acquisition, migration and update policy.
 
@@ -5572,15 +5572,17 @@ wait for Cathedral's instruction coverage. The interpreter is
   [suspension](wiki/spec/terminal-psi/calls_and_outcomes.md#suspension). Reuse
   `omega-rust/omega/compilation/realization/provider-planning/src/task_plans/` and
   [task-plans](omega-rust/omega/compilation/backend/runtime/task-plans/README.md):
-  sealed call graphs, argument images, lease accounting and routed `Task<T>`
-  claims exist. Park/resume today changes ledger state only; no worker or native
-  stack switch runs. `tests/omega/pass/tasks/task_runtime_machine_selection_compile`
+  sealed call graphs, argument layouts, suspension frontiers, stack-demand
+  composition and selected-runtime invocation evidence exist. The deleted
+  compiler-side lifecycle ledger never executed a task; implement start,
+  park/resume, cancellation and settlement in the selected runtime/provider.
+  `tests/omega/pass/tasks/task_runtime_machine_selection_compile`
   checks a probe beside an empty, unbound `Main::main`.
 
   - Stacks: join final physical frames/spills, alignment, entry overhead and
     live chains to the exact `StackPlan` and a real nonmoving backing.
     `task_frame_summary` (`task_plans/stack_graphs.rs`) measures checked locals
-    and parked arguments; `TaskRuntimeAdmission` stores slot shapes, not stacks.
+    and parked arguments; the activation plan describes shape, not backing.
     Keep unresolved-call refusal and same-stack/separately provisioned demand.
   - Suspension production in
     `omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/retention/suspension_call_plan.rs`:
@@ -5874,7 +5876,8 @@ wait for Cathedral's instruction coverage. The interpreter is
   root-selected `Independent` composition under the
   [component publication contract](wiki/spec/build/component_publication.md),
   then stable-slot replacement. Runtime packages or Cathedral own deployment
-  and update policy.
+  and update policy; the deleted compiler-side component deployment/publication
+  simulators are not a substrate to restore.
   - Package review publishes the dependency description
     (`omega-rust/omega/packages/package-manager/src/build_session/component_publication.rs`),
     and provider planning checks it, but
@@ -5885,15 +5888,14 @@ wait for Cathedral's instruction coverage. The interpreter is
   - Complete the entry, outgoing-authority, service, mapping, lease, stack and
     retained-provider inventories; connect `component-candidate`'s
     `describe_component` native stack and realization identity to
-    publication. Join deployment to the description contract used by
-    **TOPOLOGY-PLAN-VERIFICATION**. `omega-rust/omega/compilation/backend/runtime/component-deployment`
-    rejects registries with live external roots; finish their teardown.
-  - Replacement reuses `component-publication`'s era entries: compatible
-    imports/exports, new calls enter the new era, existing sessions keep
-    theirs, candidate resources fit the frozen envelope, and retirement waits
-    until every activation, registration and returned object is disposed.
-    Rejected operations preserve custody. Stronger continuity needs its
-    explicit contract.
+    publication. Join an authored runtime/Cathedral deployment consumer to the
+    description contract used by **TOPOLOGY-PLAN-VERIFICATION**; descriptions
+    and installation evidence grant no live deployment authority.
+  - The runtime owns replacement eras: compatible imports/exports, new calls
+    enter the new era, existing sessions keep theirs, candidate resources fit
+    the frozen envelope, and retirement waits until every activation,
+    registration and returned object is disposed. Rejected operations preserve
+    custody. Stronger continuity needs its explicit contract.
   Acceptance: a two-package corpus build with `Independent` composition
   emits separate products and executes the crossing call; descriptions grant
   no install authority; omitted, duplicate or unaccepted-assumption cases

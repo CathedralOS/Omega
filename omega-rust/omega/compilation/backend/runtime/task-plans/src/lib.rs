@@ -1,4 +1,4 @@
-//! Provider-independent task activation plans and lifecycle accounting.
+//! Provider-independent task activation plans and invocation evidence.
 //!
 //! An activation plan describes one fixed, nonmoving stack, the canonical
 //! semantic suspension crossings — each retaining the exact live frontier
@@ -10,9 +10,8 @@
 //!
 //! Start at `task_plans.rs`: the activation plan, its exact marshalling
 //! argument layout and its validators, leading into the provider facts,
-//! executor selection, invocation receipts, stack leases, lifecycle ledger,
-//! provider admission, stack composition, composition model, identities and
-//! report fingerprints beneath it.
+//! executor selection, invocation receipts, stack composition, composition
+//! model, identities and report fingerprints beneath it.
 
 mod task_plans;
 
@@ -32,22 +31,12 @@ pub use task_plans::executor_selection::{
     ValidatedExecutorSelection, validate_executor_selection,
 };
 pub use task_plans::identities::{
-    ActivationInstanceId, ActivationPlanId, AdmittedStackContributionReportId, CallingPlanId,
-    CompositionModelId, ExecutorPreservationEvidenceId, ExecutorSelectionId, LiveCarryPlaceId,
-    LiveCarryTypeId, MachineContractId, MachineEntryId, SameStackContributionAdmissionReceiptId,
-    StackPlanProjectionId, StackRepresentationId, TaskArgumentCustodyId, TaskLifecycleClaimId,
-    TaskRuntimeId, TaskRuntimeInstanceId, TaskRuntimeInvocationBindingId, TaskRuntimeInvocationId,
-    TaskRuntimeInvocationReceiptId, TaskStackCompositionId, TaskStackFrameId,
-    TaskStackFrameValidationId, TaskStorageLeaseId, TaskStorageOwnerId, ValueLayoutId,
-};
-pub use task_plans::lifecycle_ledger::{
-    ClosedTaskRuntime, MovedTaskArguments, SettledTaskLifecycle, TaskClaimRoute,
-    TaskDependencyRecord, TaskLifecycleClaim, TaskLifecycleLedger, TaskRouteSettlementError,
-    TaskRuntimeCloseError, TaskSettlementError, TaskSettlementOutcome, TaskStartRejection,
-    TaskStartStorage, TaskStorageBinding,
-};
-pub use task_plans::provider_admission::{
-    TaskAdmissionCloseError, TaskAdmissionRejection, TaskRuntimeAdmission,
+    ActivationPlanId, AdmittedStackContributionReportId, CallingPlanId, CompositionModelId,
+    ExecutorPreservationEvidenceId, ExecutorSelectionId, LiveCarryPlaceId, LiveCarryTypeId,
+    MachineContractId, MachineEntryId, SameStackContributionAdmissionReceiptId,
+    StackPlanProjectionId, StackRepresentationId, TaskRuntimeId, TaskRuntimeInstanceId,
+    TaskRuntimeInvocationBindingId, TaskRuntimeInvocationId, TaskRuntimeInvocationReceiptId,
+    TaskStackCompositionId, TaskStackFrameId, TaskStackFrameValidationId, ValueLayoutId,
 };
 pub use task_plans::runtime_invocation::{
     TaskRuntimeActivationBinding, TaskRuntimeInvocationReceiptCandidate,
@@ -61,9 +50,6 @@ pub use task_plans::stack_composition::{
     WcsuStackPlanProjection, admit_same_stack_contribution, compose_task_stack_demand,
     cover_unresolved_call_sites, project_wcsu_stack_plan, task_stack_frame_validation_identity,
     validate_task_stack_frame_summary,
-};
-pub use task_plans::stack_leases::{
-    StackLease, StackLeaseBacking, TaskStorageProvenance, establish_stack_lease,
 };
 pub use task_plans::{
     ActivationCarryObligations, ActivationPlanCandidate, CanonicalSuspensionCrossing,
