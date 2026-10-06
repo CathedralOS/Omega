@@ -354,8 +354,6 @@ pub(super) fn populate(
 ) -> Result<(), Error> {
     let selected = selected(source, function.machine)?;
     let fragment = fragment(source, function.machine)?;
-    let (abstracted, targeted) = source::function(source, function.machine)?;
-    let unused_owned = source::unobserved_owned_arrivals(abstracted, targeted, selected);
     if let Some(contract) = &selected.structural {
         let (parameters, homes) = if function.mixed_structural_scalar_abi.is_some() {
             (
@@ -381,7 +379,7 @@ pub(super) fn populate(
             // in graph replay; a pointer-only home would misstate residence.
             // Indirect inputs keep their published pointer-location record,
             // including provider/call evidence consumed by installation.
-            if unused_owned || inline_owned_placement(target.access, &target.placement) {
+            if inline_owned_placement(target.access, &target.placement) {
                 continue;
             }
             homes.push(UnitParameterHomeRecord {

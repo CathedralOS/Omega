@@ -248,9 +248,7 @@ fn select_function(
         } else {
             builder.instructions.len()
         };
-        if !crate::structural_inputs::unobserved_owned_input::accepts(source) {
-            structural::block_entry(source, block, &mut builder)?;
-        }
+        structural::block_entry(source, block, &mut builder)?;
         for (operation_index, operation) in block.instructions.iter().enumerate() {
             *current_operation = Some(operation.operation);
             if matches!(

@@ -127,11 +127,6 @@ pub(super) fn validate(
                 && node.ownership
                     == [optimization_unit::OwnershipEvent::Cleanup(
                         cleanup_actions.clone(),
-                    )])
-            || (super::unobserved_owned::body(function)
-                && node.ownership
-                    == [optimization_unit::OwnershipEvent::Cleanup(
-                        cleanup_actions.clone(),
                     )]) =>
         {
             terminal_edge(node, *psi_edge)
@@ -156,12 +151,7 @@ pub(super) fn validate(
                 ) && node.ownership
                     == [optimization_unit::OwnershipEvent::Cleanup(
                         cleanup_actions.clone(),
-                    )])
-                || (super::unobserved_owned::body(function)
-                    && node.ownership
-                        == [optimization_unit::OwnershipEvent::Cleanup(
-                            cleanup_actions.clone(),
-                        )])) =>
+                    )])) =>
         {
             terminal_edge(node, *psi_edge)
         }

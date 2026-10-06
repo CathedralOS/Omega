@@ -50,9 +50,9 @@ fn affine_view_carrier(
         })
 }
 
-// An unobserved owned arrival has no live storage home, so its discard keys
-// on the arrival declaration — the same owned affine contract a realized home
-// would report.
+// Inline invocation values can remain in ABI fragments without an addressable
+// home. Their no-code discard still keys on the exact owned affine declaration,
+// independently of the physical storage chosen for other arrivals.
 fn owned_arrival(function: &AbstractFunction, place: PlaceId) -> bool {
     function
         .structural_parameters

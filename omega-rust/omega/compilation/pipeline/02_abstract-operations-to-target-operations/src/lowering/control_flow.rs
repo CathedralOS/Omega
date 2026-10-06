@@ -186,7 +186,6 @@ pub(super) fn lower(
     if function.block_entries.is_empty() {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
-    let unobserved_owned = super::unobserved_owned::accepts(function, structural_types);
     // Invocation borrows keep their original places throughout the graph.
     // Shared signature preparation owns referent layout and ABI placement;
     // only transferred block descriptors need the narrower edge classifier.
@@ -199,33 +198,15 @@ pub(super) fn lower(
         AbstractFunctionResult::Unit
             | AbstractFunctionResult::Scalar(_)
             | AbstractFunctionResult::Structural(_)
-    ) || (!unobserved_owned
-        && !function.structural_parameters.iter().all(|parameter| {
-            parameter.projected_qualifications.is_empty()
-                && ((parameter.access != StructuralAccess::Owned
-                    && matches!(
-                        parameter.multiplicity,
-                        StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
-                    ))
-                    || (parameter.access == StructuralAccess::Owned
-                        && (parameter.multiplicity == StructuralMultiplicity::Affine
-                            || owned_arguments::is_owned_parameter(parameter, structural_types)
-                            || super::scalar::byte_views::is_owned_byte_parameter(
-                                parameter,
-                                structural_types,
-                            )
-                            || (parameter.multiplicity == StructuralMultiplicity::Unrestricted
-                                && structural_types
-                                    .get(&parameter.structural_type)
-                                    .is_some_and(|declaration| {
-                                        matches!(
-                                            declaration.shape,
-                                            terminal_psi::StructuralTypeShape::Sum { .. }
-                                                | terminal_psi::StructuralTypeShape::Record { .. }
-                                        )
-                                    })))))
-        }))
-    {
+    ) || !function.structural_parameters.iter().all(|parameter| {
+        parameter.projected_qualifications.is_empty()
+            && ((parameter.access != StructuralAccess::Owned
+                && matches!(
+                    parameter.multiplicity,
+                    StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+                ))
+                || owned_arguments::is_owned_parameter(parameter, structural_types))
+    }) {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     let prepared =
@@ -546,24 +527,25 @@ pub(super) fn lower(
                     live.block_views.insert(parameter.place);
                 }
             }
-            if !unobserved_owned {
-                for parameter in entries[position]
-                    .structural_parameters
-                    .iter()
-                    .filter(|parameter| parameter.access == StructuralAccess::Owned)
+            // Each owned arrival has storage determined by its declaration.
+            // Neighboring instructions cannot erase its transfer or cleanup
+            // custody; optional dead-storage removal belongs to optimization.
+            for parameter in entries[position]
+                .structural_parameters
+                .iter()
+                .filter(|parameter| parameter.access == StructuralAccess::Owned)
+            {
+                let home = aggregate_results::block_home(
+                    entries[position].block,
+                    parameter,
+                    structural_types,
+                )?;
+                if live
+                    .structural_homes
+                    .insert(parameter.place, home)
+                    .is_some()
                 {
-                    let home = aggregate_results::block_home(
-                        entries[position].block,
-                        parameter,
-                        structural_types,
-                    )?;
-                    if live
-                        .structural_homes
-                        .insert(parameter.place, home)
-                        .is_some()
-                    {
-                        return Err(LoweringError::unsupported_control_flow(function.machine));
-                    }
+                    return Err(LoweringError::unsupported_control_flow(function.machine));
                 }
             }
             live.owned_arrivals.extend(

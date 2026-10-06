@@ -201,24 +201,18 @@ checks the expansion and contracts it back to the source graph, with the authore
 edge and its fuel retained once; the final implementation jump carries lineage,
 not a second semantic transition. No source block or operation is fabricated.
 
-Whole plain-owned arrivals with no runtime structural observer retain
-`SelectedStructuralTransport::Unused`. Their complete semantic bindings and
-owned value ABI survive; selection emits no payload pointer, descriptor slot,
-memory access, or edge copy. Bounded integer fields use their integer carrier's
-layout while retaining the complete range declaration. Layout eligibility does
-not authorize restricted-field writes; source replay rejects altered bounds even
-when the physical layout is unchanged.
-The bounded input gate independently rejects
-observations, call actuals, projections, and escapes of those owned places, and
-executable cleanup. Independently established primitive locals may be observed
-and borrowed by calls while the owned inputs remain unused. Exact no-code return discards remain in the retained source
-ownership, whose current frontier is checked before selection. Scalar-only
-calls and simultaneous scalar transfers continue through the ordinary graph.
-Edge preparation and independent replay count only active transports, including
-when unused owned bindings accompany scalar copies. Object/image publication
-must separately retain this custody and validate omitted physical homes.
-Local projection tests reject invented descriptor homes and changed binding
-transports.
+Owned arrivals use ordinary storage, ABI and cleanup contracts even when their
+payload is unread. Each successor declaration establishes its own home; each
+binding chooses transport from its exact layout and source residence, not a
+whitelist of operations in the enclosing function. Zero-byte owned bindings
+retain `SelectedStructuralTransport::Unused`; nonzero values use the ordinary
+whole-value bridge. Optional optimizers may remove unused physical work only
+over that correct general route. Inline invocation values can remain in ABI
+fragments when no operation requires an addressable home; indirect inputs retain
+their pointer-location records at object/image publication. Bounded integer
+fields retain their integer carrier layout and complete range declaration.
+Layout grants no ownership or restricted-field write authority, and the existing
+ordered cleanup action stream retains executable hooks and exact no-code discards.
 
 Observed plain-owned scalar sums use `SelectedStructuralTransport::WholeValue`
 with the exact source pointer, destination block-parameter slot, byte extent,

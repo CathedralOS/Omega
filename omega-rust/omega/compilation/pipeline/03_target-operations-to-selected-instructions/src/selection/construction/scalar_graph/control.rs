@@ -368,12 +368,6 @@ fn successor(
             .structural_bindings
             .iter()
             .map(|semantic| {
-                if crate::structural_inputs::unobserved_owned_input::accepts(source) {
-                    return Ok(selected_instructions::SelectedStructuralBinding {
-                        semantic: semantic.clone(),
-                        transport: selected_instructions::SelectedStructuralTransport::Unused,
-                    });
-                }
                 // An address join receives its referent's address; the edge
                 // bridge forms it from the lending root's storage.
                 if let Some((_, parameter)) =

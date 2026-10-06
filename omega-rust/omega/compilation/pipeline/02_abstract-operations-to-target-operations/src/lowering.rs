@@ -15,7 +15,6 @@ pub(super) mod structural_layout;
 pub(crate) mod structural_signature;
 mod structural_type_lookup;
 mod unit;
-mod unobserved_owned;
 
 use abstract_operations::AbstractOperationPlan;
 use installation_evidence::ProviderInstallationEvidence;

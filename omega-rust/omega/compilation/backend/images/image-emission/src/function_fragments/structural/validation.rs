@@ -25,8 +25,6 @@ pub(in crate::function_fragments) fn validate_function(
     let invalid = || Error::Mismatch("structural object differs from current ABI or call evidence");
     let selected = selected(source, function.machine)?;
     let fragment = fragment(source, function.machine)?;
-    let (abstracted, targeted) = source::function(source, function.machine)?;
-    let unused_owned = source::unobserved_owned_arrivals(abstracted, targeted, selected);
     let parameters = selected
         .structural
         .as_ref()
@@ -49,8 +47,7 @@ pub(in crate::function_fragments) fn validate_function(
         };
     let pointer_parameters = || {
         parameters.iter().filter(|parameter| {
-            !unused_owned
-                && !inline_owned_placement(parameter.target.access, &parameter.target.placement)
+            !inline_owned_placement(parameter.target.access, &parameter.target.placement)
         })
     };
     if !unused_records.is_empty()

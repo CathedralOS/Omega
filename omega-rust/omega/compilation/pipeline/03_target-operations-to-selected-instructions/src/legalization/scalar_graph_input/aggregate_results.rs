@@ -13,29 +13,15 @@ pub(super) mod borrowed_arguments;
 mod owned_arguments;
 pub(super) use owned_arguments::{node_site, precedes};
 
-pub(super) fn uses(function: &PsiOptimizationFunction, plan: &AbstractOperationPlan) -> bool {
-    // Forwarding an incoming owned argument observes its payload even without
-    // a local constructor or aggregate result. It needs aggregate ABI replay,
-    // not the unused-owned-input path that deliberately emits no transport.
+pub(super) fn uses(function: &PsiOptimizationFunction) -> bool {
+    // Owned arrivals use ordinary layout and ABI custody even when their
+    // payload is unread. Storage follows each declaration, not an operation
+    // whitelist for the enclosing function. Zero-byte values remain a genuine
+    // per-place layout distinction in selection.
     function.result.structural().is_some()
-        // Whole owned values retain the complete graph ABI even when unused.
-        // Their signature must not depend on which scalar operations run beside them.
-        || function.structural_parameters.iter().any(|parameter| {
-            parameter.access == terminal_psi::StructuralAccess::Owned
-                && parameter.multiplicity == StructuralMultiplicity::Unrestricted
-                && crate::structural_inputs::structural_reference_input::owned_aggregate_shape(
-                    parameter.structural_type,
-                    &plan.structural_types,
-                ).is_some()
-        })
-        // Target lowering suppresses owned arrival homes only for bodies the
-        // unused-owned-input route replays (`unobserved_owned::body`, the
-        // mirror of its `unobserved_owned::accepts`). Any other owned
-        // arrival, such as an attached selected-operator realization, was
-        // lowered through the ordinary graph with its complete ABI.
-        || (function.structural_parameters.iter().any(|parameter| {
-            parameter.access == terminal_psi::StructuralAccess::Owned
-        }) && !super::unobserved_owned::body(function))
+        || function.structural_parameters.iter()
+            .chain(function.blocks.iter().flat_map(|block| &block.structural_parameters))
+            .any(|parameter| parameter.access == terminal_psi::StructuralAccess::Owned)
         || function
             .blocks
             .iter()

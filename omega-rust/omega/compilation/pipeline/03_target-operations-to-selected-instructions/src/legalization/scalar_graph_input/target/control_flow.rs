@@ -30,7 +30,7 @@ pub(super) fn validate(
         return Err(LegalizationError::custody());
     }
     match optimized.result {
-        _ if super::super::aggregate_results::uses(optimized, plan) => {
+        _ if super::super::aggregate_results::uses(optimized) => {
             super::super::aggregate_results::header(
                 function,
                 abstracted,
@@ -324,9 +324,7 @@ pub(super) fn validate(
                             optimized,
                             cleanup_actions,
                             &plan.structural_types,
-                        )
-                        || (super::super::unobserved_owned::body(optimized)
-                            && super::super::unobserved_owned::cleanup(optimized, cleanup_actions)))
+                        ))
                     && available.iter().any(|(identity, source)| {
                         identity == value && source.scalar_type() == *expected_type
                     })
@@ -397,9 +395,7 @@ pub(super) fn validate(
                             optimized,
                             cleanup,
                             &plan.structural_types,
-                        )
-                        || (super::super::unobserved_owned::body(optimized)
-                            && super::super::unobserved_owned::cleanup(optimized, cleanup)))
+                        ))
             }
             (
                 TargetControlTerminator::Jump { successor },

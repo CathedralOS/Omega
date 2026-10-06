@@ -420,7 +420,6 @@ pub(super) fn validate_borrowed_argument(
             .iter()
             .any(|declaration| declaration.id == attachment)
     }) || (!parameters.is_empty()
-        && !crate::structural_inputs::unobserved_owned_input::accepts(source)
         && !crate::structural_inputs::structural_unit_input::accepts_graph(
             &source.call_plan,
             &parameters,

@@ -41,7 +41,6 @@ pub(super) fn accepts_stack_parameter_entry(source: &LegalizedScalarFunction) ->
                     parameter.placement == *placement
                         && scalar_shape(parameter.scalar_type) == Some(placement.shape)
                 }))
-        || crate::structural_inputs::unobserved_owned_input::accepts(source)
         || source.structural.as_ref().is_some_and(|signature| {
             let parameters = signature
                 .parameters

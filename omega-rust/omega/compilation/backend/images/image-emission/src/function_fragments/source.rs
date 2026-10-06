@@ -12,8 +12,6 @@ mod aggregate_results;
 mod control_flow;
 mod structural_case;
 mod structural_fields;
-mod unobserved_owned;
-pub(super) use unobserved_owned::arrivals as unobserved_owned_arrivals;
 #[cfg(test)]
 mod tests;
 

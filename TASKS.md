@@ -758,11 +758,6 @@ defines the complete product bar.
   - Generalize temporary cleanup beyond empty effect-free Unit consumers
     (other argument effects, non-Unit results, borrowed/owned mixtures,
     claims) on **STATE-LOCAL-VALUE-FRONTIER**'s evaluation path.
-  - Native: `accepts` in
-    `omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/src/lowering/unobserved_owned.rs`
-    suppresses arrival homes with a whole-function gate; replace it with
-    per-place storage/action evidence. Preserve executable hooks through the
-    existing ordered action stream.
   Acceptance: add corpus fixtures where native runs and the Terminal
   interpreter preserve values and hook order across composed edges, including
   a projected-argument jump edge closing residuals in order. Missing,

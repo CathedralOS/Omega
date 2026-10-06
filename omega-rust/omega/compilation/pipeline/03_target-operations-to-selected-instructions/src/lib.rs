@@ -9,7 +9,9 @@
 //! `legalization` is the raw-target to legal-operation join, `selection` the
 //! legal-operation to selected-CFG join, and `structural_inputs` the
 //! input-only reconstruction of structural storage, parameter shape and
-//! unobserved-owned eligibility both consume.
+//! incoming ABI placement both consume. Owned arrivals retain those contracts
+//! regardless of which operations share their function; optional elimination
+//! of unused storage happens only after a correct general transport exists.
 
 mod legalization;
 mod optimized;

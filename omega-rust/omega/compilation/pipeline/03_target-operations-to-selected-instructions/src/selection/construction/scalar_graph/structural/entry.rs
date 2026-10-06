@@ -14,9 +14,6 @@ pub(in crate::selection) fn entry(
     environment: &register_environment::ValidatedTargetRegisterEnvironment,
     builder: &mut Builder<'_>,
 ) -> Result<(), SelectedInstructionError> {
-    if crate::structural_inputs::unobserved_owned_input::accepts(source) {
-        return Ok(());
-    }
     let Some(signature) = &source.structural else {
         return Ok(());
     };

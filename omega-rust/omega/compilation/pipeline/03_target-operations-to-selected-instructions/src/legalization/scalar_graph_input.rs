@@ -22,14 +22,14 @@ use semantic_vocabulary::{
     IntegerSign, IntegerType, MachineId, ObligationId, OperationId, ScalarType, ValueId,
 };
 use target_operations::{TargetFunction, TargetOperationPlan};
-pub(super) mod call_origin;
-pub(in crate::legalization) mod cleanup_calls;
-mod control;
 pub(super) mod address_joins;
 pub(super) mod aggregate_results;
 pub(super) mod atomic_access;
 pub(super) mod borrowed_windows;
 pub(super) mod byte_views;
+pub(super) mod call_origin;
+pub(in crate::legalization) mod cleanup_calls;
+mod control;
 mod header;
 mod hosted_scalar;
 pub(in crate::legalization) mod ieee_float_arithmetic;
@@ -38,7 +38,6 @@ mod place_declarations;
 pub(super) mod read_byte;
 pub(super) mod scalar_arrays;
 pub(super) mod structural_case;
-mod unobserved_owned;
 pub(super) use hosted_scalar::hosted_realization;
 mod literals;
 pub(super) mod primitive_locals;
@@ -254,7 +253,7 @@ pub(super) fn match_input(
     unit: &PsiOptimizationUnit,
 ) -> Result<MatchedScalarGraph, LegalizationError> {
     primitive_locals::validate(optimized, &unit.structural_types)?;
-    let call_plan = if aggregate_results::uses(optimized, plan) {
+    let call_plan = if aggregate_results::uses(optimized) {
         aggregate_results::header(target, abstracted, optimized, native.target, plan)?
     } else if structural_parameters(target).is_some() {
         byte_views::validate(target, abstracted, optimized, native.target, plan)?
@@ -615,7 +614,7 @@ pub(super) fn callee_plan(
     ) else {
         return Err(LegalizationError::custody());
     };
-    if !aggregate_results::uses(optimized, plan)
+    if !aggregate_results::uses(optimized)
         && (!matches!(abstracted.result, AbstractFunctionResult::Unit)
             && !matches!(abstracted.result, AbstractFunctionResult::Scalar(result) if scalar_shape(result.scalar_type).is_some())
             || abstracted
@@ -625,7 +624,7 @@ pub(super) fn callee_plan(
     {
         return Err(LegalizationError::custody());
     }
-    let call_plan = if aggregate_results::uses(optimized, plan) {
+    let call_plan = if aggregate_results::uses(optimized) {
         aggregate_results::header(target, abstracted, optimized, native.target, plan)?
     } else if structural_parameters(target).is_some() {
         byte_views::validate(target, abstracted, optimized, native.target, plan)?
