@@ -852,7 +852,7 @@ impl OperationFrame<'_, '_> {
             let earlier =
                 self.results
                     .earlier(structural_arguments, self.operations, self.evaluation)?;
-            parameters::mint_element_view_length_observations(
+            parameters::mint_view_length_observations(
                 structural_arguments,
                 self.parameters,
                 &earlier,

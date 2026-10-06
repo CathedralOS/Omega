@@ -312,6 +312,27 @@ pub(crate) fn validate_structural_path(
             (_, StructuralTypeShape::PrimitiveScalar(_)) => {
                 return malformed("primitive-scalar structural type has no projected children");
             }
+            // A byte carrier's element is its `u8` scalar, the leaf primitive
+            // reads and stores select; its bound is the owning operation's.
+            (
+                StructuralPathSegment::FixedIndex(_) | StructuralPathSegment::RuntimeIndex { .. },
+                StructuralTypeShape::ByteSequence(_),
+            ) => {
+                let Ok(byte) = semantic_vocabulary::IntegerType::new(
+                    semantic_vocabulary::IntegerSign::Unsigned,
+                    8,
+                ) else {
+                    return malformed("byte element has no u8 integer type");
+                };
+                let byte = semantic_vocabulary::ScalarType::Integer(byte);
+                let mut matching = module.structural_types.iter().filter(|declaration| {
+                    declaration.shape == StructuralTypeShape::PrimitiveScalar(byte)
+                });
+                match (matching.next(), matching.next()) {
+                    (Some(declaration), None) => declaration.id,
+                    _ => return malformed("byte element has no unique u8 declaration"),
+                }
+            }
             (_, StructuralTypeShape::ByteSequence(_)) => {
                 return malformed("byte-sequence structural type has no projected children");
             }

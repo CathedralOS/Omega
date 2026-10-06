@@ -214,12 +214,16 @@ pub(super) fn place_pointer_at_site(
 /// (or the derived home's live pointer) and the projected offset scales onto
 /// it exactly as a parameter-rooted subloan does.
 pub(super) fn view_element_pointer(
+    source: &LegalizedScalarFunction,
     builder: &mut Builder<'_>,
     row: &LegalizedScalarInstruction,
     place: PlaceId,
     byte_offset: u32,
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {
-    let input = element_views::element_backing_pointer(builder, row, place)?;
+    // The same backing an element read or store through this view resolves:
+    // an established or received element view, or a byte view.
+    let input = runtime_address::projection_base(source, builder, row, place, byte_offset)?
+        .ok_or_else(|| invalid())?;
     let output = transport_register(builder, place, byte_offset)?;
     builder.emit(
         if byte_offset == 0 {

@@ -189,14 +189,19 @@ fn argument_pointer(
             .filter(|_| indices.is_empty())
             .ok_or_else(|| SelectedInstructionError::custody())?;
         structural::reference::borrowed_argument(builder, operation, semantic.place, offset)?
-    } else if matches!(
-        target.source,
-        target_operations::TargetStructuralArgumentSource::EstablishedElementView { .. }
-    ) && !semantic.path.is_empty()
+    } else if !semantic.path.is_empty()
+        && (matches!(
+            target.source,
+            target_operations::TargetStructuralArgumentSource::EstablishedElementView { .. }
+        ) || crate::selection::established_view_input::element_view_type(source, pointer_place)
+            .is_some()
+            || crate::selection::established_view_input::view_type(source, pointer_place).is_some())
     {
         // An element loan transports the view's backing pointer projected to
-        // the element, never the descriptor's own address.
+        // the element, never the descriptor's own address, whether the view
+        // was established here or arrived as a parameter or state arrival.
         structural::view_element_pointer(
+            source,
             builder,
             operation,
             pointer_place,

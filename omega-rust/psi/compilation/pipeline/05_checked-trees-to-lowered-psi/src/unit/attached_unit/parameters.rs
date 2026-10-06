@@ -713,14 +713,15 @@ pub(crate) fn mint_runtime_index_selectors(
     Ok(values)
 }
 
-/// A runtime-index argument rooted at an element view owes its bound the
-/// view's live extent, not a declaration: mint the dominating
-/// `ElementViewLength` observation whose scalar the segment's
-/// `index < length` obligation names — the same observation an element-view
-/// write carries as its `length` operand. Only a segment at path position
-/// zero resolves the view at the projection root; one observation per root
-/// place dominates every argument the call projects from that view.
-pub(crate) fn mint_element_view_length_observations(
+/// A runtime-index argument rooted at an element view or a borrowed byte
+/// view owes its bound the view's live extent, not a declaration: mint the
+/// dominating `ElementViewLength` or `ByteSequenceLength` observation whose
+/// scalar the segment's `index < length` obligation names — the same
+/// observation a view write carries as its `length` operand. Only a segment
+/// at path position zero resolves the view at the projection root; one
+/// observation per root place dominates every argument the call projects
+/// from that view. A bounded byte view's capacity is its declared extent.
+pub(crate) fn mint_view_length_observations(
     arguments: &[checked_trees::CheckedUnitStructuralArgumentPlan],
     parameters: &[StructuralParameterDeclaration],
     structural_results: &[(Option<StructuralPlaceDeclaration>, bool)],
@@ -769,11 +770,22 @@ pub(crate) fn mint_element_view_length_observations(
             } else {
                 continue;
             };
-        if !structural_types.iter().any(|declaration| {
-            declaration.id == structural_type
-                && matches!(declaration.shape, StructuralTypeShape::ElementView { .. })
-        }) || !observed.insert(place)
-        {
+        let Some(kind) = structural_types
+            .iter()
+            .find(|declaration| declaration.id == structural_type)
+            .and_then(|declaration| match declaration.shape {
+                StructuralTypeShape::ElementView { .. } => {
+                    Some(crate::unit::OperationKind::ElementViewLength { source: place })
+                }
+                StructuralTypeShape::ByteSequence(
+                    terminal_psi::ByteSequenceCarrier::BorrowedView { .. },
+                ) => Some(crate::unit::OperationKind::ByteSequenceLength { source: place }),
+                _ => None,
+            })
+        else {
+            continue;
+        };
+        if !observed.insert(place) {
             continue;
         }
         let length = crate::terminal_identities::value_id(allocate_dense(next_value)?);
@@ -787,7 +799,7 @@ pub(crate) fn mint_element_view_length_observations(
                 id: length,
                 scalar_type: terminal_scalar_type(crate::unit::PrimitiveType::U64)?,
             }),
-            kind: crate::unit::OperationKind::ElementViewLength { source: place },
+            kind,
         });
     }
     Ok(())

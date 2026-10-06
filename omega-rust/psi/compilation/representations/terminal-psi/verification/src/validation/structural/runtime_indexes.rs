@@ -12,9 +12,10 @@
 //!   operation, like any other operand;
 //! - each segment's prefix resolves to a fixed array or bounded byte view,
 //!   whose declared extent the reconstructed obligation bounds the selector
-//!   by; a segment on an element view instead names the dominating
-//!   `ElementViewLength` observation of the view's place, its bound the same
-//!   `index < length` relation an element-view write carries as an operand.
+//!   by; a segment on an element view or borrowed byte view instead names the
+//!   dominating `ElementViewLength` or `ByteSequenceLength` observation of
+//!   the view's place, its bound the same `index < length` relation a view
+//!   write carries as an operand.
 //!
 //! The obligation itself is reconstructed in
 //! `verification::reconstruction::operation_facts::runtime_index` from the
@@ -191,12 +192,14 @@ pub(crate) fn runtime_index_sites(
                     }
                     // A view's extent is its stored runtime length: the
                     // segment's bound names the operation's dominating
-                    // `ElementViewLength` observation of the projection's
-                    // root place — only a path position of zero resolves a
-                    // view at the root, where that observation is well-formed.
+                    // `ElementViewLength` or `ByteSequenceLength` observation
+                    // of the projection's root place — only a path position
+                    // of zero resolves a view at the root, where that
+                    // observation is well-formed.
                     StructuralTypeShape::ElementView { .. }
-                        if declaration.id == array && position == 0 =>
-                    {
+                    | StructuralTypeShape::ByteSequence(
+                        terminal_psi::ByteSequenceCarrier::BorrowedView { .. },
+                    ) if declaration.id == array && position == 0 => {
                         machine
                             .blocks
                             .iter()
@@ -206,6 +209,7 @@ pub(crate) fn runtime_index_sites(
                                     && matches!(
                                         candidate.kind,
                                         OperationKind::ElementViewLength { source }
+                                        | OperationKind::ByteSequenceLength { source }
                                             if source == projection.root
                                     )
                                     && crate::validation::structural::byte_sequence_fields::view_length_is_current(

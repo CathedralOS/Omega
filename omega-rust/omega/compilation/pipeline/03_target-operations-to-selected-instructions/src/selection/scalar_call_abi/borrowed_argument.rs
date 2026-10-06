@@ -290,6 +290,9 @@ pub(super) fn validate_borrowed_argument(
         destination_carrier.byte_size,
         destination_carrier.alignment,
     );
+    // One place projected inside a borrowed root the caller holds (an
+    // incoming parameter or a state-block arrival), shared or exclusive.
+    let projected_loan = projected_loan_shape(source, semantic, target, indices);
     // A loan arriving as a block parameter and forwarded whole as its own
     // declared type keeps its carrier. The source arm below rejoins that block
     // parameter's declared access, type and position.
@@ -376,6 +379,8 @@ pub(super) fn validate_borrowed_argument(
             return None;
         }
         ValueShape::borrowed_reference(referent.byte_size, referent.alignment)
+    } else if let Some(shape) = projected_loan {
+        shape
     } else if exclusive
         || signature.structural_types.iter().any(|declaration| {
             declaration.id == target.structural_type
@@ -385,7 +390,7 @@ pub(super) fn validate_borrowed_argument(
                 )
         })
     {
-        exclusive_projection_shape(source, semantic, target)?
+        return None;
     } else {
         destination_shape
     };
@@ -450,6 +455,7 @@ pub(super) fn validate_borrowed_argument(
             && byte_owner.is_none()
             && element_view.is_none()
             && established_view_loan.is_none()
+            && projected_loan.is_none()
             && (semantic.access != StructuralAccess::SharedBorrow || !semantic.path.is_empty()))
         || target.place != semantic.place
         || target.access != semantic.access
@@ -464,6 +470,7 @@ pub(super) fn validate_borrowed_argument(
             && byte_owner.is_none()
             && element_view.is_none()
             && established_view_loan.is_none()
+            && projected_loan.is_none()
             && target.root_structural_type != target.structural_type)
         || target.shape != shape
         || (!exclusive
@@ -476,6 +483,7 @@ pub(super) fn validate_borrowed_argument(
             && byte_owner.is_none()
             && element_view.is_none()
             && established_view_loan.is_none()
+            && projected_loan.is_none()
             && target.source_byte_offset != 0)
         || target.fixed_array_length
             != byte_view
@@ -637,35 +645,41 @@ fn borrow_access_permitted(source: StructuralAccess, requested: StructuralAccess
     )
 }
 
-/// Reconstruct the pointer displacement from source layout, never from a
-/// coincidentally matching destination ABI or supplied byte offset alone.
-fn exclusive_projection_shape(
+/// A loan of one place projected inside a borrowed root the caller holds:
+/// an incoming parameter or a state-block arrival. Reconstruct the pointer
+/// displacement from source layout, never from a coincidentally matching
+/// destination ABI or supplied byte offset alone. Runtime selectors rejoin
+/// the target's indices; a view root's element sits behind its backing
+/// pointer, which emission resolves before applying the offset.
+fn projected_loan_shape(
     source: &LegalizedScalarFunction,
     semantic: &terminal_psi::StructuralArgument,
     target: &target_operations::TargetStructuralArgument,
+    indices: &[legalized_operations::LegalizedRuntimeIndexOperand],
 ) -> Option<ValueShape> {
     let signature = source.structural.as_ref()?;
-    let parameter = signature
-        .parameters
-        .iter()
-        .find(|parameter| parameter.semantic.place == semantic.place)?;
-    if !borrow_access_permitted(parameter.semantic.access, semantic.access) {
+    let root = crate::selection::arrival_parameter_input::parameter(source, semantic.place)?;
+    if !borrow_access_permitted(root.access, semantic.access) {
         return None;
     }
-    let (referent, offset) = crate::structural_inputs::structural_reference_input::project(
-        parameter.semantic.structural_type,
-        &semantic.path,
-        &signature.structural_types,
-    )?;
+    let (referent, offset, elements) =
+        crate::structural_inputs::structural_reference_input::runtime_projection(
+            root.structural_type,
+            &semantic.path,
+            &signature.structural_types,
+        )?;
     let shape = crate::structural_inputs::structural_reference_input::shape(
         referent,
         &signature.structural_types,
     )?;
-    (target.root_structural_type == parameter.semantic.structural_type
+    (target.root_structural_type == root.structural_type
         && target.structural_type == referent
-        && target.source_byte_offset == offset)
-        .then_some(ValueShape::borrowed_reference(
-            shape.byte_size,
-            shape.alignment,
+        && target.source_byte_offset == offset
+        && crate::structural_inputs::structural_reference_input::runtime_indices_match(
+            indices, &elements,
         ))
+    .then_some(ValueShape::borrowed_reference(
+        shape.byte_size,
+        shape.alignment,
+    ))
 }

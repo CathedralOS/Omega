@@ -166,8 +166,10 @@ pub(super) fn accepts(
             .iter()
             .find(|parameter| parameter.place == place)?;
         let signature = source.structural.as_ref()?;
+        // The arrival is the loan's root: a whole forward selects it, and a
+        // projected element loan's geometry was rejoined by its caller.
         return (place == target.place
-            && parameter.structural_type == target.structural_type
+            && parameter.structural_type == target.root_structural_type
             && matches!(
                 parameter.access,
                 terminal_psi::StructuralAccess::SharedBorrow

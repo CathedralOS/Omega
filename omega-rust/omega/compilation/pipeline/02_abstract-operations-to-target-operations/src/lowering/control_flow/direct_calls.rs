@@ -657,13 +657,14 @@ fn structural_argument(
     // byte fields also retain their carrier presentation: they do not acquire
     // a canonical structural leaf identity merely by being borrowed. The
     // roster resolver owns their capacity and descriptor/owner distinction.
+    // A view arriving at a state block lends its elements the same way.
     let invocation_projection = !argument.path.is_empty()
         && !types
             .get(&declaration.structural_type)
             .is_some_and(|ty| matches!(ty.shape, StructuralTypeShape::ByteSequence(_)))
-        && prepared.parameters.iter().any(|parameter| {
+        && (prepared.parameters.iter().any(|parameter| {
             parameter.place == argument.place && parameter.access != StructuralAccess::Owned
-        });
+        }) || live.block_views.contains(&argument.place));
     if !view
         && (live.address_joins.contains(&argument.place) || invocation_projection)
         && argument.access != StructuralAccess::Owned

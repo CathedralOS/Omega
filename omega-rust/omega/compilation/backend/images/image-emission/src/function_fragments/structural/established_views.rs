@@ -116,9 +116,11 @@ pub(super) fn block_location(
         .flat_map(|entry| &entry.structural_parameters)
         .filter(|parameter| parameter.place == place);
     let parameter = declarations.next().ok_or_else(invalid)?;
+    // The arrival is the argument's root: a whole forward or an element loan
+    // (`local_location` checks which).
     if declarations.next().is_some()
         || place != argument.place
-        || parameter.structural_type != argument.structural_type
+        || parameter.structural_type != argument.root_structural_type
         || !matches!(
             (parameter.access, argument.access),
             (

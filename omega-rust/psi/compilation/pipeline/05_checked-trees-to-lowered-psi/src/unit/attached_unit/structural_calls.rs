@@ -9,9 +9,8 @@ use super::{
     Multiplicity, Operation, OperationResult, ScalarType, StructuralMultiplicity,
     StructuralOperationResult, StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeId,
     ValueDeclaration, allocate_dense, argument_evaluation, lookup_machine_id, lookup_type_id,
-    lower_structural_arguments, mint_element_view_length_observations,
-    mint_runtime_index_selectors, place_id, retain_exact_flow_call, terminal_scalar_type,
-    unsupported,
+    lower_structural_arguments, mint_runtime_index_selectors, mint_view_length_observations,
+    place_id, retain_exact_flow_call, terminal_scalar_type, unsupported,
 };
 use crate::direct_calls::{DirectCall, DirectCallResult};
 use crate::emission::operation_emission::buffer::{OperationBuffer, SourceCallCoordinate};
@@ -276,7 +275,7 @@ pub(super) fn emit(
         operations,
     )?
     .into_iter();
-    mint_element_view_length_observations(
+    mint_view_length_observations(
         structural_arguments,
         parameters,
         earlier_results,

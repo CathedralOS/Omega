@@ -132,7 +132,26 @@ pub(in crate::legalization::scalar_graph_input) fn reconstruct_at_owner(
             })
         }
         .ok_or(LegalizationError::custody())?;
-        if let Some((producer, view_type)) = element_view_producer(caller, argument.place) {
+        if let Some((block, declaration)) =
+            view_arrival(caller, argument.place, &plan.structural_types)
+        {
+            // A view arriving at a state block lends one element through its
+            // descriptor, as an incoming view parameter does; selection
+            // resolves the element through the view's backing pointer.
+            if !target::control_flow::sources::dominates(caller, block, after.0)
+                || !(declaration.access == argument.access
+                    || declaration.access == terminal_psi::StructuralAccess::MutableBorrow)
+            {
+                return Err(LegalizationError::custody());
+            }
+            (
+                declaration.structural_type,
+                target_operations::TargetStructuralArgumentSource::BlockParameter {
+                    block,
+                    place: declaration.place,
+                },
+            )
+        } else if let Some((producer, view_type)) = element_view_producer(caller, argument.place) {
             // An element view is a descriptor root: the argument names its
             // establishing producer, never a storage home, and the projected
             // element offset rides on top. The descriptor's own liveness is
@@ -198,41 +217,26 @@ pub(in crate::legalization::scalar_graph_input) fn reconstruct_at_owner(
             }
         }
     };
-    let (selected, offset, indices) = if argument.path.iter().all(|segment| {
-        !matches!(
-            segment,
-            terminal_psi::StructuralPathSegment::RuntimeIndex { .. }
-        )
-    }) {
-        let (selected, offset) = crate::structural_inputs::structural_reference_input::project(
+    // A runtime selector loans one element: the byte offset retains the
+    // static prefix and each RuntimeIndex segment's selector resolves to its
+    // dominating scalar source — the same transport the leaf-copy sibling
+    // already carries. A static path has no selectors.
+    let (selected, offset, elements) =
+        crate::structural_inputs::structural_reference_input::runtime_projection(
             root,
             &argument.path,
             &plan.structural_types,
         )
         .ok_or(LegalizationError::custody())?;
-        (selected, offset, Vec::new())
+    let indices = if elements.is_empty() {
+        Vec::new()
     } else {
-        // A runtime selector loans one element: the byte offset retains the
-        // static prefix and each RuntimeIndex segment's selector resolves to
-        // its dominating scalar source — the same transport the leaf-copy
-        // sibling already carries.
-        let (selected, offset, elements) =
-            crate::structural_inputs::structural_reference_input::runtime_projection(
-                root,
-                &argument.path,
-                &plan.structural_types,
-            )
-            .ok_or(LegalizationError::custody())?;
-        if elements.is_empty() {
-            return Err(LegalizationError::custody());
-        }
-        let indices = target::control_flow::sources::call_indices(
+        target::control_flow::sources::call_indices(
             native,
             caller,
             owner.operation().ok_or(LegalizationError::custody())?,
             &elements,
-        )?;
-        (selected, offset, indices)
+        )?
     };
     let referent = crate::structural_inputs::structural_reference_input::shape(
         selected,
@@ -261,6 +265,43 @@ pub(in crate::legalization::scalar_graph_input) fn reconstruct_at_owner(
         source,
         destination: placement.clone(),
     })
+}
+
+/// A borrowed element or byte view that arrives at one state block.
+fn view_arrival<'caller>(
+    caller: &'caller PsiOptimizationFunction,
+    place: semantic_vocabulary::PlaceId,
+    structural_types: &[terminal_psi::StructuralTypeDeclaration],
+) -> Option<(
+    semantic_vocabulary::BlockId,
+    &'caller terminal_psi::StructuralParameterDeclaration,
+)> {
+    let mut arrivals = caller.blocks.iter().flat_map(|block| {
+        block
+            .structural_parameters
+            .iter()
+            .filter(move |parameter| parameter.place == place)
+            .map(move |parameter| (block.id, parameter))
+    });
+    let (block, declaration) = arrivals.next()?;
+    let view = structural_types.iter().any(|row| {
+        row.id == declaration.structural_type
+            && (matches!(
+                row.shape,
+                terminal_psi::StructuralTypeShape::ElementView { .. }
+            ) || row.shape.is_borrowed_byte_view())
+    });
+    (arrivals.next().is_none()
+        && view
+        && matches!(
+            declaration.access,
+            terminal_psi::StructuralAccess::SharedBorrow
+                | terminal_psi::StructuralAccess::MutableBorrow
+        )
+        && declaration.multiplicity == StructuralMultiplicity::Unrestricted
+        && declaration.qualifications.is_empty()
+        && declaration.projected_qualifications.is_empty())
+    .then_some((block, declaration))
 }
 
 /// The caller place's exact element-view producer: an establishment writes

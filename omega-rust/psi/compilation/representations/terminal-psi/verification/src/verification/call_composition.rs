@@ -788,18 +788,36 @@ fn structural_contract_substitutions(
                     | terminal_psi::StructuralAccess::MutableBorrow
             ) && crate::validation::is_runtime_indexed_borrow_path(&argument.path);
         // The same omission applies to a literal-indexed borrow rooted at a
-        // live element-view binding: the descriptor's stored extent means the
-        // FixedIndex hop has no canonical FixedArray spelling either. Runtime
-        // index hops into a view already ride runtime_indexed_borrow above.
+        // view: a live element-view binding, or an element or byte view the
+        // caller received. The descriptor's stored extent means the FixedIndex
+        // hop has no canonical FixedArray spelling either. Runtime index hops
+        // into a view already ride runtime_indexed_borrow above.
         let element_view_borrow = !argument.path.is_empty()
             && argument.access != terminal_psi::StructuralAccess::Owned
             && crate::validation::is_static_borrow_path(&argument.path)
-            && crate::validation::element_view::view_loan_result_in_module(
+            && (crate::validation::element_view::view_loan_result_in_module(
                 module,
                 caller,
                 argument.place,
             )
-            .is_some();
+            .is_some()
+                || matches!(
+                    argument.path.first(),
+                    Some(terminal_psi::StructuralPathSegment::FixedIndex(_))
+                ) && super::storage_observations::place_root_type(caller, argument.place)
+                    .is_some_and(|root| {
+                        module.structural_types.iter().any(|declaration| {
+                            declaration.id == root
+                                && matches!(
+                                    declaration.shape,
+                                    terminal_psi::StructuralTypeShape::ElementView { .. }
+                                        | terminal_psi::StructuralTypeShape::ByteSequence(
+                                            terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
+                                                | terminal_psi::ByteSequenceCarrier::BoundedView { .. }
+                                        )
+                                )
+                        })
+                    }));
         // Static stored-view fields were substituted above. A remaining
         // noncanonical path (for example an indexed view parent) may still
         // lend a valid descriptor, but cannot rename an observed binder to

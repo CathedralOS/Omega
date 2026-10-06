@@ -243,9 +243,17 @@ pub(super) fn storage_argument(
     {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
-    let (root_type, access, source) = if live.address_joins.contains(&argument.place) {
+    let (root_type, access, source) = if live.address_joins.contains(&argument.place)
+        || live.block_views.contains(&argument.place)
+    {
+        // An address join carries its referent's address; a view arrival
+        // carries its descriptor, and selection resolves the element through
+        // the view's backing pointer.
         let (block, parameter) = address_join_parameter(function, argument.place)
-            .filter(|(_, parameter)| super::transfers::is_address_join(parameter, types))
+            .filter(|(_, parameter)| {
+                live.block_views.contains(&parameter.place)
+                    || super::transfers::is_address_join(parameter, types)
+            })
             .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
         (
             parameter.structural_type,
