@@ -44,7 +44,7 @@ pub fn admit_native_realization<'request>(
     artifact: &CanonicalTerminalArtifact,
     request: &NativeAdmissionRequest<'request>,
 ) -> Result<AdmittedNativeRealization<'request>, Vec<Diagnostic>> {
-    let input = VerifiedNativeArtifactInput::prepare(artifact, request.providers.profile, &[])
+    let input = VerifiedNativeArtifactInput::prepare(artifact, &[])
         .map_err(artifact_lowering_error)?;
     let providers = admit_native_providers(&input, artifact, &request.providers)?;
     // Exclusions constrain the exercised mechanism closure even when the
@@ -67,7 +67,6 @@ pub(crate) fn artifact_lowering_error(error: ArtifactLoweringError) -> Vec<Diagn
         ArtifactLoweringError::SemanticDecode(error) => {
             realization_error("semantic section", error)
         }
-        ArtifactLoweringError::ProofDecode(error) => realization_error("proof section", error),
         error => realization_error("native artifact lowering", error),
     }
 }

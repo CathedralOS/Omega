@@ -8,7 +8,7 @@ mod optimization;
 mod vocabulary;
 
 pub use configuration::{
-    ElfInterpreterSelections, EvaluatedBuildSettings, PccRequests, PrivilegedServicesGrants,
+    ElfInterpreterSelections, EvaluatedBuildSettings, PrivilegedServicesGrants,
     X86DeploymentClaim,
 };
 pub(super) use vocabulary::{build_reaches_filesystem_facet, is_build_machine};

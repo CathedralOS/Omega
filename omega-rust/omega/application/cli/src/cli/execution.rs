@@ -19,9 +19,6 @@ pub(crate) fn run(arguments: RunArguments) -> ! {
             std::process::exit(compile_failure_status(&error));
         }
     };
-    for pair in outcome.report.pcc_publications() {
-        eprintln!("published {pair}");
-    }
     let status = match outcome.execution {
         ExecutionOutcome::TargetOnly { target_name } => {
             eprintln!(

@@ -88,7 +88,7 @@ pub fn inspect_terminal(
         error,
     })?;
     let fixed_fuel =
-        evidence::inspect(&lowered.semantic_module, &lowered.proof_bundle).map_err(|error| {
+        evidence::inspect(&lowered.semantic_module).map_err(|error| {
             InspectTerminalError::Evidence {
                 machine: request.machine.clone(),
                 error,

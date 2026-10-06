@@ -344,10 +344,8 @@ fn compile_one_prepared_target<Observation>(
     let report = match product {
         compilation_products::CheckedProductReport::Complete(report) => Ok(report),
         compilation_products::CheckedProductReport::Native(settlement) => {
-            let profile = proof_admission::AdmissionProfile::default();
             compiler::native::produce_native_product(
                 compilation_products::NativeProductRequest {
-                    terminal_admission_profile: profile.clone(),
                     terminal_authority_policy,
                     terminal_authority_permission_policy:
                         receiving_terminal_authority_permission_policy,
@@ -358,7 +356,7 @@ fn compile_one_prepared_target<Observation>(
             .and_then(|produced| {
                 settlement
                     .with_timings(produced.timings)
-                    .finish_native(produced.artifact, produced.rollback_receipt, profile)
+                    .finish_native(produced.artifact, produced.rollback_receipt)
                     .map(|report| report.with_withheld_rewrites(produced.withheld_rewrites))
             })
         }

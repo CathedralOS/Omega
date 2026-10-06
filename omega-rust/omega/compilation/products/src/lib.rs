@@ -34,7 +34,6 @@ mod compile_outcomes;
 pub mod compile_request;
 mod evaluated_build;
 mod package_build;
-mod pcc;
 mod prepared_build;
 mod prepared_source;
 pub mod publication;
@@ -65,7 +64,6 @@ pub use native_artifact::{NativePackagePublicationReceipt, PackagePublicationCom
 pub use optimization_core::OptimizationRollbackReceipt;
 pub use package_build::{PackageBuildOutcome, PreparedPackageBuild};
 pub use package_compilation::RetainedBuildOutputs;
-pub use pcc::{PccPublicationReceipt, verify_published_proof_pair};
 pub use prepared_build::{BuiltTypedProgram, PreparedBuild, PreparedBuilds};
 pub use prepared_source::{
     PreparedCheckedSource, PreparedSourceFrontier, TypedCompilationFrontier, TypedFrontierRetention,

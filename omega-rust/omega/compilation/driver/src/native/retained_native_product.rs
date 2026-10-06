@@ -36,7 +36,6 @@ pub fn realize_retained_native_artifact(
             artifact,
             compilation_products::NativeRealizationRequest {
                 admission: prepared.admission_request(
-                    request.profile,
                     &native_settlements,
                     &request.terminal_authority_policy,
                     &request.terminal_authority_permission_policy,

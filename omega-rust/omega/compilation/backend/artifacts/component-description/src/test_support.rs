@@ -184,10 +184,10 @@ pub fn module_subject(module: &TerminalModule) -> TerminalPsiIdentity {
 /// description bytes a consumer verifies.
 pub fn describe_module(module: &TerminalModule) -> Vec<u8> {
     let proof = terminal_psi::ProofBundle::default();
-    let record = terminal_codec::build_identity_optimization_execution_record(module, &proof)
+    let record = terminal_codec::build_identity_optimization_execution_record(module)
         .expect("identity optimization record");
     let artifact =
-        terminal_codec::CanonicalTerminalArtifact::from_parts(module, &proof, &record, None)
+        terminal_codec::CanonicalTerminalArtifact::from_parts(module, &record, None)
             .expect("canonical artifact");
     let selected = SelectedProviderPlanFacts::from_selected_plans(Vec::new())
         .expect("a provider component seals no requirement of its own");

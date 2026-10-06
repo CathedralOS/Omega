@@ -5,7 +5,7 @@
 //! passes, and each pass's own refusal.
 
 use terminal_codec::{
-    CodecError, DebugMapError, ProofCodecError, PsiOptimizationExecutionRecordError,
+    CodecError, DebugMapError, PsiOptimizationExecutionRecordError,
 };
 use terminal_verifier::ModuleError;
 
@@ -21,7 +21,6 @@ pub enum PsiOptimizationStageError {
     InvalidProofCheckElisionRewrite(terminal_verifier::ProofCheckElisionRewriteError),
     InvalidModule(ModuleError),
     InvalidSemantic(CodecError),
-    InvalidProof(ProofCodecError),
     InvalidDebugMap(DebugMapError),
     InvalidExecutionRecord(PsiOptimizationExecutionRecordError),
 }
@@ -57,7 +56,6 @@ impl std::fmt::Display for PsiOptimizationStageError {
             Self::InvalidSemantic(error) => {
                 write!(formatter, "invalid optimization semantics: {error}")
             }
-            Self::InvalidProof(error) => write!(formatter, "invalid optimization proof: {error}"),
             Self::InvalidDebugMap(error) => {
                 write!(formatter, "invalid optimization debug map: {error}")
             }

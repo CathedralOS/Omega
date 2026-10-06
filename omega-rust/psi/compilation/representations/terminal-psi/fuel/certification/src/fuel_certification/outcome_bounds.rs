@@ -2876,7 +2876,7 @@ fn member_closure_error(
                 .map(|rank| rank.block)
                 .collect();
             FixedFuelError::UnboundedCycleComponent {
-                component: terminal_verifier::cyclic_component_identity(machine, &members),
+                component: terminal_semantics::control_graph::cyclic_component_identity(machine, &members),
                 cause: UnboundedCycleCause::OpenCalleeSet { operation },
             }
         }
@@ -2907,7 +2907,7 @@ pub(super) fn unbounded_rank_report(
 ) -> FixedFuelError {
     let members: Vec<BlockId> = component.ranks.iter().map(|rank| rank.block).collect();
     FixedFuelError::UnboundedCycleComponent {
-        component: terminal_verifier::cyclic_component_identity(machine, &members),
+        component: terminal_semantics::control_graph::cyclic_component_identity(machine, &members),
         cause: UnboundedCycleCause::UnboundedRank,
     }
 }
@@ -2927,7 +2927,7 @@ pub(super) fn unbounded_cycle_report(machine: &TerminalMachine, hit: BlockId) ->
                 .find(|members| members.contains(&hit))
         })
         .map(|members| FixedFuelError::UnboundedCycleComponent {
-            component: terminal_verifier::cyclic_component_identity(machine, &members),
+            component: terminal_semantics::control_graph::cyclic_component_identity(machine, &members),
             cause: UnboundedCycleCause::Unranked,
         })
         .unwrap_or(FixedFuelError::ControlCycle(hit))

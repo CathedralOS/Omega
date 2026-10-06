@@ -18,8 +18,6 @@ pub(crate) fn admit_provider_installation_with_projection(
     plan: &AbstractOperationPlan,
     module: &terminal_psi::TerminalModule,
     semantic_bytes: &[u8],
-    proof_bytes: &[u8],
-    profile: &proof_admission::AdmissionProfile,
     selected: &[SelectedProviderAdapter],
 ) -> Result<AdmittedProviderInstallation, ProviderInstallationError> {
 
@@ -86,8 +84,6 @@ pub(crate) fn admit_provider_installation_with_projection(
         replay_installed_provider_calls(plan, module, &installed_candidates)?;
     let installation = terminal_interpreter::admit_provider_installation_from_artifact(
         semantic_bytes,
-        proof_bytes,
-        profile,
         &selections,
     )
     .map_err(ProviderInstallationError::PsiAdmission)?;

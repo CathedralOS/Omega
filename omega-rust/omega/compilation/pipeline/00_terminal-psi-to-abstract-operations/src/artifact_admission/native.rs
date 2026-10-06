@@ -24,7 +24,6 @@ impl VerifiedNativeArtifactInput {
     /// Both cached preparation and direct realization use this same operation.
     pub fn prepare(
         artifact: &terminal_codec::CanonicalTerminalArtifact,
-        profile: &proof_admission::AdmissionProfile,
         establishments: &[TerminalPlacedViewEstablishment],
     ) -> Result<Self, ArtifactLoweringError> {
         artifact
@@ -36,7 +35,7 @@ impl VerifiedNativeArtifactInput {
         let module = artifact
             .semantic_module()
             .map_err(ArtifactLoweringError::SemanticDecode)?;
-        super::lower_decoded_artifact(module, artifact.proof_bytes(), None, profile)?
+        super::lower_decoded_artifact(module)?
             .try_into_native_input(establishments)
     }
 

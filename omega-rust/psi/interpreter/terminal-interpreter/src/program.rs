@@ -347,12 +347,9 @@ impl TerminalProgram {
     /// is a separate compilation authority that stays upstream of this API.
     pub fn load(
         semantic_bytes: &[u8],
-        proof_bytes: &[u8],
-        profile: &proof_admission::AdmissionProfile,
     ) -> Result<Self, TerminalArtifactInterpretError> {
         let module = terminal_codec::decode_module(semantic_bytes)
             .map_err(TerminalArtifactInterpretError::SemanticDecode)?;
-        let _ = (proof_bytes, profile);
         terminal_verifier::validate_module_for_interpretation(&module)
             .map_err(TerminalArtifactInterpretError::Validation)?;
         Ok(Self {
@@ -367,11 +364,10 @@ impl TerminalProgram {
     /// reusable program. The envelope carries no checked-tree or build object.
     pub fn load_envelope(
         artifact_bytes: &[u8],
-        profile: &proof_admission::AdmissionProfile,
     ) -> Result<Self, TerminalArtifactInterpretError> {
         let artifact = terminal_codec::CanonicalTerminalArtifact::from_bytes(artifact_bytes)
             .map_err(TerminalArtifactInterpretError::ArtifactDecode)?;
-        Self::load(artifact.semantic_bytes(), artifact.proof_bytes(), profile)
+        Self::load(artifact.semantic_bytes())
     }
 
     /// The exact Terminal-Psi identity this program was admitted under.

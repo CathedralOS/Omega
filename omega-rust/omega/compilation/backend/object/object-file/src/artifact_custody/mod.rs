@@ -30,7 +30,7 @@ use codec::{
 };
 
 const ARTIFACT_MAGIC: &[u8; 8] = b"OMGOTA\0\0";
-const ARTIFACT_VERSION: u32 = 1;
+const ARTIFACT_VERSION: u32 = 2;
 const MANIFEST_MAGIC: &[u8; 8] = b"OMGOTM\0\0";
 const MANIFEST_VERSION: u32 = 1;
 
@@ -123,8 +123,6 @@ pub struct OptimizedObjectArtifactRecord {
     pub identity: OptimizedObjectArtifactIdentity,
     pub psi_artifact: [u8; 32],
     pub psi: TerminalPsiIdentity,
-    pub obligation_ledger: [u8; 32],
-    pub proof_bundle: [u8; 32],
     pub debug_section: Option<[u8; 32]>,
     pub selections: OptimizationSelectionIdentity,
     pub target: NativeTarget,

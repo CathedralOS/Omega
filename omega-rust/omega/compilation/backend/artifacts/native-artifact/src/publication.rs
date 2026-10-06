@@ -68,7 +68,6 @@ pub fn executable_installation_evidence_digest(
 pub(crate) fn native_publication_certificate_digest(
     native_artifact_identity: &[u8; 32],
     semantic_bytes: &[u8],
-    proof_bytes: &[u8],
     target: target::NativeTarget,
     final_image_symbol_digest: image::FinalImageSymbolDigest,
     boundary_contract_report_fingerprint: Option<u64>,
@@ -83,8 +82,6 @@ pub(crate) fn native_publication_certificate_digest(
     digest.update(native_artifact_identity);
     digest.update((semantic_bytes.len() as u64).to_le_bytes());
     digest.update(semantic_bytes);
-    digest.update((proof_bytes.len() as u64).to_le_bytes());
-    digest.update(proof_bytes);
     digest.update([match target.architecture {
         target::Architecture::Aarch64 => 1,
         target::Architecture::X86_64 => 2,
@@ -151,33 +148,6 @@ pub(crate) fn executable_container_digest(bytes: &[u8]) -> ExecutableContainerDi
     ExecutableContainerDigest::from_digest(digest.finalize().into())
 }
 
-/// Producer-side pair validation for one native executable/companion: replay
-/// the exact checks a receiver performs under a self-consistent policy so a
-/// malformed or byte-inconsistent pair can never be reported as published.
-/// The bounded placed-image evidence must decode and replay against the
-/// published bytes. `Incomplete(UnsupportedEvidence)` is the honest ceiling —
-/// the coverage leg validates while the behavioral legs have no standalone
-/// checking yet — but `Reject` or a named resource limit means the emitted
-/// evidence cannot carry even its bounded claim, and refuses publication.
-pub fn validate_native_pair(
-    executable_bytes: &[u8],
-    sidecar: &terminal_codec::PccProofSidecar,
-    admission_profile: &proof_admission::AdmissionProfile,
-) -> Result<(), String> {
-    let policy =
-        terminal_codec::PccReceiverPolicy::for_offered_claim(sidecar, admission_profile.clone());
-    match crate::verify_native_proof_sidecar(executable_bytes, &sidecar.to_bytes(), &policy) {
-        terminal_codec::PccVerificationOutcome::Complete(_)
-        | terminal_codec::PccVerificationOutcome::Incomplete(
-            terminal_codec::PccIncompleteness::UnsupportedEvidence {
-                product: terminal_codec::PccProductKind::Native,
-            },
-        ) => Ok(()),
-        outcome => Err(format!(
-            "native proof sidecar failed producer validation: {outcome:?}"
-        )),
-    }
-}
 
 /// Immutable custody for one compiler-published executable container.
 ///

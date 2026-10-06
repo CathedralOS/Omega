@@ -11,7 +11,7 @@
 use target::NativeApplicationMetadata;
 
 use crate::{
-    OptimizationRollbackReceipt, PccPublicationReceipt, RetainedNativeArtifact,
+    OptimizationRollbackReceipt, RetainedNativeArtifact,
     RetainedTerminalArtifact, TerminalNativeRealizationProposal,
 };
 use artifacts::compile_timings::PhaseTiming;
@@ -32,27 +32,6 @@ pub enum CompileOutputKind {
 }
 
 impl CompileOutputKind {
-    /// Eligibility is shared by pre-production admission and direct report attachment.
-    pub(crate) fn admit_proof_requests(
-        self,
-        requests: package_compilation::build_execution::build_value::PccRequests,
-    ) -> Result<(), &'static str> {
-        match self {
-            Self::CheckOnly if requests.any() => {
-                Err("a check-only stop cannot satisfy an optional proof-product request")
-            }
-            Self::BuildArtifacts if requests.any() => {
-                Err("artifact-only builds cannot publish Psi or native proof products")
-            }
-            Self::TerminalArtifact if requests.native => {
-                Err("a Terminal stop cannot satisfy a native proof-product request")
-            }
-            Self::ObjectContainer if requests.any() => {
-                Err("an object container cannot satisfy an optional proof-product request")
-            }
-            _ => Ok(()),
-        }
-    }
 }
 
 /// The retained Terminal product and the subtractive build overlay whose
@@ -173,23 +152,6 @@ impl CompileProduct {
         }
     }
 
-    /// Proof-product eligibility of this exact payload: the kind's rule, and
-    /// a dynamically linked ELF output has no native proof product because
-    /// the native sidecar certifies direct-image evidence only.
-    fn admit_proof_requests(
-        &self,
-        requests: package_compilation::build_execution::build_value::PccRequests,
-    ) -> Result<(), &'static str> {
-        self.kind().admit_proof_requests(requests)?;
-        match self {
-            Self::RetainedDynamicElfArtifact(_) | Self::DynamicElfExecutable(_)
-                if requests.native =>
-            {
-                Err("a dynamically linked ELF output cannot carry a native proof product")
-            }
-            _ => Ok(()),
-        }
-    }
 
     const fn optimization_rollback(&self) -> Option<&OptimizationRollbackReceipt> {
         match self {
@@ -230,14 +192,11 @@ pub struct CompileReport {
     /// package-aware production. Standalone probes carry no such manifest.
     /// The normalized Build's two independent optional proof-product
     /// requests. Both are off by default; neither grants receiving authority.
-    pcc_requests: package_compilation::build_execution::build_value::PccRequests,
     /// The admission profile under which the retained artifact's evidence was
     /// produced. Publication names it as the sidecar's checker profile and
     /// uses it for the producer-side pair validation.
-    terminal_admission_profile: proof_admission::AdmissionProfile,
     /// Every artifact/`.proof` companion pair this report published, each
     /// carrying separate artifact and sidecar byte sizes.
-    pcc_publications: Vec<PccPublicationReceipt>,
     /// Per-stage measurements the checked record accumulated during this
     /// compilation; empty unless the request asked for timing collection.
     timings: Vec<PhaseTiming>,
@@ -259,9 +218,6 @@ impl CompileReport {
             root_path,
             source_file_count,
             wrote_output: false,
-            pcc_requests: package_compilation::build_execution::build_value::PccRequests::default(),
-            terminal_admission_profile: proof_admission::AdmissionProfile::default(),
-            pcc_publications: Vec::new(),
             timings: Vec::new(),
             withheld_rewrites: Vec::new(),
         }
@@ -347,7 +303,6 @@ impl CompileReport {
     pub(crate) fn record_native_publication(
         mut self,
         receipt: ExecutablePublicationReceipt,
-        proofs: Vec<PccPublicationReceipt>,
         package: Option<NativePackagePublicationReceipt>,
     ) -> Result<Self, String> {
         let CompileProduct::RetainedNativeArtifact(product) = self.product else {
@@ -363,7 +318,6 @@ impl CompileReport {
             application: product.application,
         });
         self.wrote_output = true;
-        self.pcc_publications = proofs;
         Ok(self)
     }
 
@@ -373,7 +327,6 @@ impl CompileReport {
     pub(crate) fn record_dynamic_elf_publication(
         mut self,
         receipt: DynamicElfPublicationReceipt,
-        proofs: Vec<PccPublicationReceipt>,
     ) -> Result<Self, String> {
         let CompileProduct::RetainedDynamicElfArtifact(product) = self.product else {
             return Err(
@@ -391,22 +344,17 @@ impl CompileReport {
             application: product.application,
         });
         self.wrote_output = true;
-        self.pcc_publications = proofs;
         Ok(self)
     }
 
     /// Terminal publication retains the portable payload and records its proof pairs.
-    pub(crate) fn record_terminal_publication(
-        mut self,
-        proofs: Vec<PccPublicationReceipt>,
-    ) -> Result<Self, String> {
+    pub(crate) fn record_terminal_publication(mut self) -> Result<Self, String> {
         if !matches!(self.product, CompileProduct::TerminalArtifact(_)) || self.wrote_output {
             return Err(
                 "terminal publication requires exactly one retained terminal artifact".into(),
             );
         }
         self.wrote_output = true;
-        self.pcc_publications = proofs;
         Ok(self)
     }
 
@@ -592,28 +540,6 @@ impl CompileReport {
         &self.timings
     }
 
-    /// Retain the normalized Build's optional proof-product requests and the
-    /// admission profile that produced the retained evidence. Publication
-    /// uses these to emit and self-validate every requested pair; they confer
-    /// no receiving authority. Incompatible products reject before attachment;
-    /// publication freezes this context so the recorded pairs cannot be relabeled.
-    pub fn with_pcc_context(
-        mut self,
-        pcc_requests: package_compilation::build_execution::build_value::PccRequests,
-        terminal_admission_profile: proof_admission::AdmissionProfile,
-    ) -> Result<Self, &'static str> {
-        self.product.admit_proof_requests(pcc_requests)?;
-        if self.wrote_output
-            && (self.pcc_requests != pcc_requests
-                || self.terminal_admission_profile != terminal_admission_profile)
-        {
-            return Err("published proof-product context cannot be replaced");
-        }
-        self.pcc_requests = pcc_requests;
-        self.terminal_admission_profile = terminal_admission_profile;
-        Ok(self)
-    }
-
     /// Retain the authored application name, hosted intent, and identifier
     /// with a retained native artifact. Publication uses the name for the
     /// `.app` basename and inner executable leaf, the intent to select
@@ -664,25 +590,6 @@ impl CompileReport {
             .and_then(|application| application.identifier.as_ref())
     }
 
-    /// The normalized Build's two independent optional proof-product
-    /// requests retained on this report.
-    pub const fn pcc_requests(
-        &self,
-    ) -> package_compilation::build_execution::build_value::PccRequests {
-        self.pcc_requests
-    }
-
-    /// Every artifact/`.proof` companion pair published by this report, each
-    /// reporting artifact and sidecar byte sizes separately.
-    pub fn pcc_publications(&self) -> &[PccPublicationReceipt] {
-        &self.pcc_publications
-    }
-
-    /// The admission profile under which this report's retained evidence was
-    /// produced, retained for pair publication by downstream product routes.
-    pub const fn terminal_admission_profile(&self) -> &proof_admission::AdmissionProfile {
-        &self.terminal_admission_profile
-    }
 
     pub fn from_retained_terminal_artifact(
         root_path: PathBuf,

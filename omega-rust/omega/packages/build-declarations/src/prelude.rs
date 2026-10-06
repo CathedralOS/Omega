@@ -120,13 +120,6 @@ pub data OutputCompletion {
     case Sealed(receipt: OutputReceipt);
     case Retry(obligation: RequiredOutput, file: BuildPath);
 }
-// Optional proof-carrying product requests (wiki/spec/proofs/publication.md).
-// Both flags are independent and default to false; they request adjacent
-// `.proof` sidecars, never a different pipeline or weaker checking.
-pub data Pcc {
-    psi: bool;
-    native: bool;
-}
 // Authored granular privileged-service admission evidence
 // (wiki/spec/build/permissions.md#privileged-services): each flag admits
 // exactly one mediated privileged class for the produced image's assembly
@@ -160,7 +153,6 @@ pub data Build {
     identifier: &[u8];
     elf_interpreter: ElfInterpreterSelection;
     optimizations: Optimizations;
-    pcc: Pcc;
     privileged_services: PrivilegedServices;
     source: BuildSource;
     inputs: BuildInputs;

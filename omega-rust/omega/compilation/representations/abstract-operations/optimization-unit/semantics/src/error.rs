@@ -424,7 +424,6 @@ pub enum OptimizationUnitValidationError {
         edge: EdgeId,
     },
     ContextIdentity(terminal_codec::CodecError),
-    ContextProofFingerprint(terminal_codec::ProofCodecError),
     VerifiedOptimizationUnitProjectionMismatch,
     CandidateInputMismatch,
     CandidateAnalysisContractMismatch,

@@ -66,7 +66,6 @@ impl<'artifact> PreparedExecutablePublication<'artifact> {
         let certificate_digest = native_publication_certificate_digest(
             &native_artifact_identity,
             artifact.semantic_bytes(),
-            artifact.proof_bytes(),
             artifact.target(),
             artifact.image().final_image_symbol_digest(),
             boundary_contract_report_fingerprint,

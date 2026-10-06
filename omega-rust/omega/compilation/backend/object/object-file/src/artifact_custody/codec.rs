@@ -15,8 +15,6 @@ pub(super) fn encode_artifact_content(record: &OptimizedObjectArtifactRecord) ->
     let mut bytes = Vec::new();
     bytes.extend_from_slice(&record.psi_artifact);
     encode_psi(&mut bytes, record.psi);
-    bytes.extend_from_slice(&record.obligation_ledger);
-    bytes.extend_from_slice(&record.proof_bundle);
     encode_optional_array(&mut bytes, record.debug_section);
     bytes.extend_from_slice(&record.selections.bytes());
     encode_target(&mut bytes, record.target);
@@ -41,8 +39,6 @@ pub(super) fn decode_artifact_content(
         identity,
         psi_artifact: cursor.array()?,
         psi: decode_psi(cursor)?,
-        obligation_ledger: cursor.array()?,
-        proof_bundle: cursor.array()?,
         debug_section: decode_optional_array(cursor)?,
         selections: OptimizationSelectionIdentity::from_bytes(cursor.array()?),
         target: decode_target(cursor)?,

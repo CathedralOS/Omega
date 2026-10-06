@@ -26,7 +26,6 @@ mod native_artifact;
 pub mod optimized_semantic_wrapper_object;
 mod package_publication;
 mod physical;
-mod proof;
 mod publication;
 mod semantic_wrapper_object;
 
@@ -70,7 +69,7 @@ pub use publication::{
     DynamicElfPublicationReceipt, ExecutableContainerDigest, ExecutableInstallationEvidenceDigest,
     ExecutablePublicationReceipt, NativePackageEvidenceDigest, NativePublicationCertificateDigest,
     NativePublicationEvidenceDigest, PackageComponentDigest, PreparedDynamicElfPublication,
-    PreparedExecutablePublication, executable_installation_evidence_digest, validate_native_pair,
+    PreparedExecutablePublication, executable_installation_evidence_digest,
 };
 pub use semantic_wrapper_object::{
     OptimizedProgramStorageSemanticWrapperCallResolution,
@@ -92,7 +91,3 @@ pub use semantic_wrapper_object::{
     encode_optimized_program_storage_semantic_wrapper_object_preserving_seal,
 };
 
-pub use proof::{
-    NATIVE_PLACED_IMAGE_COVERAGE_GUARANTEE, NativeEvidenceError, NativePlacedImageEvidence,
-    build_native_proof_sidecar, verify_native_proof_sidecar,
-};

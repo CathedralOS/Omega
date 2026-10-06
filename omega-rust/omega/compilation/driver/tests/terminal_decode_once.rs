@@ -123,7 +123,6 @@ fn native_realization_decodes_the_terminal_module_once() {
     let product = realize_retained_native_artifact(
         retained,
         RetainedNativeRealizationRequest {
-            profile: &proof_admission::AdmissionProfile::default(),
             optimization_selections:
                 &optimization_core::PostTerminalOptimizationSelections::default(),
             terminal_authority_policy: provider_admission::terminal_authority_policy_with_rows(

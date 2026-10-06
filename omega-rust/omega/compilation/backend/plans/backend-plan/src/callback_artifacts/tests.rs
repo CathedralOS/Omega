@@ -84,10 +84,9 @@ fn machine(id: u64, entry_block: u64) -> terminal_psi::TerminalMachine {
 fn thunk_artifact(
     module: &terminal_psi::TerminalModule,
 ) -> terminal_codec::CanonicalTerminalArtifact {
-    let proof = terminal_psi::ProofBundle::default();
-    let optimization = terminal_codec::build_identity_optimization_execution_record(module, &proof)
+    let optimization = terminal_codec::build_identity_optimization_execution_record(module)
         .expect("identity optimization execution");
-    terminal_codec::CanonicalTerminalArtifact::from_parts(module, &proof, &optimization, None)
+    terminal_codec::CanonicalTerminalArtifact::from_parts(module, &optimization, None)
         .expect("canonical Terminal artifact")
 }
 

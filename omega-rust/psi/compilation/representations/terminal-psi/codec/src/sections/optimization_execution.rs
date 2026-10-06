@@ -8,15 +8,11 @@ use optimization::{
 use sha2::{Digest, Sha256};
 use terminal_psi::TerminalModule;
 use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
-use terminal_verifier::ProofBundle;
 
-use crate::{
-    CodecError, ProofBundleFingerprint, ProofCodecError, proof_bundle_fingerprint,
-    terminal_psi_identity,
-};
+use crate::{CodecError, terminal_psi_identity};
 
 const MAGIC: &[u8; 8] = b"PSIOEXE\0";
-const FORMAT_MARKER: u16 = 1;
+const FORMAT_MARKER: u16 = 2;
 const IDENTITY_DOMAIN: &[u8] = b"psi.preterminal-optimization-execution.v1\0";
 
 /// Strong identity of one selected pre-Terminal optimization execution.
@@ -44,9 +40,7 @@ impl std::fmt::Debug for PsiOptimizationExecutionIdentity {
 pub struct PsiOptimizationExecutionRecord {
     selections: PsiOptimizationSelections,
     input_semantic: TerminalPsiIdentity,
-    input_proof: ProofBundleFingerprint,
     output_semantic: TerminalPsiIdentity,
-    output_proof: ProofBundleFingerprint,
     identity: PsiOptimizationExecutionIdentity,
 }
 
@@ -54,28 +48,22 @@ impl PsiOptimizationExecutionRecord {
     pub fn new(
         selections: PsiOptimizationSelections,
         input_semantic: TerminalPsiIdentity,
-        input_proof: ProofBundleFingerprint,
-        output_semantic: TerminalPsiIdentity,
-        output_proof: ProofBundleFingerprint,
-    ) -> Result<Self, PsiOptimizationExecutionRecordError> {
+            output_semantic: TerminalPsiIdentity,
+        ) -> Result<Self, PsiOptimizationExecutionRecordError> {
         if selections.is_empty()
-            && (input_semantic != output_semantic || input_proof != output_proof)
+            && input_semantic != output_semantic
         {
             return Err(PsiOptimizationExecutionRecordError::IdentityStageChangedProduct);
         }
         let identity = execution_identity(
             selections.identity(),
             input_semantic,
-            input_proof,
             output_semantic,
-            output_proof,
         );
         Ok(Self {
             selections,
             input_semantic,
-            input_proof,
             output_semantic,
-            output_proof,
             identity,
         })
     }
@@ -96,16 +84,8 @@ impl PsiOptimizationExecutionRecord {
         self.input_semantic
     }
 
-    pub const fn input_proof(&self) -> ProofBundleFingerprint {
-        self.input_proof
-    }
-
     pub const fn output_semantic(&self) -> TerminalPsiIdentity {
         self.output_semantic
-    }
-
-    pub const fn output_proof(&self) -> ProofBundleFingerprint {
-        self.output_proof
     }
 
     pub const fn identity(&self) -> PsiOptimizationExecutionIdentity {
@@ -115,9 +95,8 @@ impl PsiOptimizationExecutionRecord {
     pub fn validate_output(
         &self,
         semantic: TerminalPsiIdentity,
-        proof: ProofBundleFingerprint,
     ) -> Result<(), PsiOptimizationExecutionRecordError> {
-        if self.output_semantic != semantic || self.output_proof != proof {
+        if self.output_semantic != semantic {
             return Err(PsiOptimizationExecutionRecordError::OutputMismatch);
         }
         Ok(())
@@ -130,19 +109,10 @@ impl PsiOptimizationExecutionRecord {
 /// still crosses the pipeline stage whose output is required by publication.
 pub fn build_identity_optimization_execution_record(
     module: &TerminalModule,
-    proof: &ProofBundle,
 ) -> Result<PsiOptimizationExecutionRecord, PsiOptimizationExecutionRecordBuildError> {
     let semantic = terminal_psi_identity(module)
         .map_err(PsiOptimizationExecutionRecordBuildError::Semantic)?;
-    let proof =
-        proof_bundle_fingerprint(proof).map_err(PsiOptimizationExecutionRecordBuildError::Proof)?;
-    PsiOptimizationExecutionRecord::new(
-        PsiOptimizationSelections::default(),
-        semantic,
-        proof,
-        semantic,
-        proof,
-    )
+    PsiOptimizationExecutionRecord::new(PsiOptimizationSelections::default(), semantic, semantic)
     .map_err(PsiOptimizationExecutionRecordBuildError::Record)
 }
 
@@ -160,9 +130,7 @@ pub fn encode_psi_optimization_execution_record(
     );
     bytes.extend_from_slice(&selections);
     append_terminal_identity(&mut bytes, record.input_semantic);
-    bytes.extend_from_slice(record.input_proof.as_bytes());
     append_terminal_identity(&mut bytes, record.output_semantic);
-    bytes.extend_from_slice(record.output_proof.as_bytes());
     bytes
 }
 
@@ -182,9 +150,7 @@ pub fn decode_psi_optimization_execution_record(
     let selections = PsiOptimizationSelections::decode(cursor.take(selections_len)?)
         .map_err(PsiOptimizationExecutionRecordDecodeError::Selection)?;
     let input_semantic = decode_terminal_identity(&mut cursor)?;
-    let input_proof = ProofBundleFingerprint::from_bytes(cursor.array()?);
     let output_semantic = decode_terminal_identity(&mut cursor)?;
-    let output_proof = ProofBundleFingerprint::from_bytes(cursor.array()?);
     if cursor.remaining() != 0 {
         return Err(PsiOptimizationExecutionRecordDecodeError::TrailingBytes(
             cursor.remaining(),
@@ -193,9 +159,7 @@ pub fn decode_psi_optimization_execution_record(
     let record = PsiOptimizationExecutionRecord::new(
         selections,
         input_semantic,
-        input_proof,
         output_semantic,
-        output_proof,
     )
     .map_err(PsiOptimizationExecutionRecordDecodeError::InvalidRecord)?;
     if encode_psi_optimization_execution_record(&record) != bytes {
@@ -207,17 +171,13 @@ pub fn decode_psi_optimization_execution_record(
 fn execution_identity(
     selection: PsiOptimizationSelectionIdentity,
     input_semantic: TerminalPsiIdentity,
-    input_proof: ProofBundleFingerprint,
     output_semantic: TerminalPsiIdentity,
-    output_proof: ProofBundleFingerprint,
 ) -> PsiOptimizationExecutionIdentity {
     let mut digest = Sha256::new();
     digest.update(IDENTITY_DOMAIN);
     digest.update(selection.bytes());
     append_identity_to_digest(&mut digest, input_semantic);
-    digest.update(input_proof.as_bytes());
     append_identity_to_digest(&mut digest, output_semantic);
-    digest.update(output_proof.as_bytes());
     PsiOptimizationExecutionIdentity(digest.finalize().into())
 }
 
@@ -291,7 +251,6 @@ pub enum PsiOptimizationExecutionRecordError {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PsiOptimizationExecutionRecordBuildError {
     Semantic(CodecError),
-    Proof(ProofCodecError),
     Record(PsiOptimizationExecutionRecordError),
 }
 

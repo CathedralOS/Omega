@@ -104,16 +104,10 @@ fn verified_unit(source: &str) -> VerifiedPsiOptimizationUnit {
     .expect("lower measure");
     let semantic =
         terminal_codec::encode_module(&lowered.semantic_module).expect("encode semantics");
-    let proof =
-        terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
-            .expect("encode proof");
     let input = lower_artifact(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes: &semantic,
-            proof_bytes: &proof,
-            obligation_ledger_bytes: None,
         },
-        &proof_admission::AdmissionProfile::default(),
     )
     .map(|admitted| {
         admitted

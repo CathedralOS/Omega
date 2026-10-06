@@ -414,10 +414,6 @@ impl NativeArtifact {
         self.psi_artifact.semantic_bytes()
     }
 
-    pub fn proof_bytes(&self) -> &[u8] {
-        self.psi_artifact.proof_bytes()
-    }
-
     pub const fn psi_artifact(&self) -> &terminal_codec::CanonicalTerminalArtifact {
         &self.psi_artifact
     }

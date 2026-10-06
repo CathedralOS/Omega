@@ -49,7 +49,6 @@ fn lower_callback_thunk(
         .map_err(|error| realization_error("callback thunk artifact replay", error))?;
     let input = terminal_psi_to_abstract_operations::VerifiedNativeArtifactInput::prepare(
         artifact,
-        request.admission.providers.profile,
         &[],
     )
     .map_err(artifact_lowering_error)?;

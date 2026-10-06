@@ -394,7 +394,6 @@ struct TerminalSemanticLeg {
     /// spelling the corpus already uses for plan fingerprints.
     fingerprint: String,
     artifact: compilation_products::RetainedTerminalArtifact,
-    profile: proof_admission::AdmissionProfile,
     /// The settled rollback receipt this build's report publishes: `Some`
     /// exactly when the request carried a non-empty overlay.
     receipt: Option<String>,
@@ -430,7 +429,6 @@ fn produce_terminal_semantic(
     let receipt = report
         .optimization_rollback_receipt()
         .map(std::string::ToString::to_string);
-    let profile = report.terminal_admission_profile().clone();
     let retained = report.into_retained_terminal_artifact().ok_or_else(|| {
         vec![diagnostics::Diagnostic::error(
             "Terminal-artifact product retained no artifact",
@@ -445,7 +443,6 @@ fn produce_terminal_semantic(
     let leg = TerminalSemanticLeg {
         fingerprint: fingerprint[..16].to_owned(),
         artifact: retained,
-        profile,
         receipt,
     };
     let _ = fs::remove_dir_all(&build_dir);
@@ -586,7 +583,6 @@ fn interpret_fixture(
     let expected_stdout = fs::read_to_string(fixture_dir.join("expected_stdout.txt")).ok();
     terminal_execution::interpret(
         leg.artifact.artifact(),
-        &leg.profile,
         expected_stdout.as_deref(),
         1_000_000,
     )
@@ -615,7 +611,6 @@ fn interpret_native_report(
     let expected_stdout = fs::read_to_string(fixture_dir.join("expected_stdout.txt")).ok();
     terminal_execution::interpret(
         artifact,
-        report.terminal_admission_profile(),
         expected_stdout.as_deref(),
         1_000_000,
     )

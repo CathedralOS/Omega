@@ -26,7 +26,6 @@ use terminal_psi_to_abstract_operations::provider_admission::{
 /// (including an explicit empty policy) adjudicates every closure leaf
 /// against exact supplied rows.
 pub struct NativeProductRequest {
-    pub terminal_admission_profile: proof_admission::AdmissionProfile,
     pub terminal_authority_policy: TerminalAuthorityPolicy,
     pub terminal_authority_permission_policy: Option<TerminalAuthorityPermissionPolicy>,
     pub optimization_rollback: OptimizationRollback,
@@ -77,7 +76,6 @@ impl NativeRealizationRequest<'_> {
 /// Policies do not establish package admission: the package consumer binds
 /// accepted evidence to the production subject before constructing this input.
 pub struct RetainedNativeRealizationRequest<'request> {
-    pub profile: &'request proof_admission::AdmissionProfile,
     pub optimization_selections: &'request optimization_core::PostTerminalOptimizationSelections,
     pub terminal_authority_policy: TerminalAuthorityPolicy,
     pub accepted_package_terminal_authority_permission_policy: TerminalAuthorityPermissionPolicy,

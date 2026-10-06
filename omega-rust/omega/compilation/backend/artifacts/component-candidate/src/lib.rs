@@ -95,10 +95,6 @@ impl ComponentCandidate {
         self.native_artifact.semantic_bytes()
     }
 
-    pub fn proof_bytes(&self) -> &[u8] {
-        self.native_artifact.proof_bytes()
-    }
-
     pub const fn artifact(&self) -> &terminal_codec::CanonicalTerminalArtifact {
         self.native_artifact.psi_artifact()
     }

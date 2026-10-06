@@ -30,8 +30,6 @@ pub fn admit_checked_provider_installation(
         plan,
         module,
         artifact.semantic_bytes(),
-        artifact.proof_bytes(),
-        request.profile,
         &selected,
     )
     .map_err(|error| realization_error("checked-provider installation", format!("{error:?}")))?;

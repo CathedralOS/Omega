@@ -30,7 +30,6 @@ pub struct EvaluatedBuildSettings {
     /// default to false; they request adjacent `.proof` sidecars beside the
     /// ordinary artifacts and never weaken ordinary checking or select a
     /// different pipeline.
-    pub pcc: PccRequests,
     /// Authored granular privileged-service grants
     /// (wiki/spec/build/permissions.md#privileged-services): each flag admits
     /// exactly one mediated privileged class in the produced image's
@@ -105,26 +104,6 @@ impl ElfInterpreterSelections {
     }
 }
 
-/// The two independent optional proof-product selections retained from
-/// normalized Build. Each requests the matching artifact/`.proof` companion
-/// pair at publication; neither grants receiving authority.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub struct PccRequests {
-    /// Publish the Psi artifact beside a `.proof` companion. A Psi request
-    /// retains the Psi artifact even during source-to-native compilation.
-    pub psi: bool,
-    /// Publish the native artifact beside a standalone `.proof` companion.
-    /// A stop that excludes native production cannot satisfy this request.
-    pub native: bool,
-}
-
-impl PccRequests {
-    /// True when either optional proof product was requested.
-    pub const fn any(self) -> bool {
-        self.psi || self.native
-    }
-}
-
 /// The independent mediated privileged-service grants retained from the
 /// evaluated `Build.privileged_services` flags. Each admits only its own
 /// asm authority class; neither implies the other nor machine-owner
@@ -146,7 +125,6 @@ impl Default for EvaluatedBuildSettings {
             freestanding: false,
             optimizations: OptimizationSelections::default(),
             x86_deployment_claim: X86DeploymentClaim::Baseline,
-            pcc: PccRequests::default(),
             privileged_services: PrivilegedServicesGrants::default(),
             elf_interpreters: ElfInterpreterSelections::default(),
         }
@@ -289,30 +267,6 @@ pub(crate) fn extract_build_settings(
         other => return Err(format!("Build.freestanding is not a bool: {other:?}")),
     };
 
-    // An authored Build that predates the PCC surface carries no `pcc`
-    // field; omission means false for both independent requests.
-    let pcc = match field("pcc") {
-        Ok(BuildTimeValue::Struct { fields, .. }) => {
-            let flag = |name: &str| -> Result<bool, String> {
-                match fields
-                    .iter()
-                    .find(|(field, _)| field == name)
-                    .map(|(_, value)| value)
-                {
-                    Some(BuildTimeValue::Bool(value)) => Ok(*value),
-                    Some(other) => Err(format!("Build.pcc.{name} is not a bool: {other:?}")),
-                    None => Ok(false),
-                }
-            };
-            PccRequests {
-                psi: flag("psi")?,
-                native: flag("native")?,
-            }
-        }
-        Ok(other) => return Err(format!("Build.pcc is not a Pcc struct: {other:?}")),
-        Err(_) => PccRequests::default(),
-    };
-
     // An authored Build that predates the privileged-service surface carries
     // no `privileged_services` field; omission grants no mediated class.
     let privileged_services = match field("privileged_services") {
@@ -367,7 +321,6 @@ pub(crate) fn extract_build_settings(
             freestanding,
             optimizations,
             x86_deployment_claim,
-            pcc,
             privileged_services,
             elf_interpreters,
         },

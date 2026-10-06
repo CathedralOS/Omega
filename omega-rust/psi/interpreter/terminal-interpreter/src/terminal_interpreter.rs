@@ -58,7 +58,6 @@ use terminal_fuel::{FuelMeterError, TerminalFuelMeter};
 /// build-process object.
 pub fn interpret_serialized_terminal_artifact_measured(
     artifact_bytes: &[u8],
-    profile: &proof_admission::AdmissionProfile,
     scalar_arguments: &[TerminalScalarValue],
     structural_inputs: TerminalStructuralInputs<'_>,
     handler: &mut impl TerminalEffectHandler,
@@ -67,8 +66,6 @@ pub fn interpret_serialized_terminal_artifact_measured(
         .map_err(TerminalArtifactInterpretError::ArtifactDecode)?;
     interpret_terminal_artifact_measured(
         artifact.semantic_bytes(),
-        artifact.proof_bytes(),
-        profile,
         scalar_arguments,
         structural_inputs,
         handler,
@@ -79,16 +76,12 @@ pub fn interpret_serialized_terminal_artifact_measured(
 /// measuring its fuel; every structural input arrives in one record.
 pub fn interpret_terminal_artifact_measured(
     semantic_bytes: &[u8],
-    proof_bytes: &[u8],
-    profile: &proof_admission::AdmissionProfile,
     scalar_arguments: &[TerminalScalarValue],
     structural_inputs: TerminalStructuralInputs<'_>,
     handler: &mut impl TerminalEffectHandler,
 ) -> Result<MeasuredTerminalExecution, TerminalArtifactInterpretError> {
     let mut execution = TerminalExecution::start_artifact(
         semantic_bytes,
-        proof_bytes,
-        profile,
         scalar_arguments,
         structural_inputs,
     )?;
@@ -122,14 +115,10 @@ pub fn interpret_terminal_artifact_measured(
 /// sections, returning only their semantic result.
 pub fn interpret_terminal_artifact(
     semantic_bytes: &[u8],
-    proof_bytes: &[u8],
-    profile: &proof_admission::AdmissionProfile,
     arguments: &[TerminalScalarValue],
 ) -> Result<TerminalExecutionResult, TerminalArtifactInterpretError> {
     interpret_terminal_artifact_measured(
         semantic_bytes,
-        proof_bytes,
-        profile,
         arguments,
         TerminalStructuralInputs::default(),
         &mut AcceptTerminalEffects,
@@ -141,14 +130,10 @@ pub fn interpret_terminal_artifact(
 /// rows in its canonical provider catalog.
 pub fn admit_provider_installation_from_artifact(
     semantic_bytes: &[u8],
-    proof_bytes: &[u8],
-    profile: &proof_admission::AdmissionProfile,
     selections: &[ProviderInstallationSelection],
 ) -> Result<AdmittedProviderInstallation, ProviderInstallationError> {
     admit_provider_installation_with_assumed_bindings_from_artifact(
         semantic_bytes,
-        proof_bytes,
-        profile,
         selections,
         &[],
     )
@@ -178,14 +163,11 @@ pub fn admit_provider_installation_from_artifact(
 /// their own evidence custody.
 pub fn admit_provider_installation_with_assumed_bindings_from_artifact(
     semantic_bytes: &[u8],
-    proof_bytes: &[u8],
-    profile: &proof_admission::AdmissionProfile,
     selections: &[ProviderInstallationSelection],
     assumptions: &[AssumedBindingSelection],
 ) -> Result<AdmittedProviderInstallation, ProviderInstallationError> {
     let module = terminal_codec::decode_module(semantic_bytes)
         .map_err(ProviderInstallationError::SemanticDecode)?;
-    let _ = (proof_bytes, profile);
     let verified = terminal_verifier::validate_module(&module)
         .map_err(ProviderInstallationError::Validation)?;
     let mut installed = BTreeMap::new();
@@ -297,15 +279,13 @@ impl TerminalExecution {
     /// entry contents before committing any operation or custody transfer.
     pub fn start_artifact(
         semantic_bytes: &[u8],
-        proof_bytes: &[u8],
-        profile: &proof_admission::AdmissionProfile,
         scalar_arguments: &[TerminalScalarValue],
         structural_inputs: TerminalStructuralInputs<'_>,
     ) -> Result<Self, TerminalArtifactInterpretError> {
         // One admission path serves both public surfaces: `load` decodes the
         // subject-sealed sections and verifies under the interpretation
         // profile; `start_execution` binds this record's inputs.
-        crate::program::TerminalProgram::load(semantic_bytes, proof_bytes, profile)?
+        crate::program::TerminalProgram::load(semantic_bytes)?
             .start_execution(scalar_arguments, structural_inputs, None)
     }
 
@@ -314,15 +294,12 @@ impl TerminalExecution {
     /// supply exact initialized backing; an installed provider grants no storage.
     pub fn start_installed_artifact(
         semantic_bytes: &[u8],
-        proof_bytes: &[u8],
-        profile: &proof_admission::AdmissionProfile,
         scalar_arguments: &[TerminalScalarValue],
         structural_inputs: TerminalStructuralInputs<'_>,
         installation: &AdmittedProviderInstallation,
     ) -> Result<Self, TerminalArtifactInterpretError> {
         let module = terminal_codec::decode_module(semantic_bytes)
             .map_err(TerminalArtifactInterpretError::SemanticDecode)?;
-        let _ = (proof_bytes, profile);
         terminal_verifier::validate_module(&module)
             .map_err(TerminalArtifactInterpretError::Validation)?;
         let program = crate::program::TerminalProgram::from_admitted(

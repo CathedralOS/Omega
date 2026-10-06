@@ -41,7 +41,6 @@ pub fn produce_native_product(
     let artifact = crate::native::realize_retained_native_artifact(
         terminal.artifact,
         compilation_products::RetainedNativeRealizationRequest {
-            profile: &request.terminal_admission_profile,
             optimization_selections: post_terminal.selections(),
             terminal_authority_policy: request.terminal_authority_policy,
             accepted_package_terminal_authority_permission_policy,

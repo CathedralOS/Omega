@@ -3,7 +3,7 @@
 use self::options::CompileOptions;
 use diagnostics::Diagnostic;
 use optimization_core::OptimizationRollback;
-use package_compilation::build_execution::{BuildSnapshotRequest, build_value::PccRequests};
+use package_compilation::build_execution::BuildSnapshotRequest;
 use package_compilation::{
     PackageCompilationInputs, PackageCompilationSourceInputs, PackageCompilationTargetInputs,
 };
@@ -76,25 +76,14 @@ impl RequestedCompileProduct {
     pub(crate) fn admit_build_requirements(
         self,
         artifact_only: bool,
-        pcc_requests: PccRequests,
         optimization_rollback: &OptimizationRollback,
     ) -> Result<(), Vec<Diagnostic>> {
-        let kind = if artifact_only && self != Self::Check {
-            if !optimization_rollback.is_empty() {
+        if artifact_only && self != Self::Check && !optimization_rollback.is_empty() {
                 return Err(vec![Diagnostic::error(
                     "artifact-only builds execute no product optimization stages to roll back",
                 )]);
-            }
-            crate::CompileOutputKind::BuildArtifacts
-        } else {
-            match self {
-                Self::Check => crate::CompileOutputKind::CheckOnly,
-                Self::TerminalArtifact => crate::CompileOutputKind::TerminalArtifact,
-                Self::NativeArtifact => crate::CompileOutputKind::RetainedNativeArtifact,
-            }
-        };
-        kind.admit_proof_requests(pcc_requests)
-            .map_err(|message| vec![Diagnostic::error(message)])
+        }
+        Ok(())
     }
 }
 
@@ -117,7 +106,6 @@ pub struct TargetCompileConfiguration {
     target_name: Option<String>,
     build_dir: Option<PathBuf>,
     pub(super) build_snapshot: Option<BuildSnapshotRequest>,
-    pub(super) terminal_admission_profile: proof_admission::AdmissionProfile,
     terminal_authority_policy: TerminalAuthorityPolicy,
     /// The receiver-admission axis, supplied only by an explicit
     /// `with_terminal_authority_permission_policy` call. `None` means this
@@ -139,7 +127,6 @@ impl TargetCompileConfiguration {
             target_name,
             build_dir,
             build_snapshot: None,
-            terminal_admission_profile: proof_admission::AdmissionProfile::default(),
             terminal_authority_policy: current_terminal_authority_policy(),
             // Ordinary production supplies no receiving permission policy: the
             // receiver-admission axis is claimed only by an explicit setter
@@ -161,10 +148,6 @@ impl TargetCompileConfiguration {
     /// Omission retains the automatic snapshot for canonical package inputs.
     pub fn with_build_snapshot(mut self, snapshot: BuildSnapshotRequest) -> Self {
         self.build_snapshot = Some(snapshot);
-        self
-    }
-    pub fn with_admission_profile(mut self, profile: proof_admission::AdmissionProfile) -> Self {
-        self.terminal_admission_profile = profile;
         self
     }
     /// Supply the receiving mechanism-classification policy for this target.
@@ -269,13 +252,6 @@ impl CompileRequest {
         self
     }
 
-    /// Apply a common admission choice to every current configuration.
-    pub fn with_admission_profile(mut self, profile: proof_admission::AdmissionProfile) -> Self {
-        for configuration in &mut self.configurations {
-            configuration.terminal_admission_profile = profile.clone();
-        }
-        self
-    }
     /// Apply a common receiving mechanism-classification policy to every
     /// current configuration. Distinct per-target policies belong on their
     /// configurations.
@@ -465,10 +441,6 @@ impl ValidatedTargetCompilation {
     pub fn optimization_rollback(&self) -> &OptimizationRollback {
         &self.configuration.optimization_rollback
     }
-    pub fn terminal_admission_profile(&self) -> &proof_admission::AdmissionProfile {
-        &self.configuration.terminal_admission_profile
-    }
-
     pub fn options(&self) -> &CompileOptions {
         &self.options
     }
@@ -480,7 +452,6 @@ impl ValidatedTargetCompilation {
     /// keeps only what native production needs.
     pub fn into_native_product_request(self) -> NativeProductRequest {
         NativeProductRequest {
-            terminal_admission_profile: self.configuration.terminal_admission_profile,
             terminal_authority_policy: self.configuration.terminal_authority_policy,
             terminal_authority_permission_policy: self
                 .configuration

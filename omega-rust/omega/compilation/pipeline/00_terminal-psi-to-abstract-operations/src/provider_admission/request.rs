@@ -67,7 +67,6 @@ pub struct NativeCompilerBuiltinSettlement<'execution> {
 /// terminal-authority policies.
 pub struct ProviderAdmissionRequest<'request> {
     pub target: target::NativeTarget,
-    pub profile: &'request proof_admission::AdmissionProfile,
     pub program_entry: crate::NativeProgramEntrySettlement<'request>,
     pub selected_provider_plans: &'request effects::SelectedProviderPlanFacts,
     pub external_binding_rows: &'request [calling_conventions::ExternalBindingRow],

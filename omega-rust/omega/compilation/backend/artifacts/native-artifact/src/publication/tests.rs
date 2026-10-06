@@ -16,7 +16,6 @@ fn receipt(output_path: PathBuf) -> ExecutablePublicationReceipt {
     let certificate = native_publication_certificate_digest(
         &[1; 32],
         b"psi",
-        b"proof",
         target::NativeTarget::linux_x64(),
         image::final_image_symbol_digest(&symbol_image),
         Some(17),

@@ -1,11 +1,10 @@
-//! Verify inspection input before attempting an optional fixed-work certificate.
+//! Validate inspection input before attempting an optional fixed-work certificate.
 
-use proof_admission::AdmissionProfile;
 use terminal_fixed_fuel::{
     FixedEntryFuelCertificate, FixedFuelError, derive_fixed_entry_fuel, validate_fixed_entry_fuel,
 };
-use terminal_psi::{ProofBundle, TerminalModule};
-use terminal_verifier::{VerificationError, verify_module};
+use terminal_psi::TerminalModule;
+use terminal_verifier::{ModuleError, validate_module};
 
 #[derive(Debug)]
 pub enum FixedFuel {
@@ -15,31 +14,24 @@ pub enum FixedFuel {
 
 #[derive(Debug)]
 pub enum InspectionError {
-    Verification(VerificationError),
+    Validation(ModuleError),
     FixedFuel(FixedFuelError),
 }
 
 impl std::fmt::Display for InspectionError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Verification(error) => write!(formatter, "verification failed: {error}"),
+            Self::Validation(error) => write!(formatter, "module validation failed: {error}"),
             Self::FixedFuel(error) => write!(formatter, "fixed-fuel checking failed: {error}"),
         }
     }
 }
 
-pub(super) fn inspect(
-    module: &TerminalModule,
-    proof: &ProofBundle,
-) -> Result<FixedFuel, InspectionError> {
-    let profile = AdmissionProfile::default();
-    // Natural certificates and unranked graphs share the ordinary verification
-    // entrance; failure never retries through a different authority or drops
-    // proof evidence.
-    let verified = verify_module(module, proof, &profile).map_err(InspectionError::Verification)?;
+pub(super) fn inspect(module: &TerminalModule) -> Result<FixedFuel, InspectionError> {
+    validate_module(module).map_err(InspectionError::Validation)?;
     retain_bound(
-        derive_fixed_entry_fuel(&verified, module.entry),
-        |certificate| validate_fixed_entry_fuel(&verified, certificate),
+        derive_fixed_entry_fuel(module, module.entry),
+        |certificate| validate_fixed_entry_fuel(module, certificate),
     )
 }
 

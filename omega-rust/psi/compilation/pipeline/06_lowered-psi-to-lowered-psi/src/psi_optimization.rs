@@ -10,11 +10,8 @@ use crate::{
 use lowered_psi::LoweredPsi;
 use optimization::{PRETERMINAL_PSI_PASS_CATALOG, PsiOptimization, PsiOptimizationSelections};
 use terminal_codec::PsiOptimizationExecutionRecord;
-use terminal_codec::{
-    ProofBundleFingerprint, proof_bundle_fingerprint, terminal_psi_identity, validate_debug_map,
-};
+use terminal_codec::terminal_psi_identity;
 use terminal_psi::TerminalPsiIdentity;
-use terminal_verifier::validate_module_for_optimization;
 
 /// Execute the selected target-neutral optimization phase over the complete
 /// unsealed Psi product.
@@ -32,7 +29,7 @@ pub fn run_psi_optimization(
     mut lowered: LoweredPsi,
     selections: PsiOptimizationSelections,
 ) -> Result<PsiOptimizationStageResult, PsiOptimizationStageError> {
-    let (input_semantic, input_proof) = validate_carrier(&lowered)?;
+    let input_semantic = carrier_identity(&lowered)?;
     let mut refusals = Vec::new();
     for selected in selections.as_slice() {
         match selected {
@@ -60,7 +57,7 @@ pub fn run_psi_optimization(
         }
     }
 
-    let (output_semantic, output_proof) = validate_carrier(&lowered)?;
+    let output_semantic = carrier_identity(&lowered)?;
     let executed = PsiOptimizationSelections::new(
         selections
             .as_slice()
@@ -72,9 +69,7 @@ pub fn run_psi_optimization(
     let execution = PsiOptimizationExecutionRecord::new(
         executed,
         input_semantic,
-        input_proof,
         output_semantic,
-        output_proof,
     )
     .map_err(PsiOptimizationStageError::InvalidExecutionRecord)?;
     Ok(PsiOptimizationStageResult::new(
@@ -82,20 +77,8 @@ pub fn run_psi_optimization(
     ))
 }
 
-fn validate_carrier(
-    lowered: &LoweredPsi,
-) -> Result<(TerminalPsiIdentity, ProofBundleFingerprint), PsiOptimizationStageError> {
-    validate_module_for_optimization(&lowered.semantic_module)
-        .map_err(PsiOptimizationStageError::InvalidModule)?;
-    let semantic = terminal_psi_identity(&lowered.semantic_module)
-        .map_err(PsiOptimizationStageError::InvalidSemantic)?;
-    let proof = proof_bundle_fingerprint(&lowered.proof_bundle)
-        .map_err(PsiOptimizationStageError::InvalidProof)?;
-    if let Some(debug_map) = lowered.debug_map.as_ref() {
-        validate_debug_map(&lowered.semantic_module, debug_map)
-            .map_err(PsiOptimizationStageError::InvalidDebugMap)?;
-    }
-    Ok((semantic, proof))
+fn carrier_identity(lowered: &LoweredPsi) -> Result<TerminalPsiIdentity, PsiOptimizationStageError> {
+    terminal_psi_identity(&lowered.semantic_module).map_err(PsiOptimizationStageError::InvalidSemantic)
 }
 
 /// Validated output of the selected target-neutral Psi optimization phase.

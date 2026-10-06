@@ -40,12 +40,11 @@ impl Observation {
 
 pub(super) fn interpret(
     artifact: &terminal_codec::CanonicalTerminalArtifact,
-    profile: &proof_admission::AdmissionProfile,
     expected_stdout: Option<&str>,
     fuel_allowance: u64,
 ) -> Observation {
     let program =
-        match TerminalProgram::load(artifact.semantic_bytes(), artifact.proof_bytes(), profile) {
+        match TerminalProgram::load(artifact.semantic_bytes()) {
             Ok(program) => program,
             Err(error) => return Observation::failure(error),
         };

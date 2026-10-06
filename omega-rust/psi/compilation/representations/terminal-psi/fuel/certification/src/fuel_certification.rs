@@ -10,7 +10,6 @@ use semantic_vocabulary::{BlockId, EdgeId, MachineId};
 use std::collections::BTreeMap;
 use terminal_codec::terminal_psi_identity;
 use terminal_fuel::TerminalFuelSchedule;
-use terminal_verifier::VerifiedTerminalModule;
 
 mod outcome_bounds;
 mod segment_partition;
@@ -19,10 +18,10 @@ mod segment_partition;
 /// module. The checker performs no search and depends on no producing compiler
 /// state or proof-bundle representation.
 pub fn derive_fixed_entry_fuel(
-    verified: &VerifiedTerminalModule<'_>,
+    module: &terminal_psi::TerminalModule,
     entry: MachineId,
 ) -> Result<FixedEntryFuelCertificate, FixedFuelError> {
-    let module = verified.module();
+    let module = module;
     let terminal_psi = terminal_psi_identity(module).map_err(FixedFuelError::SemanticIdentity)?;
     let machine = module
         .machines
@@ -53,10 +52,10 @@ pub fn derive_fixed_entry_fuel(
 /// Recompute and compare every public certificate field. Consumers never need
 /// to trust a producing compiler's claimed ceiling.
 pub fn validate_fixed_entry_fuel(
-    verified: &VerifiedTerminalModule<'_>,
+    module: &terminal_psi::TerminalModule,
     certificate: &FixedEntryFuelCertificate,
 ) -> Result<(), FixedFuelError> {
-    let expected = derive_fixed_entry_fuel(verified, certificate.entry)?;
+    let expected = derive_fixed_entry_fuel(module, certificate.entry)?;
     if expected != *certificate {
         return Err(FixedFuelError::CertificateMismatch);
     }
@@ -71,12 +70,12 @@ pub fn validate_fixed_entry_fuel(
 /// leaving through another terminal edge are covered by that edge's own
 /// certificate.
 pub fn derive_fixed_segment_fuel(
-    verified: &VerifiedTerminalModule<'_>,
+    module: &terminal_psi::TerminalModule,
     machine: MachineId,
     start_block: BlockId,
     end_edge: EdgeId,
 ) -> Result<FixedSegmentFuelCertificate, FixedFuelError> {
-    let subject = PreparedFuelModule::new(verified.module());
+    let subject = PreparedFuelModule::new(module);
     subject.identity()?;
     let prepared = PreparedSegments::new(&subject, machine)?;
     prepared.segment_certificate(start_block, end_edge, &mut BTreeMap::new())
@@ -95,10 +94,10 @@ pub fn derive_fixed_segment_fuel(
 /// The returned order is canonical block order followed by terminator edge
 /// order, restricted to blocks reachable from the machine entry.
 pub fn derive_fixed_safe_point_segments(
-    verified: &VerifiedTerminalModule<'_>,
+    module: &terminal_psi::TerminalModule,
     machine: MachineId,
 ) -> Result<Vec<FixedSegmentFuelCertificate>, FixedFuelError> {
-    let subject = PreparedFuelModule::new(verified.module());
+    let subject = PreparedFuelModule::new(module);
     let prepared = PreparedSegments::new(&subject, machine)?;
     prepared.derive_catalog()
 }
@@ -111,11 +110,11 @@ pub fn derive_fixed_safe_point_segments(
 /// or semantically stale rows therefore reject before the sealed carrier is
 /// created.
 pub fn retain_validated_fixed_safe_point_segments(
-    verified: &VerifiedTerminalModule<'_>,
+    module: &terminal_psi::TerminalModule,
     machine: MachineId,
     certificates: Vec<FixedSegmentFuelCertificate>,
 ) -> Result<ValidatedFixedSafePointFuelSegments, FixedFuelError> {
-    let subject = PreparedFuelModule::new(verified.module());
+    let subject = PreparedFuelModule::new(module);
     let prepared = PreparedSegments::new(&subject, machine)?;
     let expected = prepared.derive_catalog()?;
     validate_certificate_sequence(&expected, &certificates)?;
@@ -129,10 +128,10 @@ pub fn retain_validated_fixed_safe_point_segments(
 
 /// Derive and seal the complete canonical safe-point partition.
 pub fn derive_validated_fixed_safe_point_segments(
-    verified: &VerifiedTerminalModule<'_>,
+    module: &terminal_psi::TerminalModule,
     machine: MachineId,
 ) -> Result<ValidatedFixedSafePointFuelSegments, FixedFuelError> {
-    let subject = PreparedFuelModule::new(verified.module());
+    let subject = PreparedFuelModule::new(module);
     let prepared = PreparedSegments::new(&subject, machine)?;
     let certificates = prepared.derive_catalog()?;
     // Replay the complete roster with fresh outcome working state before sealing.

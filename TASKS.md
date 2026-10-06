@@ -3491,45 +3491,26 @@ deletions, which the commit lists.
   Acceptance: workspace `mbx build --lib --tests` succeeds, the corpus is
   unchanged, and no maintenance or landing command reads the deleted ledger.
 
-- **PCC-WIRE-DELETED.** (new-scope) Depends on **PCC-CERTIFICATES-DELETED**.
-  Delete the proof transport in one commit and bump the codec version:
-  - in `omega-rust/psi/compilation/representations/terminal-psi/codec/src/`:
-    `sections/proof_bundle/` (including `signature_codec.rs`),
-    `sections/proof_sidecar.rs`, `artifact_admission.rs`, `trust_graph.rs`,
-    `sections/obligation_ledger.rs`, `sections/terminal_trace_v1_profile/`,
-    `publication.rs`, `bin/psi-terminal-publish.rs`, the proof section of
-    `canonical_artifact.rs`/`sections/artifact_manifest.rs`, the
-    `ProofBundle` in `sections/optimization_execution.rs`, and
-    `sections/semantic_module/mathematical_certificate_wire/`;
-  - `omega-rust/psi/compilation/representations/terminal-psi/src/artifacts/proof_bundle/`:
-    move `nodes.rs` and `witnesses.rs`, with the certificate envelope, into
-    `proof-admission`; delete crash and recursion evidence;
-  - the PCC-only parts of `terminal-psi/src/terminal_module/proof/`:
-    `quotient.rs`, `recursion.rs`, `scalar_block_invariants.rs`, and the
-    declarations/outputs/values sections;
-  - `proof-admission` `src/admission/recursion.rs`,
-    `src/admission/normalization.rs` and the PCC half of
-    `src/admission/denotation.rs`;
-  - the stage 07 `encode_mathematical_signature` transport;
-  - `terminal-psi/src/terminal_module/observation/` TraceV1, after checking
-    the use in
-    `omega-rust/psi/interpreter/terminal-interpreter/src/semantic_value_comparison.rs`.
+- **PCC-WIRE-DELETED.** (new-scope) The canonical artifact carries no proof
+  section, obligation ledger, mathematical-signature section or trust graph,
+  and the codec's proof sidecar, PCC receiver, publication binary and TraceV1
+  profile are deleted. Remaining: the `ProofBundle` type in `terminal-psi`
+  (`src/artifacts/proof_bundle/`) and the `LoweredPsi.proof_bundle` stage 05
+  still fills; `sections/semantic_module/mathematical_certificate_wire/`; the
+  PCC-only parts of `terminal-psi/src/terminal_module/proof/`; and
+  `proof-admission`'s `admission/recursion.rs`, `admission/normalization.rs`
+  and the PCC half of `admission/denotation.rs`. Acceptance: the
+  `proof-admission` math tests and the check and native corpus are unchanged.
 
   Acceptance: the `proof-admission` math tests and the check and native
   corpus are unchanged; no codec section carries proof evidence.
 
-- **PCC-PRODUCTS-DELETED.** (new-scope) Depends on
-  **TERMINAL-VERIFIER-DELETED**. Delete the requestable PCC products and
-  receiver policy:
-  - the `Pcc*` products in `omega-rust/omega/compilation/products/`
-    (`src/pcc.rs`);
-  - `omega-rust/omega/compilation/backend/artifacts/native-artifact/src/proof.rs`;
-  - object-file `decode_proof_section_for`;
-  - `omega-rust/omega/application/cli/src/inspection/evidence.rs`;
-  - the `builder.pcc.psi` / `builder.pcc.native` build surface;
-  - `AdmissionProfile`, threaded through about 20 crates (driver, products,
-    package-manager, interpreter, stage 00). Keep `verify_obligation`,
-    `Obligation` and `ObligationClass` in `proof-admission`.
+- **PCC-PRODUCTS-DELETED.** (new-scope) The `Pcc*` products, native
+  `proof.rs`, proof-pair publication, `Build.pcc`, and the admission profile
+  on compile requests, reports, stage 00 and the interpreter are deleted.
+  Remaining: `AdmissionProfile` itself in `proof-admission` and its last
+  users. Acceptance: `rg -i "pcc|AdmissionProfile"` finds nothing in
+  `omega-rust` outside history notes.
 
   Acceptance: `rg -i "pcc|AdmissionProfile"` finds nothing in `omega-rust`
   outside history notes; the CLI, package and native corpus are unchanged.

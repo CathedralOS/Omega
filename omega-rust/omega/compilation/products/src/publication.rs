@@ -1,10 +1,9 @@
 //! Publish a finished compiler product. Compilation itself performs no installation.
 //!
-//! One entrypoint selects the retained product, prepares and installs its exact
-//! artifact/proof pairs, then publishes completed build companions. Report methods
+//! One entrypoint selects the retained product, installs its artifact, then
+//! publishes completed build companions. Report methods
 //! only record the resulting custody transitions. Backend owners retain image
 //! evidence and platform installation mechanics.
-mod companions;
 mod native;
 mod terminal;
 
@@ -13,8 +12,7 @@ use std::path::Path;
 
 /// Publish one retained product and its completed build outputs.
 /// Repeated publication and check-only reports reject before filesystem mutation.
-/// Requested proof pairs are checked before installation; no build or compiler
-/// stage is re-entered here. Failures return no successful publication report.
+/// No build or compiler stage is re-entered here. Failures return no successful publication report.
 pub fn publish_compilation(
     report: CompileReport,
     build_dir: &Path,

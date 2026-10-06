@@ -1,19 +1,14 @@
 use sha2::{Digest, Sha256};
 use terminal_psi::TerminalModule;
-use terminal_verifier::ProofBundle;
 
 use crate::{
-    CodecError, ProofBundleFingerprint, ProofCodecError, PsiOptimizationExecutionIdentity,
-    PsiOptimizationExecutionRecord, PsiOptimizationExecutionRecordError,
-    TerminalObligationLedgerFingerprint, TerminalPsiIdentity, TrustGraphError,
-    build_terminal_obligation_ledger, current_terminal_trust_graph, proof_bundle_fingerprint,
-    terminal_obligation_ledger_fingerprint, terminal_psi_identity,
+    CodecError, PsiOptimizationExecutionIdentity, PsiOptimizationExecutionRecord,
+    PsiOptimizationExecutionRecordError, TerminalPsiIdentity, terminal_psi_identity,
 };
 
-const MANIFEST_FORMAT_MARKER: u16 = 3;
+const MANIFEST_FORMAT_MARKER: u16 = 4;
 const INSTALLATION_DOMAIN: &[u8] = b"psi-terminal-installation-section\0";
 const DEBUG_DOMAIN: &[u8] = b"psi-terminal-debug-section\0";
-const MATHEMATICAL_SIGNATURE_DOMAIN: &[u8] = b"psi-terminal-mathematical-signature\0";
 const ARTIFACT_DOMAIN: &[u8] = b"psi-terminal-artifact-manifest\0";
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -61,30 +56,15 @@ impl std::fmt::Display for TerminalArtifactIdentity {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TerminalArtifactManifest {
     semantic: TerminalPsiIdentity,
-    obligations: TerminalObligationLedgerFingerprint,
-    proof: ProofBundleFingerprint,
     optimization: PsiOptimizationExecutionIdentity,
     installation: Option<SectionFingerprint>,
     debug: Option<SectionFingerprint>,
-    /// The canonical mathematical-signature section's content commitment,
-    /// present exactly when the artifact carries one. The fingerprint folds
-    /// into the artifact identity only when present, so a signature-free
-    /// artifact keeps the marker-3 manifest encoding byte-for-byte.
-    mathematical_signature: Option<SectionFingerprint>,
     identity: TerminalArtifactIdentity,
 }
 
 impl TerminalArtifactManifest {
     pub const fn semantic(self) -> TerminalPsiIdentity {
         self.semantic
-    }
-
-    pub const fn proof(self) -> ProofBundleFingerprint {
-        self.proof
-    }
-
-    pub const fn obligations(self) -> TerminalObligationLedgerFingerprint {
-        self.obligations
     }
 
     pub const fn optimization(self) -> PsiOptimizationExecutionIdentity {
@@ -99,12 +79,6 @@ impl TerminalArtifactManifest {
         self.debug
     }
 
-    /// The mathematical-signature section's content commitment, when the
-    /// artifact carries one.
-    pub const fn mathematical_signature(self) -> Option<SectionFingerprint> {
-        self.mathematical_signature
-    }
-
     pub const fn identity(self) -> TerminalArtifactIdentity {
         self.identity
     }
@@ -112,92 +86,39 @@ impl TerminalArtifactManifest {
 
 pub fn build_artifact_manifest(
     semantic_module: &TerminalModule,
-    proof_bundle: &ProofBundle,
     optimization: &PsiOptimizationExecutionRecord,
     installation_record: Option<&[u8]>,
     debug_maps: Option<&[u8]>,
-) -> Result<TerminalArtifactManifest, ArtifactManifestError> {
-    build_artifact_manifest_with_mathematical_signature(
-        semantic_module,
-        proof_bundle,
-        optimization,
-        installation_record,
-        debug_maps,
-        None,
-    )
-}
-
-/// The same commitment plus the canonical mathematical-signature section
-/// bytes the artifact carries — `Some` exactly when the artifact publishes a
-/// checked mathematical signature. The signature fingerprint folds into the
-/// artifact identity only when present, so a signature-free artifact keeps
-/// the marker-3 manifest encoding byte-for-byte.
-pub fn build_artifact_manifest_with_mathematical_signature(
-    semantic_module: &TerminalModule,
-    proof_bundle: &ProofBundle,
-    optimization: &PsiOptimizationExecutionRecord,
-    installation_record: Option<&[u8]>,
-    debug_maps: Option<&[u8]>,
-    mathematical_signature: Option<&[u8]>,
 ) -> Result<TerminalArtifactManifest, ArtifactManifestError> {
     let semantic =
         terminal_psi_identity(semantic_module).map_err(ArtifactManifestError::Semantic)?;
-    let trust_graph = current_terminal_trust_graph().map_err(ArtifactManifestError::TrustGraph)?;
-    let obligation_ledger = build_terminal_obligation_ledger(semantic_module, &trust_graph)
-        .map_err(ArtifactManifestError::Obligations)?;
-    let obligations = terminal_obligation_ledger_fingerprint(&obligation_ledger)
-        .map_err(ArtifactManifestError::Obligations)?;
-    let proof = proof_bundle_fingerprint(proof_bundle).map_err(ArtifactManifestError::Proof)?;
     optimization
-        .validate_output(semantic, proof)
+        .validate_output(semantic)
         .map_err(ArtifactManifestError::Optimization)?;
     let installation = installation_record.map(|bytes| hash_section(INSTALLATION_DOMAIN, bytes));
     let debug = debug_maps.map(|bytes| hash_section(DEBUG_DOMAIN, bytes));
-    let mathematical_signature =
-        mathematical_signature.map(|bytes| hash_section(MATHEMATICAL_SIGNATURE_DOMAIN, bytes));
     let optimization_identity = optimization.identity();
-    let identity = artifact_identity(
-        semantic,
-        obligations,
-        proof,
-        optimization_identity,
-        installation,
-        debug,
-        mathematical_signature,
-    );
+    let identity = artifact_identity(semantic, optimization_identity, installation, debug);
     Ok(TerminalArtifactManifest {
         semantic,
-        obligations,
-        proof,
         optimization: optimization_identity,
         installation,
         debug,
-        mathematical_signature,
         identity,
     })
 }
 
-
-/// Manifest re-decision for an artifact whose envelope carries a
-/// mathematical-signature section; `Some` must carry the section's exact
-/// canonical bytes and `None` asserts the artifact is signature-free.
-pub fn validate_artifact_manifest_with_mathematical_signature(
+/// Reconstruct the manifest from an artifact's sections and require it to
+/// equal the one the artifact carries.
+pub fn validate_artifact_manifest(
     semantic_module: &TerminalModule,
-    proof_bundle: &ProofBundle,
     optimization: &PsiOptimizationExecutionRecord,
     installation_record: Option<&[u8]>,
     debug_maps: Option<&[u8]>,
-    mathematical_signature: Option<&[u8]>,
     manifest: TerminalArtifactManifest,
 ) -> Result<(), ArtifactManifestError> {
-    let expected = build_artifact_manifest_with_mathematical_signature(
-        semantic_module,
-        proof_bundle,
-        optimization,
-        installation_record,
-        debug_maps,
-        mathematical_signature,
-    )?;
+    let expected =
+        build_artifact_manifest(semantic_module, optimization, installation_record, debug_maps)?;
     if expected != manifest {
         return Err(ArtifactManifestError::ManifestMismatch);
     }
@@ -210,28 +131,17 @@ fn hash_section(domain: &[u8], bytes: &[u8]) -> SectionFingerprint {
 
 fn artifact_identity(
     semantic: TerminalPsiIdentity,
-    obligations: TerminalObligationLedgerFingerprint,
-    proof: ProofBundleFingerprint,
     optimization: PsiOptimizationExecutionIdentity,
     installation: Option<SectionFingerprint>,
     debug: Option<SectionFingerprint>,
-    mathematical_signature: Option<SectionFingerprint>,
 ) -> TerminalArtifactIdentity {
     let mut bytes = Vec::new();
     bytes.extend_from_slice(&MANIFEST_FORMAT_MARKER.to_le_bytes());
     bytes.extend_from_slice(&semantic.vocabulary_marker.get().to_le_bytes());
     bytes.extend_from_slice(semantic.program_fingerprint.as_bytes());
-    bytes.extend_from_slice(obligations.as_bytes());
-    bytes.extend_from_slice(proof.as_bytes());
     bytes.extend_from_slice(optimization.as_bytes());
     encode_optional_fingerprint(&mut bytes, installation);
     encode_optional_fingerprint(&mut bytes, debug);
-    // The mathematical-signature commitment folds in only when the artifact
-    // carries the section: a signature-free artifact keeps the identity every
-    // pre-signature receiver derived for the same marker-3 inputs.
-    if mathematical_signature.is_some() {
-        encode_optional_fingerprint(&mut bytes, mathematical_signature);
-    }
     TerminalArtifactIdentity(hash(ARTIFACT_DOMAIN, &bytes))
 }
 
@@ -264,9 +174,6 @@ fn write_hex(formatter: &mut std::fmt::Formatter<'_>, bytes: &[u8; 32]) -> std::
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ArtifactManifestError {
     Semantic(CodecError),
-    TrustGraph(TrustGraphError),
-    Obligations(CodecError),
-    Proof(ProofCodecError),
     Optimization(PsiOptimizationExecutionRecordError),
     ManifestMismatch,
 }

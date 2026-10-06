@@ -752,7 +752,7 @@ fn installed_segment_replay_is_exact_and_never_becomes_entry_authority() {
         Terminator::Jump { edge, .. } => edge,
         _ => unreachable!("fixture begins with one jump"),
     };
-    let certificate = derive_fixed_segment_fuel(&verified, machine, block, edge)
+    let certificate = derive_fixed_segment_fuel(verified.module(), machine, block, edge)
         .expect("one exact terminal segment");
     let terminal = TestObject {
         identity: terminal_psi_identity(&module).expect("terminal identity"),
@@ -841,7 +841,7 @@ fn installed_natural_cycle_safe_point_catalog_binds_to_one_occurrence() {
     let proof = ranked_terminal_proof(&module);
     let verified = verify_module(&module, &proof, &AdmissionProfile::default())
         .expect("natural-cycle countdown verifies under ordinary authority");
-    let catalog = derive_validated_fixed_safe_point_segments(&verified, module.entry)
+    let catalog = derive_validated_fixed_safe_point_segments(verified.module(), module.entry)
         .expect("exact safe-point roster for the ranked component");
     assert_eq!(catalog.certificates().len(), 5);
 

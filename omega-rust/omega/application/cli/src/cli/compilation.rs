@@ -196,9 +196,6 @@ fn print_outcome(outcome: &omega::compilation::CompileProjectOutcome) {
         } else {
             println!("published native output to {}", path.display());
         }
-        for pair in outcome.report.pcc_publications() {
-            println!("published {pair}");
-        }
     } else {
         println!("{}", outcome.report.summary());
     }
@@ -247,9 +244,6 @@ fn report_text(
                 contents.push_str(&format!("published native output to {}\n", path.display()));
             }
         }
-    }
-    for pair in outcome.report.pcc_publications() {
-        contents.push_str(&format!("published {pair}\n"));
     }
     if let Some(directory) = outcome
         .report

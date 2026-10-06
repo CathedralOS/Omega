@@ -71,21 +71,19 @@ fn compile_target(
         CheckedProductReport::Complete(report) => Ok(report),
         // Psi 05-07: lower, optimize and publish the Terminal artifact.
         CheckedProductReport::Terminal(settlement) => {
-            let profile = target.terminal_admission_profile().clone();
             let produced = produce_terminal_product(checked, target.optimization_rollback())?;
             settlement
                 .with_timings(produced.timings)
-                .finish_terminal(produced.artifact, produced.rollback_receipt, profile)
+                .finish_terminal(produced.artifact, produced.rollback_receipt)
                 .map(|report| report.with_withheld_rewrites(produced.withheld_rewrites))
         }
         // The same retained Terminal boundary, then Omega 00-09 and image emission.
         CheckedProductReport::Native(settlement) => {
             let request = target.into_native_product_request();
-            let profile = request.terminal_admission_profile.clone();
             let produced = produce_native_product(request, checked)?;
             settlement
                 .with_timings(produced.timings)
-                .finish_native(produced.artifact, produced.rollback_receipt, profile)
+                .finish_native(produced.artifact, produced.rollback_receipt)
                 .map(|report| report.with_withheld_rewrites(produced.withheld_rewrites))
         }
     }

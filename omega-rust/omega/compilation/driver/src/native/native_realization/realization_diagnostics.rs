@@ -11,7 +11,6 @@ pub(crate) fn artifact_lowering_error(error: ArtifactLoweringError) -> Vec<Diagn
         ArtifactLoweringError::SemanticDecode(error) => {
             realization_error("semantic section", error)
         }
-        ArtifactLoweringError::ProofDecode(error) => realization_error("proof section", error),
         error => realization_error("native artifact lowering", error),
     }
 }

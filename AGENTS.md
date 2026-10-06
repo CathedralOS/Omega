@@ -16,7 +16,7 @@ before replacing it. Repeat in a new checkout if using Claude there. The Windows
 junction avoids administrator or Developer Mode requirements; it is local, not a
 tracked symlink that Git may check out as a plain text file.
 
-Omega is a proof-carrying systems language whose programs are data-oriented
+Omega is a proof-checked systems language whose programs are data-oriented
 state machines. This repository holds the language, its Rust reference
 compiler, its Omega-written product compiler, and the Alpha-to-Omega bootstrap
 chain.

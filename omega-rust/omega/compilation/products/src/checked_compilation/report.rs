@@ -19,7 +19,6 @@ use artifacts::compile_timings::PhaseTiming;
 use diagnostics::Diagnostic;
 use optimization_core::{OptimizationRollback, OptimizationRollbackReceipt};
 use package_compilation::BuildObservationIdentity;
-use package_compilation::build_execution::build_value::PccRequests;
 use std::path::PathBuf;
 use target::NativeApplicationMetadata;
 
@@ -37,7 +36,6 @@ pub struct CompileReportSettlement {
     expected_kind: CompileOutputKind,
     root_path: PathBuf,
     source_file_count: usize,
-    pcc_requests: PccRequests,
     application: NativeApplicationMetadata,
     build_outputs: Option<RetainedBuildOutputs>,
     build_observation: Option<BuildObservationIdentity>,
@@ -61,13 +59,11 @@ impl CheckedCompilation {
         requested
             .validate_optimization_rollback(rollback)
             .map_err(|error| vec![error])?;
-        let pcc_requests = self.build().config.settings.pcc;
         let source_file_count = self.sources().source_file_count();
         let timings = self.timings().phases().to_vec();
         if requested == RequestedCompileProduct::Check {
             requested.admit_build_requirements(
                 self.build_admission().artifact_only(),
-                pcc_requests,
                 rollback,
             )?;
             // A check never acquires completed output files.
@@ -79,7 +75,7 @@ impl CheckedCompilation {
         // precedes evaluated proof/rollback eligibility for producing stops.
         let build_outputs = self.build().completed_outputs()?;
         let artifact_only = self.build_admission().artifact_only();
-        requested.admit_build_requirements(artifact_only, pcc_requests, rollback)?;
+        requested.admit_build_requirements(artifact_only, rollback)?;
         if artifact_only {
             let outputs = build_outputs
                 .ok_or_else(|| diagnostics("artifact-only build completed no files"))?;
@@ -103,7 +99,6 @@ impl CheckedCompilation {
             },
             root_path,
             source_file_count,
-            pcc_requests,
             application: self.build_admission().native_application_metadata(
                 &self.build().config.settings,
                 self.execution().selected_target_profile,
@@ -135,7 +130,6 @@ impl CompileReportSettlement {
         self,
         artifact: RetainedTerminalArtifact,
         rollback: Option<OptimizationRollbackReceipt>,
-        profile: proof_admission::AdmissionProfile,
     ) -> Result<CompileReport, Vec<Diagnostic>> {
         let report = CompileReport::from_retained_terminal_artifact(
             self.root_path.clone(),
@@ -143,7 +137,6 @@ impl CompileReportSettlement {
             artifact,
         )
         .and_then(|report| report.with_terminal_optimization_rollback(rollback))
-        .and_then(|report| report.with_pcc_context(self.pcc_requests, profile))
         .map_err(diagnostics)?;
         self.finish(report)
     }
@@ -155,7 +148,6 @@ impl CompileReportSettlement {
         self,
         artifact: native_artifact::RequestedNativeArtifact,
         rollback: Option<OptimizationRollbackReceipt>,
-        profile: proof_admission::AdmissionProfile,
     ) -> Result<CompileReport, Vec<Diagnostic>> {
         let report = CompileReport::from_requested_native_artifact(
             self.root_path.clone(),
@@ -163,7 +155,6 @@ impl CompileReportSettlement {
             artifact,
             rollback,
         )
-        .and_then(|report| report.with_pcc_context(self.pcc_requests, profile))
         .and_then(|report| report.with_application_metadata(self.application.clone()))
         .map_err(diagnostics)?;
         self.finish(report)
