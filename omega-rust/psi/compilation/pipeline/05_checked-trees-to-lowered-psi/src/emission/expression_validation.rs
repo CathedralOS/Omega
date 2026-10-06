@@ -14,7 +14,10 @@ pub(crate) fn validate_boolean_parameter_types(
         parameter_types: &[ScalarType],
     ) -> Result<(), LoweringError> {
         for segment in path {
-            if let LoweredElementPathSegment::RuntimeIndex { selector, extent } = segment {
+            if let LoweredElementPathSegment::RuntimeIndex {
+                selector, extent, ..
+            } = segment
+            {
                 validate_direct_parameter_types(selector, parameter_types)?;
                 if let Some(extent) = extent {
                     validate_direct_parameter_types(extent, parameter_types)?;
@@ -101,14 +104,10 @@ pub(crate) fn validate_direct_parameter_types(
         | LoweredDirectExpression::ElementViewLength { .. } => Ok(()),
         LoweredDirectExpression::IndexedPrimitiveRead {
             index,
-            inner_indexes,
             element_path,
             ..
         } => {
             validate_direct_parameter_types(index, parameter_types)?;
-            inner_indexes.iter().try_for_each(|inner| {
-                validate_direct_parameter_types(&inner.expression, parameter_types)
-            })?;
             validate_path_parameter_types(element_path, parameter_types)
         }
         LoweredDirectExpression::ByteSequenceFieldLength { path, .. } => {
@@ -118,8 +117,8 @@ pub(crate) fn validate_direct_parameter_types(
             validate_path_parameter_types(path, parameter_types)?;
             validate_direct_parameter_types(index, parameter_types)
         }
-        LoweredDirectExpression::ByteSequenceRead { index, .. }
-        | LoweredDirectExpression::ElementViewRead { index, .. } => {
+        LoweredDirectExpression::ElementViewRead { index, .. }
+        | LoweredDirectExpression::ByteSequenceRead { index, .. } => {
             validate_direct_parameter_types(index, parameter_types)
         }
         LoweredDirectExpression::IntegerBinary { left, right, .. }
@@ -152,7 +151,9 @@ fn validate_path_parameter_types(
         LoweredElementPathSegment, TERMINAL_NESTED_SELECTOR_LIMIT,
     };
     let selectors = path.iter().filter_map(|segment| match segment {
-        LoweredElementPathSegment::RuntimeIndex { selector, extent } => Some((selector, extent)),
+        LoweredElementPathSegment::RuntimeIndex {
+            selector, extent, ..
+        } => Some((selector, extent)),
         _ => None,
     });
     if selectors.clone().count() > TERMINAL_NESTED_SELECTOR_LIMIT {

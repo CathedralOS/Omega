@@ -166,12 +166,15 @@ impl CrashPlan {
             match expression {
                 crate::CheckedScalarExpression::StructuralParameterIndexedRead {
                     index,
-                    inner_indexes,
+                    element_path,
                     ..
                 } => {
                     scalar_uses_proof_gated_arithmetic(&index.expression)
-                        || inner_indexes.iter().any(|selector| {
-                            scalar_uses_proof_gated_arithmetic(&selector.expression)
+                        || element_path.iter().any(|projection| match projection {
+                            crate::CheckedScalarReadProjection::Static(_) => false,
+                            crate::CheckedScalarReadProjection::RuntimeIndex(selector) => {
+                                scalar_uses_proof_gated_arithmetic(&selector.expression)
+                            }
                         })
                 }
                 crate::CheckedScalarExpression::IntegerBinary {

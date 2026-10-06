@@ -297,6 +297,7 @@ fn branch_free_operand_path(
         crate::emission::operation_emission::expressions::LoweredElementPathSegment::RuntimeIndex {
             selector,
             extent,
+            ..
         } => {
             is_branch_free_structural_scalar_expression(
                 selector,

@@ -110,7 +110,6 @@ fn byte_region(
         source,
         path,
         index,
-        inner_indexes,
         element_path,
         scalar_type,
         ..
@@ -118,7 +117,7 @@ fn byte_region(
     else {
         return unsupported("a byte-region re-view must start at one runtime-selected byte");
     };
-    if !inner_indexes.is_empty() || !element_path.is_empty() {
+    if !element_path.is_empty() {
         return unsupported("a byte-region re-view must select a byte of one flat array");
     }
     let bits = view_type.bits();
@@ -151,7 +150,6 @@ fn byte_region(
                 source,
                 path: path.clone(),
                 index: byte_index,
-                inner_indexes: Vec::new(),
                 element_path: Vec::new(),
                 scalar_type,
                 bound_decided: false,

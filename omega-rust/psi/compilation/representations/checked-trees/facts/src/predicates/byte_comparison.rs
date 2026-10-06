@@ -29,7 +29,6 @@ impl CheckedBooleanExpression {
                     expression: literal(u64::try_from(index).ok()?, PrimitiveType::U64)?,
                     occurrence: typed_trees::expression::ExpressionHandle::invalid(),
                 }),
-                inner_indexes: Vec::new(),
                 element_path: Vec::new(),
                 primitive_type: PrimitiveType::U8,
             };

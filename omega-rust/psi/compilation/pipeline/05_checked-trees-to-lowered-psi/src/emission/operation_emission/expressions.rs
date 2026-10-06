@@ -77,8 +77,8 @@ impl PrimitiveReadSource {
 }
 
 /// One element-path step of an `IndexedPrimitiveRead` after lowering: a
-/// static segment spelled verbatim, or a runtime selector evaluated like an
-/// `inner_indexes` operand and emitted as its own `RuntimeIndex` segment in
+/// static segment spelled verbatim, or an evaluated runtime selector emitted
+/// as its own `RuntimeIndex` segment in
 /// the read's path — `cells[i].data[j]` keeps `data`'s `Field` step between
 /// the two runtime selectors.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -89,15 +89,9 @@ pub(crate) enum LoweredElementPathSegment {
     RuntimeIndex {
         selector: LoweredDirectExpression,
         extent: Option<LoweredDirectExpression>,
+        /// The exact authored selector's source-checking verdict.
+        bound_decided: bool,
     },
-}
-
-/// Each inner selector retains its own bound verdict; an outer selection's
-/// decision never authorizes another dimension.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct LoweredScalarSelector {
-    pub(crate) expression: LoweredDirectExpression,
-    pub(crate) bound_decided: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -150,14 +144,10 @@ pub(crate) enum LoweredDirectExpression {
     /// element; for a record element it follows the selector down to one
     /// scalar field (`cells[i].hp`), which the verifier resolves against the
     /// element's declaration.
-    /// `inner_indexes` select again, in order, inside a selected element
-    /// that is itself a fixed array; each becomes its own `RuntimeIndex`
-    /// segment after the outer one.
     IndexedPrimitiveRead {
         source: PlaceId,
         path: Vec<terminal_psi::StructuralPathSegment>,
         index: Box<LoweredDirectExpression>,
-        inner_indexes: Vec<LoweredScalarSelector>,
         element_path: Vec<LoweredElementPathSegment>,
         scalar_type: ScalarType,
         /// Checking proved the outer `[]` index within the declared extent;
@@ -420,20 +410,51 @@ pub(crate) fn emit_prepared_path(
     next_value_identity: &mut u64,
     operations: &mut OperationBuffer,
 ) -> Vec<terminal_psi::StructuralPathSegment> {
-    let mut ordinal = first_ordinal;
-    path.iter()
+    // Evaluate every operand before assigning operation-relative obligations.
+    // A later selector may itself emit reads or arithmetic operations.
+    enum EvaluatedProjection {
+        Static(terminal_psi::StructuralPathSegment),
+        RuntimeIndex { index: ValueId, bound_decided: bool },
+    }
+    let evaluated = path
+        .iter()
         .map(|segment| match segment {
-            LoweredElementPathSegment::Static(segment) => segment.clone(),
-            LoweredElementPathSegment::RuntimeIndex { selector, extent } => {
+            LoweredElementPathSegment::Static(segment) => {
+                EvaluatedProjection::Static(segment.clone())
+            }
+            LoweredElementPathSegment::RuntimeIndex {
+                selector,
+                extent,
+                bound_decided,
+            } => {
                 let index =
                     emit_direct_expression(selector, parameters, next_value_identity, operations);
                 if let Some(extent) = extent {
                     emit_direct_expression(extent, parameters, next_value_identity, operations);
                 }
+                EvaluatedProjection::RuntimeIndex {
+                    index,
+                    bound_decided: *bound_decided,
+                }
+            }
+        })
+        .collect::<Vec<_>>();
+    let mut ordinal = first_ordinal;
+    evaluated
+        .into_iter()
+        .map(|segment| match segment {
+            EvaluatedProjection::RuntimeIndex {
+                index,
+                bound_decided,
+            } => {
                 let obligation = selector_obligation(operations.next_identity, ordinal);
                 ordinal += 1;
+                if bound_decided {
+                    operations.source_checked_obligations.push(obligation);
+                }
                 terminal_psi::StructuralPathSegment::RuntimeIndex { index, obligation }
             }
+            EvaluatedProjection::Static(segment) => segment,
         })
         .collect()
 }
@@ -689,30 +710,13 @@ pub(crate) fn emit_direct_expression(
             source,
             path,
             index,
-            inner_indexes,
             element_path,
             scalar_type,
             bound_decided,
         } => {
-            // Selectors evaluate in authored order, outermost array first.
             let index = emit_direct_expression(index, parameters, next_value_identity, operations);
-            let inner_indexes = inner_indexes
-                .iter()
-                .map(|inner| {
-                    (
-                        emit_direct_expression(
-                            &inner.expression,
-                            parameters,
-                            next_value_identity,
-                            operations,
-                        ),
-                        inner.bound_decided,
-                    )
-                })
-                .collect::<Vec<_>>();
-            // The certificate proves `index < declared extent` against the
-            // array's statically declared length, so no length observation is
-            // needed: the verifier resolves the extent from the prefix.
+            let element_path =
+                emit_prepared_path(element_path, 0, parameters, next_value_identity, operations);
             let obligation = obligation_id(
                 operations
                     .next_identity
@@ -724,21 +728,7 @@ pub(crate) fn emit_direct_expression(
             }
             let mut path = path.clone();
             path.push(terminal_psi::StructuralPathSegment::RuntimeIndex { index, obligation });
-            let inner_count = inner_indexes.len();
-            for (ordinal, (index, bound_decided)) in inner_indexes.into_iter().enumerate() {
-                let obligation = selector_obligation(operations.next_identity, ordinal);
-                if bound_decided {
-                    operations.source_checked_obligations.push(obligation);
-                }
-                path.push(terminal_psi::StructuralPathSegment::RuntimeIndex { index, obligation });
-            }
-            path.extend(emit_prepared_path(
-                element_path,
-                inner_count,
-                parameters,
-                next_value_identity,
-                operations,
-            ));
+            path.extend(element_path);
             emit_scalar_leaf(
                 OperationKind::PrimitiveScalarRead {
                     source: *source,

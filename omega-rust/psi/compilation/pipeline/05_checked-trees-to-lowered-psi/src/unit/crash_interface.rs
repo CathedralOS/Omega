@@ -174,13 +174,16 @@ fn contract_scoped_scalar(expression: &CheckedScalarExpression) -> bool {
         | CheckedScalarExpression::IntegerLiteral { .. } => true,
         CheckedScalarExpression::StructuralParameterIndexedRead {
             index,
-            inner_indexes,
+            element_path,
             ..
         } => {
             contract_scoped_scalar(&index.expression)
-                && inner_indexes
-                    .iter()
-                    .all(|selector| contract_scoped_scalar(&selector.expression))
+                && element_path.iter().all(|step| match step {
+                    checked_trees::CheckedScalarReadProjection::Static(_) => true,
+                    checked_trees::CheckedScalarReadProjection::RuntimeIndex(selector) => {
+                        contract_scoped_scalar(&selector.expression)
+                    }
+                })
         }
         CheckedScalarExpression::IntegerBinary { left, right, .. } => {
             contract_scoped_scalar(left) && contract_scoped_scalar(right)

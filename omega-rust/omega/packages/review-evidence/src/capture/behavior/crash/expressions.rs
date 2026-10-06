@@ -164,22 +164,76 @@ fn project_scalar_expression(
             root,
             path,
             index,
-            inner_indexes,
             element_path,
             primitive_type,
-        } => PackageReviewScalarExpression::StructuralParameterIndexedRead {
-            parameter_position: root.parameter()?,
-            path: project_structural_path(path),
-            // Review records describe behavior, not producer-local source
-            // occurrences or the bounds decisions those occurrences consume.
-            index: Box::new(project_scalar_expression(&index.expression)?),
-            inner_indexes: inner_indexes
+        } => {
+            // Public records retain the existing canonical vocabulary. Initial
+            // consecutive selectors are scalar expressions; selectors following
+            // members need a public coordinate. Never export source occurrences.
+            let prefix_count = element_path
                 .iter()
-                .map(|selector| project_scalar_expression(&selector.expression))
-                .collect::<Option<_>>()?,
-            element_path: project_structural_path(element_path),
-            primitive_type: project_primitive_type(*primitive_type),
-        },
+                .take_while(|step| {
+                    matches!(
+                        step,
+                        checked_trees::CheckedScalarReadProjection::RuntimeIndex(_)
+                    )
+                })
+                .count();
+            let inner_indexes = element_path[..prefix_count]
+                .iter()
+                .map(|step| {
+                    let checked_trees::CheckedScalarReadProjection::RuntimeIndex(selector) = step
+                    else {
+                        return None;
+                    };
+                    project_scalar_expression(&selector.expression)
+                })
+                .collect::<Option<_>>()?;
+            let element_path = element_path[prefix_count..]
+                .iter()
+                .map(|step| match step {
+                    checked_trees::CheckedScalarReadProjection::Static(segment) => {
+                        project_structural_path(std::slice::from_ref(segment)).pop()
+                    }
+                    checked_trees::CheckedScalarReadProjection::RuntimeIndex(selector) => {
+                        let coordinate = match &selector.expression {
+                            CheckedScalarExpression::Parameter { position, .. } => {
+                                PackageReviewRuntimeIndex::Parameter {
+                                    position: u32::try_from(*position).ok()?,
+                                }
+                            }
+                            CheckedScalarExpression::Local { position, .. } => {
+                                PackageReviewRuntimeIndex::Local {
+                                    position: u32::try_from(*position).ok()?,
+                                }
+                            }
+                            CheckedScalarExpression::StructuralParameterField {
+                                parameter_position,
+                                path,
+                                ..
+                            } => PackageReviewRuntimeIndex::StructuralField(
+                                PackageReviewStructuralParameterField {
+                                    parameter_position: *parameter_position,
+                                    path: project_structural_path(path),
+                                },
+                            ),
+                            _ => return None,
+                        };
+                        Some(PackageReviewStructuralPredicatePathSegment::RuntimeIndex(
+                            coordinate,
+                        ))
+                    }
+                })
+                .collect::<Option<_>>()?;
+            PackageReviewScalarExpression::StructuralParameterIndexedRead {
+                parameter_position: root.parameter()?,
+                path: project_structural_path(path),
+                index: Box::new(project_scalar_expression(&index.expression)?),
+                inner_indexes,
+                element_path,
+                primitive_type: project_primitive_type(*primitive_type),
+            }
+        }
         CheckedScalarExpression::Parameter {
             position,
             primitive_type,

@@ -368,7 +368,6 @@ fn byte_carrier_pair_equality(
                     expression: integer_literal(index, PrimitiveType::U64)?,
                     occurrence: ExpressionHandle::invalid(),
                 }),
-                inner_indexes: Vec::new(),
                 element_path: Vec::new(),
                 primitive_type: PrimitiveType::U8,
             },

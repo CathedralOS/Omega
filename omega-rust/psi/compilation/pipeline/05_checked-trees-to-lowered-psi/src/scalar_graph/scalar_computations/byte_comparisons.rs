@@ -345,7 +345,10 @@ impl OperandSelectors {
                 }
                 let original = path.clone();
                 for segment in path.iter_mut() {
-                    if let LoweredElementPathSegment::RuntimeIndex { selector, extent } = segment {
+                    if let LoweredElementPathSegment::RuntimeIndex {
+                        selector, extent, ..
+                    } = segment
+                    {
                         *selector = self.bind(selector.clone());
                         *extent = extent.take().map(|value| self.bind(value));
                     }

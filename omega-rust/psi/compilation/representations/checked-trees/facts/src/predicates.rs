@@ -59,6 +59,15 @@ pub struct CheckedScalarSelector {
     pub occurrence: typed_trees::expression::ExpressionHandle,
 }
 
+/// Scalar read paths retain evaluated selectors beside static member geometry.
+/// This is executable occurrence custody, not the canonical geometry used as
+/// a fact key. Member-separated and consecutive indexes take the same path.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CheckedScalarReadProjection {
+    Static(CheckedStructuralPredicatePathSegment),
+    RuntimeIndex(CheckedScalarSelector),
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CheckedScalarExpression {
     /// Exact u64 live length of one borrowed view or bounded byte field. A
@@ -108,20 +117,15 @@ pub enum CheckedScalarExpression {
     /// parameter root counts authored state positions and an empty path
     /// selects the whole parameter, not a nominal field; a view-local root is
     /// the whole view with an empty path. The index remains an evaluated
-    /// dependency, not a fixed field projection. `inner_indexes` selects
-    /// further, in order, inside a selected element that is itself a fixed
-    /// array: `self.a[i][k]` is `index` `i` then inner index `k`. Each inner
-    /// selector is its own evaluated dependency and its own `index < extent`
-    /// obligation against the array it selects from; it is never folded into
-    /// one flattened offset. `element_path` projects from the selected element
-    /// to the scalar leaf read: empty for a scalar element, record fields for
-    /// a record element of a view (`entries[index].value`).
+    /// dependency, not a fixed field projection. `element_path` projects from
+    /// the selected element to its scalar leaf, interleaving members and further
+    /// evaluated selectors. Every selector owns its own `index < extent`
+    /// obligation; selectors are never folded into one flattened coordinate.
     StructuralParameterIndexedRead {
         root: CheckedStorageRoot,
         path: Vec<CheckedStructuralPredicatePathSegment>,
         index: Box<CheckedScalarSelector>,
-        inner_indexes: Vec<CheckedScalarSelector>,
-        element_path: Vec<CheckedStructuralPredicatePathSegment>,
+        element_path: Vec<CheckedScalarReadProjection>,
         primitive_type: typed_trees::types::PrimitiveType,
     },
     IntegerLiteral {
@@ -219,13 +223,16 @@ impl CheckedScalarExpression {
             | Self::RepresentationView { operand, .. } => operand.contains_trapping_operation(),
             Self::StructuralParameterIndexedRead {
                 index,
-                inner_indexes,
+                element_path,
                 ..
             } => {
                 index.expression.contains_trapping_operation()
-                    || inner_indexes
-                        .iter()
-                        .any(|selector| selector.expression.contains_trapping_operation())
+                    || element_path.iter().any(|projection| match projection {
+                        CheckedScalarReadProjection::Static(_) => false,
+                        CheckedScalarReadProjection::RuntimeIndex(selector) => {
+                            selector.expression.contains_trapping_operation()
+                        }
+                    })
             }
             Self::Boolean(expression) => expression.contains_trapping_operation(),
             Self::StructuralParameterByteLength { .. }

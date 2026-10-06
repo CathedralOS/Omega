@@ -165,8 +165,7 @@ pub(crate) fn byte_record_observation(
     symbol: symbols::SymbolHandle,
     path: &[checked_trees::CheckedStructuralPredicatePathSegment],
     index: &checked_trees::CheckedScalarExpression,
-    inner_indexes: &[checked_trees::CheckedScalarSelector],
-    element_path: &[checked_trees::CheckedStructuralPredicatePathSegment],
+    element_path: &[checked_trees::CheckedScalarReadProjection],
     primitive: PrimitiveType,
 ) -> Result<Option<LoweredDirectExpression>, LoweringError> {
     use checked_trees::{CheckedScalarExpression, CheckedUnitStructuralPathSegment as Projection};
@@ -188,22 +187,34 @@ pub(crate) fn byte_record_observation(
     let mut selectors = Vec::new();
     let mut leaf_path = Vec::new();
     append_observation_path(bindings, path, &mut leaf_path, &mut selectors)?;
-    for selector in
-        std::iter::once(index).chain(inner_indexes.iter().map(|selector| &selector.expression))
-    {
-        if let CheckedScalarExpression::IntegerLiteral { literal } = selector {
-            leaf_path.push(Projection::FixedIndex(literal.value_u64().ok_or(
-                LoweringError::Unsupported("record byte observation has an invalid array index"),
-            )?));
-        } else {
-            append_coordinate(
-                bindings.expression(proven_indexes, selector)?,
+    if let CheckedScalarExpression::IntegerLiteral { literal } = index {
+        leaf_path.push(Projection::FixedIndex(literal.value_u64().ok_or(
+            LoweringError::Unsupported("record byte observation has an invalid array index"),
+        )?));
+    } else {
+        append_coordinate(
+            bindings.expression(proven_indexes, index)?,
+            &mut leaf_path,
+            &mut selectors,
+        )?;
+    }
+    for step in element_path {
+        match step {
+            checked_trees::CheckedScalarReadProjection::Static(segment) => append_observation_path(
+                bindings,
+                std::slice::from_ref(segment),
                 &mut leaf_path,
                 &mut selectors,
-            )?;
+            )?,
+            checked_trees::CheckedScalarReadProjection::RuntimeIndex(selector) => {
+                append_coordinate(
+                    bindings.expression(proven_indexes, &selector.expression)?,
+                    &mut leaf_path,
+                    &mut selectors,
+                )?
+            }
         }
     }
-    append_observation_path(bindings, element_path, &mut leaf_path, &mut selectors)?;
     let scalar_type = terminal_scalar_type(primitive)?;
     let geometry = layout
         .scalar_path_geometry(&leaf_path)
@@ -297,7 +308,6 @@ pub(crate) fn byte_overlay_read(
         source,
         path: path.to_vec(),
         index: Box::new(index),
-        inner_indexes: Vec::new(),
         element_path: Vec::new(),
         scalar_type: byte_type,
         bound_decided: false,

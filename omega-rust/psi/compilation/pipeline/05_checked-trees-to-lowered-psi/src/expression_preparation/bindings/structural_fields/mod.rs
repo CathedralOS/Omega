@@ -812,189 +812,65 @@ pub(crate) fn resolve_byte_projection(
     Ok(Some((source, path, field.id)))
 }
 
-/// Resolve an indexed read that lands on a fixed-array record field: the path
-/// reaches the array itself and carries its declared element scalar. A leaf
-/// that is not a fixed array returns `None`, so byte-sequence carriers keep
-/// `resolve_byte_length`'s read family.
-pub(crate) fn resolve_indexed_array(
-    fields: &[StructuralScalarFieldBinding],
-    position: u32,
-    path: &[checked_trees::CheckedStructuralPredicatePathSegment],
-) -> Result<
-    Option<(
-        PlaceId,
-        Vec<terminal_psi::StructuralPathSegment>,
-        ScalarType,
-    )>,
-    LoweringError,
-> {
-    let mut matching = fields
-        .iter()
-        .filter(|field| field.source_position == position);
-    let binding = matching.next().ok_or(LoweringError::Unsupported(
-        "indexed field read has no readable binding",
-    ))?;
-    if matching.next().is_some() {
-        return unsupported("indexed field read has ambiguous bindings");
-    }
-    let carrier = path
-        .iter()
-        .map(|segment| match segment {
-            checked_trees::CheckedStructuralPredicatePathSegment::Field(identity) => {
-                Ok(CheckedUnitStructuralPathSegment::Field(identity.clone()))
-            }
-            checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(index) => {
-                Ok(CheckedUnitStructuralPathSegment::FixedIndex(*index))
-            }
-            _ => unsupported("indexed field read has an unsupported case path"),
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    crate::emission::primitive_store::lower_indexed_path(
-        binding.structural_type,
-        &carrier,
-        &binding.declarations,
-    )
-    .map(|(path, scalar_type)| Some((binding.source, path, scalar_type)))
-    .or(Ok(None))
-}
-
-/// Resolve a read that selects inside nested fixed arrays (`self.a[i][k]`):
-/// `path` reaches the outer array and `inner_depth` further runtime selectors
-/// descend through its array elements to one primitive leaf. Returns the
-/// read's source, the static prefix and the leaf scalar type.
-pub(crate) fn resolve_nested_indexed_array(
-    fields: &[StructuralScalarFieldBinding],
-    position: u32,
-    path: &[checked_trees::CheckedStructuralPredicatePathSegment],
-    inner_depth: usize,
-) -> Result<
-    (
-        PlaceId,
-        Vec<terminal_psi::StructuralPathSegment>,
-        ScalarType,
-    ),
-    LoweringError,
-> {
-    let mut matching = fields
-        .iter()
-        .filter(|field| field.source_position == position);
-    let binding = matching.next().ok_or(LoweringError::Unsupported(
-        "nested indexed read has no readable binding",
-    ))?;
-    if matching.next().is_some() {
-        return unsupported("nested indexed read has ambiguous bindings");
-    }
-    let carrier = path
-        .iter()
-        .map(|segment| match segment {
-            checked_trees::CheckedStructuralPredicatePathSegment::Field(identity) => {
-                Ok(CheckedUnitStructuralPathSegment::Field(identity.clone()))
-            }
-            checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(index) => {
-                Ok(CheckedUnitStructuralPathSegment::FixedIndex(*index))
-            }
-            _ => unsupported("nested indexed read has an unsupported case path"),
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    let (path, scalar_type) = crate::emission::primitive_store::lower_nested_indexed_path(
-        binding.structural_type,
-        &carrier,
-        inner_depth,
-        &binding.declarations,
-    )?;
-    Ok((binding.source, path, scalar_type))
-}
-
-/// Resolve a scalar field of a runtime-selected record element
-/// (`cells[i].hp`): `path` reaches the fixed array and `element_path` walks
-/// the selected element to one relevant integer or Boolean field. Returns the
-/// read's source, array prefix, complete element path and declared scalar type.
-/// The read's fresh SSA result retains any declaration-owned scalar invariant.
-pub(crate) fn resolve_indexed_element_field(
+/// Resolve an ordered scalar read from its established storage home. Root
+/// location does not choose a different projection grammar. Readable reference
+/// crossings come from declarations, while each runtime marker retains the
+/// ordinal of the evaluated selector supplied by the read plan.
+pub(crate) fn resolve_indexed_element(
     fields: &StructuralFieldBindings,
-    root: checked_trees::CheckedStorageRoot,
+    source: PlaceId,
+    structural_type: StructuralTypeId,
     path: &[checked_trees::CheckedStructuralPredicatePathSegment],
     element_path: &[checked_trees::CheckedStructuralPredicatePathSegment],
 ) -> Result<
     (
         PlaceId,
         Vec<terminal_psi::StructuralPathSegment>,
-        crate::emission::primitive_store::IndexedElementLeaf,
+        Vec<CheckedUnitStructuralPathSegment>,
         ScalarType,
     ),
     LoweringError,
 > {
-    let (source, structural_type) = fields.observation_source(root)?;
     let (path, selected) =
         observation_paths::explicit_path(structural_type, path, fields.declarations())?;
-    let StructuralTypeShape::FixedArray { element, .. } = &selected
+    let element = match &selected
         .ok_or(LoweringError::Unsupported(
-            "indexed observation lost its array carrier",
+            "indexed observation lost its collection carrier",
         ))?
         .shape
-    else {
-        return unsupported("indexed observation requires a fixed array");
+    {
+        StructuralTypeShape::FixedArray { element, .. } => *element,
+        StructuralTypeShape::ElementView { element, .. } if path.is_empty() => *element,
+        StructuralTypeShape::ElementView { .. } => {
+            return unsupported(
+                "projected element view read requires an established descriptor home",
+            );
+        }
+        _ => return unsupported("indexed observation requires an element collection"),
     };
     let (element_path, _) =
-        observation_paths::explicit_path(*element, element_path, fields.declarations())?;
-    let (path, leaf, scalar_type) =
-        crate::emission::primitive_store::lower_indexed_element_field_path(
-            structural_type,
-            &path,
-            &element_path,
-            fields.declarations(),
-        )?;
-    Ok((source, path, leaf, scalar_type))
-}
-
-/// A member element read whose element path carries a runtime selector —
-/// `cells[i].data[j]` spells `data`'s element through the `Field` step's own
-/// array. The `path` resolves exactly like `resolve_indexed_element_field`;
-/// the element path's checked segments keep their `RuntimeIndex` payloads
-/// for the caller to lower beside the read's other selectors.
-pub(crate) fn resolve_indexed_element_runtime_path(
-    fields: &[StructuralScalarFieldBinding],
-    position: u32,
-    path: &[checked_trees::CheckedStructuralPredicatePathSegment],
-    element_path: &[checked_trees::CheckedStructuralPredicatePathSegment],
-) -> Result<
-    (
-        PlaceId,
-        Vec<terminal_psi::StructuralPathSegment>,
-        crate::emission::primitive_store::IndexedElementLeaf,
-        ScalarType,
-    ),
-    LoweringError,
-> {
-    let mut matching = fields
-        .iter()
-        .filter(|field| field.source_position == position);
-    let binding = matching.next().ok_or(LoweringError::Unsupported(
-        "indexed element runtime path read has no readable binding",
-    ))?;
-    if matching.next().is_some() {
-        return unsupported("indexed element runtime path read has ambiguous bindings");
-    }
-    let (path, selected) =
-        observation_paths::explicit_path(binding.structural_type, path, &binding.declarations)?;
-    let StructuralTypeShape::FixedArray { element, .. } = &selected
-        .ok_or(LoweringError::Unsupported(
-            "indexed observation lost its array carrier",
-        ))?
-        .shape
-    else {
-        return unsupported("indexed observation requires a fixed array");
-    };
-    let (element_path, _) =
-        observation_paths::explicit_path(*element, element_path, &binding.declarations)?;
-    let (path, leaf, scalar_type) =
-        crate::emission::primitive_store::lower_indexed_element_runtime_path(
-            binding.structural_type,
-            &path,
-            &element_path,
-            &binding.declarations,
-        )?;
-    Ok((binding.source, path, leaf, scalar_type))
+        observation_paths::explicit_path(element, element_path, fields.declarations())?;
+    let scalar_type = crate::emission::primitive_store::indexed_element_scalar_type(
+        element,
+        &element_path,
+        fields.declarations(),
+    )?;
+    let path = path
+        .into_iter()
+        .map(|step| match step {
+            CheckedUnitStructuralPathSegment::Field(identity) => {
+                Ok(terminal_psi::StructuralPathSegment::Field(identity))
+            }
+            CheckedUnitStructuralPathSegment::FixedIndex(index) => {
+                Ok(terminal_psi::StructuralPathSegment::FixedIndex(index))
+            }
+            CheckedUnitStructuralPathSegment::Referent => {
+                Ok(terminal_psi::StructuralPathSegment::Referent)
+            }
+            _ => unsupported("indexed collection prefix requires static projections"),
+        })
+        .collect::<Result<_, _>>()?;
+    Ok((source, path, element_path, scalar_type))
 }
 
 pub(crate) fn resolve_primitive(

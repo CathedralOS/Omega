@@ -275,208 +275,67 @@ pub(crate) fn lower_path(
     ))
 }
 
-/// The static prefix of a runtime-indexed primitive read ends at the fixed
-/// array itself; the reader appends the `RuntimeIndex` segment once it has
-/// evaluated the selector and allocated the segment's obligation. The element
-/// must be a primitive scalar.
-pub(crate) fn lower_indexed_path(
-    structural_type: StructuralTypeId,
-    path: &[CheckedUnitStructuralPathSegment],
-    types: &[StructuralTypeDeclaration],
-) -> Result<(Vec<terminal_psi::StructuralPathSegment>, ScalarType), LoweringError> {
-    let (steps, walked) = walk_path(structural_type, path, types)?;
-    let Walked::Declared(structural_type) = walked else {
-        return unsupported("indexed primitive projection does not end at a fixed array");
-    };
-    let StructuralTypeShape::FixedArray { element, .. } =
-        unique_type(types, structural_type)?.shape
-    else {
-        return unsupported("indexed primitive projection does not end at a fixed array");
-    };
-    let StructuralTypeShape::PrimitiveScalar(scalar_type) = unique_type(types, element)?.shape
-    else {
-        return unsupported("indexed primitive projection's element is not a primitive scalar");
-    };
-    Ok((
-        super::runtime_elements::static_segments(steps)?,
-        scalar_type,
-    ))
-}
-
-/// The static prefix of a read that selects at run time once over `path`'s
-/// fixed array and then `inner_depth` more times inside nested fixed-array
-/// elements (`self.a[i][k]` has depth one). Each level must be a declared
-/// fixed array and the last element a primitive scalar; the reader places one
-/// `RuntimeIndex` segment per selector after the prefix, and the verifier
-/// bounds each against the array its own prefix resolves to.
-pub(crate) fn lower_nested_indexed_path(
-    structural_type: StructuralTypeId,
-    path: &[CheckedUnitStructuralPathSegment],
-    inner_depth: usize,
-    types: &[StructuralTypeDeclaration],
-) -> Result<(Vec<terminal_psi::StructuralPathSegment>, ScalarType), LoweringError> {
-    let (steps, walked) = walk_path(structural_type, path, types)?;
-    let Walked::Declared(mut selected) = walked else {
-        return unsupported("nested indexed projection does not end at a fixed array");
-    };
-    for _ in 0..=inner_depth {
-        let StructuralTypeShape::FixedArray { element, .. } = unique_type(types, selected)?.shape
-        else {
-            return unsupported("nested indexed projection selects inside a non-array element");
-        };
-        selected = element;
-    }
-    let StructuralTypeShape::PrimitiveScalar(scalar_type) = unique_type(types, selected)?.shape
-    else {
-        return unsupported("nested indexed projection's leaf is not a primitive scalar");
-    };
-    Ok((
-        super::runtime_elements::static_segments(steps)?,
-        scalar_type,
-    ))
-}
-
-/// The selected element's scalar projection retains either only static steps
-/// or additional checked runtime selectors. Both emit one primitive read whose
-/// fresh scalar receives the exact endpoint declaration's invariant.
-pub(crate) enum IndexedElementLeaf {
-    Flat(Vec<terminal_psi::StructuralPathSegment>),
-    /// The element path's leaf is a runtime selection into a fixed-array
-    /// member — `cells[i].data[j]` names `data`'s element. The path's
-    /// static steps resolve exactly like `Flat`'s; its `RuntimeIndex` steps
-    /// keep their checked coordinate, which the caller lowers into the
-    /// read's evaluated selectors.
-    RuntimeTail {
-        element_path: Vec<CheckedUnitStructuralPathSegment>,
-    },
-}
-
-/// Resolve the full selected-field path without copying its carrier. The read
-/// retains every index and stored-reference crossing. Its declared scalar
-/// invariant constrains only the fresh SSA result, not a canonical storage fact.
-pub(crate) fn lower_indexed_element_field_path(
-    structural_type: StructuralTypeId,
-    path: &[CheckedUnitStructuralPathSegment],
+/// Resolve one scalar endpoint after any ordered element projections. A field
+/// retains its declared scalar carrier and invariant; array elements retain
+/// their declared primitive type. Runtime selectors change neither.
+pub(crate) fn indexed_element_scalar_type(
+    element: StructuralTypeId,
     element_path: &[CheckedUnitStructuralPathSegment],
     types: &[StructuralTypeDeclaration],
-) -> Result<
-    (
-        Vec<terminal_psi::StructuralPathSegment>,
-        IndexedElementLeaf,
-        ScalarType,
-    ),
-    LoweringError,
-> {
-    let (steps, walked) = walk_path(structural_type, path, types)?;
-    let Walked::Declared(structural_type) = walked else {
-        return unsupported("indexed element field projection does not end at a fixed array");
-    };
-    let StructuralTypeShape::FixedArray { element, .. } =
-        unique_type(types, structural_type)?.shape
-    else {
-        return unsupported("indexed element field projection does not end at a fixed array");
-    };
-    let Some((CheckedUnitStructuralPathSegment::Field(identity), carrier)) =
+) -> Result<ScalarType, LoweringError> {
+    if let Some((CheckedUnitStructuralPathSegment::Field(identity), carrier)) =
         element_path.split_last()
-    else {
-        return unsupported("indexed element field path does not end at a field");
-    };
-    let (carrier_steps, walked) = walk_path(element, carrier, types)?;
-    let Walked::Declared(record) = walked else {
-        return unsupported("indexed element field carrier is not a record");
-    };
-    let StructuralTypeShape::Record { fields } = &unique_type(types, record)?.shape else {
-        return unsupported("indexed element field carrier is not a record");
-    };
-    let mut matching = fields.iter().filter(|field| field.identity == *identity);
-    let field = matching.next().ok_or(LoweringError::Unsupported(
-        "indexed element field is absent",
-    ))?;
-    if matching.next().is_some() || field.relevance.is_erased() {
-        return unsupported("indexed element field is erased or ambiguous");
-    }
-    let scalar_type = match &field.field_type {
-        declared if terminal_semantics::scalar_field_requires_evidence(declared) => {
-            declared.scalar_type().ok_or(LoweringError::Unsupported(
-                "indexed field invariant has no scalar carrier",
-            ))?
-        }
-        StructuralFieldType::Scalar(ScalarType::Boolean) => ScalarType::Boolean,
-        StructuralFieldType::Scalar(ScalarType::Integer(integer)) if !integer.is_address() => {
-            ScalarType::Integer(*integer)
-        }
-        StructuralFieldType::Scalar(scalar @ ScalarType::IeeeFloat(_)) => *scalar,
-        StructuralFieldType::IeeeFloat(format) => ScalarType::IeeeFloat(*format),
-        _ => return unsupported("indexed element field is not an observable scalar declaration"),
-    };
-    let mut element_path = super::runtime_elements::static_segments(carrier_steps)?;
-    element_path.push(terminal_psi::StructuralPathSegment::Field(
-        field.identity.clone(),
-    ));
-    Ok((
-        super::runtime_elements::static_segments(steps)?,
-        IndexedElementLeaf::Flat(element_path),
-        scalar_type,
-    ))
-}
-
-/// The runtime-tail element path's leaf walk (`cells[i].data[j]`): the same
-/// member-resolution walk `lower_indexed_element_field_path`'s carrier
-/// takes, with each `RuntimeIndex` step selecting into a fixed array and
-/// the path ending at one primitive scalar. The leaf keeps the checked
-/// path verbatim — its runtime coordinates lower beside the read's other
-/// selectors, each re-proven against the array it selects from.
-pub(crate) fn lower_indexed_element_runtime_path(
-    structural_type: StructuralTypeId,
-    path: &[CheckedUnitStructuralPathSegment],
-    element_path: &[CheckedUnitStructuralPathSegment],
-    types: &[StructuralTypeDeclaration],
-) -> Result<
-    (
-        Vec<terminal_psi::StructuralPathSegment>,
-        IndexedElementLeaf,
-        ScalarType,
-    ),
-    LoweringError,
-> {
-    let (steps, walked) = walk_path(structural_type, path, types)?;
-    let Walked::Declared(structural_type) = walked else {
-        return unsupported("indexed element runtime projection does not end at a fixed array");
-    };
-    let StructuralTypeShape::FixedArray { element, .. } =
-        unique_type(types, structural_type)?.shape
-    else {
-        return unsupported("indexed element runtime projection does not end at a fixed array");
-    };
-    let (_, walked) = walk_path(element, element_path, types)?;
-    let Walked::Declared(structural_type) = walked else {
-        return unsupported("indexed element runtime path does not end at a scalar carrier");
-    };
-    if !element_path
-        .iter()
-        .any(|segment| matches!(segment, CheckedUnitStructuralPathSegment::RuntimeIndex(_)))
     {
-        return unsupported("indexed element runtime path has no runtime selector");
+        let (_, walked) = walk_path(element, carrier, types)?;
+        let Walked::Declared(record) = walked else {
+            return unsupported("indexed field carrier is not a record");
+        };
+        let StructuralTypeShape::Record { fields } = &unique_type(types, record)?.shape else {
+            return unsupported("indexed field carrier is not a record");
+        };
+        let mut matching = fields.iter().filter(|field| field.identity == *identity);
+        let (Some(field), None) = (matching.next(), matching.next()) else {
+            return unsupported("indexed field is absent or ambiguous");
+        };
+        if field.relevance.is_erased() {
+            return unsupported("indexed field is erased");
+        }
+        let scalar_type = match &field.field_type {
+            declared if terminal_semantics::scalar_field_requires_evidence(declared) => {
+                declared.scalar_type().ok_or(LoweringError::Unsupported(
+                    "indexed field invariant has no scalar carrier",
+                ))?
+            }
+            StructuralFieldType::Scalar(ScalarType::Boolean) => ScalarType::Boolean,
+            StructuralFieldType::Scalar(ScalarType::Integer(integer)) if !integer.is_address() => {
+                ScalarType::Integer(*integer)
+            }
+            StructuralFieldType::Scalar(scalar @ ScalarType::IeeeFloat(_)) => *scalar,
+            StructuralFieldType::IeeeFloat(format) => ScalarType::IeeeFloat(*format),
+            _ => {
+                return unsupported(
+                    "indexed element field is not an observable scalar declaration",
+                );
+            }
+        };
+        return Ok(scalar_type);
     }
-    let StructuralTypeShape::PrimitiveScalar(scalar_type) =
-        unique_type(types, structural_type)?.shape
-    else {
-        return unsupported("indexed element runtime path does not end at a scalar");
+    let (_, walked) = walk_path(element, element_path, types)?;
+    let scalar_type = match walked {
+        Walked::ScalarField(scalar_type) => scalar_type,
+        Walked::Declared(identity) => match unique_type(types, identity)?.shape {
+            StructuralTypeShape::PrimitiveScalar(scalar_type) => scalar_type,
+            _ => return unsupported("indexed element path does not end at a scalar"),
+        },
+        Walked::ByteElement => {
+            return unsupported("indexed element path requires its byte carrier");
+        }
     };
     match scalar_type {
-        ScalarType::Boolean | ScalarType::IeeeFloat(_) => {}
-        ScalarType::Integer(integer) if !integer.is_address() => {}
-        _ => {
-            return unsupported("indexed element runtime leaf is not a readable scalar");
-        }
+        ScalarType::Boolean | ScalarType::IeeeFloat(_) => Ok(scalar_type),
+        ScalarType::Integer(integer) if !integer.is_address() => Ok(scalar_type),
+        _ => unsupported("indexed element leaf is not a readable scalar"),
     }
-    Ok((
-        super::runtime_elements::static_segments(steps)?,
-        IndexedElementLeaf::RuntimeTail {
-            element_path: element_path.to_vec(),
-        },
-        scalar_type,
-    ))
 }
 
 /// Walk the checked segments from the destination root, resolving each field

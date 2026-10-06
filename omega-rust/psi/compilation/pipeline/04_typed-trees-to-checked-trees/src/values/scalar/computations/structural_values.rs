@@ -1365,12 +1365,11 @@ impl Builder<'_, '_> {
                     root: selection.root,
                     path: Vec::new(),
                     index: Box::new(selection.index.clone()),
-                    inner_indexes: Vec::new(),
-                    element_path: vec![
+                    element_path: vec![checked_trees::CheckedScalarReadProjection::Static(
                         checked_trees::CheckedStructuralPredicatePathSegment::Field(
                             field.path_identity(),
                         ),
-                    ],
+                    )],
                     primitive_type,
                 },
             );

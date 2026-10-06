@@ -3297,9 +3297,12 @@ deletions, which the commit lists.
   `formation_decided`/`SourceChecked`. Bounds alone do not establish a byte
   domain, and inferred additions to an arrival withdraw its source-checked mark.
   Remaining:
-  - Carry decisions through remaining runtime element-path selectors,
-    generated selectors and remaining
-    semantic-to-storage casts. Synthesized widenings and generated scalar-graph
+  - Carry decisions through dynamic descendants of element views, generated
+    selectors and remaining semantic-to-storage casts. Terminal
+    `ElementViewRead` admits static descendants only; dynamic descendants need
+    a selected-element storage home that retains the live descriptor's extent
+    and loan custody before the ordinary scalar projection, not a raw
+    fixed-array read. Synthesized widenings and generated scalar-graph
     casts still use search.
     Join the exact checked occurrence rather than performing another syntax walk
     or extending certificate search.
@@ -3329,6 +3332,10 @@ deletions, which the commit lists.
   `collections/runtime_multi_field_element_view_domains_exit` (0) and
   `range/element_view_field_domain_occurrence` constrain full one-sided carrier
   bounds and prevent transferring a write judgment between fields.
+  `collections/runtime_composed_owned_element_reads_exit` (0) constrains
+  ordered member/selector projections, computed selectors and declared scalar
+  fields; `collections/nested_read_index_uses_selected_extent` must reject an
+  inner read even when the same operand fits the outer extent.
   Existing wildcard debt and
   out-of-domain results must still reject. Wrong-path, escaped, stale-index,
   mutated-subject facts and byte-domain corruption must still reject.

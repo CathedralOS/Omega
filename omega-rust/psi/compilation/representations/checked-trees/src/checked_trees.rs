@@ -227,13 +227,13 @@ pub use values::{
     CheckedScalarComputationRoot, CheckedScalarComputationStructuralArgument,
     CheckedScalarComputationTemporaryCleanup, CheckedScalarDispatchArm,
     CheckedScalarDispatchPattern, CheckedScalarExpression, CheckedScalarExpressionBindings,
-    CheckedScalarExpressionPlans, CheckedScalarExpressionRole, CheckedScalarSelector,
-    CheckedStorageRoot, CheckedStructuralDispatchArm, CheckedStructuralParameterField,
-    CheckedStructuralPredicatePathSegment, CheckedStructuralRecordField,
-    CheckedStructuralRecordFieldValue, CheckedStructuralValue, CheckedStructuralValueHandle,
-    CheckedStructuralValueKind, CheckedStructuralValuePlans, CheckedStructuralValueRoot,
-    CheckedSubsliceSite, CheckedValueFact, CheckedValueFacts, CheckedValueHandle,
-    CheckedValueOrigin, CheckedValueStatementRole,
+    CheckedScalarExpressionPlans, CheckedScalarExpressionRole, CheckedScalarReadProjection,
+    CheckedScalarSelector, CheckedStorageRoot, CheckedStructuralDispatchArm,
+    CheckedStructuralParameterField, CheckedStructuralPredicatePathSegment,
+    CheckedStructuralRecordField, CheckedStructuralRecordFieldValue, CheckedStructuralValue,
+    CheckedStructuralValueHandle, CheckedStructuralValueKind, CheckedStructuralValuePlans,
+    CheckedStructuralValueRoot, CheckedSubsliceSite, CheckedValueFact, CheckedValueFacts,
+    CheckedValueHandle, CheckedValueOrigin, CheckedValueStatementRole,
 };
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

@@ -15,8 +15,8 @@ pub use predicates::{
     BooleanPredicate, BooleanPredicateBinding, BooleanPredicateRole, CheckedBooleanExpression,
     CheckedIeeeFloatComparisonKind, CheckedIntegerBinaryKind, CheckedIntegerComparisonKind,
     CheckedIntegerMathExpression, CheckedIntegerMathTerm, CheckedRuntimeIndex,
-    CheckedScalarExpression, CheckedScalarSelector, CheckedStorageRoot,
-    CheckedStructuralParameterField, CheckedStructuralPredicatePathSegment,
+    CheckedScalarExpression, CheckedScalarReadProjection, CheckedScalarSelector,
+    CheckedStorageRoot, CheckedStructuralParameterField, CheckedStructuralPredicatePathSegment,
 };
 
 pub use fact_plan::contexts::view::FactContextView;

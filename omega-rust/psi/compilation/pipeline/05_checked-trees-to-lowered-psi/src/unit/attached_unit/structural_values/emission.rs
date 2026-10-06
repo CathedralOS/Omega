@@ -2556,8 +2556,10 @@ impl Emission<'_, '_, '_> {
             }
             if field.relevance.is_erased()
                 || element_path.as_slice()
-                    != [checked_trees::CheckedStructuralPredicatePathSegment::Field(
-                        field.identity.clone(),
+                    != [checked_trees::CheckedScalarReadProjection::Static(
+                        checked_trees::CheckedStructuralPredicatePathSegment::Field(
+                            field.identity.clone(),
+                        ),
                     )]
             {
                 return unsupported("view element copy reordered or renamed a field");

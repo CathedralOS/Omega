@@ -715,8 +715,7 @@ impl ScalarBindings {
         symbol: symbols::SymbolHandle,
         path: &[checked_trees::CheckedStructuralPredicatePathSegment],
         index: &CheckedScalarExpression,
-        inner_indexes: &[checked_trees::CheckedScalarSelector],
-        element_path: &[checked_trees::CheckedStructuralPredicatePathSegment],
+        element_path: &[checked_trees::CheckedScalarReadProjection],
         primitive: PrimitiveType,
     ) -> Result<Option<LoweredDirectExpression>, LoweringError> {
         crate::expression_preparation::bindings::place_observations::byte_record_observation(
@@ -726,7 +725,6 @@ impl ScalarBindings {
             symbol,
             path,
             index,
-            inner_indexes,
             element_path,
             primitive,
         )
@@ -1184,12 +1182,15 @@ impl ScalarBindings {
         match expression {
             CheckedScalarExpression::StructuralParameterIndexedRead {
                 index,
-                inner_indexes,
+                element_path,
                 ..
             } => {
                 self.scalar(&mut index.expression)?;
-                for selector in inner_indexes {
-                    self.scalar(&mut selector.expression)?;
+                for step in element_path {
+                    if let checked_trees::CheckedScalarReadProjection::RuntimeIndex(selector) = step
+                    {
+                        self.scalar(&mut selector.expression)?;
+                    }
                 }
             }
             CheckedScalarExpression::Parameter { position, .. }

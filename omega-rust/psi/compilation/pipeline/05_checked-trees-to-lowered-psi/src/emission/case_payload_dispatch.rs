@@ -444,12 +444,15 @@ fn substitute_path(
     use crate::emission::operation_emission::expressions::LoweredElementPathSegment;
     path.into_iter()
         .map(|segment| match segment {
-            LoweredElementPathSegment::RuntimeIndex { selector, extent } => {
-                LoweredElementPathSegment::RuntimeIndex {
-                    selector: substitute_direct(selector, bound),
-                    extent: extent.map(|extent| substitute_direct(extent, bound)),
-                }
-            }
+            LoweredElementPathSegment::RuntimeIndex {
+                selector,
+                extent,
+                bound_decided,
+            } => LoweredElementPathSegment::RuntimeIndex {
+                selector: substitute_direct(selector, bound),
+                extent: extent.map(|extent| substitute_direct(extent, bound)),
+                bound_decided,
+            },
             segment => segment,
         })
         .collect()
@@ -506,7 +509,6 @@ pub(crate) fn substitute_direct(
             source,
             path,
             index,
-            inner_indexes,
             element_path,
             scalar_type,
             bound_decided,
@@ -515,15 +517,6 @@ pub(crate) fn substitute_direct(
             source,
             path,
             index: Box::new(substitute_direct(*index, bound)),
-            inner_indexes: inner_indexes
-                .into_iter()
-                .map(|inner| {
-                    crate::emission::operation_emission::expressions::LoweredScalarSelector {
-                        expression: substitute_direct(inner.expression, bound),
-                        bound_decided: inner.bound_decided,
-                    }
-                })
-                .collect(),
             element_path: substitute_path(element_path, bound),
             scalar_type,
         },
@@ -670,7 +663,7 @@ fn case_reads(
         Boolean::IndexedCaseMembership { index, .. } => collect_direct_case_reads(index, reads),
         Boolean::ByteSequencePredicate { path, .. } => {
             for segment in path {
-                if let crate::emission::operation_emission::expressions::LoweredElementPathSegment::RuntimeIndex { selector, extent } =
+                if let crate::emission::operation_emission::expressions::LoweredElementPathSegment::RuntimeIndex { selector, extent, .. } =
                     segment
                 {
                     collect_direct_case_reads(selector, reads);
@@ -683,7 +676,7 @@ fn case_reads(
         Boolean::ByteSequenceEqual { left, right } => {
             for operand in [left, right] {
                 for segment in &operand.path {
-                    if let crate::emission::operation_emission::expressions::LoweredElementPathSegment::RuntimeIndex { selector, extent } =
+                    if let crate::emission::operation_emission::expressions::LoweredElementPathSegment::RuntimeIndex { selector, extent, .. } =
                         segment
                     {
                         collect_direct_case_reads(selector, reads);
@@ -768,7 +761,7 @@ fn collect_path_case_reads(
     reads: &mut Vec<(PlaceId, Vec<CanonicalStructuralPathSegment>)>,
 ) {
     for segment in path {
-        if let crate::emission::operation_emission::expressions::LoweredElementPathSegment::RuntimeIndex { selector, extent } = segment {
+        if let crate::emission::operation_emission::expressions::LoweredElementPathSegment::RuntimeIndex { selector, extent, .. } = segment {
             collect_direct_case_reads(selector, reads);
             if let Some(extent) = extent { collect_direct_case_reads(extent, reads); }
         }
@@ -785,19 +778,14 @@ fn collect_direct_case_reads(
         Direct::StructuralField { source, path, .. } => {
             collect_source_case_reads(source, path, reads);
         }
-        Direct::ByteSequenceRead { index, .. } | Direct::ElementViewRead { index, .. } => {
-            collect_direct_case_reads(index, reads)
-        }
+        Direct::ByteSequenceRead { index, .. } => collect_direct_case_reads(index, reads),
+        Direct::ElementViewRead { index, .. } => collect_direct_case_reads(index, reads),
         Direct::IndexedPrimitiveRead {
             index,
-            inner_indexes,
             element_path,
             ..
         } => {
             collect_direct_case_reads(index, reads);
-            for selector in inner_indexes {
-                collect_direct_case_reads(&selector.expression, reads);
-            }
             collect_path_case_reads(element_path, reads);
         }
         Direct::ByteSequenceFieldRead { path, index, .. } => {

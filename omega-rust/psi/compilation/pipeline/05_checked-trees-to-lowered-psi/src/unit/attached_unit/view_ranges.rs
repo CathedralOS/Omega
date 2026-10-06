@@ -219,6 +219,7 @@ fn collection_path(
                         selector,
                     )?,
                     extent: None,
+                    bound_decided: false,
                 })
             }
         })
