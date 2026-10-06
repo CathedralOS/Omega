@@ -20,7 +20,7 @@ pub(crate) use case_access::{
 pub(crate) use comparison::{
     canonical_place_joined_segments_may_overlap, canonical_place_overlaps_segments,
     canonical_place_segments_equal, canonical_place_segments_may_overlap, canonical_places_agree,
-    place_segment_has_unresolved_identity,
+    place_segment_has_unresolved_identity, static_place_segment_pair_equal,
 };
 pub(crate) use contextual::contextual_canonical_place_from_expression;
 pub(crate) use literal_projection::{

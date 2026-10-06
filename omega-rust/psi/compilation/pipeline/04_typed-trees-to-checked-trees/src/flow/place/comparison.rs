@@ -8,6 +8,39 @@ pub(crate) fn place_segment_has_unresolved_identity(segment: facts::PlaceSegment
     }
 }
 
+/// Equality of the segment kinds with statically-comparable identity: `Field`
+/// symbols, `Case` variants, and `FixedIndex` values. `FixedRange` and `Index`
+/// pairs defer to each caller — equality, overlap, and containment compare
+/// them differently.
+pub(crate) fn static_place_segment_pair_equal(
+    left: facts::PlaceSegment,
+    right: facts::PlaceSegment,
+) -> Option<bool> {
+    match (left, right) {
+        (
+            facts::PlaceSegment::Field {
+                symbol: left_symbol,
+            },
+            facts::PlaceSegment::Field {
+                symbol: right_symbol,
+            },
+        ) => Some(left_symbol == right_symbol),
+        (
+            facts::PlaceSegment::Case {
+                variant: left_variant,
+            },
+            facts::PlaceSegment::Case {
+                variant: right_variant,
+            },
+        ) => Some(left_variant == right_variant),
+        (
+            facts::PlaceSegment::FixedIndex { index: left_index },
+            facts::PlaceSegment::FixedIndex { index: right_index },
+        ) => Some(left_index == right_index),
+        _ => None,
+    }
+}
+
 /// Whether two segment spellings select the same storage at one program point.
 /// Runtime `Index` operands compare by structural expression identity — a
 /// `buffer[a..b]` spelled inside a `requires` clause selects the same window the
@@ -20,27 +53,7 @@ pub(crate) fn canonical_place_segments_equal(
     if place_segment_has_unresolved_identity(left) || place_segment_has_unresolved_identity(right) {
         return false;
     }
-    match (left, right) {
-        (
-            facts::PlaceSegment::Field {
-                symbol: left_symbol,
-            },
-            facts::PlaceSegment::Field {
-                symbol: right_symbol,
-            },
-        ) => left_symbol == right_symbol,
-        (
-            facts::PlaceSegment::Case {
-                variant: left_variant,
-            },
-            facts::PlaceSegment::Case {
-                variant: right_variant,
-            },
-        ) => left_variant == right_variant,
-        (
-            facts::PlaceSegment::FixedIndex { index: left_index },
-            facts::PlaceSegment::FixedIndex { index: right_index },
-        ) => left_index == right_index,
+    static_place_segment_pair_equal(left, right).unwrap_or_else(|| match (left, right) {
         (
             facts::PlaceSegment::FixedRange {
                 start: left_start,
@@ -66,7 +79,7 @@ pub(crate) fn canonical_place_segments_equal(
             .expression_table
             .expressions_structurally_equal(left_expression, right_expression),
         _ => false,
-    }
+    })
 }
 
 use checked_trees::expression::ExpressionHandle;
@@ -146,27 +159,7 @@ fn canonical_place_segment_pair_may_overlap(
     left: facts::PlaceSegment,
     right: facts::PlaceSegment,
 ) -> bool {
-    match (left, right) {
-        (
-            facts::PlaceSegment::Field {
-                symbol: left_symbol,
-            },
-            facts::PlaceSegment::Field {
-                symbol: right_symbol,
-            },
-        ) => left_symbol == right_symbol,
-        (
-            facts::PlaceSegment::Case {
-                variant: left_variant,
-            },
-            facts::PlaceSegment::Case {
-                variant: right_variant,
-            },
-        ) => left_variant == right_variant,
-        (
-            facts::PlaceSegment::FixedIndex { index: left_index },
-            facts::PlaceSegment::FixedIndex { index: right_index },
-        ) => left_index == right_index,
+    static_place_segment_pair_equal(left, right).unwrap_or_else(|| match (left, right) {
         (
             facts::PlaceSegment::FixedRange {
                 start: left_start,
@@ -207,7 +200,7 @@ fn canonical_place_segment_pair_may_overlap(
             },
         ) => index_expressions_may_overlap(program, left_expression, right_expression),
         _ => false,
-    }
+    })
 }
 
 fn fixed_range_contains(start: usize, end: usize, index: usize) -> bool {

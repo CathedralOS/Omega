@@ -6,7 +6,7 @@ use super::indexes::{
     index_extents_may_overlap,
 };
 use super::premises::StatedOrderingPremise;
-use crate::flow::place_segment_has_unresolved_identity;
+use crate::flow::{place_segment_has_unresolved_identity, static_place_segment_pair_equal};
 use checked_trees::CapturedPlaceContainment;
 
 /// One segment containment traversal. Evaluated `Index` extents are cached by
@@ -420,27 +420,7 @@ fn place_segments_containment_evaluated<'p>(
 }
 
 fn structural_segment_equal(left: facts::PlaceSegment, right: facts::PlaceSegment) -> bool {
-    match (left, right) {
-        (
-            facts::PlaceSegment::Field {
-                symbol: left_symbol,
-            },
-            facts::PlaceSegment::Field {
-                symbol: right_symbol,
-            },
-        ) => left_symbol == right_symbol,
-        (
-            facts::PlaceSegment::Case {
-                variant: left_variant,
-            },
-            facts::PlaceSegment::Case {
-                variant: right_variant,
-            },
-        ) => left_variant == right_variant,
-        (
-            facts::PlaceSegment::FixedIndex { index: left_index },
-            facts::PlaceSegment::FixedIndex { index: right_index },
-        ) => left_index == right_index,
+    static_place_segment_pair_equal(left, right).unwrap_or_else(|| match (left, right) {
         (
             facts::PlaceSegment::FixedRange {
                 start: left_start,
@@ -455,7 +435,7 @@ fn structural_segment_equal(left: facts::PlaceSegment, right: facts::PlaceSegmen
         // `segments_equal`/`segment_contains`, which normalize runtime and
         // symbolic bounds through the selector session.
         _ => false,
-    }
+    })
 }
 
 /// Share evaluated bounds between overlap and containment. A disjoint result
@@ -523,27 +503,7 @@ fn place_segment_pair_may_overlap<'p>(
         side: BorrowCompatibilityPlaceSide::Active,
         segment_index,
     };
-    match (left, right) {
-        (
-            facts::PlaceSegment::Field {
-                symbol: left_symbol,
-            },
-            facts::PlaceSegment::Field {
-                symbol: right_symbol,
-            },
-        ) => left_symbol == right_symbol,
-        (
-            facts::PlaceSegment::Case {
-                variant: left_variant,
-            },
-            facts::PlaceSegment::Case {
-                variant: right_variant,
-            },
-        ) => left_variant == right_variant,
-        (
-            facts::PlaceSegment::FixedIndex { index: left_index },
-            facts::PlaceSegment::FixedIndex { index: right_index },
-        ) => left_index == right_index,
+    static_place_segment_pair_equal(left, right).unwrap_or_else(|| match (left, right) {
         (
             facts::PlaceSegment::FixedRange {
                 start: left_start,
@@ -638,5 +598,5 @@ fn place_segment_pair_may_overlap<'p>(
             bound_lookup,
         ),
         _ => false,
-    }
+    })
 }
