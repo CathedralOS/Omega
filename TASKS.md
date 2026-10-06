@@ -2086,38 +2086,28 @@ crash and native exit behavior.
 
 - **DRIVER-EARNS-ITS-LINES.** (new-scope) The product driver reads as
   "`build.omg` in, program out": prepare sources, run the stages, publish.
-  `omega-rust/omega/compilation/driver/src` plus
-  `driver/terminal-production/src` are mostly plumbing around a stage chain of
-  a few dozen lines. This item's own work, which can land now:
-  - ~~One timing system~~ — done at `f413234e5a4`: `TerminalProductionTimings`
-    was a byte-for-byte duplicate of `CompileTimings` (same enabled flag, same
-    aggregate-onto-existing-label rule, same `record_result`), and production
-    now records its legs into the caller's single ladder through
-    `TerminalProductionStage::stage_meta()`. `merge_terminal_production_timings`
-    is deleted. The aggregate row is opened at zero before production and the
-    elapsed added afterwards with `add_completed`, because `record_result`
-    would hold the accumulator borrowed across the call that now writes to it,
-    and because the ladder orders phases by first insertion — do not "simplify"
-    that back into a wrapper.
-  - ~~Plain results~~ — done at `53a409f5e9b`: the always-unit generic `C`, the
-    `callback_custody` field and `CallbackCustodyTerminalArtifactProductionError<C>`
-    are deleted.
-  - No self re-validation: the checked `ProgramEntry` receipt is produced,
-    carried beside the artifact and rejoined in `terminal_artifact.rs`. The
-    producing stage returns the receipt it validated once.
+  Remaining API gap: `omega-rust/omega/application/cli/src/compilation/mod.rs`
+  assembles `TargetCompileConfiguration`s, duplicates shared snapshot and
+  rollback configuration, and branches between single- and multi-target
+  request construction. Move product request assembly to the compiler owner;
+  callers supply the package root, requested targets, product and policy,
+  not the pipeline's per-target bookkeeping. Keep explicit per-target output
+  directories and isolated outcomes; do not replace them with hidden defaults.
 
-  The rest leaves with other items: checked-tree sidecars past Terminal
+  Coordinate with, rather than duplicate, the other assignments: checked-tree sidecars past Terminal
   (source-call, IEEE and integer comparison occurrences,
   `CheckedBoundaryOperatorApplicationScope`) with
   **PROVIDER-SELECTION-AFTER-TERMINAL**; reuse caches in `driver/src/checked`
   with **ONE-DRIVER-PER-STAGE**; product re-admissions with
   **COMPILE-REPORT-PRODUCTS**.
 
-  Acceptance: driver plus terminal-production production code is about 200
-  lines or fewer, every remaining line a stage call, report construction or
-  publication; a caller compiles a package root without assembling per-target
-  configurations itself (the CLI builds `TargetCompileConfiguration`s in
-  `omega-rust/omega/application/cli/src/compilation/mod.rs` today).
+  Acceptance: CLI and library callers compile a package root through the same
+  request API without assembling per-target configurations. Single-target,
+  targetless Check and two-target native requests preserve their output paths,
+  policy, rollback, timings and per-target outcomes. The driver visibly composes
+  stages, reports and publication; moving plumbing to an opaque helper merely
+  to reduce file length does not satisfy this task. Preserve the single timing
+  ladder and the producing stage's carried `ProgramEntry` receipt.
 
 - **GUI-CANARY-HAS-NO-PROVIDER.** (new-scope)
   `tests/omega/pass/host/runtime_gui_window_lifecycle_exit` and
