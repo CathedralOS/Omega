@@ -317,7 +317,15 @@ fn latest_write(
 ) -> Option<Reaching> {
     let (root, path, field) = location;
     let may_alias = |other| {
-        abstract_operations::atomic::atomic_roots_may_alias(
+        // Quoted bytes are immutable image storage: lending them, as a
+        // console write of a string literal does, reaches no atomic cell.
+        !machine.structural_places.iter().any(|place| {
+            place.id == other
+                && matches!(
+                    place.kind,
+                    semantic_vocabulary::StructuralPlaceKind::ByteSequenceLiteral { .. }
+                )
+        }) && abstract_operations::atomic::atomic_roots_may_alias(
             std::iter::once(machine.structural_parameters.as_slice()).chain(
                 machine
                     .blocks
