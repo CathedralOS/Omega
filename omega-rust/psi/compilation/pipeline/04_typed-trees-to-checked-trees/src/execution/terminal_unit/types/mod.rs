@@ -28,7 +28,7 @@ mod shape_collector;
 mod signature_contracts;
 mod views;
 
-pub(crate) use affine_discards::*;
+pub(in crate::execution::terminal_unit) use affine_discards::*;
 pub(crate) use identities::*;
 pub(crate) use parameters::*;
 pub(crate) use shape_collector::*;

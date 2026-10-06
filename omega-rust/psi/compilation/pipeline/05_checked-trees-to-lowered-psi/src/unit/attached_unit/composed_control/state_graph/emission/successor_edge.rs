@@ -408,29 +408,27 @@ impl StateGraphEmission<'_, '_> {
                             });
                             destination
                         }
-                        checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedCopy {
+                        checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedValue {
                             ref subject,
                         } => {
-                            // A copyable leaf has no custody root of its
-                            // own: the edge mints one StructuralLeafCopy
-                            // reading the projected subtree off its live
-                            // parameter root into fresh owned storage the
-                            // target parameter takes.
-                            let checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
-                                parameter_index,
-                            } = subject.source
-                            else {
-                                return unsupported(
-                                    "Unit graph projected copy subject unsupported",
-                                );
-                            };
-                            let source = edge_evaluation.current_structural_place(
-                                state_parameters.get(parameter_index as usize).ok_or(
+                            // Copyable observations materialize a fresh leaf;
+                            // an owned move instead retains the original root
+                            // and path on the edge. The edge transaction first
+                            // captures that subtree, then disposes its complement.
+                            let source = match subject.source {
+                                checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                                    parameter_index,
+                                } => state_parameters.get(parameter_index as usize).ok_or(
                                     LoweringError::Unsupported(
                                         "Unit graph projected subject descriptor disappeared",
                                     ),
                                 )?.place,
-                            );
+                                checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                                    binding_ordinal,
+                                } => case_emission::result(state, binding_ordinal, operations)?.place(),
+                                _ => return unsupported("Unit graph projected value has no established root"),
+                            };
+                            let source = edge_evaluation.current_structural_place(source);
                             let path = subject.path.iter().map(|segment| match segment {
                                 checked_trees::CheckedUnitStructuralPathSegment::Field(identity) => Some(
                                     terminal_psi::StructuralPathSegment::Field(identity.clone())),
@@ -440,6 +438,10 @@ impl StateGraphEmission<'_, '_> {
                             }).collect::<Option<Vec<_>>>().ok_or(
                                 LoweringError::Unsupported("Unit graph projected path segment unsupported"),
                             )?;
+                            if target_parameter.multiplicity != language_semantics::Multiplicity::Unrestricted {
+                                argument_path = path;
+                                source
+                            } else {
                             let destination = place_id(allocate_dense(&mut self.catalogs.next_place)?);
                             let structural_type = crate::terminal_identities::lookup_type_id(
                                 &self.catalogs.type_ids,
@@ -473,6 +475,7 @@ impl StateGraphEmission<'_, '_> {
                                 },
                             );
                             destination
+                            }
                         }
                     };
                 // A member of a later state's loan chain (`loan_chains`)

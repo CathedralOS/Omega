@@ -43,7 +43,7 @@ pub(super) fn validate(
         &[],
         None,
     )?;
-    validate_cleanup(checked, source, state, edge)
+    validate_cleanup(checked, state, edge)
 }
 
 /// Case dispatch validates local-result cleanup separately from parameter cleanup.
@@ -497,19 +497,20 @@ pub(super) fn validate_bindings(
         {
             continue;
         }
-        if let checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedCopy {
+        if let checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedValue {
             subject,
         } = &transfer.source
         {
-            // The authored operand is the projected place itself —
-            // `param.field` — reading a copyable subtree out of a live
-            // parameter root.
+            // The checked path names a subtree of an established owner.
+            // Copyable leaves materialize separately; affine leaves transfer
+            // this path and leave the selected complement for edge cleanup.
             let argument_position = target.position as usize;
-            let expression = arguments
-                .get(argument_position)
-                .ok_or(LoweringError::Unsupported(
-                    "Unit graph projected argument missing",
-                ))?;
+            let _expression =
+                arguments
+                    .get(argument_position)
+                    .ok_or(LoweringError::Unsupported(
+                        "Unit graph projected argument missing",
+                    ))?;
             match subject.source {
                 checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
                     parameter_index,
@@ -527,16 +528,19 @@ pub(super) fn validate_bindings(
                         return unsupported("Unit graph projected parameter missing");
                     }
                 }
-                _ => return unsupported("Unit graph projected subject unsupported"),
-            }
-            let mut tested_root = *expression;
-            while let ExpressionNode::Member(member) =
-                checked.expression_table.expression(tested_root)
-            {
-                if member.case_variant.is_some() {
-                    return unsupported("Unit graph projected argument has a case projection");
+                checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                    binding_ordinal,
+                } => {
+                    if !state
+                        .operations
+                        .iter()
+                        .filter_map(CheckedUnitEffectOperationPlan::structural_result_binding)
+                        .any(|result| result.binding_ordinal == binding_ordinal)
+                    {
+                        return unsupported("Unit graph projected result missing");
+                    }
                 }
-                tested_root = member.receiver;
+                _ => return unsupported("Unit graph projected subject unsupported"),
             }
             continue;
         }
@@ -588,7 +592,9 @@ pub(super) fn validate_bindings(
             } => {
                 return unsupported("Unit graph literal argument was not independently rejoined");
             }
-            checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedCopy { .. } => {
+            checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedValue {
+                ..
+            } => {
                 return unsupported("Unit graph projected argument was not independently rejoined");
             }
         };
@@ -629,7 +635,9 @@ pub(super) fn validate_bindings(
             } => {
                 return unsupported("Unit graph literal argument was not independently rejoined");
             }
-            checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedCopy { .. } => {
+            checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedValue {
+                ..
+            } => {
                 return unsupported("Unit graph projected argument was not independently rejoined");
             }
         }
@@ -713,25 +721,20 @@ fn validate_view_local(
 
 fn validate_cleanup(
     checked: &CheckedTrees,
-    source: &checked_trees::state::State,
     state: &CheckedComposedUnitControlStatePlan,
     edge: &CheckedStructuralControlSuccessorPlan,
 ) -> Result<(), LoweringError> {
-    let owner = super::owner(checked, state.state)?;
-    result_custody::local_discards(checked, owner, source, state, Some(edge))?;
-    let cleanup = checked
-        .facts
-        .flow
-        .terminal_structural_control_cleanups
-        .for_edge(owner, state.state, edge.statement_ordinal)
-        .ok_or(LoweringError::Unsupported(
-            "Unit graph edge cleanup evidence missing",
-        ))?;
-    if cleanup.target_state != edge.target_state
-        || cleanup.trivial_affine_discard_parameter_positions
-            != edge.trivial_affine_discard_parameter_positions
+    // Stage 04 selected the ordered whole/residual action stream. A second
+    // whole-local inventory cannot represent a partially transferred root.
+    let exit = super::cleanup::coordinate(checked, state, edge.statement_ordinal as usize, false)?;
+    if state
+        .normal_exit_cleanups
+        .iter()
+        .filter(|cleanup| cleanup.exit == exit)
+        .count()
+        != 1
     {
-        return unsupported("Unit graph edge cleanup evidence disagrees");
+        return unsupported("Unit graph edge has no exact normal cleanup plan");
     }
     Ok(())
 }

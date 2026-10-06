@@ -1,6 +1,8 @@
 use arena::HandleSpan;
 use symbols::SymbolHandle;
 
+mod computation_custody;
+
 /// Exact evaluation lane within a source statement. Guards precede the
 /// custody fork; target operands execute only on their selected edge.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]

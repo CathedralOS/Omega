@@ -166,9 +166,12 @@ pub struct SelectedStructuralBinding {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SelectedStructuralTransport {
     Unused,
-    /// Snapshot the complete stored value before replacing its exact destination.
+    /// Snapshot the complete selected value before replacing its destination.
+    /// An empty semantic path has offset zero; a projection selects storage
+    /// inside the same root pointer without changing that root's identity.
     WholeValue {
         argument: VirtualRegisterId,
+        source_byte_offset: u32,
         destination: super::LocalStorageSlotId,
         byte_size: u32,
         alignment: u16,

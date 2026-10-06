@@ -1,0 +1,26 @@
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Leaf { value: i32 [0..=100]; }
+data Pair { left: Leaf; right: Leaf; }
+data Main { console: Binding<Console>; }
+
+// Each outgoing child keeps its value; each untransferred sibling dies on
+// this edge, not after the destination state has started.
+machine select(first: Pair, second: Pair) -> i32 {
+    transition { _ -> finish(first.left, second.right) }
+    state finish(left: Leaf, right: Leaf) -> i32 {
+        left.value + right.value
+    }
+}
+
+machine Main::main(main: &mut Main) reaches Console {
+    let first: Pair = Pair { left: Leaf { value: 19 }, right: Leaf { value: 8 } };
+    let second: Pair = Pair { left: Leaf { value: 9 }, right: Leaf { value: 23 } };
+    let result: i32 = select(first, second);
+    transition result == 42 {
+        true -> finish(main, 0)
+        _ -> finish(main, 1)
+    }
+    state finish(main: &mut Main, code: i32) { main.console.exit_process(code); }
+}

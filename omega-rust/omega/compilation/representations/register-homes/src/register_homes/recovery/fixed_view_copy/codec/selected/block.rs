@@ -260,12 +260,14 @@ fn encode_successor(bytes: &mut Vec<u8>, successor: &SelectedSuccessor) {
             selected_instructions::SelectedStructuralTransport::Unused => bytes.push(0),
             selected_instructions::SelectedStructuralTransport::WholeValue {
                 argument,
+                source_byte_offset,
                 destination,
                 byte_size,
                 alignment,
             } => {
                 bytes.push(2);
                 bytes.extend_from_slice(&argument.0.to_le_bytes());
+                bytes.extend_from_slice(&source_byte_offset.to_le_bytes());
                 destination.encode_identity(bytes);
                 bytes.extend_from_slice(&byte_size.to_le_bytes());
                 bytes.extend_from_slice(&alignment.to_le_bytes());
@@ -341,12 +343,15 @@ fn decode_successor(
             0 => selected_instructions::SelectedStructuralTransport::Unused,
             2 => {
                 let argument = VirtualRegisterId(cursor.u32()?);
+                let source_byte_offset = cursor.u32()?;
                 let destination = super::structural::decode_local_slot(cursor)?;
                 let byte_size = cursor.u32()?;
                 let alignment = cursor.u16()?;
                 if byte_size == 0
                     || !alignment.is_power_of_two()
                     || byte_size % u32::from(alignment) != 0
+                    || source_byte_offset % u32::from(alignment) != 0
+                    || source_byte_offset.checked_add(byte_size).is_none()
                     || !matches!(
                         destination,
                         selected_instructions::LocalStorageSlotId::StructuralBlockParameter { .. }
@@ -356,6 +361,7 @@ fn decode_successor(
                 }
                 selected_instructions::SelectedStructuralTransport::WholeValue {
                     argument,
+                    source_byte_offset,
                     destination,
                     byte_size,
                     alignment,

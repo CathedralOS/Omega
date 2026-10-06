@@ -8,13 +8,14 @@
 //! declaration neither issues nor disposes an obligation.
 //!
 //! An address join (see `abstract_operations::control_flow::address_joins`)
-//! is the only borrowed arrival an edge may bind through a projected path:
+//! is the borrowed arrival an edge may bind through a projected path:
 //! its carrier is the address of that static place, so `&a.left` and
 //! `&b.right` can meet in one shared parameter, and `&mut a.left` and
 //! `&mut b.right` in one mutable parameter, without copying either leaf. A
 //! projected argument transfers exactly its join's access, as every later
-//! stage replays it. Descriptor views and owned arrivals still bind whole
-//! roots; their projected edges have no downstream carrier.
+//! stage replays it. Owned arrivals snapshot the complete selected subtree,
+//! whether a whole root or a static field/index projection. Its source root's
+//! remaining custody belongs to the edge's ordered residual cleanup.
 
 use terminal_psi::{TerminalModule, Terminator};
 
@@ -158,5 +159,8 @@ fn unsupported_argument(
                     parameter, types,
                 )
         });
-    !argument.path.is_empty() && !projected_address
+    let projected_owned = argument.access == terminal_psi::StructuralAccess::Owned
+        && abstract_operations::control_flow::address_joins::is_static_projection(&argument.path)
+        && parameter.is_some_and(|parameter| parameter.access == argument.access);
+    !argument.path.is_empty() && !projected_address && !projected_owned
 }

@@ -33,37 +33,38 @@ pub(super) fn validate_parameters(
     Ok(())
 }
 
-/// A whole owned edge move re-homes the moved record's loan leaves onto the
-/// bound name: the custody key is the current carrier location and follows
-/// the value across the edge. Formation identity, result row, root, parent
-/// and referent are provenance and stay put.
+/// Owned edge values re-home only loan leaves beneath their selected paths.
+/// Every source is captured before changing keys, including back-edge swaps.
+/// Formation identity, result row, root, parent and referent stay put.
 pub(super) fn re_home_bound_references(
     bindings: &[abstract_operations::AbstractStructuralBinding],
     parameters: &[terminal_psi::StructuralParameterDeclaration],
     live: &mut LiveDefinitions,
 ) {
+    let mut moved = Vec::new();
     for (binding, parameter) in bindings.iter().zip(parameters) {
         if parameter.access != terminal_psi::StructuralAccess::Owned
             || binding.argument.access != terminal_psi::StructuralAccess::Owned
-            || !binding.argument.path.is_empty()
-            || binding.argument.place == parameter.place
         {
             continue;
         }
-        let moved: Vec<(
-            semantic_vocabulary::PlaceId,
-            Vec<terminal_psi::StructuralPathSegment>,
-        )> = live
-            .references
-            .keys()
-            .filter(|(carrier, _)| *carrier == binding.argument.place)
-            .cloned()
-            .collect();
-        for (carrier, path) in moved {
-            if let Some(custody) = live.references.remove(&(carrier, path.clone())) {
-                live.references.insert((parameter.place, path), custody);
+        for ((carrier, path), custody) in &live.references {
+            if *carrier == binding.argument.place
+                && let Some(relative) = path.strip_prefix(binding.argument.path.as_slice())
+            {
+                moved.push((
+                    (*carrier, path.clone()),
+                    (parameter.place, relative.to_vec()),
+                    custody.clone(),
+                ));
             }
         }
+    }
+    for (source, _, _) in &moved {
+        live.references.remove(source);
+    }
+    for (_, destination, custody) in moved {
+        live.references.insert(destination, custody);
     }
 }
 
@@ -273,15 +274,12 @@ pub(super) fn validate_successors(
                     }
                     continue;
                 }
-                // Binding a reference-bearing subtree would need partial-move
-                // custody across an edge; the verified contract admits only a
-                // whole owned move — every stored loan travels with the record.
-                // A projected path or a borrow lane still rejects here, and the
-                // exact-contract checks below keep the same boundary.
+                // An owned subtree carries its contained reference descriptors,
+                // not their referents. Re-homing strips exactly this path from
+                // each moved carrier key; siblings remain on the source root.
                 if references::contains_reference(structural_types, parameter.structural_type)
                     && (parameter.access != terminal_psi::StructuralAccess::Owned
-                        || binding.argument.access != terminal_psi::StructuralAccess::Owned
-                        || !binding.argument.path.is_empty())
+                        || binding.argument.access != terminal_psi::StructuralAccess::Owned)
                 {
                     return Err(LoweringError::unsupported_control_flow(function.machine));
                 }
@@ -313,15 +311,21 @@ pub(super) fn validate_successors(
                             })
                             .flatten()
                     });
+                // Psi has checked the selected subtree's multiplicity and
+                // predicates against the destination. Only whole-root moves
+                // share the root's complete contract; a containing record's
+                // multiplicity and qualifications are not its field's.
                 let exact_source_owned_contract = live
                     .structural_homes
                     .get(&place)
                     .map(|home| {
                         home.access() == parameter.access
-                            && home.multiplicity() == parameter.multiplicity
-                            && home.qualifications() == parameter.qualifications.as_slice()
-                            && home.projected_qualifications()
-                                == parameter.projected_qualifications.as_slice()
+                            && (!binding.argument.path.is_empty()
+                                || (home.multiplicity() == parameter.multiplicity
+                                    && home.qualifications()
+                                        == parameter.qualifications.as_slice()
+                                    && home.projected_qualifications()
+                                        == parameter.projected_qualifications.as_slice()))
                     })
                     .or_else(|| {
                         function
@@ -336,10 +340,11 @@ pub(super) fn validate_successors(
                             .find(|source| source.place == place)
                             .map(|source| {
                                 source.access == parameter.access
-                                    && source.multiplicity == parameter.multiplicity
-                                    && source.qualifications == parameter.qualifications
-                                    && source.projected_qualifications
-                                        == parameter.projected_qualifications
+                                    && (!binding.argument.path.is_empty()
+                                        || (source.multiplicity == parameter.multiplicity
+                                            && source.qualifications == parameter.qualifications
+                                            && source.projected_qualifications
+                                                == parameter.projected_qualifications))
                             })
                     });
                 let leaf_copy_owned_contract = || {
@@ -390,14 +395,12 @@ pub(super) fn validate_successors(
                         structural_types.subtree(root, &binding.argument.path)
                     }
                 });
-                // A projected owned argument moves a plain subtree across the
-                // edge. No loan leaf may overlap the moved boundary — loan
-                // custody has no projected carrier on an edge.
-                let moved_loan_leaf = live.references.keys().any(|(carrier, leaf_path)| {
+                // Moving an enclosing subtree transports its loan leaves.
+                // Descending through a leaf would instead move borrowed backing.
+                let crosses_loan_leaf = live.references.keys().any(|(carrier, leaf_path)| {
                     *carrier == place
-                        && !binding.argument.path.is_empty()
-                        && (leaf_path.starts_with(&binding.argument.path)
-                            || binding.argument.path.starts_with(leaf_path))
+                        && binding.argument.path.len() > leaf_path.len()
+                        && binding.argument.path.starts_with(leaf_path)
                 });
                 if binding.parameter != parameter.place
                     || (parameter.access == terminal_psi::StructuralAccess::Owned
@@ -415,9 +418,10 @@ pub(super) fn validate_successors(
                         }
                     })
                     || binding.argument.access != parameter.access
-                    || moved_loan_leaf
+                    || crosses_loan_leaf
                     || (!binding.argument.path.is_empty()
-                        && (references::is_suspended_root(live, place)
+                        && (!abstract_operations::control_flow::address_joins::is_static_projection(&binding.argument.path)
+                            || references::is_suspended_root(live, place)
                             || (parameter.access != terminal_psi::StructuralAccess::Owned
                                 && !structural_types.get(&parameter.structural_type).is_some_and(
                                     |declaration| {

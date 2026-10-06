@@ -173,6 +173,7 @@ fn borrowed_value_binding_retains_semantic_place_and_exact_storage() {
             },
             transport: SelectedStructuralTransport::WholeValue {
                 argument: VirtualRegisterId(41),
+                source_byte_offset: 0,
                 destination: LocalStorageSlotId::StructuralBlockParameter {
                     block: original.source_target,
                     place: PlaceId::new(31).unwrap(),
@@ -412,6 +413,7 @@ fn whole_value_transport_round_trips_exact_storage_and_rejects_invalid_extents()
             },
             transport: SelectedStructuralTransport::WholeValue {
                 argument: VirtualRegisterId(30),
+                source_byte_offset: 16,
                 destination: LocalStorageSlotId::StructuralBlockParameter {
                     block: original.source_target,
                     place: semantic_vocabulary::PlaceId::new(12).unwrap(),
@@ -425,11 +427,19 @@ fn whole_value_transport_round_trips_exact_storage_and_rejects_invalid_extents()
     let mut cursor = Cursor::new(&encoded);
     assert_eq!(decode_successor(&mut cursor).unwrap(), original);
     assert_eq!(cursor.remaining(), 0);
-    for (byte_size, alignment) in [(0, 4), (12, 0), (12, 3), (12, 8)] {
+    for (byte_size, alignment, source_offset) in [
+        (0, 4, 16),
+        (12, 0, 16),
+        (12, 3, 16),
+        (12, 8, 16),
+        (12, 4, 1),
+        (12, 4, u32::MAX - 3),
+    ] {
         let mut forged = original.clone();
         let SelectedStructuralTransport::WholeValue {
             byte_size: bytes,
             alignment: align,
+            source_byte_offset,
             ..
         } = &mut forged.structural_bindings[0].transport
         else {
@@ -437,6 +447,7 @@ fn whole_value_transport_round_trips_exact_storage_and_rejects_invalid_extents()
         };
         *bytes = byte_size;
         *align = alignment;
+        *source_byte_offset = source_offset;
         let mut encoded = Vec::new();
         encode_successor(&mut encoded, &forged);
         assert_eq!(

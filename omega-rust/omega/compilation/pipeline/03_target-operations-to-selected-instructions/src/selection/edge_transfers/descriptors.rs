@@ -28,7 +28,9 @@ pub(super) fn snapshot(
 ) -> Result<Vec<Vec<VirtualRegisterId>>, SelectedInstructionError> {
     let mut snapshots = Vec::new();
     for binding in bindings {
-        let Some((argument, _, byte_size, _)) = stored_transport(binding.transport) else {
+        let Some((argument, source_byte_offset, _, byte_size, _)) =
+            stored_transport(binding.transport)
+        else {
             continue;
         };
         let input = registers
@@ -37,6 +39,9 @@ pub(super) fn snapshot(
             .ok_or_else(|| invalid(function_index))?;
         let mut words = Vec::new();
         for (byte_offset, width) in chunks(byte_size) {
+            let byte_offset = source_byte_offset
+                .checked_add(byte_offset)
+                .ok_or_else(|| invalid(function_index))?;
             let id = SelectedInstructionId(
                 (*next_instruction)
                     .try_into()
@@ -112,7 +117,7 @@ pub(super) fn store(
         .filter(|binding| stored_transport(binding.transport).is_some())
         .zip(snapshots)
     {
-        let Some((argument, destination, byte_size, _)) = stored_transport(binding.transport)
+        let Some((argument, _, destination, byte_size, _)) = stored_transport(binding.transport)
         else {
             return Err(invalid(function_index));
         };

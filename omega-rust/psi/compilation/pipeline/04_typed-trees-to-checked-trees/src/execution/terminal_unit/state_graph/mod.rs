@@ -767,6 +767,12 @@ pub(super) fn build_traced(
                             reference(),
                         )
                         && !view_carrier
+                        // Stored-reference carriers use the ordinary call
+                        // contract. State edges move their descriptors and
+                        // retain loan provenance; they never copy referents.
+                        && !validation::reference_result_custody::is_reference_record(
+                            program, reference(),
+                        )
                     {
                         trace.phase(
                             "state graph: state signature: parameter custody shape: owned non-linear record contents",
@@ -1131,7 +1137,7 @@ fn forwards_qualified_parameter(
                                 // predicate qualifications re-verify on the
                                 // storage at the edge either way.
                                 checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedLoan { subject, .. }
-                                | checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedCopy { subject } => {
+                                | checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedValue { subject } => {
                                     subject.type_identity == parameter.type_identity
                                         && subject.access == parameter.access
                                 }
@@ -1431,17 +1437,13 @@ enum SuccessorGuard {
     ResultTransfer,
     CasePayloadTransfer,
     EstablishedArgument,
-    ProjectedCopy,
+    ProjectedValue,
     LoanTransfer,
     ParameterTransfer,
     ScalarArguments,
     ErasedArguments,
     ErasedProofArguments,
     EdgeCleanup,
-    EdgeCleanupProjected,
-    EdgeCleanupStatePlan,
-    EdgeCleanupRow,
-    EdgeCleanupTarget,
 }
 
 impl SuccessorEdge {
@@ -1471,7 +1473,7 @@ impl SuccessorEdge {
                     SuccessorGuard::EstablishedArgument => {
                         guard_phase!($edge, "established argument")
                     }
-                    SuccessorGuard::ProjectedCopy => guard_phase!($edge, "projected copy"),
+                    SuccessorGuard::ProjectedValue => guard_phase!($edge, "projected value"),
                     SuccessorGuard::LoanTransfer => guard_phase!($edge, "loan transfer"),
                     SuccessorGuard::ParameterTransfer => guard_phase!($edge, "parameter transfer"),
                     SuccessorGuard::ScalarArguments => guard_phase!($edge, "scalar arguments"),
@@ -1480,18 +1482,6 @@ impl SuccessorEdge {
                         guard_phase!($edge, "erased proof arguments")
                     }
                     SuccessorGuard::EdgeCleanup => guard_phase!($edge, "edge cleanup"),
-                    SuccessorGuard::EdgeCleanupProjected => {
-                        guard_phase!($edge, "edge cleanup: projected row shadows")
-                    }
-                    SuccessorGuard::EdgeCleanupStatePlan => {
-                        guard_phase!($edge, "edge cleanup: no state plan")
-                    }
-                    SuccessorGuard::EdgeCleanupRow => {
-                        guard_phase!($edge, "edge cleanup: no edge row")
-                    }
-                    SuccessorGuard::EdgeCleanupTarget => {
-                        guard_phase!($edge, "edge cleanup: target mismatch")
-                    }
                 }
             };
         }
@@ -1612,34 +1602,16 @@ fn successor(
     trace.statement(Some(ordinal));
     let &(machine, source) = fused.get(source_index)?;
     let cleanups = &facts.flow.terminal_structural_control_cleanups;
-    let cleanup = if cleanups
-        .for_projected_edge(machine.symbol, source.symbol, ordinal)
-        .is_some()
-    {
-        trace.phase(edge.phase(SuccessorGuard::EdgeCleanupProjected));
-        return None;
-    } else if cleanups.for_state(machine.symbol, source.symbol).is_none() {
-        trace.phase(edge.phase(SuccessorGuard::EdgeCleanupStatePlan));
-        return None;
-    } else {
-        match cleanups.for_edge(machine.symbol, source.symbol, ordinal) {
-            Some(cleanup) => cleanup,
-            None => {
-                trace.phase(edge.phase(SuccessorGuard::EdgeCleanupRow));
-                return None;
-            }
-        }
-    };
-    if cleanup.target_state != successor.target_state {
-        trace.phase(edge.phase(SuccessorGuard::EdgeCleanupTarget));
-        return None;
-    }
-    // An owned parameter the target does not receive dies on this edge. The
-    // cleanup evidence names exactly those positions; the edge carries them
-    // so lowering disposes each where control leaves the state.
+    // Exact normal-exit cleanup is retained after this graph's value schedule
+    // is complete. The legacy whole-parameter roster cannot admit or reject
+    // projected transfers: it cannot express the remaining subtree. Keep its
+    // optional rows for old case-dispatch correspondence only; execution uses
+    // the ordered normal-exit actions, including residuals and nominal hooks.
     let mut successor = successor;
-    successor.trivial_affine_discard_parameter_positions =
-        cleanup.trivial_affine_discard_parameter_positions.clone();
+    if let Some(cleanup) = cleanups.for_edge(machine.symbol, source.symbol, ordinal) {
+        successor.trivial_affine_discard_parameter_positions =
+            cleanup.trivial_affine_discard_parameter_positions.clone();
+    }
     Some(successor)
 }
 
@@ -2007,18 +1979,16 @@ fn successor_bindings(
                     target_parameter_index: u32::try_from(target_index).ok()?,
                 });
             }
-            mark(SuccessorGuard::ProjectedCopy);
-            // `parameter.field` supplied to an unrestricted parameter of
-            // the leaf's own declared access copies that subtree out of a
-            // live source parameter into fresh storage the target binds;
-            // the source keeps its whole custody. A view-typed leaf's copy
-            // forwards the descriptor — the view's loan keeps its lineage.
-            if target.multiplicity == Multiplicity::Unrestricted
-                && let Some(subject) = projected_copy_subject(
+            mark(SuccessorGuard::ProjectedValue);
+            // A static subtree keeps its root and complete path. Multiplicity
+            // decides whether emission copies the leaf or transfers its
+            // custody; selected normal cleanup owns any remaining complement.
+            if let Some(subject) = projected_value_subject(
                     program,
                     machine,
                     source,
                     source_structural,
+                    edge_calls.local_results,
                     ordinal,
                     expression,
                     target,
@@ -2026,7 +1996,7 @@ fn successor_bindings(
                 && subject.access == target.access
             {
                 return Some(CheckedStructuralControlTransferPlan {
-                    source: checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedCopy {
+                    source: checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedValue {
                         subject,
                     },
                     target_parameter_index: u32::try_from(target_index).ok()?,
@@ -2445,28 +2415,23 @@ fn successor_bindings(
     })
 }
 
-/// The rooted place an owned `parameter.field` argument copies from.
-///
-/// The argument must name a member projection below one readable source
-/// parameter, and the projected subtree must be a whole unrestricted
-/// plain-owned value of exactly the target's type: copying it observes the
-/// source without moving any custody out of it. A local root, an indexed
-/// projection or a projection reaching borrowed storage keeps its own route.
-fn projected_copy_subject(
+/// Resolve a finite field/index path below an established source root.
+/// Unrestricted observations may read a borrowed root; transferring affine or
+/// linear custody requires an owned root. Parameter and local establishments
+/// share that rule and the target's exact subtree type.
+fn projected_value_subject(
     program: &TypedTrees,
     machine: &typed_trees::machine::Machine,
     source: &typed_trees::state::State,
     source_structural: &[CheckedUnitStructuralParameterPlan],
+    local_results: &[(
+        checked_trees::CheckedUnitStructuralResultBindingPlan,
+        facts::PlaceRoot,
+    )],
     ordinal: u32,
     expression: typed_trees::expression::ExpressionHandle,
     target: &CheckedUnitStructuralParameterPlan,
 ) -> Option<CheckedUnitStructuralArgumentPlan> {
-    if !matches!(
-        program.expression_table.expression(expression),
-        ExpressionNode::Member(_)
-    ) {
-        return None;
-    }
     let place = crate::flow::canonical_place_from_expression_in_state(
         program,
         source.symbol,
@@ -2479,16 +2444,44 @@ fn projected_copy_subject(
     if place.segments.is_empty() {
         return None;
     }
-    let (position, _) = program
+    let parameter = program
         .state_parameters(source)
         .iter()
         .enumerate()
-        .find(|(_, parameter)| super::types::parameter_is_root(parameter, root_symbol))?;
-    let (parameter_index, parameter) = source_structural
-        .iter()
-        .enumerate()
-        .find(|(_, parameter)| parameter.position as usize == position)?;
-    if parameter.access == CheckedStructuralAccess::WriteOnlyBorrow {
+        .find(|(_, parameter)| super::types::parameter_is_root(parameter, root_symbol));
+    let (argument_source, root_access) = if let Some((position, _)) = parameter {
+        let (parameter_index, parameter) = source_structural
+            .iter()
+            .enumerate()
+            .find(|(_, parameter)| parameter.position as usize == position)?;
+        (
+            CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                parameter_index: u32::try_from(parameter_index).ok()?,
+            },
+            parameter.access,
+        )
+    } else {
+        let (declaration, local) = program.state_local_declaration(source, root_symbol)?;
+        let mut candidates = local_results.iter().filter(|(result, root)| {
+            *root == place.root
+                && result.statement_index == declaration as u32
+                && result.statement_index < ordinal
+        });
+        let (result, _) = candidates.next()?;
+        if candidates.next().is_some()
+            || super::types::base_type_identity(program, local.type_reference, &[])?
+                != result.type_identity
+        {
+            return None;
+        }
+        (
+            CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                binding_ordinal: result.binding_ordinal,
+            },
+            super::types::structural_access_for_type_reference(program, local.type_reference)?,
+        )
+    };
+    if root_access == CheckedStructuralAccess::WriteOnlyBorrow {
         return None;
     }
     let (projected_type, path) = calls::projected_borrowed_path(
@@ -2501,19 +2494,13 @@ fn projected_copy_subject(
     if path.is_empty()
         || !path
             .iter()
-            .all(|segment| matches!(segment, CheckedUnitStructuralPathSegment::Field(_)))
-        || program.type_multiplicity(projected_type) != Multiplicity::Unrestricted
-        // Represented field predicates remain in the copied declaration.
-        // A `[copy]` carrier of owned fields and shared views copies its
-        // view descriptors whole — and a leaf that is itself a view
-        // forwards its descriptor the same way: each copied view keeps its
-        // source loan's lineage, and copy permission neither establishes
-        // a field's predicates nor extends the loan.
-        || !(validation::has_plain_owned_contents_with_represented_constraints(program, projected_type)
-            || validation::has_owned_or_shared_view_contents(
-                program,
-                projected_type,
-            ))
+            .all(|segment| matches!(segment, CheckedUnitStructuralPathSegment::Field(_) | CheckedUnitStructuralPathSegment::FixedIndex(_)))
+        || program.type_multiplicity(projected_type) != target.multiplicity
+        || (target.multiplicity != Multiplicity::Unrestricted
+            && root_access != CheckedStructuralAccess::Owned)
+        // This is an existing value of the target's exact declared type,
+        // not a fresh initializer or permission to erase cleanup/loans.
+        // Its contents need no second "plain storage" classification.
         // The signature's structural identities are storage identities:
         // domain constraints and reference shells peel, so a borrowed leaf
         // matches its referent and a `T in D` leaf matches `T`'s base —
@@ -2525,9 +2512,7 @@ fn projected_copy_subject(
     }
     let access = super::types::structural_access_for_type_reference(program, projected_type)?;
     Some(CheckedUnitStructuralArgumentPlan {
-        source: CheckedUnitStructuralArgumentSourcePlan::Parameter {
-            parameter_index: u32::try_from(parameter_index).ok()?,
-        },
+        source: argument_source,
         path,
         type_identity: target.type_identity.clone(),
         access,

@@ -1,0 +1,34 @@
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Token { value: i32 [0..=100]; }
+data Main { console: Binding<Console>; }
+
+machine consume(token: Token) -> bool { token.value == 42 }
+
+// Unary evaluation contains a call, not a standalone call operation. Its
+// structural argument still retires the local before the scalar result joins.
+machine computed() -> bool {
+    let owner: Token = Token { value: 42 };
+    let answer: bool = !consume(owner);
+    answer
+}
+
+// Only the true path invokes consume. The false path keeps the owner until
+// scope exit rather than pretending every call in the statement executed.
+machine conditional(first: bool) -> bool {
+    let owner: Token = Token { value: 42 };
+    let answer: bool = first && consume(owner);
+    answer
+}
+
+machine Main::main(main: &mut Main) reaches Console {
+    let computed_result: bool = computed();
+    let conditional_true: bool = conditional(true);
+    let conditional_false: bool = conditional(false);
+    transition !computed_result && conditional_true && !conditional_false {
+        true -> finish(main, 0)
+        _ -> finish(main, 1)
+    }
+    state finish(main: &mut Main, code: i32) { main.console.exit_process(code); }
+}

@@ -524,7 +524,11 @@ pub(super) fn admit<'source>(
                 let Some(byte_size) = stored_transport_size(binding.transport) else {
                     continue;
                 };
-                let SelectedStructuralTransport::WholeValue { argument, .. } = binding.transport
+                let SelectedStructuralTransport::WholeValue {
+                    argument,
+                    source_byte_offset,
+                    ..
+                } = binding.transport
                 else {
                     continue;
                 };
@@ -561,6 +565,7 @@ pub(super) fn admit<'source>(
                     block: current_block_index,
                     edge: successor.psi_edge,
                     place: binding.semantic.argument.place,
+                    source_byte_offset,
                     byte_size,
                     loads: Vec::new(),
                     dedicated_reload: false,
@@ -1201,11 +1206,18 @@ pub(super) fn admit<'source>(
             let mut positions = Vec::with_capacity(accesses.len());
             let mut pinned = false;
             let mut offset = 0u32;
-            for access in accesses {
+            for access in accesses.iter().filter(|access| {
+                access.byte_offset >= pending.source_byte_offset
+                    && access.byte_offset - pending.source_byte_offset < pending.byte_size
+            }) {
                 let Some(width) = next_chunk(pending.byte_size, offset) else {
                     return Err(RuntimeSpillError::UnsupportedUse);
                 };
-                if access.byte_offset != offset || access.byte_count != u32::from(width) {
+                let source_offset = pending
+                    .source_byte_offset
+                    .checked_add(offset)
+                    .ok_or(RuntimeSpillError::UnsupportedUse)?;
+                if access.byte_offset != source_offset || access.byte_count != u32::from(width) {
                     return Err(RuntimeSpillError::UnsupportedUse);
                 }
                 let Some(&(owner, index)) = owners.get(&access.instruction) else {
@@ -1217,16 +1229,16 @@ pub(super) fn admit<'source>(
                 let instruction = &block.instructions[index];
                 let expected_kind = match width {
                     8 => SelectedInstructionKind::Load64 {
-                        byte_offset: offset,
+                        byte_offset: source_offset,
                     },
                     4 => SelectedInstructionKind::Load32 {
-                        byte_offset: offset,
+                        byte_offset: source_offset,
                     },
                     2 => SelectedInstructionKind::Load16 {
-                        byte_offset: offset,
+                        byte_offset: source_offset,
                     },
                     _ => SelectedInstructionKind::Load8 {
-                        byte_offset: offset,
+                        byte_offset: source_offset,
                     },
                 };
                 let Some(address) = instruction.operands.first() else {

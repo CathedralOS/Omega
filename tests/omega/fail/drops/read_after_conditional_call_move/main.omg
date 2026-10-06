@@ -1,0 +1,18 @@
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Token { value: i32; }
+data Main { console: Binding<Console>; }
+
+machine consume(token: Token) -> bool { token.value == 42 }
+
+machine invalid(first: bool) -> i32 {
+    let owner: Token = Token { value: 42 };
+    let observed: bool = first && consume(owner);
+    owner.value
+}
+
+machine Main::main(main: &mut Main) reaches Console {
+    let code: i32 = invalid(true);
+    main.console.exit_process(code);
+}

@@ -346,6 +346,10 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                                 checked,
                                 source.type_reference,
                             )?,
+                        )
+                        && !validation::reference_result_custody::is_reference_record(
+                            &checked.typed,
+                            source.type_reference,
                         ))
                 {
                     return unsupported(
@@ -1429,7 +1433,7 @@ fn forwards_qualified_parameter(
                                 // predicate qualifications re-verify on the
                                 // storage at the edge either way.
                                 checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedLoan { subject, .. }
-                                | checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedCopy { subject } => {
+                                | checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedValue { subject } => {
                                     subject.type_identity == parameter.type_identity
                                         && subject.access == parameter.access
                                 }

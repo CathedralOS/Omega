@@ -104,7 +104,7 @@ struct BodyInput<'input> {
     projected: bool,
 }
 
-fn body_inputs<'input>(
+fn construction_inputs<'input>(
     checked: &'input CheckedTrees,
     state: &'input CheckedComposedUnitControlStatePlan,
 ) -> Result<Vec<BodyInput<'input>>, LoweringError> {
@@ -113,16 +113,6 @@ fn body_inputs<'input>(
     let mut inputs = Vec::new();
     for (operation_index, owner) in state.operations.iter().enumerate() {
         for operation in owner.with_value_calls() {
-            if let Some(call) = operation.call() {
-                // Boundary and ordinary calls retire owned operands by the
-                // same authored transfer. Boundary completion receipts govern
-                // returned custody, not ownership of the caller's inputs.
-                inputs.extend(call.structural_arguments.iter().map(|argument| BodyInput {
-                    operation_index,
-                    argument,
-                    projected: false,
-                }));
-            }
             let CheckedUnitEffectOperationPlan::EstablishStructuralValue { value, .. } = operation
             else {
                 continue;
@@ -234,20 +224,21 @@ fn retired_in_body(
             _ => None,
         })
         .filter(|result| {
-            state.operations.iter().any(|operation| {
-                operation
-                    .call_structural_arguments()
-                    .iter()
-                    .any(|argument| {
-                        argument.source_structural_result_binding_ordinal()
+            result.multiplicity == Multiplicity::Unrestricted
+                && state.operations.iter().any(|operation| {
+                    operation
+                        .call_structural_arguments()
+                        .iter()
+                        .any(|argument| {
+                            argument.source_structural_result_binding_ordinal()
                             == Some(result.binding_ordinal)
                             && (argument.access == checked_trees::CheckedStructuralAccess::Owned
                                 || (result.multiplicity == Multiplicity::Unrestricted
                                     && argument.access
                                         == checked_trees::CheckedStructuralAccess::SharedBorrow))
                             && argument.path.is_empty()
-                    })
-            })
+                        })
+                })
         })
         .map(|result| result.binding_ordinal);
     let mut retired = state
@@ -302,7 +293,8 @@ fn retired_in_body(
     // Calls and value construction both transfer whole operands. Use the
     // checked producer/consumer order to exclude transferred homes from exit
     // cleanup. Source ownership admission already accounted for the move.
-    let inputs = body_inputs(checked, state)?;
+    let inputs = construction_inputs(checked, state)?;
+    let statements = checked.statement_table.statements(source.statement_nodes);
     for (producer_index, operation) in state.operations.iter().enumerate() {
         let Some(result) = result(operation) else {
             continue;
@@ -312,26 +304,27 @@ fn retired_in_body(
         {
             continue;
         }
-        let statements = checked.statement_table.statements(source.statement_nodes);
-        // Nested calls mint anonymous operands even inside a local initializer.
-        // Their call occurrence owns the result; the enclosing statement's
-        // local symbol identifies a different value produced by its outer call.
-        let anonymous_call = operation.call().filter(|call| {
-            call.coordinate.call_ordinal != 0
-                && matches!(
-                    call.source_site().flatten(),
-                    Some(checked_trees::NominalMachineUseSite::Expression(_))
+        let local = operation
+            .statement_structural_result_binding()
+            .and_then(|binding| statements.get(binding.statement_index as usize))
+            .and_then(|statement| match statement {
+                StatementNode::LocalData(local) => Some(local),
+                _ => None,
+            });
+        let call_transfers = state.operations[producer_index + 1..]
+            .iter()
+            .map(|consumer| {
+                consumer.definite_call_transfers(
+                    &checked.facts.values,
+                    operation,
+                    local.map(|local| local.symbol).unwrap_or_default(),
                 )
-        });
-        let local = if anonymous_call.is_some() {
-            None
-        } else if let Some(StatementNode::LocalData(local)) =
-            statements.get(result.statement_index as usize)
-        {
-            Some(local)
-        } else {
+            })
+            .sum::<usize>();
+        if call_transfers != 0 {
+            retired.push(result.binding_ordinal);
             continue;
-        };
+        }
         let uses = inputs.iter().filter(|input| {
             input.argument.source_structural_result_binding_ordinal() == Some(result.binding_ordinal)
                 || local.is_some_and(|local| matches!(input.argument.source,
@@ -357,26 +350,6 @@ fn retired_in_body(
             })
         {
             return unsupported("Unit graph operand retirement duplicates or precedes its owner");
-        }
-        if local.is_none() {
-            // The inventory includes calls retained inside selected values.
-            // Only the direct body operation proves this anonymous operand
-            // is consumed on every path before control reaches an exit.
-            let direct_consumer = state.operations[consumer.operation_index]
-                .call()
-                .is_some_and(|call| {
-                    call.structural_arguments
-                        .iter()
-                        .any(|argument| std::ptr::eq(argument, consumer.argument))
-                });
-            if !direct_consumer {
-                return unsupported("Unit graph anonymous operand has no unconditional consumer");
-            }
-            let _ = anonymous_call.ok_or(LoweringError::Unsupported(
-                "Unit graph anonymous operand has no authored producer",
-            ))?;
-            retired.push(result.binding_ordinal);
-            continue;
         }
         retired.push(result.binding_ordinal);
     }

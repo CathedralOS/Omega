@@ -1822,7 +1822,7 @@ fn apply_cleanup_actions(
     Ok(())
 }
 
-/// A whole owned edge move re-homes the moved record's loan leaves onto the
+/// An owned edge move re-homes the moved subtree's loan leaves onto the
 /// bound name: the custody key is the current carrier location and follows
 /// the value across the edge. Formation identity, result row, root, parent
 /// and referent are provenance and stay put.
@@ -1831,25 +1831,31 @@ fn re_home_bound_leaves(
     bindings: &[abstract_operations::AbstractStructuralBinding],
     parameters: &[terminal_psi::StructuralParameterDeclaration],
 ) {
+    let mut moved = Vec::new();
     for (binding, parameter) in bindings.iter().zip(parameters) {
         if parameter.access != StructuralAccess::Owned
             || binding.argument.access != StructuralAccess::Owned
-            || !binding.argument.path.is_empty()
-            || binding.argument.place == parameter.place
         {
             continue;
         }
-        let moved: Vec<(PlaceId, Vec<StructuralPathSegment>)> = custody
-            .leaves
-            .keys()
-            .filter(|(carrier, _)| *carrier == binding.argument.place)
-            .cloned()
-            .collect();
-        for (carrier, path) in moved {
-            if let Some(leaf) = custody.leaves.remove(&(carrier, path.clone())) {
-                custody.leaves.insert((parameter.place, path), leaf);
+        for ((carrier, path), leaf) in &custody.leaves {
+            if *carrier == binding.argument.place {
+                if let Some(relative) = path.strip_prefix(binding.argument.path.as_slice()) {
+                    moved.push((
+                        (*carrier, path.clone()),
+                        (parameter.place, relative.to_vec()),
+                        leaf.clone(),
+                    ));
+                }
             }
         }
+    }
+    // Edge bindings are simultaneous, including swaps of existing carriers.
+    for (source, _, _) in &moved {
+        custody.leaves.remove(source);
+    }
+    for (_, destination, leaf) in moved {
+        custody.leaves.insert(destination, leaf);
     }
 }
 

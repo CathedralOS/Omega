@@ -315,8 +315,11 @@ pub fn spill_selected_runtime_value_with_span_policy(
                 let Some(byte_size) = super::stored_transport_size(binding.transport) else {
                     continue;
                 };
-                let SelectedStructuralTransport::WholeValue { argument, .. } =
-                    &mut binding.transport
+                let SelectedStructuralTransport::WholeValue {
+                    argument,
+                    source_byte_offset,
+                    ..
+                } = &mut binding.transport
                 else {
                     continue;
                 };
@@ -327,6 +330,7 @@ pub fn spill_selected_runtime_value_with_span_policy(
                     pending.block == block_index
                         && pending.edge == successor.psi_edge
                         && pending.place == binding.semantic.argument.place
+                        && pending.source_byte_offset == *source_byte_offset
                         && pending.byte_size == byte_size
                 }) else {
                     return Err(RuntimeSpillError::SourceMismatch);

@@ -56,6 +56,7 @@ fn stored_transport(
     transport: selected_instructions::SelectedStructuralTransport,
 ) -> Option<(
     VirtualRegisterId,
+    u32,
     selected_instructions::LocalStorageSlotId,
     u32,
     u16,
@@ -66,10 +67,17 @@ fn stored_transport(
         | selected_instructions::SelectedStructuralTransport::Address { .. } => None,
         selected_instructions::SelectedStructuralTransport::WholeValue {
             argument,
+            source_byte_offset,
             destination,
             byte_size,
             alignment,
-        } => Some((argument, destination, byte_size, alignment)),
+        } => Some((
+            argument,
+            source_byte_offset,
+            destination,
+            byte_size,
+            alignment,
+        )),
     }
 }
 

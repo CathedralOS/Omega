@@ -84,15 +84,13 @@ pub use structural_argument_plans::{
 };
 pub use structural_control_plans::{
     CheckedStructuralControlCleanupPlans, CheckedStructuralControlEdgeCleanupPlan,
-    CheckedStructuralControlProjectedEdgeCleanupPlan,
-    CheckedStructuralControlProjectedTransferPlan, CheckedStructuralControlStateCleanupPlan,
-    CheckedStructuralControlSuccessorPlan, CheckedStructuralControlTransferPlan,
-    CheckedStructuralControlTransferSourcePlan, CheckedStructuralRankedArgumentPlan,
-    CheckedStructuralRankedGuardPlan, CheckedStructuralRankedSccEdgePlan,
-    CheckedStructuralRankedSccPlan, CheckedStructuralScalarArgumentPlan,
-    CheckedStructuralScalarArgumentSourcePlan, CheckedStructuralUnitControlMachinePlan,
-    CheckedStructuralUnitControlPlans, CheckedStructuralUnitControlStatePlan,
-    CheckedStructuralUnitControlTerminatorPlan,
+    CheckedStructuralControlStateCleanupPlan, CheckedStructuralControlSuccessorPlan,
+    CheckedStructuralControlTransferPlan, CheckedStructuralControlTransferSourcePlan,
+    CheckedStructuralRankedArgumentPlan, CheckedStructuralRankedGuardPlan,
+    CheckedStructuralRankedSccEdgePlan, CheckedStructuralRankedSccPlan,
+    CheckedStructuralScalarArgumentPlan, CheckedStructuralScalarArgumentSourcePlan,
+    CheckedStructuralUnitControlMachinePlan, CheckedStructuralUnitControlPlans,
+    CheckedStructuralUnitControlStatePlan, CheckedStructuralUnitControlTerminatorPlan,
 };
 pub use structural_return::{CheckedReferenceResultSourcePlan, CheckedUnitStructuralReturnPlan};
 pub use structural_return_plans::{

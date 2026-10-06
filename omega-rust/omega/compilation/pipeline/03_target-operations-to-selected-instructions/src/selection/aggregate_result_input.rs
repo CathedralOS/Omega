@@ -1045,9 +1045,40 @@ pub(super) fn block_parameter_transport(
 ) -> Option<selected_instructions::SelectedStructuralTransport> {
     use selected_instructions::{LocalStorageSlotId, SelectedStructuralTransport};
     use terminal_semantics::BorrowedReferentPresentation;
-    if argument.access != parameter.access || !argument.path.is_empty() {
+    if argument.access != parameter.access
+        || !abstract_operations::control_flow::address_joins::is_static_projection(&argument.path)
+    {
         return None;
     }
+    let source_byte_offset = if argument.access == StructuralAccess::Owned {
+        let declarations = &source.structural.as_ref()?.structural_types;
+        let root = super::address_join_input::root_type(source, argument.place, argument.access)?;
+        let (selected, offset) =
+            crate::structural_inputs::structural_reference_input::leaf_copy_projection(
+                root,
+                &argument.path,
+                declarations,
+            )?;
+        if selected != parameter.structural_type {
+            return None;
+        }
+        let root_shape = crate::structural_inputs::structural_reference_input::owned_storage_shape(
+            root,
+            declarations,
+        )?;
+        let selected_shape = block_parameter_shape(source, parameter)?;
+        if offset.checked_add(selected_shape.byte_size)? > root_shape.byte_size
+            || offset % u32::from(selected_shape.alignment) != 0
+        {
+            return None;
+        }
+        offset
+    } else {
+        if !argument.path.is_empty() {
+            return None;
+        }
+        0
+    };
     let shape = block_parameter_shape(source, parameter)?;
     if shape.byte_size == 0 {
         return Some(SelectedStructuralTransport::Unused);
@@ -1078,6 +1109,7 @@ pub(super) fn block_parameter_transport(
                 .1;
             Some(SelectedStructuralTransport::WholeValue {
                 argument: pointer,
+                source_byte_offset,
                 destination,
                 byte_size: shape.byte_size,
                 alignment: shape.alignment,

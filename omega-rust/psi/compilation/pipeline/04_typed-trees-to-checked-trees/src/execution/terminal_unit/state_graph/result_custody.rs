@@ -9,7 +9,7 @@ use super::{
     CheckFacts, CheckedComposedUnitControlTerminatorPlan, CheckedStructuralAccess,
     CheckedStructuralControlSuccessorPlan, CheckedUnitEffectOperationPlan,
     CheckedUnitStructuralArgumentSourcePlan, Multiplicity, PermissionEventKind,
-    PermissionEventSource, StatementNode, TypedTrees, call_owns_result, control, local_results,
+    PermissionEventSource, StatementNode, TypedTrees, control, local_results,
     terminator_call_consumes_result,
 };
 use checked_trees::CheckedUnitStructuralParameterPlan;
@@ -411,19 +411,24 @@ pub(super) fn account(
         // later use here instead of still demanding state-exit disposal.
         // The final sum rejects a second move, cleanup, or returned owner.
         // Unrestricted locals remain copies, not one-use ownership debt.
-        let call_transfers = operations[producer_index + 1..]
-            .iter()
-            .flat_map(CheckedUnitEffectOperationPlan::call_structural_arguments)
-            .filter(|argument| {
-                result.multiplicity != Multiplicity::Unrestricted
-                    && call_owns_result(operation)
-                    && argument.source_structural_result_binding_ordinal()
-                        == Some(result.binding_ordinal)
-                    && argument.type_identity == result.type_identity
-                    && argument.access == CheckedStructuralAccess::Owned
-                    && argument.path.is_empty()
+        let result_local = operation
+            .statement_structural_result_binding()
+            .and_then(|binding| statements.get(binding.statement_index as usize))
+            .and_then(|statement| match statement {
+                StatementNode::LocalData(local) => Some(local.symbol),
+                _ => None,
             })
-            .count();
+            .unwrap_or_default();
+        let call_transfers = if result.multiplicity == Multiplicity::Unrestricted {
+            0
+        } else {
+            operations[producer_index + 1..]
+                .iter()
+                .map(|consumer| {
+                    consumer.definite_call_transfers(&facts.values, operation, result_local)
+                })
+                .sum()
+        };
         // A hole-restore stores a whole owned result into borrowed
         // storage; custody moved into the field, which owns it after
         // this state. Count it with the terminator exits: a disposable
@@ -568,6 +573,12 @@ pub(super) fn account(
             + reference_reborrows
             + view_releases;
         if total != 1 {
+            trace.phase(if total == 0 {
+                "state graph: structural result has no selected disposition"
+            } else {
+                "state graph: structural result has duplicate dispositions"
+            });
+            trace.statement(Some(result.statement_index));
             return None;
         }
         if returning_view_disposal {
