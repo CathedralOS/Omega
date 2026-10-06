@@ -15,9 +15,9 @@ use super::{
     TypeReferenceNode, TypedTrees, ValueEnvironment, abstract_shift_count, division_definedness,
     is_arithmetic, literal_i64, place_path, range_constraint_interval,
 };
+use crate::machine_calls::machine_parameters::contract_facts::contract_kind_name;
 use crate::proof_contracts::arithmetic_domains::expression_analysis::analyze;
 use crate::proof_contracts::arithmetic_domains::integer_ranges::{primitive_name, primitive_range};
-use crate::machine_calls::machine_parameters::contract_facts::contract_kind_name;
 use crate::proof_contracts::arithmetic_domains::operand_reports::arithmetic_operator_spelling;
 use language_core::is_self_receiver;
 

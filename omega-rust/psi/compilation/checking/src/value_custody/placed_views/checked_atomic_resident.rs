@@ -10,10 +10,7 @@ use access_plans::AtomicPrimitiveAccessRequest;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
-use typed_trees::typed_trees::{
-    PlacedAtomicObservingResultContract, PlacedAtomicResidentContract,
-};
-
+use typed_trees::typed_trees::{PlacedAtomicObservingResultContract, PlacedAtomicResidentContract};
 
 /// One exact checked observing-result contract joined to the sealed Atomic
 /// request that retains runtime resident custody.
@@ -40,7 +37,6 @@ impl<'checked, 'view, 'extent> CheckedAtomicResidentAccess<'checked, 'view, 'ext
     pub const fn observing_result(&self) -> &'checked PlacedAtomicObservingResultContract {
         self.result
     }
-
 
     /// Remove only this checked-contract join. The original specialized
     /// request and all provider-backed resident custody remain intact.
@@ -70,4 +66,3 @@ impl<'view, 'extent> CheckedAtomicResidentAccessRejection<'view, 'extent> {
         (self.access, self.diagnostics)
     }
 }
-
