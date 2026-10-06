@@ -26,7 +26,7 @@ pub use owned_shape::{owned_shared_byte_descriptor_shape, plain_owned_shape};
 mod terminal_flow;
 pub use replay::{
     DescriptorAnalysis, DescriptorStoredCallEffect, DescriptorStoredEffect, DescriptorStoredOrigin,
-    descriptor_slots, reconstruct_flow, reconstruct_source_origins, reconstruct_stored_effects,
+    descriptor_slots, reconstruct_source_origins, reconstruct_stored_effects,
 };
 
 #[derive(Clone)]
