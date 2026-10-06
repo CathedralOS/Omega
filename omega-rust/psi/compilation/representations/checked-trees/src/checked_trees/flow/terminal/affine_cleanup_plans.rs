@@ -117,10 +117,9 @@ pub struct CheckedUnitNominalAffineCleanupPlan {
     pub cleanup_machine: SymbolHandle,
     pub cleanup_state: SymbolHandle,
     pub cleanup_contract_report_fingerprint: u64,
-    /// Source-independent preconditions proved at this exact implicit cleanup
-    /// edge. The contextual slice admits a finite canonical set of direct
-    /// relevant Boolean fields of the cleanup receiver.
-    pub requirements: Vec<CheckedUnitNominalAffineCleanupRequirementPlan>,
+    // The callable owns its complete prerequisite roster. Retaining a second,
+    // simplified copy here would make cleanup accept a different contract from
+    // ordinary calls. Emission binds obligations to that callable's signature.
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

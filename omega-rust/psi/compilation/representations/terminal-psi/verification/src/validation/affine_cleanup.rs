@@ -1,11 +1,11 @@
 //! Validates exact partial affine and owner-authorized nominal cleanup custody.
 
 use super::{
-    BTreeMap, BTreeSet, CanonicalStructuralPathSegment, MachineId, ModuleError, OperationKind,
-    PlaceId, Proposition, ScalarTerm, ScalarType, StructuralAccess, StructuralFieldType,
-    StructuralMultiplicity, StructuralPathSegment, StructuralPlaceKind, StructuralTypeId,
-    StructuralTypeShape, TerminalAffineCleanupAction, TerminalMachine, TerminalMachineResult,
-    TerminalModule, Terminator, partial_affine_root_type, resolve_structural_path,
+    BTreeMap, BTreeSet, MachineId, ModuleError, OperationKind, PlaceId, ScalarType,
+    StructuralAccess, StructuralFieldType, StructuralMultiplicity, StructuralPathSegment,
+    StructuralPlaceKind, StructuralTypeId, StructuralTypeShape, TerminalAffineCleanupAction,
+    TerminalMachine, TerminalMachineResult, TerminalModule, Terminator, partial_affine_root_type,
+    resolve_structural_path,
 };
 mod continuation;
 
@@ -381,48 +381,9 @@ pub(super) fn valid_nominal_cleanup_requirements(
         return false;
     }
 
-    let Some(fields) = module
-        .structural_types
-        .iter()
-        .find(|declaration| declaration.id == cleanup.structural_type)
-        .and_then(|declaration| match &declaration.shape {
-            StructuralTypeShape::Record { fields } => Some(fields),
-            StructuralTypeShape::PrimitiveScalar(_)
-            | StructuralTypeShape::FusedServiceBinding
-            | StructuralTypeShape::Reference { .. }
-            | StructuralTypeShape::ByteSequence(_)
-            | StructuralTypeShape::ElementView { .. }
-            | StructuralTypeShape::FixedArray { .. }
-            | StructuralTypeShape::Sum { .. }
-            | StructuralTypeShape::Mixed { .. } => None,
-        })
-    else {
-        return false;
-    };
-    let mut previous_key = None;
-    for requirement in &target.contract.requires {
-        let Proposition::Equal(
-            ScalarTerm::Boolean(expected),
-            ScalarTerm::BooleanField { root, path },
-        ) = requirement
-        else {
-            return false;
-        };
-        let [CanonicalStructuralPathSegment::Field(field)] = path.as_slice() else {
-            return false;
-        };
-        let key = (*expected, field.get().to_le_bytes());
-        if *root != receiver
-            || previous_key.is_some_and(|previous| previous >= key)
-            || !fields.iter().any(|candidate| {
-                candidate.id == *field
-                    && !candidate.relevance.is_erased()
-                    && candidate.field_type == StructuralFieldType::Scalar(ScalarType::Boolean)
-            })
-        {
-            return false;
-        }
-        previous_key = Some(key);
-    }
+    // The machine's ordinary contract validation checks every clause's typed
+    // subjects, including an action-bound proof-only receiver. This site checks
+    // only the action/signature join; a second predicate parser would admit a
+    // different prerequisite language for cleanup than for authored calls.
     true
 }

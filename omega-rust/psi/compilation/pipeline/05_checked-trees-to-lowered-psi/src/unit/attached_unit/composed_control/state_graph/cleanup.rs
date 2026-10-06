@@ -339,7 +339,8 @@ pub(super) fn for_exit(
                 )?;
                 Ok(TerminalAffineCleanupAction::InvokeNominal(crate::unit::unit_cleanup::lower_nominal_cleanup_action(
                     checked, cleanup, place, structural_type, path, &catalogs.type_ids,
-                    &catalogs.scalar_calls.machine_ids, &receivers, &mut catalogs.scalar_calls.next_call_obligation,
+                    &catalogs.scalar_calls.machine_ids, &receivers, &catalogs.scalar_calls.requirement_counts,
+                    &mut catalogs.scalar_calls.next_call_obligation,
                 )?))
             }
         }

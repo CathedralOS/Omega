@@ -1,7 +1,7 @@
 //! Nominal cleanup uses the ordinary callable contract namespace. Prepare a
-//! hook's subject before lowering requires, then independently rejoin the
-//! checked cleanup roster to those authored clauses. No requirement is inferred
-//! from a caller's need to dispose of a value.
+//! hook's subject before lowering requires. Its complete contract then lowers
+//! once through `entry_requirements`, exactly as for an ordinary call. A cleanup
+//! action selects that signature, never a second Boolean-field contract lane.
 
 use super::{
     CheckedNominalAffineUnitCleanupMachinePlan, CheckedTrees, CheckedUnitStructuralFieldType,
@@ -12,12 +12,16 @@ use terminal_psi::{StructuralParameterDeclaration, StructuralTypeDeclaration};
 
 pub(crate) struct SignatureContext {
     pub(crate) receiver: Option<PlaceId>,
-    requires: Vec<Proposition>,
+    dispatcher_requires: Option<Vec<Proposition>>,
 }
 
 impl SignatureContext {
     pub(crate) fn validate_contract(&self, requires: &[Proposition]) -> Result<(), LoweringError> {
-        if self.requires != requires {
+        if self
+            .dispatcher_requires
+            .as_deref()
+            .is_some_and(|expected| expected != requires)
+        {
             return unsupported(
                 "nominal cleanup requirements differ from the authored callable contract",
             );
@@ -90,36 +94,6 @@ pub(super) fn validate_requirements(
         )?;
         if nominal.caller_requirements[..index].contains(requirement) {
             return unsupported("contextual nominal cleanup caller requirements are duplicated");
-        }
-    }
-    for cleanup in &nominal.cleanups {
-        let parameter_index =
-            cleanup
-                .source_parameter_index()
-                .ok_or(LoweringError::Unsupported(
-                    "nominal parameter cleanup acquired another source",
-                ))?;
-        let source_position = nominal
-            .machine
-            .structural_parameters
-            .get(parameter_index as usize)
-            .ok_or(LoweringError::Unsupported(
-                "nominal cleanup parameter is absent",
-            ))?
-            .position;
-        for (index, requirement) in cleanup.requirements.iter().enumerate() {
-            field(source_position, &requirement.field_identity)?;
-            if cleanup.requirements[..index].contains(requirement)
-                || !nominal.caller_requirements.iter().any(|caller| {
-                    caller.source_parameter_index == source_position
-                        && caller.field_identity == requirement.field_identity
-                        && caller.expected == requirement.expected
-                })
-            {
-                return unsupported(
-                    "contextual nominal cleanup requirements are duplicated or lack a caller premise",
-                );
-            }
         }
     }
     Ok(())
@@ -210,6 +184,24 @@ pub(crate) fn prepare_signature(
             ),
             source,
         )?;
+        let contract =
+            checked
+                .facts
+                .contract_plans
+                .for_machine(source)
+                .ok_or(LoweringError::Unsupported(
+                    "nominal cleanup hook contract is absent",
+                ))?;
+        if contract
+            .closed_scalar_values
+            .authored_requires()
+            .iter()
+            .any(Option::is_none)
+        {
+            return unsupported(
+                "nominal cleanup hook lacks a complete callable prerequisite roster",
+            );
+        }
         let structural_type = types
             .iter()
             .find(|declaration| declaration.identity == hook.type_identity)
@@ -217,7 +209,7 @@ pub(crate) fn prepare_signature(
                 "nominal cleanup hook owner type is absent",
             ))?
             .id;
-        if predicate_parameters.is_empty() && !hook.requirements.is_empty() {
+        if predicate_parameters.is_empty() {
             // Reserve through the closure allocator, but publish no executable
             // parameter/place: this receiver exists only to substitute clauses
             // at each consuming cleanup action.
@@ -235,19 +227,14 @@ pub(crate) fn prepare_signature(
         }
         if let Some(parameter) = predicate_parameters.first() {
             receiver = Some(parameter.place);
-            for requirement in &hook.requirements {
-                requires.push(field_clause(
-                    types,
-                    parameter,
-                    &requirement.field_identity,
-                    requirement.expected,
-                )?);
-            }
         }
     }
     if nominal.is_none() && hook.is_none() {
         return Ok(None);
     }
     crate::scalar_graph::scalar_contracts::canonicalize_requires(&mut requires)?;
-    Ok(Some(SignatureContext { receiver, requires }))
+    Ok(Some(SignatureContext {
+        receiver,
+        dispatcher_requires: nominal.map(|_| requires),
+    }))
 }

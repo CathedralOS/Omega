@@ -1,4 +1,4 @@
-//! Construction publishes Boolean snapshots when each child finishes evaluating.
+//! Construction publishes scalar snapshots when each child finishes evaluating.
 //! Later siblings may write the child's former source; the established member
 //! already holds its own value. Normal calls invalidate this destination through
 //! their ordinary write frontier. Cleanup reads the surviving facts at its edge,
@@ -26,23 +26,10 @@ impl Execution<'_, '_, '_> {
         // Only owned contents transport member values. A reference/slice
         // carrier retains live referents, not snapshots below its descriptor.
         // Nominal cleanup is a later disposition and does not change the
-        // Boolean storage already established by this child evaluation.
+        // scalar storage already established by this child evaluation.
         if !type_reference.is_valid()
             || !validation::has_borrow_free_contents(self.program, type_reference)
         {
-            return;
-        }
-        let mut values = Vec::new();
-        if let Some(value) = evaluated.boolean {
-            values.push((destination.to_vec(), value));
-        }
-        // Scalar children already supplied their evaluated observation. Only
-        // aggregate children need the captured context's nested member facts.
-        let is_aggregate = self
-            .program
-            .primitive_type_reference(type_reference)
-            .is_none();
-        if !is_aggregate && values.is_empty() {
             return;
         }
         let captured_contexts = self
@@ -59,6 +46,57 @@ impl Execution<'_, '_, '_> {
                 }
             })
             .collect::<Vec<_>>();
+        let mut values = Vec::new();
+        let primitive = self.program.primitive_type_reference(type_reference);
+        let scalar = evaluated.boolean.map(ScalarValue::Boolean).or_else(|| {
+            let primitive = primitive?;
+            let expression = evaluated.capture.expression;
+            if !validation::has_builtin_bound_expression_meaning(
+                self.program,
+                self.machine,
+                Some(self.state),
+                expression,
+            ) {
+                return None;
+            }
+            let expression = crate::values::lower_unit_scalar_argument(
+                self.program,
+                self.context.operators,
+                self.state,
+                self.statement_index,
+                expression,
+                primitive,
+            )?;
+            let symbols = crate::values::unit_scalar_binding_symbols(
+                self.program,
+                self.state,
+                self.statement_index,
+            )?;
+            crate::values::evaluate_checked_scalar(
+                &expression,
+                &mut crate::values::PlaceScalarValues {
+                    program: self.program,
+                    parameters: self.program.state_parameters(self.state),
+                    symbols: &symbols,
+                    value_at_place: |place: &crate::flow::CanonicalPlace| {
+                        crate::values::scalar_value_at_place(
+                            self.program,
+                            self.semantic,
+                            captured_contexts
+                                .iter()
+                                .map(|context| self.semantic.contexts.get(*context)),
+                            place,
+                        )
+                    },
+                },
+            )
+        });
+        if let Some(value) = scalar {
+            values.push((destination.to_vec(), value));
+        }
+        // Scalar children supplied their completed observation. Only
+        // aggregate children need the captured context's nested member facts.
+        let is_aggregate = primitive.is_none();
         if is_aggregate
             && let Some(source) = self.context.canonical_place_at(
                 self.program,
@@ -68,7 +106,7 @@ impl Execution<'_, '_, '_> {
             )
         {
             // Aggregate children can themselves be constructions or moved
-            // storage. Rebase their current Boolean observations, including
+            // storage. Rebase their current scalar observations, including
             // nested fields and array members, onto the new destination.
             for context in &captured_contexts {
                 for fact in self
@@ -104,12 +142,24 @@ impl Execution<'_, '_, '_> {
                     ) {
                         continue;
                     }
-                    let Some(value) = crate::checks::contracts::boolean_value_at_place(
+                    let value = crate::checks::contracts::boolean_value_at_place(
                         self.program,
                         self.semantic,
                         &captured_contexts,
                         &place,
-                    ) else {
+                    )
+                    .map(ScalarValue::Boolean)
+                    .or_else(|| {
+                        crate::values::scalar_value_at_place(
+                            self.program,
+                            self.semantic,
+                            captured_contexts
+                                .iter()
+                                .map(|context| self.semantic.contexts.get(*context)),
+                            &place,
+                        )
+                    });
+                    let Some(value) = value else {
                         continue;
                     };
                     let mut path = destination.to_vec();
@@ -134,10 +184,7 @@ impl Execution<'_, '_, '_> {
             for segment in path {
                 self.semantic.push_place_segment(place, segment);
             }
-            let value = self
-                .semantic
-                .scalar_values
-                .append(ScalarValue::Boolean(value));
+            let value = self.semantic.scalar_values.append(value);
             let fact = self.semantic.append_fact(Fact {
                 place: FactPlace::Place(place),
                 point,

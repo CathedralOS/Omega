@@ -38,8 +38,17 @@ pub(crate) fn structural_leaf_type<'module>(
     let mut structural_type = machine
         .structural_parameters
         .iter()
-        .find(|parameter| parameter.place == root)?
-        .structural_type;
+        .find(|parameter| parameter.place == root)
+        .map(|parameter| parameter.structural_type)
+        .or_else(|| {
+            // Erased hook receivers have no executable parameter. The action's
+            // exact proof subject still inhabits the ordinary contract scope,
+            // with the selected nominal owner supplying its field types.
+            (super::affine_cleanup::nominal_cleanup_contract_receiver(module, machine.id)
+                == Some(root))
+            .then_some(machine.nominal_cleanup_subject)
+            .flatten()
+        })?;
     let mut selected_case_fields = None;
     if path.is_empty() {
         return None;

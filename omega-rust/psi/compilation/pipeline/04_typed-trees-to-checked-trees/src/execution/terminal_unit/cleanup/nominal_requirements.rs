@@ -492,7 +492,7 @@ pub(crate) fn checked_requires_expressions(
             || matches!(checked.owner, ContractProofFactOwner::MachineState { machine_symbol, state_symbol } if machine_symbol == machine && state_symbol == state)
     }) {
         if checked.kind != ContractProofFactKind::Requires {
-            return None;
+            continue;
         }
         let ProofFact::Expression(expression) = program.proof_facts.get(checked.fact) else {
             return None;

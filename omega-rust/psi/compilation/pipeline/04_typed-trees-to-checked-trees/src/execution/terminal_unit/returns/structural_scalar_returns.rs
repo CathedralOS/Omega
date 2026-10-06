@@ -646,7 +646,6 @@ pub(crate) fn build_structural_scalar_return_machine(
                     cleanup_machine: cleanup_machine.symbol,
                     cleanup_state: cleanup_target.state,
                     cleanup_contract_report_fingerprint: cleanup_target.contract_report_fingerprint,
-                    requirements: cleanup_requirements,
                 })
             })()?;
             Some(CheckedNormalCleanupAction::InvokeNominal(nominal_cleanup))

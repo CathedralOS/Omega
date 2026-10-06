@@ -124,7 +124,6 @@ pub(super) fn validate_machine(
         machine,
         registry,
         &context,
-        contract_receiver,
         &requires_values,
     )?;
 

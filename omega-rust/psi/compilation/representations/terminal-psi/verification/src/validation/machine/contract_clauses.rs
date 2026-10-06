@@ -5,7 +5,7 @@ use super::super::{
     BTreeSet, ContractClauseKind, IdRegistry, ModuleError, PropositionContext, TerminalMachine,
     TerminalModule, contracts, crash, insert_unique,
 };
-use semantic_vocabulary::{PlaceId, ValueId};
+use semantic_vocabulary::ValueId;
 
 /// Validates the contract's clauses: each requires, ensures and
 /// outcome-specific ensures proposition has the clause's shape, is well
@@ -17,7 +17,6 @@ pub(super) fn validate_contract_clauses(
     machine: &TerminalMachine,
     registry: &mut IdRegistry,
     context: &PropositionContext,
-    contract_receiver: Option<PlaceId>,
     requires_values: &BTreeSet<ValueId>,
 ) -> Result<(), ModuleError> {
     let mut ensures_values = requires_values.clone();
@@ -33,19 +32,17 @@ pub(super) fn validate_contract_clauses(
         context
             .validate(proposition)
             .map_err(ModuleError::MalformedProposition)?;
-        // Nominal cleanup sites validate their exact Boolean-field requirements
-        // against the action's receiver type. That proof-only receiver is not an
-        // executable parameter; ordinary contracts use the parameter scope here.
-        if contract_receiver.is_none() {
-            contracts::validate_contract_scope(
-                module,
-                machine,
-                proposition,
-                requires_values,
-                machine.contract.id,
-                ContractClauseKind::Requires,
-            )?;
-        }
+        // Executable and erased hook receivers use the same typed contract
+        // scope. The foundation resolves a proof-only receiver from its exact
+        // action/nominal-owner binding; cleanup never skips clause validation.
+        contracts::validate_contract_scope(
+            module,
+            machine,
+            proposition,
+            requires_values,
+            machine.contract.id,
+            ContractClauseKind::Requires,
+        )?;
         crash::validate_structural_case_memberships(module, machine, proposition)?;
     }
     for clause in &machine.contract.ensures {

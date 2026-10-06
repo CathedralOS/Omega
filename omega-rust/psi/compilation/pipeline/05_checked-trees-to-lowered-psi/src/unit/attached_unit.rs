@@ -416,12 +416,11 @@ pub(crate) fn lower_unit_closure(
         .machines
         .iter()
         .map(|machine| (machine.source_machine(), machine.requirement_count()))
-        .chain(machine_signatures.iter().filter_map(|signature| {
-            UnitBody::find(plans, signature.source)
-                .ok()
-                .filter(|body| body.scalar_result_type().is_some())
-                .map(|_| (signature.source, signature.requires.len()))
-        }))
+        .chain(
+            machine_signatures
+                .iter()
+                .map(|signature| (signature.source, signature.requires.len())),
+        )
         .collect::<Vec<_>>();
 
     // Emission: each Unit body, ordinary or composed, into the shared
@@ -549,6 +548,7 @@ pub(crate) fn lower_unit_closure(
                     .map(|receiver| (signature.source, receiver))
             })
             .collect::<Vec<_>>(),
+        &scalar_requirement_counts,
         &mut next_call_obligation,
     )?;
     let first_scalar_callee_index =

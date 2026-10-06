@@ -765,10 +765,12 @@ defines the complete product bar.
     `pass/drops/runtime_nested_nominal_producer_loans_exit` as the operand-loan
     lifetime control: cleanup must not prolong a completed borrow-free
     producer's input loans.
-    Hook selection in `cleanup/actions.rs` still requires a single-state body
-    and direct Boolean receiver-field prerequisites. Carry general callable
-    bodies and contracts through that shared selector, not new hook-pattern
-    lanes.
+    Hook selection in `cleanup/actions.rs` still requires a single-state body.
+    Carry complete callable bodies through that shared selector and closure,
+    not new hook-pattern lanes. Generic prerequisite transport in
+    `facts/contextual_cleanup/requirements.rs` still retains direct Boolean
+    entry-field rows; widen that invocation carrier without inventing a new
+    authored caller demand or skipping clauses the carrier cannot express.
   Acceptance: add corpus fixtures where native runs and the Terminal
   interpreter preserve values and hook order across composed edges, including
   a projected-argument jump edge closing residuals in order. Missing,

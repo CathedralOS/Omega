@@ -1,4 +1,8 @@
-//! Bind a symbolic generic death to the prerequisites of its substituted hook.
+//! Check each selected death against the hook's complete callable predicates.
+//! Formal observations rebase onto the exact live receiver at the selected
+//! edge, then use the ordinary current-value predicate algebra. Unsupported
+//! clauses fail closed; a missing Boolean recognizer cannot erase a requirement.
+//! Generic entry transport remains the checked Boolean-place vocabulary below.
 //!
 //! A fixed concrete owner in a generic signature is not a symbolic death. Only
 //! storage under the source type parameter can introduce a bound obligation.
@@ -20,7 +24,7 @@ use crate::execution::terminal_unit::cleanup::{
 };
 use crate::flow::{CanonicalPlace, CleanupLeaf, selected_cleanup_leaves};
 
-use super::super::boolean_predicates::{conjunction, entry_path_condition};
+use super::super::boolean_predicates::{self, BoundPredicate, conjunction, entry_path_condition};
 
 struct Pending {
     machine: SymbolHandle,
@@ -39,6 +43,12 @@ pub(crate) fn infer_entry_requirements(
 ) -> Result<bool, Vec<Diagnostic>> {
     let mut pending = Vec::new();
     for obligation in selected_requirements(program, facts)? {
+        // Bound generic rows currently retain one Boolean place predicate.
+        // The final edge checker below still checks every callable clause;
+        // a non-transportable prerequisite never silently becomes true.
+        let Some((place, expected)) = obligation.transportable_subject(program) else {
+            continue;
+        };
         let instance = facts
             .contextual_cleanup
             .dispositions
@@ -57,8 +67,7 @@ pub(crate) fn infer_entry_requirements(
                         .dispositions
                         .get(application.template);
                     let leaves = selected_cleanup_leaves(program, facts, template)?;
-                    let path =
-                        super::source_path(program, &obligation.place.segments, instance.machine);
+                    let path = super::source_path(program, &place.segments, instance.machine);
                     leaves
                         .iter()
                         .any(|leaf| {
@@ -81,8 +90,8 @@ pub(crate) fn infer_entry_requirements(
             instance.machine,
             instance.state,
             obligation.statement,
-            &obligation.place,
-            obligation.expected,
+            &place,
+            expected,
             antecedent,
             obligation.hook,
             obligation.clause,
@@ -180,13 +189,45 @@ struct SelectedRequirement {
     place: CanonicalPlace,
     hook: SymbolHandle,
     clause: ExpressionHandle,
-    expected: bool,
+    predicate: BoundPredicate,
 }
 
 impl SelectedRequirement {
     fn proven(&self, program: &TypedTrees, facts: &CheckFacts) -> bool {
-        boolean_value_at_place(program, &facts.semantic, &self.contexts, &self.place)
-            == Some(self.expected)
+        let retained = boolean_predicates::retained(program, &facts.semantic, &self.contexts);
+        boolean_predicates::proves(&retained, &self.predicate, |place| {
+            boolean_value_at_place(program, &facts.semantic, &self.contexts, place)
+                .map(facts::ScalarValue::Boolean)
+                .or_else(|| {
+                    crate::values::scalar_value_at_place(
+                        program,
+                        &facts.semantic,
+                        self.contexts
+                            .iter()
+                            .map(|context| facts.semantic.contexts.get(*context)),
+                        place,
+                    )
+                })
+        })
+    }
+
+    fn transportable_subject(&self, program: &TypedTrees) -> Option<(CanonicalPlace, bool)> {
+        let hook = program.machine_by_symbol(self.hook)?;
+        let state = program.machine_states(hook).first()?;
+        let receiver = program.state_parameters(state).first()?;
+        let requirement =
+            direct_boolean_field_requirement(program, state.symbol, receiver, self.clause)?;
+        let (_, path, _, _) = crate::values::resolve_structural_parameter_path(
+            program,
+            program.state_parameters(state),
+            0,
+            &[CheckedStructuralPredicatePathSegment::Field(
+                requirement.field_identity,
+            )],
+        )?;
+        let mut place = self.place.clone();
+        place.segments.extend(path);
+        Some((place, requirement.expected))
     }
 }
 
@@ -236,45 +277,59 @@ fn selected_requirements(
             let Some(clauses) =
                 checked_requires_expressions(program, facts, hook, hook_state.symbol)
             else {
-                continue;
+                return Err(vec![Diagnostic::error(format!(
+                    "cannot prove automatic cleanup requires: {} has no complete callable clause roster",
+                    crate::labels::machine_name(program, hook),
+                ))]);
             };
             for clause in clauses {
-                let Some(requirement) =
-                    direct_boolean_field_requirement(program, hook_state.symbol, receiver, clause)
-                else {
-                    continue;
-                };
-                let Some((_, field_path, _, _)) = crate::values::resolve_structural_parameter_path(
-                    program,
-                    parameters,
-                    0,
-                    &[CheckedStructuralPredicatePathSegment::Field(
-                        requirement.field_identity,
-                    )],
-                ) else {
-                    continue;
-                };
+                let predicate = crate::values::lower_state_scalar_contract_predicate(
+                    program, &facts.operators, hook_machine, hook_state, clause, &mut 4096,
+                ).and_then(|predicate| boolean_predicates::bind_parameters(
+                    program, hook, hook_state.symbol, parameters, predicate,
+                )).ok_or_else(|| vec![Diagnostic::error(format!(
+                    "cannot prove automatic cleanup requires: {} clause `{}` has no complete callable predicate",
+                    crate::labels::machine_name(program, hook),
+                    program.expression_table.display_name(clause),
+                ))])?;
+                if predicate
+                    .bindings
+                    .iter()
+                    .any(|observation| observation.place.root != PlaceRoot::Symbol(receiver.symbol))
+                {
+                    return Err(vec![Diagnostic::error(
+                        "automatic cleanup prerequisite requires an argument other than its receiver",
+                    )]);
+                }
                 let points = points.as_ref().ok_or_else(|| {
                     vec![Diagnostic::error(format!(
                         "cleanup prerequisite has no exact outgoing edge context in {}",
                         crate::labels::machine_name(program, disposition.machine),
                     ))]
                 })?;
-                let mut selected = path.clone();
-                selected.extend(field_path);
-                for_each_place(&selected, &mut Vec::new(), &mut |segments| {
+                for_each_place(&path, &mut Vec::new(), &mut |segments| {
                     for (statement, contexts) in points {
+                        let place = CanonicalPlace {
+                            root: disposition.root,
+                            segments: segments.to_vec(),
+                        };
+                        let mut substituted = predicate.clone();
+                        for observation in &mut substituted.bindings {
+                            let mut selected = place.segments.clone();
+                            selected.append(&mut observation.place.segments);
+                            observation.place = CanonicalPlace {
+                                root: place.root,
+                                segments: selected,
+                            };
+                        }
                         result.push(SelectedRequirement {
                             disposition: handle,
                             statement: *statement,
                             contexts: contexts.clone(),
-                            place: CanonicalPlace {
-                                root: disposition.root,
-                                segments: segments.to_vec(),
-                            },
+                            place,
                             hook,
                             clause,
-                            expected: requirement.expected,
+                            predicate: substituted,
                         });
                     }
                 });
@@ -295,11 +350,21 @@ pub(crate) fn check_cleanup_requirements(
     selected.into_iter().filter_map(|obligation| {
         if obligation.proven(program, facts) { return None; }
         let disposition = facts.contextual_cleanup.dispositions.get(obligation.disposition);
+        if let Some((place, expected)) = obligation.transportable_subject(program) {
+            return Some(Diagnostic::error(format!(
+                "cannot prove automatic cleanup requires at selected edge from {} state {} after statement {}: missing {} == {} required by {} clause `{}`",
+                crate::labels::machine_name(program, disposition.machine),
+                program.symbols.name(disposition.state), obligation.statement,
+                place.label(program), expected,
+                crate::labels::machine_name(program, obligation.hook),
+                program.expression_table.display_name(obligation.clause),
+            )));
+        }
         Some(Diagnostic::error(format!(
-            "cannot prove automatic cleanup requires at selected edge from {} state {} after statement {}: missing {} == {} required by {} clause `{}`",
+            "cannot prove automatic cleanup requires at selected edge from {} state {} after statement {}: {} does not establish {} clause `{}`",
             crate::labels::machine_name(program, disposition.machine),
             program.symbols.name(disposition.state), obligation.statement,
-            obligation.place.label(program), obligation.expected,
+            obligation.place.label(program),
             crate::labels::machine_name(program, obligation.hook),
             program.expression_table.display_name(obligation.clause),
         )))

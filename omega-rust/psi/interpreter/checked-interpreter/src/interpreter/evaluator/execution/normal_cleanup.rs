@@ -4,8 +4,8 @@
 //! no authority to invent a cleanup call from a type or machine name.
 
 use crate::interpreter::evaluator::{
-    Cell, DataMember, EvalResult, EvaluatedArgument, Evaluator, Frame, Halt, Machine, State, Value,
-    trap, unsupported,
+    Cell, EvalResult, EvaluatedArgument, Evaluator, Frame, Halt, Machine, State, Value, trap,
+    unsupported,
 };
 use checked_trees::{
     CheckedNormalCleanupAction, CheckedUnitNominalAffineCleanupPlan,
@@ -246,47 +246,11 @@ impl<'program> Evaluator<'program> {
         let target_state = self
             .find_state_by_symbol(target, action.cleanup_state)
             .ok_or_else(|| Halt::Unsupported("nominal cleanup target state is absent".into()))?;
-        // Requirements name the exact source root and normalized declaration
-        // fields. Observe each immediately before its own action, not once for
-        // the entire cleanup sequence.
-        {
-            let value = source.borrow();
-            let Value::Struct {
-                type_symbol,
-                fields,
-                ..
-            } = &*value
-            else {
-                return trap("nominal cleanup source is not its record value");
-            };
-            let definition = self
-                .program
-                .data_definitions()
-                .iter()
-                .find(|definition| definition.symbol == *type_symbol)
-                .ok_or_else(|| Halt::Trap("nominal cleanup record declaration is absent".into()))?;
-            for requirement in &action.requirements {
-                let field = self
-                    .program
-                    .data_members(definition)
-                    .iter()
-                    .find_map(|member| match member {
-                        DataMember::Field(field)
-                            if field.path_identity() == requirement.field_identity =>
-                        {
-                            Some(field)
-                        }
-                        _ => None,
-                    })
-                    .ok_or_else(|| {
-                        Halt::Trap("nominal cleanup prerequisite field is absent".into())
-                    })?;
-                if !fields.get(field.name.as_str()).is_some_and(|cell| {
-                    matches!(*cell.borrow(), Value::Bool(value) if value == requirement.expected)
-                }) {
-                    return trap("nominal cleanup prerequisite is false at its owned place");
-                }
-            }
+        // Source checking discharged this exact edge's callable prerequisites,
+        // as for an authored call. Execution keeps the selected storage/body
+        // join; it must not run a second, Boolean-only contract interpreter.
+        if !matches!(*source.borrow(), Value::Struct { .. }) {
+            return trap("nominal cleanup source is not its record value");
         }
         let parameters = self.program.state_parameters(target_state);
         let arguments = match parameters {

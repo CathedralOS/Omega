@@ -2947,6 +2947,7 @@ impl OperationFrame<'_, '_> {
                             self.type_ids,
                             self.calls.machine_ids,
                             self.calls.cleanup_receivers,
+                            self.calls.requirement_counts,
                             &mut self.calls.next_obligation_identity,
                         )?,
                     )

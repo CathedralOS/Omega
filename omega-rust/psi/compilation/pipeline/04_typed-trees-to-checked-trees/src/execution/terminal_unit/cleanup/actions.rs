@@ -116,7 +116,6 @@ pub(super) fn disposition_actions(
             let selected_type = shapes.add_type(reference, &binders, &[])?;
             hooks.push(selected_nominal(
                 program,
-                facts,
                 targets,
                 hook,
                 source.clone(),
@@ -210,7 +209,6 @@ fn concrete_paths(path: &[facts::PlaceSegment]) -> Option<Vec<Vec<facts::PlaceSe
 
 fn selected_nominal(
     program: &TypedTrees,
-    facts: &CheckFacts,
     targets: &[CheckedUnitEffectMachinePlan],
     hook: symbols::SymbolHandle,
     source: CheckedUnitStructuralArgumentSourcePlan,
@@ -219,9 +217,6 @@ fn selected_nominal(
 ) -> Option<CheckedUnitNominalAffineCleanupPlan> {
     let machine = crate::lookup::machine_by_symbol(program, hook)?;
     let [state] = program.machine_states(machine) else {
-        return None;
-    };
-    let [receiver] = program.state_parameters(state) else {
         return None;
     };
     let target = targets.iter().find(|target| target.machine == hook)?;
@@ -235,8 +230,5 @@ fn selected_nominal(
         cleanup_machine: hook,
         cleanup_state: state.symbol,
         cleanup_contract_report_fingerprint: target.contract_report_fingerprint,
-        requirements: super::nominal_cleanup_boolean_requirements(
-            program, facts, machine, state, receiver,
-        )?,
     })
 }

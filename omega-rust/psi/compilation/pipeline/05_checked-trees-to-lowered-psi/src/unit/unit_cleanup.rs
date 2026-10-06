@@ -174,6 +174,7 @@ pub(crate) fn lower_nominal_cleanup_action(
     type_ids: &[(String, StructuralTypeId)],
     machine_ids: &[(SymbolHandle, MachineId)],
     receivers: &[(SymbolHandle, PlaceId)],
+    requirement_counts: &[(SymbolHandle, usize)],
     next_obligation: &mut u64,
 ) -> Result<NominalAffineCleanup, LoweringError> {
     unique_unit_machine(
@@ -192,6 +193,7 @@ pub(crate) fn lower_nominal_cleanup_action(
         receivers.iter().find_map(|(source, receiver)| {
             (*source == cleanup.cleanup_machine).then_some(*receiver)
         }),
+        requirement_count(requirement_counts, cleanup.cleanup_machine)?,
         &mut || crate::terminal_identities::allocate_dense(next_obligation).map(obligation_id),
     )
 }
@@ -206,6 +208,7 @@ fn materialize_nominal_cleanup_action(
     path: Vec<terminal_psi::StructuralPathSegment>,
     machine_ids: &[(SymbolHandle, MachineId)],
     cleanup_receiver: Option<PlaceId>,
+    requirement_count: usize,
     allocate_requirement: &mut impl FnMut() -> Result<semantic_vocabulary::ObligationId, LoweringError>,
 ) -> Result<NominalAffineCleanup, LoweringError> {
     Ok(NominalAffineCleanup {
@@ -215,12 +218,25 @@ fn materialize_nominal_cleanup_action(
         cleanup_machine: lookup_machine_id(machine_ids, cleanup.cleanup_machine)?,
         consumed_claims: Vec::new(),
         cleanup_receiver,
-        requirement_obligations: cleanup
-            .requirements
-            .iter()
+        requirement_obligations: (0..requirement_count)
             .map(|_| allocate_requirement())
             .collect::<Result<Vec<_>, _>>()?,
     })
+}
+
+/// Cleanup and authored calls owe the same normalized callable roster, including
+/// runtime prerequisites merged with authored clauses. Source clause counts and
+/// a separate hook predicate parser cannot predict that published roster.
+fn requirement_count(
+    counts: &[(SymbolHandle, usize)],
+    machine: SymbolHandle,
+) -> Result<usize, LoweringError> {
+    counts
+        .iter()
+        .find_map(|(source, count)| (*source == machine).then_some(*count))
+        .ok_or(LoweringError::Unsupported(
+            "nominal cleanup target prerequisite signature is absent",
+        ))
 }
 
 /// Scalar operand expansion reserves storage before the shared call closure is
@@ -287,6 +303,7 @@ pub(crate) fn emit_prepared_cleanup_actions(
                             path.clone(),
                             machine_ids,
                             receiver,
+                            requirement_count(calls.requirement_counts, cleanup.cleanup_machine)?,
                             // Scalar helpers own bounded identity ranges. Use
                             // their allocator rather than an unbounded counter.
                             &mut || calls.allocate_requirement(),
@@ -311,6 +328,7 @@ pub(super) fn finalize_nominal_cleanup_actions(
     type_ids: &[(String, StructuralTypeId)],
     machine_ids: &[(SymbolHandle, MachineId)],
     receivers: &[(SymbolHandle, PlaceId)],
+    requirement_counts: &[(SymbolHandle, usize)],
     next_obligation: &mut u64,
 ) -> Result<(), LoweringError> {
     for cleanup in selected_cleanups(checked) {
@@ -361,6 +379,7 @@ pub(super) fn finalize_nominal_cleanup_actions(
             type_ids,
             machine_ids,
             receivers,
+            requirement_counts,
             next_obligation,
         )?;
     }
@@ -374,6 +393,7 @@ fn finalize_nominal_cleanup_machine(
     type_ids: &[(String, StructuralTypeId)],
     machine_ids: &[(SymbolHandle, MachineId)],
     receivers: &[(SymbolHandle, PlaceId)],
+    requirement_counts: &[(SymbolHandle, usize)],
     next_obligation: &mut u64,
 ) -> Result<(), LoweringError> {
     let plan = &nominal.machine;
@@ -405,6 +425,7 @@ fn finalize_nominal_cleanup_machine(
             type_ids,
             machine_ids,
             receivers,
+            requirement_counts,
             next_obligation,
         )?;
         action.consumed_claims = machine

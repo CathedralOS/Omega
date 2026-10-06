@@ -246,6 +246,7 @@ pub(super) fn lower_nominal_structural_scalar_return_machine(
                             &closure.type_ids,
                             &closure.machine_ids,
                             &receivers,
+                            &closure.scalar_requirement_counts,
                             &mut closure.next_call_obligation,
                         )?,
                     ))

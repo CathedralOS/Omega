@@ -176,12 +176,15 @@ pass/drops/runtime_mixed_temporary_effects_continuation_exit built 3904ms exit:0
 pass/drops/runtime_mixed_temporary_scalar_continuation_exit built 1647ms exit:0 interpreter-exit:0 interpreter:agrees @8611f9d5adf1
 pass/drops/runtime_nested_nominal_producer_loans_exit built 1496ms exit:0 interpreter-exit:0 interpreter:agrees @f0ed096e2456+wt
 pass/drops/runtime_nested_temporary_capture_cleanup_exit built 1731ms exit:0 interpreter-exit:0 interpreter:agrees @4df42bc194d5+wt
+pass/drops/runtime_nominal_cleanup_compound_contract_exit built 1721ms exit:0 interpreter-exit:0 interpreter:agrees @4cc11cbadf31+wt
 pass/drops/runtime_nominal_successor_argument_order_exit built 3588ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @093f0ff4e0f2
 pass/drops/runtime_nominal_temporary_helper_closure_exit built 1603ms exit:0 interpreter-exit:0 interpreter:agrees @4df42bc194d5+wt
 pass/drops/runtime_projected_nominal_core_exit built 1736ms exit:0 interpreter-exit:0 interpreter:agrees @40cf22348cf8+wt
 pass/drops/runtime_scalar_exit_nominal_cleanup_exit built 3659ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @792abb82ccd2
 pass/drops/runtime_scalar_temporary_nominal_continuation_exit built 1723ms exit:0 interpreter-exit:0 interpreter:agrees @4df42bc194d5+wt
 pass/drops/runtime_scalar_temporary_residual_partition_exit built 1647ms exit:0 interpreter-exit:0 interpreter:agrees @8611f9d5adf1
+pass/drops/runtime_temporary_integer_capture_cleanup_exit built 1685ms exit:0 interpreter-exit:0 interpreter:agrees @4cc11cbadf31+wt
+pass/drops/runtime_temporary_nominal_integer_contract_exit built 1685ms exit:0 interpreter-exit:0 interpreter:agrees @4cc11cbadf31+wt
 pass/drops/runtime_temporary_nominal_prerequisite_exit built 1723ms exit:0 interpreter-exit:0 interpreter:agrees @4df42bc194d5+wt
 pass/drops/runtime_unit_temporary_nominal_continuation_exit built 1723ms exit:0 interpreter-exit:0 interpreter:agrees @4df42bc194d5+wt
 pass/drops/runtime_unobserved_owned_state_transfer_exit built 1544ms exit:0 interpreter-exit:0 interpreter:agrees @e6b33888c415+wt
