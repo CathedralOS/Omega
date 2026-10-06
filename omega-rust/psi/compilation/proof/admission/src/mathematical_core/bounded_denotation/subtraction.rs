@@ -136,6 +136,12 @@ impl Denotation {
             let zero = self.binary_integer(false, 0)?;
             let constant = |position| scheme_at(position, Vec::new());
             let carrier = || constant(integer);
+            let binders = |names: &[&'static str], body| {
+                names
+                    .iter()
+                    .rev()
+                    .fold(body, |inner, name| pi(name, carrier(), inner))
+            };
             let subtract = |left, right| apps(constant(operation), [left, right]);
             let lt = |left, right| apps(constant(less_than), [left, right]);
             let statement = match law {
@@ -147,49 +153,27 @@ impl Denotation {
                 Law::LessOrEqualAntitone => {
                     let less_or_equal = self.integer_less_or_equal()?;
                     let le = |left, right| apps(constant(less_or_equal), [left, right]);
-                    pi(
-                        "x",
-                        carrier(),
+                    binders(
+                        &["x", "a", "b"],
                         pi(
-                            "a",
-                            carrier(),
-                            pi(
-                                "b",
-                                carrier(),
-                                pi(
-                                    "_",
-                                    le(v("a"), v("b")),
-                                    le(subtract(v("x"), v("b")), subtract(v("x"), v("a"))),
-                                ),
-                            ),
+                            "_",
+                            le(v("a"), v("b")),
+                            le(subtract(v("x"), v("b")), subtract(v("x"), v("a"))),
                         ),
                     )
                 }
                 Law::MonotoneAntitone => {
                     let less_or_equal = self.integer_less_or_equal()?;
                     let le = |left, right| apps(constant(less_or_equal), [left, right]);
-                    pi(
-                        "a",
-                        carrier(),
+                    binders(
+                        &["a", "b", "c", "d"],
                         pi(
-                            "b",
-                            carrier(),
+                            "_",
+                            le(v("a"), v("b")),
                             pi(
-                                "c",
-                                carrier(),
-                                pi(
-                                    "d",
-                                    carrier(),
-                                    pi(
-                                        "_",
-                                        le(v("a"), v("b")),
-                                        pi(
-                                            "_",
-                                            le(v("d"), v("c")),
-                                            le(subtract(v("a"), v("c")), subtract(v("b"), v("d"))),
-                                        ),
-                                    ),
-                                ),
+                                "_",
+                                le(v("d"), v("c")),
+                                le(subtract(v("a"), v("c")), subtract(v("b"), v("d"))),
                             ),
                         ),
                     )
@@ -210,36 +194,19 @@ impl Denotation {
                             le(subtract(v("b"), v("c")), v("a")),
                         )
                     };
-                    pi(
-                        "a",
-                        carrier(),
-                        pi(
-                            "b",
-                            carrier(),
-                            pi("c", carrier(), pi("_", premise, conclusion)),
-                        ),
-                    )
+                    binders(&["a", "b", "c"], pi("_", premise, conclusion))
                 }
                 Law::Zero => pi(
                     "x",
                     carrier(),
                     id(carrier(), subtract(v("x"), constant(zero)), v("x")),
                 ),
-                Law::Antitone => pi(
-                    "x",
-                    carrier(),
+                Law::Antitone => binders(
+                    &["x", "a", "b"],
                     pi(
-                        "a",
-                        carrier(),
-                        pi(
-                            "b",
-                            carrier(),
-                            pi(
-                                "_",
-                                lt(v("a"), v("b")),
-                                lt(subtract(v("x"), v("b")), subtract(v("x"), v("a"))),
-                            ),
-                        ),
+                        "_",
+                        lt(v("a"), v("b")),
+                        lt(subtract(v("x"), v("b")), subtract(v("x"), v("a"))),
                     ),
                 ),
             };
