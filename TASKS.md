@@ -163,30 +163,6 @@ helper that passes does not close an item.
   the arrival recorded. This needs a non-corpus justification and is the
   largest standing cleanup of its family. Measured at `b0a48cde065`.
 
-- **STRUCTURAL-PARAMETER-PLACE-SPELLING-CONJUNCT.** (split-of:STRUCTURAL-FIELD-SPELLING-BRANCH-RESOLVES-NOTHING)
-  `values/scalar/structural_fields.rs` `structural_parameter_place` (line 1156;
-  the conjunct is at ~1269) still filters candidates on
-  `parameter.symbol == name.head_symbol && names.first() == parameter.name`.
-  This is the **operand-swap** shape of `b0a48cde065`'s four landed sites, not
-  the branch deletion `32c9b9972cf` landed, and that commit's probe did not
-  cover it.
-
-  Frontier: the spelling narrows a `filter` whose uniqueness bail
-  (`candidates.next()?` then `if candidates.next().is_some() { return None }`)
-  decides whether the place resolves at all, so dropping it could in principle
-  turn a unique match into a contested one. The property to measure is
-  therefore the **whole candidate list** on both spellings, not the chosen
-  position -- that is how a sibling cleared the same risk at
-  `value_custody/places/parameter_scoped.rs`, where the two lists were identical
-  across all 296 reaches. The structural backing to confirm: stage 02 mints one
-  parameter symbol per authored binder, so one roster cannot hold two entries
-  sharing a symbol.
-
-  Adjacent and separate: the same function opens with
-  `matches!(names, [spelling] if spelling.is_self_receiver())`, a receiver
-  **spelling** guard. The receiver migration is complete, so the only authored
-  text that can still reach it is the fail fixture pinning that rejection, which
-  must stay. Measure before touching it and do not fold it into this item.
 
 - **STATIC-BOUNDARY-REQUIREMENT-CALL-FORM.** (split-of:STATIC-MACHINE-MIGRATION)
   Repair selection for explicit completion calls under
@@ -2530,28 +2506,33 @@ crash and native exit behavior.
   not a design question. The fixture's "R1/R4" citation has no counterpart in
   `wiki/spec/`.
 
-  **Secondary defect, independently fixable and admission-neutral.** The
-  diagnostic reads "the recast target `u32` needs 4 bytes at offset 4294967295,
-  but the region holds 12", which sends the author hunting for an offset their
-  program does not contain. 4294967295 is `u32`'s carrier maximum, not an
-  offset: for a non-literal index the three candidates produce *upper bounds*
-  and `min()` returns one as `InteriorByteRegion::Bounded { offset }`.
-  `occurrence_integer_expression_bounds`
-  (`arithmetic_domains/guard_narrowing/arrivals.rs:66`) returns its observation
-  interval unfiltered, so an unnarrowed `size: u32` yields `(0, 4294967295)` and
-  wins the `min()`. Its sibling `standing_integer_interval`
-  (`invariant_bounds.rs:109-114`) explicitly refuses exactly that value --
-  "a place's bare carrier range states nothing beyond its type" -- so the
-  asymmetry is already decided in one place and unapplied in the other. With the
-  bare carrier range rejected the offset is `None` and the existing
-  `OffsetUnproven` arm fires, whose message already tells the author what to do
-  (declare a range, guard the arm, or `ensures`-bound the boundary). Both paths
-  refuse, so fixing this changes no admission -- only what the author is told.
-  The carrier maximum standing in for "no bound" also breaks the ZII rule,
-  where absence is the zero value.
+  The secondary diagnostic defect is **closed at `de2302b8bf09`**. The carrier
+  judgment `standing_integer_interval` already stated is now one named
+  `place_carrier_interval` plus `upper_bound_beyond_place_carrier`, applied to
+  **all three** offset candidates through `proved_offset_upper_bound` rather
+  than only the one that produced the observed message. It also **peels
+  reference and qualification shells**: keyed to the raw place type it missed
+  every `&mut u32` offset, because a reference node resolves no primitive.
+  No admission moved -- 2033 fixtures, `checked` identical at 1310,
+  **0 fail fixtures stopped rejecting**, and all six moved rows kept their
+  status, with the guard-route canary `pass/recast/runtime_guarded_offset_recast_exit`
+  still `checked`. `fail/recast/unbounded_offset_names_the_bound` now holds the
+  fragment it already pinned, so the **wrong-fragment roster falls 4 to 3**.
+  The two call-invalidated recast fixtures are repointed at the unproven-offset
+  reason, since the arrival fact is retired by the call before the recast forms
+  and the callee's write is not a postcondition the caller reads back; their
+  direct-write siblings keep the footprint reason at the honest `offset 32`.
+
+  Deliberately left: an index that is not a place (a cast, an arithmetic tree)
+  has no place carrier and keeps its bound, which the composite walk requires.
+  A cast-spelled unbounded index needs an expression-type query rather than a
+  place query and is a separate shape.
+
 
   Refuted, so nobody re-derives it: `standing_integer_interval` is NOT the
-  source of the bogus bound; it already applies the carrier-range filter.
+  source of the bogus bound; it already applies the carrier-range filter --
+  and keying that carrier to the raw place type is itself too narrow, because
+  a reference-spelled offset resolves no primitive.
   Acceptance: `--filter dependent/boundary_equality_recast_witness_compile`
   reaches `checked`. The secondary defect can land first and alone, pinned by a
   fixture whose offset has no bound at all.
