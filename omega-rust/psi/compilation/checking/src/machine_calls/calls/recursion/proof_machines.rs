@@ -395,15 +395,6 @@ fn collect_self_entry_call_arguments(
         collect_self_entry_call_arguments(program, entry_name, handle, found);
     };
     match program.expression_table.expression(expression) {
-        ExpressionNode::Match(dispatch) => {
-            recurse(dispatch.subject, found);
-            for arm in program.expression_table.match_arms(dispatch.arms) {
-                if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
-                    recurse(pattern, found);
-                }
-                recurse(arm.value, found);
-            }
-        }
         ExpressionNode::Atomic(atomic) => recurse(atomic.value, found),
         ExpressionNode::Call(call) => {
             if is_self_entry_call(program, entry_name, call) {
@@ -419,42 +410,9 @@ fn collect_self_entry_call_arguments(
                 recurse(*argument, found);
             }
         }
-        ExpressionNode::Binary(binary) => {
-            recurse(binary.left, found);
-            recurse(binary.right, found);
-        }
-        ExpressionNode::Cast(cast) => recurse(cast.value, found),
-        ExpressionNode::Indexed(indexed) => {
-            recurse(indexed.collection, found);
-            recurse(indexed.index, found);
-        }
-        ExpressionNode::Member(member) => recurse(member.receiver, found),
-        ExpressionNode::Borrow(inner) => recurse(inner.target, found),
-        ExpressionNode::Range(range) => {
-            recurse(range.start, found);
-            recurse(range.end, found);
-        }
-        ExpressionNode::Unary(unary) => recurse(unary.operand, found),
-        ExpressionNode::ArrayLiteral(items) => {
-            for item in program.expression_table.expression_handles(*items) {
-                recurse(*item, found);
-            }
-        }
-        ExpressionNode::StructLiteral(struct_literal) => {
-            for field in program
-                .expression_table
-                .struct_fields(struct_literal.fields)
-            {
-                recurse(field.value, found);
-            }
-        }
-        ExpressionNode::Boolean(_)
-        | ExpressionNode::Float(_)
-        | ExpressionNode::UndeterminedNaN(_)
-        | ExpressionNode::Integer(_)
-        | ExpressionNode::Name(_)
-        | ExpressionNode::String(_)
-        | ExpressionNode::ZeroValue(_) => {}
+        other => crate::expression_traversal::children(program, other, |child| {
+            recurse(child, found);
+        }),
     }
 }
 
