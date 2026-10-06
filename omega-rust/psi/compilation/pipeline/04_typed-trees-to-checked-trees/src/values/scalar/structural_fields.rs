@@ -419,33 +419,7 @@ pub(super) fn view_local_root(
     parameters: &[StateParameter],
     expression: ExpressionHandle,
 ) -> Option<(symbols::SymbolHandle, TypeReferenceHandle)> {
-    let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
-        return None;
-    };
-    if !path.symbol.is_valid()
-        || path.head_symbol != path.symbol
-        || program
-            .expression_table
-            .name_path_members(path.members)
-            .len()
-            != 1
-        || parameters
-            .iter()
-            .any(|parameter| parameter.symbol == path.symbol)
-    {
-        return None;
-    }
-    let positions = local_data_positions(program, path.symbol);
-    let [position] = positions.as_slice() else {
-        return None;
-    };
-    let machine = &program.machines()[position.0 as usize];
-    let state = &program.machine_states(machine)[position.1 as usize];
-    let typed_trees::statement::StatementNode::LocalData(local) =
-        &program.statement_table.statements(state.statement_nodes)[position.2 as usize]
-    else {
-        return None;
-    };
+    let (symbol, local) = whole_local_binding(program, parameters, expression)?;
     // Either borrowed view family resolves the same `ViewLocal` root: reads
     // through an exclusive `&mut [T]`/`&mut R` loan re-view the lent
     // element exactly as the shared sibling's reads observe the shared
@@ -469,7 +443,7 @@ pub(super) fn view_local_root(
                 program,
                 local.type_reference,
             )))
-    .then_some((path.symbol, local.type_reference))
+    .then_some((symbol, local.type_reference))
 }
 
 /// The `let` symbol and declared type of an owned structural local that
@@ -482,33 +456,7 @@ pub(super) fn owned_local_root(
     parameters: &[StateParameter],
     expression: ExpressionHandle,
 ) -> Option<(symbols::SymbolHandle, TypeReferenceHandle)> {
-    let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
-        return None;
-    };
-    if !path.symbol.is_valid()
-        || path.head_symbol != path.symbol
-        || program
-            .expression_table
-            .name_path_members(path.members)
-            .len()
-            != 1
-        || parameters
-            .iter()
-            .any(|parameter| parameter.symbol == path.symbol)
-    {
-        return None;
-    }
-    let positions = local_data_positions(program, path.symbol);
-    let [position] = positions.as_slice() else {
-        return None;
-    };
-    let machine = &program.machines()[position.0 as usize];
-    let state = &program.machine_states(machine)[position.1 as usize];
-    let typed_trees::statement::StatementNode::LocalData(local) =
-        &program.statement_table.statements(state.statement_nodes)[position.2 as usize]
-    else {
-        return None;
-    };
+    let (symbol, local) = whole_local_binding(program, parameters, expression)?;
     // Root discovery retains identity, not permission to copy the whole
     // value. A record's borrowed descendants do not prevent reading another
     // field; establishment and observation replay check the selected path's
@@ -527,7 +475,7 @@ pub(super) fn owned_local_root(
         }
         _ => false,
     };
-    owned.then_some((path.symbol, local.type_reference))
+    owned.then_some((symbol, local.type_reference))
 }
 
 /// A collection can be stored below local fields and fixed array elements,
@@ -1337,4 +1285,45 @@ pub(super) fn element_field_path(
         current = field.type_reference;
     }
     Some((path, current))
+}
+
+/// The `let` local `expression` names whole when that name is not a state
+/// parameter: its symbol and declared local-data row. Both whole-name local
+/// root lookups peel the same authored-name shape before their kind gates.
+fn whole_local_binding<'a>(
+    program: &'a TypedTrees,
+    parameters: &[StateParameter],
+    expression: ExpressionHandle,
+) -> Option<(
+    symbols::SymbolHandle,
+    &'a typed_trees::statement::TableLocalData,
+)> {
+    let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    if !path.symbol.is_valid()
+        || path.head_symbol != path.symbol
+        || program
+            .expression_table
+            .name_path_members(path.members)
+            .len()
+            != 1
+        || parameters
+            .iter()
+            .any(|parameter| parameter.symbol == path.symbol)
+    {
+        return None;
+    }
+    let positions = local_data_positions(program, path.symbol);
+    let [position] = positions.as_slice() else {
+        return None;
+    };
+    let machine = &program.machines()[position.0 as usize];
+    let state = &program.machine_states(machine)[position.1 as usize];
+    let typed_trees::statement::StatementNode::LocalData(local) =
+        &program.statement_table.statements(state.statement_nodes)[position.2 as usize]
+    else {
+        return None;
+    };
+    Some((path.symbol, local))
 }
