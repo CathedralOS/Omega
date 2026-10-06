@@ -140,9 +140,11 @@ pub(in crate::lowering) fn lower_boundary_call(
                     native_callbacks_slice,
                     &structural_parameter_shapes,
                 )?;
+                // A completion receipt needs no foreign-call transport: the
+                // callee takes the owned argument through the evaluated plan,
+                // and the node's ownership events end the claim after the
+                // call returns, exactly as for a builtin settlement.
                 if arguments.len() != declaration.scalar_parameters.len()
-                    || !completion_claim_sources.is_empty()
-                    || !completion_receipts.is_empty()
                     || !foreign.has_valid_entry_mechanism()
                     || foreign.native_target() != Some(target)
                     || native_callbacks_slice.iter().any(|callback| {

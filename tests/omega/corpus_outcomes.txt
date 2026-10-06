@@ -1394,6 +1394,8 @@ fail/providers/checked_boundary_operator_const_application_unselected rejected 9
 	const-generic application: const evaluation failed: machine `limit` is not build-time admissible: build-time binary operator requires exact authored selection before evaluation; the evaluator cannot execute it as a builtin operator; build-time evaluation requires empty service reach, no possible suspension or blocking, ordinary checked termination, no unadmitted linear runtime carrier, and admitted declaration-selection authority across the complete call closure
 fail/providers/checked_boundary_operator_missing_contract rejected 259ms expected @2d8ed253669f
 	checked operator provider `CheckedMathProvider::identity_impl` proves no ensures matching operator requirement `operator::CheckedMath::identity(named(name(i32)))->named(name(i32))` contract `result == value`
+fail/providers/consuming_requirement_without_provider rejected 6663ms expected @e4c5f1527652+wt
+	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(Receipt::ack),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(Receipt\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
 fail/providers/provider_selection_fabricated_activation rejected 1230ms expected @944ee0efb38f+wt
 	the compiler-owned Build activation cannot be copied into local `counterfeit`
 fail/providers/provider_type_slot_ambiguous rejected 167ms expected @944ee0efb38f+wt
@@ -2837,8 +2839,7 @@ pass/ownership/linear_assignment_establishes checked 289ms @2d8ed253669f
 pass/ownership/linear_boundary_entry_handoff checked 352ms @2d8ed253669f
 pass/ownership/linear_branch_reconciliation checked 279ms @2d8ed253669f
 pass/ownership/linear_self_receiver_disposition checked 302ms @2d8ed253669f
-pass/ownership/linear_transfer_and_consume rejected 2509ms check-target:macos_arm64 @f5830721b7d1
-	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(Receipt::ack),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(Receipt\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
+pass/ownership/linear_transfer_and_consume checked 5959ms check-target:macos_arm64 @e4c5f1527652+wt
 pass/ownership/linear_transparent_record_frontier rejected 1843ms check-target:macos_arm64 @b69e30357ca8+wt
 	terminal-artifact production failed: Lowering(InvalidTerminalModule(RecordResultMismatch(OperationId(5))))
 pass/ownership/move_keyword_field_assignment checked 1226ms check-target:macos_arm64 @2d8ed253669f

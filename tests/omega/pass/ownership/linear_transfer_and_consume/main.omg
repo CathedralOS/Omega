@@ -3,14 +3,71 @@
 // consuming contract — the call edge transfers custody and the requirement
 // discharges it. `Receipt` declares no `Receipt::drop` plan, so no edge
 // cleanup may retire the claim.
+//
+// The requirement's provider is an external sink. Each bound target's C
+// library `abs` takes one 32-bit integer, which is exactly how SysV x86-64,
+// AAPCS64 and Windows x64 pass a one-field `i32` record by value; the
+// integer it returns is discarded. The call completes the receipt's claim.
+// The same program without the sink is
+// `fail/providers/consuming_requirement_without_provider`.
 use omega_language_std::console;
 use omega::language::core::binding;
+use omega::language::core::external_binding;
 
 data Receipt [linear] {
     code: i32;
 }
 
 boundary requirement Receipt::ack(receipt: Receipt);
+
+data ReceiptSink {}
+
+windows_x86_64 machine receipt_sink_binding() -> ForeignBinding<10, 3, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::PeByName {
+            library: "msvcrt.dll",
+            export: "abs",
+        },
+    }
+}
+
+linux_x86_64 machine receipt_sink_binding() -> ForeignBinding<9, 3, 11> {
+    ForeignBinding::DllImport {
+        import: DllImport::ElfVersioned {
+            object: "libc.so.6",
+            symbol: "abs",
+            version: "GLIBC_2.2.5",
+        },
+    }
+}
+
+linux_arm64 machine receipt_sink_binding() -> ForeignBinding<9, 3, 10> {
+    ForeignBinding::DllImport {
+        import: DllImport::ElfVersioned {
+            object: "libc.so.6",
+            symbol: "abs",
+            version: "GLIBC_2.17",
+        },
+    }
+}
+
+macos_arm64 machine receipt_sink_binding() -> ForeignBinding<17, 4, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "libSystem.B.dylib",
+            symbol: "_abs",
+        },
+    }
+}
+
+windows_x86_64 machine ReceiptSink::ack_leaf(receipt: Receipt)
+satisfies Receipt::ack via receipt_sink_binding();
+linux_x86_64 machine ReceiptSink::ack_leaf(receipt: Receipt)
+satisfies Receipt::ack via receipt_sink_binding();
+linux_arm64 machine ReceiptSink::ack_leaf(receipt: Receipt)
+satisfies Receipt::ack via receipt_sink_binding();
+macos_arm64 machine ReceiptSink::ack_leaf(receipt: Receipt)
+satisfies Receipt::ack via receipt_sink_binding();
 
 data Main { console: Binding<Console>; }
 

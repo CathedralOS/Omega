@@ -141,6 +141,29 @@ fn validate_atomic_access(
     Ok(())
 }
 
+/// Whether each `(claim, argument index)` pair names a distinct live claim
+/// rooted at that owned argument's place, at or below its path. A call's
+/// claim transfers and a boundary's completion receipts both hand claims over
+/// this way.
+fn claims_sit_at_owned_arguments(
+    frontier: &CurrentOwnership,
+    arguments: &[terminal_psi::StructuralArgument],
+    pairs: impl IntoIterator<Item = (semantic_vocabulary::ClaimId, u32)>,
+) -> bool {
+    let mut seen = BTreeSet::new();
+    pairs.into_iter().all(|(claim, index)| {
+        let (Some(argument), Some(live)) =
+            (arguments.get(index as usize), frontier.claims.get(&claim))
+        else {
+            return false;
+        };
+        seen.insert(claim)
+            && argument.access == StructuralAccess::Owned
+            && live.input == Some(argument.place)
+            && live.path.starts_with(&argument.path)
+    })
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(super) fn validate_current_ownership_cfg(
     function: &PsiOptimizationFunction,
@@ -596,20 +619,36 @@ pub(super) fn validate_current_ownership_cfg(
                         return Err(invalid());
                     }
                 }
-                let mut transferred = BTreeSet::new();
-                for transfer in claim_transfers {
-                    let argument = structural_arguments
-                        .get(transfer.argument_index as usize)
-                        .ok_or_else(invalid)?;
-                    let claim = frontier.claims.get(&transfer.claim).ok_or_else(invalid)?;
-                    if !transferred.insert(transfer.claim)
-                        || argument.access != StructuralAccess::Owned
-                        || claim.input != Some(argument.place)
-                        || !claim.path.starts_with(&argument.path)
-                    {
-                        return Err(invalid());
-                    }
+                if !claims_sit_at_owned_arguments(
+                    &frontier,
+                    structural_arguments,
+                    claim_transfers
+                        .iter()
+                        .map(|transfer| (transfer.claim, transfer.argument_index)),
+                ) {
+                    return Err(invalid());
                 }
+            }
+            // A boundary completion ends exactly the claims its owned
+            // arguments carry, whether the caller received them as entry
+            // claims or established them itself.
+            if let O::BoundaryCall {
+                structural_arguments,
+                completion_receipts,
+                ..
+            } = &node.operation
+                && !claims_sit_at_owned_arguments(
+                    &frontier,
+                    structural_arguments,
+                    completion_receipts
+                        .iter()
+                        .map(|receipt| (receipt.claim, receipt.argument_index)),
+                )
+            {
+                return Err(OptimizationUnitValidationError::CurrentCleanupMismatch {
+                    machine: function.machine,
+                    block: block_id,
+                });
             }
             let transferred = match &node.operation {
                 O::CallStructural {

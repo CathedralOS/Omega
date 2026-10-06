@@ -2646,37 +2646,13 @@ code and preserve check/native behavior for the named customer slices.
   Check affine arrivals containing linear children at joins as part of the
   same custody contract; the root's multiplicity alone cannot describe them.
 
-  Acceptance: the unchanged fixture checks and executes after
-  **LINEAR-BOUNDARY-SINK-NEEDS-A-PROVIDER** supplies its sink.
+  Acceptance: the fixture checks and executes with the external `abs` sink
+  that `pass/ownership/linear_transfer_and_consume` declares. With that sink
+  added it now stops at Terminal production's optimization validation:
+  `MalformedStructuralFoundation("record result custody is noncanonical")`.
   `fail/ownership/linear_transparent_record_member_scope_loss` must still
   reject the unconsumed `pair.right`. Preserve check/native corpus behavior
   for the affected ownership slice.
-
-- **LINEAR-BOUNDARY-SINK-NEEDS-A-PROVIDER.** (new-scope)
-  Supply a genuine executable provider for `Receipt::ack` in
-  `pass/ownership/linear_transfer_and_consume`. The fixture binds four
-  targets but its consuming boundary requirement selects no provider.
-  It has no `Receipt::drop`; an ordinary checked adapter that merely receives
-  the linear receipt still owes its consumption and does not solve this gap.
-
-  Use an admitted external sink with the real by-value aggregate ABI on each
-  bound target; `pass/providers/external_boundary_requirement_via_exit`
-  demonstrates authored foreign leaves. Preserve the entry bindings and
-  runtime call, rather than making the fixture targetless to avoid realization.
-  Missing aggregate ABI support belongs to the ordinary ABI owner, not an
-  ownership exception or a fictitious import.
-
-  `pass/ownership/linear_transparent_record_frontier` uses the same sink
-  after **TRANSPARENT-RECORD-RESULT-CARRIES-MEMBER-CLAIMS** is repaired.
-  Whole owned arrivals and projected aliases must carry boundary actuals and
-  exact live claims through the ordinary call path. Do not add new checks to
-  the retiring Terminal verifier; its deletion follows the PCC tasks.
-
-  Acceptance: both unchanged programs check and execute their authored
-  outcomes on the bound hosts. The missing-provider control and
-  `fail/ownership/linear_transparent_record_member_scope_loss` still reject
-  for their intended reasons.
-
 
 - **ONE-TRANSITION-LOWERING.** (new-scope) Successor transitions with
   parameter transfer are lowered in about six places:

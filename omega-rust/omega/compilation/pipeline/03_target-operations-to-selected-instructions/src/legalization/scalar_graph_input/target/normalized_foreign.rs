@@ -55,8 +55,7 @@ pub(super) fn validate(
             result,
             arguments,
             structural_arguments: expected_structural,
-            completion_claim_sources,
-            completion_receipts,
+            ..
         },
     ) = (target, source)
     else {
@@ -219,8 +218,6 @@ pub(super) fn validate(
     if declarations.next().is_some()
         || psi_operation != expected_operation
         || boundary != expected_boundary
-        || !completion_claim_sources.is_empty()
-        || !completion_receipts.is_empty()
         || binding.native_target() != Some(native.target)
         || binding.provider_plan_report_identity()
             != provider_execution.provider_plan_report_identity().get()

@@ -1064,8 +1064,7 @@ pass/ownership/linear_assignment_establishes checked 161ms
 pass/ownership/linear_boundary_entry_handoff checked 206ms
 pass/ownership/linear_branch_reconciliation checked 213ms
 pass/ownership/linear_self_receiver_disposition checked 208ms
-pass/ownership/linear_transfer_and_consume rejected 980ms @48008365d839
-	terminal-artifact production failed: Lowering(Unsupported("structural local changed its whole no-code ownership provenance"))
+pass/ownership/linear_transfer_and_consume built 3491ms exit:0 @e4c5f1527652+wt
 pass/ownership/linear_transparent_record_frontier rejected 1010ms @48008365d839
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: structural call binding`
 pass/ownership/move_keyword_field_assignment built 606ms exit:41 @ed1fb1257faf+wt

@@ -86,17 +86,23 @@ pub(crate) fn boundary_completion_matches(
         .iter()
         .map(|receipt| (receipt.argument_index, receipt.claim))
         .collect::<BTreeSet<_>>();
+    // Every entry or content claim an argument carries in is completed, at
+    // its own argument. A receipt may also complete a claim this function
+    // established itself; the ownership replay checks that claim is live at
+    // the argument's place.
     actual.len() == receipts.len()
-        && actual == expected
+        && expected.is_subset(&actual)
         && receipts.iter().all(|receipt| {
-            arguments
-                .get(receipt.argument_index as usize)
-                .and_then(|argument| {
-                    function_claim_input(caller, receipt.claim).map(|(input, path)| {
-                        input == argument.place
-                            && (argument.path.is_empty() || path == argument.path.as_slice())
-                    })
-                })
-                == Some(true)
+            let Some(argument) = arguments.get(receipt.argument_index as usize) else {
+                return false;
+            };
+            match function_claim_input(caller, receipt.claim) {
+                Some((input, path)) => {
+                    expected.contains(&(receipt.argument_index, receipt.claim))
+                        && input == argument.place
+                        && (argument.path.is_empty() || path == argument.path.as_slice())
+                }
+                None => argument.access == terminal_psi::StructuralAccess::Owned,
+            }
         })
 }
