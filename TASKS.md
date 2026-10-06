@@ -426,9 +426,7 @@ helper that passes does not close an item.
   rejects `self` parameters and implicit `self` expressions
   (`fail/machines/retired_self_receiver`); do not restore them to make an
   unmigrated program pass.
-  - Source remainder: boundary-trait requirements in
-    `samples/gui/{window_app,windowed_calculator}/main.omg`
-    (**TRAIT-IMPLEMENTATION-SOURCE-MIGRATION** and **STATELESS-PROVIDERS**) and the two memory canaries
+  - Source remainder: the two memory canaries
     (**STATIC-BOUNDARY-REQUIREMENT-CALL-FORM**). Build receiver calls remain
     for facets such as test groups. Move their producers and consumers to
     namespace-qualified calls with explicit arguments, following `Build::bind`,
@@ -1170,21 +1168,17 @@ defines the complete product bar.
   migration turned receiver state into a hidden `&mut Provider` parameter
   that the requirement does not declare. Finish converting the remaining
   standard-library and GUI sample providers to explicit application-owned state.
-  - Redesign `Gui` (`source/library/std/macos_gui.omg` and the remaining
-    samples' boundary traits) so `window_create` returns a `Window` record
-    holding the handles, selectors and autorelease pool; `blit`, `msg_peek`
-    and the rest take it explicitly, and teardown consumes it. Migrate
-    `window_app`, `windowed_calculator` and `image_viewer`, plus any other
-    satisfier with provider fields (find them by the extra leading provider
-    parameter). `window_demo` supplies the explicit-state reference; its
-    remaining native failure belongs to **MACOS-APPLICATION-PUBLICATION**.
-  - Make conformance checking reject a satisfier parameter the requirement
-    lacks, and delete the provider-subject provisioning: the installation
-    adapter and checked interpreter call the satisfier with exactly the
-    requirement's arguments. Stage 05's "checked provider receiver requires
-    installation storage or qualification provisioning" refusal
-    (`omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/unit/attached_unit/providers.rs`)
-    goes with it.
+  - Migrate `samples/gui/image_viewer` to the explicit owned `Window` API in
+    `source/library/std/macos_gui.omg`, preserving its title, BMP decoding and
+    navigation. Bundle-relative resources remain outside macOS publication v1.
+    Audit other satisfiers for extra leading provider parameters. The shared
+    library and `window_app`, `window_demo`, `windowed_calculator` now use
+    stateless named maps; their remaining interactive acceptance belongs to
+    **MACOS-APPLICATION-PUBLICATION**.
+  - Reject a satisfier parameter absent from its requirement across all
+    conformance paths and pin that rejection with a fail fixture. Installation
+    and checked interpretation must pass exactly the authored arguments;
+    finish removing any implicit provider-state provisioning.
   - A foreign-bound provider whose fields hold vtable addresses
     (`ForeignBinding::VtableField`) takes those from its foreign binding plan,
     not from provider data. **TRAIT-IMPLEMENTATION-SOURCE-MIGRATION** owns
@@ -1204,20 +1198,19 @@ defines the complete product bar.
   package/inner-executable accessors. Keep provider selection as named
   implementations and window state as explicit owned data.
 
-  Finish visual rendering and input/close verification for `window_demo` on
-  a desktop session that permits observation. Its public CLI run now publishes
-  `window_demo.app`, prints `PASS: 60 frames blitted (exit 0)` and exits 0;
-  a separate `open -n -W` launch also completes with that output. The current
-  macOS host denies Screen Recording; WindowServer supplies a 256-by-284
-  application-window record but no onscreen observation or captured pixels.
-  A system-Clang AppKit control has the same observation limit. Do not infer
-  visible rendering from the PASS line. Reproduce using
-  [the sample commands](samples/gui/window_demo/README.md).
-  `window_app` and `windowed_calculator` still need the explicit-state provider
-  migration under **STATELESS-PROVIDERS** and a fresh native run; their old
-  stage-05 diagnostics are not the current frontier. General lowering also
-  depends on **ENTRY-CONTENT-ROOTS**, **TR3-TR8** and
-  **STATE-LOCAL-VALUE-FRONTIER**.
+  Finish visual rendering and input/close verification for all three apps
+  on a desktop session that permits observation and input. Their public CLI
+  paths now publish `.app` bundles. `window_demo`, using the shared owned
+  `Window` API, prints `PASS: 60 frames blitted (exit 0)` and exits 0.
+  `window_app` and `windowed_calculator` create application-window records
+  through both direct execution and separate LaunchServices launches. Those
+  persistent runs were stopped by the observer with SIGTERM; that is startup
+  evidence, not normal-close or interactive acceptance. The current macOS
+  session denies Screen Recording, event posting and Accessibility, so neither
+  rendered pixels nor keyboard/close interaction has been verified. Reproduce
+  with [window_demo](samples/gui/window_demo/README.md) and
+  [window_app](samples/gui/window_app/README.md); the calculator follows the
+  same update/run flow under `samples/gui/windowed_calculator`.
 
   Acceptance: all three publish a validated `.app` and execute on macOS ARM64
   with observed windows/rendering, input/close behavior and completion
@@ -2006,11 +1999,11 @@ crash and native exit behavior.
     Reproduce the current frontier and require matching-host exit 70 after
     repair. Late certificate cost belongs to **PCC-CERTIFICATES-DELETED**,
     not a float-specific verifier path.
-  - **GUI sample stores.** `samples/gui/{window_demo,windowed_calculator}`
-    stopped at a borrowed byte-array element argument and
-    `samples/gui/window_app` at a structural field store destination
-    parameter; rerun them on Windows now that stage 05's storage-read check is
-    deleted.
+  - **Windows GUI providers.** Verify explicit Windows provider selection and
+    native execution for `samples/gui/{window_app,window_demo,windowed_calculator}`.
+    Their current named maps select macOS operations; historical stage-05
+    store/borrow diagnostics are not the current frontier. macOS application
+    acceptance is owned by **MACOS-APPLICATION-PUBLICATION**.
   - **Specialized providers.** Retain the exact closed requirement, provider
     instance, static tuple and application occurrence through selected-plan
     settlement into native realization

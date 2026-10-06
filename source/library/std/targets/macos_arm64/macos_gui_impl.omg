@@ -1,8 +1,8 @@
 // macos_arm64 foreign leaves for the macos_gui module's raw seams: one
 // bodyless `via` leaf per boundary machine — the leaf's signature IS the
 // boundary signature; the MachODylibSymbol locator is the foreign
-// realization. `MacosGui`/`MacosInput`/`MacosClock` call these as ordinary
-// free machines; the satisfies edges keep each leaf named by its boundary
+// realization. The explicit window, input and clock operations call these as
+// ordinary free machines; satisfies edges keep each leaf named by its boundary
 // requirement.
 
 use omega::language::core::external_binding;

@@ -8,5 +8,8 @@ machine build(builder: &mut Build) {
     });
     Build::bind(builder, windows_x86_64::ProgramEntry, Main::main);
     Build::bind(builder, macos_arm64::ProgramEntry, Main::main);
+    Build::select_provider<Gui, WindowGuiProvider>(builder);
+    Build::select_provider<Input, WindowInputProvider>(builder);
+    Build::select_provider<Clock, WindowClockProvider>(builder);
     builder.subsystem = Subsystem::Gui;
 }

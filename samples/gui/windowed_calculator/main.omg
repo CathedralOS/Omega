@@ -1,9 +1,8 @@
 // A persistent software-rendered windowed calculator.
 //
 // It deliberately combines the hardest currently-live Omega surfaces in one
-// small app: a real Windows GUI window, per-frame message pumping, keyboard
-// input through GetAsyncKeyState, a software framebuffer sent through
-// StretchDIBits, bounded render loops, calculator state, memory recall, and
+// small app: a native GUI window, per-frame message pumping, keyboard input,
+// a software framebuffer, bounded render loops, calculator state, memory recall, and
 // explicit state-machine dispatch for every interaction.
 //
 // Keyboard:
@@ -15,344 +14,40 @@
 use omega_language_std::console;
 use omega_language_std::macos_gui;
 use omega::language::core::binding;
-use omega::language::core::float_operations;
 pub boundary trait Clock { machine sleep(milliseconds: u32) invokes DarwinClock; }
 pub boundary trait Input { machine key_state(virtual_key: u32) -> u64 invokes CoreGraphics; }
 pub boundary trait Gui {
-    machine window_create(gui: &mut Self, class_name: [u8; 7], title: [u8; 11], style: u32, x: i32, y: i32, width: i32, height: i32) -> u64
+    machine window_create(class_name: [u8; 7], title: [u8; 11], style: u32, x: i32, y: i32, width: i32, height: i32) -> Window
+        invokes ObjectiveC; invokes CoreGraphics; invokes AppKit;
+    machine window_destroy(window: Window) invokes ObjectiveC; invokes CoreGraphics;
+    machine get_dc(window_state: &Window, window: u64) -> u64;
+    machine blit(window_state: &Window, device: u64, dest_width: u32, dest_height: u32, source_width: u32, source_height: u32, pixels: [i32; 4096], info: [i32; 11]) -> u32
         invokes ObjectiveC; invokes CoreGraphics;
-    machine get_dc(gui: &mut Self, window: u64) -> u64;
-    machine blit(gui: &mut Self, device: u64, dest_width: u32, dest_height: u32, source_width: u32, source_height: u32, pixels: [i32; 4096], info: [i32; 11]) -> u32
-        invokes ObjectiveC; invokes CoreGraphics;
-    machine msg_peek(gui: &mut Self, message: [u64; 6]) -> u32 invokes ObjectiveC;
-    machine msg_translate(gui: &mut Self, message: [u64; 6]) -> u32;
-    machine msg_dispatch(gui: &mut Self, message: [u64; 6]) -> u64 invokes ObjectiveC;
-    machine is_window(gui: &mut Self, window: u64) -> u32 invokes ObjectiveC;
-    machine window_destroy(gui: &mut Self, window: u64) -> u32 invokes ObjectiveC;
-    machine foreground_window(gui: &mut Self) -> u64 invokes ObjectiveC;
+    machine msg_peek(window_state: &mut Window, message: [u64; 6]) -> u32 invokes ObjectiveC;
+    machine msg_translate(window_state: &Window, message: [u64; 6]) -> u32;
+    machine msg_dispatch(window_state: &Window, message: [u64; 6]) -> u64 invokes ObjectiveC;
+    machine is_window(window_state: &Window, window: u64) -> u32 invokes ObjectiveC;
+    machine foreground_window(window_state: &Window) -> u64 invokes ObjectiveC;
 }
 
-// The selected macOS provider closure: each provider owns the GUI scratch
-// state directly (an adapter over a nested `inner` impl receiver mis-settles
-// the retained write frame) and satisfies its sample boundary nominally —
-// matching method names cannot establish satisfaction.
-data CalcGuiProvider {
-    // The current window + its image-view content (single-window apps).
-    window: u64;
-    view: u64;
-    app: u64;
-    // A device-RGB colorspace, created once at window_create and reused per blit.
-    space: u64;
-    // Staged blit dimensions (a host-call arg must be a storage place / literal,
-    // not a live conversion expression, so the i64/f64 results land in fields).
-    fbw: i64;
-    fbh: i64;
-    stride: i64;
-    fbwf: f64;
-    fbhf: f64;
-    // Pump scratch, built ONCE at window_create (msg_peek used to rebuild the
-    // date/mode/selector EVERY call, leaking an NSString per peek): the
-    // distantPast date, the run-loop-mode NSString, the nextEvent selector,
-    // the event mask, and the last dequeued NSEvent.
-    date: u64;
-    mode: u64;
-    psel: u64;
-    mask: u64;
-    evt: u64;
-    // Cached per-frame selectors (registered once at window_create): release,
-    // sendEvent:, isVisible, keyWindow.
-    relsel: u64;
-    dsel: u64;
-    vsel: u64;
-    ksel: u64;
-    // The rolling autorelease pool: opened at window_create, cycled by every
-    // msg_peek (pop drains the previous peek's autoreleased NSEvent after its
-    // dispatch; push opens the scope for the next one).
-    pool: u64;
-    // Scratch for the objc call sequences.
-    cls: u64;
-    sel: u64;
-    tmp: u64;
-    ctx: u64;
-    cgimg: u64;
-    nsimg: u64;
-    rx: f64;
-    ry: f64;
-    rw: f64;
-    rh: f64;
-    rc: u64;
-    r32: u32;}
-macos_arm64 machine CalcGuiProvider::provider_defaults(defaults: &mut CalcGuiProvider) {
-    CalcGuiProvider::select_provider<Gui, CalcGuiProvider>(defaults);
+// Selection supplies code. The application carries its window as an owned
+// state argument, borrowing it for observations and the event pump.
+CalcGuiProvider satisfies Gui {
+    Gui::window_create = macos_window_create;
+    Gui::window_destroy = macos_window_destroy;
+    Gui::get_dc = macos_window_get_dc;
+    Gui::blit = macos_window_blit;
+    Gui::msg_peek = macos_window_msg_peek;
+    Gui::msg_translate = macos_window_msg_translate;
+    Gui::msg_dispatch = macos_window_msg_dispatch;
+    Gui::is_window = macos_window_is_window;
+    Gui::foreground_window = macos_window_foreground_window;
 }
-macos_arm64 machine CalcGuiProvider::window_create(calc_gui_provider: &mut CalcGuiProvider, class_name: [u8; 7], title: [u8; 11], style: u32, x: i32, y: i32, width: i32, height: i32) -> u64 satisfies Gui::window_create
-reaches CoreGraphics + ObjectiveC
-{
-    calc_gui_provider.rx = F64::from_i32(x);
-    calc_gui_provider.ry = F64::from_i32(y);
-    calc_gui_provider.rw = F64::from_i32(width);
-    calc_gui_provider.rh = F64::from_i32(height);
-    calc_gui_provider.rw = calc_gui_provider.rw - 16.0;
-    calc_gui_provider.rh = calc_gui_provider.rh - 39.0;
-    let cbuf1: [u8; 14] = "NSApplication\0";
-    calc_gui_provider.cls = objc_get_class(&cbuf1[0]);
-    let cbuf2: [u8; 18] = "sharedApplication\0";
-    calc_gui_provider.sel = objc_register_selector(&cbuf2[0]);
-    calc_gui_provider.app = objc_send(calc_gui_provider.cls, calc_gui_provider.sel);
-    let cbuf3: [u8; 21] = "setActivationPolicy:\0";
-    calc_gui_provider.sel = objc_register_selector(&cbuf3[0]);
-    calc_gui_provider.rc = objc_send_scalar(calc_gui_provider.app, calc_gui_provider.sel, 0);
-    let cbuf4: [u8; 9] = "NSWindow\0";
-    calc_gui_provider.cls = objc_get_class(&cbuf4[0]);
-    let cbuf5: [u8; 6] = "alloc\0";
-    calc_gui_provider.sel = objc_register_selector(&cbuf5[0]);
-    calc_gui_provider.tmp = objc_send(calc_gui_provider.cls, calc_gui_provider.sel);
-    let cbuf6: [u8; 45] = "initWithContentRect:styleMask:backing:defer:\0";
-    calc_gui_provider.sel = objc_register_selector(&cbuf6[0]);
-    calc_gui_provider.window = objc_send_rect(calc_gui_provider.tmp, calc_gui_provider.sel, calc_gui_provider.rx, calc_gui_provider.ry, calc_gui_provider.rw, calc_gui_provider.rh, 15, 2, 0);
-    let cbuf7: [u8; 12] = "NSImageView\0";
-    calc_gui_provider.cls = objc_get_class(&cbuf7[0]);
-    let cbuf8: [u8; 6] = "alloc\0";
-    calc_gui_provider.sel = objc_register_selector(&cbuf8[0]);
-    calc_gui_provider.tmp = objc_send(calc_gui_provider.cls, calc_gui_provider.sel);
-    let cbuf9: [u8; 15] = "initWithFrame:\0";
-    calc_gui_provider.sel = objc_register_selector(&cbuf9[0]);
-    calc_gui_provider.view = objc_send_rect(calc_gui_provider.tmp, calc_gui_provider.sel, calc_gui_provider.rx, calc_gui_provider.ry, calc_gui_provider.rw, calc_gui_provider.rh, 0, 0, 0);
-    let cbuf10: [u8; 17] = "setImageScaling:\0";
-    calc_gui_provider.sel = objc_register_selector(&cbuf10[0]);
-    calc_gui_provider.rc = objc_send_scalar(calc_gui_provider.view, calc_gui_provider.sel, 1);
-    let cbuf11: [u8; 16] = "setContentView:\0";
-    calc_gui_provider.sel = objc_register_selector(&cbuf11[0]);
-    calc_gui_provider.rc = objc_send_scalar(calc_gui_provider.window, calc_gui_provider.sel, calc_gui_provider.view);
-    let cbuf12: [u8; 8] = "release\0";
-    calc_gui_provider.relsel = objc_register_selector(&cbuf12[0]);
-    let cbuf13: [u8; 9] = "NSString\0";
-    calc_gui_provider.cls = objc_get_class(&cbuf13[0]);
-    let cbuf14: [u8; 6] = "alloc\0";
-    calc_gui_provider.sel = objc_register_selector(&cbuf14[0]);
-    calc_gui_provider.tmp = objc_send(calc_gui_provider.cls, calc_gui_provider.sel);
-    let cbuf15: [u8; 20] = "initWithUTF8String:\0";
-    calc_gui_provider.sel = objc_register_selector(&cbuf15[0]);
-    calc_gui_provider.tmp = objc_send_byte_string(calc_gui_provider.tmp, calc_gui_provider.sel, &title[0]);
-    let cbuf16: [u8; 10] = "setTitle:\0";
-    calc_gui_provider.sel = objc_register_selector(&cbuf16[0]);
-    calc_gui_provider.rc = objc_send_scalar(calc_gui_provider.window, calc_gui_provider.sel, calc_gui_provider.tmp);
-    calc_gui_provider.rc = objc_send(calc_gui_provider.tmp, calc_gui_provider.relsel);
-    let cbuf17: [u8; 7] = "center\0";
-    calc_gui_provider.sel = objc_register_selector(&cbuf17[0]);
-    calc_gui_provider.rc = objc_send(calc_gui_provider.window, calc_gui_provider.sel);
-    let cbuf18: [u8; 22] = "makeKeyAndOrderFront:\0";
-    calc_gui_provider.sel = objc_register_selector(&cbuf18[0]);
-    calc_gui_provider.rc = objc_send_scalar(calc_gui_provider.window, calc_gui_provider.sel, 0);
-    let cbuf19: [u8; 27] = "activateIgnoringOtherApps:\0";
-    calc_gui_provider.sel = objc_register_selector(&cbuf19[0]);
-    calc_gui_provider.rc = objc_send_scalar(calc_gui_provider.app, calc_gui_provider.sel, 1);
-    calc_gui_provider.space = cg_color_space_rgb();
-    // Pump scratch, once: the distantPast date, the run-loop-mode NSString, the
-    // nextEvent/sendEvent:/isVisible/keyWindow selectors, and the event mask.
-    let cbuf20: [u8; 7] = "NSDate\0";
-    calc_gui_provider.cls = objc_get_class(&cbuf20[0]);
-    let cbuf21: [u8; 12] = "distantPast\0";
-    calc_gui_provider.sel = objc_register_selector(&cbuf21[0]);
-    calc_gui_provider.date = objc_send(calc_gui_provider.cls, calc_gui_provider.sel);
-    let cbuf22: [u8; 9] = "NSString\0";
-    calc_gui_provider.cls = objc_get_class(&cbuf22[0]);
-    let cbuf23: [u8; 6] = "alloc\0";
-    calc_gui_provider.sel = objc_register_selector(&cbuf23[0]);
-    calc_gui_provider.tmp = objc_send(calc_gui_provider.cls, calc_gui_provider.sel);
-    let cbuf24: [u8; 20] = "initWithUTF8String:\0";
-    calc_gui_provider.sel = objc_register_selector(&cbuf24[0]);
-    let cbuf25: [u8; 22] = "kCFRunLoopDefaultMode\0";
-    calc_gui_provider.mode = objc_send_string(calc_gui_provider.tmp, calc_gui_provider.sel, &cbuf25[0]);
-    let cbuf26: [u8; 48] = "nextEventMatchingMask:untilDate:inMode:dequeue:\0";
-    calc_gui_provider.psel = objc_register_selector(&cbuf26[0]);
-    calc_gui_provider.mask = 4294967295;
-    let cbuf27: [u8; 11] = "sendEvent:\0";
-    calc_gui_provider.dsel = objc_register_selector(&cbuf27[0]);
-    let cbuf28: [u8; 10] = "isVisible\0";
-    calc_gui_provider.vsel = objc_register_selector(&cbuf28[0]);
-    let cbuf29: [u8; 10] = "keyWindow\0";
-    calc_gui_provider.ksel = objc_register_selector(&cbuf29[0]);
-    // Open the rolling autorelease pool msg_peek cycles (never popped at exit
-    // on purpose: a later peek after a final pop would pop a dead token, and
-    // process exit reclaims everything anyway).
-    calc_gui_provider.pool = objc_pool_push();
-    transition { _ -> ret(calc_gui_provider) }
-    state ret(calc_gui_provider: &mut CalcGuiProvider) -> u64 { calc_gui_provider.window }
+CalcInputProvider satisfies Input {
+    Input::key_state = macos_key_state;
 }
-macos_arm64 machine CalcGuiProvider::get_dc(calc_gui_provider: &mut CalcGuiProvider, window: u64) -> u64  satisfies Gui::get_dc
-{
-    transition { _ -> ret(window) }
-    state ret(window: u64) -> u64 { window }
-}
-macos_arm64 machine CalcGuiProvider::blit(calc_gui_provider: &mut CalcGuiProvider, device: u64, dest_width: u32, dest_height: u32, source_width: u32, source_height: u32, pixels: [i32; 4096], info: [i32; 11]) -> u32 satisfies Gui::blit
-reaches CoreGraphics + ObjectiveC
-{
-    let source_width_wide: i64 = source_width as i64;
-    let source_height_wide: i64 = source_height as i64;
-    calc_gui_provider.fbw = source_width_wide;
-    calc_gui_provider.fbh = source_height_wide;
-    calc_gui_provider.stride = source_width_wide << 2;
-    calc_gui_provider.fbwf = F64::from_u32(source_width);
-    calc_gui_provider.fbhf = F64::from_u32(source_height);
-    calc_gui_provider.ctx = cg_bitmap_context(&pixels[0], calc_gui_provider.fbw, calc_gui_provider.fbh, 8, calc_gui_provider.stride, calc_gui_provider.space, 8198);
-    calc_gui_provider.cgimg = cg_bitmap_context_image(calc_gui_provider.ctx);
-    let cbuf30: [u8; 8] = "NSImage\0";
-    calc_gui_provider.cls = objc_get_class(&cbuf30[0]);
-    let cbuf31: [u8; 6] = "alloc\0";
-    calc_gui_provider.sel = objc_register_selector(&cbuf31[0]);
-    calc_gui_provider.tmp = objc_send(calc_gui_provider.cls, calc_gui_provider.sel);
-    let cbuf32: [u8; 22] = "initWithCGImage:size:\0";
-    calc_gui_provider.sel = objc_register_selector(&cbuf32[0]);
-    calc_gui_provider.nsimg = objc_send_image_size(calc_gui_provider.tmp, calc_gui_provider.sel, calc_gui_provider.cgimg, calc_gui_provider.fbwf, calc_gui_provider.fbhf);
-    let cbuf33: [u8; 10] = "setImage:\0";
-    calc_gui_provider.sel = objc_register_selector(&cbuf33[0]);
-    calc_gui_provider.rc = objc_send_scalar(calc_gui_provider.view, calc_gui_provider.sel, calc_gui_provider.nsimg);
-    // Per-frame lifecycle: the context and CGImage are Create-rule owned, and
-    // setImage: retains the NSImage, so drop our +1 on all three — without
-    // these releases every presented frame leaked ~3 objects at ~60fps.
-    calc_gui_provider.rc = cg_context_release(calc_gui_provider.ctx);
-    calc_gui_provider.rc = cg_image_release(calc_gui_provider.cgimg);
-    calc_gui_provider.rc = objc_send(calc_gui_provider.nsimg, calc_gui_provider.relsel);
-    // The samples assert `blit == source_height` (every source scanline copied).
-    calc_gui_provider.r32 = source_height;
-    transition { _ -> ret(calc_gui_provider) }
-    state ret(calc_gui_provider: &mut CalcGuiProvider) -> u32 { calc_gui_provider.r32 }
-}
-macos_arm64 machine CalcGuiProvider::msg_peek(calc_gui_provider: &mut CalcGuiProvider, message: [u64; 6]) -> u32 satisfies Gui::msg_peek
-reaches ObjectiveC
-{
-    // Cycle the rolling autorelease pool opened at window_create: the pop
-    // drains the PREVIOUS peek's autoreleased NSEvent (already dispatched by
-    // then), the push opens the scope this peek's event lands in. The date,
-    // mode string, selector, and mask are window_create-cached — this machine
-    // used to rebuild all four (and leak the NSString) on every single peek.
-    calc_gui_provider.rc = objc_pool_pop(calc_gui_provider.pool);
-    calc_gui_provider.pool = objc_pool_push();
-    calc_gui_provider.evt = objc_send_scalar4(calc_gui_provider.app, calc_gui_provider.psel, calc_gui_provider.mask, calc_gui_provider.date, calc_gui_provider.mode, 1);
-    // Arm states must stay side-effect-free (the value-call effect fence):
-    // both arms complete with a pure terminal value instead of mutating r32.
-    transition calc_gui_provider.evt != 0 { true -> got() _ -> ret() }
-    state got() -> u32 { 1 }
-    state ret() -> u32 { 0 }
-}
-macos_arm64 machine CalcGuiProvider::msg_translate(calc_gui_provider: &mut CalcGuiProvider, message: [u64; 6]) -> u32  satisfies Gui::msg_translate
-{
-    calc_gui_provider.r32 = 1;
-    transition { _ -> ret(calc_gui_provider) }
-    state ret(calc_gui_provider: &mut CalcGuiProvider) -> u32 { calc_gui_provider.r32 }
-}
-macos_arm64 machine CalcGuiProvider::msg_dispatch(calc_gui_provider: &mut CalcGuiProvider, message: [u64; 6]) -> u64 satisfies Gui::msg_dispatch
-reaches ObjectiveC
-{
-    calc_gui_provider.rc = objc_send_scalar(calc_gui_provider.app, calc_gui_provider.dsel, calc_gui_provider.evt);
-    transition { _ -> ret(calc_gui_provider) }
-    state ret(calc_gui_provider: &mut CalcGuiProvider) -> u64 { calc_gui_provider.rc }
-}
-macos_arm64 machine CalcGuiProvider::is_window(calc_gui_provider: &mut CalcGuiProvider, window: u64) -> u32 satisfies Gui::is_window
-reaches ObjectiveC
-{
-    calc_gui_provider.rc = objc_send(window, calc_gui_provider.vsel);
-    calc_gui_provider.r32 = narrow_u64_to_u32_wrapping(calc_gui_provider.rc);
-    transition { _ -> ret(calc_gui_provider) }
-    state ret(calc_gui_provider: &mut CalcGuiProvider) -> u32 { calc_gui_provider.r32 }
-}
-macos_arm64 machine CalcGuiProvider::window_destroy(calc_gui_provider: &mut CalcGuiProvider, window: u64) -> u32 satisfies Gui::window_destroy
-reaches ObjectiveC
-{
-    let cbuf34: [u8; 6] = "close\0";
-    calc_gui_provider.sel = objc_register_selector(&cbuf34[0]);
-    calc_gui_provider.rc = objc_send_scalar(window, calc_gui_provider.sel, 0);
-    calc_gui_provider.r32 = 1;
-    transition { _ -> ret(calc_gui_provider) }
-    state ret(calc_gui_provider: &mut CalcGuiProvider) -> u32 { calc_gui_provider.r32 }
-}
-macos_arm64 machine CalcGuiProvider::foreground_window(calc_gui_provider: &mut CalcGuiProvider) -> u64 satisfies Gui::foreground_window
-reaches ObjectiveC
-{
-    calc_gui_provider.rc = objc_send(calc_gui_provider.app, calc_gui_provider.ksel);
-    transition { _ -> ret(calc_gui_provider) }
-    state ret(calc_gui_provider: &mut CalcGuiProvider) -> u64 { calc_gui_provider.rc }
-}
-
-data CalcInputProvider { }
-macos_arm64 machine CalcInputProvider::provider_defaults(defaults: &mut CalcInputProvider) {
-    CalcInputProvider::select_provider<Input, CalcInputProvider>(defaults);
-}
-macos_arm64 machine CalcInputProvider::key_state(virtual_key: u32) -> u64 satisfies Input::key_state
-reaches CoreGraphics
-{
-    let keycode: u64 = CalcInputProvider::map_keycode(virtual_key);
-    let rc: u64 = cg_event_source_key_state(1, keycode);
-    transition keycode == 65535 { true -> not_down() _ -> ret(rc) }
-    state not_down() -> u64 { 0 }
-    state ret(rc: u64) -> u64 { rc }
-}
-macos_arm64 machine CalcInputProvider::map_keycode(virtual_key: u32) -> u64 
-{
-    transition virtual_key == 8 { true -> k51() _ -> t13(virtual_key) }
-    state t13(virtual_key: u32) -> u64 { transition virtual_key == 13 { true -> k36() _ -> t27(virtual_key) } }
-    state t27(virtual_key: u32) -> u64 { transition virtual_key == 27 { true -> k53() _ -> t37(virtual_key) } }
-    state t37(virtual_key: u32) -> u64 { transition virtual_key == 37 { true -> k123() _ -> t38(virtual_key) } }
-    state t38(virtual_key: u32) -> u64 { transition virtual_key == 38 { true -> k126() _ -> t39(virtual_key) } }
-    state t39(virtual_key: u32) -> u64 { transition virtual_key == 39 { true -> k124() _ -> t40(virtual_key) } }
-    state t40(virtual_key: u32) -> u64 { transition virtual_key == 40 { true -> k125() _ -> t48(virtual_key) } }
-    state t48(virtual_key: u32) -> u64 { transition virtual_key == 48 { true -> k29() _ -> t49(virtual_key) } }
-    state t49(virtual_key: u32) -> u64 { transition virtual_key == 49 { true -> k18() _ -> t50(virtual_key) } }
-    state t50(virtual_key: u32) -> u64 { transition virtual_key == 50 { true -> k19() _ -> t51(virtual_key) } }
-    state t51(virtual_key: u32) -> u64 { transition virtual_key == 51 { true -> k20() _ -> t52(virtual_key) } }
-    state t52(virtual_key: u32) -> u64 { transition virtual_key == 52 { true -> k21() _ -> t53(virtual_key) } }
-    state t53(virtual_key: u32) -> u64 { transition virtual_key == 53 { true -> k23() _ -> t54(virtual_key) } }
-    state t54(virtual_key: u32) -> u64 { transition virtual_key == 54 { true -> k22() _ -> t55(virtual_key) } }
-    state t55(virtual_key: u32) -> u64 { transition virtual_key == 55 { true -> k26() _ -> t56(virtual_key) } }
-    state t56(virtual_key: u32) -> u64 { transition virtual_key == 56 { true -> k28() _ -> t57(virtual_key) } }
-    state t57(virtual_key: u32) -> u64 { transition virtual_key == 57 { true -> k25() _ -> t67(virtual_key) } }
-    state t67(virtual_key: u32) -> u64 { transition virtual_key == 67 { true -> k8() _ -> t77(virtual_key) } }
-    state t77(virtual_key: u32) -> u64 { transition virtual_key == 77 { true -> k46() _ -> t82(virtual_key) } }
-    state t82(virtual_key: u32) -> u64 { transition virtual_key == 82 { true -> k15() _ -> t83(virtual_key) } }
-    state t83(virtual_key: u32) -> u64 { transition virtual_key == 83 { true -> k1() _ -> t106(virtual_key) } }
-    state t106(virtual_key: u32) -> u64 { transition virtual_key == 106 { true -> k67() _ -> t107(virtual_key) } }
-    state t107(virtual_key: u32) -> u64 { transition virtual_key == 107 { true -> k69() _ -> t109(virtual_key) } }
-    state t109(virtual_key: u32) -> u64 { transition virtual_key == 109 { true -> k78() _ -> t111(virtual_key) } }
-    state t111(virtual_key: u32) -> u64 { transition virtual_key == 111 { true -> k75() _ -> t187(virtual_key) } }
-    state t187(virtual_key: u32) -> u64 { transition virtual_key == 187 { true -> k24() _ -> unmapped() } }
-    state k1() -> u64 { 1 }
-    state k8() -> u64 { 8 }
-    state k15() -> u64 { 15 }
-    state k18() -> u64 { 18 }
-    state k19() -> u64 { 19 }
-    state k20() -> u64 { 20 }
-    state k21() -> u64 { 21 }
-    state k22() -> u64 { 22 }
-    state k23() -> u64 { 23 }
-    state k24() -> u64 { 24 }
-    state k25() -> u64 { 25 }
-    state k26() -> u64 { 26 }
-    state k28() -> u64 { 28 }
-    state k29() -> u64 { 29 }
-    state k36() -> u64 { 36 }
-    state k46() -> u64 { 46 }
-    state k51() -> u64 { 51 }
-    state k53() -> u64 { 53 }
-    state k67() -> u64 { 67 }
-    state k69() -> u64 { 69 }
-    state k75() -> u64 { 75 }
-    state k78() -> u64 { 78 }
-    state k123() -> u64 { 123 }
-    state k124() -> u64 { 124 }
-    state k125() -> u64 { 125 }
-    state k126() -> u64 { 126 }
-    state unmapped() -> u64 { 65535 }
-}
-
-data CalcClockProvider { }
-macos_arm64 machine CalcClockProvider::provider_defaults(defaults: &mut CalcClockProvider) {
-    CalcClockProvider::select_provider<Clock, CalcClockProvider>(defaults);
-}
-macos_arm64 machine CalcClockProvider::sleep(milliseconds: u32) satisfies Clock::sleep
-{
-    let timeout: i32 = narrow_u32_to_i32_wrapping(milliseconds);
-    let rc: i32 = darwin_poll(0, 0, timeout);
+CalcClockProvider satisfies Clock {
+    Clock::sleep = macos_sleep;
 }
 
 data Main {
@@ -374,7 +69,6 @@ data Main {
     dispatched: u64;
     msg_code: u64;
     alive: u32;
-    killed: u32;
     key: u64;
     fw: u64;
     pumped: i32;
@@ -416,7 +110,7 @@ data Main {
     shade: i32;
 }
 
-machine Main::main(main: &mut Main) reaches Clock + Console + CoreGraphics + DarwinClock + Gui + Input + ObjectiveC {
+machine Main::main(main: &mut Main) reaches AppKit + Clock + Console + CoreGraphics + DarwinClock + Gui + Input + ObjectiveC {
     // "#32770\0" -- the predefined dialog class. The earlier window samples
     // used "STATIC\0", but that is a control class and does not behave like a
     // real top-level app window in practice.
@@ -459,216 +153,217 @@ machine Main::main(main: &mut Main) reaches Clock + Console + CoreGraphics + Dar
     main.frame = 0;
 
     // WS_VISIBLE|WS_OVERLAPPEDWINDOW; client is approximately 512x512.
-    main.hwnd = main.gui.window_create(main.cls, main.title, 282001408, 160, 120, 528, 551);
-    transition main.hwnd > 0 { true -> dc(main) _ -> bad(main) }
+    let window: Window = main.gui.window_create(main.cls, main.title, 282001408, 160, 120, 528, 551);
+    main.hwnd = window.window;
+    transition main.hwnd > 0 { true -> dc(main, window) _ -> bad(main, window) }
 
-    state dc(main: &mut Main) {
-        main.hdc = main.gui.get_dc(main.hwnd);
-        transition main.hdc > 0 { true -> frame_loop(main) _ -> bad(main) }
+    state dc(main: &mut Main, window: Window) {
+        main.hdc = main.gui.get_dc(&window, main.hwnd);
+        transition main.hdc > 0 { true -> frame_loop(main, window) _ -> bad(main, window) }
     }
 
-    state frame_loop(main: &mut Main) {
-        transition main.frame < 16384 { true -> pump_init(main) _ -> wrap_frame(main) }
+    state frame_loop(main: &mut Main, window: Window) {
+        transition main.frame < 16384 { true -> pump_init(main, window) _ -> wrap_frame(main, window) }
     }
-    state wrap_frame(main: &mut Main) { main.frame = 0; transition { _ -> pump_init(main) } }
+    state wrap_frame(main: &mut Main, window: Window) { main.frame = 0; transition { _ -> pump_init(main, window) } }
 
     // Drain at most 16 messages so the title bar, move loop, and close button stay alive.
-    state pump_init(main: &mut Main) { main.pumped = 0; transition { _ -> pump_loop(main) } }
-    state pump_loop(main: &mut Main) {
-        main.have = main.gui.msg_peek(main.message);
-        transition main.have > 0 { true -> pump_check_close(main) _ -> liveness(main) }
+    state pump_init(main: &mut Main, window: Window) { main.pumped = 0; transition { _ -> pump_loop(main, window) } }
+    state pump_loop(main: &mut Main, mut window: Window) {
+        main.have = main.gui.msg_peek(&mut window, main.message);
+        transition main.have > 0 { true -> pump_check_close(main, window) _ -> liveness(main, window) }
     }
-    state pump_check_close(main: &mut Main) {
+    state pump_check_close(main: &mut Main, window: Window) {
         main.msg_code = main.message[1] % 65536;
-        transition main.msg_code == 16 { true -> quit_self(main) _ -> pump_check_xdown(main) }
+        transition main.msg_code == 16 { true -> quit_self(main, window) _ -> pump_check_xdown(main, window) }
     }
     // The X button arrives as posted WM_NCLBUTTONDOWN (161) with wParam
     // HTCLOSE (20) -- the #32770 dialog proc never turns it into a close, so
     // the pump does. Other non-client presses (caption drag) dispatch normally.
-    state pump_check_xdown(main: &mut Main) {
-        transition main.msg_code == 161 { true -> pump_check_xhit(main) _ -> pump_check_syscommand(main) }
+    state pump_check_xdown(main: &mut Main, window: Window) {
+        transition main.msg_code == 161 { true -> pump_check_xhit(main, window) _ -> pump_check_syscommand(main, window) }
     }
-    state pump_check_xhit(main: &mut Main) {
-        transition main.message[2] == 20 { true -> quit_self(main) _ -> pump_handle(main) }
+    state pump_check_xhit(main: &mut Main, window: Window) {
+        transition main.message[2] == 20 { true -> quit_self(main, window) _ -> pump_handle(main, window) }
     }
-    state pump_check_syscommand(main: &mut Main) {
-        transition main.msg_code == 274 { true -> pump_check_sysclose(main) _ -> pump_handle(main) }
+    state pump_check_syscommand(main: &mut Main, window: Window) {
+        transition main.msg_code == 274 { true -> pump_check_sysclose(main, window) _ -> pump_handle(main, window) }
     }
-    state pump_check_sysclose(main: &mut Main) {
-        transition main.message[2] >= 61536 && main.message[2] < 61552 { true -> quit_self(main) _ -> pump_handle(main) }
+    state pump_check_sysclose(main: &mut Main, window: Window) {
+        transition main.message[2] >= 61536 && main.message[2] < 61552 { true -> quit_self(main, window) _ -> pump_handle(main, window) }
     }
-    state pump_handle(main: &mut Main) {
-        main.translated = main.gui.msg_translate(main.message);
-        main.dispatched = main.gui.msg_dispatch(main.message);
-        transition main.pumped < 16 { true -> pump_next(main) _ -> liveness(main) }
+    state pump_handle(main: &mut Main, window: Window) {
+        main.translated = main.gui.msg_translate(&window, main.message);
+        main.dispatched = main.gui.msg_dispatch(&window, main.message);
+        transition main.pumped < 16 { true -> pump_next(main, window) _ -> liveness(main, window) }
     }
-    state pump_next(main: &mut Main) {
+    state pump_next(main: &mut Main, window: Window) {
         main.pumped = main.pumped + 1;
-        transition { _ -> pump_loop(main) }
+        transition { _ -> pump_loop(main, window) }
     }
 
-    state liveness(main: &mut Main) {
-        main.alive = main.gui.is_window(main.hwnd);
-        transition main.alive > 0 { true -> focus_check(main) _ -> closed(main) }
+    state liveness(main: &mut Main, window: Window) {
+        main.alive = main.gui.is_window(&window, main.hwnd);
+        transition main.alive > 0 { true -> focus_check(main, window) _ -> closed(main, window) }
     }
 
-    // GetAsyncKeyState is GLOBAL: without this gate, typing digits (or ESC --
+    // Key-state polling is global: without this gate, typing digits (or ESC --
     // even the Ctrl+Shift+Esc chord) in ANY app would drive this calculator.
-    state focus_check(main: &mut Main) {
-        main.fw = main.gui.foreground_window();
-        transition main.fw == main.hwnd { true -> input_escape(main) _ -> render_prepare(main) }
+    state focus_check(main: &mut Main, window: Window) {
+        main.fw = main.gui.foreground_window(&window);
+        transition main.fw == main.hwnd { true -> input_escape(main, window) _ -> render_prepare(main, window) }
     }
 
     // Input is deliberately serialized: one accepted key per frame, with a
     // short repeat cooldown. This makes held keys visible but controlled.
-    state input_escape(main: &mut Main) {
+    state input_escape(main: &mut Main, window: Window) {
         main.key = main.input.key_state(27);
-        transition main.key > 0 { true -> quit_self(main) _ -> input_cooldown(main) }
+        transition main.key > 0 { true -> quit_self(main, window) _ -> input_cooldown(main, window) }
     }
-    state input_cooldown(main: &mut Main) {
-        transition main.cooldown > 0 { true -> input_cooldown_step(main) _ -> input_clear_key(main) }
+    state input_cooldown(main: &mut Main, window: Window) {
+        transition main.cooldown > 0 { true -> input_cooldown_step(main, window) _ -> input_clear_key(main, window) }
     }
-    state input_cooldown_step(main: &mut Main) {
+    state input_cooldown_step(main: &mut Main, window: Window) {
         main.cooldown = main.cooldown - 1;
-        transition { _ -> render_prepare(main) }
+        transition { _ -> render_prepare(main, window) }
     }
-    state input_clear_key(main: &mut Main) {
+    state input_clear_key(main: &mut Main, window: Window) {
         main.last_key = 31;
-        transition { _ -> poll_clear(main) }
+        transition { _ -> poll_clear(main, window) }
     }
-    state poll_clear(main: &mut Main) {
+    state poll_clear(main: &mut Main, window: Window) {
         main.key = main.input.key_state(67);
-        transition main.key > 0 { true -> hit_clear(main) _ -> poll_backspace(main) }
+        transition main.key > 0 { true -> hit_clear(main, window) _ -> poll_backspace(main, window) }
     }
-    state poll_backspace(main: &mut Main) {
+    state poll_backspace(main: &mut Main, window: Window) {
         main.key = main.input.key_state(8);
-        transition main.key > 0 { true -> hit_backspace(main) _ -> poll_enter(main) }
+        transition main.key > 0 { true -> hit_backspace(main, window) _ -> poll_enter(main, window) }
     }
-    state poll_enter(main: &mut Main) {
+    state poll_enter(main: &mut Main, window: Window) {
         main.key = main.input.key_state(13);
-        transition main.key > 0 { true -> hit_equals(main) _ -> poll_equals_key(main) }
+        transition main.key > 0 { true -> hit_equals(main, window) _ -> poll_equals_key(main, window) }
     }
-    state poll_equals_key(main: &mut Main) {
+    state poll_equals_key(main: &mut Main, window: Window) {
         main.key = main.input.key_state(187);
-        transition main.key > 0 { true -> hit_equals(main) _ -> poll_plus(main) }
+        transition main.key > 0 { true -> hit_equals(main, window) _ -> poll_plus(main, window) }
     }
-    state poll_plus(main: &mut Main) {
+    state poll_plus(main: &mut Main, window: Window) {
         main.key = main.input.key_state(107);
-        transition main.key > 0 { true -> hit_plus(main) _ -> poll_minus(main) }
+        transition main.key > 0 { true -> hit_plus(main, window) _ -> poll_minus(main, window) }
     }
-    state poll_minus(main: &mut Main) {
+    state poll_minus(main: &mut Main, window: Window) {
         main.key = main.input.key_state(109);
-        transition main.key > 0 { true -> hit_minus(main) _ -> poll_multiply(main) }
+        transition main.key > 0 { true -> hit_minus(main, window) _ -> poll_multiply(main, window) }
     }
-    state poll_multiply(main: &mut Main) {
+    state poll_multiply(main: &mut Main, window: Window) {
         main.key = main.input.key_state(106);
-        transition main.key > 0 { true -> hit_multiply(main) _ -> poll_divide(main) }
+        transition main.key > 0 { true -> hit_multiply(main, window) _ -> poll_divide(main, window) }
     }
-    state poll_divide(main: &mut Main) {
+    state poll_divide(main: &mut Main, window: Window) {
         main.key = main.input.key_state(111);
-        transition main.key > 0 { true -> hit_divide(main) _ -> poll_sign(main) }
+        transition main.key > 0 { true -> hit_divide(main, window) _ -> poll_sign(main, window) }
     }
-    state poll_sign(main: &mut Main) {
+    state poll_sign(main: &mut Main, window: Window) {
         main.key = main.input.key_state(83);
-        transition main.key > 0 { true -> hit_sign(main) _ -> poll_memory_add(main) }
+        transition main.key > 0 { true -> hit_sign(main, window) _ -> poll_memory_add(main, window) }
     }
-    state poll_memory_add(main: &mut Main) {
+    state poll_memory_add(main: &mut Main, window: Window) {
         main.key = main.input.key_state(77);
-        transition main.key > 0 { true -> hit_memory_add(main) _ -> poll_memory_recall(main) }
+        transition main.key > 0 { true -> hit_memory_add(main, window) _ -> poll_memory_recall(main, window) }
     }
-    state poll_memory_recall(main: &mut Main) {
+    state poll_memory_recall(main: &mut Main, window: Window) {
         main.key = main.input.key_state(82);
-        transition main.key > 0 { true -> hit_memory_recall(main) _ -> poll_digit0(main) }
+        transition main.key > 0 { true -> hit_memory_recall(main, window) _ -> poll_digit0(main, window) }
     }
-    state poll_digit0(main: &mut Main) {
+    state poll_digit0(main: &mut Main, window: Window) {
         main.key = main.input.key_state(48);
-        transition main.key > 0 { true -> hit_digit0(main) _ -> poll_digit1(main) }
+        transition main.key > 0 { true -> hit_digit0(main, window) _ -> poll_digit1(main, window) }
     }
-    state poll_digit1(main: &mut Main) {
+    state poll_digit1(main: &mut Main, window: Window) {
         main.key = main.input.key_state(49);
-        transition main.key > 0 { true -> hit_digit1(main) _ -> poll_digit2(main) }
+        transition main.key > 0 { true -> hit_digit1(main, window) _ -> poll_digit2(main, window) }
     }
-    state poll_digit2(main: &mut Main) {
+    state poll_digit2(main: &mut Main, window: Window) {
         main.key = main.input.key_state(50);
-        transition main.key > 0 { true -> hit_digit2(main) _ -> poll_digit3(main) }
+        transition main.key > 0 { true -> hit_digit2(main, window) _ -> poll_digit3(main, window) }
     }
-    state poll_digit3(main: &mut Main) {
+    state poll_digit3(main: &mut Main, window: Window) {
         main.key = main.input.key_state(51);
-        transition main.key > 0 { true -> hit_digit3(main) _ -> poll_digit4(main) }
+        transition main.key > 0 { true -> hit_digit3(main, window) _ -> poll_digit4(main, window) }
     }
-    state poll_digit4(main: &mut Main) {
+    state poll_digit4(main: &mut Main, window: Window) {
         main.key = main.input.key_state(52);
-        transition main.key > 0 { true -> hit_digit4(main) _ -> poll_digit5(main) }
+        transition main.key > 0 { true -> hit_digit4(main, window) _ -> poll_digit5(main, window) }
     }
-    state poll_digit5(main: &mut Main) {
+    state poll_digit5(main: &mut Main, window: Window) {
         main.key = main.input.key_state(53);
-        transition main.key > 0 { true -> hit_digit5(main) _ -> poll_digit6(main) }
+        transition main.key > 0 { true -> hit_digit5(main, window) _ -> poll_digit6(main, window) }
     }
-    state poll_digit6(main: &mut Main) {
+    state poll_digit6(main: &mut Main, window: Window) {
         main.key = main.input.key_state(54);
-        transition main.key > 0 { true -> hit_digit6(main) _ -> poll_digit7(main) }
+        transition main.key > 0 { true -> hit_digit6(main, window) _ -> poll_digit7(main, window) }
     }
-    state poll_digit7(main: &mut Main) {
+    state poll_digit7(main: &mut Main, window: Window) {
         main.key = main.input.key_state(55);
-        transition main.key > 0 { true -> hit_digit7(main) _ -> poll_digit8(main) }
+        transition main.key > 0 { true -> hit_digit7(main, window) _ -> poll_digit8(main, window) }
     }
-    state poll_digit8(main: &mut Main) {
+    state poll_digit8(main: &mut Main, window: Window) {
         main.key = main.input.key_state(56);
-        transition main.key > 0 { true -> hit_digit8(main) _ -> poll_digit9(main) }
+        transition main.key > 0 { true -> hit_digit8(main, window) _ -> poll_digit9(main, window) }
     }
-    state poll_digit9(main: &mut Main) {
+    state poll_digit9(main: &mut Main, window: Window) {
         main.key = main.input.key_state(57);
-        transition main.key > 0 { true -> hit_digit9(main) _ -> render_prepare(main) }
+        transition main.key > 0 { true -> hit_digit9(main, window) _ -> render_prepare(main, window) }
     }
 
-    state hit_digit0(main: &mut Main) { Main::accept_digit(main, 0, 0); transition { _ -> render_prepare(main) } }
-    state hit_digit1(main: &mut Main) { Main::accept_digit(main, 1, 1); transition { _ -> render_prepare(main) } }
-    state hit_digit2(main: &mut Main) { Main::accept_digit(main, 2, 2); transition { _ -> render_prepare(main) } }
-    state hit_digit3(main: &mut Main) { Main::accept_digit(main, 3, 3); transition { _ -> render_prepare(main) } }
-    state hit_digit4(main: &mut Main) { Main::accept_digit(main, 4, 4); transition { _ -> render_prepare(main) } }
-    state hit_digit5(main: &mut Main) { Main::accept_digit(main, 5, 5); transition { _ -> render_prepare(main) } }
-    state hit_digit6(main: &mut Main) { Main::accept_digit(main, 6, 6); transition { _ -> render_prepare(main) } }
-    state hit_digit7(main: &mut Main) { Main::accept_digit(main, 7, 7); transition { _ -> render_prepare(main) } }
-    state hit_digit8(main: &mut Main) { Main::accept_digit(main, 8, 8); transition { _ -> render_prepare(main) } }
-    state hit_digit9(main: &mut Main) { Main::accept_digit(main, 9, 9); transition { _ -> render_prepare(main) } }
-    state hit_plus(main: &mut Main) { Main::accept_operator(main, 1, 11); transition { _ -> render_prepare(main) } }
-    state hit_minus(main: &mut Main) { Main::accept_operator(main, 2, 12); transition { _ -> render_prepare(main) } }
-    state hit_multiply(main: &mut Main) { Main::accept_operator(main, 3, 13); transition { _ -> render_prepare(main) } }
-    state hit_divide(main: &mut Main) { Main::accept_operator(main, 4, 14); transition { _ -> render_prepare(main) } }
-    state hit_equals(main: &mut Main) { Main::accept_equals(main); transition { _ -> render_prepare(main) } }
-    state hit_clear(main: &mut Main) { Main::clear_all(main, 22); transition { _ -> render_prepare(main) } }
-    state hit_backspace(main: &mut Main) { Main::backspace(main); transition { _ -> render_prepare(main) } }
-    state hit_sign(main: &mut Main) { Main::toggle_sign(main); transition { _ -> render_prepare(main) } }
-    state hit_memory_add(main: &mut Main) { Main::memory_add(main); transition { _ -> render_prepare(main) } }
-    state hit_memory_recall(main: &mut Main) { Main::memory_recall(main); transition { _ -> render_prepare(main) } }
+    state hit_digit0(main: &mut Main, window: Window) { Main::accept_digit(main, 0, 0); transition { _ -> render_prepare(main, window) } }
+    state hit_digit1(main: &mut Main, window: Window) { Main::accept_digit(main, 1, 1); transition { _ -> render_prepare(main, window) } }
+    state hit_digit2(main: &mut Main, window: Window) { Main::accept_digit(main, 2, 2); transition { _ -> render_prepare(main, window) } }
+    state hit_digit3(main: &mut Main, window: Window) { Main::accept_digit(main, 3, 3); transition { _ -> render_prepare(main, window) } }
+    state hit_digit4(main: &mut Main, window: Window) { Main::accept_digit(main, 4, 4); transition { _ -> render_prepare(main, window) } }
+    state hit_digit5(main: &mut Main, window: Window) { Main::accept_digit(main, 5, 5); transition { _ -> render_prepare(main, window) } }
+    state hit_digit6(main: &mut Main, window: Window) { Main::accept_digit(main, 6, 6); transition { _ -> render_prepare(main, window) } }
+    state hit_digit7(main: &mut Main, window: Window) { Main::accept_digit(main, 7, 7); transition { _ -> render_prepare(main, window) } }
+    state hit_digit8(main: &mut Main, window: Window) { Main::accept_digit(main, 8, 8); transition { _ -> render_prepare(main, window) } }
+    state hit_digit9(main: &mut Main, window: Window) { Main::accept_digit(main, 9, 9); transition { _ -> render_prepare(main, window) } }
+    state hit_plus(main: &mut Main, window: Window) { Main::accept_operator(main, 1, 11); transition { _ -> render_prepare(main, window) } }
+    state hit_minus(main: &mut Main, window: Window) { Main::accept_operator(main, 2, 12); transition { _ -> render_prepare(main, window) } }
+    state hit_multiply(main: &mut Main, window: Window) { Main::accept_operator(main, 3, 13); transition { _ -> render_prepare(main, window) } }
+    state hit_divide(main: &mut Main, window: Window) { Main::accept_operator(main, 4, 14); transition { _ -> render_prepare(main, window) } }
+    state hit_equals(main: &mut Main, window: Window) { Main::accept_equals(main); transition { _ -> render_prepare(main, window) } }
+    state hit_clear(main: &mut Main, window: Window) { Main::clear_all(main, 22); transition { _ -> render_prepare(main, window) } }
+    state hit_backspace(main: &mut Main, window: Window) { Main::backspace(main); transition { _ -> render_prepare(main, window) } }
+    state hit_sign(main: &mut Main, window: Window) { Main::toggle_sign(main); transition { _ -> render_prepare(main, window) } }
+    state hit_memory_add(main: &mut Main, window: Window) { Main::memory_add(main); transition { _ -> render_prepare(main, window) } }
+    state hit_memory_recall(main: &mut Main, window: Window) { Main::memory_recall(main); transition { _ -> render_prepare(main, window) } }
 
     // Turn the current display value into sign + four decimal digits before
     // the framebuffer loop reads it.
-    state render_prepare(main: &mut Main) {
-        transition main.typing > 0 { true -> prepare_current(main) _ -> prepare_accumulator(main) }
+    state render_prepare(main: &mut Main, window: Window) {
+        transition main.typing > 0 { true -> prepare_current(main, window) _ -> prepare_accumulator(main, window) }
     }
-    state prepare_current(main: &mut Main) {
+    state prepare_current(main: &mut Main, window: Window) {
         main.display_value = main.current;
-        transition { _ -> prepare_sign(main) }
+        transition { _ -> prepare_sign(main, window) }
     }
-    state prepare_accumulator(main: &mut Main) {
+    state prepare_accumulator(main: &mut Main, window: Window) {
         main.display_value = main.accumulator;
-        transition { _ -> prepare_sign(main) }
+        transition { _ -> prepare_sign(main, window) }
     }
-    state prepare_sign(main: &mut Main) {
-        transition main.display_value < 0 { true -> prepare_negative(main) _ -> prepare_positive(main) }
+    state prepare_sign(main: &mut Main, window: Window) {
+        transition main.display_value < 0 { true -> prepare_negative(main, window) _ -> prepare_positive(main, window) }
     }
-    state prepare_negative(main: &mut Main) {
+    state prepare_negative(main: &mut Main, window: Window) {
         main.sign = 1;
         main.display_work = 0 - main.display_value;
-        transition { _ -> prepare_digits(main) }
+        transition { _ -> prepare_digits(main, window) }
     }
-    state prepare_positive(main: &mut Main) {
+    state prepare_positive(main: &mut Main, window: Window) {
         main.sign = 0;
         main.display_work = main.display_value;
-        transition { _ -> prepare_digits(main) }
+        transition { _ -> prepare_digits(main, window) }
     }
-    state prepare_digits(main: &mut Main) {
+    state prepare_digits(main: &mut Main, window: Window) {
         main.display_work = main.display_work % 10000;
         main.digit0 = main.display_work % 10;
         main.display_work = main.display_work / 10;
@@ -678,471 +373,472 @@ machine Main::main(main: &mut Main) reaches Clock + Console + CoreGraphics + Dar
         main.display_work = main.display_work / 10;
         main.digit3 = main.display_work % 10;
         main.i = 0;
-        transition { _ -> fill_loop(main) }
+        transition { _ -> fill_loop(main, window) }
     }
 
-    state fill_loop(main: &mut Main) {
-        transition main.i >= 0 && main.i < 4096 { true -> fill_cell(main) _ -> present(main) }
+    state fill_loop(main: &mut Main, window: Window) {
+        transition main.i >= 0 && main.i < 4096 { true -> fill_cell(main, window) _ -> present(main, window) }
     }
-    state fill_cell(main: &mut Main) {
+    state fill_cell(main: &mut Main, window: Window) {
         main.row = min(max(main.i / 64, 0), 63);
         main.col = min(max(main.i % 64, 0), 63);
         main.px = 1318440 + ((main.frame % 32) * 1024);
-        transition main.row < 16 { true -> display_pixel(main) _ -> keypad_region(main) }
+        transition main.row < 16 { true -> display_pixel(main, window) _ -> keypad_region(main, window) }
     }
-    state display_pixel(main: &mut Main) {
+    state display_pixel(main: &mut Main, window: Window) {
         main.px = 461325;
         transition main.row >= 2 && main.row < 13 && main.col >= 28 && main.col < 60 {
-            true -> display_digit_slot(main)
-            _ -> display_sign(main)
+            true -> display_digit_slot(main, window)
+            _ -> display_sign(main, window)
         }
     }
-    state display_sign(main: &mut Main) {
+    state display_sign(main: &mut Main, window: Window) {
         transition main.sign > 0 && main.row == 8 && main.col >= 20 && main.col <= 25 {
-            true -> display_mark(main)
-            _ -> display_error(main)
+            true -> display_mark(main, window)
+            _ -> display_error(main, window)
         }
     }
-    state display_error(main: &mut Main) {
+    state display_error(main: &mut Main, window: Window) {
         transition main.error > 0 && main.row >= 4 && main.row <= 10 && main.col >= 6 && main.col <= 14 {
-            true -> display_mark(main)
-            _ -> write_pixel_guard(main)
+            true -> display_mark(main, window)
+            _ -> write_pixel_guard(main, window)
         }
     }
-    state display_mark(main: &mut Main) {
+    state display_mark(main: &mut Main, window: Window) {
         main.px = 16759616;
-        transition { _ -> write_pixel_guard(main) }
+        transition { _ -> write_pixel_guard(main, window) }
     }
-    state display_digit_slot(main: &mut Main) {
+    state display_digit_slot(main: &mut Main, window: Window) {
         main.local_x = (main.col - 28) % 8;
         main.local_y = main.row - 2;
-        transition main.col < 36 { true -> use_digit3(main) _ -> display_digit_slot1(main) }
+        transition main.col < 36 { true -> use_digit3(main, window) _ -> display_digit_slot1(main, window) }
     }
-    state display_digit_slot1(main: &mut Main) {
-        transition main.col < 44 { true -> use_digit2(main) _ -> display_digit_slot2(main) }
+    state display_digit_slot1(main: &mut Main, window: Window) {
+        transition main.col < 44 { true -> use_digit2(main, window) _ -> display_digit_slot2(main, window) }
     }
-    state display_digit_slot2(main: &mut Main) {
-        transition main.col < 52 { true -> use_digit1(main) _ -> use_digit0(main) }
+    state display_digit_slot2(main: &mut Main, window: Window) {
+        transition main.col < 52 { true -> use_digit1(main, window) _ -> use_digit0(main, window) }
     }
-    state use_digit3(main: &mut Main) { main.draw_digit = main.digit3; transition { _ -> segment_a(main) } }
-    state use_digit2(main: &mut Main) { main.draw_digit = main.digit2; transition { _ -> segment_a(main) } }
-    state use_digit1(main: &mut Main) { main.draw_digit = main.digit1; transition { _ -> segment_a(main) } }
-    state use_digit0(main: &mut Main) { main.draw_digit = main.digit0; transition { _ -> segment_a(main) } }
+    state use_digit3(main: &mut Main, window: Window) { main.draw_digit = main.digit3; transition { _ -> segment_a(main, window) } }
+    state use_digit2(main: &mut Main, window: Window) { main.draw_digit = main.digit2; transition { _ -> segment_a(main, window) } }
+    state use_digit1(main: &mut Main, window: Window) { main.draw_digit = main.digit1; transition { _ -> segment_a(main, window) } }
+    state use_digit0(main: &mut Main, window: Window) { main.draw_digit = main.digit0; transition { _ -> segment_a(main, window) } }
 
-    state segment_a(main: &mut Main) {
+    state segment_a(main: &mut Main, window: Window) {
         transition main.local_y == 0 && main.local_x >= 2 && main.local_x <= 5 {
-            true -> segment_set_a(main)
-            _ -> segment_b(main)
+            true -> segment_set_a(main, window)
+            _ -> segment_b(main, window)
         }
     }
-    state segment_set_a(main: &mut Main) { main.segment = 0; transition { _ -> segment_apply(main) } }
-    state segment_b(main: &mut Main) {
+    state segment_set_a(main: &mut Main, window: Window) { main.segment = 0; transition { _ -> segment_apply(main, window) } }
+    state segment_b(main: &mut Main, window: Window) {
         transition main.local_x == 6 && main.local_y >= 1 && main.local_y <= 4 {
-            true -> segment_set_b(main)
-            _ -> segment_c(main)
+            true -> segment_set_b(main, window)
+            _ -> segment_c(main, window)
         }
     }
-    state segment_set_b(main: &mut Main) { main.segment = 1; transition { _ -> segment_apply(main) } }
-    state segment_c(main: &mut Main) {
+    state segment_set_b(main: &mut Main, window: Window) { main.segment = 1; transition { _ -> segment_apply(main, window) } }
+    state segment_c(main: &mut Main, window: Window) {
         transition main.local_x == 6 && main.local_y >= 6 && main.local_y <= 9 {
-            true -> segment_set_c(main)
-            _ -> segment_d(main)
+            true -> segment_set_c(main, window)
+            _ -> segment_d(main, window)
         }
     }
-    state segment_set_c(main: &mut Main) { main.segment = 2; transition { _ -> segment_apply(main) } }
-    state segment_d(main: &mut Main) {
+    state segment_set_c(main: &mut Main, window: Window) { main.segment = 2; transition { _ -> segment_apply(main, window) } }
+    state segment_d(main: &mut Main, window: Window) {
         transition main.local_y == 10 && main.local_x >= 2 && main.local_x <= 5 {
-            true -> segment_set_d(main)
-            _ -> segment_e(main)
+            true -> segment_set_d(main, window)
+            _ -> segment_e(main, window)
         }
     }
-    state segment_set_d(main: &mut Main) { main.segment = 3; transition { _ -> segment_apply(main) } }
-    state segment_e(main: &mut Main) {
+    state segment_set_d(main: &mut Main, window: Window) { main.segment = 3; transition { _ -> segment_apply(main, window) } }
+    state segment_e(main: &mut Main, window: Window) {
         transition main.local_x == 1 && main.local_y >= 6 && main.local_y <= 9 {
-            true -> segment_set_e(main)
-            _ -> segment_f(main)
+            true -> segment_set_e(main, window)
+            _ -> segment_f(main, window)
         }
     }
-    state segment_set_e(main: &mut Main) { main.segment = 4; transition { _ -> segment_apply(main) } }
-    state segment_f(main: &mut Main) {
+    state segment_set_e(main: &mut Main, window: Window) { main.segment = 4; transition { _ -> segment_apply(main, window) } }
+    state segment_f(main: &mut Main, window: Window) {
         transition main.local_x == 1 && main.local_y >= 1 && main.local_y <= 4 {
-            true -> segment_set_f(main)
-            _ -> segment_g(main)
+            true -> segment_set_f(main, window)
+            _ -> segment_g(main, window)
         }
     }
-    state segment_set_f(main: &mut Main) { main.segment = 5; transition { _ -> segment_apply(main) } }
-    state segment_g(main: &mut Main) {
+    state segment_set_f(main: &mut Main, window: Window) { main.segment = 5; transition { _ -> segment_apply(main, window) } }
+    state segment_g(main: &mut Main, window: Window) {
         transition main.local_y == 5 && main.local_x >= 2 && main.local_x <= 5 {
-            true -> segment_set_g(main)
-            _ -> write_pixel_guard(main)
+            true -> segment_set_g(main, window)
+            _ -> write_pixel_guard(main, window)
         }
     }
-    state segment_set_g(main: &mut Main) { main.segment = 6; transition { _ -> segment_apply(main) } }
+    state segment_set_g(main: &mut Main, window: Window) { main.segment = 6; transition { _ -> segment_apply(main, window) } }
 
-    state segment_apply(main: &mut Main) {
-        transition main.draw_digit == 0 { true -> digit0_segment(main) _ -> digit1_check(main) }
+    state segment_apply(main: &mut Main, window: Window) {
+        transition main.draw_digit == 0 { true -> digit0_segment(main, window) _ -> digit1_check(main, window) }
     }
-    state digit1_check(main: &mut Main) {
-        transition main.draw_digit == 1 { true -> digit1_segment(main) _ -> digit2_check(main) }
+    state digit1_check(main: &mut Main, window: Window) {
+        transition main.draw_digit == 1 { true -> digit1_segment(main, window) _ -> digit2_check(main, window) }
     }
-    state digit2_check(main: &mut Main) {
-        transition main.draw_digit == 2 { true -> digit2_segment(main) _ -> digit3_check(main) }
+    state digit2_check(main: &mut Main, window: Window) {
+        transition main.draw_digit == 2 { true -> digit2_segment(main, window) _ -> digit3_check(main, window) }
     }
-    state digit3_check(main: &mut Main) {
-        transition main.draw_digit == 3 { true -> digit3_segment(main) _ -> digit4_check(main) }
+    state digit3_check(main: &mut Main, window: Window) {
+        transition main.draw_digit == 3 { true -> digit3_segment(main, window) _ -> digit4_check(main, window) }
     }
-    state digit4_check(main: &mut Main) {
-        transition main.draw_digit == 4 { true -> digit4_segment(main) _ -> digit5_check(main) }
+    state digit4_check(main: &mut Main, window: Window) {
+        transition main.draw_digit == 4 { true -> digit4_segment(main, window) _ -> digit5_check(main, window) }
     }
-    state digit5_check(main: &mut Main) {
-        transition main.draw_digit == 5 { true -> digit5_segment(main) _ -> digit6_check(main) }
+    state digit5_check(main: &mut Main, window: Window) {
+        transition main.draw_digit == 5 { true -> digit5_segment(main, window) _ -> digit6_check(main, window) }
     }
-    state digit6_check(main: &mut Main) {
-        transition main.draw_digit == 6 { true -> digit6_segment(main) _ -> digit7_check(main) }
+    state digit6_check(main: &mut Main, window: Window) {
+        transition main.draw_digit == 6 { true -> digit6_segment(main, window) _ -> digit7_check(main, window) }
     }
-    state digit7_check(main: &mut Main) {
-        transition main.draw_digit == 7 { true -> digit7_segment(main) _ -> digit8_check(main) }
+    state digit7_check(main: &mut Main, window: Window) {
+        transition main.draw_digit == 7 { true -> digit7_segment(main, window) _ -> digit8_check(main, window) }
     }
-    state digit8_check(main: &mut Main) {
-        transition main.draw_digit == 8 { true -> digit8_segment(main) _ -> digit9_segment(main) }
+    state digit8_check(main: &mut Main, window: Window) {
+        transition main.draw_digit == 8 { true -> digit8_segment(main, window) _ -> digit9_segment(main, window) }
     }
-    state digit0_segment(main: &mut Main) {
-        transition main.segment != 6 { true -> segment_on(main) _ -> write_pixel_guard(main) }
+    state digit0_segment(main: &mut Main, window: Window) {
+        transition main.segment != 6 { true -> segment_on(main, window) _ -> write_pixel_guard(main, window) }
     }
-    state digit1_segment(main: &mut Main) {
-        transition main.segment == 1 || main.segment == 2 { true -> segment_on(main) _ -> write_pixel_guard(main) }
+    state digit1_segment(main: &mut Main, window: Window) {
+        transition main.segment == 1 || main.segment == 2 { true -> segment_on(main, window) _ -> write_pixel_guard(main, window) }
     }
-    state digit2_segment(main: &mut Main) {
+    state digit2_segment(main: &mut Main, window: Window) {
         transition main.segment == 0 || main.segment == 1 || main.segment == 6 || main.segment == 4 || main.segment == 3 {
-            true -> segment_on(main)
-            _ -> write_pixel_guard(main)
+            true -> segment_on(main, window)
+            _ -> write_pixel_guard(main, window)
         }
     }
-    state digit3_segment(main: &mut Main) {
+    state digit3_segment(main: &mut Main, window: Window) {
         transition main.segment == 0 || main.segment == 1 || main.segment == 2 || main.segment == 3 || main.segment == 6 {
-            true -> segment_on(main)
-            _ -> write_pixel_guard(main)
+            true -> segment_on(main, window)
+            _ -> write_pixel_guard(main, window)
         }
     }
-    state digit4_segment(main: &mut Main) {
+    state digit4_segment(main: &mut Main, window: Window) {
         transition main.segment == 5 || main.segment == 6 || main.segment == 1 || main.segment == 2 {
-            true -> segment_on(main)
-            _ -> write_pixel_guard(main)
+            true -> segment_on(main, window)
+            _ -> write_pixel_guard(main, window)
         }
     }
-    state digit5_segment(main: &mut Main) {
+    state digit5_segment(main: &mut Main, window: Window) {
         transition main.segment == 0 || main.segment == 5 || main.segment == 6 || main.segment == 2 || main.segment == 3 {
-            true -> segment_on(main)
-            _ -> write_pixel_guard(main)
+            true -> segment_on(main, window)
+            _ -> write_pixel_guard(main, window)
         }
     }
-    state digit6_segment(main: &mut Main) {
+    state digit6_segment(main: &mut Main, window: Window) {
         transition main.segment == 0 || main.segment == 5 || main.segment == 4 || main.segment == 3 || main.segment == 2 || main.segment == 6 {
-            true -> segment_on(main)
-            _ -> write_pixel_guard(main)
+            true -> segment_on(main, window)
+            _ -> write_pixel_guard(main, window)
         }
     }
-    state digit7_segment(main: &mut Main) {
-        transition main.segment == 0 || main.segment == 1 || main.segment == 2 { true -> segment_on(main) _ -> write_pixel_guard(main) }
+    state digit7_segment(main: &mut Main, window: Window) {
+        transition main.segment == 0 || main.segment == 1 || main.segment == 2 { true -> segment_on(main, window) _ -> write_pixel_guard(main, window) }
     }
-    state digit8_segment(main: &mut Main) { transition { _ -> segment_on(main) } }
-    state digit9_segment(main: &mut Main) {
-        transition main.segment != 4 { true -> segment_on(main) _ -> write_pixel_guard(main) }
+    state digit8_segment(main: &mut Main, window: Window) { transition { _ -> segment_on(main, window) } }
+    state digit9_segment(main: &mut Main, window: Window) {
+        transition main.segment != 4 { true -> segment_on(main, window) _ -> write_pixel_guard(main, window) }
     }
-    state segment_on(main: &mut Main) {
+    state segment_on(main: &mut Main, window: Window) {
         main.px = 52991;
-        transition { _ -> write_pixel_guard(main) }
+        transition { _ -> write_pixel_guard(main, window) }
     }
 
-    state keypad_region(main: &mut Main) {
-        transition main.row >= 18 && main.row < 63 { true -> button_prepare(main) _ -> write_pixel_guard(main) }
+    state keypad_region(main: &mut Main, window: Window) {
+        transition main.row >= 18 && main.row < 63 { true -> button_prepare(main, window) _ -> write_pixel_guard(main, window) }
     }
-    state button_prepare(main: &mut Main) {
+    state button_prepare(main: &mut Main, window: Window) {
         main.button_row = min(max((main.row - 18) / 9, 0), 4);
         main.button_col = min(max(main.col / 16, 0), 3);
         main.button_lx = main.col % 16;
         main.button_ly = (main.row - 18) % 9;
-        transition main.button_row == 0 { true -> button_row0(main) _ -> button_row1_check(main) }
+        transition main.button_row == 0 { true -> button_row0(main, window) _ -> button_row1_check(main, window) }
     }
-    state button_row1_check(main: &mut Main) {
-        transition main.button_row == 1 { true -> button_row1(main) _ -> button_row2_check(main) }
+    state button_row1_check(main: &mut Main, window: Window) {
+        transition main.button_row == 1 { true -> button_row1(main, window) _ -> button_row2_check(main, window) }
     }
-    state button_row2_check(main: &mut Main) {
-        transition main.button_row == 2 { true -> button_row2(main) _ -> button_row3_check(main) }
+    state button_row2_check(main: &mut Main, window: Window) {
+        transition main.button_row == 2 { true -> button_row2(main, window) _ -> button_row3_check(main, window) }
     }
-    state button_row3_check(main: &mut Main) {
-        transition main.button_row == 3 { true -> button_row3(main) _ -> button_row4(main) }
+    state button_row3_check(main: &mut Main, window: Window) {
+        transition main.button_row == 3 { true -> button_row3(main, window) _ -> button_row4(main, window) }
     }
-    state button_row0(main: &mut Main) {
-        transition main.button_col == 0 { true -> button_code_memory_add(main) _ -> button_row0_col1(main) }
+    state button_row0(main: &mut Main, window: Window) {
+        transition main.button_col == 0 { true -> button_code_memory_add(main, window) _ -> button_row0_col1(main, window) }
     }
-    state button_row0_col1(main: &mut Main) {
-        transition main.button_col == 1 { true -> button_code_memory_recall(main) _ -> button_row0_col2(main) }
+    state button_row0_col1(main: &mut Main, window: Window) {
+        transition main.button_col == 1 { true -> button_code_memory_recall(main, window) _ -> button_row0_col2(main, window) }
     }
-    state button_row0_col2(main: &mut Main) {
-        transition main.button_col == 2 { true -> button_code_clear(main) _ -> button_code_backspace(main) }
+    state button_row0_col2(main: &mut Main, window: Window) {
+        transition main.button_col == 2 { true -> button_code_clear(main, window) _ -> button_code_backspace(main, window) }
     }
-    state button_row1(main: &mut Main) {
-        transition main.button_col == 0 { true -> button_code7(main) _ -> button_row1_col1(main) }
+    state button_row1(main: &mut Main, window: Window) {
+        transition main.button_col == 0 { true -> button_code7(main, window) _ -> button_row1_col1(main, window) }
     }
-    state button_row1_col1(main: &mut Main) {
-        transition main.button_col == 1 { true -> button_code8(main) _ -> button_row1_col2(main) }
+    state button_row1_col1(main: &mut Main, window: Window) {
+        transition main.button_col == 1 { true -> button_code8(main, window) _ -> button_row1_col2(main, window) }
     }
-    state button_row1_col2(main: &mut Main) {
-        transition main.button_col == 2 { true -> button_code9(main) _ -> button_code_divide(main) }
+    state button_row1_col2(main: &mut Main, window: Window) {
+        transition main.button_col == 2 { true -> button_code9(main, window) _ -> button_code_divide(main, window) }
     }
-    state button_row2(main: &mut Main) {
-        transition main.button_col == 0 { true -> button_code4(main) _ -> button_row2_col1(main) }
+    state button_row2(main: &mut Main, window: Window) {
+        transition main.button_col == 0 { true -> button_code4(main, window) _ -> button_row2_col1(main, window) }
     }
-    state button_row2_col1(main: &mut Main) {
-        transition main.button_col == 1 { true -> button_code5(main) _ -> button_row2_col2(main) }
+    state button_row2_col1(main: &mut Main, window: Window) {
+        transition main.button_col == 1 { true -> button_code5(main, window) _ -> button_row2_col2(main, window) }
     }
-    state button_row2_col2(main: &mut Main) {
-        transition main.button_col == 2 { true -> button_code6(main) _ -> button_code_multiply(main) }
+    state button_row2_col2(main: &mut Main, window: Window) {
+        transition main.button_col == 2 { true -> button_code6(main, window) _ -> button_code_multiply(main, window) }
     }
-    state button_row3(main: &mut Main) {
-        transition main.button_col == 0 { true -> button_code1(main) _ -> button_row3_col1(main) }
+    state button_row3(main: &mut Main, window: Window) {
+        transition main.button_col == 0 { true -> button_code1(main, window) _ -> button_row3_col1(main, window) }
     }
-    state button_row3_col1(main: &mut Main) {
-        transition main.button_col == 1 { true -> button_code2(main) _ -> button_row3_col2(main) }
+    state button_row3_col1(main: &mut Main, window: Window) {
+        transition main.button_col == 1 { true -> button_code2(main, window) _ -> button_row3_col2(main, window) }
     }
-    state button_row3_col2(main: &mut Main) {
-        transition main.button_col == 2 { true -> button_code3(main) _ -> button_code_minus(main) }
+    state button_row3_col2(main: &mut Main, window: Window) {
+        transition main.button_col == 2 { true -> button_code3(main, window) _ -> button_code_minus(main, window) }
     }
-    state button_row4(main: &mut Main) {
-        transition main.button_col == 0 { true -> button_code_sign(main) _ -> button_row4_col1(main) }
+    state button_row4(main: &mut Main, window: Window) {
+        transition main.button_col == 0 { true -> button_code_sign(main, window) _ -> button_row4_col1(main, window) }
     }
-    state button_row4_col1(main: &mut Main) {
-        transition main.button_col == 1 { true -> button_code0(main) _ -> button_row4_col2(main) }
+    state button_row4_col1(main: &mut Main, window: Window) {
+        transition main.button_col == 1 { true -> button_code0(main, window) _ -> button_row4_col2(main, window) }
     }
-    state button_row4_col2(main: &mut Main) {
-        transition main.button_col == 2 { true -> button_code_equals(main) _ -> button_code_plus(main) }
+    state button_row4_col2(main: &mut Main, window: Window) {
+        transition main.button_col == 2 { true -> button_code_equals(main, window) _ -> button_code_plus(main, window) }
     }
-    state button_code0(main: &mut Main) { main.button_code = 0; transition { _ -> button_paint(main) } }
-    state button_code1(main: &mut Main) { main.button_code = 1; transition { _ -> button_paint(main) } }
-    state button_code2(main: &mut Main) { main.button_code = 2; transition { _ -> button_paint(main) } }
-    state button_code3(main: &mut Main) { main.button_code = 3; transition { _ -> button_paint(main) } }
-    state button_code4(main: &mut Main) { main.button_code = 4; transition { _ -> button_paint(main) } }
-    state button_code5(main: &mut Main) { main.button_code = 5; transition { _ -> button_paint(main) } }
-    state button_code6(main: &mut Main) { main.button_code = 6; transition { _ -> button_paint(main) } }
-    state button_code7(main: &mut Main) { main.button_code = 7; transition { _ -> button_paint(main) } }
-    state button_code8(main: &mut Main) { main.button_code = 8; transition { _ -> button_paint(main) } }
-    state button_code9(main: &mut Main) { main.button_code = 9; transition { _ -> button_paint(main) } }
-    state button_code_plus(main: &mut Main) { main.button_code = 11; transition { _ -> button_paint(main) } }
-    state button_code_minus(main: &mut Main) { main.button_code = 12; transition { _ -> button_paint(main) } }
-    state button_code_multiply(main: &mut Main) { main.button_code = 13; transition { _ -> button_paint(main) } }
-    state button_code_divide(main: &mut Main) { main.button_code = 14; transition { _ -> button_paint(main) } }
-    state button_code_sign(main: &mut Main) { main.button_code = 15; transition { _ -> button_paint(main) } }
-    state button_code_equals(main: &mut Main) { main.button_code = 16; transition { _ -> button_paint(main) } }
-    state button_code_memory_add(main: &mut Main) { main.button_code = 20; transition { _ -> button_paint(main) } }
-    state button_code_memory_recall(main: &mut Main) { main.button_code = 21; transition { _ -> button_paint(main) } }
-    state button_code_clear(main: &mut Main) { main.button_code = 22; transition { _ -> button_paint(main) } }
-    state button_code_backspace(main: &mut Main) { main.button_code = 23; transition { _ -> button_paint(main) } }
+    state button_code0(main: &mut Main, window: Window) { main.button_code = 0; transition { _ -> button_paint(main, window) } }
+    state button_code1(main: &mut Main, window: Window) { main.button_code = 1; transition { _ -> button_paint(main, window) } }
+    state button_code2(main: &mut Main, window: Window) { main.button_code = 2; transition { _ -> button_paint(main, window) } }
+    state button_code3(main: &mut Main, window: Window) { main.button_code = 3; transition { _ -> button_paint(main, window) } }
+    state button_code4(main: &mut Main, window: Window) { main.button_code = 4; transition { _ -> button_paint(main, window) } }
+    state button_code5(main: &mut Main, window: Window) { main.button_code = 5; transition { _ -> button_paint(main, window) } }
+    state button_code6(main: &mut Main, window: Window) { main.button_code = 6; transition { _ -> button_paint(main, window) } }
+    state button_code7(main: &mut Main, window: Window) { main.button_code = 7; transition { _ -> button_paint(main, window) } }
+    state button_code8(main: &mut Main, window: Window) { main.button_code = 8; transition { _ -> button_paint(main, window) } }
+    state button_code9(main: &mut Main, window: Window) { main.button_code = 9; transition { _ -> button_paint(main, window) } }
+    state button_code_plus(main: &mut Main, window: Window) { main.button_code = 11; transition { _ -> button_paint(main, window) } }
+    state button_code_minus(main: &mut Main, window: Window) { main.button_code = 12; transition { _ -> button_paint(main, window) } }
+    state button_code_multiply(main: &mut Main, window: Window) { main.button_code = 13; transition { _ -> button_paint(main, window) } }
+    state button_code_divide(main: &mut Main, window: Window) { main.button_code = 14; transition { _ -> button_paint(main, window) } }
+    state button_code_sign(main: &mut Main, window: Window) { main.button_code = 15; transition { _ -> button_paint(main, window) } }
+    state button_code_equals(main: &mut Main, window: Window) { main.button_code = 16; transition { _ -> button_paint(main, window) } }
+    state button_code_memory_add(main: &mut Main, window: Window) { main.button_code = 20; transition { _ -> button_paint(main, window) } }
+    state button_code_memory_recall(main: &mut Main, window: Window) { main.button_code = 21; transition { _ -> button_paint(main, window) } }
+    state button_code_clear(main: &mut Main, window: Window) { main.button_code = 22; transition { _ -> button_paint(main, window) } }
+    state button_code_backspace(main: &mut Main, window: Window) { main.button_code = 23; transition { _ -> button_paint(main, window) } }
 
-    state button_paint(main: &mut Main) {
+    state button_paint(main: &mut Main, window: Window) {
         main.px = 2171169;
-        transition main.button_code == main.last_key { true -> button_active(main) _ -> button_border(main) }
+        transition main.button_code == main.last_key { true -> button_active(main, window) _ -> button_border(main, window) }
     }
-    state button_active(main: &mut Main) {
+    state button_active(main: &mut Main, window: Window) {
         main.px = 5335039;
-        transition { _ -> button_border(main) }
+        transition { _ -> button_border(main, window) }
     }
-    state button_border(main: &mut Main) {
+    state button_border(main: &mut Main, window: Window) {
         transition main.button_lx == 0 || main.button_lx == 15 || main.button_ly == 0 || main.button_ly == 8 {
-            true -> button_border_paint(main)
-            _ -> button_label(main)
+            true -> button_border_paint(main, window)
+            _ -> button_label(main, window)
         }
     }
-    state button_border_paint(main: &mut Main) {
+    state button_border_paint(main: &mut Main, window: Window) {
         main.px = 8421504;
-        transition { _ -> write_pixel_guard(main) }
+        transition { _ -> write_pixel_guard(main, window) }
     }
     // Re-assert the in-button coordinates: button_hit computed them many
     // dispatch states back, and the label arithmetic below needs them bounded
     // (always true: `col % 16` and `(row - 18) % 9` inside the button grid).
-    state button_label(main: &mut Main) {
+    state button_label(main: &mut Main, window: Window) {
         transition main.button_lx >= 0 && main.button_lx <= 15 && main.button_ly >= 0 && main.button_ly <= 8 {
-            true -> button_label_kind(main)
-            _ -> write_pixel_guard(main)
+            true -> button_label_kind(main, window)
+            _ -> write_pixel_guard(main, window)
         }
     }
-    state button_label_kind(main: &mut Main) {
-        transition main.button_code <= 9 { true -> button_digit_label(main) _ -> button_operator_label(main) }
+    state button_label_kind(main: &mut Main, window: Window) {
+        transition main.button_code <= 9 { true -> button_digit_label(main, window) _ -> button_operator_label(main, window) }
     }
-    state button_digit_label(main: &mut Main) {
+    state button_digit_label(main: &mut Main, window: Window) {
         main.draw_digit = main.button_code as i32 in Saturating;
         main.local_x = main.button_lx - 4;
         main.local_y = main.button_ly - 1;
-        transition { _ -> button_segment_a(main) }
+        transition { _ -> button_segment_a(main, window) }
     }
-    state button_segment_a(main: &mut Main) {
+    state button_segment_a(main: &mut Main, window: Window) {
         transition main.local_y == 0 && main.local_x >= 1 && main.local_x <= 5 {
-            true -> segment_set_a(main)
-            _ -> button_segment_b(main)
+            true -> segment_set_a(main, window)
+            _ -> button_segment_b(main, window)
         }
     }
-    state button_segment_b(main: &mut Main) {
+    state button_segment_b(main: &mut Main, window: Window) {
         transition main.local_x == 6 && main.local_y >= 1 && main.local_y <= 3 {
-            true -> segment_set_b(main)
-            _ -> button_segment_c(main)
+            true -> segment_set_b(main, window)
+            _ -> button_segment_c(main, window)
         }
     }
-    state button_segment_c(main: &mut Main) {
+    state button_segment_c(main: &mut Main, window: Window) {
         transition main.local_x == 6 && main.local_y >= 5 && main.local_y <= 6 {
-            true -> segment_set_c(main)
-            _ -> button_segment_d(main)
+            true -> segment_set_c(main, window)
+            _ -> button_segment_d(main, window)
         }
     }
-    state button_segment_d(main: &mut Main) {
+    state button_segment_d(main: &mut Main, window: Window) {
         transition main.local_y == 7 && main.local_x >= 1 && main.local_x <= 5 {
-            true -> segment_set_d(main)
-            _ -> button_segment_e(main)
+            true -> segment_set_d(main, window)
+            _ -> button_segment_e(main, window)
         }
     }
-    state button_segment_e(main: &mut Main) {
+    state button_segment_e(main: &mut Main, window: Window) {
         transition main.local_x == 0 && main.local_y >= 5 && main.local_y <= 6 {
-            true -> segment_set_e(main)
-            _ -> button_segment_f(main)
+            true -> segment_set_e(main, window)
+            _ -> button_segment_f(main, window)
         }
     }
-    state button_segment_f(main: &mut Main) {
+    state button_segment_f(main: &mut Main, window: Window) {
         transition main.local_x == 0 && main.local_y >= 1 && main.local_y <= 3 {
-            true -> segment_set_f(main)
-            _ -> button_segment_g(main)
+            true -> segment_set_f(main, window)
+            _ -> button_segment_g(main, window)
         }
     }
-    state button_segment_g(main: &mut Main) {
+    state button_segment_g(main: &mut Main, window: Window) {
         transition main.local_y == 4 && main.local_x >= 1 && main.local_x <= 5 {
-            true -> segment_set_g(main)
-            _ -> write_pixel_guard(main)
+            true -> segment_set_g(main, window)
+            _ -> write_pixel_guard(main, window)
         }
     }
-    state button_operator_label(main: &mut Main) {
-        transition main.button_code == 11 { true -> label_plus(main) _ -> label_minus_check(main) }
+    state button_operator_label(main: &mut Main, window: Window) {
+        transition main.button_code == 11 { true -> label_plus(main, window) _ -> label_minus_check(main, window) }
     }
-    state label_minus_check(main: &mut Main) {
-        transition main.button_code == 12 { true -> label_minus(main) _ -> label_multiply_check(main) }
+    state label_minus_check(main: &mut Main, window: Window) {
+        transition main.button_code == 12 { true -> label_minus(main, window) _ -> label_multiply_check(main, window) }
     }
-    state label_multiply_check(main: &mut Main) {
-        transition main.button_code == 13 { true -> label_multiply(main) _ -> label_divide_check(main) }
+    state label_multiply_check(main: &mut Main, window: Window) {
+        transition main.button_code == 13 { true -> label_multiply(main, window) _ -> label_divide_check(main, window) }
     }
-    state label_divide_check(main: &mut Main) {
-        transition main.button_code == 14 { true -> label_divide(main) _ -> label_sign_check(main) }
+    state label_divide_check(main: &mut Main, window: Window) {
+        transition main.button_code == 14 { true -> label_divide(main, window) _ -> label_sign_check(main, window) }
     }
-    state label_sign_check(main: &mut Main) {
-        transition main.button_code == 15 { true -> label_sign(main) _ -> label_equals_check(main) }
+    state label_sign_check(main: &mut Main, window: Window) {
+        transition main.button_code == 15 { true -> label_sign(main, window) _ -> label_equals_check(main, window) }
     }
-    state label_equals_check(main: &mut Main) {
-        transition main.button_code == 16 { true -> label_equals(main) _ -> label_utility(main) }
+    state label_equals_check(main: &mut Main, window: Window) {
+        transition main.button_code == 16 { true -> label_equals(main, window) _ -> label_utility(main, window) }
     }
-    state label_plus(main: &mut Main) {
-        transition main.button_lx == 8 && main.button_ly >= 2 && main.button_ly <= 6 { true -> label_paint(main) _ -> label_plus_bar(main) }
+    state label_plus(main: &mut Main, window: Window) {
+        transition main.button_lx == 8 && main.button_ly >= 2 && main.button_ly <= 6 { true -> label_paint(main, window) _ -> label_plus_bar(main, window) }
     }
-    state label_plus_bar(main: &mut Main) {
-        transition main.button_ly == 4 && main.button_lx >= 5 && main.button_lx <= 11 { true -> label_paint(main) _ -> write_pixel_guard(main) }
+    state label_plus_bar(main: &mut Main, window: Window) {
+        transition main.button_ly == 4 && main.button_lx >= 5 && main.button_lx <= 11 { true -> label_paint(main, window) _ -> write_pixel_guard(main, window) }
     }
-    state label_minus(main: &mut Main) {
-        transition main.button_ly == 4 && main.button_lx >= 5 && main.button_lx <= 11 { true -> label_paint(main) _ -> write_pixel_guard(main) }
+    state label_minus(main: &mut Main, window: Window) {
+        transition main.button_ly == 4 && main.button_lx >= 5 && main.button_lx <= 11 { true -> label_paint(main, window) _ -> write_pixel_guard(main, window) }
     }
-    state label_multiply(main: &mut Main) {
-        transition main.button_lx == main.button_ly + 4 && main.button_ly >= 2 && main.button_ly <= 6 { true -> label_paint(main) _ -> label_multiply_backslash(main) }
+    state label_multiply(main: &mut Main, window: Window) {
+        transition main.button_lx == main.button_ly + 4 && main.button_ly >= 2 && main.button_ly <= 6 { true -> label_paint(main, window) _ -> label_multiply_backslash(main, window) }
     }
-    state label_multiply_backslash(main: &mut Main) {
-        transition main.button_lx + main.button_ly == 12 && main.button_ly >= 2 && main.button_ly <= 6 { true -> label_paint(main) _ -> write_pixel_guard(main) }
+    state label_multiply_backslash(main: &mut Main, window: Window) {
+        transition main.button_lx + main.button_ly == 12 && main.button_ly >= 2 && main.button_ly <= 6 { true -> label_paint(main, window) _ -> write_pixel_guard(main, window) }
     }
-    state label_divide(main: &mut Main) {
-        transition main.button_lx + main.button_ly == 12 && main.button_ly >= 2 && main.button_ly <= 6 { true -> label_paint(main) _ -> label_divide_dot_top(main) }
+    state label_divide(main: &mut Main, window: Window) {
+        transition main.button_lx + main.button_ly == 12 && main.button_ly >= 2 && main.button_ly <= 6 { true -> label_paint(main, window) _ -> label_divide_dot_top(main, window) }
     }
-    state label_divide_dot_top(main: &mut Main) {
-        transition main.button_lx == 8 && main.button_ly == 2 { true -> label_paint(main) _ -> label_divide_dot_bottom(main) }
+    state label_divide_dot_top(main: &mut Main, window: Window) {
+        transition main.button_lx == 8 && main.button_ly == 2 { true -> label_paint(main, window) _ -> label_divide_dot_bottom(main, window) }
     }
-    state label_divide_dot_bottom(main: &mut Main) {
-        transition main.button_lx == 8 && main.button_ly == 6 { true -> label_paint(main) _ -> write_pixel_guard(main) }
+    state label_divide_dot_bottom(main: &mut Main, window: Window) {
+        transition main.button_lx == 8 && main.button_ly == 6 { true -> label_paint(main, window) _ -> write_pixel_guard(main, window) }
     }
-    state label_sign(main: &mut Main) {
-        transition main.button_lx == 7 && main.button_ly >= 2 && main.button_ly <= 5 { true -> label_paint(main) _ -> label_sign_plus_bar(main) }
+    state label_sign(main: &mut Main, window: Window) {
+        transition main.button_lx == 7 && main.button_ly >= 2 && main.button_ly <= 5 { true -> label_paint(main, window) _ -> label_sign_plus_bar(main, window) }
     }
-    state label_sign_plus_bar(main: &mut Main) {
-        transition main.button_ly == 4 && main.button_lx >= 5 && main.button_lx <= 9 { true -> label_paint(main) _ -> label_sign_minus_bar(main) }
+    state label_sign_plus_bar(main: &mut Main, window: Window) {
+        transition main.button_ly == 4 && main.button_lx >= 5 && main.button_lx <= 9 { true -> label_paint(main, window) _ -> label_sign_minus_bar(main, window) }
     }
-    state label_sign_minus_bar(main: &mut Main) {
-        transition main.button_ly == 6 && main.button_lx >= 5 && main.button_lx <= 9 { true -> label_paint(main) _ -> write_pixel_guard(main) }
+    state label_sign_minus_bar(main: &mut Main, window: Window) {
+        transition main.button_ly == 6 && main.button_lx >= 5 && main.button_lx <= 9 { true -> label_paint(main, window) _ -> write_pixel_guard(main, window) }
     }
-    state label_equals(main: &mut Main) {
-        transition main.button_ly == 3 && main.button_lx >= 5 && main.button_lx <= 11 { true -> label_paint(main) _ -> label_equals_bottom(main) }
+    state label_equals(main: &mut Main, window: Window) {
+        transition main.button_ly == 3 && main.button_lx >= 5 && main.button_lx <= 11 { true -> label_paint(main, window) _ -> label_equals_bottom(main, window) }
     }
-    state label_equals_bottom(main: &mut Main) {
-        transition main.button_ly == 5 && main.button_lx >= 5 && main.button_lx <= 11 { true -> label_paint(main) _ -> write_pixel_guard(main) }
+    state label_equals_bottom(main: &mut Main, window: Window) {
+        transition main.button_ly == 5 && main.button_lx >= 5 && main.button_lx <= 11 { true -> label_paint(main, window) _ -> write_pixel_guard(main, window) }
     }
-    state label_utility(main: &mut Main) {
+    state label_utility(main: &mut Main, window: Window) {
         transition main.button_lx >= 5 && main.button_lx <= 11 && main.button_ly >= 2 && main.button_ly <= 6 {
-            true -> label_paint(main)
-            _ -> write_pixel_guard(main)
+            true -> label_paint(main, window)
+            _ -> write_pixel_guard(main, window)
         }
     }
-    state label_paint(main: &mut Main) {
+    state label_paint(main: &mut Main, window: Window) {
         main.px = 15794175;
-        transition { _ -> write_pixel_guard(main) }
+        transition { _ -> write_pixel_guard(main, window) }
     }
 
-    state write_pixel_guard(main: &mut Main) {
-        transition main.i >= 0 && main.i < 4096 { true -> write_pixel(main) _ -> bad(main) }
+    state write_pixel_guard(main: &mut Main, window: Window) {
+        transition main.i >= 0 && main.i < 4096 { true -> write_pixel(main, window) _ -> bad(main, window) }
     }
-    state write_pixel(main: &mut Main) {
+    state write_pixel(main: &mut Main, window: Window) {
         main.pixels[main.i] = main.px;
         main.i = main.i + 1;
-        transition main.col == 63 { true -> render_pump_peek(main) _ -> fill_loop(main) }
+        transition main.col == 63 { true -> render_pump_peek(main, window) _ -> fill_loop(main, window) }
     }
-    state render_pump_peek(main: &mut Main) {
-        main.have = main.gui.msg_peek(main.message);
-        transition main.have > 0 { true -> render_pump_check_close(main) _ -> fill_loop(main) }
+    state render_pump_peek(main: &mut Main, mut window: Window) {
+        main.have = main.gui.msg_peek(&mut window, main.message);
+        transition main.have > 0 { true -> render_pump_check_close(main, window) _ -> fill_loop(main, window) }
     }
-    state render_pump_check_close(main: &mut Main) {
+    state render_pump_check_close(main: &mut Main, window: Window) {
         main.msg_code = main.message[1] % 65536;
-        transition main.msg_code == 16 { true -> quit_self(main) _ -> render_pump_check_syscommand(main) }
+        transition main.msg_code == 16 { true -> quit_self(main, window) _ -> render_pump_check_syscommand(main, window) }
     }
-    state render_pump_check_syscommand(main: &mut Main) {
-        transition main.msg_code == 274 { true -> render_pump_check_sysclose(main) _ -> render_pump_handle(main) }
+    state render_pump_check_syscommand(main: &mut Main, window: Window) {
+        transition main.msg_code == 274 { true -> render_pump_check_sysclose(main, window) _ -> render_pump_handle(main, window) }
     }
-    state render_pump_check_sysclose(main: &mut Main) {
-        transition main.message[2] >= 61536 && main.message[2] < 61552 { true -> quit_self(main) _ -> render_pump_handle(main) }
+    state render_pump_check_sysclose(main: &mut Main, window: Window) {
+        transition main.message[2] >= 61536 && main.message[2] < 61552 { true -> quit_self(main, window) _ -> render_pump_handle(main, window) }
     }
-    state render_pump_handle(main: &mut Main) {
-        main.translated = main.gui.msg_translate(main.message);
-        main.dispatched = main.gui.msg_dispatch(main.message);
-        transition { _ -> render_pump_liveness(main) }
+    state render_pump_handle(main: &mut Main, window: Window) {
+        main.translated = main.gui.msg_translate(&window, main.message);
+        main.dispatched = main.gui.msg_dispatch(&window, main.message);
+        transition { _ -> render_pump_liveness(main, window) }
     }
-    state render_pump_liveness(main: &mut Main) {
-        main.alive = main.gui.is_window(main.hwnd);
-        transition main.alive > 0 { true -> fill_loop(main) _ -> closed(main) }
+    state render_pump_liveness(main: &mut Main, window: Window) {
+        main.alive = main.gui.is_window(&window, main.hwnd);
+        transition main.alive > 0 { true -> fill_loop(main, window) _ -> closed(main, window) }
     }
 
-    state present(main: &mut Main) {
-        main.copied = main.gui.blit(main.hdc, 512, 512, 64, 64, main.pixels, main.info);
-        transition main.copied == 64 { true -> pace(main) _ -> present_failed(main) }
+    state present(main: &mut Main, window: Window) {
+        main.copied = main.gui.blit(&window, main.hdc, 512, 512, 64, 64, main.pixels, main.info);
+        transition main.copied == 64 { true -> pace(main, window) _ -> present_failed(main, window) }
     }
-    state present_failed(main: &mut Main) {
-        main.alive = main.gui.is_window(main.hwnd);
-        transition main.alive > 0 { true -> bad(main) _ -> closed(main) }
+    state present_failed(main: &mut Main, window: Window) {
+        main.alive = main.gui.is_window(&window, main.hwnd);
+        transition main.alive > 0 { true -> bad(main, window) _ -> closed(main, window) }
     }
-    state pace(main: &mut Main) {
+    state pace(main: &mut Main, window: Window) {
         main.clock.sleep(16);
-        transition main.frame >= 0 && main.frame < 16384 { true -> advance(main) _ -> wrap_frame(main) }
+        transition main.frame >= 0 && main.frame < 16384 { true -> advance(main, window) _ -> wrap_frame(main, window) }
     }
-    state advance(main: &mut Main) {
+    state advance(main: &mut Main, window: Window) {
         main.frame = main.frame + 1;
-        transition { _ -> frame_loop(main) }
+        transition { _ -> frame_loop(main, window) }
     }
 
-    state quit_self(main: &mut Main) {
-        main.killed = main.gui.window_destroy(main.hwnd);
-        transition { _ -> closed(main) }
+    state quit_self(main: &mut Main, window: Window) {
+        transition { _ -> closed(main, window) }
     }
-    state closed(main: &mut Main) {
+    state closed(main: &mut Main, window: Window) {
+        main.gui.window_destroy(window);
         main.console.write_line("windowed calculator closed (exit 0)");
         main.console.exit_process(0);
     }
-    state bad(main: &mut Main) {
+    state bad(main: &mut Main, window: Window) {
+        main.gui.window_destroy(window);
         main.console.write_line("FAIL: windowed_calculator hit a renderer or host assertion (exit 1)");
         main.console.exit_process(1);
     }
