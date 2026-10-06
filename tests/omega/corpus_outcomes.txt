@@ -1728,8 +1728,7 @@ pass/borrows/static_carrier_reference_read_exit checked 1134ms check-target:maco
 pass/borrows/static_projected_local_reference_exit checked 4618ms check-target:macos_arm64 @cfe60a3a242
 pass/borrows/static_record_reference_return_exit checked 1105ms check-target:macos_arm64 @2816825e8941
 pass/borrows/stored_reference_projection_exit checked 1121ms check-target:macos_arm64 @104c2da31081
-pass/borrows/transition_shared_borrow_result rejected 3278ms check-target:macos_arm64 @74a22511782
-	native artifact target lowering failed: UnsupportedControlFlow { machine: MachineId(1), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }
+pass/borrows/transition_shared_borrow_result checked 1126ms check-target:macos_arm64 @4eef5b6cc89f
 pass/borrows/view_field_record_exit_disposal checked 320ms @ca8c127c90c5
 pass/borrows/writeonly_record_field_store checked 1245ms check-target:macos_arm64 @ca8c127c90c5
 pass/boundary/later_state_requirement_scalar_result_exit checked 2933ms check-target:macos_arm64 @44d31b02f28e+wt
@@ -1863,15 +1862,12 @@ pass/calls/runtime_guard_call_vs_call_exit checked 1576ms check-target:macos_arm
 pass/calls/runtime_guarded_boundary_tail_call_exit checked 4424ms check-target:macos_arm64 @cfe60a3a242
 pass/calls/runtime_guarded_effectful_transition_argument_exit checked 9012ms check-target:macos_arm64 @2d8ed253669f
 pass/calls/runtime_guarded_reference_return_before_crash_exit checked 565ms check-target:macos_arm64 @73ef9378f1a6
-pass/calls/runtime_guarded_reference_return_crash rejected 3246ms check-target:macos_arm64 @74a22511782
-	native artifact target lowering failed: UnsupportedControlFlow { machine: MachineId(1), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }
+pass/calls/runtime_guarded_reference_return_crash checked 1166ms check-target:macos_arm64 @4eef5b6cc89f
 pass/calls/runtime_guarded_terminal_array_operands_exit checked 562ms check-target:macos_arm64 @db3378f05a303f15e6de9c2597a21c18e3d9fa78
 pass/calls/runtime_guarded_terminal_guard_order_exit checked 535ms check-target:macos_arm64 @9384bb69f1d480980ed1e7a4d01c0f9327e873ad
-pass/calls/runtime_guarded_terminal_mutable_reference_result_exit rejected 3848ms check-target:macos_arm64 @74a22511782
-	native artifact target lowering failed: UnsupportedControlFlow { machine: MachineId(1), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }
+pass/calls/runtime_guarded_terminal_mutable_reference_result_exit checked 1328ms check-target:macos_arm64 @4eef5b6cc89f
 pass/calls/runtime_guarded_terminal_operand_order_exit checked 463ms check-target:macos_arm64 @e2a12bf7c056aa30aa020384afcb304e80173f68
-pass/calls/runtime_guarded_terminal_reference_result_exit rejected 3794ms check-target:macos_arm64 @74a22511782
-	native artifact target lowering failed: UnsupportedControlFlow { machine: MachineId(1), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }
+pass/calls/runtime_guarded_terminal_reference_result_exit checked 1285ms check-target:macos_arm64 @4eef5b6cc89f
 pass/calls/runtime_guarded_terminal_reference_write_exit checked 766ms check-target:macos_arm64 @23ad5028e896
 pass/calls/runtime_guarded_terminal_structural_result_exit checked 928ms check-target:macos_arm64 @4f20c0c110be
 pass/calls/runtime_indexed_scalar_calls_exit checked 4149ms check-target:macos_arm64 @c773c4ad3c3
