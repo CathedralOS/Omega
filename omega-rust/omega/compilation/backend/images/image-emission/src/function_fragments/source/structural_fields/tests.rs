@@ -16,8 +16,9 @@ use target_operations::{
     TargetStructuralParameter, TargetUnitOperation, TerminalPsiProvenance,
 };
 use terminal_psi::{
-    StructuralAccess, StructuralArgument, StructuralMultiplicity, StructuralParameterDeclaration,
-    StructuralPathSegment,
+    StructuralAccess, StructuralArgument, StructuralFieldDeclaration, StructuralMultiplicity,
+    StructuralParameterDeclaration, StructuralPathSegment, StructuralTypeDeclaration,
+    StructuralTypeShape,
 };
 
 #[test]
@@ -530,6 +531,24 @@ fn byte_store_destination_mut(
         return None;
     };
     Some(destination)
+}
+
+fn record_fields_mut(
+    declaration: &mut StructuralTypeDeclaration,
+) -> Option<&mut Vec<StructuralFieldDeclaration>> {
+    let StructuralTypeShape::Record { fields } = &mut declaration.shape else {
+        return None;
+    };
+    Some(fields)
+}
+
+fn reference_access_mut(
+    declaration: &mut StructuralTypeDeclaration,
+) -> Option<&mut StructuralAccess> {
+    let StructuralTypeShape::Reference { access, .. } = &mut declaration.shape else {
+        return None;
+    };
+    Some(access)
 }
 
 fn zeroed_structural_home_mut(
@@ -1440,11 +1459,7 @@ fn returned_reference_byte_store_retains_exact_pointer_home_and_candidates() {
 
     // The selected pointer, not the first candidate, remains the write subject.
     let mut grouped = target.clone();
-    let StructuralTypeShape::Record { fields } =
-        &mut grouped.graph.structural_types.make_mut()[0].shape
-    else {
-        unreachable!()
-    };
+    let fields = record_fields_mut(&mut grouped.graph.structural_types.make_mut()[0]).unwrap();
     fields.push(StructuralFieldDeclaration {
         id: StructuralFieldId::new(3).unwrap(),
         identity: "sibling".into(),
@@ -1556,12 +1571,8 @@ fn returned_reference_byte_store_retains_exact_pointer_home_and_candidates() {
                 .clear();
             }
             2 => {
-                let StructuralTypeShape::Reference { access, .. } =
-                    &mut changed_target.graph.structural_types.make_mut()[1].shape
-                else {
-                    unreachable!()
-                };
-                *access = StructuralAccess::SharedBorrow;
+                *reference_access_mut(&mut changed_target.graph.structural_types.make_mut()[1])
+                    .unwrap() = StructuralAccess::SharedBorrow;
             }
             3 => {
                 let AbstractOperation::StructuralByteSequenceFieldStore { path, .. } =
@@ -1638,9 +1649,7 @@ fn assert_reference_field_read_retains_carrier(
         .iter_mut()
         .find(|declaration| declaration.id == holder_type)
         .unwrap();
-    let StructuralTypeShape::Record { fields } = &mut declaration.shape else {
-        panic!("record referent");
-    };
+    let fields = record_fields_mut(declaration).expect("record referent");
     fields[0].field_type = StructuralFieldType::Scalar(scalar);
     function.operations[1] = AbstractOperation::StructuralScalarFieldRead {
         psi_operation,
@@ -1705,10 +1714,8 @@ fn assert_reference_field_read_retains_carrier(
                         matches!(declaration.shape, StructuralTypeShape::Reference { .. })
                     })
                     .unwrap();
-                let StructuralTypeShape::Reference { access, .. } = &mut reference.shape else {
-                    panic!("reference type");
-                };
-                *access = StructuralAccess::WriteOnlyBorrow;
+                *reference_access_mut(reference).expect("reference type") =
+                    StructuralAccess::WriteOnlyBorrow;
             }
         }
         assert!(
@@ -2065,11 +2072,7 @@ fn nested_field_membership_reconstructs_parent_local_carrier_identity() {
             source.path = path;
             assert!(!retained(&function, &function.operations[0], &changed));
         }
-        let terminal_psi::StructuralTypeShape::Record { fields } =
-            &mut target.graph.structural_types.make_mut()[0].shape
-        else {
-            unreachable!()
-        };
+        let fields = record_fields_mut(&mut target.graph.structural_types.make_mut()[0]).unwrap();
         fields[0].relevance = terminal_psi::BindingRelevance::Erased;
         assert!(!retained(&function, &function.operations[0], &target));
     }
