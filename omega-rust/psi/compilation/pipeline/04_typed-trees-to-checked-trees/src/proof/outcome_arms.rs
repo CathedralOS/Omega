@@ -1,7 +1,7 @@
 //! Outcome-specific arm facts and the exact outcome case tests.
 
 use crate::proof::proposition_vocabulary::{
-    lower_checked_proposition_application, proposition_application_label,
+    lower_checked_proposition_application, proposition_application_label, proposition_label_parts,
 };
 use checked_trees::{CheckedEvidenceTerm, ContractProofFactOwner, ProofFacts};
 use symbols::SymbolHandle;
@@ -427,26 +427,8 @@ fn instantiate_outcome_arm_fact(
         };
         return (None, identity);
     };
-    let binder_labels = application
-        .binder_arguments
-        .iter()
-        .map(|argument| {
-            substitutions
-                .iter()
-                .find(|(symbol, _, _)| *symbol == argument.symbol)
-                .map(|(_, _, replacement)| replacement.clone())
-                .unwrap_or_else(|| argument.display_name())
-        })
-        .collect::<Vec<_>>();
-    let argument_labels = program
-        .expression_table
-        .expression_handles(application.arguments)
-        .iter()
-        .map(|argument| {
-            program
-                .render_proof_expression(*argument, ProofSubstitutions::ByParameter(substitutions))
-        })
-        .collect::<Vec<_>>();
+    let (binder_labels, argument_labels) =
+        proposition_label_parts(program, application, substitutions);
     let proposition = program
         .normalize_nominal_proposition_application(
             application,

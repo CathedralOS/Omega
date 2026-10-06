@@ -33,11 +33,13 @@ pub(crate) fn contract_proposition_labels(
         .collect()
 }
 
-pub(crate) fn proposition_application_label(
+/// Binder and argument labels for one proposition application under the
+/// caller's parameter substitutions.
+pub(crate) fn proposition_label_parts(
     program: &typed_trees::TypedTrees,
     application: &typed_trees::proposition::PropositionApplication,
     substitutions: &[(SymbolHandle, String, String)],
-) -> Option<String> {
+) -> (Vec<String>, Vec<String>) {
     let binder_labels = application
         .binder_arguments
         .iter()
@@ -58,6 +60,16 @@ pub(crate) fn proposition_application_label(
                 .render_proof_expression(*argument, ProofSubstitutions::ByParameter(substitutions))
         })
         .collect::<Vec<_>>();
+    (binder_labels, argument_labels)
+}
+
+pub(crate) fn proposition_application_label(
+    program: &typed_trees::TypedTrees,
+    application: &typed_trees::proposition::PropositionApplication,
+    substitutions: &[(SymbolHandle, String, String)],
+) -> Option<String> {
+    let (binder_labels, argument_labels) =
+        proposition_label_parts(program, application, substitutions);
     program
         .normalize_proposition_application(
             application,
