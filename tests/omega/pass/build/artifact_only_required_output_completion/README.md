@@ -26,11 +26,11 @@ package is bound to the snapshot while dependency rows stay resolved against
 the authored directory. Mirroring the relative path is what keeps every
 recorded diagnostic position unchanged.
 
-Verified through the real CLI on exactly this source: it compiles, reports
-`wrote_output=true`, and publishes `files/manifest.txt` holding the authored
-bytes `omega artifact`.
-
-Move this directory into `pass/` with its golden row once the harness can bind
-a fixture root with canonical Source metadata.
+The real CLI on this source reports `wrote_output=true` and publishes
+`files/manifest.txt` holding the authored bytes `omega artifact`. The corpus
+checks the publication itself: `expected_published.txt` names
+`files/manifest.txt`, and the runner builds and publishes the fixture as the
+CLI does and records `published:files/manifest.txt`.
 `artifact_only_unsealed_output_refused` is this case's sealing control, and
-`artifact_only_rollback_overlay_refused` carries the producing-stop admission.
+`artifact_only_rollback_overlay_refused` carries the producing-stop admission;
+both declare an empty `expected_published.txt`.

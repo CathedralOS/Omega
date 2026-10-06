@@ -192,7 +192,7 @@ pass/borrows/view_field_record_exit_disposal checked 246ms @48008365d839
 pass/borrows/writeonly_record_field_store built 683ms exit:181 @48008365d839
 pass/boundary/later_state_requirement_scalar_result_exit built 3738ms exit:70 @44d31b02f28e+wt
 pass/boundary/static_foreign_scalar_result_locals_exit built 4150ms exit:70 @44d31b02f28e+wt
-pass/build/artifact_only_required_output_completion checked 3617ms @9beb2be72f2d+wt
+pass/build/artifact_only_required_output_completion checked 5531ms published:files/manifest.txt @693920652f41+wt
 pass/build/build_log_line_written built 1797ms @31926a3a0d06+wt
 pass/build/conditional_root_binding built 283ms
 pass/build/const_index_dependency_order_exit built 1854ms exit:0 @467bec194212

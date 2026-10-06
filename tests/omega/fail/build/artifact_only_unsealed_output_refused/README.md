@@ -17,7 +17,8 @@ unconditionally would leave the completion case green, because that case
 observes the seal only through its own success.
 
 Verified through the real CLI on exactly this source, which produced the
-diagnostic above.
+diagnostic above. Its `expected_published.txt` is empty: the corpus builds and
+publishes the fixture as the CLI does and records `published:none`.
 
 ## How the corpus hosts it
 

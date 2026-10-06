@@ -16,10 +16,11 @@ output has reached sealed staged custody when admission refuses, and it refuses
 before the report that would publish those outputs is constructed, so no partial
 product set is published.
 
-Verified through the real CLI on exactly this source: the refused invocation
-leaves only the build-directory owner stamp and writes no `completed/` result
-set, while the same source without `--disable-optimization` publishes
-`files/manifest.txt`.
+The corpus checks that placement: `expected_published.txt` is empty, so the
+runner builds and publishes this fixture as the CLI does under its overlay and
+records `published:none`, meaning the refused invocation left no `completed/`
+result set. The same source without the overlay publishes
+`files/manifest.txt` (`pass/build/artifact_only_required_output_completion`).
 
 ## How the corpus hosts it
 

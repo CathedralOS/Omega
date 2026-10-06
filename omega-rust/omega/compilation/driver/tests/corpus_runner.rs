@@ -86,6 +86,17 @@
 //! `rollback.txt` becomes the fixture's own diagnostic rather than silently
 //! running the ordinary path.
 //!
+//! An `expected_published.txt` beside `main.omg` is a publication oracle:
+//! one `files/<path>` line for each file a producing build of the fixture
+//! publishes into its completed-output set, or no lines when it must publish
+//! nothing. The runner builds the fixture the way the CLI does -- the
+//! Terminal product under the declared rollback overlay, published only when
+//! the compile succeeds -- then lists the build directory's completed sets
+//! and records `published:<paths>` or `published:none`. A refusal that
+//! arrives after a build staged its outputs must leave no completed set. A
+//! listing that differs from the oracle adds its own diagnostic, so the row
+//! cannot keep its recorded status by accident.
+//!
 //! Record format, read by `tools/corpus_records.py`: one line per fixture,
 //! `<tier/group/name> <status> <milliseconds>ms`, followed by ` expected` or
 //! ` unexpected` when the fixture's `expected.txt` fragments were weighed
@@ -500,6 +511,92 @@ fn rollback_pair_facts(
         },
     ];
     (facts, Ok(()))
+}
+
+/// The files a fixture's `expected_published.txt` promises, or `None` when it
+/// declares no publication oracle.
+fn declared_publication(fixture_dir: &Path) -> Option<Vec<String>> {
+    let text = fs::read_to_string(fixture_dir.join("expected_published.txt")).ok()?;
+    let mut files = text
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .map(str::to_owned)
+        .collect::<Vec<_>>();
+    files.sort();
+    Some(files)
+}
+
+/// Build and publish the fixture as the CLI does, then list what landed:
+/// every file under each `completed/<set>/files/` directory, as
+/// `files/<path>`. The compile's own refusal is not this check's verdict --
+/// the fixture's ordinary legs record that -- so it only stops publication.
+fn published_files(
+    root_path: &Path,
+    rollback: Option<&OptimizationRollback>,
+    sequence: usize,
+) -> Result<Vec<String>, String> {
+    let build_dir = unique_build_dir(sequence).join("publication");
+    let compiled = (|| {
+        let prepared = reviewed_repository_fixture_package_inputs(
+            root_path,
+            declared_realization_target(root_path).as_deref(),
+        )?;
+        let options = CompileOptions {
+            root_path: prepared.root_path,
+            build_dir: Some(build_dir.clone()),
+            target_name: declared_realization_target(root_path),
+        };
+        let mut request = CompileRequest::new(options)
+            .with_requested_product(RequestedCompileProduct::TerminalArtifact);
+        if let Some(rollback) = rollback {
+            request = request.with_optimization_rollback(rollback.clone());
+        }
+        if let Some(package_inputs) = prepared.package_inputs {
+            request = request.with_package_inputs(package_inputs);
+        }
+        compiler::compile(request).and_then(compiler::CompileOutcomes::into_single_report)
+    })();
+    let listing = match compiled {
+        Ok(report) => compilation_products::publication::publish_compilation(report, &build_dir)
+            .map(|_| ())
+            .and_then(|()| completed_files(&build_dir.join("completed"))),
+        Err(_) => completed_files(&build_dir.join("completed")),
+    };
+    let _ = fs::remove_dir_all(&build_dir);
+    listing
+}
+
+fn completed_files(sets: &Path) -> Result<Vec<String>, String> {
+    fn walk(directory: &Path, prefix: &str, files: &mut Vec<String>) -> Result<(), String> {
+        let entries = fs::read_dir(directory)
+            .map_err(|error| format!("cannot list {}: {error}", directory.display()))?;
+        for entry in entries {
+            let entry = entry.map_err(|error| error.to_string())?;
+            let name = format!("{prefix}/{}", entry.file_name().to_string_lossy());
+            if entry.path().is_dir() {
+                walk(&entry.path(), &name, files)?;
+            } else {
+                files.push(name);
+            }
+        }
+        Ok(())
+    }
+    let mut files = Vec::new();
+    if !sets.exists() {
+        return Ok(files);
+    }
+    let set_entries =
+        fs::read_dir(sets).map_err(|error| format!("cannot list {}: {error}", sets.display()))?;
+    for set in set_entries {
+        let set = set.map_err(|error| error.to_string())?.path();
+        let published = set.join("files");
+        if published.is_dir() {
+            walk(&published, "files", &mut files)?;
+        }
+    }
+    files.sort();
+    Ok(files)
 }
 
 /// The pass/run tier of `production_compile` restricted to the Check product:
@@ -1188,6 +1285,33 @@ fn run_one(tier: &str, base: &Path, main: &Path, sequence: usize) -> (String, u1
         interpreter_diagnostics = observation.diagnostics;
         if let Some(agreement) = interpreter_agreement(&facts) {
             facts.push(agreement);
+        }
+    }
+    if rollback_error.is_none()
+        && let Some(expected) = declared_publication(&fixture_dir)
+    {
+        let published = published_files(main, declared_rollback.as_ref(), sequence);
+        let actual = published.as_ref().map(Vec::as_slice).unwrap_or(&[]);
+        facts.push(if actual.is_empty() {
+            "published:none".to_owned()
+        } else {
+            format!("published:{}", actual.join(","))
+        });
+        let mismatch = match &published {
+            Err(error) => Some(format!("publication could not be listed: {error}")),
+            Ok(actual) if *actual != expected => Some(format!(
+                "published outputs [{}] differ from expected_published.txt [{}]",
+                actual.join(", "),
+                expected.join(", "),
+            )),
+            Ok(_) => None,
+        };
+        if let Some(message) = mismatch {
+            let error = diagnostics::Diagnostic::error(message);
+            match &mut outcome {
+                Ok(()) => outcome = Err(vec![error]),
+                Err(errors) => errors.push(error),
+            }
         }
     }
     let errors: &[diagnostics::Diagnostic] =

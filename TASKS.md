@@ -2336,38 +2336,6 @@ crash and native exit behavior.
   and execute exit 70 on Windows. Other hosts may validate production but
   must report native execution as unverified.
 
-- **COMPILE-REPORT-PRODUCTS.** (new-scope) Automate the remaining
-  artifact-only publication control: a refused release-rollback overlay must
-  publish no partial product set. Product admission and report construction
-  already share `CompileReportSettlement` in
-  `omega-rust/omega/compilation/products/src/checked_compilation/report.rs`.
-  The corpus checks the refusal diagnostic, but not output-directory contents;
-  the fixture README's manual CLI observation is not an automated control.
-
-  Use `tests/omega/fail/build/artifact_only_rollback_overlay_refused` and its
-  `rollback.txt` overlay. Its build completes and seals a required output before
-  product admission rejects, so the check must cover publication after staged
-  work, not merely rejection before Build runs. Pair it with
-  `tests/omega/pass/build/artifact_only_required_output_completion`, which
-  publishes `files/manifest.txt`, and retain
-  `tests/omega/fail/build/artifact_only_unsealed_output_refused` as the sticky
-  required-output failure control.
-
-  Extend the corpus's real publication path to assert the refused invocation
-  leaves no published outputs; do not add fixture-name behavior to the shipped
-  CLI. Preserve the [rollback](wiki/spec/build/optimizations.md#release-rollback-and-promotion)
-  admission placements: request admission before acquisition and product
-  admission for direct package routes. `admit_terminal_production` remains the
-  shared Terminal pre-production head; `terminal_native_proposal_request`
-  only projects borrowed inputs. Artifact-only is an evaluated Build property,
-  not a fourth `RequestedCompileProduct` variant. Supply rollback through the
-  CLI or corpus sidecar, not a new Omega declaration.
-
-  Acceptance: the [artifact-only](wiki/spec/build/scoped_execution.md) positive
-  fixture publishes its expected file; the nonempty-overlay invocation rejects
-  with its expected diagnostic and an automated check proves no partial outputs
-  were published.
-
 - **TWINS-GOLDEN-RECORDS-A-LOAD-ARTIFACT.** (split-of:OPERATOR-BOUNDARY-CALLS)
   Refresh the stale macOS native records for
   `pass/float/build_runtime_semantics_twins_{x86_baseline,windows_x64}`.

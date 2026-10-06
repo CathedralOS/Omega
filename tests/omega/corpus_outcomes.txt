@@ -358,9 +358,9 @@ fail/borrows/whole_referent_store_type_mismatch rejected 108ms expected @c08960b
 	machine `settle` state `entry` assignment expects the `Verdict` data type but got `Outcome` in the `place` position; these are incompatible data types (a place is accepted structurally, but its declared type must match)
 fail/boundary/bare_field_value_rejected rejected 459ms expected @2d8ed253669f
 	field `console` on data `Main` names bare boundary trait `Console` in value position; the intrinsic `Binding<R>` carrier is the only service value spelling
-fail/build/artifact_only_rollback_overlay_refused rejected 6302ms expected @d37ea22ec592+wt
+fail/build/artifact_only_rollback_overlay_refused rejected 8467ms expected published:none @693920652f41+wt
 	artifact-only builds execute no product optimization stages to roll back
-fail/build/artifact_only_unsealed_output_refused rejected 536ms expected @d37ea22ec592+wt
+fail/build/artifact_only_unsealed_output_refused rejected 1440ms expected published:none @693920652f41+wt
 	required output `manifest.txt` of `build` failed: staged output never sealed
 fail/build/boundary_acceptance_fabricated_activation rejected 877ms expected @b429d3348cac+wt
 	the compiler-owned Build activation cannot be copied into local `counterfeit`
@@ -1931,7 +1931,7 @@ pass/borrows/view_field_record_exit_disposal checked 320ms @ca8c127c90c5
 pass/borrows/writeonly_record_field_store checked 1245ms check-target:macos_arm64 @ca8c127c90c5
 pass/boundary/later_state_requirement_scalar_result_exit checked 2933ms check-target:macos_arm64 @44d31b02f28e+wt
 pass/boundary/static_foreign_scalar_result_locals_exit checked 29787ms check-target:macos_arm64 @469b20ad280d+wt
-pass/build/artifact_only_required_output_completion checked 3029ms @d37ea22ec592+wt
+pass/build/artifact_only_required_output_completion checked 6564ms published:files/manifest.txt @693920652f41+wt
 pass/build/build_log_line_written checked 1789ms check-target:macos_arm64 @31926a3a0d06+wt
 pass/build/conditional_root_binding checked 389ms check-target:windows_x86_64 @2d8ed253669f
 pass/build/const_index_dependency_order_exit checked 1897ms check-target:macos_arm64 @ae8939e231af+wt
