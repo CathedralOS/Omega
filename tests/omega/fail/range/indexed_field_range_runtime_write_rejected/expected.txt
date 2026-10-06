@@ -1,1 +1,1 @@
-default domain is still FALSE
+stores a value not provably within its data's `where` facts

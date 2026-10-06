@@ -1,5 +1,11 @@
 //! Handling assignments: preserving proven establishment, refusing open
 //! windows and the case facts an assignment mentions.
+//!
+//! A runtime-selected field write can preserve an already valid region without
+//! identifying the selected element. It cannot restore an invalid region: two
+//! writes with the same wildcard spelling may select different elements. Keep
+//! preservation separate from re-establishment, including debt inherited from
+//! predecessor states and debt on overlapping concrete places.
 
 use crate::proof_contracts::default_domains::data_reads::range_gates_hold;
 use crate::proof_contracts::default_domains::place_queries::{
@@ -229,6 +235,17 @@ pub(crate) fn handle_assignment<'program>(
         born_zero,
         data_binding,
     );
+    let region_spelling = tracked[position].spelling.as_str();
+    let region_was_established = tracked[position].established
+        && !tracked.iter().any(|place| {
+            place.any_window_open()
+                && (place_spelling_covers(region_spelling, &place.spelling)
+                    || place_spelling_covers(&place.spelling, region_spelling))
+        })
+        && !inherited_windows.iter().any(|(spelling, _, _)| {
+            place_spelling_covers(region_spelling, spelling)
+                || place_spelling_covers(spelling, region_spelling)
+        });
     let place = &mut tracked[position];
     place.fields.retain(|(name, _)| *name != field_name);
     place.fields.push((field_name.clone(), written));
@@ -411,10 +428,11 @@ pub(crate) fn handle_assignment<'program>(
     // Every fact re-proven at the post-write valuation: the place
     // satisfies its domain again (any open window CLOSES; a gated place
     // establishes). A checkable violation leaves the window OPEN for the
-    // consumption points to police (ch11). A wildcard place never closes
-    // here: one dynamic position's re-proof cannot discharge the covered
-    // region -- only a whole-place reseed drops it.
-    if all_hold && !place.spelling.contains("[*]") {
+    // consumption points to police (ch11). A wildcard write preserves a
+    // previously established, debt-free region when its post-write facts hold,
+    // but cannot close an existing region window. Its selected position is not
+    // an identity shared with earlier writes, even in a predecessor state.
+    if all_hold && (!place.spelling.contains("[*]") || region_was_established) {
         place.established = true;
         place.window_open = false;
     } else {

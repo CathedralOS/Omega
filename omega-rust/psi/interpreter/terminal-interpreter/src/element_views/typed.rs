@@ -6,17 +6,12 @@
 //! and activation home; only the selected scalar crosses the bit mapping.
 
 use super::{ElementView, ElementViewBacking, ElementViewHome};
-use crate::custody::{project_structural_value, resolve_structural_arguments};
+use crate::custody::resolve_structural_arguments;
 use crate::errors::TerminalInterpretError;
 use crate::execution::TerminalExecution;
-use crate::values::{
-    StructuralRuntimePlace, StructuralScalarRuntimeField, TerminalScalarValue,
-    TerminalStructuralValue,
-};
+use crate::values::{TerminalScalarValue, TerminalStructuralValue};
 use semantic_vocabulary::{ScalarType, StructuralTypeId};
-use terminal_psi::{
-    StructuralAccess, StructuralArgument, StructuralPathSegment, StructuralTypeShape,
-};
+use terminal_psi::{StructuralAccess, StructuralArgument, StructuralPathSegment};
 use terminal_semantics::{
     ElementRepresentationLeaf, ElementRepresentationRelation, ScalarViewValue,
 };
@@ -141,51 +136,6 @@ impl TerminalExecution {
         })
     }
 
-    /// Ordinary field operations and typed views address the same record cell.
-    /// Resolve the original containing declaration before selecting its field ID;
-    /// target names and target IDs never enter the backing storage key.
-    fn typed_element_field(
-        &self,
-        view: &TypedElementView,
-        index: usize,
-        leaf: &ElementRepresentationLeaf,
-    ) -> Result<Option<StructuralScalarRuntimeField>, TerminalInterpretError> {
-        let Some((StructuralPathSegment::Field(identity), prefix)) = leaf.path.split_last() else {
-            return Ok(None);
-        };
-        let mut path = vec![StructuralPathSegment::FixedIndex(
-            u64::try_from(index).map_err(|_| invalid())?,
-        )];
-        path.extend_from_slice(prefix);
-        let parent = project_structural_value(
-            &self.program.structural_types,
-            view.collection.as_ref().ok_or_else(invalid)?,
-            &path,
-        )?;
-        let StructuralTypeShape::Record { fields } = &self
-            .program
-            .structural_types
-            .get(&parent.structural_type)
-            .ok_or_else(invalid)?
-            .shape
-        else {
-            return Err(invalid());
-        };
-        let mut matching = fields
-            .iter()
-            .filter(|field| field.identity == *identity && !field.relevance.is_erased());
-        let (Some(field), None) = (matching.next(), matching.next()) else {
-            return Err(invalid());
-        };
-        if field.field_type.scalar_type() != Some(leaf.scalar_type) {
-            return Err(invalid());
-        }
-        Ok(Some(StructuralScalarRuntimeField::member(
-            StructuralRuntimePlace::from(&parent),
-            field.id,
-        )))
-    }
-
     pub(super) fn read_typed_element(
         &self,
         view: &ElementView,
@@ -197,17 +147,18 @@ impl TerminalExecution {
             return Err(invalid());
         };
         let (position, source, target) = typed.selected(view, index, path, expected)?;
-        let value = if let Some(field) = self.typed_element_field(typed, position, source)? {
+        let value = if let Some(field) = self.element_scalar_field(
+            typed.collection.as_ref(),
+            position,
+            &source.path,
+            source.scalar_type,
+        )? {
             self.structural_scalar_fields
                 .get(&field)
                 .copied()
                 .ok_or_else(invalid)?
         } else {
-            let mut source_path = typed.home.path.clone();
-            source_path.push(StructuralPathSegment::FixedIndex(
-                u64::try_from(position).map_err(|_| invalid())?,
-            ));
-            source_path.extend_from_slice(&source.path);
+            let source_path = typed.home.selected_path(position, &source.path)?;
             self.read_primitive_home(typed.home.storage, &source_path, source.scalar_type)?
         };
         if !checked_value(value, source) {
@@ -241,7 +192,12 @@ impl TerminalExecution {
         if !checked_value(value, source) {
             return Err(invalid());
         }
-        if let Some(field) = self.typed_element_field(typed, position, source)? {
+        if let Some(field) = self.element_scalar_field(
+            typed.collection.as_ref(),
+            position,
+            &source.path,
+            source.scalar_type,
+        )? {
             let stored = self
                 .structural_scalar_fields
                 .get_mut(&field)
@@ -252,11 +208,7 @@ impl TerminalExecution {
             *stored = value;
             Ok(())
         } else {
-            let mut source_path = typed.home.path.clone();
-            source_path.push(StructuralPathSegment::FixedIndex(
-                u64::try_from(position).map_err(|_| invalid())?,
-            ));
-            source_path.extend_from_slice(&source.path);
+            let source_path = typed.home.selected_path(position, &source.path)?;
             self.store_primitive_home(typed.home.storage, &source_path, value)
         }
     }

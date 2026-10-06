@@ -9,12 +9,18 @@
 //! calls and state transfer, without relying on a frame-local source place ID.
 //! The verified loan controls interference; execution preserves its access and
 //! exact bounds when resolving a field below the descriptor.
+//! Direct and recast record views resolve scalar cells through the same original
+//! declaration. A record backing retains its activation home as well as its
+//! structural identity, so nested primitive leaves and record fields both write
+//! through after calls without manufacturing a second element snapshot.
 
+use crate::custody::project_structural_value;
 use crate::errors::TerminalInterpretError;
 use crate::execution::{OperationFlow, TerminalExecution};
 use crate::scalar_operations::terminal_scalar_belongs_to_type;
 use crate::values::TerminalScalarValue;
 use crate::values::TerminalStructuralValue;
+use crate::values::{StructuralRuntimePlace, StructuralScalarRuntimeField};
 use semantic_vocabulary::IntegerSign;
 use semantic_vocabulary::IntegerType;
 use semantic_vocabulary::IntegerValue;
@@ -38,6 +44,23 @@ use terminal_psi::StructuralTypeShape;
 pub(crate) struct ElementViewHome {
     storage: crate::primitive_storage::PrimitiveStorageHome,
     path: Vec<StructuralPathSegment>,
+}
+
+impl ElementViewHome {
+    fn selected_path(
+        &self,
+        position: usize,
+        suffix: &[StructuralPathSegment],
+    ) -> Result<Vec<StructuralPathSegment>, TerminalInterpretError> {
+        let mut path = Vec::with_capacity(self.path.len() + 1 + suffix.len());
+        path.extend_from_slice(&self.path);
+        path.push(StructuralPathSegment::FixedIndex(
+            u64::try_from(position)
+                .map_err(|_| TerminalInterpretError::VerifiedOperationMalformed)?,
+        ));
+        path.extend_from_slice(suffix);
+        Ok(path)
+    }
 }
 
 #[derive(Clone)]
@@ -86,11 +109,12 @@ impl ElementView {
         collection: TerminalStructuralValue,
         length: usize,
         access: StructuralAccess,
+        home: ElementViewHome,
     ) -> Self {
         Self {
             backing: ElementViewBacking::Structural { collection },
             window: 0..length,
-            home: None,
+            home: Some(Arc::new(home)),
             descriptor_home: None,
             access,
         }
@@ -622,7 +646,15 @@ impl TerminalExecution {
                     )?
                     .pop()
                     .ok_or_else(invalid)?;
-                    ElementView::structural(collection, extent, access)
+                    ElementView::structural(
+                        collection,
+                        extent,
+                        access,
+                        ElementViewHome {
+                            storage: self.capture_primitive_home(source.place)?,
+                            path: source.path.clone(),
+                        },
+                    )
                 } else if access == StructuralAccess::MutableBorrow {
                     ElementView::new_mutable(
                         elements,
@@ -654,6 +686,119 @@ impl TerminalExecution {
                 });
         }
         Ok(OperationFlow::Advance)
+    }
+
+    /// Resolve a record cell in the original collection, for both direct and
+    /// recast views. Structural primitive children keep using their frame home;
+    /// only a declared scalar field has a record-cell key.
+    fn element_scalar_field(
+        &self,
+        collection: Option<&TerminalStructuralValue>,
+        position: usize,
+        path: &[StructuralPathSegment],
+        scalar_type: ScalarType,
+    ) -> Result<Option<StructuralScalarRuntimeField>, TerminalInterpretError> {
+        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
+        let Some((StructuralPathSegment::Field(identity), prefix)) = path.split_last() else {
+            return Ok(None);
+        };
+        let mut selected_path = Vec::with_capacity(1 + prefix.len());
+        selected_path.push(StructuralPathSegment::FixedIndex(
+            u64::try_from(position).map_err(|_| invalid())?,
+        ));
+        selected_path.extend_from_slice(prefix);
+        let parent = project_structural_value(
+            &self.program.structural_types,
+            collection.ok_or_else(invalid)?,
+            &selected_path,
+        )?;
+        let StructuralTypeShape::Record { fields } = &self
+            .program
+            .structural_types
+            .get(&parent.structural_type)
+            .ok_or_else(invalid)?
+            .shape
+        else {
+            return Err(invalid());
+        };
+        let mut matching = fields
+            .iter()
+            .filter(|field| field.identity == *identity && !field.relevance.is_erased());
+        let (Some(field), None) = (matching.next(), matching.next()) else {
+            return Err(invalid());
+        };
+        if matches!(
+            field.field_type,
+            terminal_psi::StructuralFieldType::Structural(_)
+        ) {
+            return Ok(None);
+        }
+        if field.field_type.scalar_type() != Some(scalar_type) {
+            return Err(invalid());
+        }
+        Ok(Some(StructuralScalarRuntimeField::member(
+            StructuralRuntimePlace::from(&parent),
+            field.id,
+        )))
+    }
+
+    fn read_structural_element(
+        &self,
+        view: &ElementView,
+        index: usize,
+        path: &[StructuralPathSegment],
+        scalar_type: ScalarType,
+    ) -> Result<TerminalScalarValue, TerminalInterpretError> {
+        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
+        let ElementViewBacking::Structural { collection } = &view.backing else {
+            return Err(invalid());
+        };
+        let position = view.window.start.checked_add(index).ok_or_else(invalid)?;
+        if let Some(field) =
+            self.element_scalar_field(Some(collection), position, path, scalar_type)?
+        {
+            self.structural_scalar_fields
+                .get(&field)
+                .copied()
+                .ok_or_else(invalid)
+        } else {
+            let home = view.home.as_ref().ok_or_else(invalid)?;
+            self.read_primitive_home(
+                home.storage,
+                &home.selected_path(position, path)?,
+                scalar_type,
+            )
+        }
+    }
+
+    fn write_structural_element(
+        &mut self,
+        view: &ElementView,
+        index: usize,
+        path: &[StructuralPathSegment],
+        scalar: TerminalScalarValue,
+    ) -> Result<(), TerminalInterpretError> {
+        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
+        let ElementViewBacking::Structural { collection } = &view.backing else {
+            return Err(invalid());
+        };
+        let position = view.window.start.checked_add(index).ok_or_else(invalid)?;
+        if let Some(field) =
+            self.element_scalar_field(Some(collection), position, path, scalar.scalar_type())?
+        {
+            let stored = self
+                .structural_scalar_fields
+                .get_mut(&field)
+                .ok_or_else(invalid)?;
+            if stored.scalar_type() != scalar.scalar_type() {
+                return Err(invalid());
+            }
+            *stored = scalar;
+            Ok(())
+        } else {
+            let home = view.home.as_ref().ok_or_else(invalid)?;
+            self.store_primitive_home(home.storage, &home.selected_path(position, path)?, scalar)
+        }
     }
 
     /// Write one scalar element through the view's exclusive loan. The
@@ -692,7 +837,9 @@ impl TerminalExecution {
         if let Some(view) = self.element_view_values.get(destination)
             && matches!(
                 view.backing,
-                ElementViewBacking::Representation(_) | ElementViewBacking::Typed(_)
+                ElementViewBacking::Representation(_)
+                    | ElementViewBacking::Typed(_)
+                    | ElementViewBacking::Structural { .. }
             )
         {
             let view = view.clone();
@@ -705,6 +852,9 @@ impl TerminalExecution {
             match &view.backing {
                 ElementViewBacking::Typed(_) => {
                     self.write_typed_element(&view, index, path, element)?
+                }
+                ElementViewBacking::Structural { .. } => {
+                    self.write_structural_element(&view, index, path, element)?
                 }
                 _ => self.write_representation_element(&view, index, path, element)?,
             }
@@ -809,6 +959,8 @@ impl TerminalExecution {
             self.read_typed_element(view, index, path, result.scalar_type)?
         } else if matches!(view.backing, ElementViewBacking::Representation(_)) {
             self.read_representation_element(view, index, path, result.scalar_type)?
+        } else if matches!(view.backing, ElementViewBacking::Structural { .. }) {
+            self.read_structural_element(view, index, path, result.scalar_type)?
         } else if !path.is_empty() {
             return Err(invalid());
         } else if let Some(home) = &view.home {

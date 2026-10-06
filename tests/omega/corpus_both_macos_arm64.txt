@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 14, "jobs": "4", "load1_end": 8.31, "load1_start": 8.94, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": "2", "load1_end": 2.32, "load1_start": 2.32, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/runtime_exact_dispatch_divisor_exit built 1233ms exit:70 interpreter-exit:70 interpreter:agrees @01974e342562+wt
 pass/arithmetic/runtime_exact_projection_sibling_exit built 1644ms exit:70 stdout:match interpreter-exit:70 interpreter-stdout:match interpreter:agrees @ffe8db2ea9e9
 pass/arithmetic/runtime_exact_signed_divisor_exclusions_exit built 1455ms exit:70 interpreter-exit:70 interpreter:agrees @d9720a4fa49b+wt
@@ -145,6 +145,8 @@ pass/collections/runtime_indexed_float_field_compare_exit built 27797ms exit:70 
 pass/collections/runtime_indexed_record_field_read_exit built 3868ms exit:70 interpreter-exit:70 interpreter:agrees @056c1343fac1+wt
 pass/collections/runtime_indexed_struct_field_rmw_exit built 4482ms exit:1 interpreter-exit:1 interpreter:agrees @e477ee0294de+wt
 pass/collections/runtime_parameter_nested_literal_index_read_exit built 4356ms exit:70 interpreter-exit:70 interpreter:agrees @056c1343fac1+wt
+pass/collections/runtime_record_element_window_write_read_exit built 1637ms exit:0 interpreter-exit:0 interpreter:agrees @4bc316e7b1ca+wt
+pass/collections/runtime_refined_element_view_call_write_exit built 1645ms exit:0 interpreter-exit:0 interpreter:agrees @4bc316e7b1ca+wt
 pass/collections/runtime_shared_array_dot_product_exit built 2463ms exit:32 stdout:match interpreter-exit:32 interpreter-stdout:match interpreter:agrees @e56af86474b5+wt
 pass/collections/runtime_shared_array_polynomial_exit built 2652ms exit:70 stdout:match interpreter-exit:70 interpreter-stdout:match interpreter:agrees @e56af86474b5+wt
 pass/comptime/provider_boundary_range_endpoint_exit built 2853ms exit:70 interpreter-exit:70 interpreter:agrees @c8e8e86a6e1b

@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 14, "jobs": "4", "load1_end": 8.94, "load1_start": 8.94, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": "2", "load1_end": 2.32, "load1_start": 2.32, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 189ms
 pass/arithmetic/anonymous_rational_integer_landing checked 186ms
 pass/arithmetic/bounded_assignment checked 197ms
@@ -489,6 +489,8 @@ pass/collections/runtime_member_decrement_index_bound_exit built 2270ms exit:70 
 pass/collections/runtime_nested_const_row_indexed_read_exit built 576ms exit:1
 pass/collections/runtime_nested_fixed_array_projected_write_exit built 962ms exit:70 @8093eb34a6ed+wt
 pass/collections/runtime_parameter_nested_literal_index_read_exit built 1177ms exit:70 @5f978f80e84b+wt
+pass/collections/runtime_record_element_window_write_read_exit built 1618ms exit:0 @4bc316e7b1ca+wt
+pass/collections/runtime_refined_element_view_call_write_exit built 1631ms exit:0 @4bc316e7b1ca+wt
 pass/collections/runtime_shared_array_dot_product_exit built 4099ms exit:32 stdout:match @9beb2be72f2d+wt
 pass/collections/runtime_shared_array_polynomial_exit built 4604ms exit:70 stdout:match @9beb2be72f2d+wt
 pass/collections/runtime_shared_fixed_array_cycle_exit built 18248ms exit:42 stdout:match @57334c2f117f

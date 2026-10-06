@@ -3355,7 +3355,10 @@ deletions, which the commit lists.
   - Cover shift counts, representation geometry, capacities
     and remaining bounded stores outside completed bounded-integer field
     replacements, including generated indexed stores and refined element-view
-    writes.
+    writes. `pending/collections/runtime_nested_record_element_window_store_exit`
+    currently lowers the nested primitive-array destination as a primitive
+    descriptor projection and stage 05 rejects its path; route it through the
+    shared indexed-store owner, retaining exact index and receiving decisions.
     Finish the formation audit across aggregate and proposition
     positions; unify abstract declaration-contract carrier resolution with the
     ordinary formation walk.
@@ -3372,8 +3375,11 @@ deletions, which the commit lists.
   `samples/cli/collections/heat_grid` (45), nested projected stores and
   `collections/runtime_fixed_array_{captured_selector,selector_call}_store_exit`
   (70) and `collections/runtime_{indexed_assignment,element_view}_selector_snapshot_exit`
-  (0). Wrong-path, escaped, stale-index and mutated-subject facts and byte-domain
-  corruption must still reject. **TERMINAL-RUNTIME-DRIVERS** owns the remaining
+  (0); keep `collections/runtime_refined_element_view_call_write_exit` (0) as
+  the field-domain-preserving helper-result control. Existing wildcard debt and
+  out-of-domain results must still reject. Wrong-path, escaped, stale-index,
+  mutated-subject facts and byte-domain corruption must still reject.
+  **TERMINAL-RUNTIME-DRIVERS** owns the remaining
   external-completion bindings for the ProcessExit controls.
 
   Acceptance: every supported primitive operation reaches stage 05 with its
