@@ -237,7 +237,7 @@ fn established_case_at(
                 else {
                     return None;
                 };
-                let child = case_structural_child(function, operation, place, identity)?;
+                let child = structural_child(function, operation, place, identity)?;
                 let child_declaration = function
                     .structural_places
                     .iter()
@@ -490,9 +490,9 @@ fn descended_field_matching(
     }
 }
 
-/// The child place the `EstablishRecord` producer stores whole into
-/// `field`, or `None` when the producer node is absent, is not an
-/// `EstablishRecord` on this place, or `field`'s initializer is not an
+/// The child place the `EstablishRecord`/`EstablishCase` producer stores
+/// whole into `field`, or `None` when the producer node is absent, is not
+/// an establishment on this place, or `field`'s initializer is not an
 /// owned, complete structural argument — a pathed argument or a borrow does
 /// not carry the child's own establishment.
 fn structural_child(
@@ -510,38 +510,8 @@ fn structural_child(
                 psi_operation,
                 result,
                 fields,
-            } if *psi_operation == producer && result.place == place => Some(fields),
-            _ => None,
-        })?
-        .iter()
-        .find(|initializer| initializer.field == field)
-        .and_then(|initializer| match &initializer.value {
-            RecordFieldValue::Structural(argument)
-                if argument.path.is_empty() && argument.access == StructuralAccess::Owned =>
-            {
-                Some(argument.place)
             }
-            _ => None,
-        })
-}
-
-/// The child place the `EstablishCase` producer stores whole into payload
-/// `field`, or `None` when the producer node is absent, is not an
-/// `EstablishCase` on this place, or `field`'s initializer is not an owned,
-/// complete structural argument — a pathed or borrowed argument does not
-/// carry the child's own establishment.
-fn case_structural_child(
-    function: &PsiOptimizationFunction,
-    producer: OperationId,
-    place: PlaceId,
-    field: StructuralFieldId,
-) -> Option<PlaceId> {
-    function
-        .blocks
-        .iter()
-        .flat_map(|block| &block.nodes)
-        .find_map(|node| match &node.operation {
-            O::EstablishCase {
+            | O::EstablishCase {
                 psi_operation,
                 result,
                 fields,
