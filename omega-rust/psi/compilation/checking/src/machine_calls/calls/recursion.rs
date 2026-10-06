@@ -153,15 +153,6 @@ fn reject_embedded_self_calls(
         reject_embedded_self_calls(program, machine, handle, diagnostics);
     };
     match program.expression_table.expression(expression) {
-        ExpressionNode::Match(dispatch) => {
-            recurse(dispatch.subject, diagnostics);
-            for arm in program.expression_table.match_arms(dispatch.arms) {
-                if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
-                    recurse(pattern, diagnostics);
-                }
-                recurse(arm.value, diagnostics);
-            }
-        }
         ExpressionNode::Atomic(atomic) => recurse(atomic.value, diagnostics),
         ExpressionNode::Call(call) => {
             if is_current_entry_call(program, machine, call) {
@@ -185,41 +176,8 @@ fn reject_embedded_self_calls(
                 recurse(*argument, diagnostics);
             }
         }
-        ExpressionNode::Binary(binary) => {
-            recurse(binary.left, diagnostics);
-            recurse(binary.right, diagnostics);
-        }
-        ExpressionNode::Cast(cast) => recurse(cast.value, diagnostics),
-        ExpressionNode::Indexed(indexed) => {
-            recurse(indexed.collection, diagnostics);
-            recurse(indexed.index, diagnostics);
-        }
-        ExpressionNode::Member(member) => recurse(member.receiver, diagnostics),
-        ExpressionNode::Borrow(inner) => recurse(inner.target, diagnostics),
-        ExpressionNode::Range(range) => {
-            recurse(range.start, diagnostics);
-            recurse(range.end, diagnostics);
-        }
-        ExpressionNode::Unary(unary) => recurse(unary.operand, diagnostics),
-        ExpressionNode::ArrayLiteral(items) => {
-            for item in program.expression_table.expression_handles(*items) {
-                recurse(*item, diagnostics);
-            }
-        }
-        ExpressionNode::StructLiteral(struct_literal) => {
-            for field in program
-                .expression_table
-                .struct_fields(struct_literal.fields)
-            {
-                recurse(field.value, diagnostics);
-            }
-        }
-        ExpressionNode::Boolean(_)
-        | ExpressionNode::Float(_)
-        | ExpressionNode::UndeterminedNaN(_)
-        | ExpressionNode::Integer(_)
-        | ExpressionNode::Name(_)
-        | ExpressionNode::String(_)
-        | ExpressionNode::ZeroValue(_) => {}
+        other => crate::expression_traversal::children(program, other, |child| {
+            recurse(child, diagnostics);
+        }),
     }
 }
