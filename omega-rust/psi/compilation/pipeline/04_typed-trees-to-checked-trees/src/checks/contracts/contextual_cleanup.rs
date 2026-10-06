@@ -1,56 +1,33 @@
 //! Bound generic cleanup inputs are ordinary call obligations. Their origin is
 //! the retained generic death row, not an authored `requires` clause; only the
 //! actual's evaluated operand facts can discharge the instantiated predicate.
-use arena::Arena;
 use checked_trees::{
-    CheckFacts, CheckedBooleanExpression, CheckedStructuralPredicatePathSegment,
-    ContextualCleanupEntryRequirement, FlowCallFact, FlowStateFact,
+    CheckFacts, CheckedBooleanExpression, ContextualCleanupEntryRequirement, FlowCallFact,
+    FlowStateFact,
 };
 use diagnostics::Diagnostic;
 use facts::FactContextHandle;
 use typed_trees::TypedTrees;
 
 pub(crate) use super::call_values::target_machine;
-use super::call_values::{Actual, actual_at, captured_actual};
 use crate::flow::CanonicalPlace;
-
-fn actual<'program>(
-    program: &'program TypedTrees,
-    state: &FlowStateFact,
-    call: &FlowCallFact,
-    requirement: &ContextualCleanupEntryRequirement,
-    paths: &Arena<CheckedStructuralPredicatePathSegment>,
-) -> Option<Actual<'program>> {
-    if target_machine(program, call)? != requirement.machine {
-        return None;
-    }
-    let parameters = crate::semantic::calls::call_target_parameters(program, call.target_symbol)?;
-    let (_, path, endpoint, _) = crate::values::resolve_structural_parameter_path(
-        program,
-        parameters,
-        requirement.parameter_position,
-        paths.span(requirement.path)?,
-    )?;
-    if program.primitive_type_reference(endpoint) != Some(typed_trees::types::PrimitiveType::Bool) {
-        return None;
-    }
-    actual_at(
-        program,
-        state,
-        call,
-        requirement.parameter_position as usize,
-        path,
-    )
-}
 
 pub(crate) fn actual_place(
     program: &TypedTrees,
     state: &FlowStateFact,
     call: &FlowCallFact,
     requirement: &ContextualCleanupEntryRequirement,
-    paths: &Arena<CheckedStructuralPredicatePathSegment>,
 ) -> Option<CanonicalPlace> {
-    let actual = actual(program, state, call, requirement, paths)?;
+    if target_machine(program, call)? != requirement.machine {
+        return None;
+    }
+    let predicate = crate::facts::boolean_predicates::bind_entry(
+        program,
+        requirement.machine,
+        requirement.consequence.clone(),
+    )?;
+    let observation = predicate.bindings.first()?;
+    let actual = super::call_values::observation_actual(program, state, call, observation)?;
     crate::semantic::facts::projected_argument_place(
         program,
         state.state_symbol,
@@ -61,37 +38,20 @@ pub(crate) fn actual_place(
     )
 }
 
-pub(crate) fn entry_subject(
+pub(crate) fn entry_consequence(
     program: &TypedTrees,
     facts: &CheckFacts,
     state: &FlowStateFact,
     call: &FlowCallFact,
     requirement: &ContextualCleanupEntryRequirement,
-) -> Option<(u32, Vec<CheckedStructuralPredicatePathSegment>)> {
-    let actual = actual(
+) -> Option<CheckedBooleanExpression> {
+    super::call_values::entry_predicate(
         program,
+        facts,
         state,
         call,
-        requirement,
-        &facts.contextual_cleanup.entry_requirements.paths,
-    )?;
-    let operand = captured_actual(program, facts, state, call, &actual)?;
-    let place = crate::semantic::facts::projected_argument_place(
-        program,
-        state.state_symbol,
-        call.statement_index,
-        actual.argument?,
-        actual.parameter.type_reference,
-        &actual.path,
-    )?;
-    crate::flow::operand_entry_origin_is_stable(program, &facts.flow, operand, &place)
-        .then_some(())?;
-    crate::facts::entry_parameter_place_before_statement(
-        program,
-        state.machine_symbol,
-        state.state_symbol,
-        call.statement_index,
-        &place,
+        requirement.machine,
+        requirement.consequence.clone(),
     )
 }
 
@@ -128,7 +88,7 @@ pub(crate) fn proves(
         call,
         contexts,
         requirement.machine,
-        requirement.predicate(&facts.contextual_cleanup.entry_requirements.paths),
+        requirement.predicate(),
     )
 }
 
@@ -152,16 +112,22 @@ pub(super) fn check(
         if proves(program, facts, state, call, contexts, requirement) {
             continue;
         }
-        let subject = actual_place(program, state, call, requirement, &requirements.paths)
+        let subject = actual_place(program, state, call, requirement)
             .map(|place| place.label(program))
-            .unwrap_or_else(|| format!("parameter {}", requirement.parameter_position));
+            .unwrap_or_else(|| "selected owned value".to_owned());
+        let proposition = requirement
+            .direct_boolean_subject()
+            .map(|(_, _, expected)| format!("{subject} == {expected} required by"))
+            .unwrap_or_else(|| format!("{subject} does not establish"));
         diagnostics.push(Diagnostic::error(format!(
-            "cannot prove contextual cleanup prerequisite for call {} from {}: {} == {} required by {} clause `{}`",
+            "cannot prove contextual cleanup prerequisite for call {} from {}: {} {} clause `{}`",
             crate::labels::call_target_label(program, call.target_symbol),
             crate::labels::machine_name(program, state.machine_symbol),
-            subject, requirement.expected,
+            proposition,
             crate::labels::machine_name(program, requirement.hook_machine),
-            program.expression_table.display_name(requirement.hook_clause),
+            program
+                .expression_table
+                .display_name(requirement.hook_clause),
         )));
     }
 }

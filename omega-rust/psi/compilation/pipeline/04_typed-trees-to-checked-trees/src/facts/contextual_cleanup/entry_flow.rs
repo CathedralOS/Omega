@@ -15,7 +15,7 @@ pub(crate) fn seed_entry_requirements(
         let Some(predicate) = super::super::boolean_predicates::bind_entry(
             program,
             requirement.machine,
-            requirement.predicate(&requirements.paths),
+            requirement.predicate(),
         ) else {
             return Err(vec![Diagnostic::error(
                 "bound cleanup prerequisite has no exact invocation-entry predicate bindings",

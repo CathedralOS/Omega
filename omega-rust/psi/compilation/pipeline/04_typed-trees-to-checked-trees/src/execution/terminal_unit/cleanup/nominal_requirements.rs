@@ -98,15 +98,15 @@ pub(crate) fn nominal_scalar_caller_requirements(
         if requirement.antecedent != checked_trees::CheckedBooleanExpression::Constant(true) {
             return None;
         }
-        let [checked_trees::CheckedStructuralPredicatePathSegment::Field(field_identity)] =
-            contextual.paths.span_or_empty(requirement.path)
+        let (parameter_position, path, expected) = requirement.direct_boolean_subject()?;
+        let [checked_trees::CheckedStructuralPredicatePathSegment::Field(field_identity)] = path
         else {
             return None;
         };
         structural_requirements.push(CheckedUnitNominalAffineCallerRequirementPlan {
-            source_parameter_index: requirement.parameter_position,
+            source_parameter_index: parameter_position,
             field_identity: field_identity.clone(),
-            expected: requirement.expected,
+            expected,
         });
     }
     structural_requirements.sort_by(|left, right| {

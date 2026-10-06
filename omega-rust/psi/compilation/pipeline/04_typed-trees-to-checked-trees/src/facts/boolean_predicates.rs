@@ -33,6 +33,76 @@ pub(crate) struct BoundObservation {
     pub type_reference: TypeReferenceHandle,
 }
 
+/// Rebase a whole current proposition onto authenticated invocation values.
+/// Every observation must survive the same write boundary; one stable field
+/// cannot authorize a clause whose other observation was changed or is local.
+pub(crate) fn entry_expression(
+    program: &TypedTrees,
+    machine: SymbolHandle,
+    state: SymbolHandle,
+    statement: usize,
+    predicate: &BoundPredicate,
+) -> Option<Boolean> {
+    let mut expression = predicate.expression.clone();
+    map_observations(&mut expression, &mut |operand| {
+        let binding = predicate
+            .bindings
+            .iter()
+            .find(|binding| binding.operand == *operand)?;
+        let (position, path) = super::crash_entry_values::entry_parameter_place(
+            program,
+            machine,
+            state,
+            statement,
+            &binding.place,
+        )?;
+        *operand = entry_scalar(program, machine, position, path, operand.primitive_type()?)?;
+        Some(())
+    })?;
+    Some(expression)
+}
+
+/// Authored structural positions and dense scalar positions share one checked
+/// entry telescope. Preserve that distinction when publishing a transported
+/// observation rather than treating a structural index as a scalar index.
+pub(crate) fn entry_scalar(
+    program: &TypedTrees,
+    machine: SymbolHandle,
+    position: u32,
+    path: Vec<checked_trees::CheckedStructuralPredicatePathSegment>,
+    primitive: PrimitiveType,
+) -> Option<Scalar> {
+    let owner = program.machine_by_symbol(machine)?;
+    let entry_position =
+        crate::checks::termination::named_transition_target_state_index(program, owner, machine)?;
+    let entry = program.machine_states(owner).get(entry_position)?;
+    let parameters = program.state_parameters(entry);
+    if !path.is_empty() {
+        let (_, _, reference, _) =
+            crate::values::resolve_structural_parameter_path(program, parameters, position, &path)?;
+        if program.primitive_type_reference(reference) != Some(primitive) {
+            return None;
+        }
+        return Some(Scalar::StructuralParameterField {
+            parameter_position: position,
+            path,
+            primitive_type: primitive,
+        });
+    }
+    let position = usize::try_from(position).ok()?;
+    if program.primitive_type_reference(parameters.get(position)?.type_reference) != Some(primitive)
+    {
+        return None;
+    }
+    Some(Scalar::Parameter {
+        position: parameters[..position]
+            .iter()
+            .filter(|parameter| crate::values::occupies_scalar_position(program, parameter))
+            .count(),
+        primitive_type: primitive,
+    })
+}
+
 /// Bind an invocation formula once. Dense primitive positions and authored
 /// structural positions deliberately use separate lookups.
 pub(crate) fn bind_entry(

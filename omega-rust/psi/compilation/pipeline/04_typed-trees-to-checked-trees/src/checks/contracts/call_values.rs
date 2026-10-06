@@ -666,34 +666,13 @@ pub(crate) fn entry_predicate(
             call.statement_index,
             &place,
         )?;
-        *operand = if path.is_empty() {
-            let machine = program.machine_by_symbol(state.machine_symbol)?;
-            let index = crate::checks::termination::named_transition_target_state_index(
-                program,
-                machine,
-                machine.symbol,
-            )?;
-            let entry = program.machine_states(machine).get(index)?;
-            let parameters = program.state_parameters(entry);
-            if program.primitive_type_reference(parameters.get(position as usize)?.type_reference)
-                != Some(primitive)
-            {
-                return None;
-            }
-            CheckedScalarExpression::Parameter {
-                position: parameters[..position as usize]
-                    .iter()
-                    .filter(|parameter| crate::values::occupies_scalar_position(program, parameter))
-                    .count(),
-                primitive_type: primitive,
-            }
-        } else {
-            CheckedScalarExpression::StructuralParameterField {
-                parameter_position: position,
-                path,
-                primitive_type: primitive,
-            }
-        };
+        *operand = crate::facts::boolean_predicates::entry_scalar(
+            program,
+            state.machine_symbol,
+            position,
+            path,
+            primitive,
+        )?;
         Some(())
     })?;
     Some(expression)

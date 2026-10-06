@@ -61,7 +61,7 @@ pub(crate) fn lower(
         if requirement.machine != source {
             continue;
         }
-        let expression = requirement.predicate(&contextual.paths);
+        let expression = requirement.predicate();
         runtime_requirements.push(lower_structural_runtime_requirement(
             &expression,
             scalar_parameters,

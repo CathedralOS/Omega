@@ -772,10 +772,6 @@ defines the complete product bar.
     `pass/drops/runtime_nested_nominal_producer_loans_exit` as the operand-loan
     lifetime control: cleanup must not prolong a completed borrow-free
     producer's input loans.
-    Generic prerequisite transport in
-    `facts/contextual_cleanup/requirements.rs` still retains direct Boolean
-    entry-field rows; widen that invocation carrier without inventing a new
-    authored caller demand or skipping clauses the carrier cannot express.
   Acceptance: add corpus fixtures where native runs and the Terminal
   interpreter preserve values and hook order across composed edges, including
   a projected-argument jump edge closing residuals in order. Missing,

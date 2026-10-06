@@ -52,20 +52,20 @@ pub struct ContextualCleanupApplication {
 }
 
 /// Instantiated cleanup prerequisites, distinct from authored `requires`.
-/// The shared structural predicate path also names their exact invocation
-/// namespace during Terminal publication.
+/// The shared checked predicate vocabulary names every observation in its
+/// exact invocation namespace during source flow and Terminal publication.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ContextualCleanupEntryRequirements {
     pub rows: Arena<ContextualCleanupEntryRequirement>,
-    pub paths: Arena<crate::CheckedStructuralPredicatePathSegment>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ContextualCleanupEntryRequirement {
     pub machine: SymbolHandle,
-    pub parameter_position: u32,
-    pub path: HandleSpan<crate::CheckedStructuralPredicatePathSegment>,
-    pub expected: bool,
+    /// Complete callable clause in the invocation's checked scalar namespace.
+    /// Every observation is rebased together; retaining one selected field
+    /// would lose conjunctions, comparisons and their relational meaning.
+    pub consequence: crate::CheckedBooleanExpression,
     /// Invocation-entry condition selecting this cleanup obligation.
     pub antecedent: crate::CheckedBooleanExpression,
     /// Authored hook clause supplying this proposition and diagnostic origin.
@@ -79,9 +79,7 @@ impl Default for ContextualCleanupEntryRequirement {
     fn default() -> Self {
         Self {
             machine: SymbolHandle::invalid(),
-            parameter_position: 0,
-            path: HandleSpan::default(),
-            expected: false,
+            consequence: crate::CheckedBooleanExpression::Constant(false),
             antecedent: crate::CheckedBooleanExpression::Constant(true),
             hook_machine: SymbolHandle::invalid(),
             hook_clause: Default::default(),
@@ -93,29 +91,38 @@ impl Default for ContextualCleanupEntryRequirement {
 impl ContextualCleanupEntryRequirement {
     /// One complete invocation obligation. Neither source flow nor Terminal
     /// publication may assume the consequence without its selected-edge guard.
-    pub fn predicate(
-        &self,
-        paths: &Arena<crate::CheckedStructuralPredicatePathSegment>,
-    ) -> crate::CheckedBooleanExpression {
+    pub fn predicate(&self) -> crate::CheckedBooleanExpression {
         use crate::CheckedBooleanExpression;
-        let field = CheckedBooleanExpression::StructuralParameterField {
-            parameter_position: self.parameter_position,
-            path: paths.span_or_empty(self.path).to_vec(),
-        };
-        let consequence = if self.expected {
-            field
-        } else {
-            CheckedBooleanExpression::Not(Box::new(field))
-        };
         if self.antecedent == CheckedBooleanExpression::Constant(true) {
-            consequence
+            self.consequence.clone()
         } else {
             CheckedBooleanExpression::Or {
                 left: Box::new(CheckedBooleanExpression::Not(Box::new(
                     self.antecedent.clone(),
                 ))),
-                right: Box::new(consequence),
+                right: Box::new(self.consequence.clone()),
             }
         }
+    }
+
+    /// A bounded Boolean consumer can project its exact supported proposition
+    /// from the complete row. This is not an alternative storage or inference
+    /// route, and a wider formula cannot masquerade as one field assertion.
+    pub fn direct_boolean_subject(
+        &self,
+    ) -> Option<(u32, &[crate::CheckedStructuralPredicatePathSegment], bool)> {
+        use crate::CheckedBooleanExpression;
+        let (subject, expected) = match &self.consequence {
+            CheckedBooleanExpression::Not(subject) => (subject.as_ref(), false),
+            subject => (subject, true),
+        };
+        let CheckedBooleanExpression::StructuralParameterField {
+            parameter_position,
+            path,
+        } = subject
+        else {
+            return None;
+        };
+        Some((*parameter_position, path, expected))
     }
 }

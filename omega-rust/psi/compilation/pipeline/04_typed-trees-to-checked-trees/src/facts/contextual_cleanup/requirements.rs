@@ -2,7 +2,7 @@
 //! Formal observations rebase onto the exact live receiver at the selected
 //! edge, then use the ordinary current-value predicate algebra. Unsupported
 //! clauses fail closed; a missing Boolean recognizer cannot erase a requirement.
-//! Generic entry transport remains the checked Boolean-place vocabulary below.
+//! Generic entry transport uses that same complete predicate vocabulary.
 //!
 //! A fixed concrete owner in a generic signature is not a symbolic death. Only
 //! storage under the source type parameter can introduce a bound obligation.
@@ -28,9 +28,7 @@ use super::super::boolean_predicates::{self, BoundPredicate, conjunction, entry_
 
 struct Pending {
     machine: SymbolHandle,
-    parameter_position: u32,
-    path: Vec<CheckedStructuralPredicatePathSegment>,
-    expected: bool,
+    consequence: CheckedBooleanExpression,
     antecedent: CheckedBooleanExpression,
     hook_machine: SymbolHandle,
     hook_clause: ExpressionHandle,
@@ -43,12 +41,7 @@ pub(crate) fn infer_entry_requirements(
 ) -> Result<bool, Vec<Diagnostic>> {
     let mut pending = Vec::new();
     for obligation in selected_requirements(program, facts)? {
-        // Bound generic rows currently retain one Boolean place predicate.
-        // The final edge checker below still checks every callable clause;
-        // a non-transportable prerequisite never silently becomes true.
-        let Some((place, expected)) = obligation.transportable_subject(program) else {
-            continue;
-        };
+        let place = &obligation.place;
         let instance = facts
             .contextual_cleanup
             .dispositions
@@ -90,8 +83,7 @@ pub(crate) fn infer_entry_requirements(
             instance.machine,
             instance.state,
             obligation.statement,
-            &place,
-            expected,
+            &obligation.predicate,
             antecedent,
             obligation.hook,
             obligation.clause,
@@ -135,13 +127,7 @@ pub(crate) fn infer_entry_requirements(
                 if calls::proves(program, facts, state, call, &contexts, requirement) {
                     continue;
                 }
-                let Some(place) = calls::actual_place(
-                    program,
-                    state,
-                    call,
-                    requirement,
-                    &facts.contextual_cleanup.entry_requirements.paths,
-                ) else {
+                let Some(place) = calls::actual_place(program, state, call, requirement) else {
                     continue;
                 };
                 if !has_symbolic_origin(program, state, call.statement_index, &place) {
@@ -157,16 +143,14 @@ pub(crate) fn infer_entry_requirements(
                 else {
                     continue;
                 };
-                let Some((parameter_position, path)) =
-                    calls::entry_subject(program, facts, state, call, requirement)
+                let Some(consequence) =
+                    calls::entry_consequence(program, facts, state, call, requirement)
                 else {
                     continue;
                 };
                 pending.push(Pending {
                     machine: state.machine_symbol,
-                    parameter_position,
-                    path,
-                    expected: requirement.expected,
+                    consequence,
                     antecedent: conjunction(path_condition, callee_condition),
                     hook_machine: requirement.hook_machine,
                     hook_clause: requirement.hook_clause,
@@ -376,21 +360,17 @@ fn transport(
     machine: SymbolHandle,
     state: SymbolHandle,
     statement: usize,
-    place: &CanonicalPlace,
-    expected: bool,
+    predicate: &BoundPredicate,
     antecedent: CheckedBooleanExpression,
     hook_machine: SymbolHandle,
     hook_clause: ExpressionHandle,
     template_machine: SymbolHandle,
 ) -> Option<Pending> {
-    let (parameter_position, path) = super::super::crash_entry_values::entry_parameter_place(
-        program, machine, state, statement, place,
-    )?;
+    let consequence =
+        boolean_predicates::entry_expression(program, machine, state, statement, predicate)?;
     Some(Pending {
         machine,
-        parameter_position,
-        path,
-        expected,
+        consequence,
         antecedent,
         hook_machine,
         hook_clause,
@@ -403,32 +383,24 @@ fn append(
     row: Pending,
 ) -> Result<bool, Vec<Diagnostic>> {
     for (_, prior) in requirements.rows.iter() {
-        if prior.machine == row.machine
-            && prior.parameter_position == row.parameter_position
-            && requirements.paths.span_or_empty(prior.path) == row.path
-            && prior.antecedent == row.antecedent
-        {
-            if prior.expected != row.expected
-                && row.antecedent == CheckedBooleanExpression::Constant(true)
-            {
+        if prior.machine == row.machine && prior.antecedent == row.antecedent {
+            let opposed = matches!(&prior.consequence,
+                CheckedBooleanExpression::Not(subject) if subject.as_ref() == &row.consequence)
+                || matches!(&row.consequence,
+                    CheckedBooleanExpression::Not(subject) if subject.as_ref() == &prior.consequence);
+            if opposed && row.antecedent == CheckedBooleanExpression::Constant(true) {
                 return Err(vec![Diagnostic::error(
                     "contextual cleanup has contradictory prerequisites for the same invocation-entry place",
                 )]);
             }
-            if prior.expected == row.expected {
+            if prior.consequence == row.consequence {
                 return Ok(false);
             }
         }
     }
-    let mut path = arena::HandleSpan::default();
-    for segment in row.path {
-        requirements.paths.append_to_span(&mut path, segment);
-    }
     requirements.rows.append(ContextualCleanupEntryRequirement {
         machine: row.machine,
-        parameter_position: row.parameter_position,
-        path,
-        expected: row.expected,
+        consequence: row.consequence,
         antecedent: row.antecedent,
         hook_machine: row.hook_machine,
         hook_clause: row.hook_clause,
