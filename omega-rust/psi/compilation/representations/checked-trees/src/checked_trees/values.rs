@@ -36,7 +36,7 @@ pub use computations::{
     CheckedScalarCaseComputationField, CheckedScalarCaseConstruction, CheckedScalarComputation,
     CheckedScalarComputationHandle, CheckedScalarComputationKind, CheckedScalarComputationPlans,
     CheckedScalarComputationRoot, CheckedScalarComputationStructuralArgument,
-    CheckedScalarComputationTemporaryDiscard, CheckedScalarDispatchArm,
+    CheckedScalarComputationTemporaryCleanup, CheckedScalarDispatchArm,
     CheckedScalarDispatchPattern,
 };
 mod proof_terms;

@@ -27,6 +27,7 @@ use typed_trees::expression::{BinaryOperator, UnaryOperator};
 use typed_trees::statement::{TableTransition, TransitionTargetHandle, TransitionTargetNode};
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
+mod constructed_values;
 mod dispatch;
 mod result_domains;
 mod transitions;
@@ -901,10 +902,17 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                 {
                     let path = [facts::PlaceSegment::FixedIndex { index }];
                     let child_type = self.constructed_child_type(expression, destination, &path);
-                    let capture = self
-                        .evaluated_operand_as(*value, child_type, contexts, constraints)
-                        .capture;
-                    self.append_operand_child(&path, child_type, capture, children);
+                    let evaluated =
+                        self.evaluated_operand_as(*value, child_type, contexts, constraints);
+                    self.append_constructed_values(
+                        expression,
+                        &path,
+                        child_type,
+                        &evaluated,
+                        contexts,
+                        constraints,
+                    );
+                    self.append_operand_child(&path, child_type, evaluated.capture, children);
                 }
             }
             ExpressionNode::StructLiteral(value) => {
@@ -923,10 +931,17 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                         symbol: field.field_symbol,
                     });
                     let child_type = self.constructed_child_type(expression, destination, &path);
-                    let capture = self
-                        .evaluated_operand_as(field.value, child_type, contexts, constraints)
-                        .capture;
-                    self.append_operand_child(&path, child_type, capture, children);
+                    let evaluated =
+                        self.evaluated_operand_as(field.value, child_type, contexts, constraints);
+                    self.append_constructed_values(
+                        expression,
+                        &path,
+                        child_type,
+                        &evaluated,
+                        contexts,
+                        constraints,
+                    );
+                    self.append_operand_child(&path, child_type, evaluated.capture, children);
                 }
             }
             ExpressionNode::Range(range) => {

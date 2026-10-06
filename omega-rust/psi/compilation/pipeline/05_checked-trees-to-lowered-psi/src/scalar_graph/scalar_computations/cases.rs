@@ -447,9 +447,11 @@ impl Expansion<'_> {
                 erased_proof_arguments: Vec::new(),
                 structural_arguments: Vec::new(),
                 cleanup_actions: if slot.multiplicity == StructuralMultiplicity::Affine {
-                    vec![terminal_psi::TerminalAffineCleanupAction::DiscardRoot(
-                        slot.place,
-                    )]
+                    vec![
+                        crate::unit::unit_cleanup::PreparedNormalCleanupAction::discard_root(
+                            slot.place,
+                        ),
+                    ]
                 } else {
                     Vec::new()
                 },

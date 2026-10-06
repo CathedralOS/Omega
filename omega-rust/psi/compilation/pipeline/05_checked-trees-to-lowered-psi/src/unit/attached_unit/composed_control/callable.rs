@@ -104,7 +104,18 @@ pub(in crate::unit::attached_unit) fn emit(
             shared.scalar_requirement_counts.to_vec(),
             *counters.call_obligation,
         )
-        .with_boundaries(shared.boundary_parameters),
+        .with_callable_namespace(
+            shared.boundary_parameters,
+            shared
+                .signatures
+                .iter()
+                .filter_map(|signature| {
+                    signature
+                        .cleanup_receiver
+                        .map(|receiver| (signature.source, receiver))
+                })
+                .collect(),
+        ),
         root_crash_routes: crate::unit::effective_crash_routes(checked, plan.machine)?,
         shared_units: None,
         next_place: *counters.place,

@@ -278,13 +278,15 @@ pub(super) fn plan(
         if result.multiplicity == Multiplicity::Affine {
             operations.push(CheckedUnitEffectOperationPlan::ContinuationCleanup {
                 boundary: checked_trees::CheckedUnitCleanupBoundary::Call(coordinate),
-                affine_discards: vec![CheckedUnitPartialAffineDiscardPlan {
-                    source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-                        binding_ordinal: result.binding_ordinal,
+                cleanup_actions: vec![checked_trees::CheckedNormalCleanupAction::Discard(
+                    CheckedUnitPartialAffineDiscardPlan {
+                        source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                            binding_ordinal: result.binding_ordinal,
+                        },
+                        path: Vec::new(),
+                        type_identity: result.type_identity.clone(),
                     },
-                    path: Vec::new(),
-                    type_identity: result.type_identity.clone(),
-                }],
+                )],
             });
         }
         super::super::super::cleanup::anonymous::append_continuation(
@@ -348,7 +350,7 @@ pub(super) fn plan(
         })?;
         operations.push(CheckedUnitEffectOperationPlan::ContinuationCleanup {
             boundary: checked_trees::CheckedUnitCleanupBoundary::Call(coordinate),
-            affine_discards: vec![discard],
+            cleanup_actions: vec![checked_trees::CheckedNormalCleanupAction::Discard(discard)],
         });
     }
     super::super::super::cleanup::anonymous::append_continuation(

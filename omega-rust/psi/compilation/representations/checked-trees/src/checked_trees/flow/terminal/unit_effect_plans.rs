@@ -8,11 +8,10 @@ use crate::checked_trees::flow::terminal::{
     CheckedProviderAttachmentRequirementPlan, CheckedScalarStateTerminator,
     CheckedStructuralByteSequenceFieldByteStorePlan, CheckedStructuralScalarParameterPlan,
     CheckedTrivialAffineStructuralLocalPlan, CheckedUnitCallCoordinate, CheckedUnitCallPlan,
-    CheckedUnitEntryClaimPlan, CheckedUnitPartialAffineDiscardPlan,
-    CheckedUnitScalarResultBindingPlan, CheckedUnitStructuralArgumentPlan,
-    CheckedUnitStructuralDomainPlan, CheckedUnitStructuralParameterPlan,
-    CheckedUnitStructuralPathSegment, CheckedUnitStructuralResultBindingPlan,
-    CheckedUnitStructuralTypePlan,
+    CheckedUnitEntryClaimPlan, CheckedUnitScalarResultBindingPlan,
+    CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralDomainPlan,
+    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment,
+    CheckedUnitStructuralResultBindingPlan, CheckedUnitStructuralTypePlan,
 };
 use crate::checked_trees::values::CheckedErasedProofParameterPlan;
 use crate::{
@@ -199,7 +198,7 @@ pub enum CheckedUnitEffectOperationPlan {
     /// distinct source evidence needed to authenticate their lifetimes.
     ContinuationCleanup {
         boundary: CheckedUnitCleanupBoundary,
-        affine_discards: Vec<CheckedUnitPartialAffineDiscardPlan>,
+        cleanup_actions: Vec<crate::CheckedNormalCleanupAction>,
     },
     EstablishTrivialAffineLocal {
         statement_index: u32,

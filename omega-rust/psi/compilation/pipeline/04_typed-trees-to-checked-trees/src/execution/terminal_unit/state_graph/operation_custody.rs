@@ -122,11 +122,11 @@ pub(super) fn admit(
             // discard that retires a displaced binding.
             CheckedUnitEffectOperationPlan::ContinuationCleanup {
                 boundary: checked_trees::CheckedUnitCleanupBoundary::Call(coordinate),
-                affine_discards,
+                cleanup_actions,
             }
-                if affine_discards.iter().all(|discard| {
+                if cleanup_actions.iter().all(|discard| {
                     matches!(
-                    discard.source,
+                    *discard.source(),
                     checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
                         ..
                     }
@@ -164,13 +164,13 @@ pub(super) fn admit(
             CheckedUnitEffectOperationPlan::ContinuationCleanup {
                 boundary:
                     checked_trees::CheckedUnitCleanupBoundary::StatementEntry { statement_index },
-                affine_discards,
+                cleanup_actions,
             } if statements.get(*statement_index as usize).is_some()
-                && !affine_discards.is_empty()
-                && affine_discards.iter().all(|discard| {
+                && !cleanup_actions.is_empty()
+                && cleanup_actions.iter().all(|discard| {
                     let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
                         binding_ordinal,
-                    } = discard.source
+                    } = *discard.source()
                     else {
                         return false;
                     };
@@ -185,8 +185,8 @@ pub(super) fn admit(
                         return false;
                     };
                     producers.next().is_none()
-                        && discard.path.is_empty()
-                        && discard.type_identity == result.type_identity
+                        && discard.path().is_empty()
+                        && discard.type_identity() == result.type_identity
                         && result.multiplicity == language_semantics::Multiplicity::Affine
                         && result.statement_index < *statement_index
                         && matches!(

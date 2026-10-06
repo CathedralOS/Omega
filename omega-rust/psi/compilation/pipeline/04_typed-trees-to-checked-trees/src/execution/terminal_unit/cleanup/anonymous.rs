@@ -4,7 +4,9 @@
 //! while partial transfers retire the maximal untouched complement, in reverse
 //! establishment order. Callee effects and result shape do not alter that debt.
 //! Partial transfers still require the captured permission partition; automatic
-//! affine disposal does not discharge a live linear obligation or nominal hook.
+//! affine disposal does not discharge a live linear obligation. This early
+//! geometry is completed against contextual hook dispositions once executable
+//! targets exist; a nominal subtree never becomes a cleanup-free discard.
 use super::super::CheckedUnitStructuralResultBindingPlan;
 use super::{
     CheckFacts, CheckedStructuralAccess, CheckedUnitEffectOperationPlan,
@@ -165,7 +167,8 @@ pub(crate) fn projected_temporary_residuals(
     if argument.access != CheckedStructuralAccess::Owned
         || argument.path.is_empty()
         || program.type_multiplicity(owner_type) != Multiplicity::Affine
-        || !validation::has_plain_owned_contents_with_represented_constraints(program, owner_type)
+        || !validation::has_borrow_free_contents(program, owner_type)
+        || crate::checks::type_carries_linear_obligation(program, owner_type)
     {
         return None;
     }
@@ -217,7 +220,7 @@ pub(in crate::execution::terminal_unit) fn append_continuation(
         return Some(());
     }
     let mut dying = Vec::new();
-    let mut affine_discards = Vec::new();
+    let mut cleanup_actions = Vec::new();
     for (result, root) in results.iter().rev() {
         if result.statement_index != coordinate.statement_index
             || !matches!(root, facts::PlaceRoot::Expression(_))
@@ -251,7 +254,7 @@ pub(in crate::execution::terminal_unit) fn append_continuation(
             binding_ordinal: result.binding_ordinal,
         };
         if transfers.is_empty() {
-            affine_discards.push(CheckedUnitPartialAffineDiscardPlan {
+            cleanup_actions.push(CheckedUnitPartialAffineDiscardPlan {
                 source,
                 path: Vec::new(),
                 type_identity: result.type_identity.clone(),
@@ -277,7 +280,7 @@ pub(in crate::execution::terminal_unit) fn append_continuation(
                 &source,
                 &residuals,
             )?;
-            affine_discards.extend(residuals);
+            cleanup_actions.extend(residuals);
         }
         dying.push(result);
     }
@@ -300,7 +303,10 @@ pub(in crate::execution::terminal_unit) fn append_continuation(
     }
     operations.push(CheckedUnitEffectOperationPlan::ContinuationCleanup {
         boundary: checked_trees::CheckedUnitCleanupBoundary::Call(coordinate),
-        affine_discards,
+        cleanup_actions: cleanup_actions
+            .into_iter()
+            .map(checked_trees::CheckedNormalCleanupAction::Discard)
+            .collect(),
     });
     Some(())
 }

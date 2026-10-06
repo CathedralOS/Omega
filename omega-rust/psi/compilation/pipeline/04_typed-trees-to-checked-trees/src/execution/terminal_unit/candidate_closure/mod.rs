@@ -245,8 +245,21 @@ pub(super) fn retain_available(
                 | CheckedUnitEffectOperationPlan::EstablishStructuralLocal { .. }
                 | CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal { .. }
                 | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
-                | CheckedUnitEffectOperationPlan::ContinuationCleanup { .. }
                 | CheckedUnitEffectOperationPlan::Complete { .. } => {}
+                CheckedUnitEffectOperationPlan::ContinuationCleanup {
+                    cleanup_actions, ..
+                } => {
+                    for cleanup in cleanup_actions
+                        .iter()
+                        .filter_map(checked_trees::CheckedNormalCleanupAction::nominal)
+                    {
+                        closure.require_entry(
+                            caller_index,
+                            cleanup.cleanup_machine,
+                            cleanup.cleanup_state,
+                        );
+                    }
+                }
             }
             if !closure.retained[caller_index] {
                 break;
@@ -398,9 +411,12 @@ pub(super) fn retain_available(
                     // are already custody rows inside this same state.
                     | CheckedUnitEffectOperationPlan::MoveStructuralField { .. }
                     | CheckedUnitEffectOperationPlan::StoreStructuralField { .. }
-                    // The paired boundary call carries the callee dependency;
-                    // its cleanup continuation only disposes the discarded result.
-                    | CheckedUnitEffectOperationPlan::ContinuationCleanup { .. } => {}
+                    => {}
+                    CheckedUnitEffectOperationPlan::ContinuationCleanup { cleanup_actions, .. } => {
+                        for cleanup in cleanup_actions.iter().filter_map(checked_trees::CheckedNormalCleanupAction::nominal) {
+                            closure.require_entry(caller_index, cleanup.cleanup_machine, cleanup.cleanup_state);
+                        }
+                    }
                     _ => closure.drop_candidate(
                         caller_index,
                         CheckedUnitPlanOmissionStage::ComposedVocabulary,

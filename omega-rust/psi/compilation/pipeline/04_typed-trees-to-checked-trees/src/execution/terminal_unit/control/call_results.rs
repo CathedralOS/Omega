@@ -106,8 +106,8 @@ pub(crate) fn checked_copied_result_type(
 
 /// Result shape is independent of whether the source binds or discards it,
 /// and of whether a literal constructs the value here or a completed producer
-/// hands it over. Both answer to one storage judgment: the contents a
-/// structural literal establishes. A scalar member under a plain domain whose
+/// hands it over. Both answer to one storage judgment: borrow-free owned
+/// contents, independent of the cleanup they require. A scalar member under a plain domain whose
 /// complete predicate is represented, and a bounded byte member retaining its
 /// primitive predicates, are as carriable when a call returns the record as
 /// when this body builds it -- the producer discharged the member obligation
@@ -199,7 +199,7 @@ pub(crate) fn checked_structural_result_type(
         || program.primitive_type_reference(result_type).is_some()
         || is_reference(program, result_type)
         || (multiplicity != Multiplicity::Linear
-            && (!(validation::has_structural_construction_contents(program, result_type)
+            && (!(validation::has_borrow_free_contents(program, result_type)
                 || validation::is_closed_primitive_array_type(program, result_type)
                 || validation::reference_result_custody::is_reference_record(
                     program,

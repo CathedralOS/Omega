@@ -54,29 +54,13 @@ impl emission::Emission<'_, '_, '_> {
             operands.push(argument?);
         }
         let place = place_id(allocate_dense(self.next_place)?);
-        let operation = self.operations.allocate();
-        self.operations.push(Operation {
-            static_reach_binding: None,
-            suspension_crossing: None,
-            id: operation,
-            result: OperationResult::Structural(StructuralOperationResult {
-                qualification_establishments: Vec::new(),
-                place,
-                structural_type: parent_type,
-                multiplicity: parent_multiplicity,
-                qualifications: Vec::new(),
-                projected_qualifications: Vec::new(),
-                claims: Vec::new(),
-            }),
-            kind: OperationKind::EstablishStructuralArray { elements: operands },
-        });
-        self.temporary_places.push(StructuralPlaceDeclaration {
-            id: place,
-            kind: StructuralPlaceKind::OperationResult {
-                producer: operation,
-                structural_type: parent_type,
-            },
-        });
+        self.temporary_places.push(emit_completed(
+            place,
+            parent_type,
+            parent_multiplicity,
+            operands,
+            self.operations,
+        ));
         self.values.truncate(source_count);
         Ok(place)
     }
@@ -108,5 +92,40 @@ impl emission::Emission<'_, '_, '_> {
             },
         });
         Ok(place)
+    }
+}
+
+/// Assemble already completed element owners. Unit sequencing and scalar
+/// continuations share this operation; each caller schedules evaluation before
+/// transferring those owners into the final array atomically.
+pub(crate) fn emit_completed(
+    place: PlaceId,
+    structural_type: semantic_vocabulary::StructuralTypeId,
+    multiplicity: terminal_psi::StructuralMultiplicity,
+    elements: Vec<terminal_psi::StructuralArgument>,
+    operations: &mut crate::emission::operation_emission::buffer::OperationBuffer,
+) -> StructuralPlaceDeclaration {
+    let operation = operations.allocate();
+    operations.push(Operation {
+        static_reach_binding: None,
+        suspension_crossing: None,
+        id: operation,
+        result: OperationResult::Structural(StructuralOperationResult {
+            qualification_establishments: Vec::new(),
+            place,
+            structural_type,
+            multiplicity,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+            claims: Vec::new(),
+        }),
+        kind: OperationKind::EstablishStructuralArray { elements },
+    });
+    StructuralPlaceDeclaration {
+        id: place,
+        kind: StructuralPlaceKind::OperationResult {
+            producer: operation,
+            structural_type,
+        },
     }
 }

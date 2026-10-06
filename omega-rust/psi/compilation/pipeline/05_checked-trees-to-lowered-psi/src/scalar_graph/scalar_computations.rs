@@ -973,7 +973,7 @@ impl<'a> Expansion<'a> {
                 call_ordinal,
                 arguments,
                 structural_arguments,
-                temporary_discards,
+                temporary_cleanups,
             }
             | CheckedScalarComputationKind::BoundaryCall {
                 source_call,
@@ -982,7 +982,7 @@ impl<'a> Expansion<'a> {
                 call_ordinal,
                 arguments,
                 structural_arguments,
-                temporary_discards,
+                temporary_cleanups,
             } => self.call(
                 source_call,
                 target_machine,
@@ -990,7 +990,7 @@ impl<'a> Expansion<'a> {
                 call_ordinal,
                 arguments,
                 structural_arguments,
-                temporary_discards,
+                temporary_cleanups,
                 result_type,
                 input_types,
                 target,

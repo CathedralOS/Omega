@@ -558,10 +558,19 @@ pub(crate) fn lower_unit_closure(
             .ok_or(LoweringError::Unsupported(
                 "shared Unit reserved machine count overflows usize",
             ))?;
+    let cleanup_receivers = machine_signatures
+        .iter()
+        .filter_map(|signature| {
+            signature
+                .cleanup_receiver
+                .map(|receiver| (signature.source, receiver))
+        })
+        .collect::<Vec<_>>();
     let mut scalar_output = scalar_callees::emit(
         checked,
         prepared_scalar_callees,
         scalar_callees::EmissionCatalog {
+            cleanup_receivers: &cleanup_receivers,
             machine_ids: &machine_ids,
             requirement_counts: &scalar_requirement_counts,
             boundary_parameters: &lowered_boundary_parameters,

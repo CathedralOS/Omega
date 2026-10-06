@@ -311,6 +311,8 @@ pub(super) fn nested_structural_call_sites<'program>(
 /// One source eligibility judgment feeds pure/computed operands and structural
 /// scheduling. A checked producer plan and its exact result shape are joined
 /// later; this early selector creates no result or ownership evidence.
+/// Borrow-free owned storage can carry nominal cleanup: its consuming
+/// continuation must select the hook, rather than exclude the producer here.
 pub(crate) fn nested_structural_call_return_type(
     program: &TypedTrees,
     caller: symbols::SymbolHandle,
@@ -427,7 +429,7 @@ pub(crate) fn nested_structural_call_return_type(
             TypeReferenceNode::Unit
         )
         && ((program.type_multiplicity(return_type) == language_semantics::Multiplicity::Affine
-            && (validation::has_plain_owned_contents(program, return_type)
+            && (validation::has_borrow_free_contents(program, return_type)
                 // A checked-body record carrying borrowed referents is affine
                 // through its captured leaf loans; the caller's own operand
                 // scheduling still has to replay that custody exactly.

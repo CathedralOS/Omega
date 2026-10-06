@@ -16,6 +16,7 @@ pub(crate) use discovery::{
 };
 
 pub(crate) struct EmbeddedScalarCalls {
+    cleanup_receivers: Vec<(symbols::SymbolHandle, semantic_vocabulary::PlaceId)>,
     pub(crate) machine_ids: Vec<(symbols::SymbolHandle, MachineId)>,
     pub(crate) requirement_counts: Vec<(symbols::SymbolHandle, usize)>,
     pub(crate) next_call_obligation: u64,
@@ -33,6 +34,7 @@ impl EmbeddedScalarCalls {
         next_call_obligation: u64,
     ) -> Self {
         Self {
+            cleanup_receivers: Vec::new(),
             machine_ids,
             requirement_counts,
             next_call_obligation,
@@ -42,16 +44,19 @@ impl EmbeddedScalarCalls {
     }
 
     /// Attach the enclosing closure's lowered boundary roster.
-    pub(crate) fn with_boundaries(
+    pub(crate) fn with_callable_namespace(
         mut self,
         boundaries: &[crate::unit::attached_unit::BoundaryParameters],
+        cleanup_receivers: Vec<(symbols::SymbolHandle, semantic_vocabulary::PlaceId)>,
     ) -> Self {
         self.boundaries = boundaries.to_vec();
+        self.cleanup_receivers = cleanup_receivers;
         self
     }
 
     pub(crate) fn emission_context(&self) -> CallEmissionContext<'_> {
         CallEmissionContext {
+            cleanup_receivers: &self.cleanup_receivers,
             machine_ids: &self.machine_ids,
             requirement_counts: &self.requirement_counts,
             boundaries: &self.boundaries,
@@ -256,6 +261,7 @@ impl EmbeddedScalarCalls {
             .map(|symbol| (symbol, machine_id(1)))
             .collect();
         let mut selected = EmbeddedScalarCalls {
+            cleanup_receivers: Vec::new(),
             machine_ids,
             requirement_counts,
             prepared,

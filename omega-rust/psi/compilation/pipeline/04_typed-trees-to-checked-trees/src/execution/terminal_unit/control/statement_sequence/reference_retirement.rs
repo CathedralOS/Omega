@@ -238,10 +238,10 @@ impl Retirement<'_> {
             CheckedUnitEffectOperationPlan::ReleaseReference {
                 binding_ordinal, loan: released, defer_to_exit: false, ..
             } => *binding_ordinal == holder.binding_ordinal && *released == handle,
-            CheckedUnitEffectOperationPlan::ContinuationCleanup { affine_discards, .. } => {
-                affine_discards.iter().any(|discard| {
-                    discard.path.is_empty()
-                        && matches!(discard.source,
+            CheckedUnitEffectOperationPlan::ContinuationCleanup { cleanup_actions, .. } => {
+                cleanup_actions.iter().any(|discard| {
+                    discard.path().is_empty()
+                        && matches!(*discard.source(),
                             CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal }
                                 if binding_ordinal == holder.binding_ordinal)
                 })

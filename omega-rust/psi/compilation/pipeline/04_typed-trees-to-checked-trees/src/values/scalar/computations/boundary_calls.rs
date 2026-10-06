@@ -262,7 +262,7 @@ impl Builder<'_, '_> {
             return None;
         }
         let (source_call, call_ordinal) = self.call_ordinal(expression, call_target)?;
-        let (arguments, structural_arguments, temporary_discards) =
+        let (arguments, structural_arguments, temporary_cleanups) =
             self.call_operands(source_call, operands, parameters)?;
         Some(self.insert(
             expected_type,
@@ -273,7 +273,7 @@ impl Builder<'_, '_> {
                 call_ordinal,
                 arguments,
                 structural_arguments,
-                temporary_discards,
+                temporary_cleanups,
             },
         ))
     }

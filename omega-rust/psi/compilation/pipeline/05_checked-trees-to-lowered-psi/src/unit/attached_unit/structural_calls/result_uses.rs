@@ -365,6 +365,8 @@ struct Producer<'plan> {
 /// A completed anonymous owner can be lent only through a loan-free call.
 /// Affine owners die at the recorded normal continuation, independently of
 /// whether a nested invocation or an argument construction established them.
+/// The checked disposition owns the exact complement: hooks and maximal
+/// residual subtrees need not look like one whole-root trivial discard.
 fn validate_shared_temporary_continuation(
     checked: &CheckedTrees,
     operations: &[CheckedUnitEffectOperationPlan],
@@ -388,11 +390,9 @@ fn validate_shared_temporary_continuation(
         Multiplicity::Affine
             if matches!(operations.get(consumer_index + 1),
             Some(CheckedUnitEffectOperationPlan::ContinuationCleanup {
-                boundary: checked_trees::CheckedUnitCleanupBoundary::Call(coordinate), affine_discards,
+                boundary: checked_trees::CheckedUnitCleanupBoundary::Call(coordinate), cleanup_actions,
             }) if *coordinate == call.coordinate
-                && affine_discards.iter().filter(|discard| discard.source == argument.source).count() == 1
-                && affine_discards.iter().any(|discard| discard.source == argument.source
-                    && discard.path.is_empty() && discard.type_identity == producer.result.type_identity)) =>
+                && cleanup_actions.iter().any(|action| action.source() == &argument.source)) =>
         {
             Ok(())
         }
@@ -910,7 +910,7 @@ pub(crate) fn validate_usage(
         }
         if let CheckedUnitEffectOperationPlan::ContinuationCleanup {
             boundary,
-            affine_discards,
+            cleanup_actions,
         } = operation
         {
             if matches!(
@@ -921,9 +921,9 @@ pub(crate) fn validate_usage(
                     checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
                         binding_ordinal: result.binding_ordinal,
                     };
-                if !affine_discards
+                if !cleanup_actions
                     .iter()
-                    .any(|discard| discard.source == source)
+                    .any(|discard| *discard.source() == source)
                 {
                     continue;
                 }
@@ -940,7 +940,7 @@ pub(crate) fn validate_usage(
                 == Some(producer.operation_index)
                 // A returning consumer can retire its argument temporaries
                 // without retiring the distinct value it just returned.
-                && affine_discards.iter().any(|discard| discard.source == source)
+                && cleanup_actions.iter().any(|discard| *discard.source() == source)
                 && operations[producer.operation_index]
                     .call()
                     .is_some_and(|call| {
@@ -953,9 +953,9 @@ pub(crate) fn validate_usage(
                     || disposed
                     || producer.discard
                     || !projected_paths.is_empty()
-                    || !matches!(affine_discards.as_slice(), [discard]
-                        if discard.source == source && discard.path.is_empty()
-                            && discard.type_identity == result.type_identity)
+                    || !matches!(cleanup_actions.as_slice(), [discard]
+                        if *discard.source() == source && discard.path().is_empty()
+                            && discard.type_identity() == result.type_identity)
                 {
                     return unsupported(
                         "discarded boundary result lost its immediate whole cleanup",
@@ -985,21 +985,6 @@ pub(crate) fn validate_usage(
                 || !producer.is_argument_temporary()
                 || producer.coordinate.statement_index != coordinate.statement_index
                 || operation_index <= producer.operation_index
-                || if projected_paths.is_empty() {
-                    let mut owned_discards = affine_discards
-                        .iter()
-                        .filter(|discard| discard.source == source);
-                    !matches!(owned_discards.next(), Some(discard)
-                        if discard.path.is_empty() && discard.type_identity == result.type_identity)
-                        || owned_discards.next().is_some()
-                } else {
-                    // One continuation may carry several temporaries; this
-                    // owner's rows must all be nonempty residual paths. An
-                    // empty complement leaves no row at all.
-                    affine_discards
-                        .iter()
-                        .any(|discard| discard.source == source && discard.path.is_empty())
-                }
             {
                 return unsupported("call continuation does not own this result remainder");
             }

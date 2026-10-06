@@ -174,7 +174,32 @@ pub enum CheckedNormalCleanupAction {
     InvokeNominal(CheckedUnitNominalAffineCleanupPlan),
 }
 
+impl Default for CheckedNormalCleanupAction {
+    fn default() -> Self {
+        Self::Discard(CheckedUnitPartialAffineDiscardPlan::default())
+    }
+}
+
 impl CheckedNormalCleanupAction {
+    pub fn nominal(&self) -> Option<&CheckedUnitNominalAffineCleanupPlan> {
+        match self {
+            Self::Discard(_) => None,
+            Self::InvokeNominal(cleanup) => Some(cleanup),
+        }
+    }
+    pub fn path(&self) -> &[CheckedUnitStructuralPathSegment] {
+        match self {
+            Self::Discard(discard) => &discard.path,
+            Self::InvokeNominal(cleanup) => &cleanup.path,
+        }
+    }
+
+    pub fn type_identity(&self) -> &str {
+        match self {
+            Self::Discard(discard) => &discard.type_identity,
+            Self::InvokeNominal(cleanup) => &cleanup.type_identity,
+        }
+    }
     pub fn source(&self) -> &CheckedUnitStructuralArgumentSourcePlan {
         match self {
             Self::Discard(discard) => &discard.source,

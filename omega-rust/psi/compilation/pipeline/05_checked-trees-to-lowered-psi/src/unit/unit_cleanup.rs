@@ -38,6 +38,59 @@ pub(crate) fn lower_nominal_affine_unit_cleanup_machine(
 }
 
 /// Selected cleanup operations have the same hook contract for Unit and scalar exits.
+pub(crate) fn continuation_cleanups(
+    operations: &[CheckedUnitEffectOperationPlan],
+) -> impl Iterator<Item = &CheckedUnitNominalAffineCleanupPlan> {
+    operations
+        .iter()
+        .filter_map(|operation| match operation {
+            CheckedUnitEffectOperationPlan::ContinuationCleanup {
+                cleanup_actions, ..
+            } => Some(cleanup_actions),
+            _ => None,
+        })
+        .flatten()
+        .filter_map(checked_trees::CheckedNormalCleanupAction::nominal)
+}
+
+pub(crate) fn computation_cleanups(
+    checked: &CheckedTrees,
+    machine: SymbolHandle,
+) -> Result<Vec<&CheckedUnitNominalAffineCleanupPlan>, LoweringError> {
+    let plans = &checked.facts.values.scalar_computations;
+    let roots = plans
+        .roots
+        .iter()
+        .filter_map(|(_, root)| (root.machine == machine).then_some(root.root))
+        .collect::<Vec<_>>();
+    let mut cleanups = Vec::new();
+    for identity in
+        crate::expression_preparation::computation_graph::reachable_nodes(checked, &roots)?
+    {
+        let retained = match plans.nodes.get(identity).kind {
+            checked_trees::CheckedScalarComputationKind::Call {
+                temporary_cleanups, ..
+            }
+            | checked_trees::CheckedScalarComputationKind::BoundaryCall {
+                temporary_cleanups,
+                ..
+            } => temporary_cleanups,
+            _ => continue,
+        };
+        for row in plans.temporary_cleanups.span_or_empty(retained) {
+            cleanups.extend(
+                plans
+                    .temporary_cleanup_actions
+                    .span_or_empty(row.actions)
+                    .iter()
+                    .filter_map(checked_trees::CheckedNormalCleanupAction::nominal),
+            );
+        }
+    }
+    Ok(cleanups)
+}
+
+/// Every published action participates in hook subject/receiver preparation.
 pub(crate) fn selected_cleanups(
     checked: &CheckedTrees,
 ) -> impl Iterator<Item = &CheckedUnitNominalAffineCleanupPlan> {
@@ -48,6 +101,34 @@ pub(crate) fn selected_cleanups(
         .machines
         .iter()
         .flat_map(|nominal| &nominal.cleanups)
+        .chain(
+            checked
+                .facts
+                .values
+                .scalar_computations
+                .temporary_cleanup_actions
+                .iter()
+                .filter_map(|(_, action)| action.nominal()),
+        )
+        .chain(
+            checked
+                .facts
+                .flow
+                .terminal_unit_effects
+                .machines
+                .iter()
+                .flat_map(|machine| continuation_cleanups(&machine.operations)),
+        )
+        .chain(
+            checked
+                .facts
+                .flow
+                .terminal_unit_effects
+                .composed_machines
+                .iter()
+                .flat_map(|machine| &machine.states)
+                .flat_map(|state| continuation_cleanups(&state.operations)),
+        )
         .chain(
             checked
                 .facts
@@ -102,21 +183,119 @@ pub(crate) fn lower_nominal_cleanup_action(
     if lookup_type_id(type_ids, &cleanup.type_identity)? != structural_type {
         return unsupported("nominal cleanup receiver type differs from its checked subject");
     }
+    materialize_nominal_cleanup_action(
+        cleanup,
+        place,
+        structural_type,
+        path,
+        machine_ids,
+        receivers.iter().find_map(|(source, receiver)| {
+            (*source == cleanup.cleanup_machine).then_some(*receiver)
+        }),
+        &mut || crate::terminal_identities::allocate_dense(next_obligation).map(obligation_id),
+    )
+}
+
+/// Bind a selected action to the closure's executable identities. Target and
+/// subject selection belong to the checked producer; this only allocates each
+/// action's independent obligation roster in the emitting body's namespace.
+fn materialize_nominal_cleanup_action(
+    cleanup: &CheckedUnitNominalAffineCleanupPlan,
+    place: PlaceId,
+    structural_type: StructuralTypeId,
+    path: Vec<terminal_psi::StructuralPathSegment>,
+    machine_ids: &[(SymbolHandle, MachineId)],
+    cleanup_receiver: Option<PlaceId>,
+    allocate_requirement: &mut impl FnMut() -> Result<semantic_vocabulary::ObligationId, LoweringError>,
+) -> Result<NominalAffineCleanup, LoweringError> {
     Ok(NominalAffineCleanup {
         place,
         path,
         structural_type,
         cleanup_machine: lookup_machine_id(machine_ids, cleanup.cleanup_machine)?,
         consumed_claims: Vec::new(),
-        cleanup_receiver: receivers.iter().find_map(|(source, receiver)| {
-            (*source == cleanup.cleanup_machine).then_some(*receiver)
-        }),
+        cleanup_receiver,
         requirement_obligations: cleanup
             .requirements
             .iter()
-            .map(|_| crate::terminal_identities::allocate_dense(next_obligation).map(obligation_id))
+            .map(|_| allocate_requirement())
             .collect::<Result<Vec<_>, _>>()?,
     })
+}
+
+/// Scalar operand expansion reserves storage before the shared call closure is
+/// allocated. Preserve selected hook identity until emission instead of
+/// inventing a provisional machine or obligation identity during expansion.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum PreparedNormalCleanupAction {
+    Resolved(terminal_psi::TerminalAffineCleanupAction),
+    InvokeNominal {
+        cleanup: CheckedUnitNominalAffineCleanupPlan,
+        place: PlaceId,
+        structural_type: StructuralTypeId,
+        path: Vec<terminal_psi::StructuralPathSegment>,
+    },
+}
+
+impl PreparedNormalCleanupAction {
+    pub(crate) fn discard_root(place: PlaceId) -> Self {
+        Self::Resolved(terminal_psi::TerminalAffineCleanupAction::DiscardRoot(
+            place,
+        ))
+    }
+
+    pub(crate) fn discard_residual(discard: terminal_psi::StructuralAffineDiscard) -> Self {
+        Self::Resolved(terminal_psi::TerminalAffineCleanupAction::DiscardResidual(
+            discard,
+        ))
+    }
+}
+
+impl From<&terminal_psi::TerminalAffineCleanupAction> for PreparedNormalCleanupAction {
+    fn from(action: &terminal_psi::TerminalAffineCleanupAction) -> Self {
+        Self::Resolved(action.clone())
+    }
+}
+
+pub(crate) fn emit_prepared_cleanup_actions(
+    actions: &[PreparedNormalCleanupAction],
+    calls: &mut crate::emission::operation_emission::calls::CallEmissionContext<'_>,
+) -> Result<Vec<terminal_psi::TerminalAffineCleanupAction>, LoweringError> {
+    actions
+        .iter()
+        .map(|action| {
+            Ok(match action {
+                PreparedNormalCleanupAction::Resolved(action) => action.clone(),
+                PreparedNormalCleanupAction::InvokeNominal {
+                    cleanup,
+                    place,
+                    structural_type,
+                    path,
+                } => {
+                    let machine_ids = calls.machine_ids;
+                    let receiver = calls
+                        .cleanup_receivers
+                        .iter()
+                        .find_map(|(source, receiver)| {
+                            (*source == cleanup.cleanup_machine).then_some(*receiver)
+                        });
+                    terminal_psi::TerminalAffineCleanupAction::InvokeNominal(
+                        materialize_nominal_cleanup_action(
+                            cleanup,
+                            *place,
+                            *structural_type,
+                            path.clone(),
+                            machine_ids,
+                            receiver,
+                            // Scalar helpers own bounded identity ranges. Use
+                            // their allocator rather than an unbounded counter.
+                            &mut || calls.allocate_requirement(),
+                        )?,
+                    )
+                }
+            })
+        })
+        .collect()
 }
 
 /// A nominal consuming member (a seeded `drop<T>` specialization) emitted the

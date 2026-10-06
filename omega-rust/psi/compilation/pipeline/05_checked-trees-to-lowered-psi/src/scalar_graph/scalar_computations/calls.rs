@@ -18,7 +18,7 @@ use crate::scalar_graph::scalar_graph_lowering::prepared_graph::{
 };
 use arena::HandleSpan;
 use checked_trees::{
-    CheckedScalarComputationStructuralArgument, CheckedScalarComputationTemporaryDiscard,
+    CheckedScalarComputationStructuralArgument, CheckedScalarComputationTemporaryCleanup,
 };
 
 enum Operand {
@@ -280,7 +280,7 @@ impl Expansion<'_> {
         call_ordinal: u32,
         arguments: HandleSpan<Computation>,
         structural: HandleSpan<CheckedScalarComputationStructuralArgument>,
-        temporary_discards: HandleSpan<CheckedScalarComputationTemporaryDiscard>,
+        temporary_cleanups: HandleSpan<CheckedScalarComputationTemporaryCleanup>,
         result_type: QualifiedScalarType,
         input_types: &[QualifiedScalarType],
         target: usize,
@@ -572,8 +572,8 @@ impl Expansion<'_> {
         // or its borrowed access. Keep the scalar result and caller prefix live
         // across the exact normal continuation; a crashing call never reaches it.
         let discards =
-            self.temporary_cleanup_actions(source_call, structural, temporary_discards)?;
-        let target = if temporary_discards.is_empty() {
+            self.temporary_cleanup_actions(source_call, structural, temporary_cleanups)?;
+        let target = if temporary_cleanups.is_empty() {
             target
         } else {
             let mut parameter_types = input_types.to_vec();
@@ -688,12 +688,12 @@ impl Expansion<'_> {
         &self,
         source_call: Handle<checked_trees::FlowCallFact>,
         arguments: &[CheckedScalarComputationStructuralArgument],
-        retained: HandleSpan<CheckedScalarComputationTemporaryDiscard>,
-    ) -> Result<Vec<terminal_psi::TerminalAffineCleanupAction>, LoweringError> {
+        retained: HandleSpan<CheckedScalarComputationTemporaryCleanup>,
+    ) -> Result<Vec<crate::unit::unit_cleanup::PreparedNormalCleanupAction>, LoweringError> {
         let plans = &self.checked.facts.values.scalar_computations;
         let retained =
             plans
-                .temporary_discards
+                .temporary_cleanups
                 .span(retained)
                 .ok_or(LoweringError::Unsupported(
                     "computed call lost its temporary retirement roster",
@@ -725,40 +725,50 @@ impl Expansion<'_> {
                 ))?;
             retired.push(ordinal);
             let discards = plans
-                .temporary_affine_discards
-                .span(discard.affine_discards)
+                .temporary_cleanup_actions
+                .span(discard.actions)
                 .ok_or(LoweringError::Unsupported(
                     "temporary retirement has stale residual rows",
                 ))?;
-            for residual in discards {
-                if residual.source != argument.source {
-                    return unsupported("temporary residual names a different owner");
+            for action in discards {
+                use crate::unit::unit_cleanup::PreparedNormalCleanupAction;
+                if action.source() != &argument.source {
+                    return unsupported("temporary cleanup names a different owner");
                 }
-                if residual.path.is_empty() {
-                    actions.push(terminal_psi::TerminalAffineCleanupAction::DiscardRoot(
-                        slot.place,
-                    ));
-                } else {
-                    let path = crate::expression_preparation::bindings::structural_paths::lower_typed_argument_path(
-                        &residual.path, slot.structural_type, self.structural_types,
-                        None, &mut std::iter::empty(), None,
-                    )?;
-                    let structural_type = self
-                        .structural_types
-                        .iter()
-                        .find(|declaration| declaration.identity == residual.type_identity)
-                        .map(|declaration| declaration.id)
-                        .ok_or(LoweringError::Unsupported(
-                            "temporary residual has no structural type",
-                        ))?;
-                    actions.push(terminal_psi::TerminalAffineCleanupAction::DiscardResidual(
-                        terminal_psi::StructuralAffineDiscard {
+                let path = crate::expression_preparation::bindings::structural_paths::lower_typed_argument_path(
+                    action.path(), slot.structural_type, self.structural_types,
+                    None, &mut std::iter::empty(), None,
+                )?;
+                let structural_type = self
+                    .structural_types
+                    .iter()
+                    .find(|declaration| declaration.identity == action.type_identity())
+                    .map(|declaration| declaration.id)
+                    .ok_or(LoweringError::Unsupported(
+                        "temporary cleanup has no structural type",
+                    ))?;
+                actions.push(match action {
+                    checked_trees::CheckedNormalCleanupAction::Discard(_) if path.is_empty() => {
+                        PreparedNormalCleanupAction::discard_root(slot.place)
+                    }
+                    checked_trees::CheckedNormalCleanupAction::Discard(_) => {
+                        PreparedNormalCleanupAction::discard_residual(
+                            terminal_psi::StructuralAffineDiscard {
+                                place: slot.place,
+                                path,
+                                structural_type,
+                            },
+                        )
+                    }
+                    checked_trees::CheckedNormalCleanupAction::InvokeNominal(cleanup) => {
+                        PreparedNormalCleanupAction::InvokeNominal {
+                            cleanup: cleanup.clone(),
                             place: slot.place,
                             path,
                             structural_type,
-                        },
-                    ));
-                }
+                        }
+                    }
+                });
             }
         }
         Ok(actions)

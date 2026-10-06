@@ -125,6 +125,16 @@ pub(super) fn discover(
         )?;
 
         for source in closure.iter().chain(&scalar_closure) {
+            // An expression's dying owner invokes its selected hook even
+            // when no ordinary operation calls that hook. Close those
+            // dependencies for every body before assigning callable IDs;
+            // scalar helpers and Unit callers share the same action roster.
+            for cleanup in crate::unit::unit_cleanup::computation_cleanups(checked, *source)? {
+                let target = cleanup.cleanup_machine;
+                if !closure.contains(&target) && !new_roots.contains(&target) {
+                    new_roots.push(target);
+                }
+            }
             for operation in
                 crate::expression_preparation::computation_graph::value_call_operations(
                     checked, *source,

@@ -383,6 +383,14 @@ pub(super) fn emit(
     let subslice_places = Vec::new();
     let retained_scalar_prefix = None;
     let staged_scalar_result = None;
+    let cleanup_receivers = machine_signatures
+        .iter()
+        .filter_map(|signature| {
+            signature
+                .cleanup_receiver
+                .map(|receiver| (signature.source, receiver))
+        })
+        .collect::<Vec<_>>();
     let mut emission = MachineEmission {
         checked,
         plan,
@@ -422,6 +430,7 @@ pub(super) fn emit(
         retained_scalar_prefix,
         staged_scalar_result,
         scalar_calls: CallEmissionContext {
+            cleanup_receivers: &cleanup_receivers,
             machine_ids,
             requirement_counts: scalar_requirement_counts,
             boundaries: lowered_boundary_parameters,
@@ -460,6 +469,7 @@ pub(super) fn emit(
         // Prefix values and structural locals are already established. The
         // completion adds only the selected guard/arm evaluation and join.
         let mut scalar_calls = CallEmissionContext {
+            cleanup_receivers: &cleanup_receivers,
             machine_ids,
             requirement_counts: scalar_requirement_counts,
             boundaries: lowered_boundary_parameters,
@@ -1091,6 +1101,7 @@ impl MachineEmission<'_> {
         let checked = self.checked;
         let plan = self.plan;
         self.scalar_calls = CallEmissionContext {
+            cleanup_receivers: self.scalar_calls.cleanup_receivers,
             machine_ids: self.machine_ids,
             requirement_counts: self.scalar_requirement_counts,
             boundaries: self.lowered_boundary_parameters,

@@ -1,6 +1,6 @@
 //! Facts follow the owned contents transferred at one completed operation.
 //!
-//! Scalar record leaves retain their exact equality equations. Byte predicates
+//! Scalar owned leaves retain their exact equality equations. Byte predicates
 //! describe an entire owned byte leaf, so copy their live formulas onto the new
 //! leaf now, before a later source write can invalidate the originals. Rewriting
 //! an implication never detaches its premise. Borrowed descriptors and reference
@@ -226,6 +226,49 @@ fn append_scalar_fields(
     else {
         return;
     };
+    if let StructuralTypeShape::FixedArray { element, length } = declaration.shape {
+        // Transfer only observed array members, never expand an extent into
+        // untouched leaves. Record and array nesting use this same recursive
+        // content transfer; the constructor's source arrangement is irrelevant.
+        // Equations relate copied storage, not a claim that an element satisfies
+        // a predicate. The proof must still cite its live source observation.
+        let mut observed_indices = Vec::new();
+        for fact in axioms.iter() {
+            let mut observation = fact.clone();
+            super::super::super::observation_substitution::substitute(
+                &mut observation,
+                &mut |term| {
+                    let (root, path) = match term {
+                        ScalarTerm::IntegerField { root, path, .. }
+                        | ScalarTerm::BooleanField { root, path }
+                        | ScalarTerm::IeeeFloatField { root, path, .. } => (*root, path),
+                        _ => return None,
+                    };
+                    if root != source {
+                        return None;
+                    }
+                    let suffix = path.strip_prefix(source_path.as_slice())?;
+                    let CanonicalStructuralPathSegment::FixedIndex(element_index) =
+                        suffix.first()?
+                    else {
+                        return None;
+                    };
+                    if *element_index < length && !observed_indices.contains(element_index) {
+                        observed_indices.push(*element_index);
+                    }
+                    None
+                },
+            );
+        }
+        for element_index in observed_indices {
+            let mut target = destination_path.clone();
+            target.push(CanonicalStructuralPathSegment::FixedIndex(element_index));
+            let mut origin = source_path.clone();
+            origin.push(CanonicalStructuralPathSegment::FixedIndex(element_index));
+            append_scalar_fields(module, element, destination, target, source, origin, axioms);
+        }
+        return;
+    }
     let terminal_psi::StructuralTypeShape::Record { fields } = &declaration.shape else {
         return;
     };

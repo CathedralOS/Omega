@@ -1330,7 +1330,7 @@ impl Builder<'_, '_> {
                 if arguments.len() != target_parameters.len() {
                     return None;
                 }
-                let (arguments, structural_arguments, temporary_discards) =
+                let (arguments, structural_arguments, temporary_cleanups) =
                     self.call_operands(source_call, &arguments, target_parameters)?;
                 Some(self.insert(
                     expected_type,
@@ -1341,7 +1341,7 @@ impl Builder<'_, '_> {
                         call_ordinal,
                         arguments,
                         structural_arguments,
-                        temporary_discards,
+                        temporary_cleanups,
                     },
                 ))
             }

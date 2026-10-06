@@ -285,34 +285,3 @@ pub(super) fn arm_call(
         operation,
     })
 }
-
-/// Whether this state's authored tail holds a guarded arm that invokes
-/// another machine. Such a body needs the state graph even with one state:
-/// the linear single-state sequence cannot select which arm's call runs.
-pub(super) fn has_guarded_machine_arm(
-    program: &TypedTrees,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-) -> bool {
-    let statements = program.statement_table.statements(state.statement_nodes);
-    let Some(start) = statements.iter().position(|statement| {
-        matches!(
-            statement,
-            typed_trees::statement::StatementNode::Transition(_)
-        )
-    }) else {
-        return false;
-    };
-    let tail = &statements[start..];
-    tail.len() > 1
-        && tail.iter().all(|statement| {
-            matches!(
-                statement,
-                typed_trees::statement::StatementNode::Transition(_)
-            )
-        })
-        && tail.iter().any(|statement| {
-            matches!(statement, typed_trees::statement::StatementNode::Transition(transition)
-                if invoked_callable(program, machine, transition).is_some())
-        })
-}

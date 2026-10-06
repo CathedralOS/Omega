@@ -608,20 +608,24 @@ impl Evaluation {
     /// affine owners on the completed call's normal continuation.
     pub(crate) fn continue_values(
         &mut self,
-        discards: Vec<PlaceId>,
-        mut residuals: Vec<terminal_psi::StructuralAffineDiscard>,
+        mut cleanup_actions: Vec<terminal_psi::TerminalAffineCleanupAction>,
         values: &mut Vec<ValueDeclaration>,
         next_value: &mut u64,
         next_block: &mut u64,
         next_edge: &mut u64,
         operations: &OperationBuffer,
     ) -> Result<semantic_vocabulary::EdgeId, LoweringError> {
-        let discards: Vec<_> = discards
-            .into_iter()
-            .map(|place| self.current_structural_place(place))
-            .collect();
-        for residual in &mut residuals {
-            residual.place = self.current_structural_place(residual.place);
+        for action in &mut cleanup_actions {
+            let place = match action {
+                terminal_psi::TerminalAffineCleanupAction::DiscardRoot(place) => place,
+                terminal_psi::TerminalAffineCleanupAction::DiscardResidual(discard) => {
+                    &mut discard.place
+                }
+                terminal_psi::TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
+                    &mut cleanup.place
+                }
+            };
+            *place = self.current_structural_place(*place);
         }
         let types = values
             .iter()
@@ -654,15 +658,7 @@ impl Evaluation {
                         )
                     })
                     .collect::<Result<Vec<_>, LoweringError>>()?,
-                cleanup_actions: discards
-                    .into_iter()
-                    .map(terminal_psi::TerminalAffineCleanupAction::DiscardRoot)
-                    .chain(
-                        residuals
-                            .into_iter()
-                            .map(terminal_psi::TerminalAffineCleanupAction::DiscardResidual),
-                    )
-                    .collect(),
+                cleanup_actions,
             },
         });
         *values = parameters.clone();
@@ -691,7 +687,6 @@ impl Evaluation {
             return Ok(());
         }
         let edge = self.continue_values(
-            Vec::new(),
             Vec::new(),
             values,
             next_value,
@@ -1502,7 +1497,10 @@ fn emit_state(
                     )
                 })
                 .collect::<Result<Vec<_>, _>>()?,
-            cleanup_actions: cleanup_actions.clone(),
+            cleanup_actions: crate::unit::unit_cleanup::emit_prepared_cleanup_actions(
+                cleanup_actions,
+                calls,
+            )?,
         },
         LoweredScalarBranchTerminator::Conditional {
             condition,

@@ -86,22 +86,22 @@ pub(super) fn account(
             .iter()
             .filter_map(|operation| match operation {
                 CheckedUnitEffectOperationPlan::ContinuationCleanup {
-                    affine_discards, ..
-                } => Some(affine_discards),
+                    cleanup_actions, ..
+                } => Some(cleanup_actions),
                 _ => None,
             })
             .fold((0, false), |(count, retired_whole), discards| {
                 let mut matched = false;
                 let mut whole = false;
                 for discard in discards {
-                    if matches!(discard.source,
+                    if matches!(*discard.source(),
                         CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
                             binding_ordinal
                         } if binding_ordinal == result.binding_ordinal)
                     {
                         matched = true;
-                        whole |= discard.path.is_empty()
-                            && discard.type_identity == result.type_identity;
+                        whole |= discard.path().is_empty()
+                            && discard.type_identity() == result.type_identity;
                     }
                 }
                 // One continuation closes one owner's exact partition. Its

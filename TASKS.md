@@ -753,17 +753,22 @@ defines the complete product bar.
     Preserve selected-subtree contracts as **OMEGA-READS-TERMINAL-UNVERIFIED**
     moves ownership analysis out of the retiring verifier; do not add a second
     independent replay. Coordinate the static-maze loan outcome.
-  - Complete nominal-hook and claim-bearing temporary cleanup on
+  - Complete claim-bearing temporary cleanup and general nominal-hook
+    selection on
     **STATE-LOCAL-VALUE-FRONTIER**'s computed-call evaluation path. Extend the
-    checked temporary retirement roster and its scalar-call continuation in
+    checked ordered temporary action roster and its scalar-call continuation in
     `omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/scalar_graph/scalar_computations/calls.rs`
-    with exact hook and live-claim dispositions; plain affine discard rows
-    cannot discharge either. Preserve the selected transfer and ordered
+    with exact live-claim dispositions; claim-free discard/hook actions do not
+    consume retained claims. Preserve the selected transfer and ordered
     residual complement under the original owner, never a second whole
     temporary for the selected field. Keep
     `pass/drops/runtime_nested_nominal_producer_loans_exit` as the operand-loan
     lifetime control: cleanup must not prolong a completed borrow-free
     producer's input loans.
+    Hook selection in `cleanup/actions.rs` still requires a single-state body
+    and direct Boolean receiver-field prerequisites. Carry general callable
+    bodies and contracts through that shared selector, not new hook-pattern
+    lanes.
   Acceptance: add corpus fixtures where native runs and the Terminal
   interpreter preserve values and hook order across composed edges, including
   a projected-argument jump edge closing residuals in order. Missing,

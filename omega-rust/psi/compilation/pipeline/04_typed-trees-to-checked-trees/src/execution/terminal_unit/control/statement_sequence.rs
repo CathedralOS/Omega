@@ -1575,13 +1575,16 @@ fn append_reference_releases(
         retired.push(result.binding_ordinal);
         pending.push(CheckedUnitEffectOperationPlan::ContinuationCleanup {
             boundary: checked_trees::CheckedUnitCleanupBoundary::StatementEntry { statement_index },
-            affine_discards: vec![checked_trees::CheckedUnitPartialAffineDiscardPlan {
-                source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-                    binding_ordinal: result.binding_ordinal,
+            cleanup_actions: vec![checked_trees::CheckedNormalCleanupAction::Discard(
+                checked_trees::CheckedUnitPartialAffineDiscardPlan {
+                    source:
+                        checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                            binding_ordinal: result.binding_ordinal,
+                        },
+                    path: Vec::new(),
+                    type_identity: result.type_identity.clone(),
                 },
-                path: Vec::new(),
-                type_identity: result.type_identity.clone(),
-            }],
+            )],
         });
     }
     for binding in retired {

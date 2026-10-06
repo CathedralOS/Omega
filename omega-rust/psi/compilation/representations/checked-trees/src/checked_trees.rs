@@ -225,7 +225,7 @@ pub use values::{
     CheckedScalarCaseComputationField, CheckedScalarCaseConstruction, CheckedScalarComputation,
     CheckedScalarComputationHandle, CheckedScalarComputationKind, CheckedScalarComputationPlans,
     CheckedScalarComputationRoot, CheckedScalarComputationStructuralArgument,
-    CheckedScalarComputationTemporaryDiscard, CheckedScalarDispatchArm,
+    CheckedScalarComputationTemporaryCleanup, CheckedScalarDispatchArm,
     CheckedScalarDispatchPattern, CheckedScalarExpression, CheckedScalarExpressionBindings,
     CheckedScalarExpressionPlans, CheckedScalarExpressionRole, CheckedStorageRoot,
     CheckedStructuralDispatchArm, CheckedStructuralParameterField,

@@ -716,8 +716,8 @@ impl OperationFrame<'_, '_> {
                 value,
             } => self.store_structural_field(*statement_index, destination, value),
             CheckedUnitEffectOperationPlan::ContinuationCleanup {
-                affine_discards, ..
-            } => self.continuation_cleanup(affine_discards),
+                cleanup_actions, ..
+            } => self.continuation_cleanup(cleanup_actions),
             CheckedUnitEffectOperationPlan::EstablishByteSequence { .. } => {
                 self.establish_byte_sequence(operation)
             }
@@ -2905,38 +2905,57 @@ impl OperationFrame<'_, '_> {
         )
     }
 
-    /// Commit dying affine results at the checked continuation boundary
-    /// while evaluated scalar bindings remain live.
+    /// Commit ordered cleanup at its exact continuation while retaining scalar values.
     fn continuation_cleanup(
         &mut self,
-        affine_discards: &[checked_trees::CheckedUnitPartialAffineDiscardPlan],
+        cleanup_actions: &[checked_trees::CheckedNormalCleanupAction],
     ) -> Result<(), LoweringError> {
-        let mut discards = Vec::new();
-        let mut residuals = Vec::new();
-        for discard in affine_discards {
+        let mut actions = Vec::new();
+        for action in cleanup_actions {
             let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
                 binding_ordinal,
-            } = discard.source
+            } = *action.source()
             else {
                 return unsupported("continuation cleanup requires a result binding");
             };
             let place = self
                 .results
                 .continuation_place(binding_ordinal, self.operations)?;
-            if discard.path.is_empty() {
-                discards.push(place);
-            } else {
-                residuals.push(terminal_psi::StructuralAffineDiscard {
-                    place,
-                    path: lower_structural_path(&discard.path)?,
-                    structural_type: lookup_type_id(self.type_ids, &discard.type_identity)?,
-                });
-            }
+            let path = lower_structural_path(action.path())?;
+            let structural_type = lookup_type_id(self.type_ids, action.type_identity())?;
+            actions.push(match action {
+                checked_trees::CheckedNormalCleanupAction::Discard(_) if path.is_empty() => {
+                    terminal_psi::TerminalAffineCleanupAction::DiscardRoot(place)
+                }
+                checked_trees::CheckedNormalCleanupAction::Discard(_) => {
+                    terminal_psi::TerminalAffineCleanupAction::DiscardResidual(
+                        terminal_psi::StructuralAffineDiscard {
+                            place,
+                            path,
+                            structural_type,
+                        },
+                    )
+                }
+                checked_trees::CheckedNormalCleanupAction::InvokeNominal(cleanup) => {
+                    terminal_psi::TerminalAffineCleanupAction::InvokeNominal(
+                        crate::unit::unit_cleanup::lower_nominal_cleanup_action(
+                            self.checked,
+                            cleanup,
+                            place,
+                            structural_type,
+                            path,
+                            self.type_ids,
+                            self.calls.machine_ids,
+                            self.calls.cleanup_receivers,
+                            &mut self.calls.next_obligation_identity,
+                        )?,
+                    )
+                }
+            });
         }
         self.evaluation
             .continue_values(
-                discards,
-                residuals,
+                actions,
                 self.values,
                 self.next_value,
                 self.next_block,

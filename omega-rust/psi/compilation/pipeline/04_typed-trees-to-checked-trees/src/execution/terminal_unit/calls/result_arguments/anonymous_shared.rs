@@ -67,7 +67,7 @@ pub(crate) fn validate(
     if place.root != facts::PlaceRoot::Expression(expression)
         || !place.segments.is_empty()
         || !validation::checked_argument_matches_type_reference(program, expression, referee)
-        || !validation::has_plain_owned_contents_with_represented_constraints(program, referee)
+        || !validation::has_borrow_free_contents(program, referee)
         || crate::checks::type_carries_linear_obligation(program, referee)
     {
         return None;

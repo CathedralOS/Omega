@@ -294,6 +294,47 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
         &candidates,
         &composed_machines,
     );
+    // Storage planning precedes executable hook selection. Complete the
+    // contextual temporary actions once the immutable target roster exists.
+    let mut temporary_selections = candidates
+        .iter()
+        .map(|plan| {
+            cleanup::temporary_actions::operations(
+                program,
+                facts,
+                &candidates,
+                &mut shapes,
+                plan.machine,
+                plan.state,
+                &plan.operations,
+            )
+        })
+        .collect::<Vec<_>>()
+        .into_iter();
+    composed_machines.retain_mut(|plan| {
+        for state in &mut plan.states {
+            let Some(selected) = cleanup::temporary_actions::operations(
+                program,
+                facts,
+                &candidates,
+                &mut shapes,
+                plan.machine,
+                state.state,
+                &state.operations,
+            ) else {
+                return false;
+            };
+            cleanup::temporary_actions::install(&mut state.operations, selected);
+        }
+        true
+    });
+    candidates.retain_mut(|plan| {
+        let Some(Some(selected)) = temporary_selections.next() else {
+            return false;
+        };
+        cleanup::temporary_actions::install(&mut plan.operations, selected);
+        true
+    });
     cleanup::normal_edges::retain_planned(
         program,
         facts,

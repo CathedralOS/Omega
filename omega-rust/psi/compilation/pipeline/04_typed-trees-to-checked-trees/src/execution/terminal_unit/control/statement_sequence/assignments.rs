@@ -244,7 +244,7 @@ pub(super) fn plan(
                         call_ordinal: 0,
                     },
                 ),
-                affine_discards: vec![discard],
+                cleanup_actions: vec![checked_trees::CheckedNormalCleanupAction::Discard(discard)],
             });
         }
         return Some(AssignmentPlan::Planned);
@@ -286,7 +286,9 @@ pub(super) fn plan(
                             call_ordinal: 0,
                         },
                     ),
-                    affine_discards: vec![discard],
+                    cleanup_actions: vec![checked_trees::CheckedNormalCleanupAction::Discard(
+                        discard,
+                    )],
                 });
             }
             *structural_count = structural_count.checked_add(displaced_bindings)?;
@@ -525,7 +527,7 @@ fn element_replacements(
                         call_ordinal: 0,
                     },
                 ),
-                affine_discards: vec![discard],
+                cleanup_actions: vec![checked_trees::CheckedNormalCleanupAction::Discard(discard)],
             });
         }
     }

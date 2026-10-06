@@ -1,6 +1,6 @@
 //! State-local calls and explicit successor bindings, independent of graph shape.
 //!
-//! `build_traced` plans a multi-state machine as a composed Unit control
+//! `build_traced` plans a state machine as a composed Unit control
 //! graph. It fixes the machine's result signature and natural ranks, then
 //! the signature and entry claims of every state. Each state then plans its
 //! prefix initializers and statement sequence (`control::statement_sequence`),
@@ -241,29 +241,10 @@ pub(super) fn build_traced(
         // authored contracts still need their own retained proof obligations.
         return None;
     }
-    // A plain single-state Unit body belongs to the ordinary sequence. A
-    // transition tail does not: the ordinary plan has no terminator, so the
-    // graph route takes every state reachable through transition arms —
-    // including foreign machine entries fused into `fused`.
-    if fused.len() < 2
-        && result == checked_trees::CheckedControlResultPlan::Unit
-        && !fused.iter().any(|(_, state)| {
-            program
-                .statement_table
-                .statements(state.statement_nodes)
-                .iter()
-                .any(|statement| matches!(statement, StatementNode::Transition(_)))
-        })
-        && !facts
-            .values
-            .structural_values
-            .roots
-            .iter()
-            .any(|(_, root)| root.machine == machine.symbol)
-        && !terminal_calls::has_guarded_machine_arm(program, machine, &states[0])
-    {
-        return None;
-    }
+    // State count and the presence of an aggregate initializer do not choose
+    // cleanup semantics. Even one Unit state can owe executable normal-exit
+    // actions. Plan its graph here; the shared candidate selection keeps one
+    // body when the ordinary sequence also supplies a complete implementation.
     if let checked_trees::CheckedControlResultPlan::Scalar { .. } = result {
         // Producer ownership, not state count, chooses the body. One authored
         // state can still have a ranked backedge or selected return arms that

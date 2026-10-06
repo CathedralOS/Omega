@@ -132,8 +132,16 @@ pub(crate) struct Construction {
     place: PlaceId,
     structural_type: StructuralTypeId,
     multiplicity: StructuralMultiplicity,
-    kind: AggregateKind,
-    fields: Vec<(StructuralFieldId, Field)>,
+    contents: AggregateContents,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum AggregateContents {
+    Fields {
+        kind: AggregateKind,
+        fields: Vec<(StructuralFieldId, Field)>,
+    },
+    Elements(Vec<PlaceId>),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -533,6 +541,51 @@ impl Preparation<'_> {
             });
             return Ok(place);
         }
+        if let CheckedStructuralValueKind::FixedArray { elements } = &node.kind {
+            let StructuralTypeShape::FixedArray { element, length } = declaration.shape else {
+                return unsupported("structural array has a nonarray carrier");
+            };
+            let reference = self
+                .checked
+                .typed
+                .unwrapped_type_reference(reference)
+                .ok_or(LoweringError::Unsupported(
+                    "structural array source carrier is missing",
+                ))?;
+            let checked_trees::types::TypeReferenceNode::FixedArray { element_type, .. } =
+                self.checked.type_reference_table.type_reference(reference)
+            else {
+                return unsupported("structural array source has a nonarray carrier");
+            };
+            let element_reference = *element_type;
+            if u64::try_from(elements.len()).ok() != Some(length)
+                || carrier_declaration(self.checked, self.types, element_reference)?.id != element
+            {
+                return unsupported("structural array elements differ from their declared carrier");
+            }
+            let mut completed = Vec::with_capacity(elements.len());
+            for child in elements {
+                completed.push(self.value(*child, element_reference)?);
+            }
+            let place = self.reserved.place(value)?;
+            let multiplicity = match self.checked.type_multiplicity(reference) {
+                Multiplicity::Unrestricted => StructuralMultiplicity::Unrestricted,
+                Multiplicity::Affine => StructuralMultiplicity::Affine,
+                Multiplicity::Linear => {
+                    return unsupported("aggregate construction cannot establish linear authority");
+                }
+            };
+            self.steps.push(Step::Aggregate {
+                construction: Construction {
+                    place,
+                    structural_type: declaration.id,
+                    multiplicity,
+                    contents: AggregateContents::Elements(completed),
+                },
+                prefix: self.prefix.clone(),
+            });
+            return Ok(place);
+        }
         let (data_symbol, fields) = match node.kind {
             CheckedStructuralValueKind::Record {
                 data_symbol,
@@ -769,8 +822,10 @@ impl Preparation<'_> {
                 place,
                 structural_type: declaration.id,
                 multiplicity,
-                kind,
-                fields: initialized.into_iter().map(|(_, field)| field).collect(),
+                contents: AggregateContents::Fields {
+                    kind,
+                    fields: initialized.into_iter().map(|(_, field)| field).collect(),
+                },
             },
             prefix: self.prefix.clone(),
         });
@@ -1003,8 +1058,28 @@ pub(crate) fn emit(
     operations: &mut OperationBuffer,
     calls: &mut CallEmissionContext<'_>,
 ) -> Result<(), LoweringError> {
-    let mut fields = Vec::with_capacity(construction.fields.len());
-    for (field, value) in &construction.fields {
+    let (kind, selected_fields) = match &construction.contents {
+        AggregateContents::Fields { kind, fields } => (kind, fields),
+        AggregateContents::Elements(elements) => {
+            crate::unit::attached_unit::structural_values::fixed_array::emit_completed(
+                construction.place,
+                construction.structural_type,
+                construction.multiplicity,
+                elements
+                    .iter()
+                    .map(|place| StructuralArgument {
+                        place: *place,
+                        path: Vec::new(),
+                        access: StructuralAccess::Owned,
+                    })
+                    .collect(),
+                operations,
+            );
+            return Ok(());
+        }
+    };
+    let mut fields = Vec::with_capacity(selected_fields.len());
+    for (field, value) in selected_fields {
         let value = match value {
             Field::Scalar {
                 position, bounded, ..
@@ -1055,7 +1130,7 @@ pub(crate) fn emit(
             value,
         });
     }
-    match construction.kind {
+    match *kind {
         AggregateKind::Record => {
             crate::unit::attached_unit::structural_values::record::emit_completed(
                 construction.place,
@@ -1179,7 +1254,9 @@ pub(super) fn exit_target(
     let cleanup_actions = destinations
         .iter()
         .rev()
-        .map(|parameter| terminal_psi::TerminalAffineCleanupAction::DiscardRoot(parameter.place))
+        .map(|parameter| {
+            crate::unit::unit_cleanup::PreparedNormalCleanupAction::discard_root(parameter.place)
+        })
         .collect();
     let cleanup = computations.push(LoweredScalarBranchState {
         structural_parameters: destinations,

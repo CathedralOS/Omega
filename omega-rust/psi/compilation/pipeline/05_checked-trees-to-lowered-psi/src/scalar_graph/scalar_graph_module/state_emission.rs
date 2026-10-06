@@ -294,7 +294,10 @@ impl GraphEmission<'_> {
                         arguments,
                         erased_arguments,
                         erased_proof_arguments,
-                        cleanup_actions: cleanup_actions.clone(),
+                        cleanup_actions: crate::unit::unit_cleanup::emit_prepared_cleanup_actions(
+                            cleanup_actions,
+                            &mut self.call_emission,
+                        )?,
                     }
                 }
             }

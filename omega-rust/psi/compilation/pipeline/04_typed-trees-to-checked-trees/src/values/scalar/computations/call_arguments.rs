@@ -78,7 +78,7 @@ impl Builder<'_, '_> {
     ) -> Option<(
         arena::HandleSpan<checked_trees::CheckedScalarComputationHandle>,
         arena::HandleSpan<checked_trees::CheckedScalarComputationStructuralArgument>,
-        arena::HandleSpan<checked_trees::CheckedScalarComputationTemporaryDiscard>,
+        arena::HandleSpan<checked_trees::CheckedScalarComputationTemporaryCleanup>,
     )> {
         use typed_trees::types::TypeReferenceNode;
         if arguments.len() != parameters.len()
@@ -97,7 +97,7 @@ impl Builder<'_, '_> {
         }
         let mut computed_arguments = Vec::with_capacity(arguments.len());
         let mut structural_arguments = Vec::new();
-        let mut temporary_discards = Vec::new();
+        let mut temporary_cleanups = Vec::new();
         for (argument, parameter) in arguments.iter().zip(parameters) {
             // An erased parameter position consumes its authored
             // argument as proof material only: no scalar operand and
@@ -222,9 +222,9 @@ impl Builder<'_, '_> {
                                 )?);
                             }
                             if let Some(discards) = discards {
-                                temporary_discards.push(checked_trees::CheckedScalarComputationTemporaryDiscard {
+                                temporary_cleanups.push(checked_trees::CheckedScalarComputationTemporaryCleanup {
                                     argument_ordinal: u32::try_from(structural_arguments.len()).ok()?,
-                                    affine_discards: self.plans.temporary_affine_discards.insert_many(discards),
+                                    actions: self.plans.temporary_cleanup_actions.insert_many(discards.into_iter().map(checked_trees::CheckedNormalCleanupAction::Discard)),
                                 });
                             }
                             // The retained root owns the complete carrier; the
@@ -244,12 +244,12 @@ impl Builder<'_, '_> {
             .plans
             .structural_arguments
             .insert_many(structural_arguments);
-        temporary_discards.reverse();
-        let temporary_discards = self
+        temporary_cleanups.reverse();
+        let temporary_cleanups = self
             .plans
-            .temporary_discards
-            .insert_many(temporary_discards);
+            .temporary_cleanups
+            .insert_many(temporary_cleanups);
 
-        Some((arguments, structural_arguments, temporary_discards))
+        Some((arguments, structural_arguments, temporary_cleanups))
     }
 }

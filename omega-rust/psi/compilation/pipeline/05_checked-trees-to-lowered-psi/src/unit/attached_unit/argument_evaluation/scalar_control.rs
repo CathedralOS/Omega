@@ -582,7 +582,11 @@ impl Evaluation {
                     erased_proof_formals: Vec::new(),
                     bindings: Vec::new(),
                     terminator: LoweredScalarBranchTerminator::Jump {
-                        cleanup_actions: cleanup.actions.clone(),
+                        cleanup_actions: cleanup
+                            .actions
+                            .iter()
+                            .map(crate::unit::unit_cleanup::PreparedNormalCleanupAction::from)
+                            .collect(),
                         structural_arguments: Vec::new(),
                         target: 0,
                         arguments: crate::scalar_graph::scalar_computations::parameters(

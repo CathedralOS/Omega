@@ -318,17 +318,17 @@ pub(super) fn continues_array_elements(
             return false;
         }
         if let Some(CheckedUnitEffectOperationPlan::ContinuationCleanup {
-            affine_discards, ..
+            cleanup_actions, ..
         }) = windows.peek()
         {
             let Some((moved, _)) = moved else {
                 return false;
             };
             if moved.multiplicity != Multiplicity::Affine
-                || !matches!(affine_discards.as_slice(), [discard]
-                if discard.path.is_empty()
-                    && discard.type_identity == moved.type_identity
-                    && discard.source
+                || !matches!(cleanup_actions.as_slice(), [discard]
+                if discard.path().is_empty()
+                    && discard.type_identity() == moved.type_identity
+                    && *discard.source()
                         == checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
                             binding_ordinal: moved.binding_ordinal,
                         })

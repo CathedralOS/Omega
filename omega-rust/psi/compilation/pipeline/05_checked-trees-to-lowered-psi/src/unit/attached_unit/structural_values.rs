@@ -9,7 +9,7 @@
 use super::CheckedTrees;
 mod emission;
 pub(crate) mod field_carrier;
-mod fixed_array;
+pub(crate) mod fixed_array;
 mod locals;
 pub(crate) mod record;
 pub(crate) mod structural_case;

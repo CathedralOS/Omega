@@ -101,7 +101,7 @@ pub use checked_trees::{
     CheckedScalarCaseConstruction, CheckedScalarCaseFieldPlan, CheckedScalarComputation,
     CheckedScalarComputationHandle, CheckedScalarComputationKind, CheckedScalarComputationPlans,
     CheckedScalarComputationRoot, CheckedScalarComputationStructuralArgument,
-    CheckedScalarComputationTemporaryDiscard, CheckedScalarDispatchArm,
+    CheckedScalarComputationTemporaryCleanup, CheckedScalarDispatchArm,
     CheckedScalarDispatchPattern, CheckedScalarExpression, CheckedScalarExpressionBindings,
     CheckedScalarExpressionPlans, CheckedScalarExpressionRole, CheckedScalarGraphPlans,
     CheckedScalarGuardedExit, CheckedScalarGuardedTail, CheckedScalarMachineGraph,

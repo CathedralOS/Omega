@@ -10,8 +10,7 @@ use crate::unit::attached_unit::argument_evaluation::{Evaluation, ScalarReturnCl
 use checked_trees::{
     CheckedComposedUnitControlStatePlan, CheckedNormalCleanupAction,
     CheckedScalarBranchDestination, CheckedUnitEffectOperationPlan,
-    CheckedUnitPartialAffineDiscardPlan, CheckedUnitStructuralArgumentSourcePlan,
-    FlowClaimJoinExit, FlowClaimJoinExitKind,
+    CheckedUnitStructuralArgumentSourcePlan, FlowClaimJoinExit, FlowClaimJoinExitKind,
 };
 use semantic_vocabulary::{PlaceId, StructuralTypeId};
 use terminal_psi::{
@@ -217,14 +216,14 @@ pub(super) fn coordinate(
 /// `result_custody::statement_discards`.
 fn discharged_in_body(
     state: &CheckedComposedUnitControlStatePlan,
-) -> Vec<&CheckedUnitPartialAffineDiscardPlan> {
+) -> Vec<&CheckedNormalCleanupAction> {
     state
         .operations
         .iter()
         .filter_map(|operation| match operation {
             CheckedUnitEffectOperationPlan::ContinuationCleanup {
-                affine_discards, ..
-            } => Some(affine_discards),
+                cleanup_actions, ..
+            } => Some(cleanup_actions),
             _ => None,
         })
         .flatten()
@@ -317,15 +316,9 @@ pub(super) fn for_exit(
         })
         .collect::<Vec<_>>();
     let discharged = discharged_in_body(state);
-    let rows = selected_exit.actions.iter().filter(|action| match action {
-        // A body continuation cleanup already committed this exact
-        // disposition, so the exit retains only the obligation whose last use
-        // is the exit itself. A nominal hook is never a body discard.
-        CheckedNormalCleanupAction::Discard(discard) => !discharged
-            .iter()
-            .any(|committed| committed.source == discard.source && committed.path == discard.path),
-        CheckedNormalCleanupAction::InvokeNominal(_) => true,
-    }).map(|action| {
+    let rows = selected_exit.actions.iter().filter(|action|
+        !discharged.iter().any(|committed| *committed == *action)
+    ).map(|action| {
         let (place, root_type) = source(action.source(), parameters, evaluation, operations)?;
         match action {
             CheckedNormalCleanupAction::Discard(discard) => {

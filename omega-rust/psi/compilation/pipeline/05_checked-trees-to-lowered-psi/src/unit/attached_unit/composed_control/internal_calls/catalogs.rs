@@ -142,7 +142,18 @@ pub(in crate::unit::attached_unit::composed_control) fn lower(
         shared.scalar_requirement_counts,
         shared.next_call_obligation,
     )
-    .with_boundaries(&shared.boundary_parameters);
+    .with_callable_namespace(
+        &shared.boundary_parameters,
+        shared
+            .signatures
+            .iter()
+            .filter_map(|signature| {
+                signature
+                    .cleanup_receiver
+                    .map(|receiver| (signature.source, receiver))
+            })
+            .collect(),
+    );
     Ok(super::super::catalogs::ComposedCatalogs {
         temporary_places: Vec::new(),
         result_places: Vec::new(),

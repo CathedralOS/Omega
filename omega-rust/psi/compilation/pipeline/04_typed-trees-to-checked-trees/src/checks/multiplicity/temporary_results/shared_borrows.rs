@@ -153,10 +153,8 @@ fn events(
             != program.normalized_type_identity(produced_type)
         || type_multiplicity(program, produced_type) != Multiplicity::Affine
         || type_carries_linear_obligation(program, produced_type)
-        || !validation::has_plain_owned_contents_with_represented_constraints(
-            program,
-            produced_type,
-        )
+        || !validation::has_borrow_free_contents(program, produced_type)
+        || !crate::flow::whole_cleanup_is_eligible(program, produced_type)
     {
         return None;
     }

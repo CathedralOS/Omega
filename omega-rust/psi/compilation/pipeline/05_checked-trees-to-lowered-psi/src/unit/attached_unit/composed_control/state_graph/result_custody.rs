@@ -246,10 +246,10 @@ fn retired_in_body(
         .iter()
         .flat_map(|operation| match operation {
             CheckedUnitEffectOperationPlan::ContinuationCleanup {
-                affine_discards, ..
-            } => affine_discards
+                cleanup_actions, ..
+            } => cleanup_actions
                 .iter()
-                .filter_map(|discard| match discard.source {
+                .filter_map(|discard| match *discard.source() {
                     checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
                         binding_ordinal,
                     } => Some(binding_ordinal),
@@ -366,12 +366,12 @@ pub(super) fn statement_discards(state: &CheckedComposedUnitControlStatePlan) ->
         .filter_map(|operation| match operation {
             CheckedUnitEffectOperationPlan::ContinuationCleanup {
                 boundary: checked_trees::CheckedUnitCleanupBoundary::StatementEntry { .. },
-                affine_discards,
-            } => Some(affine_discards),
+                cleanup_actions,
+            } => Some(cleanup_actions),
             _ => None,
         })
         .flatten()
-        .filter_map(|discard| match discard.source {
+        .filter_map(|discard| match *discard.source() {
             checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
                 binding_ordinal,
             } => Some(binding_ordinal),

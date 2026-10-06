@@ -140,7 +140,7 @@ impl super::Expansion<'_> {
             bindings: vec![crate::emission::operation_emission::LoweredScalarBinding::Expression(expression)],
             terminator: crate::scalar_graph::scalar_graph_lowering::prepared_graph::LoweredScalarBranchTerminator::Jump {
                 target, arguments,
-                cleanup_actions: discards.into_iter().map(terminal_psi::TerminalAffineCleanupAction::DiscardRoot).collect(),
+                cleanup_actions: discards.into_iter().map(crate::unit::unit_cleanup::PreparedNormalCleanupAction::discard_root).collect(),
                 erased_arguments: Vec::new(),
                 erased_proof_arguments: Vec::new(),
                 structural_arguments: Vec::new(),

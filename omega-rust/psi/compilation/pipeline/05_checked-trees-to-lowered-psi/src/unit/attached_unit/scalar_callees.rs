@@ -259,6 +259,7 @@ pub(super) fn prepare<'checked>(
 
 /// The closure namespaces and identities scalar callee emission reads.
 pub(super) struct EmissionCatalog<'a> {
+    pub(super) cleanup_receivers: &'a [(symbols::SymbolHandle, semantic_vocabulary::PlaceId)],
     pub(super) machine_ids: &'a [(symbols::SymbolHandle, MachineId)],
     pub(super) requirement_counts: &'a [(symbols::SymbolHandle, usize)],
     pub(super) boundary_parameters: &'a [BoundaryParameters],
@@ -344,6 +345,7 @@ pub(super) fn emit(
                     "scalar wrapper boundary is absent from the shared catalog",
                 ))?;
             let mut context = CallEmissionContext {
+                cleanup_receivers: &[],
                 machine_ids: catalog.machine_ids,
                 requirement_counts: catalog.requirement_counts,
                 boundaries: &[],
@@ -418,6 +420,7 @@ pub(super) fn emit(
                 identity_base,
                 catalog.machine_ids,
                 catalog.requirement_counts,
+                catalog.cleanup_receivers,
                 catalog.boundary_parameters,
                 &graph_parameters.1,
                 &views,

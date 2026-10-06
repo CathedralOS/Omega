@@ -550,7 +550,10 @@ impl GraphEmission<'_> {
                         arguments,
                         erased_arguments: Vec::new(),
                         erased_proof_arguments: Vec::new(),
-                        cleanup_actions,
+                        cleanup_actions: crate::unit::unit_cleanup::emit_prepared_cleanup_actions(
+                            &cleanup_actions,
+                            &mut self.call_emission,
+                        )?,
                     }
                 }
             }

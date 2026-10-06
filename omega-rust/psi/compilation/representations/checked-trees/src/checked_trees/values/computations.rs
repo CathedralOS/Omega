@@ -60,11 +60,12 @@ impl CheckedScalarComputationStructuralArgument {
 /// Rows follow reverse establishment order and select the call's structural
 /// operand roster, not a scalar position or a source binding ordinal.
 /// The exact maximal complement may be empty; the row still names the dying
-/// owner's normal continuation. A whole loan uses one empty-path discard.
+/// owner's normal continuation. Each action either discards a cleanup-free
+/// subtree or invokes its checked nominal hook; their order stays intact.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct CheckedScalarComputationTemporaryDiscard {
+pub struct CheckedScalarComputationTemporaryCleanup {
     pub argument_ordinal: u32,
-    pub affine_discards: HandleSpan<crate::CheckedUnitPartialAffineDiscardPlan>,
+    pub actions: HandleSpan<crate::CheckedNormalCleanupAction>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -73,8 +74,8 @@ pub struct CheckedScalarComputationPlans {
     pub nodes: Arena<CheckedScalarComputation>,
     pub operands: Arena<CheckedScalarComputationHandle>,
     pub structural_arguments: Arena<CheckedScalarComputationStructuralArgument>,
-    pub temporary_discards: Arena<CheckedScalarComputationTemporaryDiscard>,
-    pub temporary_affine_discards: Arena<crate::CheckedUnitPartialAffineDiscardPlan>,
+    pub temporary_cleanups: Arena<CheckedScalarComputationTemporaryCleanup>,
+    pub temporary_cleanup_actions: Arena<crate::CheckedNormalCleanupAction>,
     pub dispatch_arms: Arena<CheckedScalarDispatchArm>,
     pub case_fields: Arena<CheckedScalarCaseComputationField>,
 }
@@ -235,7 +236,7 @@ pub enum CheckedScalarComputationKind {
         structural_arguments: HandleSpan<CheckedScalarComputationStructuralArgument>,
         /// Checked owner retirement on this invocation's normal continuation.
         /// Borrowed access alone does not authorize an owned temporary's drop.
-        temporary_discards: HandleSpan<CheckedScalarComputationTemporaryDiscard>,
+        temporary_cleanups: HandleSpan<CheckedScalarComputationTemporaryCleanup>,
     },
     /// A boundary invocation owns the same ordered mixed operands and normal
     /// temporary retirement as a checked-body call. The target retains its
@@ -249,7 +250,7 @@ pub enum CheckedScalarComputationKind {
         /// Dense scalar operands in authored formal-position order.
         arguments: HandleSpan<CheckedScalarComputationHandle>,
         structural_arguments: HandleSpan<CheckedScalarComputationStructuralArgument>,
-        temporary_discards: HandleSpan<CheckedScalarComputationTemporaryDiscard>,
+        temporary_cleanups: HandleSpan<CheckedScalarComputationTemporaryCleanup>,
     },
     Select {
         /// Exact conditional occurrence, retained when an enclosing constant

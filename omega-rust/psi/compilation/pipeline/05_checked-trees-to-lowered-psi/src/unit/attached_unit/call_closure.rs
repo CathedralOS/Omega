@@ -44,6 +44,21 @@ pub(crate) fn checked_unit_call_closure_including(
                 closure.push(target);
             }
         }
+        for cleanup in machine
+            .operations()
+            .filter_map(|operation| match operation {
+                CheckedUnitEffectOperationPlan::ContinuationCleanup {
+                    cleanup_actions, ..
+                } => Some(cleanup_actions),
+                _ => None,
+            })
+            .flatten()
+            .filter_map(checked_trees::CheckedNormalCleanupAction::nominal)
+        {
+            if !closure.contains(&cleanup.cleanup_machine) {
+                closure.push(cleanup.cleanup_machine);
+            }
+        }
         // A nominal consuming machine's return edge invokes its exact
         // owner-attached `::drop` hook; the hook is roster work, not an
         // operation in the synthetic body, so it enters the closure here.

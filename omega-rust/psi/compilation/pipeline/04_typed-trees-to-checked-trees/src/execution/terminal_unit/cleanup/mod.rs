@@ -5,7 +5,12 @@
 //! diagnostics, `partial_affine_cleanup.rs` builds the partial affine
 //! cleanup machine and `cleanup_evidence.rs` recognizes content evidence,
 //! empty service reach and exact affine discards.
+//! `actions` selects the ordered live complement and hooks from contextual
+//! dispositions. `normal_edges` uses that selection at state exits;
+//! `temporary_actions` completes call-continuation rosters after the executable
+//! target catalog exists. Neither caller reconstructs a separate cleanup policy.
 
+mod actions;
 pub(super) mod anonymous;
 pub(crate) use anonymous::projected_temporary_residuals;
 mod cleanup_evidence;
@@ -13,6 +18,8 @@ mod nominal_requirements;
 pub(super) mod normal_edges;
 mod partial_affine_cleanup;
 mod residuals;
+pub(super) mod temporary_actions;
+pub(crate) use temporary_actions::finalize_scalar_actions;
 
 pub(crate) use cleanup_evidence::{
     machine_has_content_evidence, service_reach_is_empty, service_reach_plan_is_empty,
