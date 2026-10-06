@@ -24,7 +24,10 @@
 //!
 //! A plain entry's own `&mut` parameter is the invocation's place rather than
 //! a block parameter, so a shared successor of the entry already narrows it
-//! (`tests/shared_state_views.rs`) and keeps its shared declaration.
+//! and keeps its shared declaration. The entry's own shared parameters stay
+//! shared even when the entry is re-entered: the invocation arrival lends the
+//! signature's shared view
+//! (`tests/omega/pass/borrows/runtime_recursive_shared_array_read_exit`).
 use std::collections::BTreeSet;
 
 use super::super::super::LoweringError;
@@ -85,9 +88,13 @@ pub(super) fn promote_shared_handoffs(
     };
     let mut candidates = BTreeSet::new();
     for (position, state) in plan.states.iter().enumerate() {
-        // The plain entry's parameters are the invocation's own places, not
-        // block parameters an edge can rebind.
-        if !live.get(position).copied().unwrap_or(false) || (position == 0 && !entry_reentered) {
+        // The entry never qualifies. A plain entry's parameters are the
+        // invocation's own places, not block parameters an edge can rebind.
+        // A re-entered entry's loop header does rebind them, but the
+        // invocation is one of its arrivals and lends the signature's shared
+        // view; the feedback edges alone would otherwise promote a shared
+        // parameter that only ever forwards itself.
+        if !live.get(position).copied().unwrap_or(false) || position == 0 {
             continue;
         }
         for (index, parameter) in state.structural_parameters.iter().enumerate() {
