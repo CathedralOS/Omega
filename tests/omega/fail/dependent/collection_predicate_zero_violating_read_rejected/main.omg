@@ -1,6 +1,6 @@
-// FAIL CANARY. The collection predicate requires the first cell to be 1, so
-// exploring it at the zeroed cells returns `false`: `Grid` stays gated and
-// reading it before construction is refused.
+// The collection predicate rejects the zero image. Entry provisioning must
+// refuse it before lending Main to the source entry; a caller-established
+// incoming Main is valid independently of whether zero satisfies Grid.
 
 machine cells_valid(cells: &[i32; 4]) -> bool {
     transition cells[0] == 1 {

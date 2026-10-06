@@ -1,16 +1,13 @@
-// R2 rung 3 slice 2 (ch12's access gate): a GATED type's zeroed storage is
-// legal AS STORAGE, but reading it as the type before establishment
-// refuses -- zero health is not a Player.
-use omega::language::std::console;
-use omega::language::core::binding;
+// An entry bridge cannot lend zero storage as a valid Main: its Player
+// field needs establishment. An ordinary incoming &mut Main would already
+// satisfy the declared domains; qualification creates no storage exception.
 data Player
 where
     health >= 1,
 {
     health: i32;
 }
-data Main { console: Binding<Console>; champion: Player; }
+data Main { champion: Player; }
 machine Main::main(main: &mut Main) {
     let strength: i32 = main.champion.health;
-    main.console.exit_process(70);
 }

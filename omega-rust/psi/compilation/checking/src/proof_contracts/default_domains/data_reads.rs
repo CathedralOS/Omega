@@ -1,5 +1,13 @@
 //! Scanning statement and expression reads and validating each data read
 //! against established places and range gates.
+//!
+//! An input parameter arrives as a value, not a fresh zero representation.
+//! Nominal input checking proves its declared domains at the call boundary;
+//! entry provisioning independently refuses a non-ZII-valid context. Neither
+//! judgment depends on the callee's qualified name. Retain resolved parameter
+//! identity through a projected read so qualification cannot reclassify that
+//! incoming value as vacant storage. Subsequent invariant windows still police
+//! every affected read, independently of entry validity.
 
 use crate::proof_contracts::default_domains::place_queries::{
     data_definition_for_expression, is_data_rooted, place_spelling_covers, self_place_spelling,
@@ -15,10 +23,8 @@ use typed_trees::machine::Machine;
 use typed_trees::state::State;
 use typed_trees::statement::StatementNode;
 
-/// R2 rung 3 slice 2: refuse reads of an unestablished GATED place. V1
-/// scans value-position expressions for member chains whose self-rooted
-/// receiver names a tracked-or-fresh gated place; cross-state
-/// establishment is not trackable yet and refuses with direction.
+/// Scan value-position reads against construction establishment and open
+/// invariant windows, including facts transported from predecessor states.
 pub(crate) fn scan_statement_reads(
     program: &TypedTrees,
     machine: &Machine,
@@ -72,6 +78,7 @@ pub(crate) fn scan_statement_reads(
                     definition,
                     receiver[0].as_str(),
                     receiver[1].as_str(),
+                    call.receiver_root_symbol,
                     tracked,
                     entry_established,
                     call_established,
@@ -211,6 +218,7 @@ fn scan_expression_use(
                         place.definition,
                         &receiver_spelling,
                         members.last().expect("non-empty path").as_str(),
+                        path.head_symbol,
                         tracked,
                         entry_established,
                         call_established,
@@ -239,6 +247,7 @@ fn scan_expression_use(
                     definition,
                     "self",
                     members[1].as_str(),
+                    path.head_symbol,
                     tracked,
                     entry_established,
                     call_established,
@@ -265,6 +274,7 @@ fn scan_expression_use(
                         definition,
                         &receiver_spelling,
                         member.member.as_str(),
+                        expression_root_symbol(program, member.receiver),
                         tracked,
                         entry_established,
                         call_established,
@@ -360,6 +370,7 @@ fn scan_expression_use(
                     place.definition,
                     &receiver_spelling,
                     member.member.as_str(),
+                    expression_root_symbol(program, member.receiver),
                     tracked,
                     entry_established,
                     call_established,
@@ -546,6 +557,7 @@ fn validate_data_read(
     definition: &DataDefinition,
     receiver_spelling: &str,
     member_name: &str,
+    receiver_root: symbols::SymbolHandle,
     tracked: &[TrackedPlace<'_>],
     entry_established: &[String],
     call_established: &[String],
@@ -559,16 +571,22 @@ fn validate_data_read(
         .iter()
         .find(|place| place_spelling_covers(&place.spelling, receiver_spelling));
     let established = place.map(|place| place.established).unwrap_or_else(|| {
-        // Parameters and locals arrive domain-valid from their caller or
-        // initializer; machine-owned storage -- the record the data binding
-        // names -- starts as representation only and must earn establishment
-        // on every incoming path.
+        // Declared inputs are established by their caller, including an input
+        // whose type also qualifies the machine's name. Qualification grants
+        // no storage and cannot turn the same parameter into a zeroed owner.
+        // The existing construction walk still owns fresh storage; tracked
+        // mutations take precedence and retain their window checks below.
         entry_established
             .iter()
             .any(|established| established == receiver_spelling)
             || call_established
                 .iter()
                 .any(|established| established == receiver_spelling)
+            || (receiver_root.is_valid()
+                && program
+                    .state_parameters(state)
+                    .iter()
+                    .any(|parameter| parameter.symbol == receiver_root))
             || !is_data_rooted(data_binding, receiver_spelling)
     });
     let established = established
@@ -615,6 +633,24 @@ fn validate_data_read(
             definition.name.as_str()
         )));
     }
+}
+
+/// The resolved storage root of a projection, without rendering a place or
+/// treating a same-spelled local as the incoming parameter.
+fn expression_root_symbol(
+    program: &TypedTrees,
+    mut expression: ExpressionHandle,
+) -> symbols::SymbolHandle {
+    while expression.is_valid() {
+        expression = match program.expression_table.expression(expression) {
+            ExpressionNode::Name(path) => return path.head_symbol,
+            ExpressionNode::Member(member) => member.receiver,
+            ExpressionNode::Indexed(indexed) => indexed.collection,
+            ExpressionNode::Borrow(borrow) => borrow.target,
+            _ => break,
+        };
+    }
+    symbols::SymbolHandle::invalid()
 }
 
 /// A nested gated field gates its containing machine value, but establishing
