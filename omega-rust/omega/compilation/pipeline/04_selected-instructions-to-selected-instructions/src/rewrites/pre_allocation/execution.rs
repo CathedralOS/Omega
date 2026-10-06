@@ -304,9 +304,7 @@ fn copy_removal_pass(
                     continue;
                 }
                 evaluated += 1;
-                validation_steps = validation_steps
-                    .checked_add(audit_cost)
-                    .ok_or(OptimizedPreAllocationCustodyError::WorkOverflow)?;
+                validation_steps = charge(validation_steps, audit_cost)?;
                 match remove_selected_copy(
                     &current,
                     function_index,
@@ -315,9 +313,7 @@ fn copy_removal_pass(
                     budget,
                 ) {
                     Ok(removal) => {
-                        validation_steps = validation_steps
-                            .checked_add(audit_cost)
-                            .ok_or(OptimizedPreAllocationCustodyError::WorkOverflow)?;
+                        validation_steps = charge(validation_steps, audit_cost)?;
                         return Ok(PreAllocationPass::Applied {
                             transformation: ValidatedPreAllocationTransformation::CopyRemoval(
                                 removal,
@@ -368,9 +364,7 @@ fn extension_removal_pass(
                     continue;
                 }
                 evaluated += 1;
-                validation_steps = validation_steps
-                    .checked_add(audit_cost)
-                    .ok_or(OptimizedPreAllocationCustodyError::WorkOverflow)?;
+                validation_steps = charge(validation_steps, audit_cost)?;
                 match remove_selected_redundant_extension(
                     &current,
                     function_index,
@@ -379,9 +373,7 @@ fn extension_removal_pass(
                     budget,
                 ) {
                     Ok(removal) => {
-                        validation_steps = validation_steps
-                            .checked_add(audit_cost)
-                            .ok_or(OptimizedPreAllocationCustodyError::WorkOverflow)?;
+                        validation_steps = charge(validation_steps, audit_cost)?;
                         return Ok(PreAllocationPass::Applied {
                             transformation:
                                 ValidatedPreAllocationTransformation::RedundantExtension(removal),
@@ -435,9 +427,7 @@ fn address_fold_pass(
                     continue;
                 }
                 evaluated += 1;
-                validation_steps = validation_steps
-                    .checked_add(audit_cost)
-                    .ok_or(OptimizedPreAllocationCustodyError::WorkOverflow)?;
+                validation_steps = charge(validation_steps, audit_cost)?;
                 match fold_selected_address(
                     &current,
                     function_index,
@@ -446,9 +436,7 @@ fn address_fold_pass(
                     budget,
                 ) {
                     Ok(fold) => {
-                        validation_steps = validation_steps
-                            .checked_add(audit_cost)
-                            .ok_or(OptimizedPreAllocationCustodyError::WorkOverflow)?;
+                        validation_steps = charge(validation_steps, audit_cost)?;
                         return Ok(PreAllocationPass::Applied {
                             transformation: ValidatedPreAllocationTransformation::AddressFold(fold),
                             declined,
@@ -518,9 +506,7 @@ fn constant_boolean_pass(
                     flag_universe,
                 )
                 .map_err(OptimizedPreAllocationCustodyError::ConstantBoolean)?;
-                validation_steps = validation_steps
-                    .checked_add(audit_cost)
-                    .ok_or(OptimizedPreAllocationCustodyError::WorkOverflow)?;
+                validation_steps = charge(validation_steps, audit_cost)?;
                 match fold_selected_constant_boolean(
                     &current,
                     function_index,
@@ -530,9 +516,7 @@ fn constant_boolean_pass(
                     budget,
                 ) {
                     Ok(fold) => {
-                        validation_steps = validation_steps
-                            .checked_add(audit_cost)
-                            .ok_or(OptimizedPreAllocationCustodyError::WorkOverflow)?;
+                        validation_steps = charge(validation_steps, audit_cost)?;
                         return Ok(PreAllocationPass::Applied {
                             transformation: ValidatedPreAllocationTransformation::ConstantBoolean(
                                 fold,
@@ -604,9 +588,7 @@ fn constant_branch_pass(
                 flag_universe,
             )
             .map_err(OptimizedPreAllocationCustodyError::ConstantBranch)?;
-            validation_steps = validation_steps
-                .checked_add(audit_cost)
-                .ok_or(OptimizedPreAllocationCustodyError::WorkOverflow)?;
+            validation_steps = charge(validation_steps, audit_cost)?;
             match fold_selected_constant_branch(
                 &current,
                 function_index,
@@ -616,9 +598,7 @@ fn constant_branch_pass(
                 budget,
             ) {
                 Ok(fold) => {
-                    validation_steps = validation_steps
-                        .checked_add(audit_cost)
-                        .ok_or(OptimizedPreAllocationCustodyError::WorkOverflow)?;
+                    validation_steps = charge(validation_steps, audit_cost)?;
                     return Ok(PreAllocationPass::Applied {
                         transformation: ValidatedPreAllocationTransformation::ConstantBranch(fold),
                         declined,
@@ -672,9 +652,7 @@ fn dead_compare_pass(
                     published_flag_units(instruction),
                 )
                 .map_err(OptimizedPreAllocationCustodyError::DeadCompare)?;
-                validation_steps = validation_steps
-                    .checked_add(audit_cost)
-                    .ok_or(OptimizedPreAllocationCustodyError::WorkOverflow)?;
+                validation_steps = charge(validation_steps, audit_cost)?;
                 match remove_dead_compare(
                     &current,
                     function_index,
@@ -683,9 +661,7 @@ fn dead_compare_pass(
                     budget,
                 ) {
                     Ok(removal) => {
-                        validation_steps = validation_steps
-                            .checked_add(audit_cost)
-                            .ok_or(OptimizedPreAllocationCustodyError::WorkOverflow)?;
+                        validation_steps = charge(validation_steps, audit_cost)?;
                         return Ok(PreAllocationPass::Applied {
                             transformation: ValidatedPreAllocationTransformation::DeadCompare(
                                 removal,
@@ -745,9 +721,7 @@ fn redundant_compare_pass(
                     published_flag_units(instruction),
                 )
                 .map_err(OptimizedPreAllocationCustodyError::RedundantCompare)?;
-                validation_steps = validation_steps
-                    .checked_add(audit_cost)
-                    .ok_or(OptimizedPreAllocationCustodyError::WorkOverflow)?;
+                validation_steps = charge(validation_steps, audit_cost)?;
                 match remove_redundant_compare(
                     &current,
                     function_index,
@@ -756,9 +730,7 @@ fn redundant_compare_pass(
                     budget,
                 ) {
                     Ok(removal) => {
-                        validation_steps = validation_steps
-                            .checked_add(audit_cost)
-                            .ok_or(OptimizedPreAllocationCustodyError::WorkOverflow)?;
+                        validation_steps = charge(validation_steps, audit_cost)?;
                         return Ok(PreAllocationPass::Applied {
                             transformation: ValidatedPreAllocationTransformation::RedundantCompare(
                                 removal,
@@ -818,9 +790,7 @@ fn equivalent_compare_pass(
                     published_flag_units(instruction),
                 )
                 .map_err(OptimizedPreAllocationCustodyError::EquivalentCompare)?;
-                validation_steps = validation_steps
-                    .checked_add(audit_cost)
-                    .ok_or(OptimizedPreAllocationCustodyError::WorkOverflow)?;
+                validation_steps = charge(validation_steps, audit_cost)?;
                 match remove_equivalent_compare(
                     &current,
                     function_index,
@@ -829,9 +799,7 @@ fn equivalent_compare_pass(
                     budget,
                 ) {
                     Ok(removal) => {
-                        validation_steps = validation_steps
-                            .checked_add(audit_cost)
-                            .ok_or(OptimizedPreAllocationCustodyError::WorkOverflow)?;
+                        validation_steps = charge(validation_steps, audit_cost)?;
                         return Ok(PreAllocationPass::Applied {
                             transformation: ValidatedPreAllocationTransformation::EquivalentCompare(
                                 removal,
@@ -858,6 +826,13 @@ fn equivalent_compare_pass(
         declined,
         validation_steps,
     })
+}
+
+/// One measured-step charge against the per-pass budget: every
+/// accumulation shares the same overflow refusal.
+fn charge(left: u64, right: u64) -> Result<u64, OptimizedPreAllocationCustodyError> {
+    left.checked_add(right)
+        .ok_or(OptimizedPreAllocationCustodyError::WorkOverflow)
 }
 
 /// The measured work of one discovery pass. `rule_evaluations` counts the
@@ -887,26 +862,11 @@ pub(super) fn add_usage(
     right: OptimizationWorkUsage,
 ) -> Result<OptimizationWorkUsage, OptimizedPreAllocationCustodyError> {
     Ok(OptimizationWorkUsage {
-        rule_evaluations: left
-            .rule_evaluations
-            .checked_add(right.rule_evaluations)
-            .ok_or(OptimizedPreAllocationCustodyError::WorkOverflow)?,
-        candidates: left
-            .candidates
-            .checked_add(right.candidates)
-            .ok_or(OptimizedPreAllocationCustodyError::WorkOverflow)?,
-        validation_steps: left
-            .validation_steps
-            .checked_add(right.validation_steps)
-            .ok_or(OptimizedPreAllocationCustodyError::WorkOverflow)?,
-        commits: left
-            .commits
-            .checked_add(right.commits)
-            .ok_or(OptimizedPreAllocationCustodyError::WorkOverflow)?,
-        iterations: left
-            .iterations
-            .checked_add(right.iterations)
-            .ok_or(OptimizedPreAllocationCustodyError::WorkOverflow)?,
+        rule_evaluations: charge(left.rule_evaluations, right.rule_evaluations)?,
+        candidates: charge(left.candidates, right.candidates)?,
+        validation_steps: charge(left.validation_steps, right.validation_steps)?,
+        commits: charge(left.commits, right.commits)?,
+        iterations: charge(left.iterations, right.iterations)?,
     })
 }
 
@@ -1027,9 +987,7 @@ fn stored_load_forwarding_pass(
                     continue;
                 }
                 evaluated += 1;
-                validation_steps = validation_steps
-                    .checked_add(audit_cost)
-                    .ok_or(OptimizedPreAllocationCustodyError::WorkOverflow)?;
+                validation_steps = charge(validation_steps, audit_cost)?;
                 if validation_steps > budget.validation_steps() {
                     return Err(OptimizedPreAllocationCustodyError::StoredLoadForwarding(
                         StoredLoadForwardingError::WorkBudgetExceeded,
@@ -1133,9 +1091,7 @@ fn copied_call_operand_pass(
                         continue;
                     }
                     evaluated += 1;
-                    validation_steps = validation_steps
-                        .checked_add(audit_cost)
-                        .ok_or(OptimizedPreAllocationCustodyError::WorkOverflow)?;
+                    validation_steps = charge(validation_steps, audit_cost)?;
                     match fold_selected_copied_call_operand(
                         &current,
                         function_index,
@@ -1146,9 +1102,7 @@ fn copied_call_operand_pass(
                         budget,
                     ) {
                         Ok(reroute) => {
-                            validation_steps = validation_steps
-                                .checked_add(audit_cost)
-                                .ok_or(OptimizedPreAllocationCustodyError::WorkOverflow)?;
+                            validation_steps = charge(validation_steps, audit_cost)?;
                             return Ok(PreAllocationPass::Applied {
                                 transformation:
                                     ValidatedPreAllocationTransformation::CopiedCallOperand(reroute),
