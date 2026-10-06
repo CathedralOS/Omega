@@ -91,70 +91,78 @@ pub(crate) fn structural_call_arguments(
         let authored_place = {
             let expression = *explicit_arguments.get(explicit_index)?;
             explicit_index += 1;
-            if target_machine.supply_mode == MachineSupplyMode::CheckedBody
-                && let Some(literal) =
-                    byte_sequence_literal_argument(program, target.type_reference, expression)
-            {
-                output.push(literal);
-                continue;
-            }
-            // A shared range is one evaluated descriptor operation. Failure
-            // to establish its custody or endpoint evidence cannot fall back
-            // to presenting the source as a fixed byte-window loan.
-            if target_machine.supply_mode == MachineSupplyMode::CheckedBody
-                && validation::subslice_expression(program, expression).is_some()
-            {
-                let subslice = view_subslice::admit(
-                    program,
-                    facts,
-                    caller_machine,
-                    caller_state,
-                    caller_parameters,
-                    target.type_reference,
-                    expression,
-                    statement_index,
-                    checked_trees::CheckedSubsliceSite::CallArgument {
-                        call_ordinal: u32::try_from(call.call_ordinal).ok()?,
-                        argument_ordinal: u32::try_from(argument_ordinal).ok()?,
-                    },
-                )?;
-                output.push(subslice.argument());
-                continue;
-            }
-            // A fixed range projection must still name the builtin slice
-            // operation. Canonical storage identity alone does not authorize
-            // replacing an authored range operator with a byte-window loan.
-            if matches!(program.expression_table.expression(expression),
+            // A retained producer owns the actual, even when the authored
+            // expression also has an inline literal or range presentation.
+            // Shared temporaries retain their referent expression; exclusive
+            // borrows cannot be peeled into an owned result.
+            let owner_expression = crate::semantic::calls::shared_argument_referent(
+                program,
+                expression,
+                target.type_reference,
+            )
+            .map_or(expression, |(referent, _)| referent);
+            let produced = caller_structural_results
+                .iter()
+                .any(|(_, root)| *root == facts::PlaceRoot::Expression(owner_expression));
+            if produced {
+                crate::flow::CanonicalPlace {
+                    root: facts::PlaceRoot::Expression(owner_expression),
+                    segments: Vec::new(),
+                }
+            } else {
+                if target_machine.supply_mode == MachineSupplyMode::CheckedBody
+                    && let Some(literal) =
+                        byte_sequence_literal_argument(program, target.type_reference, expression)
+                {
+                    output.push(literal);
+                    continue;
+                }
+                // A shared range is one evaluated descriptor operation. Failure
+                // to establish its custody or endpoint evidence cannot fall back
+                // to presenting the source as a fixed byte-window loan.
+                if target_machine.supply_mode == MachineSupplyMode::CheckedBody
+                    && validation::subslice_expression(program, expression).is_some()
+                {
+                    let subslice = view_subslice::admit(
+                        program,
+                        facts,
+                        caller_machine,
+                        caller_state,
+                        caller_parameters,
+                        target.type_reference,
+                        expression,
+                        statement_index,
+                        checked_trees::CheckedSubsliceSite::CallArgument {
+                            call_ordinal: u32::try_from(call.call_ordinal).ok()?,
+                            argument_ordinal: u32::try_from(argument_ordinal).ok()?,
+                        },
+                    )?;
+                    output.push(subslice.argument());
+                    continue;
+                }
+                // A fixed range projection must still name the builtin slice
+                // operation. Canonical storage identity alone does not authorize
+                // replacing an authored range operator with a byte-window loan.
+                if matches!(program.expression_table.expression(expression),
                 crate::execution::terminal_unit::ExpressionNode::Indexed(indexed)
                     if matches!(program.expression_table.expression(indexed.index),
                         crate::execution::terminal_unit::ExpressionNode::Range(_)))
-                && !validation::has_builtin_subslice_meaning(
-                    program,
-                    caller_machine,
-                    Some(caller_state),
-                    expression,
-                )
-            {
-                return None;
-            }
-            // An evaluated operand owns its result even when its expression
-            // also names storage. In particular, a copied field must pass the
-            // fresh copy, not reinterpret its borrowed backing as an owned move.
-            caller_structural_results
-                .iter()
-                .find(|(_, root)| *root == facts::PlaceRoot::Expression(expression))
-                .map(|_| crate::flow::CanonicalPlace {
-                    root: facts::PlaceRoot::Expression(expression),
-                    segments: Vec::new(),
-                })
-                .or_else(|| {
-                    crate::flow::canonical_place_from_expression_in_state(
+                    && !validation::has_builtin_subslice_meaning(
                         program,
-                        caller_state.symbol,
-                        statement_index,
+                        caller_machine,
+                        Some(caller_state),
                         expression,
                     )
-                })?
+                {
+                    return None;
+                }
+                crate::flow::canonical_place_from_expression_in_state(
+                    program,
+                    caller_state.symbol,
+                    statement_index,
+                    expression,
+                )?
+            }
         };
         arm("call operation: structural arguments: alias and identity");
         let materialized = |root| {

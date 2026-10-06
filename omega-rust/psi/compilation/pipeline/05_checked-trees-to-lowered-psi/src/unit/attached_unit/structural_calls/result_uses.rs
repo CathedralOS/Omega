@@ -284,52 +284,29 @@ fn validate_argument_construction_consumer(
     else {
         return unsupported("argument operand is not its call's own construction");
     };
-    // A copied operand keeps the declaration's exact qualification roster.
-    // This source-side join does not establish those predicates: Terminal
-    // independently reconstructs them from the copied field's declaration.
-    // Fresh constructors remain on their existing qualification-free route.
-    let copied_qualifications = match &operations[source.operation_index] {
+    // Every established operand carries its declared value contract. The
+    // producer establishes those predicates; this consuming edge only joins
+    // the exact retained root and formal roster, independent of evaluator kind.
+    let declared_qualifications = match &operations[source.operation_index] {
         CheckedUnitEffectOperationPlan::EstablishStructuralValue { value, .. }
             if checked
                 .facts
                 .values
                 .structural_values
                 .nodes
-                .is_valid(*value)
-                && matches!(
-                    checked
-                        .facts
-                        .values
-                        .structural_values
-                        .nodes
-                        .get(*value)
-                        .kind,
-                    checked_trees::CheckedStructuralValueKind::CopiedStructuralPlace { .. }
-                ) =>
+                .is_valid(*value) =>
         {
-            let expression = checked
-                .facts
-                .values
-                .structural_values
-                .nodes
-                .get(*value)
-                .expression;
-            checked
-                .facts
-                .values
-                .structural_values
+            let values = &checked.facts.values.structural_values;
+            let expression = values.nodes.get(*value).expression;
+            values
                 .root_for_expression(state, source.result.statement_index, expression)
-                .filter(|root| root.machine == machine)
+                .filter(|root| root.machine == machine && root.root == *value)
                 .and_then(|root| {
-                    validation::structural_result_qualifications(
-                        &checked.typed,
-                        root.type_reference,
-                    )
-                    .ok()
+                    validation::structural_result_contract(&checked.typed, root.type_reference).ok()
                 })
-                .is_some_and(|qualifications| qualifications == parameter.qualifications)
+                .is_some_and(|contract| contract.qualifications == parameter.qualifications)
         }
-        _ => false,
+        _ => parameter.qualifications.is_empty(),
     };
     if source.operation_index >= consumer_index
         || !source.precedes_consumer(coordinate)
@@ -343,7 +320,7 @@ fn validate_argument_construction_consumer(
         )
         || parameter.access != argument.access
         || parameter.fused_service_erasure.is_some()
-        || (!parameter.qualifications.is_empty() && !copied_qualifications)
+        || !declared_qualifications
         || parameter.multiplicity
             != if argument.access == checked_trees::CheckedStructuralAccess::SharedBorrow {
                 Multiplicity::Unrestricted
@@ -1964,24 +1941,14 @@ fn validate_operand_producers(
                         &checked.typed,
                         construction_type,
                     )
-                // A copy preserves existing field predicates; unlike a
-                // constructor it does not mint them. Source replay still
-                // checks the exact path, type and unrestricted snapshot.
-                || (matches!(node.kind,
-                        checked_trees::CheckedStructuralValueKind::CopiedStructuralPlace { .. })
-                    && result.multiplicity == Multiplicity::Unrestricted
+                // Represented predicates belong to the declared value, not
+                // to a particular producer kind. Establishment remains with
+                // that producer; whole transfer does not mint memberships.
+                || (result.multiplicity == Multiplicity::Unrestricted
                     && crate::content_classes::plain_owned_with_represented_constraints(checked, construction_type));
-            // Source custody validates the complete qualified copied type.
-            // The result identity instead names its storage carrier, as it
-            // does for structural parameters; predicates remain separate.
-            let identity_type = if matches!(
-                node.kind,
-                checked_trees::CheckedStructuralValueKind::CopiedStructuralPlace { .. }
-            ) {
-                crate::unit::attached_unit::structural_carrier_type(checked, construction_type)?
-            } else {
-                construction_type
-            };
+            let contract =
+                validation::structural_result_contract(&checked.typed, construction_type)
+                    .map_err(LoweringError::Unsupported)?;
             if names_result != (binding_ordinal == Some(result.binding_ordinal)) {
                 return unsupported("constructed operand names another completed owner");
             }
@@ -1996,7 +1963,7 @@ fn validate_operand_producers(
                     || !whole_owned_contents
                     || checked
                         .typed
-                        .normalized_type_identity(identity_type)
+                        .normalized_type_identity(contract.carrier)
                         .into_string()
                         != result.type_identity)
             {

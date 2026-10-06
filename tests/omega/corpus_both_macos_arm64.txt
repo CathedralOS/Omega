@@ -23,6 +23,7 @@ pass/borrows/interleaved_parameter_field_replacement_exit built 8134ms exit:70 i
 pass/borrows/loop_descriptor_reformation_exit built 6344ms exit:70 interpreter-exit:70 interpreter:agrees @e477ee0294de+wt
 pass/borrows/nested_reference_crossings_exit built 7261ms exit:70 interpreter-exit:70 interpreter:agrees @faab7e6c1b7d+wt
 pass/borrows/nested_reference_leaf_projection_exit built 1615ms exit:70 interpreter-exit:70 interpreter:agrees @51b4aa0b5a70+wt
+pass/borrows/owned_byte_value_call_exit built 5365ms exit:70 interpreter-exit:70 interpreter:agrees @316799d840c3+wt
 pass/borrows/returned_record_case_field_store_exit built 3875ms exit:70 interpreter-exit:70 interpreter:agrees @e477ee0294de+wt
 pass/borrows/returned_record_field_read_exit built 1319ms exit:70 interpreter-exit:70 interpreter:agrees @2816825e8941
 pass/borrows/runtime_affine_local_case_return_exit built 5334ms exit:42 interpreter-exit:42 interpreter:agrees @f935383e1d47+wt

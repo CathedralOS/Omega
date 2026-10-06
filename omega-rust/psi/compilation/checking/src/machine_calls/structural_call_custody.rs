@@ -399,11 +399,19 @@ fn scalar_interval_bounds(
     None
 }
 
-/// Exact whole-result qualification row, excluding reference presentation.
-pub fn structural_result_qualifications(
+/// Declared value qualifications accompany a carrier; they are not part of
+/// its storage identity and are never inferred from incidental initializer facts.
+pub struct StructuralResultContract {
+    pub carrier: TypeReferenceHandle,
+    pub qualifications: Vec<SemanticDomainId>,
+}
+
+/// Split an owned value's declared contract without granting any qualification.
+/// Establishment and call checking remain the owners of those judgments.
+pub fn structural_result_contract(
     program: &TypedTrees,
     mut reference: TypeReferenceHandle,
-) -> Result<Vec<SemanticDomainId>, &'static str> {
+) -> Result<StructuralResultContract, &'static str> {
     let mut qualifications = Vec::new();
     while let TypeReferenceNode::Constrained {
         base_type,
@@ -433,7 +441,18 @@ pub fn structural_result_qualifications(
     }
     qualifications.sort_by_key(|domain| domain.0);
     qualifications.dedup();
-    Ok(qualifications)
+    Ok(StructuralResultContract {
+        carrier: reference,
+        qualifications,
+    })
+}
+
+/// Exact whole-result qualification row, excluding reference presentation.
+pub fn structural_result_qualifications(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+) -> Result<Vec<SemanticDomainId>, &'static str> {
+    Ok(structural_result_contract(program, reference)?.qualifications)
 }
 
 /// Every domain a view result's carrier declares. Constraints above the

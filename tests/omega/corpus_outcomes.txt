@@ -1601,8 +1601,7 @@ pass/borrows/mut_loan_local_write_through_exit checked 2616ms check-target:macos
 pass/borrows/mutable_record_loan_read_in_state_arms_exit checked 1231ms check-target:macos_arm64 @a9f373809a48+wt
 pass/borrows/nested_reference_crossings_exit checked 817ms check-target:macos_arm64 @21b65913386f+wt
 pass/borrows/nested_reference_leaf_projection_exit checked 1385ms check-target:macos_arm64 @51b4aa0b5a70+wt
-pass/borrows/owned_byte_value_call_exit rejected 1265ms check-target:macos_arm64 @8735cafb4cf
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: result custody accounting` (state 0)
+pass/borrows/owned_byte_value_call_exit checked 3786ms check-target:macos_arm64 @316799d840c3+wt
 pass/borrows/owned_nested_record_copy_exit checked 6433ms check-target:macos_arm64 @cfe60a3a242
 pass/borrows/projected_indexed_member_loan checked 1332ms check-target:macos_arm64 @2d8ed253669f
 pass/borrows/projected_local_member_loan checked 1270ms check-target:macos_arm64 @2d8ed253669f

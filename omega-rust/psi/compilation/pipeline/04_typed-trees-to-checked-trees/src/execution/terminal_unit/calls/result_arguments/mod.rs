@@ -396,66 +396,19 @@ pub(super) fn argument(
     if linear && (projected || access != CheckedStructuralAccess::Owned) {
         return None;
     }
-    if unrestricted && access == CheckedStructuralAccess::Owned {
-        // A completed nested byte call owns its qualified result. Scheduling
-        // it does not establish predicates: retain the exact declared roster
-        // required by this formal, then rejoin its source/ordinal below.
-        let completed_byte_operand = access == CheckedStructuralAccess::Owned
-            && !projected
-            && place.root == facts::PlaceRoot::Expression(expression)
-            && matches!(
-                program.expression_table.expression(expression),
-                ExpressionNode::Call(_)
-            )
-            && validation::bounded_byte_buffer_capacity(program, formal_type).is_some()
-            && validation::has_plain_owned_contents_with_represented_constraints(
-                program,
-                formal_type,
-            )
-            && super::super::control::structural_operands::result(
-                program,
-                facts,
-                machine,
-                expression,
-                &mut ShapeCollector::new(program),
-            )
-            .is_some_and(|completed| {
-                completed.type_identity == result.type_identity
-                    && validation::structural_result_qualifications(program, formal_type)
-                        .is_ok_and(|required| completed.qualifications == required)
-            });
-        let storage = parameter.type_reference;
-        if projected
-            || !(validation::is_closed_primitive_array_type(program, storage)
-                    || completed_byte_operand
-                    || validation::has_plain_owned_contents_with_numeric_constraints(
-                        program, storage,
-                    )
-                    // Owned snapshots retain the exact field declarations,
-                    // including bounded live-byte predicates. The producer and
-                    // source occurrence are rejoined below; this is not a loan
-                    // or permission to establish arbitrary constrained bytes.
-                    || (access == CheckedStructuralAccess::Owned
-                        && place.root == facts::PlaceRoot::Expression(expression)
-                        && facts.values.structural_values.root_for_expression(
-                            state, result.statement_index, expression,
-                        ).is_some_and(|root| {
-                            root.machine == machine
-                                && facts.values.structural_values.nodes.is_valid(root.root)
-                                && matches!(facts.values.structural_values.nodes.get(root.root).kind,
-                                    checked_trees::CheckedStructuralValueKind::CopiedStructuralPlace { .. })
-                                && program.normalized_type_identity(root.type_reference)
-                                    == program.normalized_type_identity(formal_type)
-                                && base_type_identity(program, root.type_reference, &[])
-                                    .is_some_and(|identity| identity == result.type_identity)
-                        })
-                        && validation::has_plain_owned_contents_with_represented_constraints(
-                            program, storage,
-                        ))
-            )
-        {
-            return None;
-        }
+    // A completed value's represented contents do not depend on whether a
+    // call, constructor or copy produced it. Exact source contracts rejoin
+    // below; this classification grants no predicates at the consuming call.
+    if unrestricted
+        && access == CheckedStructuralAccess::Owned
+        && (projected
+            || !(validation::is_closed_primitive_array_type(program, formal_type)
+                || validation::has_plain_owned_contents_with_represented_constraints(
+                    program,
+                    formal_type,
+                )))
+    {
+        return None;
     }
     let path = if projected {
         if !projected_borrow && !(allow_projection || owned_reference_record) {
@@ -677,7 +630,7 @@ pub(super) fn argument(
                                 program,
                                 local.type_reference,
                             )
-                                || validation::has_plain_owned_contents_with_numeric_constraints(
+                                || validation::has_plain_owned_contents_with_represented_constraints(
                                     program,
                                     local.type_reference,
                                 )))
@@ -686,7 +639,7 @@ pub(super) fn argument(
                 {
                     return None;
                 }
-                if linear
+                if (linear || (unrestricted && access == CheckedStructuralAccess::Owned))
                     && validation::structural_result_qualifications(program, local.type_reference)
                         .ok()?
                         != validation::structural_result_qualifications(program, referent).ok()?
@@ -729,25 +682,12 @@ pub(super) fn argument(
             {
                 return None;
             }
-            // Copy custody preserves the exact qualified source/formal type.
-            // Its result names storage, whose byte-carrier identity omits the
-            // qualification shell; comparing that shell to storage rejects
-            // an otherwise ordinary qualified byte-field snapshot.
-            let identity_matches = if matches!(
-                facts.values.structural_values.nodes.get(root.root).kind,
-                checked_trees::CheckedStructuralValueKind::CopiedStructuralPlace { .. }
-            ) {
-                program.normalized_type_identity(root.type_reference)
-                    == program.normalized_type_identity(referent)
-                    && base_type_identity(program, root.type_reference, &[])?
-                        == result.type_identity
-            } else {
-                program
-                    .normalized_type_identity(root.type_reference)
-                    .as_str()
-                    == result.type_identity
-            };
-            if !identity_matches {
+            // The already matched qualified source/formal type retains its
+            // declared predicates. The result separately names the unqualified
+            // storage carrier shared by every structural producer.
+            let contract =
+                validation::structural_result_contract(program, root.type_reference).ok()?;
+            if program.normalized_type_identity(contract.carrier).as_str() != result.type_identity {
                 return None;
             }
         }
@@ -789,16 +729,20 @@ pub(super) fn argument(
             let ExpressionNode::Call(authored) = program.expression_table.expression(source) else {
                 return None;
             };
+            let completed = super::super::control::structural_operands::result(
+                program,
+                facts,
+                machine,
+                source,
+                &mut ShapeCollector::new(program),
+            )?;
             if crate::flow::call_target_symbol(program, authored) != producer.target_symbol
-                || super::super::control::structural_operands::result(
-                    program,
-                    facts,
-                    machine,
-                    source,
-                    &mut ShapeCollector::new(program),
-                )?
-                .type_identity
-                    != result.type_identity
+                || completed.type_identity != result.type_identity
+                || (access == CheckedStructuralAccess::Owned
+                    && completed.qualifications
+                        != validation::structural_result_contract(program, referent)
+                            .ok()?
+                            .qualifications)
             {
                 return None;
             }

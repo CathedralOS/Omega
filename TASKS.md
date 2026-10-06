@@ -2365,9 +2365,9 @@ crash and native exit behavior.
 
 
 - **CONSTRUCTED-ARGUMENT-SCHEDULE-REGRESSED-NINE.** (new-scope)
-  Six customers still need the shared constructed-argument schedule completed:
+  Five customers still need the shared constructed-argument schedule completed:
   `pass/borrows/{branch_selected_record_composed_receiver_exit,
-  owned_byte_value_call_exit, projected_reference_record_argument_exit,
+  projected_reference_record_argument_exit,
   projected_reference_record_residual_exit}` and
   `pass/capabilities/{sysv_small_aggregate_import_compile,
   win64_pointer_length_vs_descriptor_compile}`. They lose a Unit plan at
@@ -2385,8 +2385,11 @@ crash and native exit behavior.
   continuation control
   `pass/control_flow/runtime_boolean_equality_copied_record_instances_exit` and
   `pass/slices/runtime_view_index_copied_argument_exit`.
+  Owned qualified byte literals and completed values now consume their retained
+  producer under the same carrier and declared-qualification contract:
+  `pass/borrows/owned_byte_value_call_exit` runs native/interpreted exit 70.
   Constructor-domain, affine-transfer and live-loan rejection controls remain
-  required. Acceptance: the six remaining fixtures reach `checked` and their
+  required. Acceptance: the five remaining fixtures reach `checked` and their
   authored native outcomes; remove each recovered `regressed-from:` token
   through an observed corpus result, never a re-pin of the refusal.
 
