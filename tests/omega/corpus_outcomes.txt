@@ -1901,7 +1901,8 @@ pass/calls/runtime_nested_receiver_guard_exit checked 803ms check-target:macos_a
 pass/calls/runtime_nested_value_call_guard_exit checked 7580ms check-target:macos_arm64 @2b2f058c0e38+wt
 pass/calls/runtime_option_value_call_exit checked 1531ms check-target:macos_arm64 @2d8ed253669f
 pass/calls/runtime_owned_case_temporaries_exhaustive_dispatch_exit checked 1299ms check-target:macos_arm64 @2d8ed253669f
-pass/calls/runtime_owned_parameter_primitive_borrow_exit checked 524ms check-target:macos_arm64 @51b4aa0b5a70+wt
+pass/calls/runtime_owned_parameter_primitive_borrow_exit rejected 5905ms check-target:macos_arm64 @faca6c5c7f5
+	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "main", reason: "machine has no source-independent checked scalar control plan (terminator)", omission: Some("`main` has no admitted body (local construction stopped at state graph: result custody accounting, state 0)") })
 pass/calls/runtime_param_receiver_second_instance_exit checked 1272ms check-target:macos_arm64 @2d8ed253669f
 pass/calls/runtime_qualified_tail_recursion_exit checked 1273ms check-target:macos_arm64 @2d8ed253669f
 pass/calls/runtime_qualified_terminal_result_exit checked 418ms check-target:macos_arm64 @4655ab8ed512
@@ -2009,7 +2010,9 @@ pass/collections/runtime_declared_range_index_write_exit checked 1216ms check-ta
 pass/collections/runtime_double_indexed_rmw_exit rejected 3208ms check-target:macos_arm64 @74a22511782
 	terminal-artifact production failed: Lowering(InvalidTerminalModule(InvalidStructuralSuccessorArgument { edge: EdgeId(5), place: PlaceId(10) }))
 pass/collections/runtime_dutch_flag_partition_exit checked 3118ms check-target:macos_arm64 @2d8ed253669f
+pass/collections/runtime_fixed_array_captured_selector_store_exit checked 2775ms check-target:macos_arm64 @faca6c5c7f5
 pass/collections/runtime_fixed_array_projected_write_exit checked 15110ms check-target:macos_arm64 @3ff24ec6504a+wt
+pass/collections/runtime_fixed_array_selector_call_store_exit checked 2807ms check-target:macos_arm64 @faca6c5c7f5
 pass/collections/runtime_fixed_vec_round_trip_exit checked 1036ms check-target:macos_arm64 @dab35460b4c5+wt
 pass/collections/runtime_frame_indexed_param_read_exit checked 1240ms check-target:macos_arm64 @2d8ed253669f
 pass/collections/runtime_hoisted_index_write_exit checked 1411ms check-target:macos_arm64 @2d8ed253669f
@@ -2062,7 +2065,8 @@ pass/contracts/named_tail_return_contract checked 1210ms check-target:macos_arm6
 pass/contracts/proof_fact_indexed_domain_application checked 293ms @2d8ed253669f
 pass/contracts/requires_narrow_ceiling_unproven checked 3054ms check-target:macos_arm64 @527c7c316c6f+wt
 pass/contracts/requires_u8_ceiling_below_carrier checked 3035ms check-target:macos_arm64 @527c7c316c6f+wt
-pass/control_flow/affine_call_result_state_transfer_exit checked 681ms check-target:macos_arm64 @486f93bb3d39+wt
+pass/control_flow/affine_call_result_state_transfer_exit rejected 3017ms check-target:macos_arm64 @faca6c5c7f5
+	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "main", reason: "attached Unit closure is missing a checked transitive machine plan", omission: Some("`main` has no admitted body (local construction stopped at state graph: result custody accounting, state 0)") })
 pass/control_flow/affine_record_state_cycle_exit checked 704ms check-target:macos_arm64 @7f2bd2604102
 pass/control_flow/arm_pattern_rest_optout_exit checked 3464ms check-target:macos_arm64 @b5d8c6882a8
 pass/control_flow/borrowed_state_argument checked 3409ms check-target:macos_arm64 @527c7c316c6f+wt
@@ -2243,6 +2247,7 @@ pass/drops/erased_record_initializer_exit checked 862ms check-target:macos_arm64
 pass/drops/runtime_local_nominal_cleanup_exit checked 3992ms check-target:macos_arm64 @74a22511782
 pass/drops/runtime_local_nominal_return_exit checked 3810ms check-target:macos_arm64 @74a22511782
 pass/drops/runtime_nominal_successor_argument_order_exit checked 3687ms check-target:macos_arm64 @74a22511782
+pass/drops/runtime_scalar_exit_nominal_cleanup_exit checked 6918ms check-target:macos_arm64 @faca6c5c7f5
 pass/drops/transfer_cleanup_into_state checked 259ms @0aa983f6af47+wt
 pass/dungeon/runtime_ordered_room_dispatch_exit checked 1484ms check-target:macos_arm64 @2d8ed253669f
 pass/dungeon/runtime_threaded_mut_arg_interrupt_soak_exit checked 1332ms check-target:macos_arm64 @2d8ed253669f
@@ -2289,7 +2294,8 @@ pass/expressions/owned_match_record_values checked 171ms @1fa864024c44+wt
 pass/expressions/owned_match_values checked 282ms @2d8ed253669f
 pass/expressions/qualified_call_result_argument checked 297ms @2d8ed253669f
 pass/expressions/runtime_flat_boolean_logic_exit checked 1517ms check-target:macos_arm64 @2d8ed253669f
-pass/expressions/runtime_float_record_field_reads_exit checked 4674ms check-target:macos_arm64 @2d8ed253669f
+pass/expressions/runtime_float_record_field_reads_exit rejected 3937ms check-target:macos_arm64 @faca6c5c7f5
+	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: result custody accounting` (state 0)
 pass/expressions/runtime_indexed_float_record_fields_exit checked 5021ms check-target:macos_arm64 @2d8ed253669f
 pass/expressions/runtime_nested_record_field_call_exit checked 684ms check-target:macos_arm64 @91c11fd524d0
 pass/expressions/runtime_nested_record_field_reads_exit checked 5883ms check-target:macos_arm64 @cfe60a3a242
@@ -2952,7 +2958,8 @@ pass/text/runtime_local_struct_string_field_concat_exit rejected 1325ms check-ta
 pass/text/runtime_mixed_byte_field_equality_exit checked 2124ms check-target:macos_arm64 @11b293f8af86+wt
 pass/text/runtime_mutable_string_parameter_concat_write_line rejected 3696ms check-target:macos_arm64 @c773c4ad3c3
 	terminal-artifact production failed: Lowering(InvalidTerminalModule(InvalidReferenceCustody { machine: MachineId(1), reason: "borrowed reference source changes its incoming type" }))
-pass/text/runtime_number_to_decimal_exit checked 2084ms check-target:macos_arm64 @9e503d2a760d+wt
+pass/text/runtime_number_to_decimal_exit rejected 1437ms check-target:macos_arm64 @faca6c5c7f5
+	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: call: flow call` (state 7, statement 1)
 pass/text/runtime_owned_string_byte_view_exit checked 1422ms check-target:macos_arm64 @73da00dde06d+wt
 pass/text/runtime_param_domain_forward_exit checked 671ms check-target:macos_arm64 @7f80f93fd214+wt
 pass/text/runtime_param_domain_literal_read_exit checked 679ms check-target:macos_arm64 @7f80f93fd214+wt
