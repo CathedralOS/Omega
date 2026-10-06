@@ -234,94 +234,46 @@ pub(super) fn validate_abstract(
     environment: &ValueEnvironment,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    fn walk(
-        program: &TypedTrees,
-        expression: ExpressionHandle,
-        owner: &str,
-        bindings: AbstractSpecificationBindings<'_>,
-        environment: &ValueEnvironment,
-        diagnostics: &mut Vec<Diagnostic>,
-        visited: &mut Vec<ExpressionHandle>,
-    ) {
-        if !expression.is_valid() || visited.contains(&expression) {
+    let mut check = |node: &ExpressionNode| {
+        let ExpressionNode::Binary(binary) = node else {
+            return;
+        };
+        if !matches!(
+            binary.operator,
+            BinaryOperator::Divide | BinaryOperator::Modulo
+        ) {
             return;
         }
-        visited.push(expression);
-        let recurse = |child, diagnostics: &mut Vec<Diagnostic>, visited: &mut Vec<_>| {
-            walk(
-                program,
-                child,
-                owner,
-                bindings,
-                environment,
-                diagnostics,
-                visited,
-            );
+        let left_operand = direct_abstract_operand(program, bindings, binary.left);
+        let right_operand = direct_abstract_operand(program, bindings, binary.right);
+        let selected = match (left_operand, right_operand) {
+            (Some((_, ArithmeticDomain::Exact)), Some((_, right))) => Some(right),
+            (Some((_, left)), Some(_)) => Some(left),
+            (Some((_, domain)), None) | (None, Some((_, domain))) => Some(domain),
+            (None, None) => None,
         };
-        match program.expression_table.expression(expression) {
-            ExpressionNode::Binary(binary) => {
-                recurse(binary.left, diagnostics, visited);
-                recurse(binary.right, diagnostics, visited);
-                if !matches!(
-                    binary.operator,
-                    BinaryOperator::Divide | BinaryOperator::Modulo
-                ) {
-                    return;
-                }
-                let left_operand = direct_abstract_operand(program, bindings, binary.left);
-                let right_operand = direct_abstract_operand(program, bindings, binary.right);
-                let selected = match (left_operand, right_operand) {
-                    (Some((_, ArithmeticDomain::Exact)), Some((_, right))) => Some(right),
-                    (Some((_, left)), Some(_)) => Some(left),
-                    (Some((_, domain)), None) | (None, Some((_, domain))) => Some(domain),
-                    (None, None) => None,
-                };
-                if selected.unwrap_or(ArithmeticDomain::Exact) != ArithmeticDomain::Exact {
-                    return;
-                }
-                let Some(primitive) = left_operand
-                    .or(right_operand)
-                    .map(|(primitive, _)| primitive)
-                    .filter(|primitive| fixed_integer(*primitive))
-                else {
-                    return;
-                };
-                _ = report_partial(
-                    binary.operator,
-                    ArithmeticDomain::Exact,
-                    ProvenDefinedness::from_intervals(
-                        primitive,
-                        abstract_specification_interval(
-                            program,
-                            bindings,
-                            environment,
-                            binary.left,
-                        ),
-                        abstract_specification_interval(
-                            program,
-                            bindings,
-                            environment,
-                            binary.right,
-                        ),
-                    ),
-                    owner,
-                    false,
-                    diagnostics,
-                );
-            }
-            other => crate::expression_traversal::children(program, other, |child| {
-                recurse(child, diagnostics, visited);
-            }),
+        if selected.unwrap_or(ArithmeticDomain::Exact) != ArithmeticDomain::Exact {
+            return;
         }
-    }
-
-    walk(
-        program,
-        expression,
-        owner,
-        bindings,
-        environment,
-        diagnostics,
-        &mut Vec::new(),
-    );
+        let Some(primitive) = left_operand
+            .or(right_operand)
+            .map(|(primitive, _)| primitive)
+            .filter(|primitive| fixed_integer(*primitive))
+        else {
+            return;
+        };
+        _ = report_partial(
+            binary.operator,
+            ArithmeticDomain::Exact,
+            ProvenDefinedness::from_intervals(
+                primitive,
+                abstract_specification_interval(program, bindings, environment, binary.left),
+                abstract_specification_interval(program, bindings, environment, binary.right),
+            ),
+            owner,
+            false,
+            diagnostics,
+        );
+    };
+    crate::expression_traversal::visit_post_order(program, expression, &mut Vec::new(), &mut check);
 }
