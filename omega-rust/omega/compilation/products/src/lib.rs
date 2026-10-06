@@ -23,10 +23,9 @@
 //!
 //! `package_compilation` retains and publishes completed build files;
 //! the Terminal entry stage retains the portable artifact and native proposal;
-//! production and batch manifests commit their exact subjects. `pcc` describes
-//! published proof pairs and dispatches receiver checking, independently of
-//! producer publication. Native evidence and image receipt construction remain
-//! with `native_artifact`; filesystem mechanics remain with `platform_custody`.
+//! production and batch manifests commit their exact subjects. Native evidence
+//! and image receipt construction remain with `native_artifact`; filesystem
+//! mechanics remain with `platform_custody`.
 
 mod checked_compilation;
 mod compilation_products;

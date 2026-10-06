@@ -12,7 +12,6 @@
 //! `entry_receiver.rs` for executable receiver admission before construction,
 //! `native_artifact.rs` for artifact construction and replay,
 //! and its `emission.rs` for requested-image dispatch and complete native custody,
-//! `proof.rs` for standalone native proof construction and verification,
 //! `publication.rs` for executable publication evidence and receipt replay,
 //! `package_publication.rs` for macOS bundle assembly and package receipts,
 //! `callable_entry.rs` for validated callable-entry staging, or

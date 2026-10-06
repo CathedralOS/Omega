@@ -16,10 +16,9 @@
 //!       MacOS/window-app
 //! ```
 //!
-//! plus the requested Psi artifact/companion pair beside the executable when
-//! the normalized Build asked for it. The plist uses package type `APPL` with
-//! fixed encoding, key order, and escaping — no timestamps or ambient facts —
-//! so repeated publication is byte-identical.
+//! The plist uses package type `APPL` with fixed encoding, key order, and
+//! escaping — no timestamps or ambient facts — so repeated publication is
+//! byte-identical.
 //!
 //! Assembly stages the whole tree under `.{name}.app.{pid}.tmp` beside the
 //! destination, replays every staged byte, validates the exact shape, then
@@ -102,11 +101,11 @@ impl PackagePublicationComponent {
 
 /// Immutable custody for one compiler-published macOS application package.
 ///
-/// The receipt covers the exact executable/plist/companion bytes and the
-/// directory shape they were installed under. It is compiler artifact
-/// evidence only — package consistency is not a distribution signature,
-/// notarization, or authenticity claim. The replayed evidence digest and
-/// executable member joins detect changed fields.
+/// The receipt covers the exact executable and plist bytes and the directory
+/// shape they were installed under. It is compiler artifact evidence only —
+/// package consistency is not a distribution signature, notarization, or
+/// authenticity claim. The replayed evidence digest and executable member
+/// joins detect changed fields.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NativePackagePublicationReceipt {
     package_root: PathBuf,
@@ -122,7 +121,7 @@ pub struct NativePackagePublicationReceipt {
     /// report-level join.
     executable_byte_count: usize,
     /// Ordered installed members: `Contents/Info.plist` first, then
-    /// `Contents/MacOS/<name>`, then each requested proof companion.
+    /// `Contents/MacOS/<name>`.
     components: Vec<PackagePublicationComponent>,
     package_evidence_digest: NativePackageEvidenceDigest,
 }
@@ -295,18 +294,15 @@ fn installed_package_files(root: &Path) -> Result<Vec<PathBuf>, String> {
 
 /// Stage, validate, install, and replay one complete `.app` package.
 ///
-/// `companions` are extra `Contents/MacOS/<name><suffix>` members (the
-/// requested Psi artifact/`.proof` pair); each suffix already includes its
-/// leading dot. Every member is staged and replayed before the destination
-/// is touched; a post-install replay failure removes the just-installed
-/// package so nothing certified-looking survives.
+/// Every member is staged and replayed before the destination is touched; a
+/// post-install replay failure removes the just-installed package so nothing
+/// certified-looking survives.
 pub fn publish_macos_application_package(
     build_dir: &Path,
     application_name: &str,
     application_identifier: &target::ApplicationIdentifier,
     executable_bytes: &[u8],
     executable_container_digest: ExecutableContainerDigest,
-    companions: &[(String, Vec<u8>)],
 ) -> Result<NativePackagePublicationReceipt, String> {
     if crate::publication::executable_container_digest(executable_bytes)
         != executable_container_digest
@@ -325,15 +321,6 @@ pub fn publish_macos_application_package(
     {
         return Err("macOS package publication requires a local ASCII application name".to_owned());
     }
-    if companions.iter().any(|(suffix, _)| {
-        !suffix.starts_with('.')
-            || suffix.len() == 1
-            || !suffix
-                .bytes()
-                .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-'))
-    }) {
-        return Err("macOS package companion suffix must be a local dotted suffix".to_owned());
-    }
     // The signed executable must already carry the authored identity before
     // any package byte becomes visible; publication cannot re-sign it.
     let encoded_identifier =
@@ -348,18 +335,10 @@ pub fn publish_macos_application_package(
     }
     let plist = info_plist_bytes(application_name, application_identifier.as_str());
     let executable_leaf = Path::new("Contents").join("MacOS").join(application_name);
-    let mut members: Vec<(PathBuf, Vec<u8>)> = vec![
+    let members: Vec<(PathBuf, Vec<u8>)> = vec![
         (Path::new("Contents").join("Info.plist"), plist),
         (executable_leaf.clone(), executable_bytes.to_vec()),
     ];
-    for (suffix, bytes) in companions {
-        members.push((
-            Path::new("Contents")
-                .join("MacOS")
-                .join(format!("{application_name}{suffix}")),
-            bytes.clone(),
-        ));
-    }
     let mut expected_shape: Vec<PathBuf> = members
         .iter()
         .map(|(relative, _)| relative.clone())

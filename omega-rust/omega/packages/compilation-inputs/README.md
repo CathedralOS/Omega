@@ -32,7 +32,7 @@ Build-value protocol: admit the exact vocabulary, initialize the activation's
 facets, and decode normalized settings after interpretation. `initial` owns
 private facet construction, `vocabulary` the exact declaration checks,
 `optimization` counter admission/decoding, and `configuration` the resulting
-application, deployment, optimization, PCC and privileged-service settings.
+application, deployment, optimization and privileged-service settings.
 The compiler retains this result whole; provider/root/trust receipts remain
 separate, and interpreter execution does not move into this package.
 

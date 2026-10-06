@@ -63,21 +63,6 @@ pub(super) fn initial_value(
             },
         ));
     }
-    // Optional proof-product requests (wiki/spec/proofs/publication.md). Both
-    // flags are independent and false until the root build machine assigns
-    // them; dependency metadata cannot enable or override the selection.
-    if has_exact_toolchain_build_facet(typed, "Pcc") {
-        build_fields.push((
-            "pcc".to_owned(),
-            BuildTimeValue::Struct {
-                type_name: "Pcc".to_owned(),
-                fields: vec![
-                    ("psi".to_owned(), BuildTimeValue::Bool(false)),
-                    ("native".to_owned(), BuildTimeValue::Bool(false)),
-                ],
-            },
-        ));
-    }
     // Granular privileged-service grants (wiki/spec/build/permissions.md
     // #privileged-services): every flag is false until the root build machine
     // assigns it, so a hosted image admits no mediated privileged class.

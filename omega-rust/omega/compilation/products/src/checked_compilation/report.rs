@@ -5,8 +5,7 @@
 //! back is the only way the Terminal and native stage sequences turn their
 //! produced artifact into a report. Check and artifact-only builds finish
 //! inside the admission itself. Nothing downstream re-admits the stop or
-//! re-decorates the report: application metadata, proof-product context,
-//! completed build outputs and
+//! re-decorates the report: application metadata, completed build outputs and
 //! timing snapshot are all captured here, before the stage sequence consumes
 //! the checked record.
 
@@ -162,7 +161,7 @@ impl CompileReportSettlement {
 
     /// Rejoin companions only after the admitted primary product succeeds.
     /// Existing report constructors and attachment replay still validate all
-    /// artifact, rollback, proof-product and build-observation custody.
+    /// artifact, rollback and build-observation custody.
     pub fn finish(self, report: CompileReport) -> Result<CompileReport, Vec<Diagnostic>> {
         if report.output_kind() != self.expected_kind {
             return Err(diagnostics(

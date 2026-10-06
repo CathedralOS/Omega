@@ -713,7 +713,7 @@ mod tests {
     /// identity alone — see
     /// `placed_data_region_origin_and_symbol_stay_identity_bound`. The
     /// record has no wire codec in this crate — the row codec lives in the
-    /// native publication's `NativePlacedImageEvidence` — so the two stale
+    /// retained native publication evidence — so the two stale
     /// retained seals and the replayed side of the byte join stay authored
     /// explicitly below rather than as one-field legs.
     #[test]

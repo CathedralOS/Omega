@@ -100,7 +100,7 @@
 //! `f6b3e65350` (2026-08-28). The inventory replay below that lane is NOT
 //! inert: `validate_placed_executable_region_inventory` runs in production
 //! from image-emission's `validate_terminal_image_with_import_count` and the
-//! PCC native-evidence receiver's `NativePlacedImageEvidence::replay_against`,
+//! retained-image evidence consumers,
 //! and the PE and Mach-O emitters attach thunk footprints through
 //! `validate_import_thunk_footprints`, which placement then carries into
 //! `PlacedExecutableRegion.footprint`. Only the compiler-entry footprint

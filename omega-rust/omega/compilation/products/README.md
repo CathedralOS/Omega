@@ -64,12 +64,6 @@ transitions validate artifact, rollback, application-package and build-observati
 joins. Compiler and package-admission routes retain this same type; reports do
 not manufacture lower-level evidence or grant receiving authority.
 
-Proof-product eligibility is shared by early request admission and direct report
-context attachment. Check-only, artifact-only and object products cannot carry
-proof requests; Terminal products can request only Psi proofs. Publication freezes
-the proof context. A package's pending native requests stay with its native
-production flow, not on the intermediate Terminal report.
-
 `CompileReport::verify_native_source_metadata` checks a retained native result
 against the originating compilation's source count, target profile, native
 target and application metadata. Compiler orchestration supplies those facts;
@@ -79,12 +73,9 @@ introducing another receipt carrier.
 [publication.rs](src/publication.rs) is the installation entrance. It refuses
 check-only, repeated or inconsistent publication before dispatching to
 `publication/native.rs` or `publication/terminal.rs`, then publishes completed
-build companions. Proof pairs are prepared and verified before installing bytes.
+build companions.
 Platform custody owns file staging; native artifacts own executable/package
 receipts; package compilation owns completed-output installation.
-
-[pcc.rs](src/pcc.rs) records published pair sizes and routes receiver checking
-to the Psi or native checker according to the decoded envelope.
 
 The package depends on those evidence/product owners, not `compiler`,
 `build-evaluation`, the CLI or the package-manager application. Putting this

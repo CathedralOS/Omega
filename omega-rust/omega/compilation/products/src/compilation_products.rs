@@ -3,7 +3,7 @@
 //! Filesystem orchestration belongs to `publication`, not this model.
 //!
 //! `CompileReport` is a common shell — root, source count, build-output
-//! companions, proof-product requests and timings — around
+//! companions and timings — around
 //! one `CompileProduct`. Payload-owning variants carry the evidence only that
 //! product can hold, so custody checks are joins over present fields rather
 //! than negative-space assertions that unrelated `Option`s stayed `None`.
@@ -190,13 +190,6 @@ pub struct CompileReport {
     wrote_output: bool,
     /// Canonical package-source/build/target/artifact authority for a
     /// package-aware production. Standalone probes carry no such manifest.
-    /// The normalized Build's two independent optional proof-product
-    /// requests. Both are off by default; neither grants receiving authority.
-    /// The admission profile under which the retained artifact's evidence was
-    /// produced. Publication names it as the sidecar's checker profile and
-    /// uses it for the producer-side pair validation.
-    /// Every artifact/`.proof` companion pair this report published, each
-    /// carrying separate artifact and sidecar byte sizes.
     /// Per-stage measurements the checked record accumulated during this
     /// compilation; empty unless the request asked for timing collection.
     timings: Vec<PhaseTiming>,
@@ -322,8 +315,7 @@ impl CompileReport {
     }
 
     /// Advance dynamic ELF custody only after its flat file installs against
-    /// the exact receipt. Psi proof pairs may accompany it; native proof
-    /// products are refused before installation by the publication owner.
+    /// the exact receipt.
     pub(crate) fn record_dynamic_elf_publication(
         mut self,
         receipt: DynamicElfPublicationReceipt,
@@ -347,7 +339,7 @@ impl CompileReport {
         Ok(self)
     }
 
-    /// Terminal publication retains the portable payload and records its proof pairs.
+    /// Terminal publication retains the portable payload.
     pub(crate) fn record_terminal_publication(mut self) -> Result<Self, String> {
         if !matches!(self.product, CompileProduct::TerminalArtifact(_)) || self.wrote_output {
             return Err(

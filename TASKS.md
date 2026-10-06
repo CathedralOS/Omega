@@ -3382,18 +3382,6 @@ deletions, which the commit lists.
     checks, and intermediate-write requirements; a final value contract cannot
     authorize opaque intermediate operations. Public layout literals remain
     unsupported independently of this work.
-  - Encoded-storage references:
-    `pass/layouts/runtime_callee_integer_at_fitting_write_exit` requires a
-    helper's `&mut i64` writes of -128 and 127 to use signed eight-bit storage
-    without changing neighboring byte 85. Stage 04 represents the derived
-    `leaf` loan as a `StructuralLocal` with no storage home; stage 05
-    `attached_unit/parameters.rs` rejects it as neither parameter nor literal.
-    Carry actual backing and canonical encoding through the shared reference
-    representation, internal ABI, calls, joins, returns, recursion and stored
-    references in native and both interpreters. Runtime encoding choices cannot
-    be solved by specialization; raw carrier-width pointers and delayed copy-out
-    are not substitutes. Foreign pointers need compatible checked adapters.
-
   Regression controls: `arithmetic/runtime_short_circuit_cast_decisions_exit`
   (70), `arithmetic/runtime_qualified_cast_decision_exit` (0),
   `samples/cli/collections/heat_grid` (45), nested projected stores and
@@ -3403,11 +3391,31 @@ deletions, which the commit lists.
   corruption must still reject. **TERMINAL-RUNTIME-DRIVERS** owns the remaining
   external-completion bindings for the ProcessExit controls.
 
-  Acceptance: corpus failures currently rejected by `OperationProofUnavailable`
-  reject from `omega --check` with checking diagnostics, without weakening
-  other check outcomes; the encoded-storage fixture runs with exit 0 under
-  `python tools/corpus_gate.py --both --filter
-  layouts/runtime_callee_integer_at_fitting_write_exit`.
+  Acceptance: every supported primitive operation reaches stage 05 with its
+  exact checking-time decision carried through `SourceChecked`; corpus failures
+  currently rejected by `OperationProofUnavailable` reject from `omega --check`
+  with checking diagnostics instead, without weakening other check outcomes.
+
+- **ENCODED-STORAGE-REFERENCE-TRANSPORT.**
+  (split-of:CHECKER-DISCHARGES-OPERATION-OBLIGATIONS) Preserve the actual backing
+  and canonical encoding of references to values whose selected storage is
+  narrower than their semantic carrier. This is an independent representation
+  and ABI outcome, not a prerequisite for deleting PCC certificates.
+
+  `pass/layouts/runtime_callee_integer_at_fitting_write_exit` requires a
+  helper's `&mut i64` writes of -128 and 127 to use signed eight-bit storage
+  without changing neighboring byte 85. Stage 04 represents the derived `leaf`
+  loan as a `StructuralLocal` with no storage home; stage 05
+  `attached_unit/parameters.rs` rejects it as neither parameter nor literal.
+  Carry backing and encoding through the shared reference representation,
+  internal ABI, calls, joins, returns, recursion and stored references in native
+  and both interpreters. Runtime encoding choices cannot be solved by
+  specialization; raw carrier-width pointers and delayed copy-out are not
+  substitutes. Foreign pointers need compatible checked adapters.
+
+  Acceptance: `python tools/corpus_gate.py --both --filter
+  layouts/runtime_callee_integer_at_fitting_write_exit` runs with exit 0 and
+  preserves neighboring byte 85.
 
 - **PCC-CERTIFICATES-DELETED.** (new-scope) Depends on
   **CHECKER-DISCHARGES-OPERATION-OBLIGATIONS**. Delete certificate production
@@ -3512,15 +3520,16 @@ deletions, which the commit lists.
   Acceptance: the `proof-admission` math tests and the check and native
   corpus are unchanged; no codec section carries proof evidence.
 
-- **PCC-PRODUCTS-DELETED.** (new-scope) The `Pcc*` products, native
-  `proof.rs`, proof-pair publication, `Build.pcc`, and the admission profile
-  on compile requests, reports, stage 00 and the interpreter are deleted.
-  Remaining: `AdmissionProfile` itself in `proof-admission` and its last
-  users. Acceptance: `rg -i "pcc|AdmissionProfile"` finds nothing in
-  `omega-rust` outside history notes.
+- **PCC-PRODUCTS-DELETED.** (new-scope) Delete `AdmissionProfile` from
+  `proof-admission` and its remaining compile, stage 00 and interpreter users;
+  delete the live executable-container proof member and its image-emission
+  consumers in one coordinated change. The `Pcc*` products, uncompiled native
+  proof model, `Build.pcc`, report fields and macOS proof companion publication
+  are already gone and must not be restored.
 
   Acceptance: `rg -i "pcc|AdmissionProfile"` finds nothing in `omega-rust`
-  outside history notes; the CLI, package and native corpus are unchanged.
+  outside history notes; no native container or package member carries proof
+  bytes; the CLI, package and native corpus are unchanged.
 
 - **PCC-DOCS-RETIRED.** (new-scope) Remove PCC from the instructions,
   specification and board text in one commit:

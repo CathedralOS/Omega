@@ -29,7 +29,7 @@ the evaluator merely to retain its result.
 
 The [Build-value protocol](../../packages/compilation-inputs/src/build_execution/build_value.rs)
 owns exact vocabulary admission, initial Build facets and normalized settings,
-including optimization counters and application/PCC/privileged-service fields.
+including optimization counters and application/privileged-service fields.
 One admission object follows initialization through decoding. The compiler
 retains the settings whole beside separately checked root/provider/trust rows;
 it does not reproduce the value protocol or reconstruct its fields.

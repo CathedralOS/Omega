@@ -54,7 +54,6 @@ fn package_publication_is_deterministic_and_binds_the_signed_identifier() {
     let identifier = target::ApplicationIdentifier::new(b"org.omega.window-test").unwrap();
     let executable = signed_executable(identifier.as_str());
     let digest = executable_container_digest(&executable);
-    let companions = vec![(".proof".to_owned(), b"requested companion bytes".to_vec())];
     let publish = || {
         publish_macos_application_package(
             &directory.0,
@@ -62,7 +61,6 @@ fn package_publication_is_deterministic_and_binds_the_signed_identifier() {
             &identifier,
             &executable,
             digest,
-            &companions,
         )
         .unwrap()
     };
@@ -81,16 +79,7 @@ fn package_publication_is_deterministic_and_binds_the_signed_identifier() {
     let plist_path = first.package_root().join("Contents/Info.plist");
     let first_plist = std::fs::read(&plist_path).unwrap();
     assert_eq!(plist_identifier(&first_plist), Some(identifier.as_str()));
-    assert_eq!(first.components().len(), 3);
-    assert_eq!(
-        std::fs::read(
-            first
-                .package_root()
-                .join("Contents/MacOS/window_test.proof")
-        )
-        .unwrap(),
-        b"requested companion bytes"
-    );
+    assert_eq!(first.components().len(), 2);
     assert!(
         !directory.0.join("window_test").exists(),
         "no redundant flat output"
@@ -137,7 +126,6 @@ fn invalid_identity_paths_and_staging_leave_the_previous_package_untouched() {
             &identifier,
             &executable,
             executable_container_digest(b"different bytes"),
-            &[],
         )
         .is_err()
     );
@@ -148,7 +136,6 @@ fn invalid_identity_paths_and_staging_leave_the_previous_package_untouched() {
             &wrong_identifier,
             &executable,
             digest,
-            &[],
         )
         .is_err()
     );
@@ -166,39 +153,11 @@ fn invalid_identity_paths_and_staging_leave_the_previous_package_untouched() {
                 &identifier,
                 &executable,
                 digest,
-                &[],
             )
             .is_err(),
             "{name}"
         );
     }
-    assert!(
-        publish_macos_application_package(
-            &directory.0,
-            "window_test",
-            &identifier,
-            &executable,
-            digest,
-            &[(".proof/../../escape".to_owned(), vec![])],
-        )
-        .is_err()
-    );
-    // Duplicate paths cannot satisfy the exact expected tree. This fails
-    // after staging but before replacement of an existing package.
-    assert!(
-        publish_macos_application_package(
-            &directory.0,
-            "window_test",
-            &identifier,
-            &executable,
-            digest,
-            &[
-                (".proof".to_owned(), vec![1]),
-                (".proof".to_owned(), vec![2])
-            ],
-        )
-        .is_err()
-    );
     assert_eq!(
         std::fs::read(previous.join("previous")).unwrap(),
         b"retained"

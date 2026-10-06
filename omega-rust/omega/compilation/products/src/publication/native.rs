@@ -67,7 +67,6 @@ pub(super) fn publish(
             &application_identifier,
             &output.bytes,
             container_digest,
-            &[],
         )?;
         let output_path = receipt.inner_executable_path().ok_or_else(|| {
             "macOS package publication produced no inner executable component".to_owned()

@@ -32,7 +32,6 @@ native-artifact = { path = "../backend/artifacts/native-artifact" }
 optimization-core = { path = "../../foundation/optimization-core" }
 package-compilation = { path = "../../packages/compilation-inputs" }
 platform-custody = { path = "../../foundation/platform-custody" }
-proof-admission = { path = "../../../psi/compilation/proof/admission" }
 target = { path = "../backend/target" }
 terminal-codec = { path = "../../../psi/compilation/representations/terminal-psi/codec" }
 terminal-psi-to-abstract-operations = { path = "../pipeline/00_terminal-psi-to-abstract-operations" }

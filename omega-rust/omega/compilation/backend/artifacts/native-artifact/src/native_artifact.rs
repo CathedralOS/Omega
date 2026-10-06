@@ -173,8 +173,7 @@ impl NativeArtifact {
         ))
     }
 
-    /// Rejoin already verified proof admission with target artifacts while
-    /// replaying every source-free identity and byte relation retained here.
+    /// Replay every source-free identity and byte relation retained here.
     pub fn from_replayed_parts(parts: NativeArtifactParts) -> Result<Self, &'static str> {
         // The gap is derivation state, not a retained claim: it is recomputed
         // from the replayed inputs so a retained artifact can never assert a

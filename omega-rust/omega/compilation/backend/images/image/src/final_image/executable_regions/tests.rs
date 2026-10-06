@@ -281,7 +281,7 @@ fn reidentify(inventory: &mut PlacedExecutableRegionInventory) {
 /// substitutions stay bound by the published identity alone — see
 /// `placed_executable_region_classification_and_footprint_stay_identity_bound`.
 /// The record has no wire codec in this crate — the canonical section codec
-/// lives in `native-artifact`'s `NativePlacedImageEvidence` — so the two
+/// lives in retained native publication evidence — so the two
 /// stale retained seals and the replayed side of the byte join stay authored
 /// explicitly below rather than as one-field legs.
 #[test]
