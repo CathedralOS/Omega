@@ -17,6 +17,5 @@ proof-admission = { path = "../../../../../psi/compilation/proof/admission" }
 semantic-vocabulary = { path = "../../../../../psi/foundation/semantic-vocabulary" }
 terminal-codec = { path = "../../../../../psi/compilation/representations/terminal-psi/codec" }
 terminal-psi = { path = "../../../../../psi/compilation/representations/terminal-psi" }
-terminal-verifier = { path = "../../../../../psi/compilation/representations/terminal-psi/verification" }
 sha2 = "0.10.9"
 

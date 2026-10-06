@@ -32,7 +32,6 @@ proof-admission = { path = "../../../psi/compilation/proof/admission" }
 terminal-psi = { path = "../../../psi/compilation/representations/terminal-psi" }
 terminal-fixed-fuel = { path = "../../../psi/compilation/representations/terminal-psi/fuel/certification" }
 terminal-semantics = { path = "../../../psi/compilation/representations/terminal-psi/semantics" }
-terminal-verifier = { path = "../../../psi/compilation/representations/terminal-psi/verification" }
 
 # Selected virtual host providers are interpreted only after exact Omega settlement.
 effects = { path = "../../compilation/backend/plans/provider-evidence" }

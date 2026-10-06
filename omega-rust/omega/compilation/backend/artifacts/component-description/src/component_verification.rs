@@ -639,10 +639,6 @@ pub fn verify_component(
             expected: Box::new(request.expected_subject),
         });
     }
-    // A received component is structurally validated before its inventory
-    // is read; proof-carrying admission is retired.
-    let verified_module = terminal_verifier::validate_module(module)
-        .map_err(|error| ComponentVerificationRejection::ModuleVerification(error.to_string()))?;
     if description.frontier != DescriptionFrontier::TerminalArtifactClosure {
         return Err(ComponentVerificationRejection::EarlyFrontier(
             description.frontier,
@@ -656,7 +652,7 @@ pub fn verify_component(
         }
     }
 
-    let inventory = derive_component_inventory(verified_module.module()).map_err(|error| {
+    let inventory = derive_component_inventory(module).map_err(|error| {
         ComponentVerificationRejection::ArtifactInvalid(format!(
             "verified module did not admit a component inventory: {error}"
         ))

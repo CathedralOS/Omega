@@ -3454,13 +3454,6 @@ deletions, which the commit lists.
   - the terminal interpreter
     (`omega-rust/psi/interpreter/terminal-interpreter/src/terminal_interpreter.rs`,
     `src/program.rs`);
-  - `component-description`
-    (`omega-rust/omega/compilation/backend/artifacts/component-description/`);
-  - `omega-rust/psi/compilation/representations/terminal-psi/fuel/certification/`,
-    which computes fixed-fuel bounds from `TerminalModule`;
-  - `validate_module_representation` on codec decode
-    (`omega-rust/psi/compilation/representations/terminal-psi/codec/src/sections/semantic_module.rs`;
-    encode no longer runs it).
 
   Re-source the optimizer's facts:
   - `AcceptedObligationFact`

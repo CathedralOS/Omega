@@ -4,7 +4,6 @@ use terminal_fixed_fuel::{
     FixedEntryFuelCertificate, FixedFuelError, derive_fixed_entry_fuel, validate_fixed_entry_fuel,
 };
 use terminal_psi::TerminalModule;
-use terminal_verifier::{ModuleError, validate_module};
 
 #[derive(Debug)]
 pub enum FixedFuel {
@@ -14,21 +13,18 @@ pub enum FixedFuel {
 
 #[derive(Debug)]
 pub enum InspectionError {
-    Validation(ModuleError),
     FixedFuel(FixedFuelError),
 }
 
 impl std::fmt::Display for InspectionError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Validation(error) => write!(formatter, "module validation failed: {error}"),
             Self::FixedFuel(error) => write!(formatter, "fixed-fuel checking failed: {error}"),
         }
     }
 }
 
 pub(super) fn inspect(module: &TerminalModule) -> Result<FixedFuel, InspectionError> {
-    validate_module(module).map_err(InspectionError::Validation)?;
     retain_bound(
         derive_fixed_entry_fuel(module, module.entry),
         |certificate| validate_fixed_entry_fuel(module, certificate),

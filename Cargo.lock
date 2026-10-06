@@ -487,7 +487,6 @@ dependencies = [
  "sha2",
  "terminal-codec",
  "terminal-psi",
- "terminal-verifier",
 ]
 
 [[package]]
@@ -1152,7 +1151,6 @@ dependencies = [
  "terminal-fixed-fuel",
  "terminal-psi",
  "terminal-semantics",
- "terminal-verifier",
  "typed-trees",
 ]
 
@@ -2002,7 +2000,6 @@ dependencies = [
  "sha2",
  "terminal-psi",
  "terminal-semantics",
- "terminal-verifier",
 ]
 
 [[package]]

@@ -5,7 +5,6 @@
 //! [`sections::semantic_module`] owns canonical module encoding and identity;
 //! other `sections/` owners retain independently identified wire products.
 //! [`canonical_artifact`] binds those bytes into the handoff envelope.
-//! [`verified_program`] projects producer schemas from a validated module.
 
 mod canonical_artifact;
 mod codec_error;
@@ -13,7 +12,6 @@ pub use sections::semantic_module::provider_candidate_wire::{
     decode_provider_candidate_record, encode_provider_candidate_record,
 };
 mod sections;
-mod verified_program;
 
 pub use canonical_artifact::{
     CanonicalTerminalArtifact, CanonicalTerminalArtifactEnvelopeError,
@@ -43,10 +41,6 @@ pub use sections::semantic_module::mathematical_certificate_wire::{
     encode_mathematical_certificate,
 };
 pub use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity};
-pub use verified_program::{
-    ProgramLocalRootProducerCatalogError, VerifiedProgramLocalRootProducerCatalog,
-    VerifiedProgramLocalRootProducerSchema,
-};
 
 pub use sections::semantic_module::{
     decode_canonical_proposition, decode_crash_route_buckets, decode_module,

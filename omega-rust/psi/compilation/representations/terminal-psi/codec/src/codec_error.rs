@@ -1,7 +1,6 @@
 //! The codec's single error type and its malformed-foundation constructor.
 
 use semantic_vocabulary::PropositionError;
-use terminal_verifier::ModuleError;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CodecError {
@@ -26,7 +25,6 @@ pub enum CodecError {
     MalformedStructuralFoundation(&'static str),
     MalformedMathematicalCertificate(&'static str),
     MalformedProposition(PropositionError),
-    InvalidModule(ModuleError),
     ObligationLedgerMismatch,
 }
 

@@ -6,11 +6,8 @@
 //! checks and wire encoding here. Identity derives from those exact canonical
 //! bytes. These checks establish representation shape, not proof admission.
 //!
-//! Only decoding runs the full `validate_module_representation`: decoded bytes
-//! may come from outside this compile. Encoding serves the compile's own
-//! module, which fingerprinting and identity encode again several times per
-//! publication; re-validating it there repeated a whole-module walk on fresh
-//! output (omega-rust/pipeline.md, "Verification placement").
+//! Decoding checks canonical wire and representation-foundation shape. Semantic
+//! checking belongs to the producer; this codec does not replay it.
 
 pub(crate) mod block_wire;
 pub(crate) mod canonical_order;
@@ -49,7 +46,6 @@ use proposition_wire::{decode_proposition, encode_proposition};
 use scalar_term_wire::{decode_scalar_term, encode_scalar_term};
 use sha2::{Digest, Sha256};
 use terminal_psi::{SemanticFingerprint, TerminalModule, TerminalPsiIdentity};
-use terminal_verifier::validate_module_representation;
 use wire::{Reader, Writer, decode_counted};
 
 pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
@@ -116,7 +112,6 @@ pub fn decode_module(bytes: &[u8]) -> Result<TerminalModule, CodecError> {
     scalar_qualification_wire::validate(&module.scalar_qualifications)?;
     validate_canonical_order(&module)?;
     validate_structural_foundation(&module)?;
-    validate_module_representation(&module).map_err(CodecError::InvalidModule)?;
     let canonical = encode_raw(&module)?;
     if canonical != bytes {
         return Err(CodecError::NonCanonicalEncoding);
