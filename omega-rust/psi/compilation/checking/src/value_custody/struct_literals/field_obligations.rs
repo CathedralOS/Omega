@@ -106,6 +106,9 @@ pub(super) fn enforce_construction_field_obligations(
                     ReferenceAccessRefusal::MutableSourceRequired => {
                         "requires mutable source access; shared or immutable storage cannot supply it"
                     }
+                    ReferenceAccessRefusal::NamedPlaceRequired { .. } => {
+                        "requires a named source place; a temporary cannot lend exclusive access"
+                    }
                 };
                 diagnostics.push(Diagnostic::error(format!("{slot_context} {reason}")));
                 continue;

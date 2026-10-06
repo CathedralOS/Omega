@@ -21,6 +21,11 @@ pub(crate) enum ReferenceAccessRefusal {
         root: symbols::SymbolHandle,
         access: language_semantics::ReferenceAccess,
     },
+    /// An exclusive borrow of a value that names no place: a temporary has
+    /// no storage to lend.
+    NamedPlaceRequired {
+        access: language_semantics::ReferenceAccess,
+    },
 }
 
 /// This is the call's existing access rule generalized to receiving fields;
@@ -38,7 +43,7 @@ pub(crate) fn receiving_reference_access_refusal(
     let supplied_access = supplied_reference_access(program, value);
     if let ExpressionNode::Borrow(borrow) = program.expression_table.expression(value)
         && borrow.access.is_exclusive()
-        && let Err(root) = explicit_borrow_source_access(
+        && let Some(refusal) = explicit_borrow_source_refusal(
             program,
             machine,
             state,
@@ -47,10 +52,7 @@ pub(crate) fn receiving_reference_access_refusal(
             borrow.access,
         )
     {
-        return Some(ReferenceAccessRefusal::ExclusiveBorrowSourceRequired {
-            root,
-            access: borrow.access,
-        });
+        return Some(refusal);
     }
     if expected_access == Some(ReferenceAccess::WriteOnly)
         && !matches!(program.expression_table.expression(value),
@@ -128,31 +130,39 @@ fn value_forwards_mutable_reference(
     )
 }
 
-fn explicit_borrow_source_access(
+/// An exclusive borrow lends its source place's own access. A representation
+/// recast (`&mut place as &mut [T]`) lends the place it views, exactly as
+/// borrow admission resolves it; the viewed type grants no writability.
+fn explicit_borrow_source_refusal(
     program: &TypedTrees,
     machine: &Machine,
     state: Option<&State>,
     prior_statements: &[typed_trees::statement::StatementNode],
-    source: ExpressionHandle,
+    mut source: ExpressionHandle,
     access: language_semantics::ReferenceAccess,
-) -> Result<(), symbols::SymbolHandle> {
+) -> Option<ReferenceAccessRefusal> {
+    if let ExpressionNode::Cast(cast) = program.expression_table.expression(source)
+        && cast.form.is_recast()
+    {
+        source = cast.value;
+        while let ExpressionNode::Borrow(borrow) = program.expression_table.expression(source) {
+            source = borrow.target;
+        }
+    }
     let Some((root, binding_type, owned_root_is_writable)) =
         source_place_root(program, machine, state, prior_statements, source)
     else {
-        return Err(symbols::SymbolHandle::invalid());
+        return Some(ReferenceAccessRefusal::NamedPlaceRequired { access });
     };
-    if crate::value_custody::expression_types::place_permits_reference_borrow(
+    (!crate::value_custody::expression_types::place_permits_reference_borrow(
         program,
         source,
         root,
         binding_type,
         owned_root_is_writable,
         access,
-    ) {
-        Ok(())
-    } else {
-        Err(root)
-    }
+    ))
+    .then_some(ReferenceAccessRefusal::ExclusiveBorrowSourceRequired { root, access })
 }
 
 fn source_place_root(

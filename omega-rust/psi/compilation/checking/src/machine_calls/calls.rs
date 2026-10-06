@@ -255,8 +255,11 @@ fn report_argument_reference_access(
         ),
         ReferenceAccessRefusal::ExclusiveBorrowSourceRequired { root, access } => {
             let label = if access == language_semantics::ReferenceAccess::WriteOnly { "write-only" } else { "mutable" };
-            let root_name = if root.is_valid() { program.symbols.name(root) } else { parameter.name.as_str() };
-            format!("{label} argument `{root_name}` for state `{target_name}` is not writable in this state; the source cannot lend the requested exclusive access")
+            format!("{label} argument `{}` for state `{target_name}` is not writable in this state; the source cannot lend the requested exclusive access", program.symbols.name(root))
+        }
+        ReferenceAccessRefusal::NamedPlaceRequired { access } => {
+            let label = if access == language_semantics::ReferenceAccess::WriteOnly { "write-only" } else { "mutable" };
+            format!("{label} argument for state `{target_name}` must be a named place")
         }
         ReferenceAccessRefusal::MutableSourceRequired => format!(
             "argument `{}` for state `{}` is declared `&mut` (`{}`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding",
