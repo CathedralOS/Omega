@@ -1310,6 +1310,8 @@ pass/termination/computed_rank_copies checked 188ms
 pass/termination/custom_ranking_order_compile checked 183ms
 pass/termination/default_order_nat_countdown_compile checked 152ms
 pass/termination/default_order_slice_length_compile checked 249ms @8a91f26a0b28+wt
+pass/termination/distance_conjunction_guard_exit built 2580ms exit:70 @ad65d2640206+wt
+pass/termination/distance_constant_bound_exit built 2500ms exit:70 @ad65d2640206+wt
 pass/termination/identity_measure_rank_range checked 157ms
 pass/termination/increasing_to_rank_range_compile checked 186ms
 pass/termination/inherited_acyclic_requirement_guarantee_compile checked 187ms

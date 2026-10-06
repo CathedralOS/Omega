@@ -24,6 +24,8 @@
 //! A collection-length bound uses that same arithmetic: the retained source
 //! join names the collection's structural lane, while only its `u64` cursor
 //! enters the rank. No synthetic length parameter or new proof rule is needed.
+//! A constant bound (`Nat::IncreasingTo(8)`) is the same ceiling distance with
+//! no bound lane at all.
 use super::super::super::super::{BlockId, IntegerType, PrimitiveType, TerminalRankedScc, ValueId};
 use super::super::super::{OperationResult, ScalarType, TerminalMachine, Terminator, unsupported};
 use super::super::{CheckedTrees, LoweringError};
@@ -107,10 +109,8 @@ pub(super) fn validate_witness(
                     "Unit graph rank subject is not an entry parameter",
                 ))
         };
-        let entry_bound = |expression| {
-            if let checked_trees::expression::ExpressionNode::Member(member) =
-                checked.expression_table.expression(expression)
-            {
+        let entry_bound = |expression| match checked.expression_table.expression(expression) {
+            checked_trees::expression::ExpressionNode::Member(member) => {
                 let parameter = entry_parameter(member.receiver)?;
                 if member.case_variant.is_some()
                     || member.member_symbol.is_valid()
@@ -120,10 +120,15 @@ pub(super) fn validate_witness(
                 {
                     return unsupported("Unit graph distance bound is not a collection length");
                 }
-                Ok((parameter, true))
-            } else {
-                entry_parameter(expression).map(|parameter| (parameter, false))
+                Ok(EntryBound::CollectionLength(parameter))
             }
+            checked_trees::expression::ExpressionNode::Integer(literal) => literal
+                .value_u64()
+                .map(EntryBound::Constant)
+                .ok_or(LoweringError::Unsupported(
+                    "Unit graph distance bound exceeds its carrier",
+                )),
+            _ => entry_parameter(expression).map(EntryBound::Parameter),
         };
         let (subject, bound) = match (
             witness.ranking_view,
@@ -223,12 +228,22 @@ pub(super) fn validate_witness(
                     RankingViewId::NAT_BOUNDED_DISTANCE | RankingViewId::NAT_INCREASING_TO
                 ) && unsigned_integer(primitive_type)
                     && upper_parameter.symbol == upper
-                    && bound.is_some_and(|(bound, length)| {
-                        !length && upper_parameter.name == bound.name
-                    })
+                    && matches!(bound, Some(EntryBound::Parameter(bound))
+                        if upper_parameter.name == bound.name)
                     && upper_position != rank.parameter_position
                     && scalar_lane(rank.parameter_position, primitive_type)
                     && scalar_lane(upper_position, primitive_type)
+            }
+            CheckedNaturalRankMeasure::ConstantDistance {
+                primitive_type,
+                upper,
+            } => {
+                matches!(
+                    witness.ranking_view,
+                    RankingViewId::NAT_BOUNDED_DISTANCE | RankingViewId::NAT_INCREASING_TO
+                ) && unsigned_integer(primitive_type)
+                    && matches!(bound, Some(EntryBound::Constant(bound)) if bound == upper)
+                    && scalar_lane(rank.parameter_position, primitive_type)
             }
             CheckedNaturalRankMeasure::CollectionLengthDistance {
                 collection,
@@ -239,9 +254,8 @@ pub(super) fn validate_witness(
                     witness.ranking_view,
                     RankingViewId::NAT_BOUNDED_DISTANCE | RankingViewId::NAT_INCREASING_TO
                 ) && collection_parameter.symbol == collection
-                    && bound.is_some_and(|(bound, length)| {
-                        length && collection_parameter.name == bound.name
-                    })
+                    && matches!(bound, Some(EntryBound::CollectionLength(bound))
+                        if collection_parameter.name == bound.name)
                     && is_collection(checked, collection_parameter.type_reference)
                     && collection_position != rank.parameter_position
                     && scalar_lane(rank.parameter_position, PrimitiveType::U64)
@@ -268,6 +282,14 @@ pub(super) fn validate_witness(
         }
     }
     Ok(())
+}
+
+/// A distance view's authored bound, read at the machine's entry state.
+#[derive(Clone, Copy)]
+enum EntryBound<'checked> {
+    Parameter(&'checked checked_trees::signature::StateParameter),
+    CollectionLength(&'checked checked_trees::signature::StateParameter),
+    Constant(u64),
 }
 
 fn is_collection(
@@ -379,6 +401,14 @@ pub(super) fn scalar_rank(
             // The bound stays a checked scalar lane though the ceiling
             // distance does not read it: plan and graph name both subjects.
             lane(upper_position, primitive_type)?;
+            Some(ScalarRank::CeilingDistance {
+                lower: lane(rank.parameter_position, primitive_type)?,
+                primitive_type,
+            })
+        }
+        // A constant bound has no lane; the ceiling distance reads only the
+        // cursor either way.
+        CheckedNaturalRankMeasure::ConstantDistance { primitive_type, .. } => {
             Some(ScalarRank::CeilingDistance {
                 lower: lane(rank.parameter_position, primitive_type)?,
                 primitive_type,

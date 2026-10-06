@@ -4,14 +4,11 @@ mod arguments;
 mod guards;
 
 use self::arguments::{
-    argument_is_parameter_minus_one, argument_is_parameter_plus_one,
-    argument_rebuilds_parameter_with_member_minus_one,
+    argument_is_parameter_minus_one, argument_rebuilds_parameter_with_member_minus_one,
 };
-use self::guards::{
-    guard_is_index_below_limit, guard_is_positive_parameter, guard_is_positive_parameter_member,
-};
+use self::guards::{guard_is_positive_parameter, guard_is_positive_parameter_member};
+use super::DecreaseMeasure;
 use super::patterns;
-use super::{DecreaseMeasure, DistanceOrientation};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) struct DirectCountdownEdge {
@@ -109,8 +106,25 @@ pub(super) fn state_rank(
                     },
                 });
             }
-            let (upper_position, upper) = plain(upper)?;
             let primitive_type = program.primitive_type_reference(lower.type_reference)?;
+            if let ExpressionNode::Integer(literal) = program.expression_table.expression(upper) {
+                // A constant bound: the rank is the cursor's distance below a
+                // fixed value, so no upper parameter rides along the cycle.
+                let upper = literal.value_u64()?;
+                let maximum = super::unsigned_maximum(primitive_type)?;
+                return (u128::from(upper) <= maximum).then_some(
+                    checked_trees::CheckedStateNaturalRank {
+                        state: state.symbol,
+                        parameter: lower.symbol,
+                        parameter_position: lower_position,
+                        measure: CheckedNaturalRankMeasure::ConstantDistance {
+                            primitive_type,
+                            upper,
+                        },
+                    },
+                );
+            }
+            let (upper_position, upper) = plain(upper)?;
             if lower.symbol == upper.symbol
                 || program.primitive_type_reference(upper.type_reference) != Some(primitive_type)
                 || !matches!(
@@ -273,28 +287,21 @@ pub(super) fn state_has_proven_self_loop(
     program: &typed_trees::TypedTrees,
     state: &typed_trees::state::State,
     measure: DecreaseMeasure,
-    orientation: DistanceOrientation,
 ) -> bool {
     let edges = patterns::edges_to_state(program, state, state.symbol);
     !edges.is_empty()
         && edges.iter().all(|edge| {
-            edge_decrease_proven(
-                program,
-                state,
-                state,
-                &edge.guards,
-                edge.arguments,
-                measure,
-                orientation,
-            )
+            edge_decrease_proven(program, state, state, &edge.guards, edge.arguments, measure)
         })
 }
 
 /// Prove that the Nat-descending measure strictly decreases across a single
 /// guarded transition edge from `source` to `target`. For a self-loop this is
-/// the classic countdown / distance proof; for a mutually-recursive cycle the
-/// target differs from the source, so the decreasing argument is located by the
-/// matching parameter name in the *target* state.
+/// the classic countdown proof; for a mutually-recursive cycle the target
+/// differs from the source, so the decreasing argument is located by the
+/// matching parameter name in the *target* state. Distances have no
+/// recognizer here: `current_values` proves every distance edge from the
+/// current values the edge actually supplies.
 pub(super) fn edge_decrease_proven(
     program: &typed_trees::TypedTrees,
     source: &typed_trees::state::State,
@@ -302,31 +309,18 @@ pub(super) fn edge_decrease_proven(
     guard: &[patterns::GuardFact],
     arguments: &[ExpressionHandle],
     measure: DecreaseMeasure,
-    orientation: DistanceOrientation,
 ) -> bool {
-    match measure {
-        DecreaseMeasure::Single(decreases) => {
-            match program.expression_table.expression(decreases) {
-                ExpressionNode::Name(_) => {
-                    countdown_edge(program, source, target, guard, arguments, decreases)
-                }
-                ExpressionNode::Member(_) => {
-                    member_countdown_edge(program, source, target, guard, arguments, decreases)
-                }
-                _ => false,
-            }
+    let DecreaseMeasure::Single(decreases) = measure else {
+        return false;
+    };
+    match program.expression_table.expression(decreases) {
+        ExpressionNode::Name(_) => {
+            countdown_edge(program, source, target, guard, arguments, decreases)
         }
-        DecreaseMeasure::Distance { lower, upper } => {
-            // The bounded distance reads its `(lower, upper)` subjects in
-            // declaration order. The swapped orientation is the
-            // inverted-clause probe: it asks whether the subjects written the
-            // other way around would have proven.
-            let (lower, upper) = match orientation {
-                DistanceOrientation::Declared => (lower, upper),
-                DistanceOrientation::Swapped => (upper, lower),
-            };
-            distance_edge(program, source, target, guard, arguments, upper, lower)
+        ExpressionNode::Member(_) => {
+            member_countdown_edge(program, source, target, guard, arguments, decreases)
         }
+        _ => false,
     }
 }
 
@@ -442,46 +436,6 @@ fn member_countdown_edge(
             parameter,
             member.member.as_str(),
         )
-}
-
-/// Prove the bounded distance `upper - lower` strictly decreases across one
-/// guarded edge: the guard bounds `lower` below `upper`, `upper` is threaded
-/// unchanged, and `lower` advances by one.
-fn distance_edge(
-    program: &typed_trees::TypedTrees,
-    source: &typed_trees::state::State,
-    target: &typed_trees::state::State,
-    guard: &[patterns::GuardFact],
-    arguments: &[ExpressionHandle],
-    upper: ExpressionHandle,
-    lower: ExpressionHandle,
-) -> bool {
-    let Some(limit_parameter) = patterns::parameter_matched_by_expression(program, source, upper)
-    else {
-        return false;
-    };
-    let Some(index_parameter) = patterns::parameter_matched_by_expression(program, source, lower)
-    else {
-        return false;
-    };
-    let Some(limit_index) = target_argument_index(program, target, limit_parameter.name.as_str())
-    else {
-        return false;
-    };
-    let Some(index_index) = target_argument_index(program, target, index_parameter.name.as_str())
-    else {
-        return false;
-    };
-    let Some(limit_argument) = arguments.get(limit_index).copied() else {
-        return false;
-    };
-    let Some(index_argument) = arguments.get(index_index).copied() else {
-        return false;
-    };
-
-    guard_is_index_below_limit(program, source, guard, index_parameter, limit_parameter)
-        && patterns::expression_is_parameter(program, limit_argument, limit_parameter)
-        && argument_is_parameter_plus_one(program, source, index_argument, index_parameter)
 }
 
 /// The syntax tier and relational tier must agree on operation meaning. A

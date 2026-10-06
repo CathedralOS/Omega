@@ -123,27 +123,3 @@ pub(super) fn guard_is_positive_parameter_member(
                 && exact_parameter(program, member.receiver, parameter))
     })
 }
-
-pub(super) fn guard_is_index_below_limit(
-    program: &typed_trees::TypedTrees,
-    state: &typed_trees::state::State,
-    guards: &[patterns::GuardFact],
-    index_parameter: &typed_trees::signature::StateParameter,
-    limit_parameter: &typed_trees::signature::StateParameter,
-) -> bool {
-    guards.iter().any(|guard| {
-        if !super::has_builtin_meaning(program, state, guard.expression) {
-            return false;
-        }
-        let Some((left, operator, right)) = comparison(program, *guard) else {
-            return false;
-        };
-        let (left, right) = match operator {
-            BinaryOperator::Less => (left, right),
-            BinaryOperator::Greater => (right, left),
-            _ => return false,
-        };
-        exact_parameter(program, left, index_parameter)
-            && patterns::expression_matches_parameter(program, right, limit_parameter)
-    })
-}

@@ -6,11 +6,19 @@
 //! proof construction scratch, not an invocation-memory snapshot or a retained
 //! certificate. Arrivals, exits and ranks share this transfer. Unknown effects
 //! retire current bindings; they cannot revive an entry fact about new storage.
+//!
+//! A collection loan's length is one value for the whole activation when the
+//! binding cannot be reseated and the loan cannot resize its referent: a slice
+//! or plain fixed array behind any reference, or anything behind a shared one.
+//! Each `bytes.len` occurrence binds as an exact projection of that value, so a
+//! `requires index < bytes.len` and a guard over the same loan relate. A
+//! mutable loan of a qualified fixed byte array is a bounded owner whose live
+//! length moves with its stores, and has no such value.
 use numerics::arithmetic::ArithmeticDomain;
 use symbols::SymbolHandle;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetHandle};
-use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
+use typed_trees::types::{FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 use typed_trees::{TypedTrees, machine::Machine, state::State};
 use validation::{
     ScopedArithmeticBinder, ScopedArithmeticBinding, ScopedArithmeticExpression,
@@ -24,12 +32,21 @@ struct Binding {
     value: Option<ScopedArithmeticValue>,
 }
 
+/// One collection parameter whose length cannot change in this activation.
+#[derive(Clone)]
+struct Length {
+    collection: SymbolHandle,
+    type_reference: TypeReferenceHandle,
+    value: ScopedArithmeticValue,
+}
+
 pub(crate) struct CurrentScalarValues<'program> {
     program: &'program TypedTrees,
     machine: &'program Machine,
     state: &'program State,
     initial: Vec<Binding>,
     current: Vec<Binding>,
+    lengths: Vec<Length>,
     hypotheses: Vec<ScopedArithmeticHypothesis>,
 }
 
@@ -60,12 +77,37 @@ impl<'program> CurrentScalarValues<'program> {
                 })
             })
             .collect::<Vec<_>>();
+        let lengths = program
+            .state_parameters(state)
+            .iter()
+            .filter(|parameter| {
+                validation::state_reference_parameter_binding_is_stable(
+                    program,
+                    machine,
+                    state,
+                    parameter.symbol,
+                )
+            })
+            .filter_map(|parameter| {
+                Some(Length {
+                    collection: parameter.symbol,
+                    type_reference: parameter.type_reference,
+                    value: fixed_length(program, parameter.type_reference, || {
+                        format!(
+                            "state:{:?}:parameter:{:?}:length",
+                            state.symbol, parameter.symbol
+                        )
+                    })?,
+                })
+            })
+            .collect();
         let mut values = Self {
             program,
             machine,
             state,
             current: initial.clone(),
             initial,
+            lengths,
             hypotheses: Vec::new(),
         };
         let owned_frames = frames
@@ -302,8 +344,16 @@ impl<'program> CurrentScalarValues<'program> {
             self.assume_at_depth(program, machine, state, unary.operand, !holds, depth + 1);
             return;
         }
-        if admitted(program, machine, state, expression, &self.current, 0) {
-            if let Some(proposition) = scoped(expression, &self.current, program) {
+        if admitted(
+            program,
+            machine,
+            state,
+            expression,
+            &self.current,
+            &self.lengths,
+            0,
+        ) {
+            if let Some(proposition) = scoped(expression, &self.current, &self.lengths, program) {
                 self.hypotheses
                     .push(ScopedArithmeticHypothesis { proposition, holds });
             }
@@ -317,10 +367,18 @@ impl<'program> CurrentScalarValues<'program> {
         state: &State,
         expression: ExpressionHandle,
     ) -> Option<ScopedArithmeticValue> {
-        admitted(program, machine, state, expression, &self.current, 0)
-            .then(|| scoped(expression, &self.current, program))
-            .flatten()
-            .map(ScopedArithmeticValue::Term)
+        admitted(
+            program,
+            machine,
+            state,
+            expression,
+            &self.current,
+            &self.lengths,
+            0,
+        )
+        .then(|| scoped(expression, &self.current, &self.lengths, program))
+        .flatten()
+        .map(ScopedArithmeticValue::Term)
     }
 
     pub(crate) fn initial_symbol(&self, symbol: SymbolHandle) -> Option<ScopedArithmeticValue> {
@@ -329,6 +387,13 @@ impl<'program> CurrentScalarValues<'program> {
             .find(|binding| binding.symbol == symbol)?
             .value
             .clone()
+    }
+    /// The fixed length of a collection parameter, when it has one.
+    pub(crate) fn initial_length(&self, collection: SymbolHandle) -> Option<ScopedArithmeticValue> {
+        self.lengths
+            .iter()
+            .find(|length| length.collection == collection)
+            .map(|length| length.value.clone())
     }
     pub(crate) fn current(
         &self,
@@ -340,9 +405,10 @@ impl<'program> CurrentScalarValues<'program> {
             self.state,
             expression,
             &self.current,
+            &self.lengths,
             0,
         )
-        .then(|| scoped(expression, &self.current, self.program))
+        .then(|| scoped(expression, &self.current, &self.lengths, self.program))
         .flatten()
     }
     /// Simultaneous parameter substitution with independently retained actual
@@ -376,7 +442,7 @@ impl<'program> CurrentScalarValues<'program> {
                 }),
             });
         }
-        admitted(self.program, callee, state, expression, &formals, 0).then_some(
+        admitted(self.program, callee, state, expression, &formals, &[], 0).then_some(
             ScopedArithmeticExpression {
                 expression,
                 bindings,
@@ -436,12 +502,90 @@ fn unsigned(primitive: PrimitiveType) -> bool {
         PrimitiveType::U8 | PrimitiveType::U16 | PrimitiveType::U32 | PrimitiveType::U64
     )
 }
+/// A collection type's length when no store or reseat can change it during
+/// the activation: a literal fixed array's own length, or one unsigned unknown.
+fn fixed_length(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+    identity: impl FnOnce() -> String,
+) -> Option<ScopedArithmeticValue> {
+    let TypeReferenceNode::Reference {
+        referee, access, ..
+    } = program.type_reference_table.type_reference(reference)
+    else {
+        return None;
+    };
+    let shared = *access == language_core::ReferenceAccess::Shared;
+    let mut referee = *referee;
+    // A qualified fixed byte array is a bounded owner: its length is the live
+    // byte count, at most the declared capacity. Only a shared loan freezes it.
+    let mut qualified = false;
+    while let TypeReferenceNode::Constrained { base_type, .. } =
+        program.type_reference_table.type_reference(referee)
+    {
+        if !shared {
+            return None;
+        }
+        qualified = true;
+        referee = *base_type;
+    }
+    match program.type_reference_table.type_reference(referee) {
+        TypeReferenceNode::FixedArray {
+            length: FixedArrayLength::Literal(length),
+            ..
+        } if !qualified => Some(ScopedArithmeticValue::Integer(
+            numerics::bignum::BigInt::from_u64(u64::try_from(*length).ok()?),
+        )),
+        TypeReferenceNode::FixedArray { .. } | TypeReferenceNode::Slice { .. } => {
+            Some(ScopedArithmeticValue::Atom {
+                identity: identity(),
+                unsigned: true,
+            })
+        }
+        _ => None,
+    }
+}
+
+/// The fixed length a `collection.len` occurrence reads, if it reads one.
+fn length_occurrence<'lengths>(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    lengths: &'lengths [Length],
+) -> Option<&'lengths Length> {
+    let ExpressionNode::Member(member) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    let ExpressionNode::Name(name) = program.expression_table.expression(member.receiver) else {
+        return None;
+    };
+    if !name.symbol.is_valid()
+        || name.symbol != name.head_symbol
+        || program
+            .expression_table
+            .name_path_members(name.members)
+            .len()
+            != 1
+    {
+        return None;
+    }
+    let length = lengths
+        .iter()
+        .find(|length| length.collection == name.symbol)?;
+    (crate::semantic::calls::collection_measure_member(
+        program,
+        member,
+        crate::semantic::calls::MeasureReceiver::Declared(length.type_reference),
+    ) == Some(language_semantics::declaration_selection::CollectionMeasure::Length))
+    .then_some(length)
+}
+
 fn admitted(
     program: &TypedTrees,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
     bindings: &[Binding],
+    lengths: &[Length],
     depth: usize,
 ) -> bool {
     if depth >= 64 || !program.expression_table.expression_is_valid(expression) {
@@ -449,6 +593,7 @@ fn admitted(
     }
     match program.expression_table.expression(expression) {
         ExpressionNode::Integer(_) => true,
+        ExpressionNode::Member(_) => length_occurrence(program, expression, lengths).is_some(),
         ExpressionNode::Name(name) => {
             (name.symbol == name.head_symbol
                 && bindings
@@ -476,8 +621,23 @@ fn admitted(
                 machine,
                 Some(state),
                 expression,
-            ) && admitted(program, machine, state, binary.left, bindings, depth + 1)
-                && admitted(program, machine, state, binary.right, bindings, depth + 1)
+            ) && admitted(
+                program,
+                machine,
+                state,
+                binary.left,
+                bindings,
+                lengths,
+                depth + 1,
+            ) && admitted(
+                program,
+                machine,
+                state,
+                binary.right,
+                bindings,
+                lengths,
+                depth + 1,
+            )
         }
         _ => false,
     }
@@ -486,9 +646,11 @@ fn admitted(
 fn scoped(
     expression: ExpressionHandle,
     bindings: &[Binding],
+    lengths: &[Length],
     program: &TypedTrees,
 ) -> Option<ScopedArithmeticExpression> {
     let mut symbols = Vec::new();
+    let mut projections = Vec::new();
     let mut pending = vec![(expression, 0)];
     let mut budget = 4096usize;
     while let Some((expression, depth)) = pending.pop() {
@@ -505,6 +667,13 @@ fn scoped(
                 }
             }
             ExpressionNode::Integer(_) => {}
+            ExpressionNode::Member(_) => {
+                let length = length_occurrence(program, expression, lengths)?;
+                projections.push(ScopedArithmeticBinding {
+                    binder: ScopedArithmeticBinder::Projection(expression),
+                    value: length.value.clone(),
+                });
+            }
             ExpressionNode::Binary(binary) => {
                 pending.push((binary.left, depth + 1));
                 pending.push((binary.right, depth + 1));
@@ -525,6 +694,7 @@ fn scoped(
             value: value.clone(),
         });
     }
+    selected.extend(projections);
     Some(ScopedArithmeticExpression {
         expression,
         bindings: selected,

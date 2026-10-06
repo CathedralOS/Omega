@@ -98,6 +98,13 @@ pub enum CheckedNaturalRankMeasure {
         upper: SymbolHandle,
         upper_position: u32,
     },
+    /// The same distance up to a constant bound (`Nat::IncreasingTo(8)`,
+    /// `(index, 8) -> Nat::BoundedDistance`). The bound is the literal value in
+    /// `primitive_type`; there is no upper parameter to keep.
+    ConstantDistance {
+        primitive_type: PrimitiveType,
+        upper: u64,
+    },
     /// The same distance with a `u64` cursor and a collection's live length
     /// as its bound. The upper subject is the collection parameter, not a
     /// fabricated scalar parameter for its length. Cyclic edges preserve it.

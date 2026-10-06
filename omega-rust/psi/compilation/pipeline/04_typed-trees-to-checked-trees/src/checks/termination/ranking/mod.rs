@@ -11,8 +11,9 @@
 //!
 //! 1. `ranges::check`, when the witness declares a rank range;
 //! 2. a strict decrease on every edge inside each cyclic component. Plain Exact
-//!    scalar Nat ranks compare incoming and current values through the shared
-//!    statement transfer. Other representations and orders retain their own
+//!    scalar Nat ranks and distances to a scalar or constant bound compare
+//!    incoming and current values through the shared statement transfer
+//!    (`current_values`). Other representations and orders retain their own
 //!    judgments (`nat`, `slice`, `struct_view` or `lexicographic`);
 //! 3. `ranges::proves_relational_decrease`, when the witness declares a rank
 //!    range;
@@ -76,7 +77,7 @@ pub(super) struct InvertedDistance {
     pub(super) corrected: String,
 }
 
-/// Which subject orientation the nat distance prover should read from a
+/// Which subject orientation the distance prover should read from a
 /// two-subject ranking tuple: the declared `(lower, upper)`, or the swapped
 /// probe used to recognize an inverted bounded distance.
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -667,7 +668,6 @@ pub(crate) fn proven_state_natural_ranks_with_call_frames(
                             &edge.guards,
                             edge.arguments,
                             measure,
-                            DistanceOrientation::Declared,
                         )
                     };
                     if !proven {
@@ -911,12 +911,26 @@ fn component_has_proven_decrease<'p>(
         return false;
     }
 
-    // Plain scalar Nat ranks read the same current-value transfer as contracts.
-    // This reads the explicitly supplied current actuals; a store cannot
-    // turn an old positive guard into evidence about the new counter.
-    if matches!(order, RankingOrder::NatDescending)
-        && let Some(proven) =
-            current_values::component_decreases(program, machine, component, measure, call_frames)
+    // The swapped orientation (the inverted-clause probe) asks every prover
+    // the same question of the distance written the other way around.
+    let measure = match (orientation, measure) {
+        (DistanceOrientation::Swapped, DecreaseMeasure::Distance { lower, upper }) => {
+            DecreaseMeasure::Distance {
+                lower: upper,
+                upper: lower,
+            }
+        }
+        _ => measure,
+    };
+    // Plain scalar Nat ranks and every distance read the same current-value
+    // transfer as contracts. This reads the explicitly supplied current
+    // actuals; a store cannot turn an old positive guard into evidence about
+    // the new counter.
+    if matches!(
+        order,
+        RankingOrder::NatDescending | RankingOrder::BoundedDistance | RankingOrder::IncreasingTo(_)
+    ) && let Some(proven) =
+        current_values::component_decreases(program, machine, component, measure, call_frames)
     {
         return proven;
     }
@@ -939,7 +953,6 @@ fn component_has_proven_decrease<'p>(
                     source,
                     measure,
                     order,
-                    orientation,
                     call_frames,
                     bound_lookup,
                 )
@@ -959,7 +972,7 @@ fn component_has_proven_decrease<'p>(
         let (Some(source), Some(target)) = (states.get(from), states.get(to)) else {
             return false;
         };
-        cycle_edge_strictly_decreases(program, source, target, measure, order, orientation)
+        cycle_edge_strictly_decreases(program, source, target, measure, order)
     })
 }
 
@@ -972,7 +985,6 @@ fn cycle_edge_strictly_decreases(
     target: &typed_trees::state::State,
     measure: DecreaseMeasure,
     order: &RankingOrder,
-    orientation: DistanceOrientation,
 ) -> bool {
     if !matches!(
         order,
@@ -997,7 +1009,6 @@ fn cycle_edge_strictly_decreases(
             &edge.guards,
             edge.arguments,
             measure,
-            orientation,
         ) {
             found = true;
         } else {
@@ -1013,13 +1024,11 @@ fn state_has_proven_supported_self_loop<'p>(
     state: &typed_trees::state::State,
     measure: DecreaseMeasure,
     order: &RankingOrder,
-    orientation: DistanceOrientation,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     bound_lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
 ) -> bool {
     // Slice-length, struct-view and lexicographic orders rank a single
-    // decreasing value; only the nat provers understand the two-subject
-    // bounded distance.
+    // decreasing value; a two-subject distance belongs to `current_values`.
     match (order, measure) {
         (
             RankingOrder::NatDescending
@@ -1028,7 +1037,7 @@ fn state_has_proven_supported_self_loop<'p>(
             | RankingOrder::CustomNatDescending
             | RankingOrder::CustomScalarView { .. },
             _,
-        ) => nat::state_has_proven_self_loop(program, state, measure, orientation),
+        ) => nat::state_has_proven_self_loop(program, state, measure),
         (RankingOrder::SliceLength, DecreaseMeasure::Single(decreases)) => {
             slice::state_has_proven_self_loop(program, machine, state, decreases, bound_lookup)
         }
