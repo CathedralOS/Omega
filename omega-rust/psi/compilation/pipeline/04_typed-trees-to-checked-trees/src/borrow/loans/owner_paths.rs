@@ -80,48 +80,64 @@ pub(super) fn owner_path_from_place_segments(
         .collect()
 }
 
+/// Whether one owner-path segment selects the same storage as one place
+/// segment. `DynamicIndex` owners match no fixed shape here — each caller
+/// decides which index spellings it accepts.
+pub(crate) fn owner_segment_matches_place_segment(
+    program: &typed_trees::TypedTrees,
+    owner: &BorrowOwnerSegment,
+    place: &facts::PlaceSegment,
+) -> Option<bool> {
+    match (owner, place) {
+        (
+            BorrowOwnerSegment::Field(owner_symbol),
+            facts::PlaceSegment::Field {
+                symbol: place_symbol,
+            },
+        ) => Some(!place_symbol.is_valid() || owner_symbol == place_symbol),
+        (
+            BorrowOwnerSegment::Case(owner_variant),
+            facts::PlaceSegment::Case {
+                variant: place_variant,
+            },
+        ) => Some(owner_variant == place_variant),
+        (
+            BorrowOwnerSegment::FixedIndex(owner_index),
+            facts::PlaceSegment::FixedIndex { index: place_index },
+        ) => Some(owner_index == place_index),
+        (
+            BorrowOwnerSegment::FixedIndex(owner_index),
+            facts::PlaceSegment::Index { expression },
+        ) => Some(
+            program
+                .expression_table
+                .constant_integer_value(*expression)
+                .and_then(|value| usize::try_from(value).ok())
+                .is_none_or(|place_index| *owner_index == place_index),
+        ),
+        _ => None,
+    }
+}
+
 pub(super) fn owner_path_matches(
     program: &typed_trees::TypedTrees,
     owner_path: &[BorrowOwnerSegment],
     place_segments: &[facts::PlaceSegment],
 ) -> bool {
     owner_path.len() <= place_segments.len()
-        && owner_path
-            .iter()
-            .zip(place_segments)
-            .all(|(owner, place)| match (owner, place) {
-                (
-                    BorrowOwnerSegment::Field(owner_symbol),
-                    facts::PlaceSegment::Field {
-                        symbol: place_symbol,
-                    },
-                ) => !place_symbol.is_valid() || owner_symbol == place_symbol,
-                (
-                    BorrowOwnerSegment::Case(owner_variant),
-                    facts::PlaceSegment::Case {
-                        variant: place_variant,
-                    },
-                ) => owner_variant == place_variant,
-                (
-                    BorrowOwnerSegment::FixedIndex(owner_index),
-                    facts::PlaceSegment::FixedIndex { index: place_index },
-                ) => owner_index == place_index,
-                (
-                    BorrowOwnerSegment::FixedIndex(owner_index),
-                    facts::PlaceSegment::Index { expression },
-                ) => program
-                    .expression_table
-                    .constant_integer_value(*expression)
-                    .and_then(|value| usize::try_from(value).ok())
-                    .is_none_or(|place_index| *owner_index == place_index),
-                (
-                    BorrowOwnerSegment::DynamicIndex,
-                    facts::PlaceSegment::FixedIndex { .. }
-                    | facts::PlaceSegment::FixedRange { .. }
-                    | facts::PlaceSegment::Index { .. },
-                ) => true,
-                _ => false,
+        && owner_path.iter().zip(place_segments).all(|(owner, place)| {
+            owner_segment_matches_place_segment(program, owner, place).unwrap_or_else(|| {
+                matches!(
+                    (owner, place),
+                    (
+                        BorrowOwnerSegment::DynamicIndex,
+                        facts::PlaceSegment::FixedIndex { .. }
+                            | facts::PlaceSegment::FixedRange { .. }
+                            | facts::PlaceSegment::Index { .. }
+                    )
+                )
             })
+        })
 }
 
 pub(super) fn place_path_matches_owner_prefix(

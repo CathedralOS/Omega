@@ -9,6 +9,7 @@ use expressions::expression_uses_local_name;
 use transitions::{transition_guard_uses_local_name, transition_target_uses_local_name};
 pub(super) use validation::statement_uses_symbol;
 
+use crate::borrow::owner_segment_matches_place_segment;
 use crate::borrow::tracker::BorrowOwnerSegment;
 
 pub(super) fn statement_uses_local_name(
@@ -137,40 +138,17 @@ pub(crate) fn owner_path_overlaps_place_segments(
     owner_path: &[BorrowOwnerSegment],
     place_segments: &[facts::PlaceSegment],
 ) -> bool {
-    owner_path
-        .iter()
-        .zip(place_segments)
-        .all(|(owner, place)| match (owner, place) {
-            (
-                BorrowOwnerSegment::Field(owner_symbol),
-                facts::PlaceSegment::Field {
-                    symbol: place_symbol,
-                },
-            ) => !place_symbol.is_valid() || owner_symbol == place_symbol,
-            (
-                BorrowOwnerSegment::Case(owner_variant),
-                facts::PlaceSegment::Case {
-                    variant: place_variant,
-                },
-            ) => owner_variant == place_variant,
-            (
-                BorrowOwnerSegment::FixedIndex(owner_index),
-                facts::PlaceSegment::FixedIndex { index: place_index },
-            ) => owner_index == place_index,
-            (
-                BorrowOwnerSegment::FixedIndex(owner_index),
-                facts::PlaceSegment::Index { expression },
-            ) => program
-                .expression_table
-                .constant_integer_value(*expression)
-                .and_then(|value| usize::try_from(value).ok())
-                .is_none_or(|place_index| *owner_index == place_index),
-            (
-                BorrowOwnerSegment::DynamicIndex,
-                facts::PlaceSegment::FixedIndex { .. } | facts::PlaceSegment::Index { .. },
-            ) => true,
-            _ => false,
+    owner_path.iter().zip(place_segments).all(|(owner, place)| {
+        owner_segment_matches_place_segment(program, owner, place).unwrap_or_else(|| {
+            matches!(
+                (owner, place),
+                (
+                    BorrowOwnerSegment::DynamicIndex,
+                    facts::PlaceSegment::FixedIndex { .. } | facts::PlaceSegment::Index { .. }
+                )
+            )
         })
+    })
 }
 
 fn expression_uses_owner_path(

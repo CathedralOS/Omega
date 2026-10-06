@@ -48,10 +48,10 @@ use symbols::SymbolHandle;
 use super::accesses::{self, borrow_access_place};
 use super::tracker::{BorrowOwnerSegment, StateLoanTracker};
 use aggregate::{BorrowedInitializer, BorrowedInitializerKind, borrowed_initializers};
-pub(crate) use owner_paths::store_destination_places;
 use owner_paths::{
     owner_path_from_place_segments, owner_path_matches, place_path_matches_owner_prefix,
 };
+pub(crate) use owner_paths::{owner_segment_matches_place_segment, store_destination_places};
 
 mod aggregate;
 mod mutable_view_results;
