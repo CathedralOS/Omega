@@ -1951,6 +1951,35 @@ fn physical_definition(
     Ok(definition)
 }
 
+/// Consume one emitted register-and-instruction pair from the two replay
+/// streams — declared registers against the appended virtual register tail,
+/// emitted instructions against the block stream — and charge its
+/// instruction count onto the block-local consumption tally.
+fn consume_emitted<'a>(
+    values: &mut impl Iterator<Item = &'a VirtualRegister>,
+    stream: &mut impl Iterator<Item = &'a SelectedInstruction>,
+    emitted: (Vec<VirtualRegister>, Vec<SelectedInstruction>),
+    consumed: &mut u32,
+) -> Result<(), RuntimeSpillError> {
+    let (registers, sequence) = emitted;
+    for register in &registers {
+        if values.next() != Some(register) {
+            return Err(RuntimeSpillError::ReplayMismatch);
+        }
+    }
+    for instruction in &sequence {
+        if stream.next() != Some(instruction) {
+            return Err(RuntimeSpillError::ReplayMismatch);
+        }
+    }
+    *consumed = consumed
+        .checked_add(
+            u32::try_from(sequence.len()).map_err(|_| RuntimeSpillError::IdentityOverflow)?,
+        )
+        .ok_or(RuntimeSpillError::IdentityOverflow)?;
+    Ok(())
+}
+
 /// The same independent consumption under an explicit span policy: replay
 /// must follow the producer's own open/close decision exactly, so a plan
 /// produced under the other policy — a shared reload reaching across a
@@ -2040,23 +2069,7 @@ pub fn validate_runtime_spill_with_span_policy(
                 &mut next_instruction,
                 &mut next_register,
             )?;
-            let (registers, sequence) = store.into_streams();
-            for register in &registers {
-                if values.next() != Some(register) {
-                    return Err(RuntimeSpillError::ReplayMismatch);
-                }
-            }
-            for instruction in &sequence {
-                if stream.next() != Some(instruction) {
-                    return Err(RuntimeSpillError::ReplayMismatch);
-                }
-            }
-            consumed = consumed
-                .checked_add(
-                    u32::try_from(sequence.len())
-                        .map_err(|_| RuntimeSpillError::IdentityOverflow)?,
-                )
-                .ok_or(RuntimeSpillError::IdentityOverflow)?;
+            consume_emitted(&mut values, &mut stream, store.into_streams(), &mut consumed)?;
         }
         for (instruction_index, original) in source_block.instructions.iter().enumerate() {
             boundaries.push(consumed);
@@ -2097,23 +2110,7 @@ pub fn validate_runtime_spill_with_span_policy(
                             &mut next_register,
                         )?;
                         let reloaded = reload.reload_register.id;
-                        let (registers, sequence) = reload.into_streams();
-                        for register in &registers {
-                            if values.next() != Some(register) {
-                                return Err(RuntimeSpillError::ReplayMismatch);
-                            }
-                        }
-                        for instruction in &sequence {
-                            if stream.next() != Some(instruction) {
-                                return Err(RuntimeSpillError::ReplayMismatch);
-                            }
-                        }
-                        consumed = consumed
-                            .checked_add(
-                                u32::try_from(sequence.len())
-                                    .map_err(|_| RuntimeSpillError::IdentityOverflow)?,
-                            )
-                            .ok_or(RuntimeSpillError::IdentityOverflow)?;
+                        consume_emitted(&mut values, &mut stream, reload.into_streams(), &mut consumed)?;
                         if share {
                             open_reload = Some(reloaded);
                         }
@@ -2173,23 +2170,7 @@ pub fn validate_runtime_spill_with_span_policy(
                     &mut next_instruction,
                     &mut next_register,
                 )?;
-                let (registers, sequence) = store.into_streams();
-                for register in &registers {
-                    if values.next() != Some(register) {
-                        return Err(RuntimeSpillError::ReplayMismatch);
-                    }
-                }
-                for instruction in &sequence {
-                    if stream.next() != Some(instruction) {
-                        return Err(RuntimeSpillError::ReplayMismatch);
-                    }
-                }
-                consumed = consumed
-                    .checked_add(
-                        u32::try_from(sequence.len())
-                            .map_err(|_| RuntimeSpillError::IdentityOverflow)?,
-                    )
-                    .ok_or(RuntimeSpillError::IdentityOverflow)?;
+                consume_emitted(&mut values, &mut stream, store.into_streams(), &mut consumed)?;
             }
         }
         // The rewrite appends terminator-operand reloads after the last body
@@ -2210,23 +2191,7 @@ pub fn validate_runtime_spill_with_span_policy(
                 &mut next_register,
             )?;
             let reloaded = reload.reload_register.id;
-            let (registers, sequence) = reload.into_streams();
-            for register in &registers {
-                if values.next() != Some(register) {
-                    return Err(RuntimeSpillError::ReplayMismatch);
-                }
-            }
-            for instruction in &sequence {
-                if stream.next() != Some(instruction) {
-                    return Err(RuntimeSpillError::ReplayMismatch);
-                }
-            }
-            consumed = consumed
-                .checked_add(
-                    u32::try_from(sequence.len())
-                        .map_err(|_| RuntimeSpillError::IdentityOverflow)?,
-                )
-                .ok_or(RuntimeSpillError::IdentityOverflow)?;
+            consume_emitted(&mut values, &mut stream, reload.into_streams(), &mut consumed)?;
             operand.virtual_register = reloaded;
         }
         // Binding-argument reloads follow the terminator-operand pairs in
@@ -2252,23 +2217,7 @@ pub fn validate_runtime_spill_with_span_policy(
                     &mut next_register,
                 )?;
                 let reloaded = reload.reload_register.id;
-                let (registers, sequence) = reload.into_streams();
-                for register in &registers {
-                    if values.next() != Some(register) {
-                        return Err(RuntimeSpillError::ReplayMismatch);
-                    }
-                }
-                for instruction in &sequence {
-                    if stream.next() != Some(instruction) {
-                        return Err(RuntimeSpillError::ReplayMismatch);
-                    }
-                }
-                consumed = consumed
-                    .checked_add(
-                        u32::try_from(sequence.len())
-                            .map_err(|_| RuntimeSpillError::IdentityOverflow)?,
-                    )
-                    .ok_or(RuntimeSpillError::IdentityOverflow)?;
+                consume_emitted(&mut values, &mut stream, reload.into_streams(), &mut consumed)?;
                 let SelectedValueTransport::Registers { argument, .. } = &mut binding.transport
                 else {
                     unreachable!()
@@ -2314,23 +2263,7 @@ pub fn validate_runtime_spill_with_span_policy(
                         &mut next_register,
                     )?;
                     let reloaded = reload.reload_register.id;
-                    let (registers, sequence) = reload.into_streams();
-                    for register in &registers {
-                        if values.next() != Some(register) {
-                            return Err(RuntimeSpillError::ReplayMismatch);
-                        }
-                    }
-                    for instruction in &sequence {
-                        if stream.next() != Some(instruction) {
-                            return Err(RuntimeSpillError::ReplayMismatch);
-                        }
-                    }
-                    consumed = consumed
-                        .checked_add(
-                            u32::try_from(sequence.len())
-                                .map_err(|_| RuntimeSpillError::IdentityOverflow)?,
-                        )
-                        .ok_or(RuntimeSpillError::IdentityOverflow)?;
+                    consume_emitted(&mut values, &mut stream, reload.into_streams(), &mut consumed)?;
                     reloaded
                 } else {
                     pending
@@ -2368,23 +2301,7 @@ pub fn validate_runtime_spill_with_span_policy(
                         &mut next_register,
                     )?;
                     let reloaded = reload.reload_register.id;
-                    let (registers, sequence) = reload.into_streams();
-                    for register in &registers {
-                        if values.next() != Some(register) {
-                            return Err(RuntimeSpillError::ReplayMismatch);
-                        }
-                    }
-                    for instruction in &sequence {
-                        if stream.next() != Some(instruction) {
-                            return Err(RuntimeSpillError::ReplayMismatch);
-                        }
-                    }
-                    consumed = consumed
-                        .checked_add(
-                            u32::try_from(sequence.len())
-                                .map_err(|_| RuntimeSpillError::IdentityOverflow)?,
-                        )
-                        .ok_or(RuntimeSpillError::IdentityOverflow)?;
+                    consume_emitted(&mut values, &mut stream, reload.into_streams(), &mut consumed)?;
                     let SelectedCasePayloadTransport::Registers { argument, .. } =
                         &mut payload.transport
                     else {
