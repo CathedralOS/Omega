@@ -557,7 +557,13 @@ pub(crate) fn selected_const_call_result_bounds(
         program,
         call.target_symbol,
     )?;
-    if callee.attached_data.is_some() {
+    // A call's bounds are its callee's declared result range with the call's
+    // arguments substituted (`value_bounds`). Without that range there is
+    // nothing to close, so do not install the caller's whole hypothesis scope
+    // first: the guard-arrival walk asks this of every call it meets.
+    if callee.attached_data.is_some()
+        || crate::declared_integer_range(program, entry.return_type).is_none()
+    {
         return None;
     }
     let mut engine = scope_engine(program, machine, state, None)?;
