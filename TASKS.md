@@ -2507,17 +2507,33 @@ crash and native exit behavior.
   capability.
 
   Remaining recorded failures route to their existing owners:
-  - `pass/borrows/borrow_domain_window_write_and_call` reproduces on
-    `c9eb93b5756`, macOS ARM64, after ordinary package preparation:
-    `omega run --both tests/omega/pass/borrows/borrow_domain_window_write_and_call/main.omg`
-    rejects with `BorrowedDescriptorLoanDisturbed` at operation 27/place 6.
-    Its returned-window sibling records operation 28/place 6 and still needs
-    a current recheck. The refusal is in Terminal's descriptor-loan replay,
-    which **OMEGA-READS-TERMINAL-UNVERIFIED** retires after its checker and
-    certificate prerequisites; do not add a new verifier special case.
-  - `pass/borrows/mut_loan_local_write_through_exit` and
-    `run/borrows/local_mut_borrow` record missing structural argument storage;
-    **REFERENCE-LOCAL-BINDING-ROUTES** owns the primitive-home repair.
+  - **All four borrow rows are closed at `faca6c5c7f5`**, and both of their
+    former routing notes were wrong in instructive ways.
+    `pass/borrows/{borrow_domain_window_write_and_call,
+    borrow_returned_window_write_and_call}` needed **no verifier special case**
+    and did not wait on **OMEGA-READS-TERMINAL-UNVERIFIED**: three predicates
+    derived "crosses unknown indirection" from `path.contains(&Referent)` or
+    marked a `Reference`-shaped declaration indirect at **path index 0**, which
+    is the carrier place's own hop and already has an exact backing alias. That
+    `indirect` bit made `regions_overlap_at` early-return, pre-empting both the
+    descriptor-authority check and a window exclusion that proves disjointness
+    (`FixedIndex(0)` against `split_point >= 2`), while the identical **direct**
+    store one operation earlier was admitted. `path_projection`'s own doc
+    comment stated the rule the code was narrower than, and the `ElementView`
+    and byte-view arms of the very same condition were already guarded -- only
+    the `Reference` arm was not. One shared `crosses_unaliased_reference`
+    replaces the hand-rolled copies, in **both** Psi and its Omega twin, since
+    fixing one side only moved the refusal.
+    `pass/borrows/mut_loan_local_write_through_exit` and
+    `run/borrows/local_mut_borrow` were **already green** -- byte-identical
+    programs, repaired by `8e1eaa3e7cd`/`1cace4985ee`, whose lane re-recorded
+    the check golden and left this host's native golden claiming a lost
+    success. All four now read `built` with exits 0, 0, 9, 9 and no token.
+
+    **Durable rule this cost hours of false signal: a lane that repairs a
+    lowering refusal must re-record the native golden, not only the check
+    golden.** `--cross-golden` catches the opposite direction, so this one is
+    invisible to it.
   - The provider cluster was re-measured at `c9eb93b5756`:
     `pass/core/interrupt_obligations_surface` and
     `pass/memory/address_translation_canary` remain at the unselected direct
