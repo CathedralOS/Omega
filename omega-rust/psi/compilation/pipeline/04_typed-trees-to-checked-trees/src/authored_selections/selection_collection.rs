@@ -1,9 +1,7 @@
 //! Collecting statement, transition-target and proof membership
 //! selections.
 
-use crate::authored_selections::call_targets::{
-    checked_statement_call_target, checked_target_conformance_targets, declaration_target,
-};
+use crate::authored_selections::call_targets::{checked_statement_call_target, declaration_target};
 use crate::authored_selections::finalization::push_consistent_resolution;
 use crate::authored_selections::intrinsic_calls::checked_statement_call_intrinsic;
 use crate::authored_selections::{CheckedResolution, CheckedResolutionTarget};
@@ -266,11 +264,6 @@ pub(crate) fn collect_checked_statement_selections(
     program: &TypedTrees,
     facts: &CheckFacts,
     resolutions: &mut Vec<CheckedResolution>,
-    inferred_conformances: &mut Vec<(
-        source::SourceSpan,
-        language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
-        SymbolHandle,
-    )>,
 ) -> Result<(), Diagnostic> {
     for machine in program.machines() {
         for state in program.machine_states(machine) {
@@ -297,19 +290,6 @@ pub(crate) fn collect_checked_statement_selections(
                     statement_index,
                     call.target_symbol,
                 );
-                if target.is_valid() {
-                    for selected_symbol in checked_target_conformance_targets(program, target) {
-                        let inferred = (
-                            call.source_span,
-                            language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation,
-                            selected_symbol,
-                        );
-                        if !inferred_conformances.contains(&inferred) {
-                            inferred_conformances.push(inferred);
-                        }
-                    }
-                }
-
                 let Some(occurrence) = call.authored_call_selection else {
                     return Err(Diagnostic::error(
                         "source-authored checked statement call has no attached call selection",

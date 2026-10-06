@@ -1,11 +1,11 @@
-//! Calls on a named receiver: the requirement, machine state, attached
-//! state or boundary trait signature the receiver's type resolves to.
+//! Calls on a named receiver: the machine state, attached state or boundary
+//! trait signature the receiver's type resolves to.
 
 use super::{
     CallScope, boundary_trait_call_signature, call_gates, declared_receiver_type_reference,
-    generic_requirement, machine_state_by_symbol, validate_call_arguments_handles,
-    validate_generic_bound_argument_types, validate_machine_call_type_parameter_bounds,
-    validate_resolved_target_type_parameter_bounds, validate_result_use,
+    machine_state_by_symbol, validate_call_arguments_handles,
+    validate_machine_call_type_parameter_bounds, validate_resolved_target_type_parameter_bounds,
+    validate_result_use,
 };
 use diagnostics::Diagnostic;
 use typed_trees::TypedTrees;
@@ -15,7 +15,7 @@ use typed_trees::signature::StateSignature;
 use typed_trees::statement::TableCall;
 
 /// A call on a named receiver targets, in order: a dynamic requirement (an
-/// error), a generic bound requirement, a state of the receiver's machine,
+/// error), a state of the receiver's machine,
 /// an attached machine's state, or a boundary trait signature; each
 /// validates the call's result use and arguments.
 ///
@@ -83,53 +83,6 @@ pub(super) fn validate_receiver_call(
     }) {
         diagnostics.push(Diagnostic::error(error));
         return;
-    }
-
-    if let Some(type_reference) = receiver_type_reference {
-        match crate::declarations::traits::generic_bound_requirement_call(
-            program,
-            current_machine,
-            type_reference,
-            call.target.as_str(),
-        ) {
-            Ok(Some(requirement)) => {
-                let signature = requirement.signature;
-                validate_result_use(
-                    program,
-                    call,
-                    signature.name.as_str(),
-                    signature.return_type,
-                    diagnostics,
-                );
-                validate_generic_bound_argument_types(
-                    program,
-                    current_machine,
-                    current_state,
-                    type_reference,
-                    arguments,
-                    &requirement,
-                    diagnostics,
-                );
-                generic_requirement::validate_requirement_call_arguments(
-                    program,
-                    current_machine,
-                    current_state,
-                    value_environment,
-                    arguments,
-                    program.state_signature_parameters(signature),
-                    Some(type_reference),
-                    &requirement,
-                    writable_roots,
-                    diagnostics,
-                );
-                return;
-            }
-            Ok(None) => {}
-            Err(error) => {
-                diagnostics.push(Diagnostic::error(error));
-                return;
-            }
-        }
     }
 
     if let Some(machine) = receiver_type

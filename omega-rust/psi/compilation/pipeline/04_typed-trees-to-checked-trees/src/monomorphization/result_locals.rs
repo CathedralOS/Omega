@@ -63,7 +63,7 @@ pub(super) fn refresh_generic_call_results(
         }
     }
     for (body, offset, previous_type, return_type, selection) in updates {
-        let mut candidate =
+        let candidate =
             super::candidate_for_selection(&candidates[selection.candidate_index], &selection);
         if crate::monomorphization::selection::approved_type_bounds(
             program,
@@ -76,8 +76,7 @@ pub(super) fn refresh_generic_call_results(
             ))]);
         }
         crate::monomorphization::selection::validate_candidate_conformance_bounds(
-            program,
-            &mut candidate,
+            program, &candidate,
         )?;
         let mut closed_candidate = candidate.clone();
         let mut forwarded_symbols = Vec::new();

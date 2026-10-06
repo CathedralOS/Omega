@@ -2,7 +2,7 @@ use crate::input::token_cursor::{Input, ParseResult};
 use crate::type_syntax::parse_type::parse_type_reference_handle;
 use arena::{Handle, HandleSpan};
 use syntax_trees::SyntaxTrees;
-use syntax_trees::item::{GenericConformanceBound, SatisfiesClause};
+use syntax_trees::item::SatisfiesClause;
 use tokens::{KeywordKind, PunctuationKind};
 
 pub(crate) fn parse_satisfies_traits<'tokens, 'source>(
@@ -226,65 +226,4 @@ pub(crate) fn parse_conformance_trait_application<'tokens, 'source>(
         HandleSpan::empty()
     };
     Ok(((trait_name, lifetime_arguments, trait_arguments), rest))
-}
-
-pub(crate) fn parse_generic_conformance_bounds<'tokens, 'source>(
-    syntax_trees: &mut SyntaxTrees,
-    input: Input<'tokens, 'source>,
-) -> ParseResult<'tokens, 'source, Vec<GenericConformanceBound>> {
-    let mut input = input.take_contextual("where")?;
-    let mut bounds = Vec::new();
-
-    loop {
-        let (bound, rest) = parse_generic_conformance_bound(syntax_trees, input)?;
-        bounds.push(bound);
-
-        if !rest.at_punctuation(PunctuationKind::Comma) {
-            return Ok((bounds, rest));
-        }
-        input = rest.take_punctuation(PunctuationKind::Comma, ",")?;
-    }
-}
-
-pub(crate) fn parse_generic_conformance_bound<'tokens, 'source>(
-    syntax_trees: &mut SyntaxTrees,
-    input: Input<'tokens, 'source>,
-) -> ParseResult<'tokens, 'source, GenericConformanceBound> {
-    let (subject, rest) = input.take_identifier()?;
-    let rest = rest.take_contextual("satisfies")?;
-    let (carrier, rest) = rest.take_identifier()?;
-    let (arguments, mut rest) = parse_optional_satisfies_type_arguments(syntax_trees, rest)?;
-    let selected_conformance = if rest.at_punctuation(PunctuationKind::ColonColon) {
-        rest = rest.take_punctuation(PunctuationKind::ColonColon, "::")?;
-        let (name, next) = rest.take_identifier()?;
-        rest = next;
-        let application = if let Some((application, next)) =
-            crate::expressions::parse_postfix::try_parse_static_symbol_application(
-                syntax_trees,
-                rest,
-            )? {
-            rest = next;
-            Some(application)
-        } else {
-            None
-        };
-        Some(syntax_trees::expression::StaticMachineArgument {
-            type_reference: syntax_trees::types::TypeReferenceHandle::invalid(),
-            path: vec![name].into_boxed_slice(),
-            application,
-            const_literal: None,
-            evidence_projection: None,
-        })
-    } else {
-        None
-    };
-    let bound = GenericConformanceBound {
-        binder: None,
-        subject,
-        carrier,
-        arguments,
-        selected_conformance,
-    };
-
-    Ok((bound, rest))
 }

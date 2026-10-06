@@ -14,6 +14,8 @@ pub(crate) struct CallSite<'a> {
     pub(crate) target_symbol: SymbolHandle,
     /// The spelled call target.
     pub(crate) target: &'a DiagnosticName,
+    /// The resolved declaration the call is qualified by, or invalid.
+    pub(crate) receiver_symbol: SymbolHandle,
     /// The call names a member of the machine's own subject: it has no
     /// receiver or a target already among the subject's
     /// states.
@@ -126,6 +128,7 @@ fn retarget_statement_span(
                 let site = CallSite {
                     target_symbol: call.target_symbol,
                     target: &call.target,
+                    receiver_symbol: call.receiver_symbol,
                     local_receiver: call.receiver.is_empty()
                         || subject_states.contains(&call.target_symbol),
                 };
@@ -243,9 +246,19 @@ fn retarget_expression(
                     .expressions
                     .expression_handles(call.arguments),
             );
+            let receiver_symbol = match program.tables.bodies.expressions.expression(call.receiver)
+            {
+                symbol_resolved_trees::expression::ExpressionNode::Name(path)
+                    if call.receiver.is_valid() =>
+                {
+                    path.symbol
+                }
+                _ => SymbolHandle::invalid(),
+            };
             let site = CallSite {
                 target_symbol: call.target_symbol,
                 target: &call.target,
+                receiver_symbol,
                 local_receiver: !call.receiver.is_valid()
                     || subject_states.contains(&call.target_symbol),
             };

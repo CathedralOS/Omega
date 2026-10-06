@@ -60,7 +60,6 @@ pub(crate) fn contract_call_static_parameter_kinds(
             machine
                 .conformance_bounds
                 .iter()
-                .filter(|bound| bound.binder.is_some())
                 .map(|_| ContractCallStaticParameterKind::Conformance),
         );
         kinds

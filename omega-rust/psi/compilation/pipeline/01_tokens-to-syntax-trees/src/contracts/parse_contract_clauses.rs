@@ -1,5 +1,3 @@
-use super::conformance::parse_conformance::parse_generic_conformance_bound;
-
 use crate::expressions::parse_expression::{
     parse_expression_handle_without_struct_literals,
     parse_expression_handle_without_struct_literals_or_membership,
@@ -8,9 +6,7 @@ use crate::input::token_cursor::{Input, ParseResult, parse_path_handle_span};
 use arena::{Handle, HandleSpan};
 use syntax_trees::SyntaxTrees;
 use syntax_trees::identifier::Identifier;
-use syntax_trees::item::{
-    CapabilityContract, CapabilityContractKind, CrashCause, GenericConformanceBound,
-};
+use syntax_trees::item::{CapabilityContract, CapabilityContractKind, CrashCause};
 use tokens::{KeywordKind, PunctuationKind};
 
 type MachineClauses = (
@@ -32,7 +28,6 @@ type MachineClauses = (
     bool,
     HandleSpan<CapabilityContract>,
     syntax_trees::types::TypeReferenceHandle,
-    Vec<GenericConformanceBound>,
     HandleSpan<syntax_trees::item::ProofFact>,
 );
 
@@ -68,7 +63,6 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
     let mut outcome_case_groups = Vec::<String>::new();
     let mut public_selectors = Vec::<String>::new();
     let mut return_type = syntax_trees::types::TypeReferenceHandle::invalid();
-    let mut conformance_bounds = Vec::new();
     let mut where_facts = Vec::new();
 
     while !input.at_punctuation(PunctuationKind::LeftBrace)
@@ -430,9 +424,9 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
             continue;
         }
 
-        // Ordinary generic conformance tests are semantic input, not header
-        // trivia: retain every subject, trait specialization, and optional
-        // named-conformance selection for resolution and checking.
+        // `where` carries proof facts. Conformance evidence is an explicit
+        // binder in the generic parameter list, never a test on a data
+        // parameter that would search for an implementation.
         if input.at_contextual("where") {
             let after_where = input.take_contextual("where")?;
             if after_where.at_keyword(KeywordKind::Machine) {
@@ -442,22 +436,18 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
             }
             input = after_where;
             loop {
-                let conformance = input
-                    .take_identifier()
-                    .is_ok_and(|(_, rest)| rest.at_contextual("satisfies"));
-                if conformance {
-                    let (bound, rest) = parse_generic_conformance_bound(syntax_trees, input)?;
-                    conformance_bounds.push(bound);
-                    input = rest;
-                } else {
-                    let (expression, rest) =
-                        crate::expressions::parse_expression::parse_proof_fact_expression_handle(
-                            syntax_trees,
-                            input,
-                        )?;
-                    where_facts.push(syntax_trees::item::ProofFact::Expression(expression));
-                    input = rest;
+                if let Ok((subject, rest)) = input.take_identifier()
+                    && rest.at_contextual("satisfies")
+                {
+                    return Err(input.error_here(retired_where_conformance(subject.as_str())));
                 }
+                let (expression, rest) =
+                    crate::expressions::parse_expression::parse_proof_fact_expression_handle(
+                        syntax_trees,
+                        input,
+                    )?;
+                where_facts.push(syntax_trees::item::ProofFact::Expression(expression));
+                input = rest;
                 if !input.at_punctuation(PunctuationKind::Comma) {
                     break;
                 }
@@ -525,7 +515,6 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
             blocks,
             contracts,
             return_type,
-            conformance_bounds,
             where_facts,
         ),
         input,
@@ -883,4 +872,12 @@ fn parse_ranked_subjects<'tokens, 'source>(
         ),
         rest,
     ))
+}
+
+/// The retired anonymous `where T satisfies Trait` test searched for an
+/// implementation of the subject's type. Evidence is now an explicit binder.
+pub(crate) fn retired_where_conformance(subject: &str) -> String {
+    format!(
+        "`where {subject} satisfies Trait` is retired: a conformance names code, not data; declare an evidence binder such as `Implementation satisfies Trait<{subject}>` in the generic parameter list and pass a named implementation"
+    )
 }

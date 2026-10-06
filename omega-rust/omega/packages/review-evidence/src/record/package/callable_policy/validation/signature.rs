@@ -119,36 +119,14 @@ pub(super) fn validate(callable: &PackagePolicyCallable) -> Result {
     parameters::parameters(&scope, 0)?;
     let mut next_evidence = 0;
     for bound in &callable.conformance_bounds {
-        if let Some(ordinal) = bound.binder_ordinal {
-            if ordinal != next_evidence {
-                return Err("conformance evidence binders are not declaration ordered");
-            }
-            next_evidence += 1;
+        if bound.binder_ordinal != next_evidence {
+            return Err("conformance evidence binders are not declaration ordered");
         }
-        if !matches!(
-            scope.static_kind(bound.subject_parameter),
-            Some(BinderKind::Type)
-        ) {
-            return Err("conformance bound subject is not a declared type parameter");
-        }
+        next_evidence += 1;
         nominal(&bound.trait_identity)?;
         lifetimes(&bound.trait_lifetime_arguments, &scope)?;
         for argument in &bound.arguments {
             value_type(argument)?;
-        }
-        match (&bound.selected_conformance, &bound.selected_subject) {
-            (Some(selected), Some(subject)) => {
-                nominal(selected)?;
-                lifetimes(&bound.selected_lifetime_arguments, &scope)?;
-                expressions::static_argument(subject, &scope, 0)?;
-                for argument in &bound.selected_arguments {
-                    expressions::static_argument(argument, &scope, 0)?;
-                }
-            }
-            (None, None)
-                if bound.selected_arguments.is_empty()
-                    && bound.selected_lifetime_arguments.is_empty() => {}
-            _ => return Err("conformance selection has incomplete structural coordinates"),
         }
     }
     for contract in &callable.contracts {

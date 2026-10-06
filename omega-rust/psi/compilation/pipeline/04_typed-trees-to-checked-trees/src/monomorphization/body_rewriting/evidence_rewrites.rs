@@ -14,7 +14,7 @@ pub(crate) fn evidence_argument_rewrites(
         .iter()
         .zip(candidate.evidence_bindings.iter())
         .filter_map(|(parameter, binding)| {
-            let binder = parameter.binder?;
+            let binder = parameter.binder;
             let binding = binding.as_ref()?;
             let selected = program
                 .conformances()
@@ -50,13 +50,14 @@ pub(crate) fn evidence_requirement_rewrites(
         .iter()
         .zip(candidate.evidence_bindings.iter())
     {
-        let (Some(binder), Some(binding)) = (parameter.binder, binding.as_ref()) else {
+        let binder = parameter.binder;
+        let Some(binding) = binding.as_ref() else {
             continue;
         };
         let Some(trait_definition) = program
             .traits()
             .iter()
-            .find(|trait_definition| trait_definition.symbol == parameter.carrier)
+            .find(|trait_definition| trait_definition.symbol == parameter.trait_symbol)
         else {
             continue;
         };

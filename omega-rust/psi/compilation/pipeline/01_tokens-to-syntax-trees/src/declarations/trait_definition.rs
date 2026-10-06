@@ -56,15 +56,16 @@ pub(super) fn parse_trait_definition<'tokens, 'source>(
     }
     let ((), next) = parse_proposition_parameter_contracts(syntax_trees, type_parameters, input)?;
     input = next;
-    let mut conformance_bounds = generic_parameters.conformance_bounds;
+    let conformance_bounds = generic_parameters.conformance_bounds;
     if input.at_contextual("where") {
-        let (mut bounds, next) =
-            crate::contracts::conformance::parse_conformance::parse_generic_conformance_bounds(
-                syntax_trees,
-                input,
-            )?;
-        input = next;
-        conformance_bounds.append(&mut bounds);
+        let after_where = input.take_contextual("where")?;
+        let subject = after_where.take_identifier().map_or_else(
+            |_| "T".to_owned(),
+            |(subject, _)| subject.as_str().to_owned(),
+        );
+        return Err(after_where.error_here(
+            crate::contracts::parse_contract_clauses::retired_where_conformance(&subject),
+        ));
     }
     input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
     let mut required_trait_start = Handle::invalid();

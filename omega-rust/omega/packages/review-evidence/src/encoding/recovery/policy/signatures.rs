@@ -1,7 +1,6 @@
 //! Inverse of the complete structural signature vocabulary, without receipts.
 
 use super::Error;
-use super::expressions::static_argument;
 use super::identity::{nominal, type_identity};
 use super::reader::Reader;
 use crate::record::{PackageReviewConformanceBound, PackageReviewDataProperties};
@@ -9,26 +8,8 @@ use crate::record::{PackageReviewConformanceBound, PackageReviewDataProperties};
 pub(in crate::encoding::recovery) fn conformance_bound(
     reader: &mut Reader<'_>,
 ) -> Result<PackageReviewConformanceBound, Error> {
-    let binder_ordinal = reader.option(|reader| reader.u32())?;
-    let subject_parameter = reader.u32()?;
-    let (selected_conformance, selected_lifetime_arguments, selected_arguments, selected_subject) =
-        match reader.byte()? {
-            0 => (None, Vec::new(), Vec::new(), None),
-            1 => (
-                Some(nominal(reader)?),
-                reader.sequence(4, |reader| reader.u32())?,
-                reader.sequence(1, static_argument)?,
-                Some(static_argument(reader)?),
-            ),
-            _ => return Err(Error::InvalidTag),
-        };
     Ok(PackageReviewConformanceBound {
-        binder_ordinal,
-        subject_parameter,
-        selected_conformance,
-        selected_lifetime_arguments,
-        selected_arguments,
-        selected_subject,
+        binder_ordinal: reader.u32()?,
         trait_identity: nominal(reader)?,
         trait_lifetime_arguments: reader.sequence(4, |reader| reader.u32())?,
         arguments: reader.sequence(8, type_identity)?,

@@ -8,11 +8,6 @@ use typed_trees::{
     statement::{StatementNode, TransitionTargetNode},
 };
 
-enum Receiver<'a> {
-    Named(Option<&'a str>),
-    Value(ExpressionHandle),
-}
-
 pub(super) fn check_calls(
     program: &TypedTrees,
     deferred: &[SymbolHandle],
@@ -27,17 +22,12 @@ pub(super) fn check_calls(
             for statement in program.statement_table.statements(state.statement_nodes) {
                 match statement {
                     StatementNode::Call(call) => {
-                        let receiver =
-                            crate::lookup::statement_call_receiver_members(program, call)
-                                .and_then(|members| members.last())
-                                .map(|name| name.as_str());
                         check_target(
                             program,
                             machine,
                             state,
                             deferred,
                             call.target_symbol,
-                            Receiver::Named(receiver),
                             call.target.as_str(),
                             &call.machine_arguments,
                             program.statement_table.expression_handles(call.arguments),
@@ -55,10 +45,6 @@ pub(super) fn check_calls(
                             {
                                 let members =
                                     program.statement_table.name_path_members(path.members);
-                                let receiver = members
-                                    .len()
-                                    .checked_sub(2)
-                                    .and_then(|index| members.get(index));
                                 let name = members.last().map(|name| name.as_str()).unwrap_or("");
                                 check_target(
                                     program,
@@ -66,7 +52,6 @@ pub(super) fn check_calls(
                                     state,
                                     deferred,
                                     path.symbol,
-                                    Receiver::Named(receiver.map(|name| name.as_str())),
                                     name,
                                     &[],
                                     program.statement_table.expression_handles(*arguments),
@@ -94,7 +79,6 @@ pub(super) fn check_calls(
                         state,
                         deferred,
                         call.target_symbol,
-                        Receiver::Value(call.receiver),
                         call.target.as_str(),
                         &call.machine_arguments,
                         program.expression_table.expression_handles(call.arguments),
@@ -112,7 +96,6 @@ fn check_target(
     state: &typed_trees::state::State,
     deferred: &[SymbolHandle],
     target: SymbolHandle,
-    receiver: Receiver<'_>,
     name: &str,
     static_arguments: &[StaticMachineArgument],
     arguments: &[ExpressionHandle],
@@ -132,21 +115,11 @@ fn check_target(
                         .iter()
                         .any(|state| state.symbol == target)
             });
-            !concrete && {
-                let requirement = match receiver {
-                    Receiver::Named(Some(receiver)) => validation::generic_bound_call_requirement(
-                        program, machine, state, receiver, name,
-                    ),
-                    Receiver::Named(None) => Ok(None),
-                    Receiver::Value(receiver) => validation::generic_bound_value_call_requirement(
-                        program, machine, state, receiver, name,
-                    ),
-                };
-                requirement
+            !concrete
+                && validation::named_conformance_target_requirement(program, machine, target)
                     .ok()
                     .flatten()
-                    .is_some_and(|signature| deferred.contains(&signature.symbol))
-            }
+                    .is_some_and(|(_, signature)| deferred.contains(&signature.symbol))
         };
     if unresolved_frontier
         && !closed_return_frontier(program, machine, state, target, static_arguments, arguments)

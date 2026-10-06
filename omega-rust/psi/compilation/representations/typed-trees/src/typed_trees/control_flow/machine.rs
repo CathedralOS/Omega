@@ -188,32 +188,19 @@ impl Default for Machine {
     }
 }
 
+/// A generic evidence binder `Order satisfies Ranked<Element>`. The binder is
+/// an implementation parameter; its argument is one named conformance whose
+/// trait application equals this one after substitution. No parameter is a
+/// data subject.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GenericConformanceBound {
-    pub binder: Option<SymbolHandle>,
-    pub binder_name: Option<Identifier>,
-    pub subject: SymbolHandle,
-    pub subject_name: Identifier,
-    pub carrier: SymbolHandle,
-    pub carrier_name: Identifier,
+    /// The binder's `ConformanceParameter` symbol.
+    pub binder: SymbolHandle,
+    pub binder_name: Identifier,
+    /// The bound trait, or a transparent refinement of one.
+    pub trait_symbol: SymbolHandle,
+    pub trait_name: Identifier,
     pub arguments: Vec<TypeReferenceHandle>,
-    /// Exact selected declaration and its recursively delimited application.
-    /// The selected symbol is never reconstructed from subject/trait shape.
-    pub selected_conformance: Option<crate::expression::StaticMachineArgument>,
-}
-
-impl GenericConformanceBound {
-    pub fn selected_conformance_symbol(&self) -> Option<SymbolHandle> {
-        self.selected_conformance
-            .as_ref()
-            .map(|selected| selected.symbol)
-    }
-
-    pub fn selected_conformance_name(&self) -> Option<&Identifier> {
-        self.selected_conformance
-            .as_ref()
-            .and_then(|selected| selected.path.last())
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -276,9 +276,8 @@ pub trait CallingPolicy {
     machine plan(signature: BoundarySignature) -> BoundaryPlanResult;
 }
 
-// Every Calling<C> relationship first proves the policy type's nominal
-// CallingPolicy conformance. The compiler can then evaluate that selected
-// conformance's plan machine and validate its canonical result.
+// `Calling<C>` names the policy type whose `C::plan` machine satisfies
+// `CallingPolicy::plan`. The compiler checks that exact requirement edge,
+// evaluates the plan, and validates its canonical result.
 pub trait Calling<C>
-where C satisfies CallingPolicy
 { }

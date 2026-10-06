@@ -223,15 +223,14 @@ impl ExactSpecializationEncoder {
             );
         }
 
-        let selected_conformance_count = specialization.conformance_arguments.len()
-            + specialization.inferred_conformance_arguments.len();
-        if specialization.conformance_applications.len() != selected_conformance_count {
+        if specialization.conformance_applications.len()
+            != specialization.conformance_arguments.len()
+        {
             return Err(vec![Diagnostic::error(
                 "task specialization does not retain one exact closed application per selected conformance",
             )]);
         }
         self.length(specialization.conformance_arguments.len());
-        self.length(specialization.inferred_conformance_arguments.len());
         self.length(specialization.conformance_applications.len());
         for application in &specialization.conformance_applications {
             if application.commitment.is_zero() {

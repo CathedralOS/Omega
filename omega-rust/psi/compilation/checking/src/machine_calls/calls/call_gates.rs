@@ -84,6 +84,7 @@ pub(super) fn receiver_is_declaration_namespace(
                             | symbols::SymbolKind::Machine
                             | symbols::SymbolKind::Module
                             | symbols::SymbolKind::Trait
+                            | symbols::SymbolKind::Conformance
                             | symbols::SymbolKind::ConformanceParameter
                     )
             })

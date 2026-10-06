@@ -243,7 +243,6 @@ pub(crate) fn dynamic_family_realization<'program>(
                 && specialization.type_argument_identities.is_empty()
                 && specialization.machine_arguments.is_empty()
                 && specialization.conformance_arguments.is_empty()
-                && specialization.inferred_conformance_arguments.is_empty()
                 && specialization.conformance_applications.is_empty()
         });
     let specialization = candidates.next()?;

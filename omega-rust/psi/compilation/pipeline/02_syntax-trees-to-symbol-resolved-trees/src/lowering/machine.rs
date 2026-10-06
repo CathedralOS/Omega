@@ -448,28 +448,15 @@ pub(crate) fn lower_generic_conformance_bounds(
         .iter()
         .map(|bound| {
             Ok(GenericConformanceBound {
-                binder: bound.binder.as_ref().map(|_| SymbolHandle::invalid()),
-                binder_name: bound.binder.as_ref().map(crate::lowering::name::lower_name),
-                subject: SymbolHandle::invalid(),
-                subject_name: crate::lowering::name::lower_name(&bound.subject),
-                carrier: SymbolHandle::invalid(),
-                carrier_name: crate::lowering::name::lower_name(&bound.carrier),
+                binder: SymbolHandle::invalid(),
+                binder_name: crate::lowering::name::lower_name(&bound.binder),
+                trait_symbol: SymbolHandle::invalid(),
+                trait_name: crate::lowering::name::lower_name(&bound.trait_name),
                 arguments: crate::lowering::type_reference::lower_child_type_references(
                     lowerer,
                     syntax_trees,
                     bound.arguments,
                 )?,
-                selected_conformance: bound
-                    .selected_conformance
-                    .as_ref()
-                    .map(|argument| {
-                        crate::lowering::expression::lower_static_machine_argument(
-                            lowerer,
-                            syntax_trees,
-                            argument,
-                        )
-                    })
-                    .transpose()?,
             })
         })
         .collect()

@@ -1,15 +1,10 @@
 //! Trait application obligations: machine declaration identity arguments,
 //! proposition family arguments and indexed carrier parameters.
 
-use crate::declarations::traits::conformance::bounds::{
-    bound_proves_trait_application, concrete_data_type_name,
-    conformance_arguments_match_application, generic_argument_symbol, trait_application_label,
-};
 use crate::declarations::traits::conformance::signature_matching::{
     TraitTypeBinding, TraitTypeBindingTarget, required_trait_type_parameter,
     type_references_match_with_trait_bindings,
 };
-use crate::declarations::traits::trait_definition_by_symbol;
 use crate::value_custody::type_references::type_references_match;
 use diagnostics::Diagnostic;
 use typed_trees::TypedTrees;
@@ -17,19 +12,13 @@ use typed_trees::data::{TypeParameter, TypeParameterKind};
 use typed_trees::trait_definition::TraitDefinition;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
-/// Validate the obligations declared by a generic trait header at one use of
-/// that trait. For example, applying `Calling<C>` also proves the declaration
-/// site constraint from `trait Calling<C> where C satisfies CallingPolicy`.
-///
-/// `available_bounds` is the enclosing generic owner's evidence. Concrete
-/// arguments instead discharge obligations through standalone nominal
-/// conformance items. This keeps header constraints static and dictionary-free
-/// while rejecting an invalid relationship at the site that authored it.
+/// Validate the argument obligations a generic trait header declares at one
+/// use of that trait: machine declaration identities and proposition family
+/// arguments.
 pub(crate) fn validate_trait_application_obligations(
     program: &TypedTrees,
     applied_trait: &TraitDefinition,
     applied_arguments: &[TypeReferenceHandle],
-    available_bounds: &[typed_trees::machine::GenericConformanceBound],
     application_label: &str,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -52,119 +41,6 @@ pub(crate) fn validate_trait_application_obligations(
         application_label,
         diagnostics,
     );
-
-    for obligation in &applied_trait.conformance_bounds {
-        let Some(subject_index) = parameters.iter().position(|parameter| {
-            (parameter.symbol.is_valid() && parameter.symbol == obligation.subject)
-                || parameter.name == obligation.subject_name
-        }) else {
-            // Declaration validation reports an unknown header subject.
-            continue;
-        };
-        let actual_subject = applied_arguments[subject_index];
-
-        if let Some(selected) = obligation.selected_conformance_symbol() {
-            let Some(declaration) = program
-                .conformances()
-                .iter()
-                .find(|declaration| declaration.symbol == selected)
-            else {
-                // Declaration validation reports the unresolved selection.
-                continue;
-            };
-            let has_exact_evidence =
-                generic_argument_symbol(program, actual_subject).is_some_and(|subject_symbol| {
-                    available_bounds.iter().any(|candidate| {
-                        candidate.subject == subject_symbol
-                            && candidate.selected_conformance_symbol() == Some(selected)
-                            && candidate.selected_conformance == obligation.selected_conformance
-                    })
-                }) || declaration.carrier_name().is_some_and(|carrier| {
-                    concrete_data_type_name(program, actual_subject) == Some(carrier.as_str())
-                });
-            if !has_exact_evidence {
-                diagnostics.push(Diagnostic::error(format!(
-                    "{application_label} does not meet trait `{}` header obligation `{}` satisfies exact conformance `{}::{}`: argument `{}` is not data `{}`",
-                    applied_trait.name,
-                    obligation.subject_name,
-                    obligation.carrier_name,
-                    obligation
-                        .selected_conformance_name()
-                        .map_or("<missing>", |name| name.as_str()),
-                    program.display_type_reference(actual_subject),
-                    declaration
-                        .carrier_name()
-                        .map_or("<subjectless>", |name| name.as_str()),
-                )));
-            }
-            continue;
-        }
-
-        let Some(required_trait) = trait_definition_by_symbol(program, obligation.carrier) else {
-            // Declaration validation reports the unresolved trait.
-            continue;
-        };
-        if obligation.arguments.len() != program.trait_type_parameters(required_trait).len() {
-            // Declaration validation reports the arity mismatch.
-            continue;
-        }
-        let evidence_count =
-            if let Some(subject_symbol) = generic_argument_symbol(program, actual_subject) {
-                available_bounds
-                    .iter()
-                    .filter(|candidate| {
-                        candidate.subject == subject_symbol
-                            && bound_proves_trait_application(
-                                program,
-                                candidate,
-                                required_trait,
-                                &obligation.arguments,
-                                applied_trait,
-                                applied_arguments,
-                            )
-                    })
-                    .count()
-            } else if let Some(type_name) = concrete_data_type_name(program, actual_subject) {
-                program
-                    .conformances()
-                    .iter()
-                    .filter(|candidate| {
-                        candidate
-                            .carrier_name()
-                            .is_some_and(|carrier| carrier.as_str() == type_name)
-                            && candidate.trait_name == required_trait.name
-                            && conformance_arguments_match_application(
-                                program,
-                                program
-                                    .type_reference_table
-                                    .type_reference_handles(candidate.arguments),
-                                &obligation.arguments,
-                                applied_trait,
-                                applied_arguments,
-                            )
-                    })
-                    .count()
-            } else {
-                0
-            };
-
-        match evidence_count {
-            1 => {}
-            0 => diagnostics.push(Diagnostic::error(format!(
-                "{application_label} does not meet trait `{}` header obligation `{} satisfies {}` for argument `{}`",
-                applied_trait.name,
-                obligation.subject_name,
-                trait_application_label(program, required_trait, &obligation.arguments),
-                program.display_type_reference(actual_subject),
-            ))),
-            count => diagnostics.push(Diagnostic::error(format!(
-                "{application_label} has {count} matching conformances for trait `{}` header obligation `{} satisfies {}`; select one exact named conformance",
-                applied_trait.name,
-                obligation.subject_name,
-                trait_application_label(program, required_trait, &obligation.arguments),
-            ))),
-        }
-    }
 }
 
 fn validate_machine_declaration_identity_arguments(

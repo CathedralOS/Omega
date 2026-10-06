@@ -96,8 +96,7 @@ pub(super) fn clone_specialized_machine(
                 .join("::")
         })
         .collect();
-    let evidence_paths =
-        candidate_conformance_fingerprint_arguments(source.unwrap_or(program), candidate);
+    let evidence_paths = candidate_conformance_fingerprint_arguments(candidate);
     let selection_report_fingerprint = specialization_selection_report_fingerprint(
         &candidate.template.template_name,
         &type_identities,
@@ -576,7 +575,6 @@ pub(super) fn clone_specialized_machine(
                 .iter()
                 .map(|binding| binding.as_ref().expect("complete specialization").symbol)
                 .collect(),
-            inferred_conformance_arguments: candidate.inferred_conformance_arguments.clone(),
             conformance_applications: candidate
                 .evidence_bindings
                 .iter()
@@ -587,7 +585,6 @@ pub(super) fn clone_specialized_machine(
                     )
                     .expect("validated closed conformance application")
                 })
-                .chain(candidate.selected_bound_applications.iter().cloned())
                 .collect(),
             operator_realizations,
             template_contract_commitment,

@@ -1,4 +1,3 @@
-use super::application::project_selected_conformance_application;
 use crate::capture::PackageReviewInput;
 use crate::capture::semantics::declarations::nominal_identity;
 use crate::capture::semantics::types::review_signature_type_identity_with_binders;
@@ -9,89 +8,37 @@ use symbols::SymbolHandle;
 pub(crate) fn project_conformance_bounds(
     compilation: &PackageReviewInput<'_>,
     bounds: &[typed_trees::machine::GenericConformanceBound],
-    parameters: &[typed_trees::data::TypeParameter],
     binders: &[(SymbolHandle, String)],
     lifetime_binders: &[typed_trees::name::Identifier],
     declaration_kind: &str,
     declaration_path: &str,
 ) -> Result<Vec<PackageReviewConformanceBound>, Vec<Diagnostic>> {
     let mut projected = Vec::with_capacity(bounds.len());
-    let mut next_binder_ordinal = 0usize;
-    for bound in bounds {
-        let binder_ordinal = if let Some(binder) = bound.binder {
-            if !binder.is_valid() {
-                return Err(vec![Diagnostic::error(format!(
-                    "{declaration_kind} `{declaration_path}` has an unresolved conformance evidence binder"
-                ))]);
-            }
-            let ordinal = u32::try_from(next_binder_ordinal).map_err(|_| {
-                vec![Diagnostic::error(format!(
-                    "{declaration_kind} `{declaration_path}` has too many conformance binders for portable review evidence"
-                ))]
-            })?;
-            next_binder_ordinal += 1;
-            Some(ordinal)
-        } else {
-            None
-        };
-        let Some(subject_parameter) = parameters
-            .iter()
-            .position(|parameter| parameter.symbol == bound.subject)
-        else {
+    for (binder_ordinal, bound) in bounds.iter().enumerate() {
+        if !bound.binder.is_valid() {
             return Err(vec![Diagnostic::error(format!(
-                "{declaration_kind} `{declaration_path}` has a conformance subject outside its type-parameter telescope"
+                "{declaration_kind} `{declaration_path}` has an unresolved conformance evidence binder"
             ))]);
-        };
-        let (
-            selected_conformance,
-            selected_lifetime_arguments,
-            selected_arguments,
-            selected_subject,
-            trait_symbol,
-            trait_lifetime_arguments,
-            trait_arguments,
-        ) = match bound.selected_conformance.as_ref() {
-            None => (
-                None,
-                Vec::new(),
-                Vec::new(),
-                None,
-                bound.carrier,
-                Vec::new(),
-                bound
-                    .arguments
-                    .iter()
-                    .map(|argument| {
-                        review_signature_type_identity_with_binders(
-                            compilation,
-                            *argument,
-                            binders,
-                            lifetime_binders,
-                        )
-                    })
-                    .collect::<Result<Vec<_>, _>>()?,
-            ),
-            Some(selected) => {
-                let selected = project_selected_conformance_application(
+        }
+        let binder_ordinal = u32::try_from(binder_ordinal).map_err(|_| {
+            vec![Diagnostic::error(format!(
+                "{declaration_kind} `{declaration_path}` has too many conformance binders for portable review evidence"
+            ))]
+        })?;
+        let trait_symbol = bound.trait_symbol;
+        let trait_lifetime_arguments = Vec::new();
+        let trait_arguments = bound
+            .arguments
+            .iter()
+            .map(|argument| {
+                review_signature_type_identity_with_binders(
                     compilation,
-                    selected,
+                    *argument,
                     binders,
                     lifetime_binders,
-                    &[],
-                    declaration_kind,
-                    declaration_path,
-                )?;
-                (
-                    Some(selected.declaration),
-                    selected.lifetime_arguments,
-                    selected.arguments,
-                    Some(selected.subject),
-                    selected.trait_symbol,
-                    selected.trait_lifetime_arguments,
-                    selected.trait_arguments,
                 )
-            }
-        };
+            })
+            .collect::<Result<Vec<_>, _>>()?;
         let matching_traits = compilation
             .traits()
             .iter()
@@ -119,15 +66,6 @@ pub(crate) fn project_conformance_bounds(
         }
         projected.push(PackageReviewConformanceBound {
             binder_ordinal,
-            subject_parameter: u32::try_from(subject_parameter).map_err(|_| {
-                vec![Diagnostic::error(format!(
-                    "{declaration_kind} `{declaration_path}` conformance subject exceeds the portable review parameter range"
-                ))]
-            })?,
-            selected_conformance,
-            selected_lifetime_arguments,
-            selected_arguments,
-            selected_subject,
             trait_identity: nominal_identity(compilation, trait_definition.symbol)?,
             trait_lifetime_arguments,
             arguments: trait_arguments,

@@ -4,7 +4,6 @@ use crate::record::PackagePolicyTypeParameter;
 use crate::record::PackagePolicyTypeParameterKind;
 use crate::record::PackageReviewConformanceBound;
 use crate::record::PackageReviewTypeIdentity;
-use crate::record::package::callable_policy::validation::signature::BinderKind;
 use crate::record::package::callable_policy::validation::signature::depth;
 use crate::record::package::callable_policy::validation::signature::lifetimes;
 use crate::record::package::callable_policy::validation::signature::nominal;
@@ -13,7 +12,6 @@ use crate::record::package::callable_policy::validation::signature::text;
 use crate::record::package::callable_policy::validation::signature::value_type;
 use crate::record::validation::behavior;
 use crate::record::validation::contracts;
-use crate::record::validation::expressions;
 
 pub(in crate::record) fn parameters(scope: &Scope<'_>, nesting: usize) -> Result {
     u32::try_from(scope.lifetimes)
@@ -123,38 +121,16 @@ pub(in crate::record) fn bounds(
 ) -> Result {
     let mut next = 0u32;
     for value in values {
-        if let Some(ordinal) = value.binder_ordinal {
-            if ordinal != next {
-                return Err("public conformance binders are not declaration ordered");
-            }
-            next = next
-                .checked_add(1)
-                .ok_or("public conformance binder count overflows")?;
+        if value.binder_ordinal != next {
+            return Err("public conformance binders are not declaration ordered");
         }
-        if !matches!(
-            scope.static_kind(value.subject_parameter),
-            Some(BinderKind::Type)
-        ) {
-            return Err("public conformance bound has no type-parameter subject");
-        }
+        next = next
+            .checked_add(1)
+            .ok_or("public conformance binder count overflows")?;
         nominal(&value.trait_identity)?;
         lifetimes(&value.trait_lifetime_arguments, scope)?;
         for argument in &value.arguments {
             value_type(argument)?;
-        }
-        match (&value.selected_conformance, &value.selected_subject) {
-            (None, None)
-                if value.selected_lifetime_arguments.is_empty()
-                    && value.selected_arguments.is_empty() => {}
-            (Some(selected), Some(subject)) => {
-                nominal(selected)?;
-                lifetimes(&value.selected_lifetime_arguments, scope)?;
-                expressions::static_argument(subject, scope, 0)?;
-                for argument in &value.selected_arguments {
-                    expressions::static_argument(argument, scope, 0)?;
-                }
-            }
-            _ => return Err("public conformance selection loses its complete application"),
         }
     }
     Ok(())

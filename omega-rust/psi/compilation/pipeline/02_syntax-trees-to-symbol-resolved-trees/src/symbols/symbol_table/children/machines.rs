@@ -26,10 +26,12 @@ pub(in crate::symbols::symbol_table) fn insert_machine_symbol_children(
                 };
                 symbol_seed(kind, &parameter.name, has_sources)
             })
-            .chain(machine.conformance_bounds.iter().filter_map(|bound| {
-                bound.binder_name.as_ref().map(|binder| {
-                    symbol_seed(SymbolKind::ConformanceParameter, binder, has_sources)
-                })
+            .chain(machine.conformance_bounds.iter().map(|bound| {
+                symbol_seed(
+                    SymbolKind::ConformanceParameter,
+                    &bound.binder_name,
+                    has_sources,
+                )
             }))
             .chain(
                 program
@@ -66,16 +68,12 @@ pub(in crate::symbols::symbol_table) fn insert_machine_symbol_children(
             );
         }
     }
-    for bound in machine
-        .conformance_bounds
-        .iter()
-        .filter(|bound| bound.binder_name.is_some())
-    {
+    for bound in machine.conformance_bounds.iter() {
         let Some(binder_symbol) = machine_children.next() else {
             break;
         };
         if let Some(trait_definition) =
-            select_visible_trait_definition(program, &bound.carrier_name, sources)
+            select_visible_trait_definition(program, &bound.trait_name, sources)
         {
             let mut requirements = Vec::new();
             collect_evidence_requirement_closure(

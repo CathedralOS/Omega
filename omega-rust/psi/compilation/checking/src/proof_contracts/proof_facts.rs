@@ -182,15 +182,6 @@ fn carrierless_trait_violation(
     }
     visiting.push(trait_definition.symbol);
 
-    if trait_definition
-        .conformance_bounds
-        .iter()
-        .any(|bound| bound.subject_name.as_str() == "Self")
-    {
-        visiting.pop();
-        return Some("a conformance bound selects `Self` as its subject".to_owned());
-    }
-
     for requirement in program.trait_machine_signatures(trait_definition) {
         for parameter in program.state_signature_parameters(requirement) {
             if type_reference_contains_self(program, parameter.type_reference) {

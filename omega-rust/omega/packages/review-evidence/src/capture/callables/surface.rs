@@ -72,7 +72,6 @@ pub(super) fn project<'a>(
             "reviewed callable `{subject}` has no canonical entry signature"
         ))]);
     };
-    let machine_type_parameters = compilation.machine_type_parameters(machine);
     crate::capture::source::invocations::validate_machine_invocations(compilation, machine)?;
     crate::capture::source::suspension::validate_machine_operational(compilation, machine)?;
     let publishes_interface = callable_contract_exposure(machine)
@@ -86,7 +85,6 @@ pub(super) fn project<'a>(
     let conformance_bounds = project_conformance_bounds(
         compilation,
         &machine.conformance_bounds,
-        machine_type_parameters,
         &binders,
         &machine.lifetime_parameters,
         "reviewed callable",

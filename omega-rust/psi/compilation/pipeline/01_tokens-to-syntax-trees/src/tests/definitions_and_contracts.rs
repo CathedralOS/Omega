@@ -1243,9 +1243,9 @@ fn parses_nested_static_conformance_application() {
         data Bytes {}
         data Message {}
 
-        SequenceEncoding<Element, Output>: Bytes satisfies Encodes<Output> {}
+        SequenceEncoding<Element, Output> satisfies Encodes<Output> {}
 
-        machine send<T, Encoding: Bytes satisfies Encodes<T>>() {}
+        machine send<T, Encoding satisfies Encodes<T>>() {}
         machine caller() {
             send<Message, SequenceEncoding<'scope, Bytes, Message>>();
         }

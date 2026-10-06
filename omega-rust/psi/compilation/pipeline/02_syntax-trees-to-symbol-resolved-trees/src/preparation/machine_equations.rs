@@ -106,21 +106,6 @@ pub(crate) fn complete(
     selection: &ConstantSelection<'_>,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut completed_type_roots = Vec::new();
-    for bound in trees
-        .machines
-        .iter()
-        .flat_map(|machine| &machine.conformance_bounds)
-        .chain(
-            trees
-                .traits
-                .iter()
-                .flat_map(|definition| &definition.conformance_bounds),
-        )
-    {
-        if let Some(argument) = &bound.selected_conformance {
-            reject_machine_arguments(trees, std::slice::from_ref(argument))?;
-        }
-    }
     for conformance in &trees.conformances {
         if let symbol_resolved_trees::trait_definition::ConformanceImplementation::Closed { rows } =
             &conformance.implementation

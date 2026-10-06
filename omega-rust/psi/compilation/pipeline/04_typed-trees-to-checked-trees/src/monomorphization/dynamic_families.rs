@@ -274,7 +274,6 @@ fn tuple_specialization_exists(
                 && specialization.type_argument_identities.is_empty()
                 && specialization.machine_arguments.is_empty()
                 && specialization.conformance_arguments.is_empty()
-                && specialization.inferred_conformance_arguments.is_empty()
                 && specialization.conformance_applications.is_empty()
         })
 }
@@ -314,7 +313,7 @@ fn generate_tuple_specialization(
             tuple.display.join(", ")
         ))]);
     }
-    validate_candidate_conformance_bounds(program, &mut candidate)?;
+    validate_candidate_conformance_bounds(program, &candidate)?;
     const_arguments::validate_bindings(program, &candidate).map_err(|error| vec![error])?;
 
     let canonical_template_contract_bytes = canonical_template_contract_bytes(

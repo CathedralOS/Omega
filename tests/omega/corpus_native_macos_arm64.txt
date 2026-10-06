@@ -1498,6 +1498,7 @@ pass/traits/runtime_local_named_dyn_devirtualized_exit rejected 978ms @48008365d
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `call operation: target state` (state 0, statement 1)
 pass/traits/runtime_local_named_dyn_pass_through_exit rejected 1034ms @48008365d839
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: target place` (state 0, statement 3)
+pass/traits/runtime_named_implementation_selection_exit built 1238ms exit:70 @65c3b89f46f4+wt
 pass/traits/runtime_qualified_byte_crash_equality_exit built 724ms exit:70 @8bd51016873be5f442446f3e2fff2f682806bca6
 pass/traits/runtime_trait_default_requirement_scope_exit built 3688ms exit:70 @c4e45d3dda38+wt
 pass/traits/static_subject_satisfies_receiver_requirement_exit built 654ms exit:1 @125b05ae4947+wt

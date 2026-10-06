@@ -73,7 +73,6 @@ pub(crate) fn validate_trait_requirements(
                     program
                         .type_reference_table
                         .type_reference_handles(requirement.arguments),
-                    &trait_definition.conformance_bounds,
                     &format!(
                         "trait `{}` parent `{}`",
                         trait_definition.name, requirement.name

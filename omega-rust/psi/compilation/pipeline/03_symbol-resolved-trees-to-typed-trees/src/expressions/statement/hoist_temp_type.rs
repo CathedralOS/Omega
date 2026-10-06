@@ -523,7 +523,7 @@ fn static_conformance_requirement_return(
     let mut bounds = owner
         .conformance_bounds
         .iter()
-        .filter(|bound| bound.binder == Some(receiver.symbol));
+        .filter(|bound| bound.binder == receiver.symbol);
     let bound = bounds.next()?;
     if bounds.next().is_some() {
         return None;
@@ -533,7 +533,7 @@ fn static_conformance_requirement_return(
         .roots
         .traits
         .iter()
-        .find(|definition| definition.symbol == bound.carrier)?;
+        .find(|definition| definition.symbol == bound.trait_symbol)?;
     // Requirements declared on a `requires` parent remain call requirements of
     // the bound trait, so the name lookup covers the transitive parent closure.
     let mut requirements = Vec::new();

@@ -471,13 +471,8 @@ impl SyntaxTrees {
                 .iter()
                 .map(|bound| crate::item::GenericConformanceBound {
                     binder: bound.binder.clone(),
-                    subject: bound.subject.clone(),
-                    carrier: bound.carrier.clone(),
+                    trait_name: bound.trait_name.clone(),
                     arguments: self.copy_type_reference_handle_span(other, bound.arguments),
-                    selected_conformance: bound
-                        .selected_conformance
-                        .as_ref()
-                        .map(|argument| self.copy_static_machine_argument(other, argument)),
                 })
                 .collect(),
             terminates_guarantee: machine.terminates_guarantee,
@@ -519,13 +514,8 @@ impl SyntaxTrees {
                 .iter()
                 .map(|bound| crate::item::GenericConformanceBound {
                     binder: bound.binder.clone(),
-                    subject: bound.subject.clone(),
-                    carrier: bound.carrier.clone(),
+                    trait_name: bound.trait_name.clone(),
                     arguments: self.copy_type_reference_handle_span(other, bound.arguments),
-                    selected_conformance: bound
-                        .selected_conformance
-                        .as_ref()
-                        .map(|argument| self.copy_static_machine_argument(other, argument)),
                 })
                 .collect(),
             parents: self.copy_type_reference_handle_span(other, trait_definition.parents),

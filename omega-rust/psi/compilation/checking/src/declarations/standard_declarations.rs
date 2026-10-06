@@ -112,14 +112,12 @@ fn has_calling_interface(
     let [parameter] = program.trait_type_parameters(calling) else {
         return false;
     };
+    // `Calling<C>` names the policy type whose `C::plan` machine satisfies
+    // `CallingPolicy::plan`; plan computation checks that exact edge before
+    // evaluating it.
     if parameter.kind != TypeParameterKind::Type
         || !program.trait_machine_signatures(calling).is_empty()
         || !program.trait_type_parameters(policy).is_empty()
-        || !calling.conformance_bounds.iter().any(|bound| {
-            bound.subject == parameter.symbol
-                && bound.carrier == policy.symbol
-                && bound.arguments.is_empty()
-        })
     {
         return false;
     }

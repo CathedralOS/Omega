@@ -10,8 +10,8 @@ proposition first_ready() evidence Evidence;
 proposition second_ready() evidence Evidence;
 proposition third_ready() evidence Evidence;
 
-trait Producer {
-    machine Self::produce(subject: &Self)
+trait Producer<T> {
+    machine produce(subject: &T)
     requires first: first_ready()
     requires second: second_ready()
     requires third: third_ready()
@@ -23,7 +23,7 @@ trait Producer {
 data Token {
 }
 
-TokenProducer: Token satisfies Producer {
+TokenProducer satisfies Producer<Token> {
     machine produce(subject: &Token)
     requires local_first: first_ready()
     requires local_second: second_ready()
@@ -38,7 +38,7 @@ TokenProducer: Token satisfies Producer {
     }
 }
 
-machine invoke<Element, Order: Element satisfies Producer>(value: &Element)
+machine invoke<Element, Order satisfies Producer<Element>>(value: &Element)
 requires incoming_first: first_ready()
 requires incoming_second: second_ready()
 requires incoming_third: third_ready()

@@ -4,14 +4,13 @@ use crate::declarations::traits::conformance::signature_matching::TraitTypeBindi
 use crate::declarations::traits::conformance::signature_matching::type_references_match_with_trait_bindings;
 use crate::declarations::traits::trait_definition_by_symbol;
 use language_core::OperatorSpelling;
-use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::machine::Machine;
 use typed_trees::signature::StateSignature;
 use typed_trees::types::TypeReferenceHandle;
 
 /// Select a requirement identity, not a concrete conformance realization.
-/// Every known operand must satisfy the same declared subject/argument bindings.
+/// Every known operand must satisfy the binder's trait-argument bindings.
 pub fn generic_bound_operator_requirement<'program>(
     program: &'program TypedTrees,
     machine: &'program Machine,
@@ -23,7 +22,7 @@ pub fn generic_bound_operator_requirement<'program>(
     }
     let mut selected = None;
     for bound in &machine.conformance_bounds {
-        let Some(trait_definition) = trait_definition_by_symbol(program, bound.carrier) else {
+        let Some(trait_definition) = trait_definition_by_symbol(program, bound.trait_symbol) else {
             continue;
         };
         for requirement in program.trait_machine_signatures(trait_definition) {
@@ -34,22 +33,16 @@ pub fn generic_bound_operator_requirement<'program>(
             if parameters.len() != operands.len() {
                 continue;
             }
-            let mut bindings = vec![TraitTypeBinding {
-                parameter_symbol: SymbolHandle::invalid(),
-                parameter_name: "Self".to_owned(),
-                target: TraitTypeBindingTarget::Parameter(bound.subject),
-            }];
-            bindings.extend(
-                program
-                    .trait_type_parameters(trait_definition)
-                    .iter()
-                    .zip(&bound.arguments)
-                    .map(|(parameter, argument)| TraitTypeBinding {
-                        parameter_symbol: parameter.symbol,
-                        parameter_name: parameter.name.to_string(),
-                        target: TraitTypeBindingTarget::Type(*argument),
-                    }),
-            );
+            let mut bindings = program
+                .trait_type_parameters(trait_definition)
+                .iter()
+                .zip(&bound.arguments)
+                .map(|(parameter, argument)| TraitTypeBinding {
+                    parameter_symbol: parameter.symbol,
+                    parameter_name: parameter.name.to_string(),
+                    target: TraitTypeBindingTarget::Type(*argument),
+                })
+                .collect::<Vec<_>>();
             if !operands.iter().zip(parameters).all(|(actual, parameter)| {
                 actual.is_some_and(|actual| {
                     type_references_match_with_trait_bindings(

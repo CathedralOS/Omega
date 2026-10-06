@@ -277,11 +277,23 @@ helper that passes does not close an item.
   `NormalCounter satisfies CounterOperations<CounterData>` names code, not
   data; `CounterData` is an ordinary trait argument. There is no `Self`, hidden
   first type binder, implicit implementing type or special subjectless variant.
-  - Customers: migrate `pass/traits/static_subject_satisfies_receiver_requirement_exit`
-    (authored exit 1) and `pass/proofs/named_witness_static_trait_plural_compile`.
-    Rename the former for named implementation selection while retaining its
-    behavior. Add a runnable pair of implementations over one data type, a
-    trait over two unrelated argument types, and a no-data machine bundle.
+  - Current frontier: an evidence binder is `Order satisfies Trait<Args>`
+    with no subject (`where T satisfies` and `Name: Subject satisfies`
+    reject); it accepts only an implementation of its exact trait
+    application, and `Impl::member(args)` calls that implementation's row.
+    `pass/traits/runtime_named_implementation_selection_exit` (two
+    implementations over one data type, a binder, a two-type trait and a
+    data-free bundle) exits 70 natively; `pass/proofs/named_witness_static_trait_plural_compile`
+    checks with `Producer<T>`. Remaining: data-subject conformances
+    (`Name: Data satisfies Trait`, bodyless attached-machine maps) and `Self`
+    in about 70 sources (Equatable synthesis, CallingPolicy targets,
+    OpaqueRepresentation, PrivateCallbackSlot layouts, placed access, algebra
+    laws, boundary providers, `pass/traits/static_subject_satisfies_receiver_requirement_exit`),
+    then deleting `ConformanceSubject::Carrier`, `carrier_symbol` and
+    `SelfType`. `Trait::member<Args, Impl>(...)` explicit-application calls
+    are unimplemented. Trait-header evidence binders parse but have no
+    positional application yet, so std's `Calling<C>` still names the policy
+    type and plan computation checks its exact `CallingPolicy::plan` edge.
   - Own parsing, resolution, typing, checking and conformance publication in
     `omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees` through
     `07_lowered-psi-to-terminal-psi`, their representations and

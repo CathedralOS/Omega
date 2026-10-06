@@ -105,7 +105,6 @@ pub(crate) fn validate_machine_trait_conformances(
             program,
             trait_definition,
             explicit_type_arguments,
-            &machine.conformance_bounds,
             &format!(
                 "machine `{}` conformance to trait `{}`",
                 machine.name, trait_definition.name

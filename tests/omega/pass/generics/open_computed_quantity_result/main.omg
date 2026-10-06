@@ -1,14 +1,10 @@
 // PDI3: a generic result retains an erased expression over its input indices.
-// The consuming machine's conformance bound supplies the spelled operation;
-// the carrier trait's checked law slots license AC normalization.
+// The consuming machine's evidence binder supplies the spelled operation; the
+// bound trait's checked law slots license AC normalization.
 use omega_language_std::console;
 use omega::language::core::binding;
 
 domain<T, const I: u64> T::Indexed<I>;
-
-data Nat {
-    tag: u8;
-}
 
 trait IndexAdd<Operand> {
     operator + add(a: Operand, b: Operand) -> Operand;
@@ -46,8 +42,7 @@ ensures plus_index(plus_index(a, b), c) == plus_index(a, plus_index(b, c))
     _ = plus_index(a, plus_index(b, c));
 }
 
-Canonical:
-    Nat satisfies IndexAdd<u64>
+Canonical satisfies IndexAdd<u64>
 {
     IndexAdd::add = plus_index;
     IndexAdd::add_comm = plus_index_comm;
@@ -62,14 +57,14 @@ machine indexed_right(value: i64) -> i64 in Indexed<2> {
     value as i64 in Indexed<2>
 }
 
-machine add_indexed<T, const A: u64, const B: u64, Canonical: T satisfies IndexAdd<u64>>(
+machine add_indexed<const A: u64, const B: u64, Algebra satisfies IndexAdd<u64>>(
     left: i64 in Indexed<A>,
     right: i64 in Indexed<B>
 ) -> i64 in Indexed<A + B> {
     70 as i64 in Indexed<A + B>
 }
 
-machine establish_three<T, Canonical: T satisfies IndexAdd<u64>>(a: u64, b: u64) -> u64
+machine establish_three<Algebra satisfies IndexAdd<u64>>(a: u64, b: u64) -> u64
 requires a <= 1000
 requires b <= 1000
 requires a + b == 3
@@ -81,7 +76,7 @@ ensures a + b == 3
 
 // Keep one universal open compatibility boundary after the concrete runtime
 // call specializes `add_indexed`; AC normalization alone discharges this row.
-machine reorder_indexed<T, const A: u64, const B: u64, Canonical: T satisfies IndexAdd<u64>>(
+machine reorder_indexed<const A: u64, const B: u64, Algebra satisfies IndexAdd<u64>>(
     value: i64 in Indexed<A + B>
 ) -> i64 in Indexed<B + A> {
     value
@@ -97,7 +92,7 @@ machine Main::main(main: &mut Main) reaches Console {
     // `+` is the selected requirement, not compiler-known integer arithmetic.
     // Establish the concrete equality explicitly; the universal
     // `reorder_indexed` row above remains a licensed-AC judgment.
-    _ = establish_three<Nat, Canonical>(1, 2);
-    let sum: i64 in Indexed<3> = add_indexed<Nat, 1, 2, Canonical>(left, right);
+    _ = establish_three<Canonical>(1, 2);
+    let sum: i64 in Indexed<3> = add_indexed<1, 2, Canonical>(left, right);
     main.console.exit_process((sum as i32 in Wrapping) as i32);
 }

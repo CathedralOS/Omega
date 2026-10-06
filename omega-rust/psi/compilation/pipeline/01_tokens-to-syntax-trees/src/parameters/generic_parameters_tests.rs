@@ -44,7 +44,7 @@ fn proposition_binders_remain_trait_only() {
 #[test]
 fn conformance_and_value_binders_keep_distinct_admission() {
     for syntax in SYNTAX_CHOICES {
-        let conformance = parse_parameters("<Evidence: Value satisfies Trait>", syntax);
+        let conformance = parse_parameters("<Evidence satisfies Trait<Value>>", syntax);
         assert_eq!(
             conformance.is_ok(),
             matches!(
@@ -57,6 +57,9 @@ fn conformance_and_value_binders_keep_distinct_admission() {
             assert_eq!(parameters.conformance_bounds.len(), 1);
             assert!(parameters.type_parameters.is_empty());
         }
+        // The retired subject spelling rejects everywhere: a conformance names
+        // code, so no binder carries a data subject.
+        assert!(parse_parameters("<Evidence: Value satisfies Trait>", syntax).is_err());
         let value = parse_parameters("<Count: usize>", syntax);
         assert_eq!(
             value.is_ok(),

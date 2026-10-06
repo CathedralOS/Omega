@@ -336,32 +336,14 @@ fn lower_machine_contents(
         for argument in lowerer.source_trees.child_type_references(bound.arguments) {
             arguments.push(lower_type_reference_into_table(lowerer, argument)?);
         }
-        let selected_conformance = bound
-            .selected_conformance
-            .as_ref()
-            .map(|argument| {
-                crate::expressions::expression::lower_static_machine_argument(
-                    Some(lowerer.source_trees),
-                    &mut lowerer.typed_trees,
-                    lowerer.type_reference_exposure,
-                    argument,
-                )
-            })
-            .transpose()?;
         typed_machine
             .conformance_bounds
             .push(typed::machine::GenericConformanceBound {
                 binder: bound.binder,
-                binder_name: bound
-                    .binder_name
-                    .as_ref()
-                    .map(crate::lowerer::name::lower_name),
-                subject: bound.subject,
-                subject_name: crate::lowerer::name::lower_name(&bound.subject_name),
-                carrier: bound.carrier,
-                carrier_name: crate::lowerer::name::lower_name(&bound.carrier_name),
+                binder_name: crate::lowerer::name::lower_name(&bound.binder_name),
+                trait_symbol: bound.trait_symbol,
+                trait_name: crate::lowerer::name::lower_name(&bound.trait_name),
                 arguments,
-                selected_conformance,
             });
     }
 

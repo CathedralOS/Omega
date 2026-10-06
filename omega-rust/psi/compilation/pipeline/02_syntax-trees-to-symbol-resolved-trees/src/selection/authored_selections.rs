@@ -721,7 +721,6 @@ fn conformance_bound_candidates(program: &SymbolResolvedTrees) -> Vec<Unattached
     let mut candidates = Vec::new();
     for machine in program.machines.iter() {
         collect_conformance_bound_candidates(
-            program,
             &machine.conformance_bounds,
             if machine.is_public
                 || matches!(
@@ -739,7 +738,6 @@ fn conformance_bound_candidates(program: &SymbolResolvedTrees) -> Vec<Unattached
     }
     for trait_definition in program.traits.iter() {
         collect_conformance_bound_candidates(
-            program,
             &trait_definition.conformance_bounds,
             if trait_definition.is_public {
                 Exposure::PublicInterface
@@ -775,66 +773,18 @@ fn conformance_bound_candidates(program: &SymbolResolvedTrees) -> Vec<Unattached
 }
 
 fn collect_conformance_bound_candidates(
-    program: &SymbolResolvedTrees,
     bounds: &[symbol_resolved_trees::machine::GenericConformanceBound],
     exposure: language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
     candidates: &mut Vec<UnattachedCandidate>,
 ) {
     for bound in bounds {
-        if bound.carrier_name.is_source_backed() {
+        if bound.trait_name.is_source_backed() {
             candidates.push(UnattachedCandidate {
-                source_span: bound.carrier_name.source_span(),
+                source_span: bound.trait_name.source_span(),
                 exposure,
                 kind: Kind::TypeReference,
-                target: resolved_or_late(bound.carrier, LateBinding::CheckedStaticPathSegment),
+                target: resolved_or_late(bound.trait_symbol, LateBinding::CheckedStaticPathSegment),
             });
-        }
-        if let Some(selected) = &bound.selected_conformance {
-            let fallback_span = bound.carrier_name.source_span();
-            let source_span = path_span(&selected.path, fallback_span);
-            candidates.push(UnattachedCandidate {
-                source_span,
-                exposure,
-                kind: Kind::Conformance,
-                target: resolved_or_late(selected.symbol, LateBinding::CheckedConformance),
-            });
-            if let Some(application) = &selected.application {
-                collect_bound_static_argument_candidates(
-                    program,
-                    &application.arguments,
-                    exposure,
-                    source_span,
-                    candidates,
-                );
-            }
-        }
-    }
-}
-
-fn collect_bound_static_argument_candidates(
-    program: &SymbolResolvedTrees,
-    arguments: &[symbol_resolved_trees::expression::StaticMachineArgument],
-    exposure: language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
-    fallback_span: SourceSpan,
-    candidates: &mut Vec<UnattachedCandidate>,
-) {
-    for argument in arguments {
-        if has_authored_static_declaration(program, argument) {
-            candidates.push(UnattachedCandidate {
-                source_span: path_span(&argument.path, fallback_span),
-                exposure,
-                kind: static_argument_kind(program, argument.symbol),
-                target: resolved_or_late(argument.symbol, LateBinding::CheckedStaticArgument),
-            });
-        }
-        if let Some(application) = &argument.application {
-            collect_bound_static_argument_candidates(
-                program,
-                &application.arguments,
-                exposure,
-                fallback_span,
-                candidates,
-            );
         }
     }
 }

@@ -86,14 +86,11 @@ pub(crate) fn parse_machine<'tokens, 'source>(
             blocks,
             contracts,
             clauses_return_type,
-            mut conformance_bounds,
             where_facts,
         ),
         next,
     ) = parse_machine_clauses(syntax_trees, next)?;
-    let mut header_conformance_bounds = generic_parameters.conformance_bounds;
-    header_conformance_bounds.append(&mut conformance_bounds);
-    let conformance_bounds = header_conformance_bounds;
+    let conformance_bounds = generic_parameters.conformance_bounds;
     input = next;
     // `-> T` is written either before the clauses or after them
     // (`terminates by ..; -> usize`); both spell the machine's return type.

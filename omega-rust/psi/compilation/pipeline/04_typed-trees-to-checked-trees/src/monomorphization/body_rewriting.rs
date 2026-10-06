@@ -17,8 +17,7 @@ mod type_parameter_substitution;
 pub(crate) use cloned_calls::{rewrite_cloned_calls, statement_span_handles};
 pub(crate) use const_substitution::collect_statement_expression_trees;
 pub(crate) use machine_arguments::{
-    forwarded_static_argument_rewrites, remap_machine_argument_symbols,
-    static_const_literal_from_type_reference, substitute_forwarded_machine_arguments,
+    remap_machine_argument_symbols, static_const_literal_from_type_reference,
 };
 pub(crate) use type_parameter_substitution::{
     cloned_expression_roots, rebind_state_scoped_range_endpoints,

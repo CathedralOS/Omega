@@ -79,6 +79,16 @@ pub(crate) fn state_value_root_is_known(
     // Generated case operands retain the selected declaration even when their
     // diagnostic carrier includes a package prefix absent from the roster name.
     // Storage roots above must still belong to this exact state.
+    // A named implementation or evidence binder is a declaration namespace
+    // that qualifies a requirement call; it holds no runtime value.
+    if root.is_valid()
+        && matches!(
+            kind,
+            symbols::SymbolKind::Conformance | symbols::SymbolKind::ConformanceParameter
+        )
+    {
+        return true;
+    }
     if symbols.has_type_symbol(root)
         || symbols.has_type(name)
         || symbols.machine(name).is_some()

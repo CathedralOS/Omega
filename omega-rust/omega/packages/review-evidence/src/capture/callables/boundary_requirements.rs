@@ -68,13 +68,7 @@ fn same_conformance_bound_shape(
     requirement: &PackageReviewConformanceBound,
     provider: &PackageReviewConformanceBound,
 ) -> bool {
-    requirement.binder_ordinal.is_some() == provider.binder_ordinal.is_some()
-        && requirement.subject_parameter == provider.subject_parameter
-        && requirement.selected_conformance == provider.selected_conformance
-        && requirement.selected_lifetime_arguments == provider.selected_lifetime_arguments
-        && requirement.selected_arguments == provider.selected_arguments
-        && requirement.selected_subject == provider.selected_subject
-        && requirement.trait_identity == provider.trait_identity
+    requirement.trait_identity == provider.trait_identity
         && requirement.trait_lifetime_arguments == provider.trait_lifetime_arguments
         && requirement.arguments == provider.arguments
 }

@@ -6,8 +6,8 @@
 //! evaluation that binds them. Both package checkpoints apply this one rule.
 
 use crate::authored_selections::call_targets::{
-    checked_call_conformance_targets, checked_call_target, checked_name_path_segment_target,
-    checked_operator_conformance_targets, declaration_target,
+    checked_call_target, checked_name_path_segment_target, checked_operator_conformance_targets,
+    declaration_target,
 };
 use crate::authored_selections::intrinsic_calls::{
     checked_expression_call_intrinsic, checked_intrinsic_call_target, exact_build_prelude_data,
@@ -136,26 +136,6 @@ pub(crate) fn finalize_checked_authored_selections(
                 )));
             };
 
-            if selection.kind() == AuthoredDeclarationSelectionKind::Call
-                && let ExpressionNode::Call(call) = node
-            {
-                for selected_symbol in checked_call_conformance_targets(
-                    program,
-                    facts,
-                    expression,
-                    call.target_symbol,
-                    selection.source_span(),
-                ) {
-                    let inferred = (
-                        selection.source_span(),
-                        selection.exposure(),
-                        selected_symbol,
-                    );
-                    if !inferred_conformances.contains(&inferred) {
-                        inferred_conformances.push(inferred);
-                    }
-                }
-            }
             let AuthoredDeclarationSelectionTarget::LateBound(binding) = selection.target() else {
                 continue;
             };
@@ -397,12 +377,7 @@ pub(crate) fn finalize_checked_authored_selections(
         }
     }
 
-    collect_checked_statement_selections(
-        program,
-        facts,
-        &mut resolutions,
-        &mut inferred_conformances,
-    )?;
+    collect_checked_statement_selections(program, facts, &mut resolutions)?;
     collect_checked_proof_membership_selections(program, facts, &mut resolutions)?;
     let mut unoccurred_view_calls = Vec::new();
     collect_checked_proof_view_call_selections(

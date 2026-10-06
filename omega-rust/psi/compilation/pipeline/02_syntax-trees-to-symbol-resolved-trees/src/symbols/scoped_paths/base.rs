@@ -48,6 +48,7 @@ pub(super) fn resolve_base_symbol(
                 SymbolKind::Data,
                 SymbolKind::Machine,
                 SymbolKind::Trait,
+                SymbolKind::Conformance,
                 SymbolKind::Module,
             ],
             member.source_span(),

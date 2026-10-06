@@ -70,7 +70,6 @@ struct CandidateTemplate {
     state_symbols: Vec<SymbolHandle>,
     type_parameters: Vec<(SymbolHandle, String)>,
     parameter_bounds: Vec<Vec<validation::DeclaredPropertyRequirement>>,
-    conformance_bounds: Vec<typed_trees::machine::GenericConformanceBound>,
     const_parameters: Vec<(SymbolHandle, String, TypeReferenceHandle)>,
     /// Const-slot ordinals declared as runtime-capable Value binders.
     value_const_parameters: Vec<usize>,
@@ -90,8 +89,6 @@ struct Candidate<'template> {
     runtime_value_bindings: Vec<Option<StaticMachineArgument>>,
     machine_bindings: Vec<Option<StaticMachineArgument>>,
     evidence_bindings: Vec<Option<StaticMachineArgument>>,
-    inferred_conformance_arguments: Vec<SymbolHandle>,
-    selected_bound_applications: Vec<typed_trees::typed_trees::ClosedConformanceApplication>,
     conflicted: bool,
 }
 
@@ -104,8 +101,6 @@ impl Candidate<'_> {
             runtime_value_bindings: self.runtime_value_bindings.clone(),
             machine_bindings: self.machine_bindings.clone(),
             evidence_bindings: self.evidence_bindings.clone(),
-            inferred_conformance_arguments: self.inferred_conformance_arguments.clone(),
-            selected_bound_applications: self.selected_bound_applications.clone(),
             conflicted: self.conflicted,
         }
     }
@@ -219,7 +214,7 @@ pub(crate) fn monomorphize_generic_machine_value_calls_with_selections(
             .iter()
             .filter(|selection| selection.caller_is_generic)
         {
-            let mut candidate =
+            let candidate =
                 candidate_for_selection(&candidates[selection.candidate_index], selection);
             if approved_type_bounds(program, std::slice::from_ref(&candidate)) != [true] {
                 return Err(vec![Diagnostic::error(format!(
@@ -228,7 +223,7 @@ pub(crate) fn monomorphize_generic_machine_value_calls_with_selections(
                 ))]);
             }
             if selection.is_complete() {
-                validate_candidate_conformance_bounds(program, &mut candidate)?;
+                validate_candidate_conformance_bounds(program, &candidate)?;
             }
             const_arguments::validate_bindings(program, &candidate).map_err(|error| vec![error])?;
         }
@@ -632,17 +627,12 @@ fn candidate_for_selection<'template>(
         runtime_value_bindings: selection.runtime_value_bindings.clone(),
         machine_bindings: selection.machine_bindings.clone(),
         evidence_bindings: selection.evidence_bindings.clone(),
-        inferred_conformance_arguments: template.inferred_conformance_arguments.clone(),
-        selected_bound_applications: template.selected_bound_applications.clone(),
         conflicted: selection.conflicted,
     }
 }
 
-fn candidate_conformance_fingerprint_arguments(
-    program: &TypedTrees,
-    candidate: &Candidate,
-) -> Vec<String> {
-    let mut arguments = candidate
+fn candidate_conformance_fingerprint_arguments(candidate: &Candidate) -> Vec<String> {
+    candidate
         .evidence_bindings
         .iter()
         .map(|binding| {
@@ -651,26 +641,7 @@ fn candidate_conformance_fingerprint_arguments(
                 .expect("complete specialization")
                 .display_name()
         })
-        .collect::<Vec<_>>();
-    arguments.extend(
-        candidate
-            .inferred_conformance_arguments
-            .iter()
-            .map(|symbol| conformance_symbol_identity(program, *symbol)),
-    );
-    arguments.extend(
-        candidate
-            .selected_bound_applications
-            .iter()
-            .map(|application| {
-                format!(
-                    "{}#{:016x}",
-                    conformance_symbol_identity(program, application.declaration),
-                    application.report_fingerprint
-                )
-            }),
-    );
-    arguments
+        .collect()
 }
 
 fn conformance_symbol_identity(program: &TypedTrees, symbol: SymbolHandle) -> String {

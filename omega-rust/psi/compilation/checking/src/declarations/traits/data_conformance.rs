@@ -142,7 +142,6 @@ pub(crate) fn validate_conformances(
             program,
             trait_definition,
             arguments,
-            &[],
             &format!("conformance `{subject_name} satisfies {trait_name}`"),
             diagnostics,
         );

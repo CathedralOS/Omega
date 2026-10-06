@@ -537,7 +537,7 @@ fn check_open_proof_output_requirement(
         return Err(rejected("its declaring trait is absent"));
     };
     if !definition.lifetime_parameters.is_empty()
-        || !program.trait_type_parameters(definition).is_empty()
+        || !trait_parameters_are_data_types(program, definition)
         || !requirement.lifetime_parameters.is_empty()
         || !program
             .state_signature_type_parameters(requirement)
@@ -564,6 +564,20 @@ fn check_open_proof_output_requirement(
         ));
     }
     check_public_named_witness_lanes(program, requirement).map_err(rejected)
+}
+
+/// A trait's data types are its ordinary type parameters; a closed application
+/// supplies them concretely. Const, machine and proposition parameters would
+/// put generic values into the witness lanes, which this rung does not
+/// instantiate.
+fn trait_parameters_are_data_types(
+    program: &typed_trees::TypedTrees,
+    definition: &typed_trees::trait_definition::TraitDefinition,
+) -> bool {
+    program
+        .trait_type_parameters(definition)
+        .iter()
+        .all(|parameter| matches!(parameter.kind, typed_trees::data::TypeParameterKind::Type))
 }
 
 fn checked_static_requirement_dispatch<'program>(
@@ -688,9 +702,8 @@ fn checked_static_requirement_dispatch<'program>(
         && application.type_arguments.is_empty()
         && application.const_arguments.is_empty()
         && application.machine_arguments.is_empty()
-        && application.trait_arguments.is_empty()
         && trait_definition.lifetime_parameters.is_empty()
-        && program.trait_type_parameters(trait_definition).is_empty()
+        && trait_parameters_are_data_types(program, trait_definition)
         && requirement.lifetime_parameters.is_empty()
         && program
             .state_signature_type_parameters(requirement)

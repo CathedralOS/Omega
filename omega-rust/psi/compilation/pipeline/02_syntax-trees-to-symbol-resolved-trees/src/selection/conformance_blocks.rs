@@ -196,6 +196,54 @@ impl DefaultBodyScope {
     }
 }
 
+/// A call through a named implementation (`Ascending::before(left, right)`)
+/// selects that implementation's row for the requirement it names. The row's
+/// realization is an ordinary checked machine, so the call becomes a direct
+/// static call to it with its explicit arguments. A requirement name that
+/// matches no row, or several inherited rows, leaves the call unresolved so
+/// checking rejects it rather than choosing one.
+pub(crate) fn route_named_implementation_calls(program: &mut SymbolResolvedTrees) {
+    let implementation_rows = program
+        .conformances
+        .iter()
+        .filter_map(|conformance| match &conformance.implementation {
+            ConformanceImplementation::Closed { rows } => Some((
+                conformance.symbol,
+                rows.iter()
+                    .map(|row| (row.requirement_name.clone(), row.realization_state))
+                    .collect::<Vec<_>>(),
+            )),
+            ConformanceImplementation::AttachedRequirementMachines => None,
+        })
+        .collect::<Vec<_>>();
+    if implementation_rows.is_empty() {
+        return;
+    }
+    let machines = program
+        .machines
+        .iter()
+        .map(|machine| machine.symbol)
+        .collect::<Vec<_>>();
+    for machine in machines {
+        super::body_calls::retarget_machine_calls(program, machine, &[], &mut |site| {
+            if !site.receiver_symbol.is_valid() {
+                return None;
+            }
+            let (_, rows) = implementation_rows
+                .iter()
+                .find(|(conformance, _)| *conformance == site.receiver_symbol)?;
+            let mut matches = rows
+                .iter()
+                .filter(|(requirement, _)| requirement.as_str() == site.target.as_str());
+            let selected = matches.next().map(|(_, state)| *state);
+            if matches.next().is_some() {
+                return Some(SymbolHandle::invalid());
+            }
+            Some(selected.unwrap_or_else(SymbolHandle::invalid))
+        });
+    }
+}
+
 /// Calls a conformance's own member bodies make to its requirements select
 /// that conformance's exact rows, never an ambient attached machine that
 /// happens to share the leaf name.

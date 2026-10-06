@@ -1,0 +1,1 @@
+qualified call `decrement` has no resolved callable declaration

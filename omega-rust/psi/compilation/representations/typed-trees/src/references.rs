@@ -523,9 +523,6 @@ pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferen
             for argument in &bound.arguments {
                 visit_type_reference(program, retained, *argument);
             }
-            if let Some(selected) = &bound.selected_conformance {
-                visit_static_argument(program, retained, selected);
-            }
         }
         for signature in program.trait_machine_signatures(definition) {
             visit_signature(program, retained, signature);
@@ -1252,9 +1249,6 @@ pub fn visit_machine(
     for bound in &machine.conformance_bounds {
         for argument in &bound.arguments {
             visit_type_reference(program, retained, *argument);
-        }
-        if let Some(selected) = &bound.selected_conformance {
-            visit_static_argument(program, retained, selected);
         }
     }
 

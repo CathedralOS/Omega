@@ -30,10 +30,7 @@ mod call_gates;
 mod expression_scanning;
 mod generic_bounds;
 mod generic_requirement;
-pub use generic_requirement::{
-    generic_bound_call_requirement, generic_bound_value_call_requirement,
-    named_conformance_target_requirement,
-};
+pub use generic_requirement::named_conformance_target_requirement;
 mod inline_assembly;
 mod machine_parameter_arguments;
 mod type_arguments;
@@ -413,49 +410,6 @@ pub(crate) fn primitive_float_operator_retains_argument_policy(
                 operator.symbol,
                 numerics::float_projection::FLOAT_PROJECTION_CORE_SOURCE,
             )
-}
-
-fn validate_generic_bound_argument_types(
-    program: &TypedTrees,
-    current_machine: &Machine,
-    current_state: Option<&State>,
-    receiver_type: TypeReferenceHandle,
-    arguments: &[ExpressionHandle],
-    requirement: &crate::declarations::traits::GenericBoundRequirement<'_>,
-    diagnostics: &mut Vec<Diagnostic>,
-) {
-    let parameters = program
-        .state_signature_parameters(requirement.signature)
-        .iter();
-    for (argument, parameter) in arguments.iter().zip(parameters) {
-        let Some(actual) = declared_place_type(program, current_machine, current_state, *argument)
-        else {
-            continue;
-        };
-        let required = crate::value_custody::places::unwrapped_type_reference(
-            program,
-            parameter.type_reference,
-        )
-        .unwrap_or(parameter.type_reference);
-        let receiver =
-            crate::value_custody::places::unwrapped_type_reference(program, receiver_type)
-                .unwrap_or(receiver_type);
-        if !crate::declarations::traits::generic_bound_argument_matches(
-            program,
-            actual,
-            required,
-            receiver,
-            requirement,
-        ) {
-            diagnostics.push(Diagnostic::error(format!(
-                "argument `{}` for bounded trait requirement `{}::{}` does not match `{}` after applying the bound's generic arguments",
-                parameter.name,
-                requirement.trait_definition.name,
-                requirement.signature.name,
-                program.display_type_reference_with_constraints(parameter.type_reference),
-            )));
-        }
-    }
 }
 
 #[allow(clippy::too_many_arguments)]

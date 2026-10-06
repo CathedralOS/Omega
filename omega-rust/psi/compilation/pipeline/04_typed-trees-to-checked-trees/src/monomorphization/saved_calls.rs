@@ -107,7 +107,7 @@ pub(super) fn selected_instance<'program>(
         .iter()
         .map(|binding| binding.as_ref())
         .collect::<Option<Vec<_>>>()?;
-    let mut applications = evidence_arguments
+    let applications = evidence_arguments
         .iter()
         .map(|binding| {
             crate::conformance::conformance_applications::close_conformance_application(
@@ -116,13 +116,9 @@ pub(super) fn selected_instance<'program>(
         })
         .collect::<Result<Vec<_>, _>>()
         .ok()?;
-    let mut concrete = super::candidate_for_selection(candidate, selection);
-    crate::monomorphization::selection::validate_candidate_conformance_bounds(
-        source,
-        &mut concrete,
-    )
-    .ok()?;
-    applications.extend(concrete.selected_bound_applications);
+    let concrete = super::candidate_for_selection(candidate, selection);
+    crate::monomorphization::selection::validate_candidate_conformance_bounds(source, &concrete)
+        .ok()?;
     program.machine_specializations.iter().find(|instance| {
         instance.template == candidate.template.template_symbol
             && instance.type_argument_identities == type_arguments
@@ -130,9 +126,8 @@ pub(super) fn selected_instance<'program>(
             && instance.machine_arguments == machine_arguments
             && instance.conformance_arguments.iter().copied()
                 .eq(evidence_arguments.iter().map(|binding| binding.symbol))
-            && instance.inferred_conformance_arguments == concrete.inferred_conformance_arguments
-            // Compare explicit arguments and selected bound applications, including
-            // their complete records rather than report fingerprints.
+            // Compare explicit evidence applications by their complete records
+            // rather than report fingerprints.
             && instance.conformance_applications == applications
     })
 }

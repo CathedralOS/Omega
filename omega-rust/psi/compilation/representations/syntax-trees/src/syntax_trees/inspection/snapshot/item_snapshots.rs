@@ -8,7 +8,7 @@ use crate::item::{
 use crate::syntax_trees::SyntaxTrees;
 use crate::syntax_trees::inspection::snapshot::expression_and_type_snapshots::{
     snapshot_expression_handle, snapshot_identifier, snapshot_identifier_slice,
-    snapshot_static_argument, snapshot_type_reference_handle,
+    snapshot_type_reference_handle,
 };
 use crate::syntax_trees::inspection::snapshot::state_and_statement_snapshots::{
     snapshot_state_node, snapshot_state_parameter, snapshot_state_signature,
@@ -16,7 +16,7 @@ use crate::syntax_trees::inspection::snapshot::state_and_statement_snapshots::{
 };
 use crate::syntax_trees::inspection::snapshot::{
     ExpressionSnapshot, IdentifierSnapshot, StateParameterSnapshot, StateSignatureSnapshot,
-    StateSnapshot, StaticArgumentSnapshot, TypeReferenceSnapshot,
+    StateSnapshot, TypeReferenceSnapshot,
 };
 use serde::Serialize;
 
@@ -182,13 +182,9 @@ pub struct SatisfiesClauseSnapshot {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct GenericConformanceBoundSnapshot {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub binder: Option<IdentifierSnapshot>,
-    pub subject: IdentifierSnapshot,
-    pub carrier: IdentifierSnapshot,
+    pub binder: IdentifierSnapshot,
+    pub trait_name: IdentifierSnapshot,
     pub arguments: Vec<TypeReferenceSnapshot>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub selected_conformance: Option<StaticArgumentSnapshot>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -1091,19 +1087,14 @@ fn snapshot_generic_conformance_bound(
     bound: &GenericConformanceBound,
 ) -> GenericConformanceBoundSnapshot {
     GenericConformanceBoundSnapshot {
-        binder: bound.binder.as_ref().map(snapshot_identifier),
-        subject: snapshot_identifier(&bound.subject),
-        carrier: snapshot_identifier(&bound.carrier),
+        binder: snapshot_identifier(&bound.binder),
+        trait_name: snapshot_identifier(&bound.trait_name),
         arguments: syntax_trees
             .type_references
             .type_reference_handles(bound.arguments)
             .iter()
             .map(|handle| snapshot_type_reference_handle(syntax_trees, *handle))
             .collect(),
-        selected_conformance: bound
-            .selected_conformance
-            .as_ref()
-            .map(|argument| snapshot_static_argument(syntax_trees, argument)),
     }
 }
 

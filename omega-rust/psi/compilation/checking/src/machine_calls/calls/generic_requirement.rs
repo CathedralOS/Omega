@@ -1,10 +1,12 @@
-//! The same generic receiver requirement selected by ordinary call validation.
+//! Requirement calls through an evidence binder (`Order::rank(...)` under
+//! `Order satisfies Ranked<Element>`). The binder selects the requirement
+//! namespace; the call's arguments are ordinary explicit values.
 
 use super::{
     Diagnostic, ExpressionHandle, ExpressionNode, Machine, State, StateParameter,
-    TypeReferenceHandle, TypeReferenceNode, TypedTrees, ValueEnvironment, WritableRoots,
-    argument_matches_carrier, declared_place_type, declared_receiver_type_reference,
-    declared_reference_access, validate_call_arguments_with_type_correspondence,
+    TypeReferenceNode, TypedTrees, ValueEnvironment, WritableRoots, argument_matches_carrier,
+    declared_place_type, declared_reference_access,
+    validate_call_arguments_with_type_correspondence,
 };
 /// The requirement already selected its trait telescope. Raw signature handles
 /// still name that telescope (`&mut Message`, not the caller's `&mut M`), so a
@@ -17,7 +19,6 @@ pub(super) fn validate_requirement_call_arguments(
     value_environment: &ValueEnvironment,
     arguments: &[ExpressionHandle],
     parameters: &[StateParameter],
-    receiver: Option<TypeReferenceHandle>,
     requirement: &crate::declarations::traits::GenericBoundRequirement<'_>,
     writable_roots: &WritableRoots<'_, '_>,
     diagnostics: &mut Vec<Diagnostic>,
@@ -68,22 +69,12 @@ pub(super) fn validate_requirement_call_arguments(
                     ) => (*actual, *required),
                     _ => (actual, required),
                 };
-                return match receiver {
-                    Some(receiver) => crate::declarations::traits::generic_bound_argument_matches(
-                        program,
-                        actual,
-                        required,
-                        crate::value_custody::places::unwrapped_type_reference(program, receiver)
-                            .unwrap_or(receiver),
-                        requirement,
-                    ),
-                    None => crate::declarations::traits::named_conformance_argument_matches(
-                        program,
-                        actual,
-                        required,
-                        requirement,
-                    ),
-                };
+                return crate::declarations::traits::named_conformance_argument_matches(
+                    program,
+                    actual,
+                    required,
+                    requirement,
+                );
             }
             argument_matches_carrier(program, argument, required)
         },
@@ -108,9 +99,7 @@ pub fn named_conformance_target_requirement<'program>(
         return Ok(None);
     }
     for bound in &machine.conformance_bounds {
-        let Some(binder) = bound.binder else {
-            continue;
-        };
+        let binder = bound.binder;
         if program
             .symbols
             .child_handles(binder)
@@ -138,7 +127,7 @@ pub(super) fn named_conformance_receiver(
         && machine
             .conformance_bounds
             .iter()
-            .any(|bound| bound.binder == Some(receiver))
+            .any(|bound| bound.binder == receiver)
 }
 
 pub(super) fn expression_conformance_receiver(
@@ -199,7 +188,7 @@ pub(super) fn named_conformance_requirement<'program>(
     let mut bounds = machine
         .conformance_bounds
         .iter()
-        .filter(|bound| bound.binder == Some(receiver));
+        .filter(|bound| bound.binder == receiver);
     let bound = bounds.next().ok_or_else(failure)?;
     if bounds.next().is_some()
         || !target.is_valid()
@@ -211,7 +200,7 @@ pub(super) fn named_conformance_requirement<'program>(
     {
         return Err(failure());
     }
-    let carrier = bound_carrier_definition(program, bound.carrier).ok_or_else(failure)?;
+    let carrier = bound_carrier_definition(program, bound.trait_symbol).ok_or_else(failure)?;
     let mut selected = None;
     for trait_definition in program.traits() {
         if crate::declarations::traits::arguments_for_declaring_trait(
@@ -256,7 +245,7 @@ pub(super) fn validate_named_conformance_arguments(
     let mut parameters = program
         .state_signature_parameters(requirement.signature)
         .to_vec();
-    let Some(carrier) = bound_carrier_definition(program, requirement.bound.carrier) else {
+    let Some(carrier) = bound_carrier_definition(program, requirement.bound.trait_symbol) else {
         return;
     };
     let Some(inherited_arguments) = crate::declarations::traits::arguments_for_declaring_trait(
@@ -301,7 +290,6 @@ pub(super) fn validate_named_conformance_arguments(
         value_environment,
         arguments,
         &parameters,
-        None,
         &requirement,
         writable_roots,
         diagnostics,
@@ -311,7 +299,7 @@ pub(super) fn validate_named_conformance_arguments(
             continue;
         };
         // Shared call checking above verifies reference access. Compare the
-        // referents here, substituting Self by the exact retained subject.
+        // referents here under the binder's trait arguments.
         let required = crate::value_custody::places::unwrapped_type_reference(
             program,
             parameter.type_reference,
@@ -323,52 +311,7 @@ pub(super) fn validate_named_conformance_arguments(
             required,
             &requirement,
         ) {
-            diagnostics.push(Diagnostic::error(format!("argument `{}` for conformance requirement `{}::{}` does not match its bound subject and trait arguments", parameter.name, requirement.trait_definition.name, requirement.signature.name)));
+            diagnostics.push(Diagnostic::error(format!("argument `{}` for conformance requirement `{}::{}` does not match the binder's trait arguments", parameter.name, requirement.trait_definition.name, requirement.signature.name)));
         }
     }
-}
-
-/// Resolve only the declared generic receiver-bound channel. The checked
-/// borrow gate uses this exact owner when a raw call has no concrete target;
-/// this does not instantiate the signature or grant an executable call.
-pub fn generic_bound_call_requirement<'program>(
-    program: &'program TypedTrees,
-    machine: &'program Machine,
-    state: &State,
-    receiver: &str,
-    target: &str,
-) -> Result<Option<&'program typed_trees::signature::StateSignature>, String> {
-    let Some(receiver_type) = declared_receiver_type_reference(program, machine, state, receiver)
-    else {
-        return Ok(None);
-    };
-    crate::declarations::traits::generic_bound_requirement_call(
-        program,
-        machine,
-        receiver_type,
-        target,
-    )
-    .map(|requirement| requirement.map(|requirement| requirement.signature))
-}
-
-/// Value receivers retain their complete declared place, including nested
-/// member/index projections. Use precisely the owner used by value-call
-/// validation rather than reducing a receiver to its final member spelling.
-pub fn generic_bound_value_call_requirement<'program>(
-    program: &'program TypedTrees,
-    machine: &'program Machine,
-    state: &State,
-    receiver: ExpressionHandle,
-    target: &str,
-) -> Result<Option<&'program typed_trees::signature::StateSignature>, String> {
-    let Some(receiver_type) = declared_place_type(program, machine, Some(state), receiver) else {
-        return Ok(None);
-    };
-    crate::declarations::traits::generic_bound_requirement_call(
-        program,
-        machine,
-        receiver_type,
-        target,
-    )
-    .map(|requirement| requirement.map(|requirement| requirement.signature))
 }

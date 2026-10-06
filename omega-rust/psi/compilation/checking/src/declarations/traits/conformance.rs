@@ -13,9 +13,8 @@ mod signature_matching;
 mod trait_applications;
 
 pub(crate) use bounds::{
-    GenericBoundRequirement, generic_bound_argument_matches, generic_bound_requirement_call,
-    named_conformance_argument_matches, validate_generic_conformance_bounds,
-    validate_trait_conformance_bounds,
+    GenericBoundRequirement, named_conformance_argument_matches,
+    validate_generic_conformance_bounds, validate_trait_conformance_bounds,
 };
 pub(crate) use external_shapes::{
     validate_external_leaf_native_shapes, validate_external_via_expression,

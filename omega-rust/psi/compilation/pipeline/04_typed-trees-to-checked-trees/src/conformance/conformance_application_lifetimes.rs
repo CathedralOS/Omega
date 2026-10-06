@@ -90,11 +90,7 @@ pub(crate) fn resolve_elided_conformance_lifetimes(
 
         let machine_substitutions =
             machine_static_substitutions(program, callee_machine, &call.machine_arguments);
-        let evidence_bounds = callee_machine
-            .conformance_bounds
-            .iter()
-            .filter(|bound| bound.binder.is_some())
-            .collect::<Vec<_>>();
+        let evidence_bounds = callee_machine.conformance_bounds.iter().collect::<Vec<_>>();
         let mut evidence_index = 0usize;
         for selected in &mut call.machine_arguments {
             if !selected.symbol.is_valid()

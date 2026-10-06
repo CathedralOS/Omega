@@ -9,14 +9,13 @@ use crate::state::State;
 use crate::trait_definition::TraitDefinition;
 use crate::typed_trees::inspection::snapshot::declaration_snapshots;
 use crate::typed_trees::inspection::snapshot::statement_and_expression_snapshots::{
-    expression_snapshot_option, snapshot_static_argument, statement_snapshot,
+    expression_snapshot_option, statement_snapshot,
 };
 use crate::typed_trees::inspection::snapshot::type_snapshots::{
     type_reference_snapshot, type_reference_snapshot_option,
 };
 use crate::typed_trees::inspection::snapshot::{
-    ExpressionSnapshot, ProofFactSnapshot, StatementSnapshot, StaticArgumentSnapshot,
-    TypeReferenceSnapshot,
+    ExpressionSnapshot, ProofFactSnapshot, StatementSnapshot, TypeReferenceSnapshot,
 };
 use serde::Serialize;
 
@@ -86,19 +85,11 @@ fn is_false(value: &bool) -> bool {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct GenericConformanceBoundSnapshot {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub binder: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub binder_symbol: Option<u32>,
-    pub subject: String,
-    pub subject_symbol: u32,
-    pub carrier: String,
-    pub carrier_symbol: u32,
+    pub binder: String,
+    pub binder_symbol: u32,
+    pub trait_name: String,
+    pub trait_symbol: u32,
     pub arguments: Vec<TypeReferenceSnapshot>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub selected_conformance: Option<StaticArgumentSnapshot>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub selected_conformance_symbol: Option<u32>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -256,26 +247,16 @@ pub(crate) fn machine_snapshot(program: &TypedTrees, machine: &Machine) -> Machi
             .conformance_bounds
             .iter()
             .map(|bound| GenericConformanceBoundSnapshot {
-                binder: bound.binder_name.as_ref().map(ToString::to_string),
-                binder_symbol: bound.binder.map(|symbol| symbol.arena_index()),
-                subject: bound.subject_name.to_string(),
-                subject_symbol: bound.subject.arena_index(),
-                carrier: bound.carrier_name.to_string(),
-                carrier_symbol: bound.carrier.arena_index(),
+                binder: bound.binder_name.to_string(),
+                binder_symbol: bound.binder.arena_index(),
+                trait_name: bound.trait_name.to_string(),
+                trait_symbol: bound.trait_symbol.arena_index(),
                 arguments: bound
                     .arguments
                     .iter()
                     .copied()
                     .map(|argument| type_reference_snapshot(program, argument))
                     .collect(),
-                selected_conformance: bound
-                    .selected_conformance
-                    .as_ref()
-                    .map(|argument| snapshot_static_argument(program, argument)),
-                selected_conformance_symbol: bound
-                    .selected_conformance
-                    .as_ref()
-                    .map(|selected| selected.symbol.arena_index()),
             })
             .collect(),
         supply: machine_supply_snapshot(machine.supply_mode),
@@ -404,26 +385,16 @@ pub(crate) fn trait_definition_snapshot(
             .conformance_bounds
             .iter()
             .map(|bound| GenericConformanceBoundSnapshot {
-                binder: bound.binder_name.as_ref().map(ToString::to_string),
-                binder_symbol: bound.binder.map(|symbol| symbol.arena_index()),
-                subject: bound.subject_name.to_string(),
-                subject_symbol: bound.subject.arena_index(),
-                carrier: bound.carrier_name.to_string(),
-                carrier_symbol: bound.carrier.arena_index(),
+                binder: bound.binder_name.to_string(),
+                binder_symbol: bound.binder.arena_index(),
+                trait_name: bound.trait_name.to_string(),
+                trait_symbol: bound.trait_symbol.arena_index(),
                 arguments: bound
                     .arguments
                     .iter()
                     .copied()
                     .map(|argument| type_reference_snapshot(program, argument))
                     .collect(),
-                selected_conformance: bound
-                    .selected_conformance
-                    .as_ref()
-                    .map(|argument| snapshot_static_argument(program, argument)),
-                selected_conformance_symbol: bound
-                    .selected_conformance
-                    .as_ref()
-                    .map(|selected| selected.symbol.arena_index()),
             })
             .collect(),
         requires: program

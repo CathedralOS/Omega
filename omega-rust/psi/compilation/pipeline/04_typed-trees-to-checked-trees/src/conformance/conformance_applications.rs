@@ -32,13 +32,6 @@ pub(crate) fn validate_conformance_applications(
         }
     }
     for machine in program.machines() {
-        validate_bound_applications(
-            program,
-            "machine",
-            machine.name.as_str(),
-            &machine.conformance_bounds,
-            &mut diagnostics,
-        );
         for state in program.machine_states(machine) {
             for statement in program.statement_table.statements(state.statement_nodes) {
                 if let StatementNode::Call(call) = statement {
@@ -51,54 +44,10 @@ pub(crate) fn validate_conformance_applications(
             }
         }
     }
-    for trait_definition in program.traits() {
-        validate_bound_applications(
-            program,
-            "trait",
-            trait_definition.name.as_str(),
-            &trait_definition.conformance_bounds,
-            &mut diagnostics,
-        );
-    }
     if diagnostics.is_empty() {
         Ok(())
     } else {
         Err(diagnostics)
-    }
-}
-
-fn validate_bound_applications(
-    program: &TypedTrees,
-    owner_kind: &str,
-    owner_name: &str,
-    bounds: &[typed_trees::machine::GenericConformanceBound],
-    diagnostics: &mut Vec<Diagnostic>,
-) {
-    for bound in bounds {
-        let Some(selected) = &bound.selected_conformance else {
-            continue;
-        };
-        match close_conformance_application(program, selected) {
-            Ok(application)
-                if application.subject_identity.as_deref() != Some(bound.carrier_name.as_str())
-                    && application.subject_identity.as_deref()
-                        != Some(bound.subject_name.as_str()) =>
-            {
-                diagnostics.push(Diagnostic::error(format!(
-                    "{owner_kind} `{owner_name}` names conformance `{}::{}`, but that declaration belongs to `{}`",
-                    bound.carrier_name,
-                    bound
-                        .selected_conformance_name()
-                        .map_or("<missing>", |name| name.as_str()),
-                    application.subject_identity.as_deref().unwrap_or("<subjectless>"),
-                )));
-            }
-            Ok(_) => {}
-            Err(diagnostic) => diagnostics.push(diagnostic),
-        }
-        if let Some(application) = &selected.application {
-            validate_arguments(program, &application.arguments, diagnostics);
-        }
     }
 }
 
@@ -203,7 +152,7 @@ pub fn close_conformance_application(
                     parameter.name.as_str(),
                     argument,
                 )?;
-                let identity = static_argument_identity(program, argument);
+                let identity = type_argument_identity(program, argument);
                 substitutions.push((parameter.symbol, identity.clone()));
                 type_arguments.push(identity);
             }
@@ -528,6 +477,29 @@ pub(crate) fn static_argument_identity(
     argument: &StaticMachineArgument,
 ) -> String {
     argument.display_name()
+}
+
+/// The identity a type argument contributes to a closed application: the same
+/// normalized identity an unsubstituted concrete trait argument carries, so an
+/// evidence binder's instantiated trait arguments and an implementation's own
+/// trait arguments compare in one vocabulary.
+pub(crate) fn type_argument_identity(
+    program: &TypedTrees,
+    argument: &StaticMachineArgument,
+) -> String {
+    if argument.type_reference.is_valid() {
+        return program
+            .normalized_type_identity(argument.type_reference)
+            .into_string();
+    }
+    program
+        .type_reference_table
+        .named_references()
+        .find(|(_, symbol, _)| *symbol == argument.symbol)
+        .map_or_else(
+            || argument.display_name(),
+            |(handle, _, _)| program.normalized_type_identity(handle).into_string(),
+        )
 }
 
 pub(crate) fn substituted_type_identity_with_lifetimes(

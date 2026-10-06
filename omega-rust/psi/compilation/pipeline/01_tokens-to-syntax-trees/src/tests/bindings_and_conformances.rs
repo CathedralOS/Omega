@@ -865,116 +865,40 @@ fn closed_conformance_member_cannot_repeat_satisfaction() {
 }
 
 #[test]
-fn retains_generic_and_named_conformance_bounds() {
+fn rejects_retired_where_conformance_test() {
     let source = r#"
         trait Converter<Message> { }
-        data Card { }
-        PowerOrder: Card satisfies Converter<i32>;
 
         machine inspect<T, Message>(value: &T)
         where
-            T satisfies Converter<Message>,
-            Message satisfies Card::PowerOrder
+            T satisfies Converter<Message>
         { }
     "#;
 
     let tokens = Lexer::new(source)
         .tokenize()
         .expect("tokenize should succeed");
-    let parsed = parse_syntax_trees(&tokens).expect("conformance bounds should parse");
-    let machine = parsed
-        .root_items()
-        .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) if machine.name.as_str() == "inspect" => {
-                Some(machine)
-            }
-            _ => None,
-        })
-        .expect("generic machine");
-
-    let [ordinary, named] = machine.conformance_bounds.as_slice() else {
-        panic!("two retained conformance bounds");
-    };
-    assert_eq!(ordinary.subject.as_str(), "T");
-    assert_eq!(ordinary.carrier.as_str(), "Converter");
-    assert!(ordinary.selected_conformance.is_none());
-    assert_eq!(ordinary.arguments.len(), 1);
-    assert_eq!(named.subject.as_str(), "Message");
-    assert_eq!(named.carrier.as_str(), "Card");
-    assert_eq!(
-        named
-            .selected_conformance
-            .as_ref()
-            .and_then(|selected| selected.path.last())
-            .map(|name| name.as_str()),
-        Some("PowerOrder")
+    let error = parse_syntax_trees(&tokens).expect_err("a where-satisfies test is retired");
+    assert!(
+        error
+            .message
+            .contains("`where T satisfies Trait` is retired"),
+        "unexpected diagnostic: {}",
+        error.message
     );
 }
 
 #[test]
-fn retains_complete_selected_conformance_application_in_bound() {
+fn parses_evidence_binder_in_machine_telescope() {
     let source = r#"
-        trait Encodes<Output> {}
-        data Card {}
-        data Message {}
+        trait Ranked<Element> {}
 
-        machine rank(value: &Card) -> u64 { 0 }
-
-        FullEncoding<'scope, Element, Output, const Rank: u64, machine TieBreak>:
-            Element satisfies Encodes<Output>
-        where machine TieBreak(value: &Element) -> u64;
-        {}
-
-        machine inspect<'view, Element>(value: &'view Element)
-        where Element satisfies Card::FullEncoding<'view, Card, Message, 7, rank>
-        {}
-    "#;
-
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let parsed = parse_syntax_trees(&tokens).expect("selected application should parse");
-    let machine = parsed
-        .root_items()
-        .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) if machine.name.as_str() == "inspect" => {
-                Some(machine)
-            }
-            _ => None,
-        })
-        .expect("inspect machine");
-    let [bound] = machine.conformance_bounds.as_slice() else {
-        panic!("one selected conformance bound");
-    };
-    let selected = bound
-        .selected_conformance
-        .as_ref()
-        .expect("selected conformance");
-    assert_eq!(selected.path[0].as_str(), "FullEncoding");
-    let application = selected.application.as_ref().expect("complete application");
-    assert_eq!(application.lifetime_arguments[0].as_str(), "view");
-    assert_eq!(application.arguments.len(), 4);
-    assert_eq!(application.arguments[0].path[0].as_str(), "Card");
-    assert_eq!(application.arguments[1].path[0].as_str(), "Message");
-    assert_eq!(
-        application.arguments[2]
-            .const_literal
-            .as_ref()
-            .map(|literal| literal.text()),
-        Some("7")
-    );
-    assert_eq!(application.arguments[3].path[0].as_str(), "rank");
-}
-
-#[test]
-fn parses_explicit_conformance_binder_in_machine_telescope() {
-    let source = r#"
-        trait Ranked {}
-
-        machine sort<Element, Order: Element satisfies Ranked>(
+        machine sort<Element, Order satisfies Ranked<Element>>(
             values: &mut [Element]
         ) {}
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let parsed = parse_syntax_trees(&tokens).expect("explicit conformance binder should parse");
+    let parsed = parse_syntax_trees(&tokens).expect("an evidence binder should parse");
     let machine = parsed
         .root_items()
         .find_map(|item| match item {
@@ -987,15 +911,29 @@ fn parses_explicit_conformance_binder_in_machine_telescope() {
     assert_eq!(parameters.len(), 1, "Order is not a runtime type parameter");
     assert_eq!(parameters[0].name.as_str(), "Element");
     let [bound] = machine.conformance_bounds.as_slice() else {
-        panic!("one explicit conformance binder");
+        panic!("one evidence binder");
     };
-    assert_eq!(
-        bound.binder.as_ref().map(|name| name.as_str()),
-        Some("Order")
+    assert_eq!(bound.binder.as_str(), "Order");
+    assert_eq!(bound.trait_name.as_str(), "Ranked");
+    assert_eq!(bound.arguments.len(), 1);
+}
+
+#[test]
+fn rejects_subject_spelled_evidence_binder() {
+    let source = r#"
+        trait Ranked {}
+
+        machine sort<Element, Order: Element satisfies Ranked>(
+            values: &mut [Element]
+        ) {}
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let error = parse_syntax_trees(&tokens).expect_err("a conformance has no data subject");
+    assert!(
+        error.message.contains("a conformance has no data subject"),
+        "unexpected diagnostic: {}",
+        error.message
     );
-    assert_eq!(bound.subject.as_str(), "Element");
-    assert_eq!(bound.carrier.as_str(), "Ranked");
-    assert!(bound.selected_conformance.is_none());
 }
 
 #[test]
@@ -1097,18 +1035,17 @@ fn distinguishes_shared_mutable_and_write_only_reference_access() {
 }
 
 #[test]
-fn retains_generic_trait_header_conformance_bounds() {
+fn parses_trait_header_evidence_binder() {
     let source = r#"
         trait CallingPolicy { }
-        trait Calling<C>
-        where C satisfies CallingPolicy
+        trait Calling<Policy satisfies CallingPolicy>
         { }
     "#;
 
     let tokens = Lexer::new(source)
         .tokenize()
         .expect("tokenize should succeed");
-    let parsed = parse_syntax_trees(&tokens).expect("trait header bound should parse");
+    let parsed = parse_syntax_trees(&tokens).expect("trait header binder should parse");
     let trait_definition = parsed
         .root_items()
         .find_map(|item| match item {
@@ -1121,10 +1058,10 @@ fn retains_generic_trait_header_conformance_bounds() {
         })
         .expect("generic trait");
     let [bound] = trait_definition.conformance_bounds.as_slice() else {
-        panic!("one retained trait bound");
+        panic!("one evidence binder");
     };
-    assert_eq!(bound.subject.as_str(), "C");
-    assert_eq!(bound.carrier.as_str(), "CallingPolicy");
+    assert_eq!(bound.binder.as_str(), "Policy");
+    assert_eq!(bound.trait_name.as_str(), "CallingPolicy");
 }
 
 #[test]

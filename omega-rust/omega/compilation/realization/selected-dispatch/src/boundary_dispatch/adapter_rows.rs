@@ -824,7 +824,6 @@ fn resolve_family_adapter_row(
                     && specialization.type_argument_identities.is_empty()
                     && specialization.machine_arguments.is_empty()
                     && specialization.conformance_arguments.is_empty()
-                    && specialization.inferred_conformance_arguments.is_empty()
                     && specialization.conformance_applications.is_empty()
             });
         let Some(specialization) = specializations.next() else {

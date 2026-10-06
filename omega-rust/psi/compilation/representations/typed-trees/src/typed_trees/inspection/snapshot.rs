@@ -293,7 +293,6 @@ pub struct MachineSpecializationSnapshot {
     pub const_argument_identities: Vec<String>,
     pub machine_arguments: Vec<u32>,
     pub conformance_arguments: Vec<u32>,
-    pub inferred_conformance_arguments: Vec<u32>,
     pub conformance_application_count: usize,
     pub operator_realization_count: usize,
     pub normalized_template_identity: String,
@@ -612,11 +611,6 @@ impl TypedTreesSnapshot {
                         .collect(),
                     conformance_arguments: specialization
                         .conformance_arguments
-                        .iter()
-                        .map(|symbol| symbol.arena_index())
-                        .collect(),
-                    inferred_conformance_arguments: specialization
-                        .inferred_conformance_arguments
                         .iter()
                         .map(|symbol| symbol.arena_index())
                         .collect(),

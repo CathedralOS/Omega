@@ -1,81 +1,9 @@
 //! Canonical template and application commitments.
-use super::{
-    Diagnostic, Sha256, StaticMachineArgument, SymbolHandle, SymbolKind, TypeParameterKind,
-    TypedTrees,
-};
+use super::{Diagnostic, Sha256, SymbolHandle, TypeParameterKind, TypedTrees};
 use crate::monomorphization::conformance_symbol_identity;
 use crate::monomorphization::normalized_machine_identity;
 use sha2::Digest;
 use typed_trees::type_identity::TypeIdentityRequest;
-
-pub(super) fn encode_bound_static_argument(
-    program: &TypedTrees,
-    argument: &StaticMachineArgument,
-    lifetime_binders: &[(String, String)],
-    static_binders: &[(SymbolHandle, String)],
-    bytes: &mut Vec<u8>,
-) {
-    if argument.type_reference.is_valid() {
-        bytes.push(4);
-        encode_normalized_text(
-            program
-                .type_identity(TypeIdentityRequest {
-                    binders: static_binders,
-                    ..TypeIdentityRequest::ordinary(argument.type_reference)
-                })
-                .as_str(),
-            lifetime_binders,
-            bytes,
-        );
-        return;
-    }
-    if let Some(literal) = &argument.const_literal {
-        bytes.push(1);
-        let text = literal.text();
-        bytes.extend((text.len() as u64).to_le_bytes());
-        bytes.extend(text.as_bytes());
-        return;
-    }
-    if let Some(projection) = &argument.evidence_projection {
-        bytes.push(2);
-        bytes.extend(projection.term.as_str().as_bytes());
-        bytes.push(0);
-        bytes.extend(projection.member.as_str().as_bytes());
-        return;
-    }
-
-    bytes.push(3);
-    if let Some((_, identity)) = static_binders
-        .iter()
-        .find(|(symbol, _)| *symbol == argument.symbol)
-    {
-        bytes.extend(identity.as_bytes());
-    } else if argument.symbol.is_valid()
-        && matches!(
-            program.symbols.get(argument.symbol).kind,
-            SymbolKind::Conformance
-        )
-    {
-        bytes.extend(conformance_symbol_identity(program, argument.symbol).as_bytes());
-    } else {
-        bytes.extend(argument.display_name().as_bytes());
-    }
-    let Some(application) = &argument.application else {
-        bytes.push(0);
-        return;
-    };
-    bytes.push(1);
-    bytes.extend((application.lifetime_arguments.len() as u64).to_le_bytes());
-    for lifetime in &application.lifetime_arguments {
-        encode_normalized_text(&format!("'{}", lifetime.as_str()), lifetime_binders, bytes);
-        bytes.push(0);
-    }
-    bytes.extend((application.arguments.len() as u64).to_le_bytes());
-    for nested in &application.arguments {
-        encode_bound_static_argument(program, nested, lifetime_binders, static_binders, bytes);
-        bytes.push(0xfe);
-    }
-}
 
 /// The universal template contract shared by every concrete application.
 /// Capture it from the retained authored declaration, not a selected clone.
@@ -202,27 +130,7 @@ pub(super) fn canonical_template_contract_bytes(
     let mut conformance_bounds = Vec::new();
     for bound in &machine.conformance_bounds {
         let mut encoded = Vec::new();
-        let subject_index = parameters
-            .iter()
-            .position(|parameter| parameter.symbol == bound.subject)
-            .unwrap_or(usize::MAX);
-        encoded.extend((subject_index as u64).to_le_bytes());
-        if bound.binder.is_some() {
-            encoded.push(3);
-            encoded.extend(bound.carrier_name.as_str().as_bytes());
-        } else if let Some(selected) = &bound.selected_conformance {
-            encoded.push(2);
-            encoded.extend(bound.carrier_name.as_str().as_bytes());
-            encoded.push(0);
-            if let Some(name) = bound.selected_conformance_name() {
-                encoded.extend(name.as_str().as_bytes());
-            }
-            encoded.push(0);
-            encode_bound_static_argument(program, selected, &binders, &type_binders, &mut encoded);
-        } else {
-            encoded.push(1);
-            encoded.extend(bound.carrier_name.as_str().as_bytes());
-        }
+        encoded.extend(bound.trait_name.as_str().as_bytes());
         encoded.push(0);
         for argument in &bound.arguments {
             encode_normalized_text(

@@ -1,5 +1,4 @@
 use crate::record::PackageReviewCallableContract;
-use crate::record::PackageReviewContractStaticArgument;
 use crate::record::PackageReviewCrashRoute;
 use crate::record::PackageReviewDataProperties;
 use crate::record::PackageReviewNominalIdentity;
@@ -123,48 +122,22 @@ pub struct PackageReviewTypeParameter {
     pub(crate) bounds: PackageReviewDataProperties,
 }
 
-/// One generic conformance requirement in a public signature.
+/// One evidence binder in a public signature: `Order satisfies Ranked<T>`.
 ///
-/// An explicit proof-static binder is alpha-normalized to `binder_ordinal`;
-/// `None` retains a binder-free `where T satisfies Trait` requirement without
-/// fabricating evidence. The subject is the ordinal of an ordinary type
-/// parameter in the containing declaration.
+/// The binder is alpha-normalized to `binder_ordinal`, its position among the
+/// declaration's evidence binders. The trait application carries every data
+/// type the interface names; there is no subject parameter.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PackageReviewConformanceBound {
-    pub(crate) binder_ordinal: Option<u32>,
-    pub(crate) subject_parameter: u32,
-    pub(crate) selected_conformance: Option<PackageReviewNominalIdentity>,
-    pub(crate) selected_lifetime_arguments: Vec<u32>,
-    pub(crate) selected_arguments: Vec<PackageReviewContractStaticArgument>,
-    pub(crate) selected_subject: Option<PackageReviewContractStaticArgument>,
+    pub(crate) binder_ordinal: u32,
     pub(crate) trait_identity: PackageReviewNominalIdentity,
     pub(crate) trait_lifetime_arguments: Vec<u32>,
     pub(crate) arguments: Vec<PackageReviewTypeIdentity>,
 }
 
 impl PackageReviewConformanceBound {
-    pub const fn binder_ordinal(&self) -> Option<u32> {
+    pub const fn binder_ordinal(&self) -> u32 {
         self.binder_ordinal
-    }
-
-    pub const fn subject_parameter(&self) -> u32 {
-        self.subject_parameter
-    }
-
-    pub const fn selected_conformance(&self) -> Option<&PackageReviewNominalIdentity> {
-        self.selected_conformance.as_ref()
-    }
-
-    pub fn selected_lifetime_arguments(&self) -> &[u32] {
-        &self.selected_lifetime_arguments
-    }
-
-    pub fn selected_arguments(&self) -> &[PackageReviewContractStaticArgument] {
-        &self.selected_arguments
-    }
-
-    pub const fn selected_subject(&self) -> Option<&PackageReviewContractStaticArgument> {
-        self.selected_subject.as_ref()
     }
 
     pub const fn trait_identity(&self) -> &PackageReviewNominalIdentity {

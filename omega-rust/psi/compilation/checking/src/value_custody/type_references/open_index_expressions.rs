@@ -345,7 +345,7 @@ fn normalize_open_index_expression_operations(
         let Some(trait_definition) = program
             .traits()
             .iter()
-            .find(|trait_definition| trait_definition.symbol == bound.carrier)
+            .find(|trait_definition| trait_definition.symbol == bound.trait_symbol)
         else {
             continue;
         };
@@ -398,10 +398,7 @@ fn normalize_open_index_expression_operations(
         // Evidence binders are ordered by declaration; the same position in a
         // specialization's `conformance_arguments` names the selected
         // conformance once the call sites have supplied it.
-        let evidence_position = bound_machine.conformance_bounds[..*bound_index]
-            .iter()
-            .filter(|candidate| candidate.binder.is_some())
-            .count();
+        let evidence_position = *bound_index;
         let selected_conformance = evidence_spec
             .and_then(|specialization| specialization.conformance_arguments.get(evidence_position))
             .and_then(|symbol| {
@@ -419,16 +416,16 @@ fn normalize_open_index_expression_operations(
                 program.symbols.display_path(trait_definition.symbol, "::"),
                 requirement.name,
             ),
-            provider: selected_conformance
-                .map(|conformance| conformance.symbol)
-                .or(bound.binder)
-                .unwrap_or(requirement.symbol),
+            provider: selected_conformance.map_or(bound.binder, |conformance| conformance.symbol),
             algebra_trait: trait_definition.symbol,
             algebra_requirement: requirement.name.as_str().to_owned(),
-            algebra_alias: selected_conformance
-                .and_then(|conformance| conformance.alias.as_ref())
-                .or(bound.binder_name.as_ref())
-                .map(|name| name.as_str().to_owned()),
+            algebra_alias: Some(
+                selected_conformance
+                    .and_then(|conformance| conformance.alias.as_ref())
+                    .unwrap_or(&bound.binder_name)
+                    .as_str()
+                    .to_owned(),
+            ),
             commutativity_licensed: !laws.commutativity.is_empty(),
             associativity_licensed: !laws.associativity.is_empty(),
         });

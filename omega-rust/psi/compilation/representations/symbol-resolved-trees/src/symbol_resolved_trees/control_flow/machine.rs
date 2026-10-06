@@ -160,20 +160,19 @@ pub struct MachineStorage {
     pub states: HandleSpan<Handle<State>>,
 }
 
+/// A generic evidence binder `Order satisfies Ranked<Element>`. The binder is
+/// an implementation parameter; its argument is one named conformance whose
+/// trait application equals this one after substitution. No parameter is a
+/// data subject.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GenericConformanceBound {
-    pub binder: Option<SymbolHandle>,
-    pub binder_name: Option<DiagnosticName>,
-    pub subject: SymbolHandle,
-    pub subject_name: DiagnosticName,
-    /// The ordinary trait symbol, or the data carrier symbol for a named
-    /// conformance path.
-    pub carrier: SymbolHandle,
-    pub carrier_name: DiagnosticName,
+    /// The binder's `ConformanceParameter` symbol.
+    pub binder: SymbolHandle,
+    pub binder_name: DiagnosticName,
+    /// The bound trait, or a transparent refinement of one.
+    pub trait_symbol: SymbolHandle,
+    pub trait_name: DiagnosticName,
     pub arguments: HandleSpan<TypeReference>,
-    /// Exact selected declaration and its complete declaration-owned
-    /// application telescope.
-    pub selected_conformance: Option<crate::expression::StaticMachineArgument>,
 }
 
 impl Deref for Machine {

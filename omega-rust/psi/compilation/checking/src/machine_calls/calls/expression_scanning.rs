@@ -8,8 +8,7 @@ use super::{
     free_machine_entry_state, machine_state_by_symbol,
     primitive_float_operator_retains_argument_policy, user_asm_contract,
     validate_asm_operand_constraint, validate_call_arguments_with_environments,
-    validate_generic_bound_argument_types, validate_machine_call_type_parameter_bounds,
-    validate_value_call_argument_classes,
+    validate_machine_call_type_parameter_bounds, validate_value_call_argument_classes,
 };
 use crate::declarations::symbols::{MachineSymbols, TopLevelSymbols};
 use crate::proof_contracts::arithmetic_domains::{self, ValueEnvironment};
@@ -495,6 +494,29 @@ fn validate_expression_call_bounds(
         executes,
     };
 
+    // A named implementation qualifies its requirement call
+    // (`Ascending::before(left, right)`); resolution already selected that
+    // implementation's row, an ordinary machine called with its explicit
+    // arguments.
+    if let ExpressionNode::Name(path) = program.expression_table.expression(call.receiver)
+        && path.symbol.is_valid()
+        && program.symbols.get(path.symbol).kind == symbols::SymbolKind::Conformance
+    {
+        match machine_state_by_symbol(program, call.target_symbol) {
+            Some((machine, state)) => {
+                site.validate_callee(symbols, ValueCallee::named(machine, state, call), diagnostics);
+            }
+            None => diagnostics.push(Diagnostic::error(format!(
+                "machine `{}` state `{}`: implementation `{}` has no unique row for requirement `{}`",
+                current_machine.name,
+                current_state.name,
+                program.symbols.name(path.symbol),
+                call.target,
+            ))),
+        }
+        return;
+    }
+
     // Self-call or receiverless call: select a machine requirement or entry,
     // never an internal state that happens to have the same spelling.
     if call_is_self {
@@ -602,60 +624,6 @@ fn validate_expression_call_bounds(
     }) {
         diagnostics.push(Diagnostic::error(error));
         return;
-    }
-
-    if let Some(type_reference) = receiver_type_reference {
-        match crate::declarations::traits::generic_bound_requirement_call(
-            program,
-            current_machine,
-            type_reference,
-            call.target.as_str(),
-        ) {
-            Ok(Some(requirement)) => {
-                let signature = requirement.signature;
-                if !signature.return_type.is_valid()
-                    || matches!(
-                        program
-                            .type_reference_table
-                            .type_reference(signature.return_type),
-                        TypeReferenceNode::Unit
-                    )
-                {
-                    diagnostics.push(Diagnostic::error(format!(
-                        "trait requirement `{}::{}` does not return a value but is used in a VALUE position",
-                        requirement.trait_definition.name,
-                        signature.name,
-                    )));
-                }
-                validate_generic_bound_argument_types(
-                    program,
-                    current_machine,
-                    Some(current_state),
-                    type_reference,
-                    arguments,
-                    &requirement,
-                    diagnostics,
-                );
-                super::generic_requirement::validate_requirement_call_arguments(
-                    program,
-                    current_machine,
-                    Some(current_state),
-                    value_environment,
-                    arguments,
-                    program.state_signature_parameters(signature),
-                    Some(type_reference),
-                    &requirement,
-                    writable_roots,
-                    diagnostics,
-                );
-                return;
-            }
-            Ok(None) => {}
-            Err(error) => {
-                diagnostics.push(Diagnostic::error(error));
-                return;
-            }
-        }
     }
 
     // Attached calls retain their selected state. Rejoin that declaration with

@@ -178,37 +178,27 @@ pub(crate) fn parse_generic_parameters<'tokens, 'source>(
         }
         declared_names.push(name.as_str().to_owned());
 
-        // `Binder: Subject satisfies Carrier<args>` is a generic conformance
-        // binder; `Name: TypeRef` is a runtime-capable value binder. Where
-        // value binders are admitted, the mandatory `satisfies` after the
-        // single-identifier subject separates the two shapes, so probe it on
-        // a copy before committing. Elsewhere the colon commits to the
-        // conformance shape exactly as before.
-        let is_conformance_binder = matches!(kind, TypeParameterKind::Type)
-            && allow_conformance_binders
-            && input.at_punctuation(PunctuationKind::Colon)
-            && (!allow_value_parameters
-                || input
-                    .take_punctuation(PunctuationKind::Colon, ":")
-                    .and_then(|rest| rest.take_identifier().map(|(_, rest)| rest))
-                    .map(|rest| rest.at_contextual("satisfies"))
-                    .unwrap_or(false));
-        if is_conformance_binder {
-            let rest = input.take_punctuation(PunctuationKind::Colon, ":")?;
-            let (subject, rest) = rest.take_identifier()?;
-            let rest = rest.take_contextual("satisfies")?;
-            let (carrier, rest) = rest.take_identifier()?;
+        // `Order satisfies Ranked<Element>` is an evidence binder: an
+        // implementation parameter, not a type. Its trait application carries
+        // every data type the interface names; no parameter is its subject.
+        if matches!(kind, TypeParameterKind::Type) && input.at_contextual("satisfies") {
+            if !allow_conformance_binders {
+                return Err(input.error_here(format!(
+                    "an evidence binder `{} satisfies Trait<...>` is not admitted in this parameter list",
+                    name.as_str()
+                )));
+            }
+            let rest = input.take_contextual("satisfies")?;
+            let (trait_name, rest) = rest.take_identifier()?;
             let (arguments, rest) =
                 crate::contracts::conformance::parse_conformance::parse_optional_satisfies_type_arguments(
                     syntax_trees,
                     rest,
                 )?;
             conformance_bounds.push(syntax_trees::item::GenericConformanceBound {
-                binder: Some(name),
-                subject,
-                carrier,
+                binder: name,
+                trait_name,
                 arguments,
-                selected_conformance: None,
             });
             input = rest;
 
@@ -230,6 +220,18 @@ pub(crate) fn parse_generic_parameters<'tokens, 'source>(
                 },
                 input,
             ));
+        }
+        if matches!(kind, TypeParameterKind::Type)
+            && input.at_punctuation(PunctuationKind::Colon)
+            && input
+                .take_punctuation(PunctuationKind::Colon, ":")
+                .and_then(|rest| rest.take_identifier().map(|(_, rest)| rest))
+                .is_ok_and(|rest| rest.at_contextual("satisfies"))
+        {
+            return Err(input.error_here(format!(
+                "a conformance has no data subject; write the evidence binder as `{} satisfies Trait<Data>`",
+                name.as_str()
+            )));
         }
 
         // `Name: TypeRef` — a runtime-capable value binder, admitted on

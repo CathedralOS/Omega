@@ -198,7 +198,6 @@ pub(crate) fn checked_requirement_family_rows(
                             && specialization.type_argument_identities.is_empty()
                             && specialization.machine_arguments.is_empty()
                             && specialization.conformance_arguments.is_empty()
-                            && specialization.inferred_conformance_arguments.is_empty()
                             && specialization.conformance_applications.is_empty()
                     });
             let Some(specialization) = specializations.next() else {

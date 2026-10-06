@@ -1683,10 +1683,18 @@ fail/traits/equatable_missing_conformance_suggested rejected 35ms expected @2d8e
 	cannot compare `Point` values with `==`: structural equality is not synthesized for non-conforming types -- declare `PointEquatable: Point satisfies Equatable;` to synthesize structural equality
 fail/traits/equatable_recursive_type rejected 36ms expected @2d8ed253669f
 	conformance `Node satisfies Equatable`: type `Node` is recursive through field `next` of `Node`: synthesized structural equality would not terminate, so recursive Equatable conformance is not supported yet
+fail/traits/evidence_binder_given_data_type rejected 48ms expected @65c3b89f46f4+wt
+	machine `apply` static argument 2 requires its declared binder kind, not a type argument
+fail/traits/evidence_binder_subject_retired rejected 3ms expected @65c3b89f46f4+wt
+	tests/omega/fail/traits/evidence_binder_subject_retired/main.omg:8:28: a conformance has no data subject; write the evidence binder as `Order satisfies Trait<Data>`
+fail/traits/evidence_binder_wrong_trait_arguments rejected 49ms expected @65c3b89f46f4+wt
+	generic machine `apply` cannot bind `Operations` to conformance `GaugeIncrement`: expected a complete `Incrementable` implementation with the instantiated trait arguments
 fail/traits/generic_reference_forwarding_carrier_mismatch rejected 1304ms expected @f3a79ef091a9
 	argument `subject` for state `entry` expects `&mut T`, got `named value`
 	argument `subject` for state `entry` expects `&mut Counter`, got `named value`
 	argument `subject` for state `entry` expects the `Counter` data type but got `Other` in the `argument` position; these are incompatible data types (a place is accepted structurally, but its declared type must match)
+fail/traits/implementation_call_unknown_requirement rejected 146ms expected @65c3b89f46f4+wt
+	qualified call `decrement` has no resolved callable declaration
 fail/traits/inherited_default_ambiguous rejected 16ms expected @2d8ed253669f
 	data `Counter` inherits conflicting default machine `Counter::reset` from traits `LeftReset`, `RightReset`; write an override
 fail/traits/ordinary_trait_inherits_boundary rejected 275ms expected @2d8ed253669f
@@ -3250,6 +3258,7 @@ pass/traits/runtime_local_named_dyn_devirtualized_exit rejected 2456ms check-tar
 	Terminal native proposal ProgramEntry settlement failed: FusedServiceEstablishmentDrift
 pass/traits/runtime_local_named_dyn_pass_through_exit rejected 1016ms check-target:macos_arm64 @58e4f6f8667
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: target place` (state 0, statement 3)
+pass/traits/runtime_named_implementation_selection_exit checked 1127ms check-target:macos_arm64 @65c3b89f46f4+wt
 pass/traits/runtime_qualified_byte_crash_equality_exit checked 2530ms check-target:macos_arm64 @2d8ed253669f
 pass/traits/runtime_trait_default_requirement_scope_exit checked 3622ms check-target:macos_arm64 @c4e45d3dda38+wt
 pass/traits/static_subject_satisfies_receiver_requirement_exit checked 638ms check-target:macos_arm64 @125b05ae4947+wt

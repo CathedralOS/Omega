@@ -741,21 +741,16 @@ pub struct SatisfiesClause {
     pub via_keyword_source_span: Option<source::SourceSpan>,
 }
 
-/// A generic `where T satisfies Trait<Args>` test of an already-declared
-/// nominal conformance. A qualified carrier path (`T satisfies Card::Order`)
-/// selects the named conformance `Order` declared for `Card`.
+/// A generic evidence binder `Order satisfies Ranked<Element>`: an
+/// implementation parameter whose argument is one named conformance of that
+/// exact trait application. It names code, not data; the trait arguments carry
+/// every data type the interface needs, and no parameter is a subject
+/// ([named conformances](../../../../../../../../wiki/spec/language/conformances.md#declaration-and-selection)).
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct GenericConformanceBound {
-    /// `Some(Order)` for an explicit telescope binder
-    /// `Order: Subject satisfies Trait`; `None` for the older anonymous
-    /// `where Subject satisfies Trait` test.
-    pub binder: Option<Identifier>,
-    pub subject: Identifier,
-    pub carrier: Identifier,
+    pub binder: Identifier,
+    pub trait_name: Identifier,
     pub arguments: HandleSpan<crate::types::TypeReferenceHandle>,
-    /// Exact named conformance selection, including its declaration-owned
-    /// lifetime and static telescope. `None` denotes an ordinary trait bound.
-    pub selected_conformance: Option<crate::expression::StaticMachineArgument>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

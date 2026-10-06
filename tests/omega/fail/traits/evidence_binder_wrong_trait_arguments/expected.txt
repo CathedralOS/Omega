@@ -1,0 +1,1 @@
+cannot bind `Operations` to conformance `GaugeIncrement`

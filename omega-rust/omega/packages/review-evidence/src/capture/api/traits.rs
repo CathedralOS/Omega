@@ -48,7 +48,6 @@ pub(crate) fn project_public_traits(
         let conformance_bounds = project_conformance_bounds(
             compilation,
             &definition.conformance_bounds,
-            parameters,
             &trait_binders,
             &definition.lifetime_parameters,
             "public trait",

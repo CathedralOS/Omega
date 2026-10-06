@@ -28,47 +28,6 @@ pub(crate) fn checked_operator_conformance_targets(
     targets
 }
 
-pub(crate) fn checked_call_conformance_targets(
-    program: &TypedTrees,
-    facts: &CheckFacts,
-    expression: typed_trees::expression::ExpressionHandle,
-    authored_target: SymbolHandle,
-    authored_source_span: source::SourceSpan,
-) -> Vec<SymbolHandle> {
-    let target = checked_call_target(
-        program,
-        facts,
-        expression,
-        authored_target,
-        authored_source_span,
-    );
-    checked_target_conformance_targets(program, target)
-}
-
-pub(crate) fn checked_target_conformance_targets(
-    program: &TypedTrees,
-    target: SymbolHandle,
-) -> Vec<SymbolHandle> {
-    let Some(machine_symbol) = crate::semantic::calls::find_state_with_machine(program, target)
-        .map(|(machine, _)| machine.symbol)
-    else {
-        return Vec::new();
-    };
-
-    let mut targets = Vec::new();
-    for specialization in &program.machine_specializations {
-        if specialization.instance != machine_symbol {
-            continue;
-        }
-        for selected in &specialization.inferred_conformance_arguments {
-            if !targets.contains(selected) {
-                targets.push(*selected);
-            }
-        }
-    }
-    targets
-}
-
 pub(crate) fn checked_statement_call_target(
     program: &TypedTrees,
     facts: &CheckFacts,

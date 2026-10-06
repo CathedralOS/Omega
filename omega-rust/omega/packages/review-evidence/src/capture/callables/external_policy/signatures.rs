@@ -59,7 +59,6 @@ pub(super) fn project(
     let conformance_bounds = project_conformance_bounds(
         compilation,
         &machine.conformance_bounds,
-        source_parameters,
         &binders,
         &machine.lifetime_parameters,
         "external policy",

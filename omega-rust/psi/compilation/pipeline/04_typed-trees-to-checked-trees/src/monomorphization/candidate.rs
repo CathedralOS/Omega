@@ -49,12 +49,7 @@ pub(super) fn from_machine(program: &TypedTrees, machine_index: usize) -> Candid
             TypeParameterKind::Proposition { .. } => {}
         }
     }
-    let evidence_parameters = machine
-        .conformance_bounds
-        .iter()
-        .filter(|bound| bound.binder.is_some())
-        .cloned()
-        .collect::<Vec<_>>();
+    let evidence_parameters = machine.conformance_bounds.clone();
     Candidate {
         type_bindings: vec![None; type_parameters.len()],
         const_bindings: vec![None; const_parameters.len()],
@@ -72,14 +67,11 @@ pub(super) fn from_machine(program: &TypedTrees, machine_index: usize) -> Candid
                 .collect(),
             type_parameters,
             parameter_bounds,
-            conformance_bounds: machine.conformance_bounds.clone(),
             const_parameters,
             value_const_parameters,
             machine_parameters,
             evidence_parameters,
         }),
-        inferred_conformance_arguments: Vec::new(),
-        selected_bound_applications: Vec::new(),
         conflicted: false,
     }
 }
