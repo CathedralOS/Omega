@@ -233,53 +233,9 @@ fn validate_expression(
             }
             recurse!(member.receiver, diagnostics, visited);
         }
-        ExpressionNode::Match(dispatch) => {
-            for child in crate::expression_traversal::match_children(program, *dispatch) {
-                recurse!(child, diagnostics, visited);
-            }
-        }
-        ExpressionNode::Atomic(atomic) => {
-            recurse!(atomic.value, diagnostics, visited);
-            recurse!(atomic.result, diagnostics, visited);
-        }
-        ExpressionNode::Binary(binary) => {
-            recurse!(binary.left, diagnostics, visited);
-            recurse!(binary.right, diagnostics, visited);
-        }
-        ExpressionNode::Borrow(inner) => recurse!(inner.target, diagnostics, visited),
-        ExpressionNode::Cast(cast) => recurse!(cast.value, diagnostics, visited),
-        ExpressionNode::Call(call) => {
-            recurse!(call.receiver, diagnostics, visited);
-            for argument in program.expression_table.expression_handles(call.arguments) {
-                recurse!(*argument, diagnostics, visited);
-            }
-        }
-        ExpressionNode::Indexed(indexed) => {
-            recurse!(indexed.collection, diagnostics, visited);
-            recurse!(indexed.index, diagnostics, visited);
-        }
-        ExpressionNode::Range(range) => {
-            recurse!(range.start, diagnostics, visited);
-            recurse!(range.end, diagnostics, visited);
-        }
-        ExpressionNode::StructLiteral(literal) => {
-            for field in program.expression_table.struct_fields(literal.fields) {
-                recurse!(field.value, diagnostics, visited);
-            }
-        }
-        ExpressionNode::Unary(unary) => recurse!(unary.operand, diagnostics, visited),
-        ExpressionNode::ArrayLiteral(values) => {
-            for value in program.expression_table.expression_handles(*values) {
-                recurse!(*value, diagnostics, visited);
-            }
-        }
-        ExpressionNode::Boolean(_)
-        | ExpressionNode::Float(_)
-        | ExpressionNode::UndeterminedNaN(_)
-        | ExpressionNode::Integer(_)
-        | ExpressionNode::Name(_)
-        | ExpressionNode::String(_)
-        | ExpressionNode::ZeroValue(_) => {}
+        other => crate::expression_traversal::children(program, other, |child| {
+            recurse!(child, diagnostics, visited);
+        }),
     }
 }
 
