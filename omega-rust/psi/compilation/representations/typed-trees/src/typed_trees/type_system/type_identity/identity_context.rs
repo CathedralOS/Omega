@@ -34,8 +34,8 @@ pub(crate) enum SubstitutionSemantics {
     Simultaneous,
 }
 
-/// Whether a normalized identity spells nominals locally or with their
-/// exact package owner.
+/// Whether a normalized identity retains the local declaration namespace or
+/// the exact package owner. The toolchain namespace is distinct in both forms.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum TypeIdentityQualification {
     #[default]
@@ -116,7 +116,17 @@ impl TypeIdentityContext<'_> {
         symbol: SymbolHandle,
         path: String,
     ) -> String {
-        if self.qualification == TypeIdentityQualification::Ordinary {
+        // Toolchain declarations and authored declarations can have the same
+        // visible path: lookup admits an authored `Source` beside Build's
+        // toolchain `Source`. Erasing that namespace merges unrelated carriers
+        // before structural retention. Source-free compiler atoms retain their
+        // closed scalar identities; package qualification remains the stronger
+        // identity used across independently compiled package graphs.
+        if self.qualification == TypeIdentityQualification::Ordinary
+            && (program.symbols.builtin_type_atom(symbol).is_some()
+                || program.symbols.symbol_source_origin(symbol)
+                    != Some(source::SourceOrigin::Toolchain))
+        {
             return path;
         }
         if let Some(builtin_atom) = program.symbols.builtin_type_atom(symbol) {

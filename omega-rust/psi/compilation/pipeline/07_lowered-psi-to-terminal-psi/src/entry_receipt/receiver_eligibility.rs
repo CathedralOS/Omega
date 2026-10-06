@@ -140,15 +140,8 @@ pub(super) fn derive(
     if structural_types.next().is_some() {
         return None;
     }
-    let owner_path = checked.symbols.display_path(definition.symbol, "::");
-    let mut owned_receiver_type_identity = String::from("named(name(");
-    for character in owner_path.chars() {
-        if matches!(character, '\\' | '(' | ')' | ',') {
-            owned_receiver_type_identity.push('\\');
-        }
-        owned_receiver_type_identity.push(character);
-    }
-    owned_receiver_type_identity.push_str("))");
+    let owned_receiver_type_identity =
+        checked.normalized_nominal_type_identity(definition.symbol)?;
     let StructuralTypeShape::Record { fields } = &structural_type.shape else {
         return None;
     };
@@ -157,7 +150,7 @@ pub(super) fn derive(
     // empty dimensions; a zero byte count never excuses an invalid element.
     // Erased qualification establishment remains an independent installed
     // occurrence obligation; this correspondence supplies no Bound authority.
-    if structural_type.identity != owned_receiver_type_identity
+    if structural_type.identity != owned_receiver_type_identity.as_str()
         || !zero_valid_record_storage(
             checked,
             &module.structural_types,
@@ -200,7 +193,7 @@ pub(super) fn derive(
             checked
                 .normalized_type_identity(receiver.type_reference)
                 .into_string(),
-            owned_receiver_type_identity,
+            owned_receiver_type_identity.into_string(),
             projection,
             terminal_receiver_type,
             fused_service_fields,

@@ -5,6 +5,10 @@
 //! authored spelling has an order and may repeat terms. This module owns the
 //! canonical form used by type equality, specialization, and published plan
 //! identities (decision 19 / DOM4).
+//! Ordinary identities distinguish authored and toolchain declaration
+//! namespaces even when their visible paths agree. Package-review identities
+//! additionally retain exact package owners; neither route uses a display name
+//! to merge unrelated nominal carriers.
 //!
 //! This file owns the `TypedTrees` identity queries. `normalized_identities.rs`
 //! holds the identity carriers, `callable_identity.rs` interns named-callable
@@ -300,8 +304,8 @@ impl TypedTrees {
     /// Canonical type identity for a package graph. Every non-binder nominal
     /// carries both its stable declaration path and its exact source owner:
     /// the managed package-key digest, the toolchain marker, or an explicit
-    /// unresolved marker. Ordinary type identity deliberately remains local
-    /// to one compilation and is unchanged by this stronger form.
+    /// unresolved marker. Ordinary type identity remains local to one
+    /// compilation but also distinguishes toolchain and authored namespaces.
     pub fn package_qualified_type_identity(
         &self,
         type_reference: TypeReferenceHandle,

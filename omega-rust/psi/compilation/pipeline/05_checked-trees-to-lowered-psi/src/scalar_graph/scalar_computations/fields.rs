@@ -557,10 +557,12 @@ fn captured_place_subject(
         TypeReferenceNode::Named {
             symbol: named_symbol,
             ..
-        } if *named_symbol == source_machine.symbol => format!(
-            "named(name({}))",
-            checked.symbols.name(source_machine.attached_data_symbol)
-        ),
+        } if *named_symbol == source_machine.symbol => checked
+            .normalized_nominal_type_identity(source_machine.attached_data_symbol)
+            .ok_or(LoweringError::Unsupported(
+                "record loan's attached carrier has no identity",
+            ))?
+            .into_string(),
         _ => checked
             .normalized_type_identity(type_reference)
             .into_string(),
@@ -728,10 +730,12 @@ fn captured_place_subject(
         TypeReferenceNode::Named {
             symbol: named_symbol,
             ..
-        } if *named_symbol == source_machine.symbol => format!(
-            "named(name({}))",
-            checked.symbols.name(source_machine.attached_data_symbol)
-        ),
+        } if *named_symbol == source_machine.symbol => checked
+            .normalized_nominal_type_identity(source_machine.attached_data_symbol)
+            .ok_or(LoweringError::Unsupported(
+                "record loan's attached referee has no identity",
+            ))?
+            .into_string(),
         _ => checked.normalized_type_identity(*referee).into_string(),
     };
     if (tail.is_some() || runtime_index.is_some())
