@@ -1171,8 +1171,19 @@ fn caller_state_preserves_label_names(
 /// Unqualified identifier tokens in a display label, skipping `self` and any
 /// token reached through `.`/`::` (those are member or namespace paths, not
 /// caller-local names).
-fn unqualified_label_identifiers(label: &str) -> Vec<String> {
-    let mut names = Vec::new();
+
+/// One scanner event: an unqualified-or-qualified identifier run, or one
+/// non-identifier gap character.
+enum LabelToken<'a> {
+    Identifier { text: &'a str, qualified: bool },
+    Gap(char),
+}
+
+/// Walk `label` left to right, yielding each `_`/alphabetic-start identifier
+/// (its byte start, text, and whether a `.`/`:` immediately precedes it) and
+/// every gap character between identifiers — the shared scanner both label
+/// rewrites run.
+fn for_each_label_token(label: &str, mut visit: impl FnMut(LabelToken<'_>)) {
     let mut cursor = 0usize;
     while cursor < label.len() {
         let Some(character) = label[cursor..].chars().next() else {
@@ -1194,16 +1205,32 @@ fn unqualified_label_identifiers(label: &str) -> Vec<String> {
             let identifier = &label[start..cursor];
             let qualified =
                 start > 0 && matches!(label.as_bytes().get(start - 1), Some(b'.' | b':'));
-            if !qualified
-                && !is_self_receiver(identifier)
-                && !names.iter().any(|name: &String| name == identifier)
-            {
-                names.push(identifier.to_owned());
-            }
+            visit(LabelToken::Identifier {
+                text: identifier,
+                qualified,
+            });
         } else {
+            visit(LabelToken::Gap(character));
             cursor += character.len_utf8();
         }
     }
+}
+
+fn unqualified_label_identifiers(label: &str) -> Vec<String> {
+    let mut names = Vec::new();
+    for_each_label_token(label, |token| {
+        if let LabelToken::Identifier {
+            text: identifier,
+            qualified,
+            ..
+        } = token
+            && !qualified
+            && !is_self_receiver(identifier)
+            && !names.iter().any(|name: &String| name == identifier)
+        {
+            names.push(identifier.to_owned());
+        }
+    });
     names
 }
 
@@ -1259,27 +1286,12 @@ fn instantiate_state_parameter_label(
 
 fn replace_unqualified_identifiers(label: &str, replacements: &[(&str, String)]) -> String {
     let mut result = String::with_capacity(label.len());
-    let mut cursor = 0usize;
-    while cursor < label.len() {
-        let Some(character) = label[cursor..].chars().next() else {
-            break;
-        };
-        if character == '_' || character.is_alphabetic() {
-            let start = cursor;
-            cursor += character.len_utf8();
-            while cursor < label.len() {
-                let Some(next) = label[cursor..].chars().next() else {
-                    break;
-                };
-                if next == '_' || next.is_alphanumeric() {
-                    cursor += next.len_utf8();
-                } else {
-                    break;
-                }
-            }
-            let identifier = &label[start..cursor];
-            let qualified =
-                start > 0 && matches!(label.as_bytes().get(start - 1), Some(b'.' | b':'));
+    for_each_label_token(label, |token| match token {
+        LabelToken::Identifier {
+            text: identifier,
+            qualified,
+            ..
+        } => {
             if !qualified
                 && let Some((_, replacement)) =
                     replacements.iter().find(|(name, _)| *name == identifier)
@@ -1288,11 +1300,9 @@ fn replace_unqualified_identifiers(label: &str, replacements: &[(&str, String)])
             } else {
                 result.push_str(identifier);
             }
-        } else {
-            result.push(character);
-            cursor += character.len_utf8();
         }
-    }
+        LabelToken::Gap(character) => result.push(character),
+    });
     result
 }
 
