@@ -786,11 +786,13 @@ defines the complete product bar.
     temporary for the selected field.
     `pending/drops/runtime_claim_bearing_temporary_cleanup_exit` passes source
     checking but `omega run` still refuses "scalar computation needs one
-    checked expression and one source binding". Stage 04's anonymous shared
-    admission omits claim-bearing owners, and stage 05's scalar structural
-    producer lacks linear claim establishment/transport. Complete that shared
+    checked expression and one source binding". Stage 04's executable shared
+    argument admission still needs the owner/claim frontier, and stage 05's
+    scalar structural producer lacks linear claim establishment/transport.
+    Preserve existing identities through moved fields and exact call-result
+    maps; new per-field identities cannot replace forwarded claims. Complete that shared
     value frontier with **STATE-LOCAL-VALUE-FRONTIER**, not another caller shape.
-    Keep `fail/drops/{claim_bearing_temporary_requires_disposition,borrowed_temporary_projection_retains_owner_disposition}`
+    Keep `fail/drops/{claim_bearing_temporary_requires_disposition,borrowed_temporary_projection_retains_owner_disposition,claim_bearing_temporary_hook_prerequisite}`
     and `pass/drops/statically_skipped_claim_bearing_temporary` as whole-owner
     disposition and evaluated-occurrence controls. Keep
     `pass/drops/runtime_nested_nominal_producer_loans_exit` as the operand-loan

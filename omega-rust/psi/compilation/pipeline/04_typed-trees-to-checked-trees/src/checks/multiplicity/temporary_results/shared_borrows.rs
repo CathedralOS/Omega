@@ -20,6 +20,7 @@ pub(in crate::checks::multiplicity) fn append_shared_borrow(
     state: &typed_trees::state::State,
     permissions: &mut Vec<FlowPermissionEventFact>,
     diagnostics: &mut Vec<Diagnostic>,
+    dispositions: &mut checked_trees::ContextualCleanupFacts,
 ) {
     let Some((_, flow)) = facts.flow.control.states.iter().find(|(_, flow)| {
         flow.machine_symbol == machine.symbol && flow.state_symbol == state.symbol
@@ -98,6 +99,7 @@ pub(in crate::checks::multiplicity) fn append_shared_borrow(
                 parameter,
                 *argument,
                 diagnostics,
+                dispositions,
             ) else {
                 continue;
             };
@@ -121,6 +123,7 @@ fn events(
     parameter: &typed_trees::signature::StateParameter,
     argument: typed_trees::expression::ExpressionHandle,
     diagnostics: &mut Vec<Diagnostic>,
+    dispositions: &mut checked_trees::ContextualCleanupFacts,
 ) -> Option<[FlowPermissionEventFact; 3]> {
     // Only runtime shared operands establish an anonymous owner here. Erased
     // and compile-time arguments have no runtime cleanup continuation.
@@ -149,16 +152,46 @@ fn events(
             consumer.statement_index,
             &root,
         )?;
-        if type_carries_linear_obligation(program, owner_type)
-            && !crate::flow::whole_cleanup_is_eligible(program, owner_type)
-        {
-            diagnostics.push(Diagnostic::error(format!(
-                "cannot automatically dispose borrowed temporary `{}` after call `{}` at statement {}: every contained linear obligation needs its owner-authorized terminal disposition",
-                program.normalized_type_identity(owner_type),
-                program.symbols.name(consumer.target_symbol),
-                consumer.statement_index,
-            )));
-            return None;
+        if type_carries_linear_obligation(program, owner_type) {
+            if !crate::flow::whole_cleanup_is_eligible(program, owner_type) {
+                diagnostics.push(Diagnostic::error(format!(
+                    "cannot automatically dispose borrowed temporary `{}` after call `{}` at statement {}: every contained linear obligation needs its owner-authorized terminal disposition",
+                    program.normalized_type_identity(owner_type),
+                    program.symbols.name(consumer.target_symbol),
+                    consumer.statement_index,
+                )));
+                return None;
+            }
+            // Type-side eligibility alone cannot prove a hook's prerequisites.
+            // Retain the real owner's normal death for the same contextual
+            // hook analysis as named values, even before executable claim
+            // transport is available. This row grants no consumption receipt
+            // and never mints fresh identities for forwarded claims.
+            let source = PermissionEventSource::Call {
+                statement_index: consumer.statement_index,
+                call_ordinal: consumer.call_ordinal,
+                target_symbol: consumer.target_symbol,
+            };
+            if !dispositions.dispositions.iter().any(|(_, disposition)| {
+                disposition.machine == machine.symbol
+                    && disposition.state == state.symbol
+                    && disposition.source == source
+                    && disposition.root == place.root
+                    && disposition.path.is_empty()
+            }) {
+                dispositions
+                    .dispositions
+                    .append(checked_trees::ContextualCleanupDisposition {
+                        machine: machine.symbol,
+                        state: state.symbol,
+                        source,
+                        exit: checked_trees::FlowClaimJoinExit::default(),
+                        root: place.root,
+                        disposed_type: owner_type,
+                        path: HandleSpan::empty(),
+                        exclusions: HandleSpan::empty(),
+                    });
+            }
         }
         // The loan can select a child, but it never makes that child the
         // temporary's owner. Claim-free whole-owner events below retain their
