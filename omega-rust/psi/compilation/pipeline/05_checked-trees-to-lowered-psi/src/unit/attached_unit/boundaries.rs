@@ -11,13 +11,14 @@ use super::operation_frame::BoundaryParameters;
 use super::{
     BoundaryMachineDeclaration, BoundaryMachineResult, BoundaryStructuralResultDeclaration,
     CheckedBoundaryMachinePlan, CheckedBoundaryMachineResultPlan, CheckedTrees, LoweringError,
-    Multiplicity, ServiceReachSummary, StructuralDomainRequirement, StructuralMultiplicity,
-    StructuralTypeId, UnitPlans, boundary_machine_id, checked_unit_boundary_identity,
-    checked_unit_target_reach_matches, dense_identity, lookup_type_id,
-    lower_boundary_content_guarantees, lower_boundary_crash_routes, lower_boundary_parameter_order,
-    lower_fixed_boundary_service_reach, lower_published_service_ceiling, lower_unit_parameters,
-    terminal_scalar_type, unique_unit_boundary, unsupported,
+    ServiceReachSummary, StructuralDomainRequirement, StructuralTypeId, UnitPlans,
+    boundary_machine_id, checked_unit_boundary_identity, checked_unit_target_reach_matches,
+    dense_identity, lookup_type_id, lower_boundary_content_guarantees, lower_boundary_crash_routes,
+    lower_boundary_parameter_order, lower_fixed_boundary_service_reach,
+    lower_published_service_ceiling, lower_unit_parameters, terminal_scalar_type,
+    unique_unit_boundary, unsupported,
 };
+use crate::emission::borrowed_window::terminal_multiplicity;
 use crate::terminal_identities::value_id;
 use crate::terminal_identities::{StructuralDomainBinding, lookup_domain_id_for_carrier};
 use crate::unit::attached_unit::catalog::lower_program_local_root_introductions;
@@ -334,11 +335,7 @@ pub(super) fn lower_boundary_result(
             qualifications,
         } => BoundaryMachineResult::Structural(BoundaryStructuralResultDeclaration {
             structural_type: lookup_type_id(type_ids, type_identity)?,
-            multiplicity: match multiplicity {
-                Multiplicity::Unrestricted => StructuralMultiplicity::Unrestricted,
-                Multiplicity::Affine => StructuralMultiplicity::Affine,
-                Multiplicity::Linear => StructuralMultiplicity::Linear,
-            },
+            multiplicity: terminal_multiplicity(*multiplicity),
             qualifications: qualifications
                 .iter()
                 .map(|domain| {

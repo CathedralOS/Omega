@@ -12,6 +12,7 @@ use super::{
     QualifiedScalarType, ScalarType, Site, parameter, parameters, unsupported,
     validate_direct_parameter_types,
 };
+use crate::emission::borrowed_window::terminal_multiplicity;
 use crate::emission::operation_emission::LoweredScalarBinding;
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::buffer::OperationBuffer;
@@ -209,11 +210,7 @@ pub(crate) fn reserve(
             bounded: terminal_semantics::scalar_field_requires_evidence(&declaration.field_type),
         });
     }
-    let multiplicity = match checked.type_multiplicity(source.type_reference) {
-        Multiplicity::Unrestricted => StructuralMultiplicity::Unrestricted,
-        Multiplicity::Affine => StructuralMultiplicity::Affine,
-        Multiplicity::Linear => StructuralMultiplicity::Linear,
-    };
+    let multiplicity = terminal_multiplicity(checked.type_multiplicity(source.type_reference));
     Ok(Slot {
         expression,
         place,

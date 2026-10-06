@@ -314,7 +314,7 @@ fn unpinned(place: &str, reason: &'static str) -> LoweringError {
     }
 }
 
-fn terminal_multiplicity(multiplicity: Multiplicity) -> StructuralMultiplicity {
+pub(crate) fn terminal_multiplicity(multiplicity: Multiplicity) -> StructuralMultiplicity {
     match multiplicity {
         Multiplicity::Unrestricted => StructuralMultiplicity::Unrestricted,
         Multiplicity::Affine => StructuralMultiplicity::Affine,

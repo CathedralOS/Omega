@@ -20,6 +20,7 @@ use super::{
     StructuralArgument, StructuralMultiplicity, StructuralParameterDeclaration,
     StructuralTypeDeclaration, computations, storage, unsupported,
 };
+use crate::emission::borrowed_window::terminal_multiplicity;
 use crate::emission::claim_bindings::{
     PreparedClaim, claims_below_path, emit_establishment_claims, prepare_establishment_claims,
 };
@@ -432,11 +433,7 @@ impl Preparation<'_> {
             // A declared-only local establishes a zeroed whole shape: mint the
             // fresh home with no field operands, mirroring the Unit path's
             // EstablishZeroedStructural emission.
-            let multiplicity = match self.checked.type_multiplicity(reference) {
-                Multiplicity::Unrestricted => StructuralMultiplicity::Unrestricted,
-                Multiplicity::Affine => StructuralMultiplicity::Affine,
-                Multiplicity::Linear => StructuralMultiplicity::Linear,
-            };
+            let multiplicity = terminal_multiplicity(self.checked.type_multiplicity(reference));
             let place = self.reserved.place(value)?;
             self.steps.push(Step::Zeroed {
                 place,
@@ -590,11 +587,7 @@ impl Preparation<'_> {
                 completed.push(self.value(*child, element_reference, &child_path)?);
             }
             let place = self.reserved.place(value)?;
-            let multiplicity = match self.checked.type_multiplicity(reference) {
-                Multiplicity::Unrestricted => StructuralMultiplicity::Unrestricted,
-                Multiplicity::Affine => StructuralMultiplicity::Affine,
-                Multiplicity::Linear => StructuralMultiplicity::Linear,
-            };
+            let multiplicity = terminal_multiplicity(self.checked.type_multiplicity(reference));
             self.steps.push(Step::Aggregate {
                 construction: Construction {
                     place,
@@ -839,11 +832,7 @@ impl Preparation<'_> {
         {
             return unsupported("aggregate did not initialize its exact field roster");
         }
-        let multiplicity = match self.checked.type_multiplicity(reference) {
-            Multiplicity::Unrestricted => StructuralMultiplicity::Unrestricted,
-            Multiplicity::Affine => StructuralMultiplicity::Affine,
-            Multiplicity::Linear => StructuralMultiplicity::Linear,
-        };
+        let multiplicity = terminal_multiplicity(self.checked.type_multiplicity(reference));
         let place = self.reserved.place(value)?;
         self.steps.push(Step::Aggregate {
             construction: Construction {

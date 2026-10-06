@@ -7,14 +7,15 @@ use super::super::super::super::{
 };
 use super::super::super::{
     CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan, Multiplicity, Operation,
-    OperationKind, PlaceId, StructuralMultiplicity, StructuralPlaceDeclaration,
-    StructuralPlaceKind, StructuralTypeShape, TerminalMachineResult, ValueDeclaration,
-    allocate_dense, direct_expression_contains_short_circuit, emit_direct_expression,
-    lookup_type_id, obligation_id, place_id, terminal_scalar_type, unsupported,
-    validate_direct_parameter_types, value_id,
+    OperationKind, PlaceId, StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeShape,
+    TerminalMachineResult, ValueDeclaration, allocate_dense,
+    direct_expression_contains_short_circuit, emit_direct_expression, lookup_type_id,
+    obligation_id, place_id, terminal_scalar_type, unsupported, validate_direct_parameter_types,
+    value_id,
 };
 use super::super::{CheckedTrees, LoweringError, catalogs};
 use super::{CheckedComposedUnitControlMachinePlan, CheckedComposedUnitControlStatePlan};
+use crate::emission::borrowed_window::terminal_multiplicity;
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::terminal_identities::lookup_domain_id_for_carrier;
 use checked_trees::CheckedControlResultPlan;
@@ -351,11 +352,7 @@ pub(super) fn result(
             reference_sources,
             place,
             structural_type: lookup_type_id(&catalogs.type_ids, &result.type_identity)?,
-            multiplicity: match result.multiplicity {
-                Multiplicity::Affine => StructuralMultiplicity::Affine,
-                Multiplicity::Unrestricted => StructuralMultiplicity::Unrestricted,
-                Multiplicity::Linear => StructuralMultiplicity::Linear,
-            },
+            multiplicity: terminal_multiplicity(result.multiplicity),
             qualifications: result
                 .qualifications
                 .iter()

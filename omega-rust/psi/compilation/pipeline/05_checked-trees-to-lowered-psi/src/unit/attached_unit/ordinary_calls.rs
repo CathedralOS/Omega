@@ -7,15 +7,15 @@ use super::super::{
 use super::bodies::UnitPlans;
 use super::parameters::{emitted_claim_transfers, mint_runtime_index_selectors};
 use super::{
-    CheckedTrees, CheckedUnitEffectOperationPlan, ClaimTransfer, LoweringError, Multiplicity,
-    Operation, OperationResult, PlaceId, StructuralMultiplicity, StructuralOperationResult,
-    StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeId, UnitBody, ValueDeclaration,
-    allocate_dense, argument_evaluation, lookup_claim_id, lookup_type_id,
-    lower_checked_crash_route_buckets, lower_structural_arguments,
-    lower_structural_crash_route_buckets, lower_structural_path, place_id, primitive_locals,
-    unsupported,
+    CheckedTrees, CheckedUnitEffectOperationPlan, ClaimTransfer, LoweringError, Operation,
+    OperationResult, PlaceId, StructuralOperationResult, StructuralPlaceDeclaration,
+    StructuralPlaceKind, StructuralTypeId, UnitBody, ValueDeclaration, allocate_dense,
+    argument_evaluation, lookup_claim_id, lookup_type_id, lower_checked_crash_route_buckets,
+    lower_structural_arguments, lower_structural_crash_route_buckets, lower_structural_path,
+    place_id, primitive_locals, unsupported,
 };
 use crate::direct_calls::{DirectCall, DirectCallResult};
+use crate::emission::borrowed_window::terminal_multiplicity;
 use crate::emission::operation_emission::buffer::{OperationBuffer, SourceCallCoordinate};
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::terminal_identities::{StructuralDomainBinding, lookup_domain_id_for_carrier};
@@ -332,11 +332,7 @@ pub(super) fn emit_structural(
         qualification_establishments: Vec::new(),
         place,
         structural_type,
-        multiplicity: match result.multiplicity {
-            Multiplicity::Affine => StructuralMultiplicity::Affine,
-            Multiplicity::Unrestricted => StructuralMultiplicity::Unrestricted,
-            Multiplicity::Linear => StructuralMultiplicity::Linear,
-        },
+        multiplicity: terminal_multiplicity(result.multiplicity),
         qualifications: custody
             .result_qualifications
             .iter()

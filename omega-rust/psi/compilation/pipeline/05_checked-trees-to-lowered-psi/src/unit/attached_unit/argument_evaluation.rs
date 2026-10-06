@@ -18,6 +18,7 @@ use crate::emission::boolean_control::{
     LoweredBooleanDecision, LoweredBooleanDecisionTarget, boolean_guard_decision_block_count,
     emit_inlined_boolean_guard_blocks, lower_boolean_control_decision,
 };
+use crate::emission::borrowed_window::terminal_multiplicity;
 use crate::emission::operation_emission::LoweredScalarBinding;
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::buffer::{OperationBuffer, StructuralBinding};
@@ -244,11 +245,7 @@ impl Evaluation {
         structural_types: &[StructuralTypeDeclaration],
         operations: &mut OperationBuffer,
     ) -> Result<(), LoweringError> {
-        let multiplicity = match result.multiplicity {
-            Multiplicity::Affine => StructuralMultiplicity::Affine,
-            Multiplicity::Unrestricted => StructuralMultiplicity::Unrestricted,
-            Multiplicity::Linear => StructuralMultiplicity::Linear,
-        };
+        let multiplicity = terminal_multiplicity(result.multiplicity);
         if !structural_types
             .iter()
             .any(|declaration| declaration.id == produced.structural_type)
