@@ -295,6 +295,8 @@ fail/borrows/qualified_byte_element_mutable_call_rejected rejected 259ms expecte
 fail/borrows/record_reference_from_immutable_bytes rejected 203ms expected @69d297ae3ee5
 	construction of `Holder` field `bytes` requires mutable source access; shared or immutable storage cannot supply it
 	construction of `Holder` field `bytes` requires mutable source access; shared or immutable storage cannot supply it
+fail/borrows/record_view_field_backing_write_while_stored rejected 271ms expected @3f51b497f955
+	statement 2 mutates `main.buffer[0]` while local borrow `room` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
 fail/borrows/reference_array_result_conditional_live_write rejected 1427ms expected @6ba9c43af356+wt
 	statement 8 mutates `main.cells.first.value` while local borrow `messages` is still active (borrowed at statement 7; its last use is at statement 10)
 	statement 8 mutates `main.cells.first.value` while local borrow `messages` is still active (borrowed at statement 7; its last use is at statement 10)
