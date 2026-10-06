@@ -248,13 +248,18 @@ fn common_candidates(
             function,
             register: register.virtual_register.0,
         })?;
-    let mut common = first.candidates.iter().copied().collect::<BTreeSet<_>>();
-    for point in &register.points[1..] {
-        common.retain(|candidate| point.candidates.binary_search(candidate).is_ok());
-    }
-    for point in &register.early_clobber_points {
-        common.retain(|candidate| point.candidates.binary_search(candidate).is_ok());
-    }
+    let common = intersect_candidates(
+        &first.candidates,
+        register.points[1..]
+            .iter()
+            .map(|point| point.candidates.as_slice())
+            .chain(
+                register
+                    .early_clobber_points
+                    .iter()
+                    .map(|point| point.candidates.as_slice()),
+            ),
+    );
     if common.is_empty() {
         return Err(RegisterHomeError::NoCommonCandidate {
             function,
@@ -262,6 +267,30 @@ fn common_candidates(
         });
     }
     Ok(common)
+}
+
+/// The views legal at every point of a register's range. Each point's
+/// candidates are canonically view-sorted, so the running intersection stays a
+/// sorted vector filtered by binary search; a long-lived register crosses
+/// thousands of points, and spill recovery recomputes every register of the
+/// changed function at each step.
+fn intersect_candidates<'a>(
+    first: &[RegisterViewId],
+    rest: impl Iterator<Item = &'a [RegisterViewId]>,
+) -> BTreeSet<RegisterViewId> {
+    let mut common = first
+        .iter()
+        .copied()
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect::<Vec<_>>();
+    for candidates in rest {
+        if common.is_empty() {
+            break;
+        }
+        common.retain(|candidate| candidates.binary_search(candidate).is_ok());
+    }
+    common.into_iter().collect()
 }
 
 fn component_root(parents: &[usize], mut position: usize) -> usize {
@@ -286,5 +315,42 @@ fn unsupported_tie(function: usize, instruction: u32) -> RegisterHomeError {
     RegisterHomeError::UnsupportedTiedTopology {
         function,
         instruction,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::intersect_candidates;
+    use register_model::RegisterViewId;
+    use std::collections::BTreeSet;
+
+    /// The vector intersection equals the set intersection it replaced.
+    #[test]
+    fn candidate_intersection_matches_set_retain() {
+        let mut seed = 0x9e37_79b9_7f4a_7c15u64;
+        let mut next = |bound: u64| {
+            seed ^= seed << 13;
+            seed ^= seed >> 7;
+            seed ^= seed << 17;
+            seed % bound
+        };
+        for _ in 0..300 {
+            let lists = (0..next(6) + 1)
+                .map(|_| {
+                    let mut list = (0..next(12))
+                        .map(|_| RegisterViewId(next(16) as u16))
+                        .collect::<Vec<_>>();
+                    list.sort();
+                    list.dedup();
+                    list
+                })
+                .collect::<Vec<_>>();
+            let mut expected = lists[0].iter().copied().collect::<BTreeSet<_>>();
+            for list in &lists[1..] {
+                expected.retain(|candidate| list.binary_search(candidate).is_ok());
+            }
+            let actual = intersect_candidates(&lists[0], lists[1..].iter().map(Vec::as_slice));
+            assert_eq!(actual, expected);
+        }
     }
 }

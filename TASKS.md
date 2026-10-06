@@ -185,15 +185,17 @@ helper that passes does not close an item.
   300 s per-call timeout, preserving its runtime oracle. First remeasure on
   one host and compiler profile:
   `python3 tools/sample_native_gate.py --cli <debug omega> --jobs 1 --timeout 6600 --filter games/dungeon_crawler_cli`.
-  - At `e830e1bb701` on macOS ARM64 (debug CLI) the gate command above
-    passes the oracle in 1849 s for its three calls together (review, resume,
-    run); the per-call split is not yet measured. Review repeats std's
-    whole-package check in both `omega update` calls (see
-    **REVIEW-BOUND-PASS-RECHECKS**).
-  - Liveness/live-range per-function digest reuse already exists in stage 04
-    `analyses/{liveness,live_ranges}/validate/receipt.rs`; do not implement it
-    again. Separate review and compilation time, then profile remaining
-    carried-row copying and recovery work before choosing the next repair.
+  - On macOS ARM64 (debug CLI, light load) `omega update` takes 22 s and
+    `--resume` 20 s with a warm review cache (174 s cold), so review no longer
+    counts; the native compile (`omega --timings --target macos_arm64`) takes
+    645 s: 16 s checking, 16 s settlement, 229 s Psi lowering, about 384 s
+    native realization. Stack samples put the lowering
+    time in certificate production that **PCC-CERTIFICATES-DELETED** removes,
+    and most of realization in spill recovery
+    (`selected_instructions_to_register_homes/src/assignment/runtime_spill/recovery.rs::recover_over`),
+    which re-analyzes the changed function's liveness, live ranges and
+    allocation legality at each of several hundred steps (per-function digest
+    reuse already skips unchanged functions; do not implement it again).
   - Verification removal belongs to **OMEGA-READS-TERMINAL-UNVERIFIED** and
     **PCC-CERTIFICATES-DELETED**. The old stage 03 legalization replay is gone;
     do not restore it or create a new replay harness as a prerequisite.
