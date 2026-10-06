@@ -253,14 +253,11 @@ fn check_program(
         // Generated bodies only add concrete calls; the authored generic
         // templates stay unchanged, so their contract entailment and the
         // conformance applications are judged once, after convergence.
-        static_machine_selections =
-            specialize_generated_static_machine_calls(&mut program)?;
+        static_machine_selections = specialize_generated_static_machine_calls(&mut program)?;
         normalize_open_index_identities(&mut program)?;
     }
     if generated_bodies {
-        crate::conformance::conformance_applications::validate_conformance_applications(
-            &program,
-        )?;
+        crate::conformance::conformance_applications::validate_conformance_applications(&program)?;
     }
     // F2b: unsuffixed float literals at declared f32/f64 destinations land
     // their format on the text carrier HERE, while the tree is still mutable
@@ -332,6 +329,7 @@ fn check_program(
     let (mut facts, _prepared_effect_scope) = build_check_facts(
         &program,
         &validated.proof_plan,
+        &validated.integer_assignments,
         validated.operational,
         validated.service_reaches,
         validated.validation_facts,

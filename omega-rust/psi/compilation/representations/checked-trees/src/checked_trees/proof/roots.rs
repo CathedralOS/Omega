@@ -18,6 +18,7 @@ pub struct ProofFacts {
     pub contract_entailment_assumption_discharges:
         Vec<crate::CheckedContractEntailmentAssumptionDischarge>,
     pub obligations: Arena<ProofObligationFact>,
+    pub integer_assignments: Arena<crate::CheckedIntegerAssignmentDecision>,
     pub contract_facts: Arena<ContractProofFact>,
     /// Conformance-edge provenance for contract facts inherited from trait
     /// requirements. Rows are referenced from `ContractProofFact::inherited_scope`
@@ -154,5 +155,32 @@ impl ProofFacts {
             return None;
         }
         Some(projection)
+    }
+}
+
+impl ProofFacts {
+    pub fn integer_assignment_at(
+        &self,
+        machine: SymbolHandle,
+        state: SymbolHandle,
+        statement_index: usize,
+        target: typed_trees::expression::ExpressionHandle,
+        value: typed_trees::expression::ExpressionHandle,
+    ) -> Handle<crate::CheckedIntegerAssignmentDecision> {
+        let mut matches = self.integer_assignments.iter().filter(|(_, decision)| {
+            decision.machine == machine
+                && decision.state == state
+                && decision.statement_index == statement_index
+                && decision.target == target
+                && decision.value == value
+        });
+        let Some((handle, _)) = matches.next() else {
+            return Handle::invalid();
+        };
+        if matches.next().is_some() {
+            Handle::invalid()
+        } else {
+            handle
+        }
     }
 }

@@ -596,6 +596,13 @@ fn plan_assignment(
         return Some(vec![
             CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(
                 CheckedStructuralScalarFieldStorePlan {
+                    range_decision: facts.proof.integer_assignment_at(
+                        machine.symbol,
+                        state.symbol,
+                        statement_index as usize,
+                        assignment.target,
+                        assignment.value,
+                    ),
                     statement_index,
                     destination: destination.root.destination(),
                     carrier_path: carrier.path,

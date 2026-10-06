@@ -19,6 +19,7 @@ pub(super) struct Prepared {
     path: Vec<StructuralPathSegment>,
     field: StructuralFieldId,
     requires_evidence: bool,
+    range_decided: bool,
     result_type: QualifiedScalarType,
     expression: Option<LoweredDirectExpression>,
 }
@@ -30,7 +31,7 @@ pub(super) fn prepare(
     bindings: &storage::ScalarBindings,
     types: &[StructuralTypeDeclaration],
 ) -> Result<Prepared, LoweringError> {
-    let (_, source) = crate::declarations::state_declaration(checked, state)?;
+    let (machine, source) = crate::declarations::state_declaration(checked, state)?;
     let Some(checked_trees::statement::StatementNode::Assignment(_)) = checked
         .statement_table
         .statements(source.statement_nodes)
@@ -86,7 +87,18 @@ pub(super) fn prepare(
             return unsupported("record store has no call operation supplying its result");
         }
     };
+    let range_decided = crate::emission::structural_scalar_store::source_range_decided(
+        checked,
+        machine.symbol,
+        state,
+        store,
+        match &field.field_type {
+            terminal_psi::StructuralFieldType::BoundedInteger(integer) => Some(*integer),
+            _ => None,
+        },
+    )?;
     Ok(Prepared {
+        range_decided,
         statement: store.statement_index,
         destination,
         path,
@@ -124,6 +136,7 @@ impl Prepared {
                 value_position: prefix.len(),
                 scalar_type: self.result_type.scalar_type,
                 requires_evidence: self.requires_evidence,
+                range_decided: self.range_decided,
             }],
             terminator: LoweredScalarBranchTerminator::Jump {
                 target,

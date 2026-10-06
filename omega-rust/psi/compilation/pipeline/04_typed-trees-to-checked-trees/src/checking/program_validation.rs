@@ -6,6 +6,7 @@ use typed_trees::data::DataMember;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 pub(crate) struct PreparedTypedProgram<'program> {
+    pub(crate) integer_assignments: Vec<proof::checker::CheckedIntegerAssignment>,
     pub(crate) proof_plan: ProofPlan<'program>,
     pub(crate) operational: OperationalPlan,
     pub(crate) service_reaches: ServiceReachInferencePlan,
@@ -28,12 +29,13 @@ pub(crate) fn prepare_typed_program<'program>(
     let validated = validation::prepare_specialized_program(program, opaque_properties)?;
 
     let proof_plan = proof::obligations::build_proof_plan(program);
-    proof::checker::check_proof_plan(&proof_plan)?;
+    let integer_assignments = proof::checker::check_proof_plan_with_decisions(&proof_plan)?;
 
     let operational = validated.operational;
     validate_no_bare_boundary_trait_values(program)?;
 
     Ok(PreparedTypedProgram {
+        integer_assignments,
         proof_plan,
         operational,
         validation_facts: validated.facts,

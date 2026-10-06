@@ -111,6 +111,7 @@ pub(crate) fn emit(
                 value_position,
                 scalar_type,
                 requires_evidence,
+                range_decided,
             } => {
                 let value = values
                     .get(*value_position)
@@ -118,6 +119,16 @@ pub(crate) fn emit(
                     .ok_or(LoweringError::Unsupported(
                         "record store lost its completed scalar operand",
                     ))?;
+                let range_obligation = if *requires_evidence {
+                    Some(obligation_id(allocate_dense(
+                        &mut calls.next_obligation_identity,
+                    )?))
+                } else {
+                    None
+                };
+                if *range_decided && let Some(obligation) = range_obligation {
+                    operations.source_checked_obligations.push(obligation);
+                }
                 let id = operations.allocate();
                 operations.push(Operation {
                     static_reach_binding: None,
@@ -129,13 +140,7 @@ pub(crate) fn emit(
                         path: path.clone(),
                         field: *field,
                         value: value.id,
-                        range_obligation: if *requires_evidence {
-                            Some(obligation_id(allocate_dense(
-                                &mut calls.next_obligation_identity,
-                            )?))
-                        } else {
-                            None
-                        },
+                        range_obligation,
                     },
                 });
             }

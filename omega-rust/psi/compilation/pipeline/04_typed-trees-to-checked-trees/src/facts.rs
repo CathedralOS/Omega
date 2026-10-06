@@ -123,6 +123,7 @@ fn project_operational_rows(
 pub(crate) fn build_check_facts(
     program: &TypedTrees,
     proof_plan: &ProofPlan<'_>,
+    integer_assignments: &[proof::checker::CheckedIntegerAssignment],
     operational: OperationalPlan,
     service_reach_inference: flow_effects::ServiceReachInferencePlan,
     mut validation_facts: validation::ProgramValidationFacts,
@@ -143,6 +144,26 @@ pub(crate) fn build_check_facts(
     operators.decided_formations = validation_facts.decided_formations.clone();
     let mut proof =
         build_proof_facts_with_operators(program, proof_plan, &borrow, &operators, mathematics)?;
+    for decision in integer_assignments {
+        let proof::obligations::ProofObligation::BoundedAssignment(assignment) =
+            proof_plan.obligations.get(decision.obligation)
+        else {
+            unreachable!("integer assignment judgment retains its exact obligation");
+        };
+        proof
+            .integer_assignments
+            .append(checked_trees::CheckedIntegerAssignmentDecision {
+                machine: assignment.machine_symbol,
+                state: assignment.state_symbol,
+                statement_index: assignment.statement_index,
+                target: assignment.target,
+                value: assignment.value,
+                target_type: assignment.base_type,
+                minimum: decision.range.minimum.clone(),
+                maximum: decision.range.maximum.clone(),
+            });
+    }
+
     crate::proof::bind_float_meaning_projection_facts(
         program,
         &mut proof,

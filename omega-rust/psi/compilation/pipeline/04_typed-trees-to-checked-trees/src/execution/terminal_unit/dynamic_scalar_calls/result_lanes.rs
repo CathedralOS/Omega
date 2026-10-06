@@ -540,6 +540,7 @@ fn checked_caller_structural_scalar_field_store_plan(
     }
 
     Some(checked_trees::CheckedStructuralScalarFieldStorePlan {
+        range_decision: arena::Handle::invalid(),
         statement_index: 0,
         destination: checked_trees::CheckedStoreRoot::Parameter {
             position: custody.source_parameter_position,

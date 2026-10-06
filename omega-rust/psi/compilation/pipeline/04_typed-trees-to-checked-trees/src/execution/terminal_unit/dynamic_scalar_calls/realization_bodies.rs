@@ -261,6 +261,7 @@ fn checked_realization_structural_scalar_field_store_plan(
 
     Some((
         checked_trees::CheckedStructuralScalarFieldStorePlan {
+            range_decision: arena::Handle::invalid(),
             statement_index: u32::try_from(statement_index).ok()?,
             destination: checked_trees::CheckedStoreRoot::Parameter {
                 position: u32::try_from(data_binding_position).ok()?,

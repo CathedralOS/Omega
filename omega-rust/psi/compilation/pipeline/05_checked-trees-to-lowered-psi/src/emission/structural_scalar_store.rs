@@ -24,6 +24,8 @@ pub(crate) struct LoweredStructuralScalarStore {
     pub field: StructuralFieldId,
     pub scalar_type: ScalarType,
     pub requires_range_obligation: bool,
+    bounded_integer: Option<semantic_vocabulary::BoundedIntegerType>,
+    pub range_decided: bool,
 }
 
 impl LoweredStructuralScalarStore {
@@ -38,6 +40,11 @@ impl LoweredStructuralScalarStore {
             return unsupported("structural scalar store field has a different type");
         }
         Ok(Self {
+            bounded_integer: match &field.field_type {
+                StructuralFieldType::BoundedInteger(integer) => Some(*integer),
+                _ => None,
+            },
+            range_decided: false,
             steps,
             field: field.id,
             scalar_type,
@@ -45,6 +52,21 @@ impl LoweredStructuralScalarStore {
                 &field.field_type,
             ),
         })
+    }
+
+    /// Bind the already completed source judgment to this emitted field's full
+    /// range obligation. A different qualification or transformed geometry is
+    /// not authorized by an integer interval, even if its carrier is identical.
+    pub(crate) fn bind_range_decision(
+        &mut self,
+        checked: &checked_trees::CheckedTrees,
+        machine: symbols::SymbolHandle,
+        state: symbols::SymbolHandle,
+        store: &checked_trees::CheckedStructuralScalarFieldStorePlan,
+    ) -> Result<(), LoweringError> {
+        self.range_decided =
+            source_range_decided(checked, machine, state, store, self.bounded_integer)?;
+        Ok(())
     }
 
     /// The static carrier path, for routes that evaluate no selector.
@@ -71,6 +93,11 @@ impl LoweredStructuralScalarStore {
         } else {
             None
         };
+        if self.range_decided
+            && let Some(obligation) = range_obligation
+        {
+            operations.source_checked_obligations.push(obligation);
+        }
         Ok(OperationKind::StructuralScalarFieldStore {
             destination,
             path: crate::emission::runtime_elements::complete_path(
@@ -81,6 +108,47 @@ impl LoweredStructuralScalarStore {
             range_obligation,
         })
     }
+}
+
+/// Match a retained source judgment to the complete emitted integer range.
+pub(crate) fn source_range_decided(
+    checked: &checked_trees::CheckedTrees,
+    machine: symbols::SymbolHandle,
+    state: symbols::SymbolHandle,
+    store: &checked_trees::CheckedStructuralScalarFieldStorePlan,
+    bounded_integer: Option<semantic_vocabulary::BoundedIntegerType>,
+) -> Result<bool, LoweringError> {
+    if !store.range_decision.is_valid() {
+        return Ok(false);
+    }
+    let decision = checked
+        .facts
+        .proof
+        .integer_assignments
+        .get(store.range_decision);
+    if decision.machine != machine
+        || decision.state != state
+        || decision.statement_index != store.statement_index as usize
+        || checked.primitive_type_reference(decision.target_type) != Some(store.primitive_type)
+    {
+        return unsupported("bounded store lost its exact completed source judgment");
+    }
+    let Some(integer) = bounded_integer else {
+        return Ok(false);
+    };
+    let mathematical = |value| match value {
+        semantic_vocabulary::IntegerValue::Signed(value) => {
+            numerics::bignum::BigInt::from_i128(value)
+        }
+        semantic_vocabulary::IntegerValue::Unsigned(value) => {
+            numerics::bignum::BigInt::from_u128(value)
+        }
+    };
+    let decided = terminal_scalar_type(store.primitive_type)?
+        == ScalarType::Integer(integer.integer_type())
+        && decision.minimum == mathematical(integer.minimum())
+        && decision.maximum == mathematical(integer.maximum());
+    Ok(decided)
 }
 
 pub(crate) fn lower_structural_scalar_store_destination(

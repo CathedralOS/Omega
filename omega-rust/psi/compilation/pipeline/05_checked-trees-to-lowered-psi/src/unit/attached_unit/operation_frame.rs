@@ -1538,7 +1538,7 @@ impl OperationFrame<'_, '_> {
         // A parameter destination roots the store at its borrowed place; an
         // owned structural local roots it at the local's live home place,
         // resolved through the structural-local roster.
-        let (destination_place, destination_type, lowered) = match store.destination {
+        let (destination_place, destination_type, mut lowered) = match store.destination {
             checked_trees::CheckedStoreRoot::Parameter { position } => {
                 // The destination names the authored parameter position;
                 // `structural_parameters` pairs each checked plan's authored
@@ -1572,6 +1572,7 @@ impl OperationFrame<'_, '_> {
                 (place, root_type, lowered)
             }
         };
+        lowered.bind_range_decision(self.checked, self.machine, self.state, store)?;
         // The carrier's runtime elements are evaluated before the value.
         let indexes = crate::emission::runtime_elements::evaluate_selectors(
             &lowered.steps,

@@ -58,21 +58,24 @@ pub(crate) fn check_bounded_assignment<'program>(
     diagnostics: &mut Vec<Diagnostic>,
     measurements: &mut ProofPlanMeasurements,
     derivations: Option<&mut DerivationConsultation<'_>>,
-) {
+) -> Option<crate::obligations::IntegerRange> {
     // Chapter 11 invariant windows: an intermediate store need not itself
     // satisfy the place's constraints when a later store repairs the EXACT
     // place before anything can observe it.  The repairing assignment keeps
     // its own ordinary obligation; this only suppresses proof debt for a
     // value that is provably dead before the next consumption point.
     if assignment_is_overwritten_before_consumption(proof_plan, obligation) {
-        return;
+        return None;
     }
 
+    let diagnostics_before = diagnostics.len();
+    let mut checked_range = None;
     check_assignment_named_constraints(proof_plan, obligation, diagnostics);
 
     if let Some(target_range) =
         integer_range_from_constraints(type_constraints(proof_plan, obligation.constraints))
     {
+        checked_range = Some(target_range.clone());
         // The certificate route decides the covered shapes on independently
         // checked evidence; everything else keeps the ordinary derivation.
         match bounded_integer_value_verdict(
@@ -134,7 +137,7 @@ pub(crate) fn check_bounded_assignment<'program>(
                 obligation,
                 target_range,
             ));
-            return;
+            return None;
         };
 
         if !target_range.contains_range(&value_range) {
@@ -144,6 +147,11 @@ pub(crate) fn check_bounded_assignment<'program>(
                 target_range,
             ));
         }
+    }
+    if diagnostics.len() == diagnostics_before {
+        checked_range
+    } else {
+        None
     }
 }
 

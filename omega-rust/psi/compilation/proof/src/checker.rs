@@ -47,6 +47,19 @@ use crate::obligations::{ProofObligation, ProofPlan};
 use diagnostics::Diagnostic;
 
 pub fn check_proof_plan(proof_plan: &ProofPlan) -> Result<(), Vec<Diagnostic>> {
+    check_proof_plan_with_decisions(proof_plan).map(|_| ())
+}
+
+/// Exact integer store judgments completed by this pass. Deferred invariant
+/// windows are absent; absence never means a vacuous successful range check.
+pub struct CheckedIntegerAssignment {
+    pub obligation: arena::Handle<ProofObligation>,
+    pub range: crate::obligations::IntegerRange,
+}
+
+pub fn check_proof_plan_with_decisions(
+    proof_plan: &ProofPlan,
+) -> Result<Vec<CheckedIntegerAssignment>, Vec<Diagnostic>> {
     let mut measurements = ProofPlanMeasurements::default();
     check_proof_plan_inner(proof_plan, &mut measurements, None)
 }
@@ -55,12 +68,13 @@ fn check_proof_plan_inner(
     proof_plan: &ProofPlan<'_>,
     measurements: &mut ProofPlanMeasurements,
     mut derivation_cache: Option<&mut ProofDerivationCache>,
-) -> Result<(), Vec<Diagnostic>> {
+) -> Result<Vec<CheckedIntegerAssignment>, Vec<Diagnostic>> {
     let started = std::time::Instant::now();
     let mut diagnostics = Vec::new();
     let range_context = AssignmentRangeContext::new(proof_plan);
+    let mut checked_assignments = Vec::new();
 
-    for (index, (_, obligation)) in proof_plan.obligations.iter().enumerate() {
+    for (index, (obligation_handle, obligation)) in proof_plan.obligations.iter().enumerate() {
         // Certificate identities are scoped to one leg's verification, so a
         // per-obligation nonzero seed keeps each package self-describing.
         let seed = index as u64 + 1;
@@ -81,7 +95,7 @@ fn check_proof_plan_inner(
         };
         match obligation {
             ProofObligation::BoundedAssignment(obligation) => {
-                check_bounded_assignment(
+                if let Some(range) = check_bounded_assignment(
                     proof_plan,
                     obligation,
                     &range_context,
@@ -89,7 +103,12 @@ fn check_proof_plan_inner(
                     &mut diagnostics,
                     measurements,
                     consultation.as_mut(),
-                );
+                ) {
+                    checked_assignments.push(CheckedIntegerAssignment {
+                        obligation: obligation_handle,
+                        range,
+                    });
+                }
             }
             ProofObligation::BoundedCallArgument(obligation) => {
                 check_bounded_call_argument(
@@ -144,7 +163,7 @@ fn check_proof_plan_inner(
     measurements.emit_if_requested();
 
     if diagnostics.is_empty() {
-        Ok(())
+        Ok(checked_assignments)
     } else {
         Err(diagnostics)
     }

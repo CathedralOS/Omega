@@ -64,3 +64,18 @@ impl Default for ProofObligationFact {
         }
     }
 }
+
+/// A completed integer assignment judgment, before the authored store occurs.
+/// Retains the exact source occurrence and range; deferred invariant windows
+/// and non-integer constraints confer no authority through this row.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct CheckedIntegerAssignmentDecision {
+    pub machine: SymbolHandle,
+    pub state: SymbolHandle,
+    pub statement_index: usize,
+    pub target: typed_trees::expression::ExpressionHandle,
+    pub value: typed_trees::expression::ExpressionHandle,
+    pub target_type: typed_trees::types::TypeReferenceHandle,
+    pub minimum: numerics::bignum::BigInt,
+    pub maximum: numerics::bignum::BigInt,
+}

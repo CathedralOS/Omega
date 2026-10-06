@@ -776,6 +776,8 @@ impl CheckedStoreRoot {
 /// Checked custody for one replacement of an exact primitive field.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedStructuralScalarFieldStorePlan {
+    /// Exact completed source range check. Zero for deferred or unjudged stores.
+    pub range_decision: arena::Handle<crate::CheckedIntegerAssignmentDecision>,
     pub statement_index: u32,
     pub destination: CheckedStoreRoot,
     /// Exact structural path from the destination root to the carrier;

@@ -258,6 +258,7 @@ pub(crate) enum LoweredScalarEffect {
         value_position: usize,
         scalar_type: ScalarType,
         requires_evidence: bool,
+        range_decided: bool,
     },
     EstablishAggregate(scalar_graph_lowering::structural_values::Construction),
     /// A declared-only local's zeroed whole-shape establishment: a fresh home
