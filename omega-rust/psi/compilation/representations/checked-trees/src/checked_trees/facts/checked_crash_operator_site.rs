@@ -53,6 +53,19 @@ impl CheckedCrashOperatorSite {
         }
     }
 
+    /// The authored operator invocation this site checks: the spelled
+    /// operator expression, or the named requirement call.
+    pub fn expression(
+        &self,
+        facts: &crate::CheckFacts,
+    ) -> typed_trees::expression::ExpressionHandle {
+        if self.named_use.is_valid() {
+            facts.operators.named_uses.get(self.named_use).expression
+        } else {
+            facts.operators.uses.get(self.operator_use).expression
+        }
+    }
+
     pub fn selected_operator(&self) -> SymbolHandle {
         self.selected_operator
     }

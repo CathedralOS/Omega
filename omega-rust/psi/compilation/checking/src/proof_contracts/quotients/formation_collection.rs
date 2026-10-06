@@ -229,11 +229,11 @@ pub(crate) fn reject_quotient_operation_requests(
                         .map(|value| format!(" plus discharged {value}"))
                         .unwrap_or_default();
                     let correspondence_certificate = plan
-                        .render_correspondence_certificate()
+                        .render_correspondence_certificate(program)
                         .map(|value| format!(" plus composed non-executable {value}"))
                         .unwrap_or_default();
                     let termination = plan
-                        .render_representative_termination()
+                        .render_representative_termination(program)
                         .map(|value| format!(" plus checked {value}"))
                         .unwrap_or_default();
                     let purity = representative_purity

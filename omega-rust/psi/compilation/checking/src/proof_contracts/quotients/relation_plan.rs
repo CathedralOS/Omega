@@ -1034,18 +1034,25 @@ impl DirectTerminalRelationPlan {
             .collect::<Vec<_>>()
             .join(", ");
         format!(
-            "F#{}({parameters})->{}",
-            self.representative.state_symbol.arena_index(),
+            "{}({parameters})->{}",
+            machine_state_label(
+                program,
+                self.representative.machine_symbol,
+                self.representative.state_symbol,
+            ),
             program.display_type_reference_with_constraints(self.representative.return_type),
         )
     }
 
-    pub(super) fn render_representative_termination(&self) -> Option<String> {
+    pub(super) fn render_representative_termination(&self, program: &TypedTrees) -> Option<String> {
         self.representative_termination.map(|termination| {
             format!(
-                "unconditional-termination=machine#{}:state#{}",
-                termination.machine_symbol.arena_index(),
-                termination.state_symbol.arena_index(),
+                "unconditional termination of {}",
+                machine_state_label(
+                    program,
+                    termination.machine_symbol,
+                    termination.state_symbol
+                ),
             )
         })
     }
@@ -1062,9 +1069,12 @@ impl DirectTerminalRelationPlan {
             .collect::<Vec<_>>()
             .join(", ");
         format!(
-            "theorem#{}:state#{}({parameters})[static-bindings:{}]",
-            selected_theorem.machine_symbol.arena_index(),
-            selected_theorem.state_symbol.arena_index(),
+            "theorem {}({parameters})[static-bindings:{}]",
+            machine_state_label(
+                program,
+                selected_theorem.machine_symbol,
+                selected_theorem.state_symbol,
+            ),
             selected_theorem.static_application.bindings.len(),
         )
     }
@@ -1081,9 +1091,12 @@ impl DirectTerminalRelationPlan {
             .collect::<Vec<_>>()
             .join(", ");
         Some(format!(
-            "forward-transport#{}:state#{}({parameters})[static-bindings:{}]",
-            selected.selected_application.machine_symbol.arena_index(),
-            selected.selected_application.state_symbol.arena_index(),
+            "forward transport {}({parameters})[static-bindings:{}]",
+            machine_state_label(
+                program,
+                selected.selected_application.machine_symbol,
+                selected.selected_application.state_symbol,
+            ),
             selected
                 .selected_application
                 .static_application
@@ -1255,7 +1268,7 @@ impl DirectTerminalRelationPlan {
             })
     }
 
-    pub(super) fn render_correspondence_certificate(&self) -> Option<String> {
+    pub(super) fn render_correspondence_certificate(&self, program: &TypedTrees) -> Option<String> {
         self.correspondence_certificate.as_ref().map(|certificate| {
             let kind = match &certificate.evidence {
                 correspondence_certificate::QuotientCorrespondenceEvidence::DirectLift {
@@ -1269,11 +1282,42 @@ impl DirectTerminalRelationPlan {
                 }
             };
             format!(
-                "{kind}-certificate=[theorem#{}:state#{}]",
-                certificate.theorem.theorem_machine_symbol.arena_index(),
-                certificate.theorem.theorem_state_symbol.arena_index(),
+                "{kind}-certificate=[theorem {}]",
+                machine_state_label(
+                    program,
+                    certificate.theorem.theorem_machine_symbol,
+                    certificate.theorem.theorem_state_symbol,
+                ),
             )
         })
+    }
+}
+
+/// The authored machine a machine/state symbol pair names, with the state
+/// when it is not the machine's entry state. Diagnostics name source
+/// subjects, not arena slots.
+fn machine_state_label(
+    program: &TypedTrees,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+) -> String {
+    let Some(machine) = program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == machine_symbol)
+    else {
+        return "an unresolved machine".to_owned();
+    };
+    let states = program.machine_states(machine);
+    match states.iter().position(|state| state.symbol == state_symbol) {
+        Some(position) if position > 0 => {
+            format!(
+                "`{}` state `{}`",
+                machine.name,
+                states[position].name.as_str()
+            )
+        }
+        _ => format!("`{}`", machine.name),
     }
 }
 

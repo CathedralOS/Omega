@@ -998,11 +998,7 @@ defines the complete product bar.
     `fail/calls/terminal_return_type_mismatch_rejected`,
     `fail/expressions/bool_numeric_operand_mixing_rejected`,
     `fail/arithmetic/{suffix_type_disagrees,undeclared_bare_name}_rejected` and
-    `fail/range/indexed_field_range_runtime_write_rejected`. Emit stable source
-    subjects instead of arena IDs in
-    `fail/expressions/token_bound_machine_duplicate_shape_rejected` and quotient
-    rejections; attribute `fail/operators/selected_crash_invocation` to the
-    authored operator invocation.
+    `fail/range/indexed_field_range_runtime_write_rejected`.
   - **ENTRY-SLOT-EXACT-SCHEMA-SELECTION** owns the remaining accepted-package
     physical-convention mismatch customer. The local-schema negative now
     rejects its invalid register architecture; it does not select the target

@@ -99,6 +99,8 @@ pub(crate) fn reject_duplicate_direct_token_bindings(
             owner: binding_owner(program, machine),
             operand_shape: ShapeNormalizer::new(program, machine.type_parameters)
                 .operand_shape(entry_parameters(program, machine)),
+            operand_display: ShapeNormalizer::for_display(program, machine.type_parameters)
+                .operand_shape(entry_parameters(program, machine)),
         };
         if let Some(diagnostic) = binding.missing_semantic_home(program) {
             diagnostics.push(diagnostic);
@@ -158,7 +160,7 @@ fn duplicate_diagnostic(binding: &TokenBinding, earlier: &TokenBinding) -> Diagn
         binding.name,
         binding.spelling.symbol(),
         earlier.name,
-        binding.operand_shape
+        binding.operand_display
     ))
     .with_source_span(binding.name_span)
 }
@@ -178,7 +180,11 @@ struct TokenBinding<'program> {
     owner_spelling: String,
     spelling: OperatorSpelling,
     owner: BindingOwner,
+    /// Duplicate-detection key: resolved symbol identities and binder
+    /// positions, never shown to the author.
     operand_shape: String,
+    /// The same operand shape in authored spellings, for diagnostics.
+    operand_display: String,
 }
 
 impl TokenBinding<'_> {
@@ -435,6 +441,8 @@ fn operator_token_binding<'program>(
         spelling,
         owner,
         operand_shape: ShapeNormalizer::new(program, operator.type_parameters)
+            .operand_shape(program.state_parameters(operator.parameters)),
+        operand_display: ShapeNormalizer::for_display(program, operator.type_parameters)
             .operand_shape(program.state_parameters(operator.parameters)),
     }
 }
@@ -813,6 +821,9 @@ struct ShapeNormalizer<'program> {
     /// Own binder symbol → its first-occurrence position in the telescope,
     /// assigned during the single rendering pass.
     ordinals: HashMap<SymbolHandle, usize>,
+    /// Render authored spellings instead of identities: a diagnostic names
+    /// `Wrapped`, not the arena slot that tells two same-spelled types apart.
+    display: bool,
 }
 
 impl<'program> ShapeNormalizer<'program> {
@@ -824,6 +835,17 @@ impl<'program> ShapeNormalizer<'program> {
             program,
             own_binders: own_binders(program, type_parameters),
             ordinals: HashMap::new(),
+            display: false,
+        }
+    }
+
+    fn for_display(
+        program: &'program SymbolResolvedTrees,
+        type_parameters: HandleSpan<TypeParameter>,
+    ) -> Self {
+        Self {
+            display: true,
+            ..Self::new(program, type_parameters)
         }
     }
 
@@ -851,11 +873,22 @@ impl<'program> ShapeNormalizer<'program> {
     /// telescope when the declaring signature owns it, else by resolved
     /// identity or authored spelling.
     fn binder_or_symbol(&mut self, symbol: SymbolHandle, spelling: &str) -> String {
+        if self.display {
+            return spelling.to_owned();
+        }
         if self.own_binders.contains(&symbol) {
             let ordinal = self.ordinals.len();
             return format!("binder{}", *self.ordinals.entry(symbol).or_insert(ordinal));
         }
         symbol_or_spelling(symbol, spelling)
+    }
+
+    fn symbol_or_spelling(&self, symbol: SymbolHandle, spelling: &str) -> String {
+        if self.display {
+            spelling.to_owned()
+        } else {
+            symbol_or_spelling(symbol, spelling)
+        }
     }
 
     fn type_shape(&mut self, type_reference: &TypeReference) -> String {
@@ -939,12 +972,12 @@ impl<'program> ShapeNormalizer<'program> {
                 conformance,
                 ..
             } => match conformance {
-                Some(conformance) => format!(
+                Some(conformance) if !self.display => format!(
                     "dyn {} via #{}",
                     self.binder_or_symbol(*symbol, name.as_str()),
                     conformance.arena_index()
                 ),
-                None => format!("dyn {}", self.binder_or_symbol(*symbol, name.as_str())),
+                _ => format!("dyn {}", self.binder_or_symbol(*symbol, name.as_str())),
             },
             TypeReference::Named { symbol, name } => self.binder_or_symbol(*symbol, name.as_str()),
             TypeReference::SelfType { symbol } => {
@@ -959,13 +992,13 @@ impl<'program> ShapeNormalizer<'program> {
                     .find(|machine| machine.symbol == *symbol)
                     .filter(|machine| machine.attached_data_symbol.is_valid());
                 attached.map_or_else(
-                    || symbol_or_spelling(*symbol, "Self"),
+                    || self.symbol_or_spelling(*symbol, "Self"),
                     |machine| {
                         let name = machine
                             .attached_data
                             .as_ref()
                             .map_or("Self", |name| name.as_str());
-                        symbol_or_spelling(machine.attached_data_symbol, name)
+                        self.symbol_or_spelling(machine.attached_data_symbol, name)
                     },
                 )
             }

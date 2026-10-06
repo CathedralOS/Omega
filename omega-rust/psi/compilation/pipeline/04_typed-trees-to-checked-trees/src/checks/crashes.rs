@@ -535,11 +535,16 @@ pub(crate) fn check_published_ceiling_coverage(
                     })
                 });
                 if !covered {
-                    diagnostics.push(Diagnostic::error(format!(
-                        "selected operator `{}` in `{caller_name}` has an uncovered {:?} crash route; publish a same-cause route whose guard covers this invocation",
-                        crate::labels::symbol_name(program, invocation.selected_operator),
-                        surviving.cause(),
-                    )));
+                    let expression = invocation.expression(facts);
+                    diagnostics.push(
+                        Diagnostic::error(format!(
+                            "`{}` in `{caller_name}` selects operator `{}`, which has an uncovered {:?} crash route; publish a same-cause route whose guard covers this invocation",
+                            program.expression_table.display_name(expression),
+                            crate::labels::symbol_name(program, invocation.selected_operator),
+                            surviving.cause(),
+                        ))
+                        .with_source_span(program.expression_table.source_span(expression)),
+                    );
                 }
             }
         }
