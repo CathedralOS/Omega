@@ -2572,19 +2572,7 @@ impl OperationFrame<'_, '_> {
                 &mut self.calls.next_obligation_identity,
                 self.operations,
             )?;
-        match &mut self.results {
-            StructuralResults::Dense(roster) => roster.push((Some(declaration), false)),
-            StructuralResults::StateGraph { places, .. } => places.push(declaration),
-        }
-        self.evaluation.establish_structural_result(
-            self.checked,
-            self.state,
-            result,
-            true,
-            produced,
-            self.structural_types.declarations(),
-            self.operations,
-        )
+        self.register_structural_result(declaration, result, produced)
     }
 
     /// Bind one immutable view local to an exclusive range. The range
@@ -2703,6 +2691,20 @@ impl OperationFrame<'_, '_> {
             .ok_or(LoweringError::Unsupported(
                 "view subslice established no structural value",
             ))?;
+        self.register_structural_result(declaration, result, produced)
+    }
+
+    /// Register `declaration` on this route's results roster and bind
+    /// `result` to `produced`. Every structural producer emits the same
+    /// registration-establishment pair once it holds a declaration: a dense
+    /// roster wraps each row with its discard-on-return flag while the
+    /// state-graph roster takes the place bare.
+    fn register_structural_result(
+        &mut self,
+        declaration: StructuralPlaceDeclaration,
+        result: &checked_trees::CheckedUnitStructuralResultBindingPlan,
+        produced: terminal_psi::StructuralOperationResult,
+    ) -> Result<(), LoweringError> {
         match &mut self.results {
             StructuralResults::Dense(roster) => roster.push((Some(declaration), false)),
             StructuralResults::StateGraph { places, .. } => places.push(declaration),
