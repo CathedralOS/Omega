@@ -675,3 +675,35 @@ pub(super) fn active_context_facts(
         .copied()
         .collect::<Vec<_>>()
 }
+
+/// The case-selection gate every source transfer applies before writing:
+/// the statement's active contexts must select every case the source path's
+/// segments name.
+pub(super) fn source_transfer_cases_selected(
+    program: &typed_trees::TypedTrees,
+    semantic: &facts::FactPlan,
+    contexts: &FlowBuildContext<'_>,
+    active: arena::HandleSpan<checked_trees::FlowSemanticContextRef>,
+    point: facts::ProgramPoint,
+    root: facts::PlaceRoot,
+    segments: Vec<facts::PlaceSegment>,
+) -> bool {
+    let context_handles = active_context_handles(contexts, active);
+    let facts::ProgramPoint::Statement {
+        machine_symbol,
+        state_symbol,
+        statement_index,
+    } = point
+    else {
+        return false;
+    };
+    crate::flow::place_cases_are_selected(
+        program,
+        semantic,
+        &context_handles,
+        machine_symbol,
+        state_symbol,
+        statement_index,
+        &crate::flow::CanonicalPlace { root, segments },
+    )
+}

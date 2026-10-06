@@ -66,26 +66,14 @@ pub(super) fn append_copied_field_predicates(
         .place_segments
         .span_or_empty(destination_place.segments)
         .to_vec();
-    let context_handles = crate::flow::active_context_handles(contexts, active);
-    let ProgramPoint::Statement {
-        machine_symbol,
-        state_symbol,
-        statement_index,
-    } = point
-    else {
-        return;
-    };
-    if !crate::flow::place_cases_are_selected(
+    if !crate::flow::source_transfer_cases_selected(
         program,
         semantic,
-        &context_handles,
-        machine_symbol,
-        state_symbol,
-        statement_index,
-        &crate::flow::CanonicalPlace {
-            root: source_place.root,
-            segments: source_segments.clone(),
-        },
+        contexts,
+        active,
+        point,
+        source_place.root,
+        source_segments.clone(),
     ) {
         return;
     }

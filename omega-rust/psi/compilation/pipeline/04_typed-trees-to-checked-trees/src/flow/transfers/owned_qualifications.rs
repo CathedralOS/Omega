@@ -28,26 +28,14 @@ pub(super) fn append_owned_qualification_transfer(
         .place_segments
         .span_or_empty(destination.segments)
         .to_vec();
-    let context_handles = crate::flow::active_context_handles(contexts, active);
-    let ProgramPoint::Statement {
-        machine_symbol,
-        state_symbol,
-        statement_index,
-    } = point
-    else {
-        return;
-    };
-    if !crate::flow::place_cases_are_selected(
+    if !crate::flow::source_transfer_cases_selected(
         program,
         semantic,
-        &context_handles,
-        machine_symbol,
-        state_symbol,
-        statement_index,
-        &crate::flow::CanonicalPlace {
-            root: source.root,
-            segments: source_segments.clone(),
-        },
+        contexts,
+        active,
+        point,
+        source.root,
+        source_segments.clone(),
     ) {
         return;
     }

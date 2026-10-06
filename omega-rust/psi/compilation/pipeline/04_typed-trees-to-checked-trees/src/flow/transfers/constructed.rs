@@ -109,22 +109,18 @@ pub(super) fn append_constructed_field_values(
         ) else {
             continue;
         };
-        let context_handles = crate::flow::active_context_handles(contexts, active);
         let source_place = semantic.places.get(source);
-        if !crate::flow::place_cases_are_selected(
+        if !crate::flow::source_transfer_cases_selected(
             program,
             semantic,
-            &context_handles,
-            machine_symbol,
-            state_symbol,
-            statement_index,
-            &crate::flow::CanonicalPlace {
-                root: source_place.root,
-                segments: semantic
-                    .place_segments
-                    .span_or_empty(source_place.segments)
-                    .to_vec(),
-            },
+            contexts,
+            active,
+            point,
+            source_place.root,
+            semantic
+                .place_segments
+                .span_or_empty(source_place.segments)
+                .to_vec(),
         ) {
             continue;
         }
