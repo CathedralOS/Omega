@@ -699,18 +699,6 @@ impl ExpressionTable {
         self.iter_expressions()
     }
 
-    pub fn copy_capacity(&self) -> ExpressionTableCapacity {
-        ExpressionTableCapacity {
-            expressions: self.expression_count(),
-            authored_selection_occurrences: self.authored_selection_occurrence_count(),
-            expression_handles: self.expression_handle_count(),
-            name_path_members: self.name_path_member_count(),
-            name_path_member_symbols: self.name_path_member_symbol_count(),
-            struct_fields: self.struct_field_count(),
-            match_arms: self.match_arms.len(),
-        }
-    }
-
     pub fn expression_handle_count(&self) -> usize {
         self.expression_handles.len()
     }
