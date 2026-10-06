@@ -3317,20 +3317,6 @@ of a check the same flow already performed, not the check itself.
   typed program is unchanged, and review output for that command is
   unchanged.
 
-- **BEHAVIOR-EXCLUSIONS-CHECKED-ONCE.** (new-scope) An authored exclusion is
-  now checked once per entry and once per callback thunk, each on that
-  module's unoptimized lowering, by `trust_model::verify_entry_behavior_exclusions`
-  (`omega-rust/omega/compilation/driver/src/terminal/terminal_artifact.rs`,
-  `.../terminal/native_proposal/mod.rs`). Stage 00 admission adds the
-  target-specific `validate_physical_authority_closure` against the selected
-  providers' mechanisms. That check is distinct and stays. Remaining: service
-  exclusions re-walk Terminal for boundary reach that Psi's entry reach
-  summary already answers, so read service reach from Psi. Retained or
-  received artifacts are checked by their receiver
-  (**BUILD-EXCLUSION-REALIZATION**), which must not add in-process re-checks.
-  Acceptance: no exclusion check walks Terminal for service reach, and the
-  `tests/omega/{pass,fail}/build/*exclusion*` fixtures keep their verdicts.
-
 - **RED-WINDOWS-HOST.** (new-scope)
   Reproduce two `package-source` failures on Windows:
   `local::recovery::tests::byte_identical_content_does_not_cross_local_origins`
