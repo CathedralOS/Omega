@@ -203,7 +203,7 @@ fn prepare_package_build_worker(
 pub fn check_prepared_package_build(build: PreparedPackageBuild) -> CheckedCompileOutcome {
     counters::record_checked_compilation();
     compile_thread::run_on_compile_thread(move || {
-        let (_root_path, target, inputs, rollback, mut prepared) = build.into_continuation();
+        let (_root_path, target, inputs, rollback, prepared) = build.into_continuation();
         Ok(check_completed_build(
             prepared,
             Some(target),
@@ -326,7 +326,7 @@ fn prepare_build_source(
         .as_mut()
         .and_then(|(inputs, builds)| builds.begin_target(inputs));
     match completed {
-        Some(mut prepared) => {
+        Some(prepared) => {
             drop(source);
             drop(child);
             Ok(prepared)
