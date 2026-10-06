@@ -1,1 +1,1 @@
-cannot prove the `terminates by` ranking
+`Card::PowerOrder` names no ranking view

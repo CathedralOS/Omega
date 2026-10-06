@@ -142,20 +142,20 @@ impl RankingOrder {
         // its spellings are specific enough for directed diagnostics.
         if path_matches(order, &["Nat", "Increasing"]) {
             return OrderResolution::Rejected {
-                message: "unbounded `Nat::Increasing` is not a well-founded ranking --                           the bound is part of the view: name it with                           `-> Nat::IncreasingTo(limit)`"
+                message: "unbounded `Nat::Increasing` is not a well-founded ranking -- the bound is part of the view: name it with `-> Nat::IncreasingTo(limit)`"
                     .to_string(),
             };
         }
         if path_matches(order, &["Nat", "IncreasingTo"]) {
             if subjects.len() != 1 {
                 return OrderResolution::Rejected {
-                    message: "`Nat::IncreasingTo(limit)` ranks exactly ONE climbing                               subject -- the bound is the view's argument, not a second                               subject"
+                    message: "`Nat::IncreasingTo(limit)` ranks exactly ONE climbing subject -- the bound is the view's argument, not a second subject"
                         .to_string(),
                 };
             }
             let [limit] = view_arguments else {
                 return OrderResolution::Rejected {
-                    message: "`Nat::IncreasingTo` names exactly one bound argument --                               spell `-> Nat::IncreasingTo(limit)`"
+                    message: "`Nat::IncreasingTo` names exactly one bound argument -- spell `-> Nat::IncreasingTo(limit)`"
                         .to_string(),
                 };
             };
@@ -165,7 +165,21 @@ impl RankingOrder {
             let path = order.to_vec().join("::");
             return OrderResolution::Rejected {
                 message: format!(
-                    "view arguments are only meaningful on an argumented view                      (`Nat::IncreasingTo(limit)`); `{path}` takes none"
+                    "view arguments are only meaningful on an argumented view (`Nat::IncreasingTo(limit)`); `{path}` takes none"
+                ),
+            };
+        }
+        // A path that names neither a builtin view nor a declared measure is a
+        // misspelling, not a ranking the checker failed to prove.
+        if !order.is_empty()
+            && RankingViewId::canonical(&order.join("::")).is_none()
+            && find_declared_measure(program, order).is_none()
+        {
+            return OrderResolution::Rejected {
+                message: format!(
+                    "`{}` names no ranking view; the builtin views are `Nat::Descending`, \
+                     `Nat::BoundedDistance`, `Nat::IncreasingTo(limit)` and `Slice::Length`",
+                    order.join("::")
                 ),
             };
         }

@@ -1518,8 +1518,8 @@ fail/termination/computed_measure_rank_range_overflow rejected 548ms expected @2
 	terminating machine walk: cannot prove rank range `0..=400` for the rank produced by the selected view
 fail/termination/constrained_measure_parameter_domain rejected 678ms expected @2d8ed253669f
 	cannot prove the `terminates by` ranking for machine walk
-fail/termination/custom_ranking_order_unknown rejected 247ms expected @c08960bee2b1+wt
-	cannot prove the `terminates by` ranking for machine Main::weaken
+fail/termination/custom_ranking_order_unknown rejected 368ms expected @8836526aee39
+	terminating machine Main::weaken: `Card::PowerOrder` names no ranking view; the builtin views are `Nat::Descending`, `Nat::BoundedDistance`, `Nat::IncreasingTo(limit)` and `Slice::Length`
 fail/termination/default_order_ambiguous rejected 277ms expected @c08960bee2b1+wt
 	cannot infer a ranking for `terminates by remaining` in machine Main::countdown: signed values have no default well-founded order -- select one with `terminates by remaining -> View` (builtin views: Nat::Descending, Nat::BoundedDistance, Slice::Length)
 fail/termination/default_order_declared_measure_not_inferred rejected 276ms expected @c08960bee2b1+wt
@@ -1532,8 +1532,8 @@ fail/termination/explicit_self_without_descent rejected 612ms expected @2d8ed253
 	cannot prove the `terminates by` ranking for machine spin
 fail/termination/identity_measure_call_component_mixed_view rejected 107ms expected @c08960bee2b1+wt
 	machine call cycle: `Main::scan_a`, `Main::scan_b` -- members do not share the same ranking order; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
-fail/termination/increasing_unbounded_rejected rejected 274ms expected @c08960bee2b1+wt
-	terminating machine Main::climb: unbounded `Nat::Increasing` is not a well-founded ranking --                           the bound is part of the view: name it with                           `-> Nat::IncreasingTo(limit)`
+fail/termination/increasing_unbounded_rejected rejected 369ms expected @8836526aee39
+	terminating machine Main::climb: unbounded `Nat::Increasing` is not a well-founded ranking -- the bound is part of the view: name it with `-> Nat::IncreasingTo(limit)`
 fail/termination/joint_machine_call_cycle_stalled rejected 101ms expected @c08960bee2b1+wt
 	machine call cycle: `Main::scan_a`, `Main::scan_b` -- a preserving cycle has no strict measure DECREASE; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
 fail/termination/lexicographic_component_zero_step_rejected rejected 118ms expected @c08960bee2b1+wt
