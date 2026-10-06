@@ -4,6 +4,13 @@
 //! classify them, then compose the callee's complete summary with actual
 //! argument origins. Operand effects are collected by the state walker before
 //! this call; a terminal spelling neither hides them nor grants an empty frame.
+//!
+//! A tail call to the calling machine itself is not a terminal invocation.
+//! Runtime recursion lowers to a backedge into the entry state, and its frame
+//! is the same entry-state summary the call would have asked for, so it would
+//! depend on itself and degrade to opaque. It is a named edge to the entry
+//! state instead (`transition_topology::named_transition_target_state`), and
+//! the cycle equations substitute its actuals like any other edge.
 
 use super::caller_aliases::{CallOriginContext, CallerWriteSite};
 use super::{FrameInference, Machine, MachineSymbols, SymbolHandle, TopLevelSymbols, TypedTrees};
@@ -22,6 +29,9 @@ pub(super) fn target(
     else {
         return SymbolHandle::invalid();
     };
+    if path.symbol == caller.symbol {
+        return SymbolHandle::invalid();
+    }
     crate::declarations::transitions::named_transition_call_symbol(
         program,
         caller.symbol,

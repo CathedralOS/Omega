@@ -112,6 +112,10 @@ pub(super) fn named_transition_target_state<'program>(
     else {
         return None;
     };
+    // A tail call to the machine itself re-enters its entry state.
+    if path.symbol == machine.symbol {
+        return program.machine_states(machine).first();
+    }
     program
         .machine_states(machine)
         .iter()
