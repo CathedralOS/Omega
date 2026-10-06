@@ -117,6 +117,11 @@ impl Builder<'_, '_> {
             crate::flow::call_target_symbol(self.program, call),
         )
         .is_some()
+            || validation::exact_external_leaf_boundary_requirement(
+                self.program,
+                call.target_symbol,
+            )
+            .is_some()
             || crate::semantic::calls::find_machine_by_entry_state(self.program, call.target_symbol)
                 .is_some_and(|(machine, _)| {
                     machine.supply_mode.is_boundary_declaration() && !machine.body_is_present
@@ -150,6 +155,49 @@ impl Builder<'_, '_> {
             (target_machine.symbol, target_state.symbol),
             self.program.state_parameters(target_state),
             target_state.return_type,
+            &operands,
+            expected_type,
+        )
+    }
+
+    /// A realized external leaf invokes its exact public boundary requirement.
+    /// Keep the authored leaf occurrence as source identity while the existing
+    /// boundary node names the requirement's executable contract.
+    pub(super) fn external_boundary_call(
+        &mut self,
+        expression: ExpressionHandle,
+        call: &typed_trees::expression::TableCallExpression,
+        requirement: symbols::SymbolHandle,
+        qualifier: symbols::SymbolHandle,
+        expected_type: PrimitiveType,
+    ) -> Option<CheckedScalarComputationHandle> {
+        let (source_call, _) = self.call_ordinal(expression, call.target_symbol)?;
+        let source = self.flow.control.calls.get(source_call);
+        if source.has_receiver && source.receiver_symbol != qualifier {
+            return None;
+        }
+        let mut signatures = self
+            .program
+            .traits()
+            .iter()
+            .filter(|definition| definition.is_boundary)
+            .flat_map(|definition| self.program.trait_machine_signatures(definition))
+            .filter(|signature| signature.symbol == requirement);
+        let signature = signatures.next()?;
+        if signatures.next().is_some() {
+            return None;
+        }
+        let operands = self
+            .program
+            .expression_table
+            .expression_handles(call.arguments)
+            .to_vec();
+        self.boundary_application(
+            expression,
+            call.target_symbol,
+            (requirement, requirement),
+            self.program.state_signature_parameters(signature),
+            signature.return_type,
             &operands,
             expected_type,
         )

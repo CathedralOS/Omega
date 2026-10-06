@@ -1264,15 +1264,20 @@ impl Builder<'_, '_> {
                 // and its consumer. A `boundary machine` with an authored
                 // body stays an ordinary callee — the same predicate the call
                 // operation applies. A bodyless external leaf is the same
-                // boundary edge through its exact satisfied requirement and
-                // keeps its statement route.
-                if validation::exact_external_leaf_boundary_requirement(
-                    self.program,
-                    call.target_symbol,
-                )
-                .is_some()
+                // boundary edge through its exact satisfied requirement.
+                if let Some((requirement, qualifier)) =
+                    validation::exact_external_leaf_boundary_requirement(
+                        self.program,
+                        call.target_symbol,
+                    )
                 {
-                    return None;
+                    return self.external_boundary_call(
+                        expression,
+                        &call,
+                        requirement,
+                        qualifier,
+                        expected_type,
+                    );
                 }
                 if target_machine.supply_mode.is_boundary_declaration()
                     && !target_machine.body_is_present

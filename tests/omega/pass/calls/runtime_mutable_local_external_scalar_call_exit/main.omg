@@ -1,0 +1,36 @@
+// The mutable initializer occurs after another statement and evaluates a
+// nested argument before the foreign call. A later call and reassignment
+// must observe and replace the same established scalar storage.
+use omega::language::core::external_binding;
+use omega_language_std::console;
+
+pub boundary trait Magnitude {
+    machine absolute(value: i32) -> i32;
+}
+
+macos_arm64 machine absolute_binding() -> ForeignBinding<26, 4, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib",
+            symbol: "_abs",
+        },
+    }
+}
+
+macos_arm64 machine external_absolute(value: i32) -> i32
+    satisfies Magnitude::absolute via absolute_binding();
+
+machine identity(value: i32) -> i32 { value }
+
+machine main() reaches Console + Magnitude {
+    let seed: i32 = 0 - 40;
+    let mut current: i32 = external_absolute(identity(seed));
+    let first: i32 = current;
+    let replacement: i32 = external_absolute(0 - 2);
+    current = external_absolute(replacement);
+    transition first == 40 && replacement == 2 && current == 2 {
+        true -> done(70)
+        _ -> done(71)
+    }
+    state done(code: i32) { Console::exit_process(code); }
+}

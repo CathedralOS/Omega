@@ -109,8 +109,9 @@ fn retain_nested_boundary_applications<'a>(
         if !control.calls.is_valid(source_call) {
             return unsupported("nested boundary application lost its checked invocation");
         }
-        // A declared boundary machine owns a machine contract; a named
-        // requirement (legacy operator) owns its crash capsule instead.
+        // A declared boundary machine owns its machine contract. A requirement
+        // retains its declared contract owner, which may be a boundary trait.
+        let boundary = super::unique_unit_boundary(plans, target_machine)?;
         let fingerprint = checked
             .facts
             .contract_plans
@@ -120,7 +121,7 @@ fn retain_nested_boundary_applications<'a>(
                 checked
                     .facts
                     .contract_plans
-                    .crash_capsule(target_machine, target_state)
+                    .crash_capsule(boundary.contract_owner, target_state)
                     .map(|capsule| capsule.target_contract_report_fingerprint())
             })
             .ok_or(LoweringError::Unsupported(

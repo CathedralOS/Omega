@@ -686,11 +686,13 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
                 )
             }
             StatementNode::LocalData(local)
-                if (!local.is_mutable
-                    && (call.statement_index == 0
-                        || program
-                            .primitive_type_reference(local.type_reference)
-                            .is_some()))
+                // Mutability belongs to the destination binding, not to the
+                // initializer's call schedule. Both scalar binding forms
+                // consume the same retained call and evaluated arguments.
+                if program
+                    .primitive_type_reference(local.type_reference)
+                    .is_some()
+                    || (!local.is_mutable && call.statement_index == 0)
                     || statement_sequence::has_structural_result(
                         program, facts, owner, statement,
                     ) =>
@@ -1707,7 +1709,9 @@ fn collect(
             if *call_ordinal < minimum_call_ordinal
                 || call.call_ordinal != *call_ordinal as usize
                 || call.statement_index != statement
-                || call.target_symbol != *target_state
+                || validation::exact_external_leaf_boundary_requirement(program, call.target_symbol)
+                    .map_or(call.target_symbol, |(requirement, _)| requirement)
+                    != *target_state
                 || !call.authored_expression.is_valid()
                 || !calls.iter().any(|candidate| std::ptr::eq(candidate, call))
                 || facts.flow.control.is_retired(state, call)

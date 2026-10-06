@@ -50,7 +50,12 @@ impl Expansion<'_> {
             .any(|call| std::ptr::eq(call, source))
             || source.statement_index != site.statement as usize
             || source.call_ordinal != call_ordinal as usize
-            || source.target_symbol != target_state
+            || validation::exact_external_leaf_boundary_requirement(
+                &self.checked.typed,
+                source.target_symbol,
+            )
+            .map_or(source.target_symbol, |(requirement, _)| requirement)
+                != target_state
         {
             return unsupported("nested boundary application invocation coordinate disagrees");
         }
