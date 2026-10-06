@@ -1771,6 +1771,7 @@ pass/borrows/runtime_index_mut_loan_write_exit checked 2022ms check-target:macos
 pass/borrows/runtime_indexed_carrier_bounded_reference_read_exit checked 1132ms check-target:macos_arm64 @104c2da31081
 pass/borrows/runtime_indexed_carrier_reference_read_exit checked 1126ms check-target:macos_arm64 @104c2da31081
 pass/borrows/runtime_indexed_reference_array_bounded_read_exit checked 1731ms check-target:macos_arm64 @15c77983aab0+wt
+pass/borrows/runtime_mutable_byte_loan_read_exit checked 1684ms check-target:macos_arm64 @8836526aee39
 pass/borrows/runtime_mutable_primitive_reference_exit checked 3295ms check-target:macos_arm64 @944fb1232f17
 pass/borrows/runtime_mutable_reference_array_bounded_read_exit checked 1520ms check-target:macos_arm64 @15c77983aab0+wt
 pass/borrows/runtime_nested_carrier_bounded_reference_read_exit checked 1140ms check-target:macos_arm64 @104c2da31081

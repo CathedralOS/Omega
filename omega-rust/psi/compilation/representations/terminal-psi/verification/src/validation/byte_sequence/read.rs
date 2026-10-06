@@ -1,4 +1,5 @@
-//! Exact immutable byte reads with a direct, dominating length witness.
+//! Exact byte reads, each an immutable scalar snapshot, with a direct,
+//! dominating length witness.
 
 use crate::validation::{
     IntegerSign, IntegerType, ModuleError, OperationKind, PlaceId, ScalarType, TerminalMachine,
@@ -20,16 +21,31 @@ pub(in crate::validation) fn validate(
     {
         return Err(ModuleError::ByteSequenceReadRequiresU8Result(operation.id));
     }
-    crate::validation::byte_sequence::length::validate_source(
-        module,
-        machine,
-        operation,
-        source,
-        || ModuleError::InvalidByteSequenceReadSource {
+    // An exclusive loan that may be written may be read, under the same
+    // custody rules its writes and length observations already use. A
+    // write-only loan never takes this route.
+    if terminal_semantics::arrival_parameter(machine, source)
+        .is_some_and(|parameter| parameter.access == terminal_psi::StructuralAccess::MutableBorrow)
+    {
+        crate::validation::byte_sequence::write::validate_destination(
+            module, machine, operation, source,
+        )
+        .map_err(|_| ModuleError::InvalidByteSequenceReadSource {
             operation: operation.id,
             source,
-        },
-    )?;
+        })?;
+    } else {
+        crate::validation::byte_sequence::length::validate_source(
+            module,
+            machine,
+            operation,
+            source,
+            || ModuleError::InvalidByteSequenceReadSource {
+                operation: operation.id,
+                source,
+            },
+        )?;
+    }
     // The operand pass separately checks dominance and exact u64 types. A
     // parameter, alias, or merely equal integer cannot replace this producer.
     if !is_current_length(module, machine, operation, source, length) {

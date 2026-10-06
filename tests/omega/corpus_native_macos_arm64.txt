@@ -129,6 +129,7 @@ pass/borrows/runtime_index_mut_loan_write_exit built 2117ms exit:0 @af9f91f2fb06
 pass/borrows/runtime_indexed_carrier_bounded_reference_read_exit built 1142ms exit:70 @104c2da31081
 pass/borrows/runtime_indexed_carrier_reference_read_exit built 1140ms exit:70 @104c2da31081
 pass/borrows/runtime_indexed_reference_array_bounded_read_exit built 1818ms exit:70 @15c77983aab0+wt
+pass/borrows/runtime_mutable_byte_loan_read_exit built 1772ms exit:70 @8836526aee39
 pass/borrows/runtime_mutable_primitive_reference_exit built 3504ms exit:0 @9beb2be72f2d+wt
 pass/borrows/runtime_mutable_reference_array_bounded_read_exit built 1743ms exit:70 @15c77983aab0+wt
 pass/borrows/runtime_nested_carrier_bounded_reference_read_exit built 1155ms exit:70 @104c2da31081
