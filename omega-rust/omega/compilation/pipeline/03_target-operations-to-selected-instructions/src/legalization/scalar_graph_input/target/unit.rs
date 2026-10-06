@@ -423,16 +423,7 @@ pub(super) fn validate_operation(
             {
                 return Err(LegalizationError::custody());
             }
-            sources.push((
-                result.value,
-                Source::Home(target_operations::TargetUnitScalarHomeRequirement {
-                    defining_operation: *psi_operation,
-                    source_value: result.value,
-                    scalar_type: result.scalar_type,
-                    shape: super::super::scalar_shape(result.scalar_type)
-                        .ok_or(LegalizationError::custody())?,
-                }),
-            ));
+            sources.push(scalar_home(psi_operation, result)?);
         }
         (
             TargetUnitOperation::EstablishByteSequenceConcatenation {
@@ -675,16 +666,7 @@ pub(super) fn validate_operation(
             if !runtime_indices_rejoin(indices, &elements, sources) {
                 return Err(LegalizationError::custody());
             }
-            sources.push((
-                result.value,
-                Source::Home(target_operations::TargetUnitScalarHomeRequirement {
-                    defining_operation: *psi_operation,
-                    source_value: result.value,
-                    scalar_type: result.scalar_type,
-                    shape: super::super::scalar_shape(result.scalar_type)
-                        .ok_or(LegalizationError::custody())?,
-                }),
-            ));
+            sources.push(scalar_home(psi_operation, result)?);
         }
         (
             TargetUnitOperation::StructuralScalarFieldRead {
@@ -722,16 +704,7 @@ pub(super) fn validate_operation(
             if expected != (*psi_operation, *result, source.clone(), case, *field) {
                 return Err(LegalizationError::custody());
             }
-            sources.push((
-                result.value,
-                Source::Home(target_operations::TargetUnitScalarHomeRequirement {
-                    defining_operation: *psi_operation,
-                    source_value: result.value,
-                    scalar_type: result.scalar_type,
-                    shape: super::super::scalar_shape(result.scalar_type)
-                        .ok_or(LegalizationError::custody())?,
-                }),
-            ));
+            sources.push(scalar_home(psi_operation, result)?);
         }
         (
             TargetUnitOperation::EstablishByteSequenceLiteral {
@@ -1083,4 +1056,23 @@ pub(super) fn runtime_indices_rejoin(
                     .iter()
                     .any(|(identity, known)| *identity == element.index && *known == index.operand)
         })
+}
+
+/// One scalar result's home-requirement row: the unit source every
+/// scalar-producing operation contributes — its defining operation, value,
+/// type, and storage shape.
+fn scalar_home(
+    psi_operation: &semantic_vocabulary::OperationId,
+    result: &abstract_operations::AbstractResult,
+) -> Result<(ValueId, Source), LegalizationError> {
+    Ok((
+        result.value,
+        Source::Home(target_operations::TargetUnitScalarHomeRequirement {
+            defining_operation: *psi_operation,
+            source_value: result.value,
+            scalar_type: result.scalar_type,
+            shape: super::super::scalar_shape(result.scalar_type)
+                .ok_or(LegalizationError::custody())?,
+        }),
+    ))
 }
