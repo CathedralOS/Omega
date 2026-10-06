@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 32, "jobs": "2", "load1_end": null, "load1_start": null, "machine": "amd64", "platform": "windows", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "3", "load1_end": 14.41, "load1_start": 14.41, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -1912,8 +1912,7 @@ pass/calls/runtime_nested_receiver_guard_exit checked 803ms check-target:macos_a
 pass/calls/runtime_nested_value_call_guard_exit checked 7580ms check-target:macos_arm64 @2b2f058c0e38+wt
 pass/calls/runtime_option_value_call_exit checked 1531ms check-target:macos_arm64 @2d8ed253669f
 pass/calls/runtime_owned_case_temporaries_exhaustive_dispatch_exit checked 1299ms check-target:macos_arm64 @2d8ed253669f
-pass/calls/runtime_owned_parameter_primitive_borrow_exit rejected 5905ms check-target:macos_arm64 @faca6c5c7f5
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "main", reason: "machine has no source-independent checked scalar control plan (terminator)", omission: Some("`main` has no admitted body (local construction stopped at state graph: result custody accounting, state 0)") })
+pass/calls/runtime_owned_parameter_primitive_borrow_exit checked 1143ms check-target:macos_arm64 @67eeeb9797e0+wt
 pass/calls/runtime_param_receiver_second_instance_exit checked 1272ms check-target:macos_arm64 @2d8ed253669f
 pass/calls/runtime_qualified_tail_recursion_exit checked 1273ms check-target:macos_arm64 @2d8ed253669f
 pass/calls/runtime_qualified_terminal_result_exit checked 418ms check-target:macos_arm64 @4655ab8ed512
