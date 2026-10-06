@@ -17,8 +17,9 @@ The oracle is the sample's own header, which the corpus already documents:
     // Expected exit: 0.
     // Expected output contains: 150
 
-Both lines are optional; a sample with neither is reported as `no-oracle` and
-is not scored. Nothing here is committed: `omega.lock` and `build/` are
+Both lines are optional; a sample with neither is built without being
+launched, since it may wait for input, and is reported as `no-oracle` and not
+scored. Nothing here is committed: `omega.lock` and `build/` are
 ignored, so the acceptance stays local to this checkout, which is what
 "review each checkout's package inputs rather than borrowing another
 checkout's accepted lock" requires.
@@ -170,6 +171,16 @@ def measure(cli, sample, target, timeout):
     if reason:
         detail = reason + (": " + classify(review_output) if review_output else "")
         return {"sample": sample, "state": "error", "detail": detail}
+    if expected_exit is None and expected_output is None:
+        # Nothing to compare, so publish the native product without launching
+        # it: an interactive sample would wait for input until the timeout.
+        completed = run([cli, "--target", target, os.path.join(sample, "main.omg")], timeout)
+        if completed is None:
+            return {"sample": sample, "state": "timeout", "detail": f">{timeout}s"}
+        if completed.returncode != 0:
+            detail = classify(completed.stdout + completed.stderr)
+            return {"sample": sample, "state": "no-native-build", "detail": detail}
+        return {"sample": sample, "state": "no-oracle", "detail": "header documents neither"}
     completed = run([cli, "run", os.path.join(sample, "main.omg")], timeout)
     if completed is None:
         return {"sample": sample, "state": "timeout", "detail": f">{timeout}s"}
@@ -183,8 +194,6 @@ def measure(cli, sample, target, timeout):
         if detail == "package review incomplete" and "error:" in review_output:
             detail = f"does not check: {classify(review_output)}"
         return {"sample": sample, "state": "no-native-build", "detail": detail}
-    if expected_exit is None and expected_output is None:
-        return {"sample": sample, "state": "no-oracle", "detail": "header documents neither"}
     mismatches = []
     if expected_exit is not None and completed.returncode != expected_exit:
         mismatches.append(f"exit {completed.returncode} != {expected_exit}")
