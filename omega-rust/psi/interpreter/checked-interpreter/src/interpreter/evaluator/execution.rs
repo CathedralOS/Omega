@@ -2,13 +2,15 @@
 //! reads.
 //!
 //! `states_and_transitions` drives one machine's states and the edges between
-//! them, and the rest are what a step can reach: `statements_and_calls` and
+//! them, and the rest are what a step can reach: `statements_and_calls`,
+//! `assignments` (capture destination, evaluate replacement, commit write) and
 //! `expressions_and_value_calls` for authored code, `operator_applications`
 //! for calls whose resolved target is a stateless boundary requirement,
 //! `scalar_operations`,
 //! `casts_and_recasts` and `numeric_landing` for scalar work, `host_dispatch`,
 //! `boundary_adapter_dispatch` and `boundary_console` for leaving the program.
 
+mod assignments;
 pub(in crate::interpreter::evaluator) mod boundary_adapter_dispatch;
 pub(in crate::interpreter::evaluator) mod boundary_console;
 pub(in crate::interpreter::evaluator) mod casts_and_recasts;

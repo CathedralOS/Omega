@@ -2168,6 +2168,7 @@ pass/collections/runtime_constant_expression_index_stores_exit checked 830ms che
 pass/collections/runtime_declared_range_index_write_exit checked 1216ms check-target:macos_arm64 @2d8ed253669f
 pass/collections/runtime_double_indexed_rmw_exit checked 1513ms check-target:macos_arm64 @3f6c649ef545
 pass/collections/runtime_dutch_flag_partition_exit checked 3118ms check-target:macos_arm64 @2d8ed253669f
+pass/collections/runtime_element_view_selector_snapshot_exit checked 1698ms check-target:macos_arm64 @86ae3811c141+wt
 pass/collections/runtime_fixed_array_captured_selector_store_exit checked 2775ms check-target:macos_arm64 @faca6c5c7f5
 pass/collections/runtime_fixed_array_projected_write_exit checked 15110ms check-target:macos_arm64 @3ff24ec6504a+wt
 pass/collections/runtime_fixed_array_selector_call_store_exit checked 2807ms check-target:macos_arm64 @faca6c5c7f5
@@ -2175,6 +2176,7 @@ pass/collections/runtime_fixed_vec_round_trip_exit checked 1036ms check-target:m
 pass/collections/runtime_frame_indexed_param_read_exit checked 1240ms check-target:macos_arm64 @2d8ed253669f
 pass/collections/runtime_guarded_computed_index_exit checked 1952ms check-target:macos_arm64 @98f54226c10c
 pass/collections/runtime_hoisted_index_write_exit checked 1411ms check-target:macos_arm64 @2d8ed253669f
+pass/collections/runtime_indexed_assignment_selector_snapshot_exit checked 1698ms check-target:macos_arm64 @86ae3811c141+wt
 pass/collections/runtime_indexed_boolean_field_guard_exit checked 1882ms check-target:macos_arm64 @bea382792161+wt
 pass/collections/runtime_indexed_bounded_element_read_exit checked 1219ms check-target:macos_arm64 @2d8ed253669f
 pass/collections/runtime_indexed_bounded_field_local_exit checked 1782ms check-target:macos_arm64 @bea382792161+wt

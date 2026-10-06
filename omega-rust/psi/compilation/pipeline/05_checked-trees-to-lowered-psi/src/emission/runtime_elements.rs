@@ -212,6 +212,7 @@ pub(crate) fn evaluate_selectors(
             index: super::emit_u64_coordinate(
                 index,
                 scalar_type,
+                decided,
                 next_value,
                 &mut calls.next_obligation_identity,
                 operations,

@@ -179,6 +179,13 @@ struct MutableRecordProjection {
     stored_integer: Option<typed_trees::PlanLaidIntegerField>,
 }
 
+/// Captured representation geometry. A typed backing is read at the eventual
+/// write so RHS changes to unrelated bytes are not overwritten by a snapshot.
+struct MutableRecordRecastWrite {
+    recast: MutableScalarRecast,
+    projection: MutableRecordProjection,
+}
+
 /// One parameter or `let` binding of an activated frame, keyed by the checked
 /// tree's binding symbol. Name paths carry that symbol as their head, so a
 /// read never consults the binding's spelling.

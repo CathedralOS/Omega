@@ -465,6 +465,7 @@ pass/collections/runtime_constant_expression_index_stores_exit built 1621ms exit
 pass/collections/runtime_declared_range_index_write_exit built 597ms exit:30
 pass/collections/runtime_double_indexed_rmw_exit built 1477ms exit:1 @3f6c649ef545
 pass/collections/runtime_dutch_flag_partition_exit built 9802ms exit:70 @fb2178def922
+pass/collections/runtime_element_view_selector_snapshot_exit built 1754ms exit:0 @86ae3811c141+wt
 pass/collections/runtime_fixed_array_captured_selector_store_exit built 1243ms exit:70 @87238e4afb83+wt
 pass/collections/runtime_fixed_array_projected_write_exit built 8532ms exit:45 @8093eb34a6ed+wt
 pass/collections/runtime_fixed_array_selector_call_store_exit built 1328ms exit:70 @87238e4afb83+wt
@@ -472,6 +473,7 @@ pass/collections/runtime_fixed_vec_round_trip_exit built 1057ms exit:70 @dab3546
 pass/collections/runtime_frame_indexed_param_read_exit built 2209ms exit:1 @fb2178def922
 pass/collections/runtime_guarded_computed_index_exit built 2016ms exit:70 @98f54226c10c
 pass/collections/runtime_hoisted_index_write_exit built 729ms exit:7
+pass/collections/runtime_indexed_assignment_selector_snapshot_exit built 1754ms exit:0 @86ae3811c141+wt
 pass/collections/runtime_indexed_boolean_field_guard_exit built 1484ms exit:70 @bea382792161+wt
 pass/collections/runtime_indexed_bounded_element_read_exit built 1486ms exit:70 @48008365d839
 pass/collections/runtime_indexed_bounded_field_local_exit built 1440ms exit:70 @bea382792161+wt

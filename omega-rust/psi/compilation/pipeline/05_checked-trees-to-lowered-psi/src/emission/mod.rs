@@ -72,11 +72,13 @@ pub(crate) fn next_byte_sequence_literal_ordinal(
 
 /// Convert an already-evaluated integer to Terminal's `u64` count
 /// coordinate: a `u64` is used as is, a narrower unsigned carrier widens, and
-/// any other carrier takes the ordinary exact cast, whose obligation proves
-/// fit (including signed nonnegativity).
+/// any other carrier takes the ordinary exact cast. A checked selector bound
+/// proves that conversion fits too, including signed nonnegativity. Generated
+/// coordinates without that source decision retain their conversion obligation.
 pub(crate) fn emit_u64_coordinate(
     operand: ValueId,
     source: ScalarType,
+    bound_decided: bool,
     next_value: &mut u64,
     next_obligation: &mut u64,
     operations: &mut operation_emission::buffer::OperationBuffer,
@@ -94,9 +96,13 @@ pub(crate) fn emit_u64_coordinate(
     let kind = if source_type.can_widen_to(target_type) {
         OperationKind::IntegerWiden { operand }
     } else {
+        let obligation = obligation_id(allocate_dense(next_obligation)?);
+        if bound_decided {
+            operations.source_checked_obligations.push(obligation);
+        }
         OperationKind::IntegerExactCast {
             operand,
-            obligation: obligation_id(allocate_dense(next_obligation)?),
+            obligation,
         }
     };
     let coordinate = value_id(allocate_dense(next_value)?);

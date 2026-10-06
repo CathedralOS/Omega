@@ -1,7 +1,7 @@
 use crate::interpreter::evaluator::{
-    ArithmeticDomain, BinaryOperator, DataMember, EvalResult, EvaluatedArgument, Evaluator,
-    ExpressionHandle, ExpressionNode, FixedArrayLength, Frame, PrimitiveType, TypeReferenceHandle,
-    TypeReferenceNode, Value, integer_primitive_byte_width, primitive_is_unsigned64, trap,
+    ArithmeticDomain, BinaryOperator, EvalResult, EvaluatedArgument, Evaluator, ExpressionHandle,
+    ExpressionNode, FixedArrayLength, Frame, PrimitiveType, TypeReferenceHandle, TypeReferenceNode,
+    Value, integer_primitive_byte_width, primitive_is_unsigned64, trap,
 };
 impl<'program> Evaluator<'program> {
     /// Evaluate and capture one operand at its declared parameter type before
@@ -117,14 +117,8 @@ impl<'program> Evaluator<'program> {
             {
                 TypeReferenceNode::Reference { referee, .. } => type_reference = *referee,
                 TypeReferenceNode::Constrained { base_type, .. } => type_reference = *base_type,
-                TypeReferenceNode::Named { name, .. } => {
-                    let data = self.find_data_by_name(name.as_str())?;
-                    return self.program.data_members(data).iter().find_map(|member| {
-                        let DataMember::Field(field) = member else {
-                            return None;
-                        };
-                        (field.name.as_str() == member_name).then_some(field.type_reference)
-                    });
+                TypeReferenceNode::Named { symbol, .. } => {
+                    return self.field_type_reference(*symbol, member_name);
                 }
                 _ => return None,
             }

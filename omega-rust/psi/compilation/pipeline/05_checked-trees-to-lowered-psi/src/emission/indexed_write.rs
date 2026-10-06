@@ -5,8 +5,9 @@
 //! indexed target, requires the builtin index meaning, and binds the
 //! exact `AssignmentIndex` occurrence and the stored value (a pure
 //! `AssignmentValue` expression, or the scalar result of the statement's own
-//! call) to the checked plan. Emission converts the index to Terminal's `u64`
-//! coordinate, evaluates the value, observes the destination's length, and
+//! call) to the checked plan. The operation frame captures the index as a
+//! Terminal `u64` coordinate before evaluating the RHS and forwards it through
+//! scalar continuations. Emission observes the destination's length and
 //! ends in a write whose obligation retains the index and any target field
 //! bounds through the shared Terminal judgment; value and obligation
 //! identities are allocated in exactly that order.
@@ -73,6 +74,13 @@ pub(crate) enum IndexedWriteTarget<'a> {
     },
 }
 
+/// Source decisions remain independent: an in-bounds index supplies the count
+/// conversion, but cannot authorize a value that violates a byte predicate.
+pub(crate) struct IndexedWriteDecisions {
+    pub(crate) index: bool,
+    pub(crate) write: bool,
+}
+
 /// The diagnostics one leaf reports. Each leaf spells its own complete
 /// messages so every rejection keeps its established `&'static str` text.
 struct Wording {
@@ -110,17 +118,14 @@ const ELEMENT_VIEW: Wording = Wording {
 };
 
 impl<'a> IndexedWriteLeaf<'a> {
-    /// Join the final source decision at emission, after execution plans have
-    /// been constructed. The decision covers the byte predicate as well as
-    /// the bound; scalar-index admission alone is insufficient for a write.
-    pub(crate) fn formation_is_proven(
+    /// Join the two independent source decisions after execution planning.
+    /// The index decides count conversion and plain element bounds; byte
+    /// predicates additionally require the completed write-preservation mark.
+    pub(crate) fn source_decisions(
         self,
         checked: &CheckedTrees,
         state: SymbolHandle,
-    ) -> Result<bool, LoweringError> {
-        if matches!(self, Self::ElementView(_)) {
-            return Ok(false);
-        }
+    ) -> Result<IndexedWriteDecisions, LoweringError> {
         let (_, authored) = crate::declarations::state_declaration(checked, state)?;
         let Some(checked_trees::statement::StatementNode::Assignment(assignment)) = checked
             .statement_table
@@ -129,9 +134,12 @@ impl<'a> IndexedWriteLeaf<'a> {
         else {
             return unsupported(self.wording().lost_index);
         };
-        Ok(checked
-            .facts
-            .byte_write_is_proven(indexed_target(checked, state, assignment, self)?))
+        let target = indexed_target(checked, state, assignment, self)?;
+        Ok(IndexedWriteDecisions {
+            index: checked.facts.scalar_index_is_proven(target),
+            write: !matches!(self, Self::ElementView(_))
+                && checked.facts.byte_write_is_proven(target),
+        })
     }
 
     pub(crate) fn statement_index(self) -> u32 {
@@ -363,6 +371,7 @@ enum DestinationShape {
     },
     ElementView {
         path: Vec<StructuralPathSegment>,
+        leaf: terminal_semantics::ElementViewLeaf,
     },
 }
 
@@ -471,13 +480,9 @@ impl<'a> IndexedWriteTarget<'a> {
                     )?;
                 // A domain-carrying bounded field (`[u8; N] in Utf8`) keeps the
                 // plain carrier's layout and store route. Its byte restrictions
-                // are not this producer's to discharge: the verifier
-                // reconstructs the store's goal from the destination
-                // declaration, adding the stored byte's class legs (ASCII,
-                // nonzero) to the index bound, and independently rechecks that
-                // a UTF-8 field's contents are all-ASCII on every path into the
-                // store. The checker's own preservation proof is not carried as
-                // authority.
+                // remain independent of the index. The final write consumes
+                // the exact source preservation decision, covering its byte
+                // classes beside the bound; index authority alone never does.
                 if !matches!(
                     field.field_type,
                     StructuralFieldType::ByteSequence(
@@ -518,16 +523,14 @@ impl<'a> IndexedWriteTarget<'a> {
                         "element-view write destination is not an element view",
                     ))?;
                 let path = crate::expression_preparation::bindings::structural_paths::lower_structural_path(&write.path)?;
-                let value_type =
-                    terminal_semantics::element_view_leaf(structural_types, element, &path)
-                        .map(|leaf| leaf.scalar_type)
-                        .ok_or(LoweringError::Unsupported(
-                            "element-view write path is not an admitted scalar leaf",
-                        ))?;
+                let leaf = terminal_semantics::element_view_leaf(structural_types, element, &path)
+                    .ok_or(LoweringError::Unsupported(
+                        "element-view write path is not an admitted scalar leaf",
+                    ))?;
                 Ok(Destination {
                     place,
-                    value_type,
-                    shape: DestinationShape::ElementView { path },
+                    value_type: leaf.scalar_type,
+                    shape: DestinationShape::ElementView { path, leaf },
                 })
             }
         }
@@ -593,8 +596,8 @@ impl Destination {
 /// The value one indexed write stores: a direct expression emitted beside
 /// the selector, or a value the operation frame already established by
 /// evaluating a computation. A computation completes in a fresh block whose
-/// parameters rebind the dense namespace by position, so the selector lowered
-/// against that namespace is emitted after it, as it is after a value call.
+/// parameters rebind the dense namespace by position, including the selector
+/// the frame captured before the computation.
 #[derive(Clone, Copy)]
 pub(crate) enum IndexedWriteValue<'a> {
     Expression(&'a LoweredDirectExpression),
@@ -608,7 +611,7 @@ pub(crate) enum IndexedWriteValue<'a> {
 /// a byte leaf resolves its root.
 pub(crate) fn emit(
     target: IndexedWriteTarget<'_>,
-    formation_decided: bool,
+    decisions: IndexedWriteDecisions,
     parameters: &[(u32, StructuralParameterDeclaration)],
     structural_types: &[StructuralTypeDeclaration],
     index: &LoweredDirectExpression,
@@ -640,7 +643,14 @@ pub(crate) fn emit(
     if let IndexedWriteValue::Expression(expression) = value {
         validate_direct_parameter_types(expression, &types)?;
     }
-    let index = emit_index_coordinate(index, values, next_value, next_obligation, operations)?;
+    let index = emit_index_coordinate(
+        index,
+        false,
+        values,
+        next_value,
+        next_obligation,
+        operations,
+    )?;
     let value = match value {
         IndexedWriteValue::Expression(expression) => {
             emit_direct_expression(expression, values, next_value, operations)
@@ -649,6 +659,13 @@ pub(crate) fn emit(
     };
     let length = destination.length(next_value, operations)?;
     let obligation = obligation_id(allocate_dense(next_obligation)?);
+    // A plain element leaf's canonical operation condition is only its index
+    // bound. A refined leaf also owes value bounds; byte destinations owe
+    // predicate preservation. Do not let index authority decide either.
+    let formation_decided = match &destination.shape {
+        DestinationShape::ElementView { leaf, .. } if leaf.bounds.is_none() => decisions.index,
+        _ => decisions.write,
+    };
     if formation_decided {
         operations.source_checked_obligations.push(obligation);
     }
@@ -672,7 +689,7 @@ pub(crate) fn emit(
                 obligation,
             }
         }
-        DestinationShape::ElementView { path } => OperationKind::ElementViewWrite {
+        DestinationShape::ElementView { path, .. } => OperationKind::ElementViewWrite {
             destination: place,
             path,
             index,
@@ -685,10 +702,12 @@ pub(crate) fn emit(
 
 /// Evaluate the authored integer before converting to Terminal's count
 /// coordinate. Widening the expression itself would change narrow or wrapping
-/// arithmetic. The ordinary exact-cast obligation proves fit (including signed
-/// nonnegativity); the consuming store separately proves the current live bound.
-fn emit_index_coordinate(
+/// arithmetic. The source index bound also proves signed nonnegativity; it
+/// cannot establish the stored value's domain. Capture this coordinate before
+/// evaluating the RHS, so that its effects cannot retarget the assignment.
+pub(crate) fn emit_index_coordinate(
     expression: &LoweredDirectExpression,
+    bound_decided: bool,
     values: &[ValueDeclaration],
     next_value: &mut u64,
     next_obligation: &mut u64,
@@ -698,6 +717,7 @@ fn emit_index_coordinate(
     emit_u64_coordinate(
         operand,
         expression.scalar_type(),
+        bound_decided,
         next_value,
         next_obligation,
         operations,

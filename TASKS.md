@@ -3373,13 +3373,15 @@ deletions, which the commit lists.
   domain, and inferred additions to an arrival withdraw its source-checked mark.
   Remaining:
   - Carry decisions through every emission route, including nested/non-root
-    expressions, element-view writes, generated selectors and semantic-to-storage
-    casts. Synthesized widenings and generated scalar-graph casts still use search.
+    expressions, refined element-view writes, generated selectors and remaining
+    semantic-to-storage casts. Synthesized widenings and generated scalar-graph
+    casts still use search.
     Join the exact checked occurrence rather than performing another syntax walk
     or extending certificate search.
   - Cover shift counts, representation geometry, capacities
     and remaining bounded stores outside completed bounded-integer field
-    replacements, including generated/indexed, refined and element-view writes.
+    replacements, including generated indexed stores and refined element-view
+    writes.
     Finish the formation audit across aggregate and proposition
     positions; unify abstract declaration-contract carrier resolution with the
     ordinary formation walk.
@@ -3407,10 +3409,10 @@ deletions, which the commit lists.
   (70), `arithmetic/runtime_qualified_cast_decision_exit` (0),
   `samples/cli/collections/heat_grid` (45), nested projected stores and
   `collections/runtime_fixed_array_{captured_selector,selector_call}_store_exit`
-  (70). Wrong-path, escaped, stale-index and mutated-subject facts and byte-domain
-  corruption must still reject. The checked-tree interpreter declines the
-  captured-selector case and returns 77 for the selector-call case;
-  **TERMINAL-RUNTIME-DRIVERS** owns those disagreements, not this checking repair.
+  (70) and `collections/runtime_{indexed_assignment,element_view}_selector_snapshot_exit`
+  (0). Wrong-path, escaped, stale-index and mutated-subject facts and byte-domain
+  corruption must still reject. **TERMINAL-RUNTIME-DRIVERS** owns the remaining
+  external-completion bindings for the ProcessExit controls.
 
   Acceptance: corpus failures currently rejected by `OperationProofUnavailable`
   reject from `omega --check` with checking diagnostics, without weakening

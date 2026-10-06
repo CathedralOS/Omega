@@ -1,8 +1,8 @@
 use crate::interpreter::evaluator::{
     ArithmeticDomain, Cell, DataDefinition, DataMember, EvalResult, Evaluator, ExpressionHandle,
     ExpressionNode, FloatMeaning, FloatSemantics, Frame, Halt, HashSet,
-    MutableRecordProjectionStep, MutableScalarRecast, PrimitiveType, SemanticFloatFormat,
-    SymbolHandle, TableNamePath, TypeReferenceNode, Value, apply_arithmetic_domain,
+    MutableRecordProjectionStep, MutableRecordRecastWrite, MutableScalarRecast, PrimitiveType,
+    SemanticFloatFormat, SymbolHandle, TableNamePath, Value, apply_arithmetic_domain,
     interpreter_f32_from_bits, interpreter_f32_to_bits, trap, unsupported,
 };
 use language_semantics::const_value::boolean_literal_spelling;
@@ -383,42 +383,46 @@ impl<'program> Evaluator<'program> {
         self.assemble_record_view_type(projection.type_reference, &cells, projection.offset)
     }
 
-    pub(in crate::interpreter::evaluator) fn write_mutable_record_recast_target(
+    pub(in crate::interpreter::evaluator) fn prepare_mutable_record_recast_write(
         &mut self,
         handle: ExpressionHandle,
         frame: &mut Frame,
-        value: Value,
-    ) -> EvalResult<bool> {
+    ) -> EvalResult<Option<MutableRecordRecastWrite>> {
         let Some((recast, path)) = self.mutable_recast_path(handle, frame)? else {
-            return Ok(false);
+            return Ok(None);
         };
-        let (cells, offset, target_type, typed_source) = match recast {
+        let (offset, target_type, region_length) = match &recast {
             MutableScalarRecast::AggregateByteRegion {
                 cells,
                 offset,
                 target_type,
-            } => (cells, offset, target_type, None),
+            } => (*offset, *target_type, cells.len()),
             MutableScalarRecast::AggregateTyped {
-                source,
                 source_type,
                 target_type,
+                ..
             } => (
-                self.snapshot_typed_value_bytes(&source, source_type)?,
                 0,
-                target_type,
-                Some((source, source_type)),
+                *target_type,
+                self.record_view_type_layout(*source_type, &mut HashSet::new())
+                    .ok_or_else(|| {
+                        Halt::Trap(format!(
+                            "cannot lay out typed mutable recast source `{}`",
+                            self.program.display_type_reference(*source_type)
+                        ))
+                    })?
+                    .0,
             ),
-            _ => return Ok(false),
+            _ => return Ok(None),
         };
-        if path.is_empty() {
-            self.write_record_view_type(target_type, &cells, offset, value)?;
-            if let Some((source, source_type)) = typed_source {
-                self.commit_typed_value_bytes(&source, source_type, &cells)?;
-            }
-            return Ok(true);
-        }
-        let Some(projection) =
-            self.record_view_type_projection(target_type, &path, offset, cells.len(), frame, None)?
+        let Some(projection) = self.record_view_type_projection(
+            target_type,
+            &path,
+            offset,
+            region_length,
+            frame,
+            None,
+        )?
         else {
             return trap(format!(
                 "cannot project `{}` through mutable aggregate recast `{}`",
@@ -426,6 +430,27 @@ impl<'program> Evaluator<'program> {
                 self.program.display_type_reference(target_type),
             ));
         };
+        Ok(Some(MutableRecordRecastWrite { recast, projection }))
+    }
+
+    pub(in crate::interpreter::evaluator) fn write_mutable_record_recast_target(
+        &mut self,
+        write: MutableRecordRecastWrite,
+        value: Value,
+    ) -> EvalResult<()> {
+        let (cells, typed_source) = match write.recast {
+            MutableScalarRecast::AggregateByteRegion { cells, .. } => (cells, None),
+            MutableScalarRecast::AggregateTyped {
+                source,
+                source_type,
+                ..
+            } => (
+                self.snapshot_typed_value_bytes(&source, source_type)?,
+                Some((source, source_type)),
+            ),
+            _ => return trap("scalar recast reached the aggregate write seam"),
+        };
+        let projection = write.projection;
         if let Some(integer) = projection.stored_integer {
             self.write_stored_integer_byte_region(
                 &cells,
@@ -446,7 +471,7 @@ impl<'program> Evaluator<'program> {
         if let Some((source, source_type)) = typed_source {
             self.commit_typed_value_bytes(&source, source_type, &cells)?;
         }
-        Ok(true)
+        Ok(())
     }
 
     fn mutable_record_projection_display(path: &[MutableRecordProjectionStep]) -> String {
@@ -711,7 +736,7 @@ impl<'program> Evaluator<'program> {
         if let ExpressionNode::Indexed(indexed) =
             self.program.expression_table.expression(handle).clone()
         {
-            let array_type = self.assignment_target_type_reference(indexed.collection, frame)?;
+            let array_type = self.expression_type_reference(indexed.collection, frame)?;
             let element_type = self.fixed_array_element_type(array_type)?;
             let primitive = self.program.primitive_type_reference(element_type)?;
             // The arithmetic domain lives on the ARRAY (`[T;N] in D`), not the
@@ -721,7 +746,7 @@ impl<'program> Evaluator<'program> {
                 .arithmetic_domain_for_type_reference(array_type);
             return Some((primitive, domain));
         }
-        let type_reference = self.assignment_target_type_reference(handle, frame)?;
+        let type_reference = self.expression_type_reference(handle, frame)?;
         let primitive = self.program.primitive_type_reference(type_reference)?;
         let domain = self
             .program
@@ -790,80 +815,6 @@ impl<'program> Evaluator<'program> {
             }
             None => Ok(value),
         }
-    }
-
-    /// Declared integer primitive of an assignment target, when it is a FIELD whose
-    /// receiver resolves to a typed struct (`record.field` or the equivalent
-    /// name path). Used to wrap an assigned integer to the field's declared width,
-    /// matching the native backend's truncating store. Returns `None` for bare locals
-    /// (whose cells carry no declared type) and non-field places.
-    pub(in crate::interpreter::evaluator) fn assignment_target_type_reference(
-        &mut self,
-        handle: ExpressionHandle,
-        frame: &mut Frame,
-    ) -> Option<typed_trees::types::TypeReferenceHandle> {
-        let (receiver, field_name) = match self.program.expression_table.expression(handle).clone()
-        {
-            ExpressionNode::Member(member) => {
-                // A computed receiver (`pick(bag).field = v`) must not be
-                // probed through `resolve_place` here -- this coercion query
-                // runs before the store resolves the whole target, and
-                // resolving an effectful receiver twice would replay it. Its
-                // declared type still names the field's slot exactly. Named
-                // place receivers keep the live record's type identity.
-                if !matches!(
-                    self.program.expression_table.expression(member.receiver),
-                    ExpressionNode::Name(_)
-                        | ExpressionNode::Member(_)
-                        | ExpressionNode::Indexed(_)
-                        | ExpressionNode::Borrow(_)
-                ) {
-                    let mut receiver = self.expression_type_reference(member.receiver, frame)?;
-                    loop {
-                        receiver = match self.program.type_reference_table.type_reference(receiver)
-                        {
-                            TypeReferenceNode::Reference { referee, .. }
-                            | TypeReferenceNode::Constrained {
-                                base_type: referee, ..
-                            } => *referee,
-                            TypeReferenceNode::Named { symbol, .. } => {
-                                return self.field_type_reference(*symbol, member.member.as_str());
-                            }
-                            _ => return None,
-                        };
-                    }
-                }
-                let receiver = self.resolve_place(member.receiver, frame).ok()?;
-                (receiver, member.member.as_str().to_owned())
-            }
-            ExpressionNode::Name(path) => {
-                let names = self
-                    .program
-                    .expression_table
-                    .name_path_members(path.members)
-                    .iter()
-                    .map(|name| name.as_str().to_owned())
-                    .collect::<Vec<_>>();
-                match names.as_slice() {
-                    [] | [_] => return None,
-                    [_, middle @ .., last] => {
-                        let mut cell = frame.local_cell(path.head_symbol)?;
-                        for member in middle {
-                            cell = self.deref_cell(cell);
-                            cell = self.field_cell(&cell, member).ok()?;
-                        }
-                        (cell, last.clone())
-                    }
-                }
-            }
-            _ => return None,
-        };
-        let receiver = self.deref_cell(receiver);
-        let type_symbol = match &*receiver.borrow() {
-            Value::Struct { type_symbol, .. } => *type_symbol,
-            _ => return None,
-        };
-        self.field_type_reference(type_symbol, &field_name)
     }
 
     /// Declared type reference of `field_name` on the data record or machine

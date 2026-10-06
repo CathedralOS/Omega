@@ -34,20 +34,6 @@ impl Evaluator<'_> {
             .ok_or_else(|| {
                 Halt::Unsupported("array window lost its element destination".to_owned())
             })?;
-        let Value::Array(source) =
-            self.eval_array_literal_at_element_type(value, element_type, frame)?
-        else {
-            return unsupported("array window replacement lost its literal elements");
-        };
-        // Match ordinary assignment's RHS-before-place evaluation. Materialize
-        // all replacement values before touching any destination cell.
-        let replacements = source
-            .iter()
-            .map(|cell| {
-                cell.borrow()
-                    .deep_clone_with(&|value| self.allocate_cell(value))
-            })
-            .collect::<EvalResult<Vec<_>>>()?;
         let target = self.resolve_place(collection, frame)?;
         let target = self.deref_cell(target);
         let target_length = match &*target.borrow() {
@@ -74,6 +60,20 @@ impl Evaluator<'_> {
         if start > end || end > target_length {
             return trap("array window replacement is out of bounds");
         }
+        // Capture the window before the RHS changes its bound sources, but
+        // materialize every replacement before touching destination values.
+        let Value::Array(source) =
+            self.eval_array_literal_at_element_type(value, element_type, frame)?
+        else {
+            return unsupported("array window replacement lost its literal elements");
+        };
+        let replacements = source
+            .iter()
+            .map(|cell| {
+                cell.borrow()
+                    .deep_clone_with(&|value| self.allocate_cell(value))
+            })
+            .collect::<EvalResult<Vec<_>>>()?;
         if replacements.len() != end - start {
             return trap("array window replacement has a different element count");
         }

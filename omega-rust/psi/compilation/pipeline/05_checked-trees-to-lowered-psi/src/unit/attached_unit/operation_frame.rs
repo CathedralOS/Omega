@@ -1219,16 +1219,42 @@ impl OperationFrame<'_, '_> {
             // already checked against its establishment: it lowers directly.
             None => bindings.expression(leaf.index())?,
         };
-        let lowered;
+        // A completed call-result source must be joined before adding private
+        // staging slots to the scalar namespace. Pure source expressions name
+        // that same authored prefix, even when the RHS later creates a join.
+        let lowered = if matches!(
+            leaf.value(),
+            checked_trees::CheckedStoreValue::Computation(_)
+        ) {
+            None
+        } else {
+            Some(leaf.lower_value(bindings, self.checked, self.state, self.values)?)
+        };
+        let decisions = leaf.source_decisions(self.checked, self.state)?;
+        let selector_position = self.values.len();
+        let coordinate_type = terminal_scalar_type(checked_trees::types::PrimitiveType::U64)?;
+        let coordinate = crate::emission::indexed_write::emit_index_coordinate(
+            &index,
+            decisions.index,
+            self.values,
+            self.next_value,
+            &mut self.calls.next_obligation_identity,
+            self.operations,
+        )?;
+        // Ordinary scalar continuations forward every retained value. Give the
+        // selected coordinate a private slot before the RHS expands, then read
+        // its rebound slot, not the destination expression, at the final store.
+        self.values.push(ValueDeclaration {
+            qualifications: Default::default(),
+            id: coordinate,
+            scalar_type: coordinate_type,
+        });
         let value = if matches!(
             leaf.value(),
             checked_trees::CheckedStoreValue::Computation(_)
         ) {
-            // A computed value runs the shared scalar evaluator. It completes
-            // in a fresh block whose parameters rebind this namespace by
-            // position, so the selector lowered above still names its values
-            // and is emitted after the computation, the order a value call
-            // already had.
+            // The shared scalar evaluator carries the captured coordinate
+            // through any private blocks in the RHS's evaluation schedule.
             crate::emission::indexed_write::IndexedWriteValue::Established(
                 self.evaluation.field_assignment_value(
                     self.checked,
@@ -1247,12 +1273,18 @@ impl OperationFrame<'_, '_> {
                 )?,
             )
         } else {
-            lowered = leaf.lower_value(bindings, self.checked, self.state, self.values)?;
-            crate::emission::indexed_write::IndexedWriteValue::Expression(&lowered)
+            crate::emission::indexed_write::IndexedWriteValue::Expression(lowered.as_ref().ok_or(
+                LoweringError::Unsupported("indexed write lost its retained scalar value"),
+            )?)
         };
+        let index =
+            crate::emission::operation_emission::expressions::LoweredDirectExpression::Parameter {
+                position: selector_position,
+                scalar_type: coordinate_type,
+            };
         let kind = crate::emission::indexed_write::emit(
             target,
-            leaf.formation_is_proven(self.checked, self.state)?,
+            decisions,
             &self.evaluation.structural_parameters,
             self.structural_types.declarations(),
             &index,
@@ -1263,6 +1295,7 @@ impl OperationFrame<'_, '_> {
             self.operations,
         )?;
         self.push_unit(kind);
+        self.values.truncate(selector_position);
         Ok(())
     }
 
