@@ -11,11 +11,10 @@
 //! obligations that a later occurrence must satisfy under a fresh profile.
 //!
 //! The producer [`describe_component_facts`] publishes this source-free
-//! carrier from independently supplied facts; `component-candidate` fills
-//! those facts from a realized `ComponentCandidate`. The independent consumer
-//! lives in `component_verification::verify_component`, which re-decodes the
-//! embedded artifact and re-derives every description fact rather than
-//! trusting the producer's rows.
+//! carrier from independently supplied facts. The independent consumer lives
+//! in `component_verification::verify_component`, which re-decodes the embedded
+//! artifact and re-derives every description fact rather than trusting the
+//! producer's rows.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -999,8 +998,7 @@ pub struct StackDemandFacts {
 ///
 /// `stack_demand` and `realization_identity` are optional so the same
 /// producer covers a Psi-only component capsule (no native realization yet)
-/// and a fully realized `ComponentCandidate`; `component-candidate`'s
-/// `describe_component` supplies both.
+/// and a fully realized native component whose publisher supplies both.
 #[derive(Debug, Clone, Copy)]
 pub struct ComponentDescriptionFacts<'a> {
     /// The sealed canonical Terminal artifact to embed.

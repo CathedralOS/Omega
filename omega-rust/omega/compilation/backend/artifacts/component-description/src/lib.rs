@@ -22,10 +22,10 @@
 //! profile, and re-derives every module-evident row, returning the
 //! evidence-only `VerifiedComponent` whose `realizes_selected_plan` joins a
 //! build-selected provider plan to the component's exported realizations.
-//! The native-realization producer that fills these facts from a
-//! `ComponentCandidate` lives in `component-candidate`. `test_support`
-//! (feature `test-support`) builds canonical provider-component modules for
-//! consumer tests that need a real described-and-verified component.
+//! Native compilation may supply the same explicit facts directly when it
+//! publishes a component product. `test_support` (feature `test-support`)
+//! builds canonical provider-component modules for consumer tests that need a
+//! real described-and-verified component.
 
 pub mod component_description;
 pub mod component_verification;

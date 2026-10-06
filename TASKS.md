@@ -3192,8 +3192,7 @@ of a check the same flow already performed, not the check itself.
     the settlement should carry that plan;
   - uncalled verifiers kept only because tests construct through them:
     `validate_final_placement` (executable-installation),
-    `validate_installed_segment_fuel` and `_catalog` (external-roots), the
-    four calling-convention `validate_*_footprint` functions, and
+    the four calling-convention `validate_*_footprint` functions, and
     `validate_target_register_environment` and `_with_reservations`. Give
     those tests a constructor and delete the verifiers.
 
@@ -3798,10 +3797,10 @@ rejects at build and `mapped` needs a Windows full-i32 measurement.
   - Connect nominal cleanup and callback/signal occupancy to actual receiver
     completion. ZII/aggregate eligibility, hosted bridges
     (`omega-rust/omega/compilation/backend/images/image-emission/src/hosted_receiver.rs`),
-    a retained cleanup marker and `ProgramLocalRootInstallationLedger`
-    (`external-roots`) exist, but no authored destructor executes. Compose
-    application, bridge, provider and callback stack demand, not loader
-    stack-size metadata or another storage profile.
+    and a retained cleanup marker exist, but no authored destructor executes.
+    The selected runtime/provider owns live receiver and callback occupancy;
+    compose application, bridge, provider and callback stack demand, not loader
+    stack-size metadata or another compiler ledger.
 
   Acceptance: published `samples/cli/basics/{number_guess,cli_mvp,generic_counters}`
   keep their documented behavior without test-supplied receivers or
@@ -3870,9 +3869,9 @@ rejects at build and `mapped` needs a Windows full-i32 measurement.
     to report receipts. Neither carries per-invocation geometry, backing or live
     supply; carry them through provider admission and native settlement.
   - Reuse stage 05's `unit/attached_unit/catalog.rs` finite installed-parameter
-    schemas and the occurrence/capacity/epoch ledger in
-    `omega-rust/omega/compilation/backend/runtime/external-roots/src/program_local/program_local_roots/`;
-    wire real entry/provider observations into the installed account.
+    schemas and carry real entry/provider observations through the general
+    program-entry, selected-provider and boundary-settlement contracts. The
+    authored runtime owns occurrence, capacity and epoch accounting.
   - **DOMAIN-ISSUER-ROUTES** owns route selection; **AP-BRINGUP** owns hardware
     arrival execution.
 
@@ -4449,11 +4448,10 @@ rejects at build and `mapped` needs a Windows full-i32 measurement.
   native argument backing under
   [outbound custody](wiki/spec/build/foreign_storage.md#outbound-custody).
   Owners: checked content/call planning, stage 05
-  `retention/retained_borrow_custody.rs`, native marshaling and
-  `omega-rust/omega/compilation/backend/runtime/external-roots/src/program_local/program_local_extents/retained_foreign_arguments.rs`,
-  whose `retain_foreign_argument_under_custody` has only test callers. Complete
-  the source-to-native connection including installed-provider custody for
-  retained-borrow guarantees. Materialize pointers only from exact stable-root,
+  `retention/retained_borrow_custody.rs`, native marshaling and the selected
+  provider's ordinary retention contract. Complete the source-to-native
+  connection including installed-provider custody for retained-borrow
+  guarantees. Materialize pointers only from exact stable-root,
   range, access, lifetime and revision/lease evidence; reuse result-`ensures`,
   nominal matching and structural-result catalogs. Add explicit snapshot
   permission, private backing and persistent demand with capacity per live
@@ -4739,8 +4737,6 @@ wait for Cathedral's instruction coverage. The interpreter is
   [native-artifact's receiver wrapper](omega-rust/omega/compilation/backend/artifacts/native-artifact/src/fragment_object_publication.rs)
   to actual arrival and scoped providers through ordinary program-entry,
   calling, installed-root and provider contracts.
-  **CATHEDRAL-UEFI-RUNTIME-REMOVAL** owns deletion of the compiler-side
-  firmware-service and lifecycle model.
   Exact entry schema selection is split into
   **ENTRY-SLOT-EXACT-SCHEMA-SELECTION**; consume that selected identity here.
   Needs a source customer and a firmware or controlled-provider execution
@@ -4768,52 +4764,17 @@ wait for Cathedral's instruction coverage. The interpreter is
     release status. Keep both allocations on rejected release and keep the
     freshest map/key, allocation lineage and a stack that survives Boot
     Services exit.
-  - **CATHEDRAL-UEFI-RUNTIME-REMOVAL** owns moving allocation/status/retry and
-    firmware-call sequencing into target source and deleting the Rust model.
+  - Keep allocation/status/retry and firmware-call sequencing in target source;
+    do not recreate the deleted Rust firmware runtime.
 
   Acceptance: emitted code under firmware or a controlled provider covers
   growth, stale-key retry, bounded exhaustion with the target error, rejected
   allocation/release, malformed maps, stale/foreign evidence, lost custody and
   forbidden Boot Services use after exit; success enters the selected OS entry
   without returning. A bodyless provider, multi-call intrinsic or fallible
-  cleanup destructor cannot replace the cycle.
-
-- **CATHEDRAL-UEFI-RUNTIME-REMOVAL.** (split-of:UEFI-OS-HANDOFF) Remove the
-  UEFI/Boot Services runtime from the compiler. The
-  `omega-rust/omega/compilation/backend/runtime/external-roots/src/platform_bringup/uefi_bootstrap/`
-  tree implements system-table and Boot Services lifetimes, handle-protocol
-  execution, `GetMemoryMap`, `ExitBootServices`, allocation/map-key retry and
-  OS-handoff sequencing in Rust. Its execution APIs are called only by that
-  Rust model and its tests; no produced program uses them.
-  - Target/library source owns firmware structures, service calls, phase
-    changes, retries, allocation custody and the returning-application versus
-    OS-handoff policy. Carry the existing
-    `source/library/std/targets/uefi_x86_64/` implementation through ordinary
-    boundary calls and the parent tasks' firmware/controlled-provider customer.
-  - The compiler may retain the selected UEFI entry schema, physical calling
-    convention, receiver/stack ABI, import and relocation mechanics, native
-    call emission and generic installed-root/publication custody. Move any
-    reusable physical-entry or stack-demand calculation to those general
-    owners; it cannot retain a firmware ledger or execute a firmware function.
-  - Delete
-    `omega-rust/omega/compilation/backend/runtime/external-roots/src/platform_bringup/uefi_bootstrap/`,
-    including
-    `UefiApplicationFirmwareLedger`, lifecycle-scoped service providers,
-    `UefiOsHandoffLedger`, the `execute_uefi_*` functions and
-    `drive_uefi_os_handoff_cycle`. Replace Rust protocol simulations with
-    source/corpus and firmware/QEMU controls. Do not recreate the lifecycle in
-    selected dispatch, native artifacts or compiler intrinsics.
-
-  Acceptance: compiler-owned production code has no UEFI system-table,
-  Boot-Services-phase, memory-map retry, protocol-discovery or OS-handoff state
-  machine and never invokes a firmware service function pointer. A source and
-  dependency guard permits UEFI-specific code only in target descriptions,
-  ABI/calling, entry/image encoding and the authored target library. The
-  unchanged UEFI entry and OS-handoff customers execute under firmware or a
-  controlled provider through **UEFI-PHYSICAL-SEMANTIC-ENTRY** and
-  **UEFI-OS-HANDOFF**; growth, stale-key retry, malformed map, rejected release,
-  forbidden post-exit service use and nonreturning handoff controls retain
-  their authored outcomes. No Rust test substitutes for that lifecycle.
+  cleanup destructor cannot replace the cycle. A source/dependency guard
+  permits UEFI-specific compiler code only in target descriptions, ABI/calling
+  and entry/image encoding.
 
 - **AP-BRINGUP.** Execute Cathedral-owned secondary-processor startup under
   [external roots](wiki/spec/build/external_roots.md#secondary-processor-startup).
@@ -4824,8 +4785,8 @@ wait for Cathedral's instruction coverage. The interpreter is
   trampoline in
   `omega-rust/omega/compilation/backend/machine-emission/src/startup_trampoline.rs`,
   generic installed-entry/resource custody and provider receipt ingress through
-  **BOUNDARY-ISSUANCE**. **CATHEDRAL-SECONDARY-PROCESSOR-RUNTIME-REMOVAL** owns
-  deletion of the compiler-side startup protocol.
+  **BOUNDARY-ISSUANCE**. Do not recreate the deleted compiler-side startup
+  protocol.
 
   Acceptance: on a matching platform or emulator, the emitted trampoline enters
   the installed entry with dedicated, nonoverlapping stack/state, bound to the
@@ -4835,41 +4796,8 @@ wait for Cathedral's instruction coverage. The interpreter is
   arrival; retirement needs quiescence; timeout releases nothing. Exercise
   timeout/late arrival, cancellation before confirmation, races,
   foreign/stale/replayed receipts and resource conflicts. No compiler-owned
-  APIC driver.
-
-- **CATHEDRAL-SECONDARY-PROCESSOR-RUNTIME-REMOVAL.** (split-of:AP-BRINGUP)
-  Remove secondary-processor startup policy and lifecycle from the compiler.
-  `omega-rust/omega/compilation/backend/runtime/external-roots/src/platform_bringup/secondary_processor.rs`
-  currently owns profiles, per-processor accounts, request/receipt verdicts,
-  retry/settlement, cancellation and quiescent retirement. All callers of
-  `begin_secondary_processor_startup`, `complete_secondary_processor_startup`,
-  `settle_secondary_processor_startup` and `retire_secondary_processor` are
-  Rust tests; no produced program uses them.
-  - Cathedral source owns processor discovery, startup request and vector
-    protocol, acknowledgement, retries, cancellation, late arrival and
-    retirement. Exercise those through the authored
-    `tests/omega/pass/memory/secondary_processor_canary` and the parent task's
-    matching-platform/emulator run.
-  - The compiler may retain target trampoline instruction emission and
-    relocation, low-memory placement/alignment constraints, entry ABI/regime,
-    generic installed-code/root identity, stack/state resource contracts and
-    ordinary provider calls. Those mechanisms do not know processor rosters,
-    invocation phases, verdict kinds or retry policy.
-  - Delete or generalize the `SecondaryProcessor*` profile, account, ledger,
-    invocation, receipt, settlement and quiescence carriers and their identity
-    family. Replace Rust tests of the protocol state machine with source/corpus
-    acceptance of the surviving general mechanisms. Do not move the protocol
-    into another backend crate or an AP-specific compiler intrinsic.
-
-  Acceptance: compiler-owned production code has no secondary-processor
-  discovery, request/acknowledgement, retry/cancellation or retirement state
-  machine and none of the four lifecycle APIs above. A source guard pins that
-  boundary while allowing target trampoline bytes, placement, entry ABI and
-  generic installation/resource custody. The unchanged Cathedral canary starts
-  a processor on a matching platform/emulator through **AP-BRINGUP** and covers
-  nondispatch, unconfirmed/late arrival, retry, cancellation and quiescent
-  retirement with foreign/stale/replayed controls. The `external-roots` test
-  suite contains no substitute processor-startup runtime.
+  APIC driver. A source guard allows target trampoline bytes, placement and
+  entry ABI but no compiler-owned processor roster or lifecycle state machine.
 
 - **ADDRESS-TRANSLATION-CANARY.** Execute Cathedral-owned mapping installation
   and teardown under [mapping and reclamation](wiki/spec/resources/extents.md#mapping-and-reclamation).
@@ -4918,9 +4846,9 @@ wait for Cathedral's instruction coverage. The interpreter is
     `X86_64DeriverStubEntryEmission` has no production producer. Bind entry/body
     coordinates, bytes, stack overhead and final state, keeping stack, fuel and
     state separate.
-  - **CATHEDRAL-INTERRUPT-RUNTIME-REMOVAL** owns deletion of the compiler-side
-    table membership, dispatch and invocation-stage model while preserving the
-    general installed-root, publication-authority and checked-`lidt` joins.
+  - Preserve only general installed-entry, publication-authority and checked-
+    `lidt` joins; do not recreate the deleted compiler-side table membership,
+    dispatch or invocation-stage model.
   - Implement fatal halt, timer/controller setup, tick recording and wake.
     **BOUNDED-INSTALLATION-REACH-ROWS** / **TOP-LEVEL-BOUNDARY-REQUIREMENTS** own
     acknowledgement lineage; integrate **UEFI-PHYSICAL-SEMANTIC-ENTRY** /
@@ -4931,45 +4859,9 @@ wait for Cathedral's instruction coverage. The interpreter is
   routes a deliberate fault to its dedicated-stack fatal handler without
   resuming ordinary work. Missing members, wrong writer/realization, changed
   bytes, replayed publication/acknowledgement, forgotten/double completion and
-  retirement while the table names a root reject.
-
-- **CATHEDRAL-INTERRUPT-RUNTIME-REMOVAL.** (split-of:EXCEPTION-ROOTS-AND-TIMER)
-  Remove Cathedral interrupt policy and runtime lifecycle from the compiler.
-  `omega-rust/omega/compilation/backend/runtime/external-roots/src/interrupts/`
-  currently owns `InterruptTableLedger`, `InterruptTableProfile`, vector/member
-  policy, fatal-versus-timer obligations, `begin_published_interrupt_entry`, and
-  enter/body/exit epoch transitions. All callers of the dispatch and epoch APIs
-  are Rust tests; no produced program uses them. This is an OS model, not an
-  ISA, ABI, artifact or installation primitive.
-  - Cathedral source owns table data and validation, vector membership,
-    gate/IST policy, timer/fault dispatch, nesting, acknowledgement and
-    invocation lifecycle. Carry those through the authored
-    `tests/omega/pass/memory/interrupt_table_canary/cathedral/` customer and
-    the parent task's QEMU execution rather than reconstructing them in Rust.
-  - The compiler may retain generic installed-code/root identity, stack and
-    machine-state contracts, publication authority and linear custody, plus
-    unavoidable target mechanics: x86 `lidt` operand shape, instruction
-    encoding and relocations. Those mechanics consume authored table bytes and
-    selected-provider evidence; they do not know the member roster, vector
-    meaning, obligation kind or live invocation stage.
-  - Delete or generalize the interrupt-specific ledger, profile, established
-    table/member, admission, publication and dispatch carriers. Replace Rust
-    tests that construct table plans, roots, receipts and epoch transitions
-    with source/corpus customers of the surviving general contracts. Do not
-    move the model into another backend crate or add an interrupt-specific
-    compiler intrinsic family.
-
-  Acceptance: compiler-owned production code has no type that describes an
-  interrupt table's members, vector policy, fatal/timer role, dispatch decision
-  or enter/body/exit state, and no `begin_published_interrupt_entry`,
-  `turn_interrupt_epoch_stage` or `finish_interrupt_entry` API. A source guard
-  pins that boundary while allowing the exact target-owned `lidt` encoding and
-  generic external-root/publication contracts. The unchanged Cathedral canary
-  authors and validates its table, executes a timer and a deliberate fault in
-  QEMU through **EXCEPTION-ROOTS-AND-TIMER**, and the malformed-member,
-  wrong-publication, replay, missing-acknowledgement and premature-retirement
-  controls reject through ordinary source and provider contracts. The
-  `external-roots` test suite contains no substitute interrupt dispatcher.
+  retirement while the table names a root reject. A source guard allows exact
+  target-owned `lidt` encoding and relocations but no compiler-owned member
+  roster, vector policy, dispatch decision or enter/body/exit state.
 
 - **BOUNDED-INSTALLATION-REACH-ROWS.** Complete
   [installation-bound reach](wiki/spec/build/external_roots.md#installation-bound-reach)
@@ -4979,10 +4871,8 @@ wait for Cathedral's instruction coverage. The interpreter is
   consumes the linear receiver. **TOP-LEVEL-BOUNDARY-REQUIREMENTS** owns
   selected dispatch/discharge. Reuse
   `omega-rust/omega/compilation/realization/provider-planning/src/provider_planning/installation_reach.rs`
-  and `omega-rust/omega/compilation/backend/runtime/external-roots/src/root_entry/root_validation.rs`;
-  `external-roots/src/tests/interrupt_entries.rs` checks completion
-  coordinates from constructed facts, not the shipped carrier. Component
-  deployment stays with **COMPONENT-SUBSTRATE**.
+  and carry the exact completion route through Terminal, selected-provider and
+  installation evidence. Component deployment stays with **COMPONENT-SUBSTRATE**.
 
   Acceptance: PIC completion selects `PortIo` and LAPIC/x2APIC
   `MachineControl` through the shipped requirement, Terminal Psi and
@@ -5897,9 +5787,9 @@ wait for Cathedral's instruction coverage. The interpreter is
     only with real independent products carrying symbolic imports/exports,
     entry/leave resources and installation obligations; never silently fuse.
   - Complete the entry, outgoing-authority, service, mapping, lease, stack and
-    retained-provider inventories; connect `component-candidate`'s
-    `describe_component` native stack and realization identity to
-    publication. Join an authored runtime/Cathedral deployment consumer to the
+    retained-provider inventories; include native stack and realization
+    identity in the published description where a native compilation supplies
+    them. Join an authored runtime/Cathedral deployment consumer to the
     description contract used by **TOPOLOGY-PLAN-VERIFICATION**; descriptions
     and installation evidence grant no live deployment authority.
   - The runtime owns replacement eras: compatible imports/exports, new calls

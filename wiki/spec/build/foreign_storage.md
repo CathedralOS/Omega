@@ -122,15 +122,6 @@ a status annotation, not a contract amendment. Surveyed at `500878c473`
 
 Enforced today:
 
-- Outbound custody dispositions are explicit in
-  `omega-rust/omega/compilation/backend/runtime/external-roots/src/program_local/
-  program_local_extents/retained_foreign_arguments.rs`: call-scoped arguments
-  stay borrows minted through `loan_under_activation`/
-  `loan_mut_under_activation` under the establishing activation, and
-  longer-lived dispositions are recorded as `LifetimeBorrowed`, `Moved`, or
-  `Snapshot` custody entries — matching this chapter's three retained routes.
-  Unknown ambient backing and substituted mapping revisions reject there, the
-  provenance refusal this chapter requires.
 - Foreign calls carry a normalized shape end to end: `normalized_foreign`/
   `normalized_foreign_call` surfaces run through
   `native-realization` (`providers/settlements`, `terminal_authority_policy` —
@@ -156,9 +147,12 @@ Enforced today:
 
 Open frontier, unchanged:
 
+- The source-to-native join for lifetime-borrowed, moved and permitted-snapshot
+  dispositions is not landed; **FOREIGN-RETAINED-ARGUMENT-BACKING** owns it.
+  No compiler-side runtime ledger substitutes for the selected provider's
+  actual retention and completion contract.
 - The provider-planning to native-settlement join for the installed occurrence
   is not landed; the surviving lane records live on the board under
   `PROVIDER-ATTACHMENT-MACHINE-PLAN`.
 - The boundary-ABI lane for opaque-by-value carriers is open under
   `OPAQUE-BY-VALUE-BOUNDARY-ABI`.
-- The `external-roots` subtrees continue under their own spec-alignment leg.

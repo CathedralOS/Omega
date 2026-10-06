@@ -84,8 +84,7 @@ requires exactly one verified component description
 independently selected plan and one selected plan per supplied component;
 `independent_components.rs` owns that join. Only the verifier-owned carrier may
 establish it (a copied inventory cannot), which is why `component-description`
-sits below the architecture test's runtime quarantine while
-`component-candidate` stays outside this crate's closure. Routes that supply no
-verified components call `selected_provider_plan_facts`, where every
-Independent selection still rejects; the rejection never becomes a Fused
-fallback, and retaining a mode in provenance is not implementation of that mode.
+sits below native realization and deployment policy. Routes that supply no
+verified components call `selected_provider_plan_facts`, where every Independent
+selection still rejects; the rejection never becomes a Fused fallback, and
+retaining a mode in provenance is not implementation of that mode.

@@ -280,10 +280,9 @@ machine TimerProvider::enter(acknowledgement: InterruptAcknowledgement in Pendin
 // `Console::write_byte`, `Console::read_byte`) and otherwise answers
 // `Unsupported`, which is not a check-time error. Arrival masking is
 // therefore tolerated, not realized: the compiler lowers nothing for it,
-// and `external-roots/src/interrupts/interrupt_masks.rs` is an
-// external-world model whose only callers are that crate's own Rust tests.
-// Do not read this declaration as a precedent that an interrupt-family
-// operation has a compiler-known realization.
+// and no compiler-side interrupt runtime supplies it. Do not read this
+// declaration as a precedent that an interrupt-family operation has a
+// compiler-known realization.
 pub data InterruptMaskProvider {
 }
 pub InterruptMaskProviderMaskControl: InterruptMaskProvider satisfies InterruptMaskControl;

@@ -480,18 +480,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "component-candidate"
-version = "0.1.0"
-dependencies = [
- "component-description",
- "effects",
- "image-emission",
- "native-artifact",
- "target",
- "terminal-codec",
-]
-
-[[package]]
 name = "component-description"
 version = "0.1.0"
 dependencies = [
@@ -591,33 +579,6 @@ dependencies = [
 [[package]]
 name = "extents"
 version = "0.1.0"
-
-[[package]]
-name = "external-roots"
-version = "0.1.0"
-dependencies = [
- "calling-conventions",
- "effects",
- "executable-installation",
- "extents",
- "installation-evidence",
- "isa-x86_64",
- "language-semantics",
- "layout-plans",
- "numerics",
- "optimization-core",
- "post-handoff-writer-plan",
- "program-entry-plan",
- "proof-admission",
- "semantic-vocabulary",
- "sha2",
- "symbols",
- "target",
- "terminal-codec",
- "terminal-fixed-fuel",
- "terminal-psi",
- "terminal-verifier",
-]
 
 [[package]]
 name = "facts"

@@ -131,7 +131,7 @@ The operation cannot assert that relationship itself. Missing installed-root
 or provider evidence rejects. The relation orders compiler-visible coherent
 memory; device and cross-core ordering need their own contracts.
 
-Current entry-origin and provider support is documented beside
-[external-root implementation](../../../omega-rust/omega/compilation/backend/runtime/external-roots/README.md).
+Current entry-origin and provider support is tracked by the execution board's
+program-entry, provider, callback and Cathedral customer outcomes.
 The [component-publication contract](component_publication.md) owns live eras
 and publication transactions; emitting a stub alone grants no installed root.

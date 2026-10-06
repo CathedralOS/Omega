@@ -70,9 +70,6 @@ Inventories of an existing surface and what each row still owes.
 - [Canary corpus distribution](audits/canary_corpus_distribution.md): measured census
   of the authored fixture inventory by group and outcome suffix; delete once a
   generated inventory report carries these counts.
-- [Component substrate coverage](audits/component_substrate_coverage.md): producer and
-  replayer census of every component description fact; delete once the row's
-  named legs land.
 - [Coordinator over-ownership audit](audits/coordinator_overownership_audit.md): sweep
   of the named sequencers against the coordinator rule; delete once F2, F3 and
   F4 are relocated by their sibling board items.
@@ -183,9 +180,6 @@ A proposed shape for work that has not landed.
 - [Float FMA native transport](designs/float_fma_native_transport.md): measured state of
   the scalar-FMA transport legs and their fences; delete once legs (b) and (c)
   land and the native-realization fences are removed.
-- [Foreign snapshot disposition](designs/foreign_snapshot_disposition.md): vocabulary
-  and disposition rules for private copies of foreign-held state; delete once
-  issuance attaches a disposition record and the spec owns the taxonomy.
 - [General cyclic execution optimizer](designs/general_cyclic_execution_optimizer.md):
   re-verification ledger for the optimizer half of ranked cyclic execution;
   delete once an admitted ranked call cycle reaches that half.

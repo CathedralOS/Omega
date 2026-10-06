@@ -479,8 +479,8 @@ impl From<ProviderExecutionBinding> for BoundaryExecutionBinding {
 
 impl ProviderExecutionBinding {
     /// Non-authoritative data projection. Production lowering obtains these
-    /// fields from `external_roots::ProviderExecution`; constructing a
-    /// record does not grant root admission or executable authority.
+    /// fields from selected-provider and installation evidence; constructing
+    /// a record does not grant entry admission or executable authority.
     pub fn from_execution_record(
         provider_plan_report_identity: ProviderPlanReportIdentity,
         provider_execution_report_identity: u64,
