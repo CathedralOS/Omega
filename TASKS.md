@@ -128,11 +128,8 @@ helper that passes does not close an item.
 
 - **REFERENCE-CUSTODY-JOIN-SCALING.** (new-scope) Investigate and remove
   avoidable compilation cost in reference-custody joins without weakening their
-  semantics. `pass/expressions/runtime_indexed_float_record_fields_exit` was
-  recorded moving from roughly 3.3s to 9s across stored-reference changes;
-  those historical measurements are a lead, not a current baseline or an
-  accepted cost envelope. The former `custody-join-build-cost` escalation is
-  engineering under [Psi ownership](omega-rust/pipeline.md#psi-implementation-and-deferred-human-audit).
+  semantics. The former `custody-join-build-cost` escalation is engineering
+  under [Psi ownership](omega-rust/pipeline.md#psi-implementation-and-deferred-human-audit).
   - Current [measurements](wiki/drafts/measurements/reference_custody_join_cost.json):
     at `a195e6cdf06` on macOS ARM64, three serial native runs take
     4080–4104 ms for indexed float fields and 1604–1623 ms for the
@@ -193,14 +190,10 @@ helper that passes does not close an item.
     run); the per-call split is not yet measured. Review repeats std's
     whole-package check in both `omega update` calls (see
     **REVIEW-BOUND-PASS-RECHECKS**).
-  - Historical macOS ARM64 baseline at `8c2a6e8da58`: 2554 s including package
-    review; 5-second stack samples every 5 minutes placed stage 00 verification
-    in minutes 0–12 and spill recovery in minutes 13–36. This is a profiling
-    lead, not a current timing claim. Separate review and compilation time.
   - Liveness/live-range per-function digest reuse already exists in stage 04
     `analyses/{liveness,live_ranges}/validate/receipt.rs`; do not implement it
-    again. Profile remaining carried-row copying and recovery work before
-    choosing the next repair.
+    again. Separate review and compilation time, then profile remaining
+    carried-row copying and recovery work before choosing the next repair.
   - Verification removal belongs to **OMEGA-READS-TERMINAL-UNVERIFIED** and
     **PCC-CERTIFICATES-DELETED**. The old stage 03 legalization replay is gone;
     do not restore it or create a new replay harness as a prerequisite.
@@ -402,7 +395,7 @@ helper that passes does not close an item.
   A mismatched trait application rejects, and copying/rebinding the selector
   neither captures data nor changes its borrow lifetime. No legacy dynamic
   subject path remains. Native completion depends on the custody task below.
-  **One customer is design-blocked and the item did not say so.**
+  Blocker:
   `pass/traits/runtime_dyn_two_impl_dispatch_exit` erases a concrete reference
   to `&mut dyn` at a **call-argument** position, and
   `collect_dynamic_conformance_selections` only visits a local declaration
@@ -1021,10 +1014,9 @@ defines the complete product bar.
   exit 70. The program reads four bytes, completes a mutable call, then
   observes its writes in transition arguments.
 
-  Reproduce the Windows native `read_byte` realization rejection recorded at
-  `ca03765f46c`; its interpreter success predates the Terminal cutover and is
-  not evidence for the current engine. The adapter draft at `cfe60a3a242`
-  is a lead only: native success with interpreter refusal does not close this.
+  Reproduce the Windows native `read_byte` realization rejection; interpreter
+  success before the Terminal cutover is not evidence for the current engine,
+  and native success with interpreter refusal does not close this.
   Implement the input provider
   in `source/library/std/targets/windows_x86_64/console_impl.omg` and supply
   interpreter input operations from exact selected imports through
@@ -1078,27 +1070,16 @@ defines the complete product bar.
     gitlink.
 
   Compiler-side frontier:
-  - macOS ARM64 integration at Omega candidate `8b9cb8dcc9a`, published
-    application `43d56a7`: the ordinary check command rejects the version-3
-    lock. Local application checkpoint `ffee88a796f1` migrates 105 Build calls
-    in 28 files and pins std to published Omega `944ee0efb38f`; layout retains
-    17 packages and 37 internal edges. With the historical lock preserved,
+  - The unpublished application checkpoint migrates 105 Build calls in 28
+    files; its 17-package/37-edge layout remains the acceptance baseline.
     `omega update --project samples/apps/squalr/squalr-tests --target
-    linux_x86_64` now reaches source checking and rejects `&self` at
+    linux_x86_64` reaches source checking and rejects `&self` at
     `squalr-engine-api/src/commands/command_invocation.omg:53`. The lock was
     restored exactly. Continue machine/state declaration and call migration
     under **STATIC-MACHINE-MIGRATION**, then perform fresh ordinary review;
-    never enable implicit receivers or transplant approvals. The candidate is
-    retained in `.codex/worktrees/squalr-build/samples/apps/squalr` and is not
-    published: `git push --dry-run origin HEAD:refs/heads/main` still receives
-    HTTP 403 for the configured identity. Repository write access is required
-    before updating the gitlink. Source checking is not native acceptance.
-  - The explicit-parameter form of `ProcessInfo::set_name` now checks and
-    executes on macOS ARM64: `pass/slices/runtime_guarded_view_copy_cycle_exit`
-    exits 70, checking copied bytes, untouched tail, zero limit, and input
-    extent. Its guarded `requires ... position < name.len` arrival is not a
-    reproduced compiler blocker. This control does not establish execution of
-    the unmigrated application; rerun its command after source migration.
+    never enable implicit receivers or transplant approvals. Repository write
+    access is required before publishing the application and updating the
+    gitlink. Source checking is not native acceptance.
   - Unverified: the earlier result-store stop in stage 04
     `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/execution/terminal_unit/control/call_results.rs`
     (`EnginePrivilegedState` task slots holding `Binding<WaitWake>`); empty
@@ -1199,12 +1180,10 @@ defines the complete product bar.
   paths now publish `.app` bundles. `window_demo`, using the shared owned
   `Window` API, prints `PASS: 60 frames blitted (exit 0)` and exits 0.
   `window_app` and `windowed_calculator` create application-window records
-  through both direct execution and separate LaunchServices launches. Those
-  persistent runs were stopped by the observer with SIGTERM; that is startup
-  evidence, not normal-close or interactive acceptance. The current macOS
-  session denies Screen Recording, event posting and Accessibility, so neither
-  rendered pixels nor keyboard/close interaction has been verified. Reproduce
-  with [window_demo](samples/gui/window_demo/README.md) and
+  through both direct execution and separate LaunchServices launches, but
+  rendered pixels and keyboard/close interaction remain unverified. Reproduce
+  in a session with Screen Recording, event-posting and Accessibility access,
+  using [window_demo](samples/gui/window_demo/README.md) and
   [window_app](samples/gui/window_app/README.md); the calculator follows the
   same update/run flow under `samples/gui/windowed_calculator`.
 
@@ -1235,9 +1214,7 @@ defines the complete product bar.
   `omega run tests/omega/pass/termination/runtime_saved_rank_cycle_exit/main.omg`
   exits 0 natively and interpreted on macOS ARM64 with saved scalar values,
   named-state requirements, unrelated nominal operators and disjoint writes.
-  Base `abaa2a1889d` rejected the saved operand when an unrelated subtraction
-  declaration was visible; early operator selection now reads its declared
-  type through the shared binder lookup. This supplies no saved-value proof.
+  This supplies no saved-value proof.
   Unproved arrivals, overwritten requirement inputs and actual `u32` overrides
   still reject; machine-entry requirements are not imported at internal arrivals.
 
@@ -1412,10 +1389,8 @@ defines the complete product bar.
   custody, boundary completion receipts, and claim transfers through Unit/scalar
   calls. Each needs stage 04 to check the arrival/custody relation and stage
   05 to lower it; deleting the fence alone is not the repair.
-  Squalr's earlier `ProcessInfo::set_name` arrival failure is no longer
-  reproduced by its explicit-parameter copy graph:
-  `pass/slices/runtime_guarded_view_copy_cycle_exit` checks and runs with exit
-  70 on macOS ARM64 at `6ba9c43af356`. The loop transports the shared input,
+  Current control: `pass/slices/runtime_guarded_view_copy_cycle_exit` checks
+  and runs with exit 70 on macOS ARM64. The loop transports the shared input,
   mutable fixed-buffer owner, index and limit through a four-conjunct arrival
   contract; the oracle covers limited, zero-limit and input-extent termination.
   Full application acceptance remains with **SQUALR-HEADLESS**, whose published
@@ -1774,16 +1749,13 @@ then independent claimed restoration slices -> final closure.
   production separately lacks a closed native intrinsic catalog identity; a
   Linux-selected FTHN effect control executes portably through the core on Windows.
 
-  **One both-leg golden row overstates interpreter agreement, measured
-  2026-10-06.** `tests/omega/corpus_both_macos_arm64.txt` records
+  Refresh `tests/omega/corpus_both_macos_arm64.txt` after external-completion
+  support: it currently records
   `pass/borrows/transition_shared_borrow_result` as
-  `built ... exit:181 interpreter-exit:181 interpreter:agrees`, stamped
-  `@3fa817733300+wt`. Its native leg does deliver `exit:181` (restored at
-  `6405e62ce4a`), but its **interpreter** leg now reports
+  `built ... exit:181 interpreter-exit:181 interpreter:agrees`. Its native leg
+  delivers `exit:181`, but its interpreter leg reports
   `unimplemented: capability=external-completion-invocation` for
-  `Console::exit_process` demanding `External(ProcessExit)`. The row was left
-  unrecorded on purpose: re-recording it would pin a fresh interpreter loss
-  against the lane that repaired the native leg, and the loss belongs here.
+  `Console::exit_process` demanding `External(ProcessExit)`.
   Note `--cross-golden` compares only the check and native goldens, so it
   cannot see a stale both-leg row at all -- this class has no detector.
 
