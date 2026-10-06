@@ -47,15 +47,23 @@
 //! `stdout:differs`.
 //!
 //! `OMEGA_CORPUS_INTERPRET=1` also executes each runnable fixture (the run
-//! tier, `*_exit` and explicit native-exit fixtures) on the checked interpreter that
-//! `omega run --both` uses, for the host target (or the first target the
-//! fixture's build binds), with `input.txt` as stdin. The record gains
+//! tier, `*_exit` and explicit native-exit fixtures) through the admitted
+//! Terminal program/instance core for the host target (or the first target the
+//! fixture's build binds). Exact entry/host provisions still missing produce
+//! named pre-effect capability diagnostics; no checked-tree fallback supplies
+//! their results. The record gains
 //! `interpreter-exit:<code>` and, beside an `expected_stdout.txt`,
 //! `interpreter-stdout:match` or `interpreter-stdout:differs`; a run the
 //! interpreter declines records `interpreter:declined`, and a program that
 //! does not check for it records `interpreter:unchecked`. With the native leg
 //! as well, the record gains `interpreter:agrees` or `interpreter:disagrees`
-//! comparing the two exit codes.
+//! comparing the two exit codes. `interpreter:trapped` comes only from the
+//! core's typed Trap outcome, never a physical native signal.
+//! When realization and interpretation select the same target, interpretation
+//! borrows the native report's exact Terminal artifact before publication; Build
+//! runs once for that request. A native refusal supplies no retained intermediate
+//! artifact and records unchecked without a source replay. The check golden's
+//! canonical target and a different runtime target remain distinct program inputs.
 //!
 //! A `rollback.txt` beside `main.omg` declares a release rollback overlay for
 //! the fixture: one exact optimization case name per line, the spelling
@@ -101,6 +109,8 @@ static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
 #[path = "support/fixture_package_inputs.rs"]
 mod fixture_package_inputs;
+#[path = "support/terminal_execution.rs"]
+mod terminal_execution;
 use fixture_package_inputs::{
     repo_root, reviewed_repository_fixture_package_inputs, sealed_fixture_staging,
 };
@@ -383,7 +393,8 @@ struct TerminalSemanticLeg {
     /// The manifest's semantic program fingerprint, shortened to the 16-hex
     /// spelling the corpus already uses for plan fingerprints.
     fingerprint: String,
-    semantic: Vec<u8>,
+    artifact: compilation_products::RetainedTerminalArtifact,
+    profile: proof_admission::AdmissionProfile,
     /// The settled rollback receipt this build's report publishes: `Some`
     /// exactly when the request carried a non-empty overlay.
     receipt: Option<String>,
@@ -419,6 +430,7 @@ fn produce_terminal_semantic(
     let receipt = report
         .optimization_rollback_receipt()
         .map(std::string::ToString::to_string);
+    let profile = report.terminal_admission_profile().clone();
     let retained = report.into_retained_terminal_artifact().ok_or_else(|| {
         vec![diagnostics::Diagnostic::error(
             "Terminal-artifact product retained no artifact",
@@ -432,7 +444,8 @@ fn produce_terminal_semantic(
         .to_string();
     let leg = TerminalSemanticLeg {
         fingerprint: fingerprint[..16].to_owned(),
-        semantic: artifact.semantic_bytes().to_vec(),
+        artifact: retained,
+        profile,
         receipt,
     };
     let _ = fs::remove_dir_all(&build_dir);
@@ -480,7 +493,9 @@ fn rollback_pair_facts(
         ),
         format!("unrolled-semantic:{}", unrolled.fingerprint),
         format!("rolled-back-semantic:{}", rolled.fingerprint),
-        if rolled.semantic == unrolled.semantic {
+        if rolled.artifact.artifact().semantic_bytes()
+            == unrolled.artifact.artifact().semantic_bytes()
+        {
             "module:same".to_owned()
         } else {
             "module:differs".to_owned()
@@ -541,79 +556,69 @@ fn native_launcher(target: &str) -> Option<Vec<&'static str>> {
     None
 }
 
-/// Whether runnable fixtures also execute on the checked interpreter.
+/// Whether runnable fixtures also execute on the shared Terminal interpreter.
 fn interpreter_leg() -> bool {
     env::var_os("OMEGA_CORPUS_INTERPRET").is_some()
 }
 
-/// Interpret one fixture's selected program entry, as `omega run --both`
-/// does, and report its exit and stdout facts. A declared rollback prunes
-/// the checked tree the interpreter runs, so the executed program is the
-/// rolled-back one.
+/// Produce one canonical Terminal artifact with the fixture's exact reviewed
+/// entry/package inputs and rollback overlay, then drive the shared program and
+/// instance lifecycle. There is no checked-tree interpretation fallback.
 fn interpret_fixture(
     root_path: &Path,
     fixture_dir: &Path,
     build_dir: PathBuf,
+    target: String,
     rollback: Option<&OptimizationRollback>,
-) -> Vec<String> {
-    let Some(target) = native_target()
-        .map(str::to_owned)
+) -> terminal_execution::Observation {
+    let leg = match produce_terminal_semantic(root_path, build_dir, Some(target), rollback) {
+        Ok(leg) => leg,
+        Err(errors) => {
+            return terminal_execution::Observation {
+                facts: vec!["interpreter:unchecked".to_owned()],
+                diagnostics: errors
+                    .iter()
+                    .map(|error| host_free_diagnostic_text(&error.message))
+                    .collect(),
+            };
+        }
+    };
+    let expected_stdout = fs::read_to_string(fixture_dir.join("expected_stdout.txt")).ok();
+    terminal_execution::interpret(
+        leg.artifact.artifact(),
+        &leg.profile,
+        expected_stdout.as_deref(),
+        1_000_000,
+    )
+}
+
+/// Observe the native report's own immutable Terminal product before publication
+/// consumes it. Both native image classes retain that exact artifact and profile;
+/// this route never recompiles source or reconstructs package permission policy.
+fn interpret_native_report(
+    report: &compilation_products::CompileReport,
+    fixture_dir: &Path,
+) -> terminal_execution::Observation {
+    let artifact = report
+        .retained_native_artifact()
+        .map(|artifact| artifact.psi_artifact())
         .or_else(|| {
-            target::TargetProfile::host_if_supported()
-                .map(|profile| profile.target_name().to_owned())
-        })
-        .or_else(|| declared_realization_target(root_path))
-    else {
-        return vec!["interpreter:unchecked".to_owned()];
-    };
-    let Ok(prepared) = reviewed_repository_fixture_package_inputs(root_path, Some(&target)) else {
-        return vec!["interpreter:unchecked".to_owned()];
-    };
-    let mut request = CheckedCompileRequest::new(&prepared.root_path, Some(target.as_str()));
-    request.package_inputs = prepared.package_inputs;
-    // Named for the same reason `check_fail_fixture` names it: the default
-    // staging is beside the root source, which is the sealed snapshot.
-    request.build_dir = Some(build_dir);
-    if let Some(rollback) = rollback {
-        request.optimization_rollback = rollback.clone();
-    }
-    let Ok(checked) = compile_to_checked(request) else {
-        return vec!["interpreter:unchecked".to_owned()];
-    };
-    let Some(entry) = checked.execution().selected_program_entry.as_ref() else {
-        return vec!["interpreter:unchecked".to_owned()];
-    };
-    let stdin = fs::read(fixture_dir.join("input.txt")).unwrap_or_default();
-    let signature = entry.source_signature();
-    let mut options = checked_interpreter::InterpretOptions::default();
-    if let Some(context) = signature.receiver().source_symbol() {
-        options = options.with_provisioned_context_parameter(context);
-    }
-    let outcome = checked_interpreter::interpret_entry(
-        &checked,
-        checked_interpreter::BuildMachineEntry::Symbol(signature.machine_symbol()),
-        &stdin,
-        options,
-    );
-    if outcome.error.is_some() {
-        return vec!["interpreter:declined".to_owned()];
-    }
-    let mut facts = vec![format!("interpreter-exit:{}", outcome.exit_code)];
-    if let Ok(expected) = fs::read_to_string(fixture_dir.join("expected_stdout.txt")) {
-        let actual = String::from_utf8_lossy(&outcome.stdout).replace("\r\n", "\n");
-        facts.push(if actual == expected.replace("\r\n", "\n") {
-            "interpreter-stdout:match".to_owned()
-        } else {
-            eprintln!(
-                "corpus_runner: {} interpreter stdout mismatch: expected {:?}, actual {:?}",
-                fixture_dir.display(),
-                expected.chars().take(200).collect::<String>(),
-                actual.chars().take(200).collect::<String>(),
-            );
-            "interpreter-stdout:differs".to_owned()
+            report
+                .retained_dynamic_elf_artifact()
+                .map(|artifact| artifact.psi_artifact())
         });
-    }
-    facts
+    let Some(artifact) = artifact else {
+        return terminal_execution::Observation::failure(
+            "native report retained no Terminal artifact",
+        );
+    };
+    let expected_stdout = fs::read_to_string(fixture_dir.join("expected_stdout.txt")).ok();
+    terminal_execution::interpret(
+        artifact,
+        report.terminal_admission_profile(),
+        expected_stdout.as_deref(),
+        1_000_000,
+    )
 }
 
 /// With both legs, whether the native exit is this host's presentation of
@@ -647,6 +652,7 @@ fn build_native_fixture(
     build_dir: &Path,
     target: &str,
     rollback: Option<&OptimizationRollback>,
+    interpretation: Option<(&Path, &mut Option<terminal_execution::Observation>)>,
 ) -> Result<(PathBuf, Option<String>), Vec<diagnostics::Diagnostic>> {
     let prepared = reviewed_repository_fixture_package_inputs(root_path, Some(target))?;
     let options = CompileOptions {
@@ -664,6 +670,9 @@ fn build_native_fixture(
     }
     let report =
         compiler::compile(request).and_then(compiler::CompileOutcomes::into_single_report)?;
+    if let Some((fixture_dir, observation)) = interpretation {
+        *observation = Some(interpret_native_report(&report, fixture_dir));
+    }
     let receipt = report
         .optimization_rollback_receipt()
         .map(std::string::ToString::to_string);
@@ -818,6 +827,7 @@ fn realize_fixture(
     build_dir: PathBuf,
     target_name: Option<String>,
     rollback: Option<&OptimizationRollback>,
+    interpretation: Option<(&Path, &mut Option<terminal_execution::Observation>)>,
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
     let prepared = reviewed_repository_fixture_package_inputs(root_path, target_name.as_deref())?;
     let options = CompileOptions {
@@ -835,7 +845,11 @@ fn realize_fixture(
     }
     let result = compiler::compile(request)
         .and_then(compiler::CompileOutcomes::into_single_report)
-        .map(|_| ());
+        .map(|report| {
+            if let Some((fixture_dir, observation)) = interpretation {
+                *observation = Some(interpret_native_report(&report, fixture_dir));
+            }
+        });
     let _ = fs::remove_dir_all(&build_dir);
     result
 }
@@ -1023,6 +1037,24 @@ fn run_one(tier: &str, base: &Path, main: &Path, sequence: usize) -> (String, u1
     // place, reports this harness's own selection rather than the fixture's
     // behavior.
     let realization = native_target().and_then(|host| pass_realization_target(main, host));
+    // Prefer the native leg's actual selection, including a foreign-only
+    // fixture. Otherwise prefer a declared host root and then a declared foreign
+    // root. The interpreter must not demand an absent host RootBinding.
+    let interpreter_target = (interpreter_leg() && tier != "fail" && runnable)
+        .then(|| {
+            realization
+                .as_ref()
+                .map(|(target, _)| target.clone())
+                .or_else(|| {
+                    target::TargetProfile::host_if_supported()
+                        .and_then(|host| pass_realization_target(main, host.target_name()))
+                        .map(|(target, _)| target)
+                })
+                .or_else(|| declared_realization_target(main))
+        })
+        .flatten();
+    let mut interpreter_observation = None;
+    let mut shared_interpreter_request = false;
     // A declared rollback overlay rides every leg the fixture compiles on.
     // A malformed declaration becomes the fixture's own rejected record.
     let (declared_rollback, rollback_error) = match declared_optimization_rollback(&fixture_dir) {
@@ -1039,7 +1071,17 @@ fn run_one(tier: &str, base: &Path, main: &Path, sequence: usize) -> (String, u1
         (_, _, Some((target, executes_here))) => {
             realized = true;
             let build_dir = unique_build_dir(sequence);
-            let built = build_native_fixture(main, &build_dir, target, declared_rollback.as_ref());
+            let interpretation = (interpreter_target.as_ref() == Some(target)).then(|| {
+                shared_interpreter_request = true;
+                (fixture_dir.as_path(), &mut interpreter_observation)
+            });
+            let built = build_native_fixture(
+                main,
+                &build_dir,
+                target,
+                declared_rollback.as_ref(),
+                interpretation,
+            );
             if let Ok((executable, receipt)) = &built {
                 if let Some(receipt) = receipt {
                     facts.push(format!("rollback:{}", space_free(receipt)));
@@ -1070,6 +1112,11 @@ fn run_one(tier: &str, base: &Path, main: &Path, sequence: usize) -> (String, u1
         // (`CHECK_LEG_TARGET_PREFERENCE`).
         (_, _, _) => {
             let check_target = check_leg_realization_target(main);
+            let interpretation = (check_target.is_some() && check_target == interpreter_target)
+                .then(|| {
+                    shared_interpreter_request = true;
+                    (fixture_dir.as_path(), &mut interpreter_observation)
+                });
             let check_outcome = match (&declared_rollback, &check_target) {
                 // A declared rollback runs the check leg as a Terminal-artifact
                 // pair whose facts pin the overlay contract, then still realizes
@@ -1085,13 +1132,18 @@ fn run_one(tier: &str, base: &Path, main: &Path, sequence: usize) -> (String, u1
                             unique_build_dir(sequence),
                             Some(target.clone()),
                             Some(rollback),
+                            interpretation,
                         ),
                         (Ok(()), None) => Ok(()),
                     }
                 }
-                (None, Some(target)) => {
-                    realize_fixture(main, unique_build_dir(sequence), Some(target.clone()), None)
-                }
+                (None, Some(target)) => realize_fixture(
+                    main,
+                    unique_build_dir(sequence),
+                    Some(target.clone()),
+                    None,
+                    interpretation,
+                ),
                 (None, None) => check_pass_fixture(main, unique_build_dir(sequence)),
             };
             // Named even when realization refused: the diagnostics below are
@@ -1109,15 +1161,39 @@ fn run_one(tier: &str, base: &Path, main: &Path, sequence: usize) -> (String, u1
             unique_build_dir(sequence),
             declared_realization_target(main),
             declared_rollback.as_ref(),
+            None,
         );
     }
+    let mut interpreter_diagnostics = Vec::new();
     if interpreter_leg() && tier != "fail" && runnable {
-        facts.extend(interpret_fixture(
-            main,
-            &fixture_dir,
-            unique_build_dir(sequence),
-            declared_rollback.as_ref(),
-        ));
+        let observation = if let Some(observation) = interpreter_observation {
+            observation
+        } else if shared_interpreter_request || rollback_error.is_some() {
+            // A failed same-target request returned no intermediate product.
+            // Preserve its refusal; replaying Build would create a second
+            // production with potentially different effects and custody.
+            terminal_execution::Observation {
+                facts: vec!["interpreter:unchecked".to_owned()],
+                // The record already owns the exact request refusal below.
+                diagnostics: Vec::new(),
+            }
+        } else if let Some(target) = interpreter_target {
+            // The check golden's canonical target and the runtime target are
+            // genuinely different program inputs, so each owns one production.
+            interpret_fixture(
+                main,
+                &fixture_dir,
+                unique_build_dir(sequence),
+                target,
+                declared_rollback.as_ref(),
+            )
+        } else {
+            terminal_execution::Observation::failure(
+                "no realization target supplies a selected entry",
+            )
+        };
+        facts.extend(observation.facts);
+        interpreter_diagnostics = observation.diagnostics;
         if let Some(agreement) = interpreter_agreement(&facts) {
             facts.push(agreement);
         }
@@ -1136,10 +1212,11 @@ fn run_one(tier: &str, base: &Path, main: &Path, sequence: usize) -> (String, u1
             _ => "rejected",
         },
     };
-    let diagnostics = errors
+    let mut diagnostics = errors
         .iter()
         .map(|error| host_free_diagnostic_text(&error.message))
         .collect::<Vec<_>>();
+    diagnostics.extend(interpreter_diagnostics);
     let satisfied = expected_fragment_satisfied(&fixture_dir, errors);
     let millis = started.elapsed().as_millis();
     (

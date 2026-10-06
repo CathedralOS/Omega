@@ -31,9 +31,41 @@ or `trap`. This opts the fixture into execution regardless of its name and makes
 the native gate enforce that result even with `--record`. `trap` requires the
 target's trap signal/exception, not an arbitrary abnormal termination. These
 fixtures must bind the running host; missing execution fails the oracle.
-The checked interpreter also attempts them with `--interpret`/`--both`, but its
-current error API does not distinguish traps from unsupported evaluation:
-`interpreter:declined` does not establish agreement with a native trap.
+The corpus also attempts them with `--interpret`/`--both` through the admitted
+Terminal program/instance core. `interpreter:trapped` comes only from the core's
+typed Trap outcome; a declined run, exhaustion or host signal cannot satisfy it.
+When native and interpreted legs select the same target, interpretation borrows
+the native report's exact Terminal artifact and producer admission profile before
+publication. A same-target native refusal records unchecked without running Build
+again. The check golden's canonical target and a different runtime target are
+distinct program inputs and each owns one production.
+
+## Reviewed interpreter migration debt
+
+`tests/omega/interpreter_migration.json` designates only the original selected
+reference-result canary. Its valid Terminal signature retains alternative
+backings that the runtime cannot yet transport; the common program/start boundary
+reports this capability before entry binding or effects. The source and authored
+exit 70 remain unchanged. Replay it beside the singleton-reference exit-0 and
+typed-Trap controls from the repository root:
+
+```bash
+python3 tools/corpus_gate.py --interpret \
+  --golden tests/omega/corpus_outcomes.txt \
+  --migration-roster tests/omega/interpreter_migration.json \
+  --filter pass/references/selected_record_loan_disjoint_fields_exit,pass/borrows/static_record_reference_return_exit,pass/calls/runtime_guarded_reference_return_crash
+```
+
+The command compares with the existing checked golden because the repository
+does not yet ship an interpreted golden. Its new runtime facts are visible moves;
+the reviewed exact marker reports unresolved interpreter debt and keeps the gate
+nonzero. It does not bless a checker refusal, timeout, wrong exit/stdout, partial
+execution or native failure. When backing transport is implemented, the same
+designation resumes the ordinary unchanged exit/stdout oracle automatically.
+Other entry-arrival, provider-installation, host-import and external-completion
+adapters remain `TERMINAL-RUNTIME-DRIVERS` dependencies; undesignated missing
+capabilities still fail their ordinary oracles. This corpus route does not
+establish ordinary CLI package admission or migrate the CLI's comparison driver.
 
 Do not add per-feature Rust test files to this directory. The crate sets
 `autotests = false`, so a new file here is not a test target, and each extra

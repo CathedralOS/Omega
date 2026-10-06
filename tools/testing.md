@@ -226,12 +226,24 @@ infrastructure errors rather than overwriting an earlier observation.
 These native oracles are enforced before golden comparison or `--record`, so
 re-recording cannot bless a wrong runtime result. Bind the host in `build.omg`
 when providing an oracle. Without an oracle, the existing observation-only
-golden behavior is unchanged. `--both` attempts the checked interpreter too;
-its `declined` result (currently including traps) is not proof of agreement.
+golden behavior is unchanged. `--both` also attempts the admitted Terminal
+program/instance core, sharing the native report's exact artifact/profile for
+identical targets without replaying Build. `interpreter:trapped` requires the
+core's typed Trap outcome; decline, exhaustion and host signals cannot satisfy
+the interpreted trap oracle. Missing entry/import provisions remain explicit
+runtime-driver dependencies, not synthetic exits.
 When `--interpret` or `--both` is requested, an authored `expected_stdout.txt`
 also requires completed interpreter execution and `interpreter-stdout:match`.
 Matching exit codes cannot excuse missing or different output, and `--record`
 refuses that result before changing the golden.
+
+The interpreted and combined defaults name `corpus_interpreted.txt` and
+`corpus_both_<target>.txt`; an absent golden is a usage error. The repository's
+bounded migration replay explicitly compares with `corpus_outcomes.txt`, leaves
+new runtime facts visible as moves, and uses the exact reviewed
+`tests/omega/interpreter_migration.json` designation. Unimplemented interpreter
+debt stays nonzero and never exempts a wrong native result. The full three-control
+command is in [the corpus tests guide](../omega-rust/omega/compilation/driver/tests/README.md#reviewed-interpreter-migration-debt).
 
 It realizes for the target the fixture declares, preferring the host when the
 fixture binds it so the product can also run; a fixture binding only foreign

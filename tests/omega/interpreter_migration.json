@@ -1,0 +1,8 @@
+[
+  {
+    "fixture": "pass/references/selected_record_loan_disjoint_fields_exit",
+    "capability": "selected-reference-result-backing",
+    "task": "TERMINAL-CONST-STRUCTURES",
+    "route": "interpreter"
+  }
+]

@@ -1526,34 +1526,6 @@ Delete these items as their acceptance closes. The order is:
 gap reporting -> core entry -> early jobs -> development seed -> tree deletion,
 then independent claimed restoration slices -> final closure.
 
-- **INTERPRETER-MIGRATION-GAPS.** (new-scope) Make intentional missing
-  execution coverage visible before the tree cutover. The current corpus walks
-  `tests/omega/{pass,fail,run}/`; simply moving canaries to `pending/` drops them
-  from its results. Extend the existing runner/records/scoreboard with explicit
-  migration-gap reporting and a narrow, reviewed designation tied to the owning
-  capability task. Exercise designated pending canaries and retain their real
-  authored exit/stdout oracles; count unimplemented separately from success,
-  rejection, infrastructure failure, timeout and disagreement. Use an actual
-  unsupported operation/entry diagnostic, not a blanket catch or a source-shape
-  skip. A migrated slice exits the gap roster only after the unchanged oracle
-  executes; no re-pinning wrong results as accepted behavior.
-  Owners: `omega-rust/omega/compilation/driver/tests/corpus_runner.rs`,
-  `tools/corpus_gate.py`, `tools/corpus_records.py`, `tools/corpus_scoreboard.py`.
-  Acceptance: a deliberately unsupported canary reports its exact missing
-  capability/task, a working canary still meets its oracle, a wrong result still
-  fails, and an unrelated checker rejection or timeout cannot satisfy the gap.
-  Pending artifact-only Build fixtures remain separately attributed to their
-  existing harness dependency; do not relabel that as interpreter coverage.
-  Current frontier: reviewed pending roots now enter the ordinary runner's
-  filtering, sharding, staging and execution routes without walking all pending
-  experiments. Exact selections reject missing, escaping or malformed paths;
-  restored execution must meet the original exit/stdout oracle. Explicit gap
-  records remain separate unresolved debt and never count as successful runs.
-  A real unsupported-operation preflight producer/canary and a Terminal runtime
-  driver carrying typed trap outcomes remain missing. The current checked-tree
-  runner cannot supply those facts; arbitrary checker failures or host signals
-  cannot substitute for them.
-
 - **INTERPRETER-CORE-ENTRY.** (new-scope) Make the existing Terminal engine's
   program/instance lifecycle the common execution entry, without checked-tree
   dependencies, compiler-owned source lookup or a separate trusted execution
@@ -1570,9 +1542,17 @@ then independent claimed restoration slices -> final closure.
   missing/wrong-instance imports fail before effects, and pause/resume does not
   repeat an effect. Source constructors and byte loaders reach that same core.
   A current `--both` result alone cannot close this item while it uses trees.
-  Current frontier: direct and embedded artifact entries already share program
-  projection and execution construction. The missing source-program constructor
-  and production execution callers depend on
+  Current frontier: direct, embedded and corpus artifact entries share the
+  admitted program/instance lifecycle. The corpus uses the native report's
+  exact Terminal artifact/profile for the same selected target; refusal retains
+  its original error without replaying source or Build. Actual Unit completion
+  and typed Trap observations execute through the core. Exact reachable import
+  rosters reject missing, wrong-signature and wrong-instance bindings before
+  effects; fuel pauses preserve four ordered effects without replay. Alternative
+  reference-result backing is an explicit pre-effect capability gap, with the
+  unchanged canary designated in `tests/omega/interpreter_migration.json`.
+  Exact entry/host adapters remain **TERMINAL-RUNTIME-DRIVERS** work. The missing
+  source-program constructor and production execution callers depend on
   **CHECKER-DISCHARGES-OPERATION-OBLIGATIONS** -> **PCC-CERTIFICATES-DELETED** ->
   **OMEGA-READS-TERMINAL-UNVERIFIED**; do not add a constructor that bypasses
   those obligations or another wrapper around the existing engine.
@@ -1636,8 +1616,8 @@ then independent claimed restoration slices -> final closure.
   execution through the existing tree route does not close this acceptance.
 
 - **CHECKED-INTERPRETER-DELETED.** (new-scope) Delete the tree execution
-  engine immediately after **INTERPRETER-MIGRATION-GAPS** and
-  **TERMINAL-BUILD-SEED** close; full feature parity is not a dependency.
+  engine immediately after **TERMINAL-BUILD-SEED** closes; explicit migration-gap
+  reporting is implemented and full feature parity is not a dependency.
   Remove `omega-rust/psi/interpreter/checked-interpreter/` and production
   dependency edges, expression walkers, call/frame/store machinery and worker
   entrypoints. Inventory every consumer first: compile-time and Build
@@ -1734,6 +1714,16 @@ then independent claimed restoration slices -> final closure.
   five bounded-line controls through the common core. Missing/wrong-instance
   imports reject before effects; stdout/stderr and exit oracles are independent.
   A native compilation failure or comparison decline cannot count as agreement.
+  Current frontier: the corpus adapter consumes the produced Terminal artifact
+  and uses the common core; it no longer calls the checked-tree interpreter.
+  Unit completion and typed Trap outcomes execute. Exact entry arrival values,
+  provider installation, normal host bindings and external-completion invocation
+  remain unimplemented, independently attributed before effects. CLI comparison
+  still uses trees. A same-target native failure returns no retained intermediate
+  artifact; observing that Terminal program requires intermediate-artifact error
+  custody rather than a second source compilation. Windows Console write-byte
+  production separately lacks a closed native intrinsic catalog identity; a
+  Linux-selected FTHN effect control executes portably through the core on Windows.
 
 - **TERMINAL-BUILD-QUERIES.** (split-of:TERMINAL-BUILD-SEED) Restore Build
   query/selection families beyond the development seed after

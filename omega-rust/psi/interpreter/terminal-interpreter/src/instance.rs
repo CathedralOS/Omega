@@ -47,6 +47,8 @@ pub enum TerminalBindingRejection {
     /// The slot names no boundary machine this program declares — the
     /// occurrence simply does not exist.
     UnknownImport { boundary: BoundaryMachineId },
+    /// A declared catalog slot is not demanded by this entry/installation.
+    NotRequiredImport { boundary: BoundaryMachineId },
     /// The slot is realized by a checked provider candidate. An admitted
     /// provider installation supplies it; a host binding may not substitute.
     ProviderRealized { boundary: BoundaryMachineId },
@@ -95,6 +97,9 @@ pub struct TerminalInstance<'host> {
     /// The interpreter state while this instance owns it. `close` releases it
     /// early; `None` after close.
     execution: Option<TerminalExecution>,
+    /// Exact reachable host slots under this instance's provider installation.
+    /// Retained unused declarations impose no binding requirement.
+    required_imports: Vec<BoundaryMachineId>,
     /// Established import bindings by exact slot. Empty at construction;
     /// `invoke` refuses to start while a demanded import is unbound.
     bindings: BTreeMap<BoundaryMachineId, TerminalImportBinding<'host>>,
@@ -105,10 +110,15 @@ pub struct TerminalInstance<'host> {
 }
 
 impl<'host> TerminalInstance<'host> {
-    pub(crate) fn new(program: TerminalProgram, execution: TerminalExecution) -> Self {
+    pub(crate) fn new(
+        program: TerminalProgram,
+        execution: TerminalExecution,
+        required_imports: Vec<BoundaryMachineId>,
+    ) -> Self {
         Self {
             program,
             execution: Some(execution),
+            required_imports,
             bindings: BTreeMap::new(),
             invoked: false,
             closed: false,
@@ -144,6 +154,9 @@ impl<'host> TerminalInstance<'host> {
                 Err(TerminalBindingRejection::UnknownImport { boundary: slot })
             };
         };
+        if !self.required_imports.contains(&slot) {
+            return Err(TerminalBindingRejection::NotRequiredImport { boundary: slot });
+        }
         if self.bindings.contains_key(&slot) {
             return Err(TerminalBindingRejection::DuplicateBinding { boundary: slot });
         }
@@ -165,9 +178,9 @@ impl<'host> TerminalInstance<'host> {
     /// A closed instance's roster is consumed, not pending — it reports none.
     pub fn unbound_imports(&self) -> impl Iterator<Item = BoundaryMachineId> + '_ {
         let closed = self.closed;
-        self.program
-            .imports()
-            .map(|declaration| declaration.id)
+        self.required_imports
+            .iter()
+            .copied()
             .filter(move |slot| !closed && !self.bindings.contains_key(slot))
     }
 

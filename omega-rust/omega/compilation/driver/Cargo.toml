@@ -61,11 +61,12 @@ terminal-psi-to-abstract-operations = { path = "../pipeline/00_terminal-psi-to-a
 sha2 = "0.10.9"
 
 [dev-dependencies]
+terminal-fuel = { path = "../../../psi/compilation/representations/terminal-psi/fuel" }
+terminal-interpreter = { path = "../../../psi/interpreter/terminal-interpreter" }
 syntax-trees = { path = "../../../psi/compilation/representations/syntax-trees" }
 calling-conventions = { path = "../backend/calling-conventions" }
 task-plans = { path = "../backend/runtime/task-plans" }
 source-files-to-tokens = { path = "../../../psi/compilation/pipeline/00_source-files-to-tokens" }
-checked-interpreter = { path = "../../../psi/interpreter/checked-interpreter" }
 effects = { path = "../backend/plans/provider-evidence" }
 installation-evidence = { path = "../backend/runtime/installation-evidence" }
 target-operations = { path = "../representations/target-operations" }

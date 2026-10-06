@@ -45,10 +45,10 @@ pub(crate) struct AdmittedTerminalProgram {
     /// Canonical Terminal-Psi identity of the verified module, computed once
     /// at admission; provider installations bind to this exact identity.
     pub(crate) identity: TerminalPsiIdentity,
-    /// Slim module catalog retained per program: `entry`, `placed_view_inputs`,
-    /// `structural_types` and `structural_domains` populated; every other
-    /// roster empty — verification consumed them at admission and nothing
-    /// per-instance reads them back.
+    /// Slim catalog: entry, placed-view inputs, structural types/domains and
+    /// entry dynamic-descriptor declarations. These descriptions grant no host
+    /// provisions; drivers name required ingress without rebuilding source.
+    /// Other rosters are empty after admission consumes their authority.
     pub(crate) catalogs: TerminalModule,
     pub(crate) machines: BTreeMap<MachineId, ExecutableMachine>,
     pub(crate) structural_types: BTreeMap<StructuralTypeId, StructuralTypeDeclaration>,
@@ -246,6 +246,12 @@ impl AdmittedTerminalProgram {
             .map(|candidate| candidate.boundary)
             .collect();
         let mut catalogs = TerminalModule::for_entry(module.entry);
+        catalogs.dynamic_dispatch.parameters = module
+            .dynamic_dispatch
+            .parameters
+            .into_iter()
+            .filter(|parameter| parameter.owner == module.entry)
+            .collect();
         catalogs.placed_view_inputs = std::mem::take(&mut module.placed_view_inputs);
         catalogs.structural_types = std::mem::take(&mut module.structural_types);
         catalogs.structural_domains = std::mem::take(&mut module.structural_domains);
@@ -282,8 +288,9 @@ impl AdmittedTerminalProgram {
 /// `load` is the whole authority here — admission replays the canonical
 /// decode and the interpreter's verification once, then keeps the result.
 /// Cloning shares the same admitted program; it does not re-verify.
-/// The program's demanded imports are described exactly by `imports`; each
-/// instance establishes them through `TerminalInstance::bind_import`.
+/// `imports` describes the bindable catalog; `execution_requirements` selects
+/// demanded slots for each provider installation. Each instance establishes
+/// its selected slots through `TerminalInstance::bind_import`.
 #[derive(Clone)]
 pub struct TerminalProgram {
     pub(crate) program: std::sync::Arc<AdmittedTerminalProgram>,
@@ -298,7 +305,40 @@ impl std::fmt::Debug for TerminalProgram {
     }
 }
 
+/// The exact admitted entry input/result contract. It grants no host backing,
+/// entry qualification, or effect authority; drivers must supply those inputs.
+pub struct TerminalProgramEntry<'program> {
+    pub scalar_parameters: &'program [terminal_psi::ValueDeclaration],
+    pub structural_parameters: &'program [terminal_psi::StructuralParameterDeclaration],
+    pub dynamic_parameters: &'program [terminal_psi::TerminalDynamicDescriptorParameter],
+    pub placed_view_inputs: &'program [terminal_psi::TerminalPlacedViewInput],
+    pub result: &'program terminal_psi::TerminalMachineResult,
+}
+
 impl TerminalProgram {
+    /// Describe the exact admitted entry instead of reconstructing it from
+    /// source or provisioning values by a source-name convention.
+    pub fn entry(&self) -> TerminalProgramEntry<'_> {
+        let machine = &self.program.machines[&self.program.catalogs.entry];
+        TerminalProgramEntry {
+            scalar_parameters: &machine.parameters,
+            structural_parameters: &machine.structural_parameters,
+            placed_view_inputs: &self.program.catalogs.placed_view_inputs,
+            dynamic_parameters: &self.program.catalogs.dynamic_dispatch.parameters,
+            result: &machine.result,
+        }
+    }
+
+    /// The precise import/provider roster of this entry's possible execution,
+    /// after capability decisions on its admitted immutable projection. Runs
+    /// no guest code; every execution start enforces this same decision before
+    /// entry inputs bind or effects begin.
+    pub fn execution_requirements(
+        &self,
+        installation: Option<&crate::effects::AdmittedProviderInstallation>,
+    ) -> Result<crate::capabilities::TerminalExecutionRequirements, TerminalInterpretError> {
+        crate::capabilities::check(&self.program, installation)
+    }
     /// Decode canonical semantic and proof sections, verify them under the
     /// interpreter's admission profile, and retain the admitted program.
     ///
@@ -343,9 +383,10 @@ impl TerminalProgram {
         self.program.identity
     }
 
-    /// The demanded host imports: each declared boundary machine with no
-    /// checked provider candidate. Provider-realized boundaries satisfy their
-    /// requirement through an admitted installation instead and never appear
+    /// The host-bindable import catalog: each declared boundary machine with no
+    /// checked provider candidate. `execution_requirements` narrows the catalog
+    /// to the actual entry and installed provider closure. Provider-realized
+    /// boundaries satisfy their requirement through an admitted installation instead and never appear
     /// here. The declaration returned is the exact contract — signature,
     /// requirements, crash routes and guarantees — not a display summary.
     pub fn imports(&self) -> impl Iterator<Item = &BoundaryMachineDeclaration> {
@@ -420,6 +461,30 @@ impl TerminalProgram {
         structural_inputs: TerminalStructuralInputs<'_>,
         installation: Option<&crate::effects::AdmittedProviderInstallation>,
     ) -> Result<crate::execution::TerminalExecution, TerminalArtifactInterpretError> {
+        self.prepare_execution(scalar_arguments, structural_inputs, installation)
+            .map(|(execution, _)| execution)
+    }
+
+    fn prepare_execution(
+        &self,
+        scalar_arguments: &[TerminalScalarValue],
+        structural_inputs: TerminalStructuralInputs<'_>,
+        installation: Option<&crate::effects::AdmittedProviderInstallation>,
+    ) -> Result<
+        (
+            crate::execution::TerminalExecution,
+            crate::capabilities::TerminalExecutionRequirements,
+        ),
+        TerminalArtifactInterpretError,
+    > {
+        let requirements = self
+            .execution_requirements(installation)
+            .map_err(TerminalArtifactInterpretError::Execution)?;
+        if let Some(boundary) = requirements.missing_providers.first() {
+            return Err(TerminalArtifactInterpretError::Execution(
+                TerminalInterpretError::ProviderInstallationMissing(*boundary),
+            ));
+        }
         let converted_boolean_fields;
         let scalar_fields = if structural_inputs.boolean_fields.is_empty() {
             structural_inputs.scalar_fields
@@ -465,7 +530,7 @@ impl TerminalProgram {
                 .bind_byte_arrays(structural_inputs.byte_arrays)
                 .map_err(TerminalArtifactInterpretError::Execution)?;
         }
-        Ok(execution)
+        Ok((execution, requirements))
     }
 
     fn instantiate_with<'host>(
@@ -474,7 +539,12 @@ impl TerminalProgram {
         structural_inputs: TerminalStructuralInputs<'_>,
         installation: Option<&crate::effects::AdmittedProviderInstallation>,
     ) -> Result<TerminalInstance<'host>, TerminalArtifactInterpretError> {
-        let execution = self.start_execution(scalar_arguments, structural_inputs, installation)?;
-        Ok(TerminalInstance::new(self.clone(), execution))
+        let (execution, requirements) =
+            self.prepare_execution(scalar_arguments, structural_inputs, installation)?;
+        Ok(TerminalInstance::new(
+            self.clone(),
+            execution,
+            requirements.imports,
+        ))
     }
 }

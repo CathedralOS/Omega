@@ -34,6 +34,7 @@ mod adapters;
 mod atomic_operations;
 mod byte_sequences;
 mod calls;
+mod capabilities;
 mod custody;
 mod effects;
 mod element_views;
@@ -60,6 +61,7 @@ pub use adapters::{
     TerminalAdapterError, TerminalImportAdapter, TerminalImportSignature,
     TerminalImportStructuralParameter, TerminalScalarImport, TerminalUnitImport,
 };
+pub use capabilities::{TerminalExecutionRequirements, TerminalUnsupportedCapability};
 pub use effects::byte_buffers::TerminalBoundaryByteBuffer;
 pub use effects::results::TerminalEffectResult;
 pub use effects::{
@@ -75,7 +77,7 @@ pub use execution::TerminalExecution;
 pub use instance::{
     TerminalBindingRejection, TerminalInstance, TerminalInstanceCloseError, TerminalInstanceError,
 };
-pub use program::TerminalProgram;
+pub use program::{TerminalProgram, TerminalProgramEntry};
 pub use results::{
     MeasuredTerminalExecution, TerminalCrash, TerminalCrashSite, TerminalExecutionResult,
     TerminalExecutionStatus, TerminalScalarCaseResult, TerminalStructuralResult,

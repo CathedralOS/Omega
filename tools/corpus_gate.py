@@ -57,18 +57,25 @@ them: an Apple-silicon macOS host runs `macos_x86_64` under Rosetta
 
     python3 tools/corpus_gate.py --native-target macos_x86_64 --filter host/
 
-Interpreted leg — also execute each runnable fixture on the checked
-interpreter `omega run --both` uses, diffing against
-`tests/omega/corpus_interpreted.txt`; `--both` runs the native and
-interpreted legs together, records whether their exit codes agree, and diffs
-against `tests/omega/corpus_both_<target>.txt`:
+Interpreted leg — also execute each runnable fixture through the shared admitted
+Terminal program/instance core. For identical selected targets it consumes the
+native report's exact Terminal artifact without replaying Build. `--interpret`
+defaults to `tests/omega/corpus_interpreted.txt`; `--both` runs native and Terminal
+legs together, records whether their exit codes agree, and defaults to
+`tests/omega/corpus_both_<target>.txt`. An absent default golden is a usage error;
+use an existing explicit golden to inspect runtime fact moves without recording:
 
-    python3 tools/corpus_gate.py --interpret --filter _exit
+    python3 tools/corpus_gate.py --interpret --golden tests/omega/corpus_outcomes.txt --filter _exit
     python3 tools/corpus_gate.py --both --filter run/
 
 An authored stdout oracle must match every requested execution engine.
 Interpreter output that differs or was not observed rejects before recording,
 even when its exit code agrees with native execution.
+Typed Trap observations satisfy trap oracles; decline, exhaustion and host
+signals do not. Reviewed `--migration-roster` designations preserve exact named
+pre-effect capability debt without changing authored exit/stdout expectations,
+and unresolved debt remains nonzero. See the corpus tests README for the bounded
+three-control command and `tests/omega/interpreter_migration.json`.
 
 Reading a move — the summary cuts each field at 300 columns, so use
 `--write-moves` to get every moved fixture's before/after records in full:
@@ -893,17 +900,19 @@ def main() -> int:
                              "Apple-silicon host) and diff against "
                              "tests/omega/corpus_native_<TARGET>.txt")
     parser.add_argument("--interpret", action="store_true",
-                        help="also execute runnable fixtures on the checked "
-                             "interpreter and diff against "
-                             "tests/omega/corpus_interpreted.txt")
+                        help="also execute runnable fixtures through the shared "
+                             "Terminal program/instance core; default golden "
+                             "tests/omega/corpus_interpreted.txt must exist, "
+                             "or supply --golden")
     parser.add_argument("--migration-roster", type=Path, metavar="PATH",
                         help="reviewed capability/task/route canary designations; "
                              "exact pending roots join the runner; "
                              "explicit unimplemented debt never counts as success")
     parser.add_argument("--both", action="store_true",
-                        help="run the native and interpreted legs together, "
+                        help="run native and shared Terminal legs together, "
                              "record whether they agree, and diff against "
-                             "tests/omega/corpus_both_<target>.txt")
+                             "tests/omega/corpus_both_<target>.txt "
+                             "(supply --golden when absent)")
     parser.add_argument("--baseline", action="store_true",
                         help="diff against this checkout's own recorded "
                              "outcomes instead of the checked-in golden — "
