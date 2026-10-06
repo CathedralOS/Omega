@@ -4,8 +4,7 @@ use crate::execution::terminal_unit::ScalarCalleePlans;
 use crate::execution::terminal_unit::control::statement_sequence;
 
 use crate::execution::terminal_unit::calls::{
-    build_affine_array_construction_prefix, build_unit_trivial_affine_locals, entry_claims,
-    free_structural_scalar_signature,
+    build_affine_array_construction_prefix, entry_claims, free_structural_scalar_signature,
 };
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
 use crate::execution::terminal_unit::control::call_occurrences;
@@ -17,8 +16,7 @@ use crate::execution::terminal_unit::types::{
 };
 use crate::execution::terminal_unit::{
     BTreeSet, CheckFacts, CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan,
-    CheckedUnitPartialAffineDiscardPlan, ExpressionNode, StatementNode, TypeReferenceNode,
-    TypedTrees,
+    CheckedUnitPartialAffineDiscardPlan, StatementNode, TypeReferenceNode, TypedTrees,
 };
 
 /// Build the ordinary explicit-parameter machine, retaining construction diagnostics.
@@ -166,10 +164,11 @@ pub(crate) fn build_checked_machine_residual_parts(
         source_calls,
         trace,
     )?;
-    // Prefix emitters establish the trivial affine locals a body may start
-    // with: an affine fixed-array construction (`let mut a: [T; N]; a[i] =
-    // T {};`) or a run of empty-record affine locals. The statement sequence
-    // owns every statement after that prefix.
+    // The array prefix retains partial element establishment (`let mut a:
+    // [T; N]; a[i] = T {};`). Complete record initializers, including empty
+    // records, belong to the ordinary statement sequence: their owners may
+    // transfer on one selected edge and owe disposal on another. A prefix-wide
+    // two-event lifecycle cannot represent that per-continuation partition.
     trace.phase("trivial affine locals");
     let (local_rows, prefix_statement_count) = match build_affine_array_construction_prefix(
         program, facts, shapes, machine, state, &binders, statements,
@@ -179,33 +178,7 @@ pub(crate) fn build_checked_machine_residual_parts(
             let count = declaration_count.checked_add(rows.len())?;
             (rows, count)
         }
-        None => {
-            let count = statements
-                .iter()
-                .take_while(|statement| {
-                    matches!(statement, StatementNode::LocalData(local)
-                    if program.expression_table.expression_is_valid(local.initial_value)
-                        && matches!(program.expression_table.expression(local.initial_value),
-                            ExpressionNode::StructLiteral(_)))
-                })
-                .count();
-            let rows = (count != 0)
-                .then(|| {
-                    build_unit_trivial_affine_locals(
-                        program,
-                        facts,
-                        shapes,
-                        machine,
-                        state,
-                        &binders,
-                        &statements[..count],
-                    )
-                })
-                .flatten()
-                .unwrap_or_default();
-            let count = rows.len();
-            (rows, count)
-        }
+        None => (Vec::new(), 0),
     };
     trace.phase("statement sequence");
     if let Some(index) = statement_sequence::first_unsupported_statement(

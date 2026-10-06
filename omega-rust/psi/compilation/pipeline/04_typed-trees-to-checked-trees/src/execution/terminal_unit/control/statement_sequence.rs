@@ -1968,7 +1968,7 @@ fn consume_result(
         // minted) borrows the same as one still carrying the flag.
         return Some(());
     }
-    if result.multiplicity != Multiplicity::Affine || !*discard_result_on_return {
+    if result.multiplicity != Multiplicity::Affine {
         // Linear results never acquire automatic disposal debt. Moving a
         // whole result continues its checked call claim frontier; source flow
         // and independent Terminal replay reject a second use of that claim.
@@ -1981,8 +1981,13 @@ fn consume_result(
         }
         return None;
     }
-    // A projected transfer leaves its root owner alive until the
-    // exact complement is committed on the consumer continuation.
+    // This flag schedules disposal; it is not the owner's liveness bit.
+    // Composed states clear it before planning their selected edges because
+    // those edges own the exact cleanup/transfer partition. An affine move
+    // still consumes the same producer there. Source permission events reject
+    // duplicate moves and uses after consumption, regardless of this flag.
+    // A projected transfer leaves its root owner alive until the exact
+    // complement is committed on the consumer continuation.
     if !projected {
         *discard_result_on_return = false;
     }

@@ -1,0 +1,42 @@
+data Payload { amount: u64; }
+
+machine consume(payload: Payload, count: &mut u64, bonus: u64) -> bool {
+    count = ((count as u64 in Wrapping) + (payload.amount as u64 in Wrapping) + (bonus as u64 in Wrapping)) as u64;
+    true
+}
+
+machine consume_unit(payload: Payload, count: &mut u64) {
+    count = ((count as u64 in Wrapping) + (payload.amount as u64 in Wrapping)) as u64;
+}
+
+machine choose(selected: bool, count: &mut u64) -> bool {
+    count = ((count as u64 in Wrapping) + 1) as u64;
+    let payload: Payload = Payload { amount: 10 };
+    transition selected {
+        true -> consume(payload, count, 3)
+        false -> consume(payload, count, 7)
+    }
+}
+
+machine maybe_consume(selected: bool, count: &mut u64) {
+    count = ((count as u64 in Wrapping) + 1) as u64;
+    let payload: Payload = Payload { amount: 20 };
+    transition selected {
+        true -> consume_unit(payload, count)
+        false -> {}
+    }
+}
+
+machine main() crashes Trap {
+    let mut count: u64 = 0;
+    let first: bool = choose(false, &mut count);
+    let second: bool = choose(true, &mut count);
+    maybe_consume(false, &mut count);
+    maybe_consume(true, &mut count);
+    transition first && second && count == 54 {
+        true -> done()
+        false -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

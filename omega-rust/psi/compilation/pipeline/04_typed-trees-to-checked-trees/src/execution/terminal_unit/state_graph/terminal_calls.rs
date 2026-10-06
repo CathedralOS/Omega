@@ -256,6 +256,7 @@ pub(super) fn arm_call(
         &structural_results,
         trace,
     )?;
+    trace.phase("state graph: terminator: terminal call arm: result binding");
     let planned = operation.call()?;
     if planned.coordinate.statement_index != statement_ordinal {
         return None;
@@ -276,6 +277,7 @@ pub(super) fn arm_call(
         }
         _ => return None,
     };
+    trace.phase("state graph: terminator: terminal call arm: result consumption");
     control::statement_sequence::consume_results(&mut preparation, &operation)?;
     preparation.drain(..predecessor_count);
     Some(checked_trees::CheckedConditionalReturnArm::Call {

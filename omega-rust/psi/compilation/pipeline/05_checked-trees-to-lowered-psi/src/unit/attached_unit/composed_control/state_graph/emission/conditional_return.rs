@@ -1,6 +1,7 @@
-//! A conditional return lowers into a private completion block. Unit uses
-//! ordinary return disposal; value producers execute only on their return
-//! edge. The same branch machinery preserves either arm's position.
+//! A conditional return lowers into a private completion block. Value producers
+//! execute before the selected exit's exact cleanup, while sibling exits keep
+//! their own ownership partition. A state-wide remainder cannot describe a
+//! local consumed by only one returning arm.
 
 use super::super::super::super::super::{StructuralParameterDeclaration, SuccessorEdge, block_id};
 use super::super::super::super::{
@@ -69,13 +70,7 @@ impl StateGraphEmission<'_, '_> {
             }
             checked_trees::CheckedConditionalReturnArm::Unit { .. } => Terminator::ReturnUnit {
                 edge: edge_id(allocate_dense(next_edge)?),
-                trivial_affine_discards: super::state::return_root_discards(
-                    checked,
-                    state,
-                    operations,
-                    &arm_evaluation,
-                    state_parameters,
-                )?,
+                trivial_affine_discards: Vec::new(),
             },
             checked_trees::CheckedConditionalReturnArm::Structural(operation) => {
                 super::super::guarded::emit_return(
@@ -164,13 +159,7 @@ impl StateGraphEmission<'_, '_> {
                     }
                     checked_trees::CheckedUnitCallResult::Unit => Terminator::ReturnUnit {
                         edge: edge_id(allocate_dense(next_edge)?),
-                        trivial_affine_discards: super::state::return_root_discards(
-                            checked,
-                            state,
-                            operations,
-                            &arm_evaluation,
-                            state_parameters,
-                        )?,
+                        trivial_affine_discards: Vec::new(),
                     },
                     checked_trees::CheckedUnitCallResult::Scalar(binding) => {
                         let value = arm_call_result(
@@ -182,16 +171,7 @@ impl StateGraphEmission<'_, '_> {
                         Terminator::Return {
                             edge: edge_id(allocate_dense(next_edge)?),
                             value: value.id,
-                            cleanup_actions: super::state::return_root_discards(
-                                checked,
-                                state,
-                                operations,
-                                &arm_evaluation,
-                                state_parameters,
-                            )?
-                            .into_iter()
-                            .map(terminal_psi::TerminalAffineCleanupAction::DiscardRoot)
-                            .collect(),
+                            cleanup_actions: Vec::new(),
                         }
                     }
                 }
@@ -242,19 +222,64 @@ impl StateGraphEmission<'_, '_> {
                 Terminator::Return {
                     edge: edge_id(allocate_dense(next_edge)?),
                     value: value.id,
-                    cleanup_actions: super::state::return_root_discards(
-                        checked,
-                        state,
-                        operations,
-                        &arm_evaluation,
-                        state_parameters,
-                    )?
-                    .into_iter()
-                    .map(terminal_psi::TerminalAffineCleanupAction::DiscardRoot)
-                    .collect(),
+                    cleanup_actions: Vec::new(),
                 }
             }
         };
+        // Resolve the selected exit only after its producer has materialized
+        // the result and moved any operands. This uses the same checked
+        // disposition schedule as structural returns; neither result type nor
+        // a sibling arm's consumption changes the current edge's remainder.
+        // Unit retains its existing whole-root cleanup vocabulary rather than
+        // silently losing an action that requires a richer terminator.
+        if matches!(
+            terminator,
+            Terminator::Return { .. } | Terminator::ReturnUnit { .. }
+        ) {
+            let statement_ordinal =
+                return_arm
+                    .statement_ordinal()
+                    .ok_or(LoweringError::Unsupported(
+                        "return arm lost its source coordinate",
+                    ))?;
+            let exit = super::super::cleanup::coordinate(
+                checked,
+                state,
+                statement_ordinal as usize,
+                false,
+            )?;
+            let selected_cleanup = super::super::cleanup::for_exit(
+                checked,
+                state,
+                exit,
+                self.catalogs,
+                state_parameters,
+                &arm_evaluation,
+                operations,
+            )?;
+            match &mut terminator {
+                Terminator::Return {
+                    cleanup_actions, ..
+                } => {
+                    *cleanup_actions = selected_cleanup;
+                }
+                Terminator::ReturnUnit {
+                    trivial_affine_discards,
+                    ..
+                } => {
+                    *trivial_affine_discards = selected_cleanup
+                        .into_iter()
+                        .map(|action| match action {
+                            terminal_psi::TerminalAffineCleanupAction::DiscardRoot(place) => {
+                                Ok(place)
+                            }
+                            _ => unsupported("selected Unit return requires non-root cleanup"),
+                        })
+                        .collect::<Result<Vec<_>, LoweringError>>()?;
+                }
+                _ => {}
+            }
+        }
         // Return cleanup starts at the arriving frontier, not the dispatch's
         // pre-edge frontier. A case edge already disposed its saved subject
         // after extracting payloads. Retain the other roots in their original

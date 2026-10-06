@@ -265,63 +265,51 @@ pub(super) fn account(
                         })
                     })
             }
-            // Both arms of a conditional completion return: neither
-            // transfers a result, and an arm's terminal call transfers no
-            // claim, so each result dies with the state as on a Unit return.
             CheckedComposedUnitControlTerminatorPlan::ReturnUnit
-            | CheckedComposedUnitControlTerminatorPlan::ReturnScalar { .. }
-            | CheckedComposedUnitControlTerminatorPlan::ConditionalCompletion { .. } => {
+            | CheckedComposedUnitControlTerminatorPlan::ReturnScalar { .. } => {
                 permits_disposal(&[])
             }
-            CheckedComposedUnitControlTerminatorPlan::Jump { successor } => {
-                transferred(successor) || permits_disposal(&[successor])
-            }
-            CheckedComposedUnitControlTerminatorPlan::Conditional {
-                when_true,
-                when_false,
-                ..
-            } => {
-                (transferred(when_true) && transferred(when_false))
-                    || permits_disposal(&[when_true, when_false])
-            }
-            CheckedComposedUnitControlTerminatorPlan::ConditionalReturn {
-                jump,
-                return_arm,
-                ..
-            } => {
-                // The return arm consumes its producers through the
-                // `EstablishStructuralValue` operands like Guarded; only
-                // the named edge participates in transfer custody.
-                transferred(jump)
-                    || permits_disposal(&[jump])
-                    || matches!(return_arm,
-                    checked_trees::CheckedConditionalReturnArm::Structural(operation)
-                        if operation.with_value_calls().skip(1).any(|operation| {
-                            terminator_call_consumes_result(operation, result.binding_ordinal)
-                        }))
-            }
-            CheckedComposedUnitControlTerminatorPlan::GuardedJumps { arms, fallback } => {
-                let successors = arms
-                    .iter()
-                    .filter_map(|arm| arm.successor())
-                    .chain(match fallback {
-                        checked_trees::CheckedGuardedJumpFallbackPlan::Successor(successor) => {
-                            Some(successor)
-                        }
-                        checked_trees::CheckedGuardedJumpFallbackPlan::Return(_) => None,
+            CheckedComposedUnitControlTerminatorPlan::Jump { .. }
+            | CheckedComposedUnitControlTerminatorPlan::Conditional { .. }
+            | CheckedComposedUnitControlTerminatorPlan::ConditionalReturn { .. }
+            | CheckedComposedUnitControlTerminatorPlan::ConditionalCompletion { .. }
+            | CheckedComposedUnitControlTerminatorPlan::GuardedJumps { .. } => {
+                // Each selected exit owns its own disposition. A returning
+                // call consumes operands just as a successor's operand call
+                // does, regardless of its result type. Mutually exclusive
+                // moves are one partition, not multiple sequential uses;
+                // conversely, a moving arm cannot cover an uncovered sibling.
+                // The source checker owns move validity; normal-edge cleanup
+                // retains the exact disposal schedule for each coordinate.
+                let successors = terminator.successors();
+                let return_arms = terminator.return_arms();
+                // With no normal exit there is no transfer/disposal owner
+                // here to count beside an earlier in-sequence consumption.
+                let has_normal_exit = !successors.is_empty()
+                    || return_arms.iter().any(|arm| {
+                        !matches!(
+                            arm,
+                            checked_trees::CheckedConditionalReturnArm::Crash { .. }
+                        )
+                    });
+                has_normal_exit
+                    && successors
+                        .iter()
+                        .all(|edge| transferred(edge) || permits_disposal(&[edge]))
+                    && return_arms.iter().all(|arm| {
+                        // Abnormal completion abandons custody; it must not
+                        // invent a normal disposal obligation or run cleanup.
+                        matches!(
+                            arm,
+                            checked_trees::CheckedConditionalReturnArm::Crash { .. }
+                        ) || arm
+                            .operation_dependencies()
+                            .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
+                            .any(|operation| {
+                                terminator_call_consumes_result(operation, result.binding_ordinal)
+                            })
+                            || permits_disposal(&[])
                     })
-                    .collect::<Vec<_>>();
-                // A `(expression)` fallback arm consumes its producers through
-                // the establishment operands it carries, exactly like a
-                // `ConditionalReturn`'s arm.
-                successors.iter().all(|edge| transferred(edge))
-                    || matches!(fallback,
-                    checked_trees::CheckedGuardedJumpFallbackPlan::Return(
-                        checked_trees::CheckedConditionalReturnArm::Structural(operation),
-                    ) if operation.with_value_calls().skip(1).any(|operation| {
-                        terminator_call_consumes_result(operation, result.binding_ordinal)
-                    }))
-                    || permits_disposal(&successors)
             }
             CheckedComposedUnitControlTerminatorPlan::ClosedSum { subject, cases, .. } => {
                 if matches!(subject.source, CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal } if binding_ordinal == result.binding_ordinal)
