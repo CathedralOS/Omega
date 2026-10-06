@@ -170,6 +170,47 @@ struct JoinBranchView<'a> {
     forwarding_transfers: &'a [checked_trees::CheckedDynamicDescriptorTransferPlan],
 }
 
+/// The shared `JoinBranch::view` body for both dynamic call plans: every
+/// caller field is copied verbatim and the `origin` enum's `Forwarded` arm
+/// is peeled to `(machine, state, parameter)`.
+macro_rules! impl_join_branch_view {
+    ($origin:path) => {
+        fn view(&self) -> JoinBranchView<'_> {
+            use $origin::*;
+            let plan = self;
+            let forwarded_origin = match plan.origin {
+                Local => None,
+                Forwarded {
+                    machine,
+                    state,
+                    parameter,
+                    ..
+                } => Some((machine, state, parameter)),
+            };
+            JoinBranchView {
+                caller_machine: plan.caller_machine,
+                caller_state: plan.caller_state,
+                caller_attachment_type_identity: &plan.caller_attachment_type_identity,
+                caller_multiplicity: plan.caller_multiplicity,
+                caller_parameter_access: plan.caller_parameter_access,
+                caller_contract_report_fingerprint: plan.caller_contract_report_fingerprint,
+                caller_contract_commitment: &plan.caller_contract_commitment,
+                caller_service_reach: &plan.caller_service_reach,
+                coordinate: plan.coordinate,
+                receiver_binding: plan.receiver_binding,
+                selection: &plan.selection,
+                target_trait: plan.target_trait,
+                declaring_trait: plan.declaring_trait,
+                requirement: plan.requirement,
+                requirement_identity: &plan.requirement_identity,
+                checked_call_service_reach: &plan.checked_call_service_reach,
+                forwarded_origin,
+                forwarding_transfers: &plan.forwarding_transfers,
+            }
+        }
+    };
+}
+
 impl JoinBranch for checked_trees::CheckedDynamicScalarCallPlan {
     fn results_match(&self, other: &Self) -> bool {
         self.result.primitive_type == other.result.primitive_type
@@ -179,38 +220,7 @@ impl JoinBranch for checked_trees::CheckedDynamicScalarCallPlan {
             && other.unit_continuation.is_none()
     }
 
-    fn view(&self) -> JoinBranchView<'_> {
-        let plan = self;
-        let forwarded_origin = match plan.origin {
-            checked_trees::CheckedDynamicScalarCallOrigin::Local => None,
-            checked_trees::CheckedDynamicScalarCallOrigin::Forwarded {
-                machine,
-                state,
-                parameter,
-                ..
-            } => Some((machine, state, parameter)),
-        };
-        JoinBranchView {
-            caller_machine: plan.caller_machine,
-            caller_state: plan.caller_state,
-            caller_attachment_type_identity: &plan.caller_attachment_type_identity,
-            caller_multiplicity: plan.caller_multiplicity,
-            caller_parameter_access: plan.caller_parameter_access,
-            caller_contract_report_fingerprint: plan.caller_contract_report_fingerprint,
-            caller_contract_commitment: &plan.caller_contract_commitment,
-            caller_service_reach: &plan.caller_service_reach,
-            coordinate: plan.coordinate,
-            receiver_binding: plan.receiver_binding,
-            selection: &plan.selection,
-            target_trait: plan.target_trait,
-            declaring_trait: plan.declaring_trait,
-            requirement: plan.requirement,
-            requirement_identity: &plan.requirement_identity,
-            checked_call_service_reach: &plan.checked_call_service_reach,
-            forwarded_origin,
-            forwarding_transfers: &plan.forwarding_transfers,
-        }
-    }
+    impl_join_branch_view!(checked_trees::CheckedDynamicScalarCallOrigin);
 }
 
 impl JoinBranch for checked_trees::CheckedDynamicUnitCallPlan {
@@ -218,38 +228,7 @@ impl JoinBranch for checked_trees::CheckedDynamicUnitCallPlan {
         true
     }
 
-    fn view(&self) -> JoinBranchView<'_> {
-        let plan = self;
-        let forwarded_origin = match plan.origin {
-            checked_trees::CheckedDynamicUnitCallOrigin::Local => None,
-            checked_trees::CheckedDynamicUnitCallOrigin::Forwarded {
-                machine,
-                state,
-                parameter,
-                ..
-            } => Some((machine, state, parameter)),
-        };
-        JoinBranchView {
-            caller_machine: plan.caller_machine,
-            caller_state: plan.caller_state,
-            caller_attachment_type_identity: &plan.caller_attachment_type_identity,
-            caller_multiplicity: plan.caller_multiplicity,
-            caller_parameter_access: plan.caller_parameter_access,
-            caller_contract_report_fingerprint: plan.caller_contract_report_fingerprint,
-            caller_contract_commitment: &plan.caller_contract_commitment,
-            caller_service_reach: &plan.caller_service_reach,
-            coordinate: plan.coordinate,
-            receiver_binding: plan.receiver_binding,
-            selection: &plan.selection,
-            target_trait: plan.target_trait,
-            declaring_trait: plan.declaring_trait,
-            requirement: plan.requirement,
-            requirement_identity: &plan.requirement_identity,
-            checked_call_service_reach: &plan.checked_call_service_reach,
-            forwarded_origin,
-            forwarding_transfers: &plan.forwarding_transfers,
-        }
-    }
+    impl_join_branch_view!(checked_trees::CheckedDynamicUnitCallOrigin);
 }
 
 fn joined_branches_match(
