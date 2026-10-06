@@ -15,7 +15,6 @@ use crate::{
     BuildStagedOutputMaterializationError, BuildStagedOutputTree, BuildStagedOutputTreeCommitment,
 };
 use diagnostics::Diagnostic;
-use sha2::Digest;
 use std::collections::BTreeSet;
 use std::io::Write;
 use std::path::{Path, PathBuf};

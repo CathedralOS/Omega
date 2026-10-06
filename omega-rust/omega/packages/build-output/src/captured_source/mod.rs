@@ -19,7 +19,6 @@ use filesystem_authority::{
 use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 use std::fmt;
-use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -568,12 +567,6 @@ fn captured_os_str(component: &[u8]) -> Option<std::ffi::OsString> {
 }
 
 #[cfg(unix)]
-fn captured_os_str_bytes(name: &std::ffi::OsStr) -> Option<Vec<u8>> {
-    use std::os::unix::ffi::OsStrExt;
-    Some(name.as_bytes().to_vec())
-}
-
-#[cfg(unix)]
 fn set_captured_dir_mode(path: &Path) -> Result<(), CapturedSourceMaterializationError> {
     use std::os::unix::fs::PermissionsExt;
     std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o555)).map_err(|error| {
@@ -651,12 +644,6 @@ fn validate_captured_executable_mode(
     } else {
         Ok(())
     }
-}
-
-#[cfg(unix)]
-fn captured_file_is_executable(metadata: &std::fs::Metadata) -> bool {
-    use std::os::unix::fs::PermissionsExt;
-    metadata.permissions().mode() & 0o111 != 0
 }
 
 fn materialization_error(message: impl Into<String>) -> CapturedSourceMaterializationError {
