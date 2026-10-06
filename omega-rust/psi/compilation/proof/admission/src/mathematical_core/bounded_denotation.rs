@@ -556,161 +556,53 @@ fn integer_law_statement(
     let le =
         |left: Syntax, right: Syntax| apps(scheme_at(less_or_equal, Vec::new()), [left, right]);
     let eq = |left: Syntax, right: Syntax| id(carrier(), left, right);
+    // `Π (x y : Int). premise → conclusion`.
+    let implication = |premise: Syntax, conclusion: Syntax| {
+        pi(
+            "x",
+            carrier(),
+            pi("y", carrier(), pi("_", premise, conclusion)),
+        )
+    };
+    // `Π (x y z : Int). first → second → result`.
+    let transitivity = |first: Syntax, second: Syntax, result: Syntax| {
+        pi(
+            "x",
+            carrier(),
+            pi(
+                "y",
+                carrier(),
+                pi("z", carrier(), pi("_", first, pi("_", second, result))),
+            ),
+        )
+    };
     match law {
-        IntegerLaw::EqualityToLessOrEqual => pi(
-            "x",
-            carrier(),
-            pi(
-                "y",
-                carrier(),
-                pi("_", eq(v("x"), v("y")), le(v("x"), v("y"))),
-            ),
-        ),
-        IntegerLaw::LessThanToLessOrEqual => pi(
-            "x",
-            carrier(),
-            pi(
-                "y",
-                carrier(),
-                pi("_", lt(v("x"), v("y")), le(v("x"), v("y"))),
-            ),
-        ),
-        IntegerLaw::LessOrEqualTransitivity => pi(
-            "x",
-            carrier(),
-            pi(
-                "y",
-                carrier(),
-                pi(
-                    "z",
-                    carrier(),
-                    pi(
-                        "_",
-                        le(v("x"), v("y")),
-                        pi("_", le(v("y"), v("z")), le(v("x"), v("z"))),
-                    ),
-                ),
-            ),
-        ),
-        IntegerLaw::LessThanTransitivity => pi(
-            "x",
-            carrier(),
-            pi(
-                "y",
-                carrier(),
-                pi(
-                    "z",
-                    carrier(),
-                    pi(
-                        "_",
-                        lt(v("x"), v("y")),
-                        pi("_", lt(v("y"), v("z")), lt(v("x"), v("z"))),
-                    ),
-                ),
-            ),
-        ),
-        IntegerLaw::LessThanLessOrEqualTransitivity => pi(
-            "x",
-            carrier(),
-            pi(
-                "y",
-                carrier(),
-                pi(
-                    "z",
-                    carrier(),
-                    pi(
-                        "_",
-                        lt(v("x"), v("y")),
-                        pi("_", le(v("y"), v("z")), lt(v("x"), v("z"))),
-                    ),
-                ),
-            ),
-        ),
-        IntegerLaw::LessOrEqualLessThanTransitivity => pi(
-            "x",
-            carrier(),
-            pi(
-                "y",
-                carrier(),
-                pi(
-                    "z",
-                    carrier(),
-                    pi(
-                        "_",
-                        le(v("x"), v("y")),
-                        pi("_", lt(v("y"), v("z")), lt(v("x"), v("z"))),
-                    ),
-                ),
-            ),
-        ),
-        IntegerLaw::LessThanSubstituteLeft => pi(
-            "x",
-            carrier(),
-            pi(
-                "y",
-                carrier(),
-                pi(
-                    "z",
-                    carrier(),
-                    pi(
-                        "_",
-                        eq(v("x"), v("y")),
-                        pi("_", lt(v("x"), v("z")), lt(v("y"), v("z"))),
-                    ),
-                ),
-            ),
-        ),
-        IntegerLaw::LessThanSubstituteRight => pi(
-            "x",
-            carrier(),
-            pi(
-                "y",
-                carrier(),
-                pi(
-                    "z",
-                    carrier(),
-                    pi(
-                        "_",
-                        eq(v("y"), v("z")),
-                        pi("_", lt(v("x"), v("y")), lt(v("x"), v("z"))),
-                    ),
-                ),
-            ),
-        ),
-        IntegerLaw::LessOrEqualSubstituteLeft => pi(
-            "x",
-            carrier(),
-            pi(
-                "y",
-                carrier(),
-                pi(
-                    "z",
-                    carrier(),
-                    pi(
-                        "_",
-                        eq(v("x"), v("y")),
-                        pi("_", le(v("x"), v("z")), le(v("y"), v("z"))),
-                    ),
-                ),
-            ),
-        ),
-        IntegerLaw::LessOrEqualSubstituteRight => pi(
-            "x",
-            carrier(),
-            pi(
-                "y",
-                carrier(),
-                pi(
-                    "z",
-                    carrier(),
-                    pi(
-                        "_",
-                        eq(v("y"), v("z")),
-                        pi("_", le(v("x"), v("y")), le(v("x"), v("z"))),
-                    ),
-                ),
-            ),
-        ),
+        IntegerLaw::EqualityToLessOrEqual => implication(eq(v("x"), v("y")), le(v("x"), v("y"))),
+        IntegerLaw::LessThanToLessOrEqual => implication(lt(v("x"), v("y")), le(v("x"), v("y"))),
+        IntegerLaw::LessOrEqualTransitivity => {
+            transitivity(le(v("x"), v("y")), le(v("y"), v("z")), le(v("x"), v("z")))
+        }
+        IntegerLaw::LessThanTransitivity => {
+            transitivity(lt(v("x"), v("y")), lt(v("y"), v("z")), lt(v("x"), v("z")))
+        }
+        IntegerLaw::LessThanLessOrEqualTransitivity => {
+            transitivity(lt(v("x"), v("y")), le(v("y"), v("z")), lt(v("x"), v("z")))
+        }
+        IntegerLaw::LessOrEqualLessThanTransitivity => {
+            transitivity(le(v("x"), v("y")), lt(v("y"), v("z")), lt(v("x"), v("z")))
+        }
+        IntegerLaw::LessThanSubstituteLeft => {
+            transitivity(eq(v("x"), v("y")), lt(v("x"), v("z")), lt(v("y"), v("z")))
+        }
+        IntegerLaw::LessThanSubstituteRight => {
+            transitivity(eq(v("y"), v("z")), lt(v("x"), v("y")), lt(v("x"), v("z")))
+        }
+        IntegerLaw::LessOrEqualSubstituteLeft => {
+            transitivity(eq(v("x"), v("y")), le(v("x"), v("z")), le(v("y"), v("z")))
+        }
+        IntegerLaw::LessOrEqualSubstituteRight => {
+            transitivity(eq(v("y"), v("z")), le(v("x"), v("y")), le(v("x"), v("z")))
+        }
     }
 }
 
