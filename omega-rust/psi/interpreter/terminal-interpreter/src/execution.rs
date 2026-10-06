@@ -373,6 +373,18 @@ impl TerminalExecution {
         &self.assumed_bindings
     }
 
+    /// The scalar bound to `value`, or `VerifiedValueMissing` when the verified
+    /// artifact references a value the interpreter never produced.
+    pub(crate) fn scalar_value(
+        &self,
+        value: ValueId,
+    ) -> Result<TerminalScalarValue, TerminalInterpretError> {
+        self.values
+            .get(&value)
+            .copied()
+            .ok_or(TerminalInterpretError::VerifiedValueMissing(value))
+    }
+
     /// Final values of direct primitive structural entry arguments, ordered by
     /// their dense structural-argument positions.
     pub fn structural_primitive_values(&self) -> Vec<TerminalStructuralPrimitiveValue> {

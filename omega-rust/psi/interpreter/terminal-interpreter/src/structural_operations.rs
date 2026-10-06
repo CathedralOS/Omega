@@ -104,11 +104,7 @@ impl TerminalExecution {
         }
         let mut payload = Vec::with_capacity(fields.len());
         for (declaration, binding) in selected.fields.iter().zip(fields) {
-            let value = self
-                .values
-                .get(&binding.value)
-                .copied()
-                .ok_or(TerminalInterpretError::VerifiedValueMissing(binding.value))?;
+            let value = self.scalar_value(binding.value)?;
             if declaration.id != binding.field
                 || declaration.field_type.scalar_type() != Some(value.scalar_type())
             {
@@ -877,11 +873,7 @@ impl TerminalExecution {
                 .then_some(StructuralAccess::Owned)
             })
             .ok_or(malformed())?;
-        let source = self
-            .values
-            .get(&value)
-            .copied()
-            .ok_or(TerminalInterpretError::VerifiedValueMissing(value))?;
+        let source = self.scalar_value(value)?;
         let parent = resolve_structural_arguments(
             &self.program.structural_types,
             &self.structural_values,

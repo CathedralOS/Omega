@@ -111,11 +111,7 @@ impl TerminalExecution {
         }
         let mut contents = Vec::with_capacity(elements.len());
         for element in elements {
-            let value = self
-                .values
-                .get(element)
-                .copied()
-                .ok_or(TerminalInterpretError::VerifiedValueMissing(*element))?;
+            let value = self.scalar_value(element)?;
             if value.scalar_type() != scalar_type {
                 return Err(malformed());
             }

@@ -39,22 +39,14 @@ impl TerminalExecution {
         let TerminalScalarValue::Integer {
             scalar_type: left_type,
             value: left,
-        } = self
-            .values
-            .get(&left)
-            .copied()
-            .ok_or(TerminalInterpretError::VerifiedValueMissing(left))?
+        } = self.scalar_value(left)?
         else {
             return Err(malformed());
         };
         let TerminalScalarValue::Integer {
             scalar_type: right_type,
             value: right,
-        } = self
-            .values
-            .get(&right)
-            .copied()
-            .ok_or(TerminalInterpretError::VerifiedValueMissing(right))?
+        } = self.scalar_value(right)?
         else {
             return Err(malformed());
         };
@@ -83,22 +75,14 @@ impl TerminalExecution {
         let TerminalScalarValue::Integer {
             scalar_type: left_type,
             value: left_value,
-        } = self
-            .values
-            .get(&left)
-            .copied()
-            .ok_or(TerminalInterpretError::VerifiedValueMissing(left))?
+        } = self.scalar_value(left)?
         else {
             return Err(malformed());
         };
         let TerminalScalarValue::Integer {
             scalar_type: right_type,
             value: right_value,
-        } = self
-            .values
-            .get(&right)
-            .copied()
-            .ok_or(TerminalInterpretError::VerifiedValueMissing(right))?
+        } = self.scalar_value(right)?
         else {
             return Err(malformed());
         };
@@ -130,11 +114,7 @@ impl TerminalExecution {
         let TerminalScalarValue::Integer {
             scalar_type: operand_type,
             value: operand,
-        } = self
-            .values
-            .get(&operand)
-            .copied()
-            .ok_or(TerminalInterpretError::VerifiedValueMissing(operand))?
+        } = self.scalar_value(operand)?
         else {
             return Err(malformed());
         };
@@ -162,11 +142,7 @@ impl TerminalExecution {
         let TerminalScalarValue::Integer {
             scalar_type: source_type,
             value,
-        } = self
-            .values
-            .get(&operand)
-            .copied()
-            .ok_or(TerminalInterpretError::VerifiedValueMissing(operand))?
+        } = self.scalar_value(operand)?
         else {
             return Err(malformed());
         };
@@ -196,11 +172,7 @@ impl TerminalExecution {
         let TerminalScalarValue::Integer {
             scalar_type: source_type,
             value,
-        } = self
-            .values
-            .get(&operand)
-            .copied()
-            .ok_or(TerminalInterpretError::VerifiedValueMissing(operand))?
+        } = self.scalar_value(operand)?
         else {
             return Err(malformed());
         };
@@ -233,22 +205,14 @@ impl TerminalExecution {
         let TerminalScalarValue::Integer {
             scalar_type: left_type,
             value: left_value,
-        } = self
-            .values
-            .get(&left)
-            .copied()
-            .ok_or(TerminalInterpretError::VerifiedValueMissing(left))?
+        } = self.scalar_value(left)?
         else {
             return Err(malformed());
         };
         let TerminalScalarValue::Integer {
             scalar_type: right_type,
             value: right_value,
-        } = self
-            .values
-            .get(&right)
-            .copied()
-            .ok_or(TerminalInterpretError::VerifiedValueMissing(right))?
+        } = self.scalar_value(right)?
         else {
             return Err(malformed());
         };
@@ -292,22 +256,14 @@ impl TerminalExecution {
         let TerminalScalarValue::Integer {
             scalar_type: actual_value_type,
             value,
-        } = self
-            .values
-            .get(&value)
-            .copied()
-            .ok_or(TerminalInterpretError::VerifiedValueMissing(value))?
+        } = self.scalar_value(value)?
         else {
             return Err(malformed());
         };
         let TerminalScalarValue::Integer {
             scalar_type: count_type,
             value: count,
-        } = self
-            .values
-            .get(&count)
-            .copied()
-            .ok_or(TerminalInterpretError::VerifiedValueMissing(count))?
+        } = self.scalar_value(count)?
         else {
             return Err(malformed());
         };
@@ -362,16 +318,8 @@ impl TerminalExecution {
         let ScalarType::Integer(scalar_type) = operation.result.expect_scalar().scalar_type else {
             return Err(malformed());
         };
-        let left = self
-            .values
-            .get(&left)
-            .copied()
-            .ok_or(TerminalInterpretError::VerifiedValueMissing(left))?;
-        let right = self
-            .values
-            .get(&right)
-            .copied()
-            .ok_or(TerminalInterpretError::VerifiedValueMissing(right))?;
+        let left = self.scalar_value(left)?;
+        let right = self.scalar_value(right)?;
         let (
             TerminalScalarValue::Integer {
                 scalar_type: left_type,
@@ -433,16 +381,8 @@ impl TerminalExecution {
         let ScalarType::Integer(scalar_type) = operation.result.expect_scalar().scalar_type else {
             return Err(malformed());
         };
-        let left = self
-            .values
-            .get(&left)
-            .copied()
-            .ok_or(TerminalInterpretError::VerifiedValueMissing(left))?;
-        let right = self
-            .values
-            .get(&right)
-            .copied()
-            .ok_or(TerminalInterpretError::VerifiedValueMissing(right))?;
+        let left = self.scalar_value(left)?;
+        let right = self.scalar_value(right)?;
         let (
             TerminalScalarValue::Integer {
                 scalar_type: left_type,
@@ -477,16 +417,8 @@ impl TerminalExecution {
         let ScalarType::Integer(scalar_type) = operation.result.expect_scalar().scalar_type else {
             return Err(malformed());
         };
-        let left = self
-            .values
-            .get(&left)
-            .copied()
-            .ok_or(TerminalInterpretError::VerifiedValueMissing(left))?;
-        let right = self
-            .values
-            .get(&right)
-            .copied()
-            .ok_or(TerminalInterpretError::VerifiedValueMissing(right))?;
+        let left = self.scalar_value(left)?;
+        let right = self.scalar_value(right)?;
         let (
             TerminalScalarValue::Integer {
                 scalar_type: left_type,
@@ -521,16 +453,8 @@ impl TerminalExecution {
         let ScalarType::Integer(scalar_type) = operation.result.expect_scalar().scalar_type else {
             return Err(malformed());
         };
-        let left = self
-            .values
-            .get(&left)
-            .copied()
-            .ok_or(TerminalInterpretError::VerifiedValueMissing(left))?;
-        let right = self
-            .values
-            .get(&right)
-            .copied()
-            .ok_or(TerminalInterpretError::VerifiedValueMissing(right))?;
+        let left = self.scalar_value(left)?;
+        let right = self.scalar_value(right)?;
         let (
             TerminalScalarValue::Integer {
                 scalar_type: left_type,

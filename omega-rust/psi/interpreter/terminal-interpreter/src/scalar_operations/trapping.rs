@@ -22,12 +22,7 @@ impl TerminalExecution {
         &self,
         value: ValueId,
     ) -> Result<(IntegerType, IntegerValue), TerminalInterpretError> {
-        match self
-            .values
-            .get(&value)
-            .copied()
-            .ok_or(TerminalInterpretError::VerifiedValueMissing(value))?
-        {
+        match self.scalar_value(value)? {
             TerminalScalarValue::Integer { scalar_type, value } => Ok((scalar_type, value)),
             _ => Err(malformed()),
         }

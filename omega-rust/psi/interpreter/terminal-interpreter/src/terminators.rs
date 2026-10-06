@@ -203,11 +203,7 @@ impl TerminalExecution {
         else {
             unreachable!("dispatched settle_conditional")
         };
-        let condition = self
-            .values
-            .get(condition)
-            .copied()
-            .ok_or(TerminalInterpretError::VerifiedValueMissing(*condition))?;
+        let condition = self.scalar_value(condition)?;
         let TerminalScalarValue::Boolean(condition) = condition else {
             return Err(malformed());
         };
@@ -330,11 +326,7 @@ impl TerminalExecution {
         if let Err(error) = meter.charge_terminator(terminator) {
             return meter_status(error).map(TerminatorFlow::Yield);
         }
-        let result = self
-            .values
-            .get(value)
-            .copied()
-            .ok_or(TerminalInterpretError::VerifiedValueMissing(*value))?;
+        let result = self.scalar_value(value)?;
         self.retire_return_inputs();
         self.continue_cleanup_actions(
             cleanup_actions.clone().into_iter(),

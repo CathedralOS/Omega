@@ -818,11 +818,7 @@ impl TerminalExecution {
         }
         let index = count(index, &self.values)?;
         let length = count(length, &self.values)?;
-        let element = self
-            .values
-            .get(value)
-            .copied()
-            .ok_or(TerminalInterpretError::VerifiedValueMissing(*value))?;
+        let element = self.scalar_value(value)?;
         if !terminal_scalar_belongs_to_type(element) {
             return Err(malformed());
         }

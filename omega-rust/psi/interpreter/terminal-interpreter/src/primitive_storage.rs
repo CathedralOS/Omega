@@ -585,11 +585,7 @@ impl TerminalExecution {
         else {
             return Err(malformed());
         };
-        let scalar = self
-            .values
-            .get(&value)
-            .copied()
-            .ok_or(TerminalInterpretError::VerifiedValueMissing(value))?;
+        let scalar = self.scalar_value(value)?;
         if scalar.scalar_type() != *expected || !terminal_scalar_belongs_to_type(scalar) {
             return Err(malformed());
         }
@@ -788,11 +784,7 @@ impl TerminalExecution {
         if operation.result != OperationResult::Unit {
             return Err(malformed());
         }
-        let scalar = self
-            .values
-            .get(&value)
-            .copied()
-            .ok_or(TerminalInterpretError::VerifiedValueMissing(value))?;
+        let scalar = self.scalar_value(value)?;
         self.store_primitive_place(destination, path, scalar)
     }
 

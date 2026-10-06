@@ -70,11 +70,7 @@ impl TerminalExecution {
             unreachable!("dispatched execute_scalar_representation_view")
         };
         let result = operation.result.expect_scalar();
-        let source = self
-            .values
-            .get(&operand)
-            .copied()
-            .ok_or(TerminalInterpretError::VerifiedValueMissing(operand))?;
+        let source = self.scalar_value(operand)?;
         let (source_type, source_value) = match source {
             TerminalScalarValue::Boolean(value) => {
                 (ScalarType::Boolean, ScalarViewValue::Boolean(value))
@@ -122,28 +118,13 @@ impl TerminalExecution {
         let ScalarType::IeeeFloat(format) = operation.result.expect_scalar().scalar_type else {
             return Err(malformed());
         };
-        let TerminalScalarValue::IeeeFloat(left) = self
-            .values
-            .get(&left)
-            .copied()
-            .ok_or(TerminalInterpretError::VerifiedValueMissing(left))?
-        else {
+        let TerminalScalarValue::IeeeFloat(left) = self.scalar_value(left)? else {
             return Err(malformed());
         };
-        let TerminalScalarValue::IeeeFloat(right) = self
-            .values
-            .get(&right)
-            .copied()
-            .ok_or(TerminalInterpretError::VerifiedValueMissing(right))?
-        else {
+        let TerminalScalarValue::IeeeFloat(right) = self.scalar_value(right)? else {
             return Err(malformed());
         };
-        let TerminalScalarValue::IeeeFloat(addend) = self
-            .values
-            .get(&addend)
-            .copied()
-            .ok_or(TerminalInterpretError::VerifiedValueMissing(addend))?
-        else {
+        let TerminalScalarValue::IeeeFloat(addend) = self.scalar_value(addend)? else {
             return Err(malformed());
         };
         if left.format() != format || right.format() != format || addend.format() != format {
@@ -184,12 +165,7 @@ impl TerminalExecution {
         if operation.result.expect_scalar().scalar_type != ScalarType::Boolean {
             return Err(malformed());
         }
-        let TerminalScalarValue::Boolean(value) = self
-            .values
-            .get(&operand)
-            .copied()
-            .ok_or(TerminalInterpretError::VerifiedValueMissing(operand))?
-        else {
+        let TerminalScalarValue::Boolean(value) = self.scalar_value(operand)? else {
             return Err(malformed());
         };
         self.values.insert(
@@ -209,20 +185,10 @@ impl TerminalExecution {
         if operation.result.expect_scalar().scalar_type != ScalarType::Boolean {
             return Err(malformed());
         }
-        let TerminalScalarValue::Boolean(left) = self
-            .values
-            .get(&left)
-            .copied()
-            .ok_or(TerminalInterpretError::VerifiedValueMissing(left))?
-        else {
+        let TerminalScalarValue::Boolean(left) = self.scalar_value(left)? else {
             return Err(malformed());
         };
-        let TerminalScalarValue::Boolean(right) = self
-            .values
-            .get(&right)
-            .copied()
-            .ok_or(TerminalInterpretError::VerifiedValueMissing(right))?
-        else {
+        let TerminalScalarValue::Boolean(right) = self.scalar_value(right)? else {
             return Err(malformed());
         };
         self.values.insert(
