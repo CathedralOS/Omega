@@ -28,9 +28,9 @@ use semantic_vocabulary::PackageKeyIdentity;
 use sha2::{Digest, Sha256};
 
 const RECORD_MAGIC: &[u8; 8] = b"OMGCREV\x01";
-// Hosted binding nominations now belong to the checked candidate roster,
-// rather than being rediscovered from cached provider review rows.
-const RECORD_VERSION: u16 = 5;
+// Usage now carries an explicit engine/fuel/storage identity. Untagged older
+// cache rows cannot silently reuse a different engine resource schedule.
+const RECORD_VERSION: u16 = 6;
 const RECORD_SEQUENCES_LIMIT: u64 = 1 << 20;
 
 fn cursor_bool(cursor: &mut ObservationCursor<'_>) -> Option<bool> {
@@ -711,9 +711,9 @@ pub(super) fn decode_record(bytes: &[u8]) -> Option<CachedCompiledReview> {
     let build_execution_profile = recover_optional(&mut cursor, recover_target)?;
     let selected_build_machine_identity = cursor_string(&mut cursor)?.to_owned();
     let build_evaluation_usage = recover_optional(&mut cursor, |cursor| {
-        build_record_codec::recover_build_evaluation_usage(&mut ObservationCursor::new(
-            cursor.framed()?,
-        ))
+        let mut usage_cursor = ObservationCursor::new(cursor.framed()?);
+        let usage = build_record_codec::recover_build_evaluation_usage(&mut usage_cursor)?;
+        usage_cursor.exhausted().then_some(usage)
     })?;
     let build_observation_summary = recover_optional(&mut cursor, |cursor| {
         build_record_codec::recover_observation_summary(&mut ObservationCursor::new(

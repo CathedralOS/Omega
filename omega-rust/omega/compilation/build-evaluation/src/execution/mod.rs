@@ -126,14 +126,19 @@ fn execute_admitted_build_occurrence(
     }
     let generated_sources = observation_summary.select_generated_sources(&machine_name)?;
 
-    // Phase 5: assemble the checked result.
+    // Phase 5: retain only the actual engine's measured usage. A sponsor for
+    // another measurement family cannot give this legacy tree run its units.
+    let evaluation_usage =
+        checked_interpreter::capture_checked_build_evaluation_usage(usage, evaluation_sponsor)
+            .map_err(|error| {
+                vec![Diagnostic::error(format!(
+                    "build `{machine_name}` evaluation accounting is inconsistent: {error:?}"
+                ))]
+            })?;
     Ok(ComputedBuildConfig {
         config,
         optimization_report_request: optimization_report,
-        evaluation_usage: Some(checked_interpreter::BuildEvaluationUsage::capture(
-            usage,
-            evaluation_sponsor,
-        )),
+        evaluation_usage: Some(evaluation_usage),
         observation_summary: Some(observation_summary),
         selected_build_machine_symbol: Some(machine.symbol),
         generated_sources,

@@ -12,6 +12,7 @@ path = "src/lib.rs"
 test-support = []
 
 [dependencies]
+evaluation-accounting = { path = "../../../psi/foundation/evaluation-accounting" }
 artifacts = { path = "../../foundation/artifacts" }
 tokens-to-syntax-trees = { path = "../../../psi/compilation/pipeline/01_tokens-to-syntax-trees" }
 typed-trees = { path = "../../../psi/compilation/representations/typed-trees" }

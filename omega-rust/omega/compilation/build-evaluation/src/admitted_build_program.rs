@@ -64,6 +64,7 @@ impl AdmittedBuildProgram {
             snapshot,
             &self.filesystem_scope,
             self.artifact_only,
+            checked_interpreter::EvaluationMeasurementIdentity::CheckedTree,
         )
     }
 

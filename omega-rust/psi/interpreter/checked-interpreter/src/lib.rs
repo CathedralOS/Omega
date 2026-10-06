@@ -109,11 +109,15 @@ pub mod interpreter;
 mod value;
 
 pub use build_evaluation_sponsor::{
-    BUILD_EVALUATION_SPONSOR_LIMITS_SCHEMA_VERSION, 
-    BuildEvaluationSponsor, BuildEvaluationSponsorLimits,
+    BUILD_EVALUATION_SPONSOR_LIMITS_SCHEMA_VERSION, BuildEvaluationSponsor,
+    BuildEvaluationSponsorLimits,
 };
-pub use build_evaluation_usage::{BuildEvaluationUsage, BuildEvaluationUsageError};
+pub use build_evaluation_usage::capture_checked_build_evaluation_usage;
 pub use build_time::SelectedBuildTimeBinaryOperator;
+pub use evaluation_accounting::{
+    BuildEvaluationUsage, BuildEvaluationUsageError, EvaluationMeasurementIdentity,
+    TerminalStorageScheduleIdentity,
+};
 pub use filesystem_sponsor::{
     COMPILER_DEFAULT_STAGING_ENTRY_LIMIT, COMPILER_DEFAULT_STAGING_MAX_OBJECT_EXTENT,
     COMPILER_DEFAULT_STAGING_TOTAL_LOGICAL_BYTES, FilesystemOpenDescriptor, FilesystemSponsor,

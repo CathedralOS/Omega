@@ -14,6 +14,7 @@ use std::sync::{Arc, Mutex};
 #[derive(Clone)]
 pub(crate) struct CompletedPureBuildInputs {
     checked: build_time_evaluation::CheckedBuildProgram,
+    measurement_identity: evaluation_accounting::EvaluationMeasurementIdentity,
     selected_entry: symbols::SymbolHandle,
     initial_build: build_time_evaluation::BuildTimeValue,
     source: package_compilation::SourceAssemblyInputs,
@@ -48,6 +49,7 @@ impl CompletedPureBuildInputs {
         snapshot: Option<&package_compilation::BuildSnapshotRequest>,
         scope: &package_compilation::BuildMachineFilesystemScope,
         artifact_only: bool,
+        measurement_identity: evaluation_accounting::EvaluationMeasurementIdentity,
     ) -> Option<Self> {
         if artifact_only
             || !scope.required_outputs().is_empty()
@@ -62,6 +64,7 @@ impl CompletedPureBuildInputs {
         let activation = scope.activation();
         Some(Self {
             checked,
+            measurement_identity,
             selected_entry,
             initial_build,
             source: package_compilation::SourceAssemblyInputs::new(
@@ -88,6 +91,7 @@ impl CompletedPureBuildInputs {
 
     fn matches(&self, other: &Self) -> bool {
         self.checked == other.checked
+            && self.measurement_identity == other.measurement_identity
             && self.selected_entry == other.selected_entry
             && same_initial_value(&self.initial_build, &other.initial_build)
             && self.source == other.source
@@ -194,7 +198,8 @@ impl CompletedPureBuild {
     ) -> Option<Self> {
         let usage = configuration.evaluation_usage?;
         let observations = configuration.observation_summary.as_ref()?;
-        if usage.validate().is_err()
+        if usage.measurement != inputs.measurement_identity
+            || usage.validate().is_err()
             || usage.filesystem_operation_attempts != 0
             || observations.filesystem_host_observed()
             || !observations.filesystem_operation_attempts().is_empty()

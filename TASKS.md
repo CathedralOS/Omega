@@ -1656,7 +1656,13 @@ then independent claimed restoration slices -> final closure.
   missing. The common instance must preserve original mutable Build identity,
   retained declaration coordinates and ordered observations; product selection
   does not execute product bodies. The stage 04 statement sequence currently
-  refuses `RootBinding`; core entry alone cannot establish this seed. Native
+  refuses `RootBinding`; core entry alone cannot establish this seed. Every
+  package root and dependency Build is sponsored. Connect the independent
+  `evaluation-accounting` invocation accounts to actual Terminal semantic fuel,
+  owned live storage and result custody before allocation or publication;
+  preserve aggregate allowances across the package closure and retries. Retained
+  usage and cache reuse must keep the engine, fuel and storage measurements
+  distinct; checked-tree counters cannot represent Terminal execution. Native
   execution through the existing tree route does not close this acceptance.
 
 - **CHECKED-INTERPRETER-DELETED.** (new-scope) Delete the tree execution

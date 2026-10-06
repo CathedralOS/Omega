@@ -11,9 +11,8 @@ pub use preparation::PackageSourcePreparation;
 pub(crate) use preparation::PreparedPackageSource;
 
 use crate::review::CompileResolvedPackageReviewsError;
-use checked_interpreter::{
-    BuildEvaluationSponsor, BuildEvaluationSponsorLimits, FilesystemSponsor,
-};
+use checked_interpreter::FilesystemSponsor;
+use evaluation_accounting::{BuildEvaluationSponsor, BuildEvaluationSponsorLimits};
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};

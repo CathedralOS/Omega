@@ -11,6 +11,7 @@ path = "src/lib.rs"
 
 [dependencies]
 build-time-values = { path = "../../foundation/build-time-values" }
+evaluation-accounting = { path = "../../foundation/evaluation-accounting" }
 semantic-vocabulary = { path = "../../foundation/semantic-vocabulary" }
 arena = { path = "../../foundation/arena" }
 symbols = { path = "../../foundation/symbols" }

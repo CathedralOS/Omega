@@ -9,6 +9,7 @@ name = "build_evaluation"
 path = "src/lib.rs"
 
 [dependencies]
+evaluation-accounting = { path = "../../../psi/foundation/evaluation-accounting" }
 artifacts = { path = "../../foundation/artifacts" }
 typed-trees-to-checked-trees = { path = "../../../psi/compilation/pipeline/04_typed-trees-to-checked-trees" }
 compilation-products = { path = "../products" }

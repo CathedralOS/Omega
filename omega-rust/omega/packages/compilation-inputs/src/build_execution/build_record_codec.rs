@@ -14,9 +14,17 @@ use crate::review_record_encoding::{
 };
 use checked_interpreter::observation_codec::{ObservationCursor as Cursor, push_framed};
 use checked_interpreter::{
-    BuildEvaluationSponsorLimits, BuildEvaluationUsage, FilesystemSponsorLimits,
-    canonical_filesystem_metadata_path_is_canonical, observation_codec,
+    FilesystemSponsorLimits, canonical_filesystem_metadata_path_is_canonical, observation_codec,
 };
+
+use evaluation_accounting::{
+    BuildEvaluationSponsorLimits, BuildEvaluationUsage, EvaluationMeasurementIdentity,
+    TerminalStorageScheduleIdentity,
+};
+use semantic_vocabulary::FuelScheduleIdentity;
+
+// Untagged legacy usage had no way to distinguish two engines' schedule 1.
+const EVALUATION_USAGE_MAGIC: &[u8; 4] = b"BEU\x01";
 
 use super::observations::{
     BuildActivation, BuildCanonicalSourceMetadataIdentity, BuildCapturedSourceInventory,
@@ -36,6 +44,18 @@ use semantic_vocabulary::PackageKeyIdentity;
 
 /// Encode the evaluation-usage record a retained review carries.
 pub fn encode_build_evaluation_usage(usage: &BuildEvaluationUsage, out: &mut Vec<u8>) {
+    out.extend_from_slice(EVALUATION_USAGE_MAGIC);
+    match usage.measurement {
+        EvaluationMeasurementIdentity::CheckedTree => out.push(0),
+        EvaluationMeasurementIdentity::TerminalPsi {
+            fuel_schedule,
+            storage_schedule,
+        } => {
+            out.push(1);
+            out.extend_from_slice(&fuel_schedule.marker().to_le_bytes());
+            out.extend_from_slice(&storage_schedule.marker().to_le_bytes());
+        }
+    }
     out.extend_from_slice(&usage.usage_schema_version.to_le_bytes());
     out.extend_from_slice(&usage.step_schedule_marker.to_le_bytes());
     out.extend_from_slice(&usage.invocation_fuel_ceiling.to_le_bytes());
@@ -47,10 +67,10 @@ pub fn encode_build_evaluation_usage(usage: &BuildEvaluationUsage, out: &mut Vec
         usage.session_build_log_byte_ceiling,
         usage.session_filesystem_attempt_ceiling,
         usage.session_live_filesystem_handle_ceiling,
-        usage.session_live_cell_ceiling,
-        usage.session_live_text_byte_ceiling,
-        usage.session_result_cell_ceiling,
-        usage.session_result_text_byte_ceiling,
+        usage.session_live_storage_cell_ceiling,
+        usage.session_live_payload_byte_ceiling,
+        usage.session_result_storage_cell_ceiling,
+        usage.session_result_payload_byte_ceiling,
     ] {
         encode_optional(value.as_ref(), out, |value, out| {
             out.extend_from_slice(&value.to_le_bytes())
@@ -58,15 +78,15 @@ pub fn encode_build_evaluation_usage(usage: &BuildEvaluationUsage, out: &mut Vec
     }
     for value in [
         usage.session_peak_live_filesystem_handles,
-        usage.session_peak_live_cells,
-        usage.session_peak_live_text_bytes,
+        usage.session_peak_live_storage_cells,
+        usage.session_peak_live_payload_bytes,
         usage.fuel_units,
         usage.build_log_bytes,
         usage.filesystem_operation_attempts,
-        usage.peak_live_cells,
-        usage.peak_live_text_bytes,
-        usage.result_cells,
-        usage.result_text_bytes,
+        usage.peak_live_storage_cells,
+        usage.peak_live_payload_bytes,
+        usage.result_storage_cells,
+        usage.result_payload_bytes,
     ] {
         out.extend_from_slice(&value.to_le_bytes());
     }
@@ -74,6 +94,17 @@ pub fn encode_build_evaluation_usage(usage: &BuildEvaluationUsage, out: &mut Vec
 
 /// Recover a retained evaluation-usage record.
 pub fn recover_build_evaluation_usage(cursor: &mut Cursor) -> Option<BuildEvaluationUsage> {
+    if cursor.bytes(4)? != EVALUATION_USAGE_MAGIC {
+        return None;
+    }
+    let measurement = match cursor.u8()? {
+        0 => EvaluationMeasurementIdentity::CheckedTree,
+        1 => EvaluationMeasurementIdentity::TerminalPsi {
+            fuel_schedule: FuelScheduleIdentity::new(cursor.u32()?)?,
+            storage_schedule: TerminalStorageScheduleIdentity::new(cursor.u32()?)?,
+        },
+        _ => return None,
+    };
     let usage_schema_version = cursor.u32()?;
     let step_schedule_marker = cursor.u32()?;
     let invocation_fuel_ceiling = cursor.u64()?;
@@ -82,11 +113,12 @@ pub fn recover_build_evaluation_usage(cursor: &mut Cursor) -> Option<BuildEvalua
     let session_build_log_byte_ceiling = recover_optional(cursor, Cursor::u64)?;
     let session_filesystem_attempt_ceiling = recover_optional(cursor, Cursor::u64)?;
     let session_live_filesystem_handle_ceiling = recover_optional(cursor, Cursor::u64)?;
-    let session_live_cell_ceiling = recover_optional(cursor, Cursor::u64)?;
-    let session_live_text_byte_ceiling = recover_optional(cursor, Cursor::u64)?;
-    let session_result_cell_ceiling = recover_optional(cursor, Cursor::u64)?;
-    let session_result_text_byte_ceiling = recover_optional(cursor, Cursor::u64)?;
-    Some(BuildEvaluationUsage {
+    let session_live_storage_cell_ceiling = recover_optional(cursor, Cursor::u64)?;
+    let session_live_payload_byte_ceiling = recover_optional(cursor, Cursor::u64)?;
+    let session_result_storage_cell_ceiling = recover_optional(cursor, Cursor::u64)?;
+    let session_result_payload_byte_ceiling = recover_optional(cursor, Cursor::u64)?;
+    let usage = BuildEvaluationUsage {
+        measurement,
         usage_schema_version,
         step_schedule_marker,
         invocation_fuel_ceiling,
@@ -95,21 +127,23 @@ pub fn recover_build_evaluation_usage(cursor: &mut Cursor) -> Option<BuildEvalua
         session_build_log_byte_ceiling,
         session_filesystem_attempt_ceiling,
         session_live_filesystem_handle_ceiling,
-        session_live_cell_ceiling,
-        session_live_text_byte_ceiling,
-        session_result_cell_ceiling,
-        session_result_text_byte_ceiling,
+        session_live_storage_cell_ceiling,
+        session_live_payload_byte_ceiling,
+        session_result_storage_cell_ceiling,
+        session_result_payload_byte_ceiling,
         session_peak_live_filesystem_handles: cursor.u64()?,
-        session_peak_live_cells: cursor.u64()?,
-        session_peak_live_text_bytes: cursor.u64()?,
+        session_peak_live_storage_cells: cursor.u64()?,
+        session_peak_live_payload_bytes: cursor.u64()?,
         fuel_units: cursor.u64()?,
         build_log_bytes: cursor.u64()?,
         filesystem_operation_attempts: cursor.u64()?,
-        peak_live_cells: cursor.u64()?,
-        peak_live_text_bytes: cursor.u64()?,
-        result_cells: cursor.u64()?,
-        result_text_bytes: cursor.u64()?,
-    })
+        peak_live_storage_cells: cursor.u64()?,
+        peak_live_payload_bytes: cursor.u64()?,
+        result_storage_cells: cursor.u64()?,
+        result_payload_bytes: cursor.u64()?,
+    };
+    usage.validate().ok()?;
+    Some(usage)
 }
 
 fn encode_source_metadata_identity(
@@ -510,10 +544,10 @@ fn encode_evaluation_sponsor_limits(limits: &BuildEvaluationSponsorLimits, out: 
         limits.maximum_build_log_bytes(),
         limits.maximum_filesystem_operation_attempts(),
         limits.maximum_live_filesystem_handles(),
-        limits.maximum_live_cells(),
-        limits.maximum_live_text_bytes(),
-        limits.maximum_result_cells(),
-        limits.maximum_result_text_bytes(),
+        limits.maximum_live_storage_cells(),
+        limits.maximum_live_payload_bytes(),
+        limits.maximum_result_storage_cells(),
+        limits.maximum_result_payload_bytes(),
     ] {
         out.extend_from_slice(&value.to_le_bytes());
     }
@@ -698,4 +732,89 @@ pub fn recover_restricted_build_request(cursor: &mut Cursor) -> Option<Restricte
 
 fn cursor_count(cursor: &mut Cursor) -> Option<usize> {
     usize::try_from(cursor.u64()?).ok()
+}
+
+#[cfg(test)]
+mod evaluation_usage_controls {
+    use super::*;
+    use evaluation_accounting::BuildEvaluationSponsor;
+
+    fn measured(identity: EvaluationMeasurementIdentity) -> BuildEvaluationUsage {
+        let limits = BuildEvaluationSponsorLimits::new(10, 8, 2, 2, 4, 8, 4, 8).unwrap();
+        let sponsor = BuildEvaluationSponsor::new_with_measurement(limits, identity).unwrap();
+        let account = sponsor.begin_invocation(identity, 10).unwrap();
+        let _lease = account.reserve_site(1, 2, 4).unwrap();
+        account.charge_result_custody(2, 4).unwrap();
+        *account.snapshot().unwrap().record()
+    }
+
+    fn terminal() -> EvaluationMeasurementIdentity {
+        EvaluationMeasurementIdentity::TerminalPsi {
+            fuel_schedule: FuelScheduleIdentity::new(1).unwrap(),
+            storage_schedule: TerminalStorageScheduleIdentity::CURRENT,
+        }
+    }
+
+    fn encoded(usage: &BuildEvaluationUsage) -> Vec<u8> {
+        let mut bytes = Vec::new();
+        encode_build_evaluation_usage(usage, &mut bytes);
+        bytes
+    }
+
+    #[test]
+    fn versioned_measurements_round_trip_without_engine_substitution() {
+        for identity in [EvaluationMeasurementIdentity::CheckedTree, terminal()] {
+            let usage = measured(identity);
+            let bytes = encoded(&usage);
+            let mut cursor = Cursor::new(&bytes);
+            assert_eq!(recover_build_evaluation_usage(&mut cursor), Some(usage));
+            assert!(cursor.exhausted());
+        }
+        assert_ne!(
+            encoded(&measured(EvaluationMeasurementIdentity::CheckedTree)),
+            encoded(&measured(terminal()))
+        );
+    }
+
+    #[test]
+    fn untagged_prior_usage_and_unknown_engine_tags_are_rejected() {
+        let mut bytes = encoded(&measured(EvaluationMeasurementIdentity::CheckedTree));
+        assert!(recover_build_evaluation_usage(&mut Cursor::new(&bytes[5..])).is_none());
+        bytes[4] = 2;
+        assert!(recover_build_evaluation_usage(&mut Cursor::new(&bytes)).is_none());
+    }
+
+    #[test]
+    fn unsupported_storage_and_fuel_schedules_are_rejected() {
+        for (offset, value) in [(5, 0_u32), (5, 2), (9, 0), (9, 2)] {
+            let mut bytes = encoded(&measured(terminal()));
+            bytes[offset..offset + 4].copy_from_slice(&value.to_le_bytes());
+            assert!(recover_build_evaluation_usage(&mut Cursor::new(&bytes)).is_none());
+        }
+    }
+
+    #[test]
+    fn schema_schedule_and_sponsor_flags_cannot_default() {
+        let base = encoded(&measured(EvaluationMeasurementIdentity::CheckedTree));
+        let mut wrong_schema = base.clone();
+        wrong_schema[5..9].copy_from_slice(&8_u32.to_le_bytes());
+        assert!(recover_build_evaluation_usage(&mut Cursor::new(&wrong_schema)).is_none());
+        let mut wrong_schedule = base.clone();
+        wrong_schedule[9..13].copy_from_slice(&2_u32.to_le_bytes());
+        assert!(recover_build_evaluation_usage(&mut Cursor::new(&wrong_schedule)).is_none());
+        let mut invalid_flag = base.clone();
+        invalid_flag[21] = 2;
+        assert!(recover_build_evaluation_usage(&mut Cursor::new(&invalid_flag)).is_none());
+        let mut wrong_sponsor_schema = base;
+        wrong_sponsor_schema[22..26].copy_from_slice(&0_u32.to_le_bytes());
+        assert!(recover_build_evaluation_usage(&mut Cursor::new(&wrong_sponsor_schema)).is_none());
+    }
+
+    #[test]
+    fn counters_exceeding_declared_allowances_are_not_recovered() {
+        let mut usage = measured(terminal());
+        usage.fuel_units = usage.invocation_fuel_ceiling + 1;
+        let bytes = encoded(&usage);
+        assert!(recover_build_evaluation_usage(&mut Cursor::new(&bytes)).is_none());
+    }
 }
