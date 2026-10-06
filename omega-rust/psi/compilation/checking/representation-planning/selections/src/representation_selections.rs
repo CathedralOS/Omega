@@ -1,11 +1,12 @@
 //! The current opaque-representation selection program and its durable schema.
 //!
 //! [`OpaqueRepresentationSelection`] is the program root: one exact,
-//! build-validated `Carrier satisfies OpaqueRepresentation<Opaque>` record that
-//! outlives the build-planning producer. The schema version, lifecycle and copy
-//! dispositions, closed origin, and domain-separated commitment codec are the
-//! subordinate vocabulary current consumers read directly; replay recomputes
-//! the commitment from the retained fields rather than trusting the producer.
+//! build-validated `Name satisfies OpaqueRepresentation<Opaque, Carrier>`
+//! record that outlives the build-planning producer. The schema version,
+//! lifecycle and copy dispositions, closed origin, and domain-separated
+//! commitment codec are the subordinate vocabulary current consumers read
+//! directly; replay recomputes the commitment from the retained fields rather
+//! than trusting the producer.
 
 use sha2::{Digest, Sha256};
 use source::SourceSpan;
@@ -47,8 +48,9 @@ pub enum OpaqueRepresentationApplicationOrigin {
     NamedConformance,
 }
 
-/// One exact, build-selected `Carrier satisfies OpaqueRepresentation<Opaque>`
-/// application. The concrete carrier is the sole source of physical shape.
+/// One exact, build-selected `Name satisfies OpaqueRepresentation<Opaque, Carrier>`
+/// application. The concrete carrier, the implementation's second trait
+/// argument, is the sole source of physical shape.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OpaqueRepresentationSelection {
     opaque: SymbolHandle,

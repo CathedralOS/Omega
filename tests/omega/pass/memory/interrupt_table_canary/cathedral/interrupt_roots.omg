@@ -40,8 +40,10 @@ pub data CriticalAcknowledgementCarrier {
     acknowledgement: u64;
 }
 
-pub CriticalAcknowledgementRepresentation:
-    CriticalAcknowledgementCarrier satisfies OpaqueRepresentation<InterruptAcknowledgement>;
+pub CriticalAcknowledgementRepresentation satisfies OpaqueRepresentation<
+    InterruptAcknowledgement,
+    CriticalAcknowledgementCarrier
+> { }
 
 // The authored calling policy for dedicated critical-stack roots. The
 // compiler evaluates `plan` at build time against the materialized

@@ -287,7 +287,7 @@ impl<'input> BoundaryValueLayout<'input> {
         }
         let selection = selection_for_opaque(selections, opaque).ok_or_else(|| {
         format!(
-            "boundary-opaque data `{opaque_name}` crosses this boundary by value, but the authoritative build selects no exact `OpaqueRepresentation<{opaque_name}>` conformance"
+            "boundary-opaque data `{opaque_name}` crosses this boundary by value, but the authoritative build selects no exact `OpaqueRepresentation<{opaque_name}, Representation>` implementation"
         )
     })?;
         let application = selection.application();

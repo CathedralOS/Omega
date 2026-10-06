@@ -6,7 +6,7 @@ use crate::capture::api::policy::conformances as project_public_conformances;
 use crate::capture::semantics::declarations::{
     is_product_scope_instance, nominal_identity, reviewed_package_owns,
 };
-use crate::record::{PackagePolicyRepresentationAvailability, PackageReviewConformanceSubject};
+use crate::record::PackagePolicyRepresentationAvailability;
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
 
@@ -43,8 +43,12 @@ pub(super) fn project(
         let arguments = compilation
             .type_reference_table
             .type_reference_handles(declaration.arguments);
-        let [opaque_argument] = arguments else {
-            return Err(rejected("producer has no exact opaque trait argument"));
+        // `OpaqueRepresentation<Opaque, Representation>`: both data types are
+        // ordinary trait arguments of a subjectless named implementation.
+        let [opaque_argument, carrier_argument] = arguments else {
+            return Err(rejected(
+                "producer has no exact opaque and representation trait arguments",
+            ));
         };
         let opaque_symbol = compilation
             .type_reference_table
@@ -66,10 +70,13 @@ pub(super) fn project(
                 "producer does not expose a public boundary-opaque declaration",
             ));
         }
+        let carrier_symbol = compilation
+            .type_reference_table
+            .type_symbol(*carrier_argument);
         let carriers = compilation
             .data_definitions()
             .iter()
-            .filter(|definition| definition.symbol == declaration.carrier_symbol)
+            .filter(|definition| definition.symbol == carrier_symbol)
             .collect::<Vec<_>>();
         let [carrier] = carriers.as_slice() else {
             return Err(rejected(
@@ -84,11 +91,6 @@ pub(super) fn project(
             ));
         }
         let carrier = nominal_identity(compilation, carrier.symbol)?;
-        if projected.subject() != &PackageReviewConformanceSubject::Nominal(carrier.clone()) {
-            return Err(rejected(
-                "producer carrier differs from its ordinary public conformance",
-            ));
-        }
         rows.push(PackagePolicyRepresentationAvailability {
             opaque: nominal_identity(compilation, opaque.symbol)?,
             conformance: (*projected).clone(),

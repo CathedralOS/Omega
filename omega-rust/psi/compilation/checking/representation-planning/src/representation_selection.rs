@@ -206,31 +206,40 @@ fn close_selection(
             conformance_argument.display_name(),
         )));
     }
+    // The implementation names both data types as ordinary trait arguments:
+    // `OpaqueRepresentation<Opaque, Representation>`. It has no data subject.
     let trait_arguments = typed
         .type_reference_table
         .type_reference_handles(conformance.arguments);
-    let [trait_argument] = trait_arguments else {
+    let [opaque_trait_argument, representation_trait_argument] = trait_arguments else {
         return Err(Diagnostic::error(format!(
-            "conformance `{}` does not retain exactly one opaque representation argument",
+            "conformance `{}` does not retain exactly one opaque argument and one representation argument",
             conformance_argument.display_name(),
         )));
     };
-    if typed.type_reference_table.type_symbol(*trait_argument) != opaque {
+    if typed
+        .type_reference_table
+        .type_symbol(*opaque_trait_argument)
+        != opaque
+    {
         return Err(Diagnostic::error(format!(
             "conformance `{}` represents `{}`, not selected opaque declaration `{opaque_name}`",
             conformance_argument.display_name(),
-            typed.display_type_reference(*trait_argument),
+            typed.display_type_reference(*opaque_trait_argument),
         )));
     }
-    let carrier = conformance.carrier_symbol;
+    let carrier = typed
+        .type_reference_table
+        .type_symbol(*representation_trait_argument);
     let Some(carrier_definition) = typed
         .data_definitions()
         .iter()
         .find(|definition| definition.symbol == carrier)
     else {
         return Err(Diagnostic::error(format!(
-            "conformance `{}` has no exact concrete data carrier",
+            "conformance `{}` represents `{opaque_name}` as `{}`, which is not one exact concrete data declaration",
             conformance_argument.display_name(),
+            typed.display_type_reference(*representation_trait_argument),
         )));
     };
     if carrier_definition.supply_mode != language_semantics::DataSupplyMode::CheckedShape {

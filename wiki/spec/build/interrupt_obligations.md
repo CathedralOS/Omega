@@ -12,7 +12,7 @@ or fatal-fault policy. Table construction/publication follows
 
 `InterruptMaskGuard` and `InterruptAcknowledgement` are independent opaque
 linear boundary data. Each has its own exact target-closed
-`OpaqueRepresentation<T>` application selected before calling-policy evaluation.
+`OpaqueRepresentation<T, Representation>` application selected before calling-policy evaluation.
 Representation selection changes neither linearity nor the named discharge,
 and package code cannot inspect or reconstruct either private representation.
 

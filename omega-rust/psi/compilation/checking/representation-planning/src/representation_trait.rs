@@ -12,9 +12,10 @@ const REPRESENTATION_TRAIT_NAME: &str = "OpaqueRepresentation";
 const REPRESENTATION_TRAIT_SOURCE: &str = "core/representation.omg";
 
 /// Whether `symbol` is the exact compiler-owned, capability-free
-/// `OpaqueRepresentation<Opaque>` relationship. Package review uses the same
-/// check when publishing producer availability; source spelling alone never
-/// establishes this role.
+/// `OpaqueRepresentation<Opaque, Representation>` relationship. Both data
+/// types are ordinary trait arguments; a named implementation names no data
+/// subject. Package review uses the same check when publishing producer
+/// availability; source spelling alone never establishes this role.
 pub fn is_compiler_owned_opaque_representation_trait(
     typed: &TypedTrees,
     symbol: SymbolHandle,
@@ -26,8 +27,10 @@ pub fn is_compiler_owned_opaque_representation_trait(
     if definition.name.as_str() != REPRESENTATION_TRAIT_NAME
         || definition.is_boundary
         || !definition.lifetime_parameters.is_empty()
-        || parameters.len() != 1
-        || !matches!(parameters[0].kind, TypeParameterKind::Type)
+        || parameters.len() != 2
+        || !parameters
+            .iter()
+            .all(|parameter| matches!(parameter.kind, TypeParameterKind::Type))
         || !definition.conformance_bounds.is_empty()
         || !typed.trait_requirements(definition).is_empty()
         || !typed.trait_machine_signatures(definition).is_empty()

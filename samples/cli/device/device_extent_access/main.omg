@@ -31,20 +31,22 @@ use omega::language::core::representation;
 
 // The byte representation `DeviceLoan` materializes across the provider
 // boundary: a carrier the opaque proxy selects through
-// `OpaqueRepresentation<DeviceLoan>` so the toolchain has a concrete layout to
-// realize, while source still cannot construct, copy, or inspect one.
+// `OpaqueRepresentation<DeviceLoan, DeviceLoanCarrier>` so the toolchain has a
+// concrete layout to realize, while source still cannot construct, copy, or
+// inspect one.
 pub data DeviceLoanCarrier {
     token: u64;
 }
-pub DeviceLoanRepresentation:
-    DeviceLoanCarrier satisfies OpaqueRepresentation<DeviceLoan>;
+pub DeviceLoanRepresentation satisfies OpaqueRepresentation<DeviceLoan, DeviceLoanCarrier> { }
 
 // The same selected byte representation for the ordering occurrences.
 pub data DeviceOrderingEventCarrier {
     token: u64;
 }
-pub DeviceOrderingEventRepresentation:
-    DeviceOrderingEventCarrier satisfies OpaqueRepresentation<DeviceOrderingEvent>;
+pub DeviceOrderingEventRepresentation satisfies OpaqueRepresentation<
+    DeviceOrderingEvent,
+    DeviceOrderingEventCarrier
+> { }
 
 // The concrete provider the sample selects: a loopback device authority whose
 // crossings are compiler-intrinsic leaves. Its eventual realization is a

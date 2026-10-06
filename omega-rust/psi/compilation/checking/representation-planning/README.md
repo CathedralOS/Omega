@@ -8,10 +8,12 @@ against the final typed graph.
 
 Start at [representation_selection.rs](src/representation_selection.rs). It
 harvests `Build::select_representation<Opaque, Conformance>(builder)`
-from the authoritative build machine, closes the exact named conformance, and
-validates its compiler-owned trait, opaque subject, and concrete carrier. It
-does not accept byte sizes, alignments, ABI classes, or movement rules from
-source.
+from the authoritative build machine, closes the exact named implementation, and
+validates its compiler-owned trait and both ordinary trait arguments of
+`OpaqueRepresentation<Opaque, Representation>`: the boundary-opaque declaration
+and the concrete representation data (the carrier). The implementation has no
+data subject. It does not accept byte sizes, alignments, ABI classes, or
+movement rules from source.
 
 The same file exposes final-graph rederivation beside the initial harvest, then
 the per-selection conformance closure they share. Its subordinate

@@ -42,9 +42,7 @@ use typed_trees::machine::Machine;
 use typed_trees::name::Identifier;
 use typed_trees::state::State;
 use typed_trees::statement::StatementNode;
-use typed_trees::trait_definition::{
-    Conformance, ConformanceImplementation, ConformanceSubject, TraitDefinition,
-};
+use typed_trees::trait_definition::{Conformance, ConformanceImplementation, TraitDefinition};
 use typed_trees::typed_trees::{
     ClosedConformanceApplication, ClosedConformanceApplicationCommitment,
     ClosedConformanceConstArgument, ClosedConformanceRowIdentity,
@@ -57,10 +55,10 @@ mutation_matrix::custody_field_inventory! {
     /// exactly one field per leg so a rejection attributes to that claim
     /// alone. The record has no wire form, so no field is
     /// canonical-encoding-closed; `lifecycle` and `origin` are unrepresentable
-    /// (single-variant vocabularies) and stay outside the inventory. The
-    /// `ApplicationSubjectIdentity` option admits two substitutions -- dropping
-    /// to `None` and adopting a foreign identity -- so it occupies two
-    /// variants. The independent checker is
+    /// (single-variant vocabularies) and stay outside the inventory. A
+    /// representation implementation names no data subject, so its
+    /// `ApplicationSubjectIdentity` substitution adopts a foreign identity
+    /// where the honest application retains none. The independent checker is
     /// `rederive_opaque_representation_selections`, and joined
     /// `run_one_field_substitution_matrix` legs re-assert the substituted
     /// row's internal commitment honesty.
@@ -76,8 +74,7 @@ mutation_matrix::custody_field_inventory! {
         ApplicationTypeArguments,
         ApplicationConstArguments,
         ApplicationMachineArguments,
-        ApplicationSubjectIdentityDropped,
-        ApplicationSubjectIdentityForeign,
+        ApplicationSubjectIdentity,
         ApplicationTraitDefinition,
         ApplicationTraitLifetimeArguments,
         ApplicationTraitArguments,
@@ -110,10 +107,11 @@ pub enum RetainedSelectionRejection {
     Unclassified,
 }
 
-/// One authentic program: the compiler-owned `OpaqueRepresentation<Opaque>`
-/// trait declared in toolchain source, two boundary-opaque declarations with
-/// checked-shape carriers and named closed conformances, and one authoritative
-/// build machine whose state selects both representations.
+/// One authentic program: the compiler-owned
+/// `OpaqueRepresentation<Opaque, Representation>` trait declared in toolchain
+/// source, two boundary-opaque declarations with checked-shape carriers named
+/// as the second argument of subjectless closed implementations, and one
+/// authoritative build machine whose state selects both representations.
 pub struct Fixture {
     pub typed: TypedTrees,
     pub build_machine: SymbolHandle,
@@ -149,7 +147,7 @@ pub fn fixture() -> Fixture {
             SourceOrigin::Toolchain,
         )
         .source_id;
-    let toolchain_source = "trait OpaqueRepresentation<Opaque>;\n";
+    let toolchain_source = "trait OpaqueRepresentation<Opaque, Representation>;\n";
     let toolchain_id = sources
         .add_with_metadata(
             PathBuf::from("toolchain/core/representation.omg"),
@@ -181,8 +179,12 @@ pub fn fixture() -> Fixture {
     );
     let builder = symbols.insert_root(SymbolKind::Parameter, SymbolNameRef::Borrowed("builder"));
     let trait_symbol = symbols.insert_root(SymbolKind::Trait, SymbolNameRef::Source(trait_span));
-    let trait_parameter =
+    let opaque_parameter =
         symbols.insert_root(SymbolKind::TypeParameter, SymbolNameRef::Borrowed("Opaque"));
+    let representation_parameter = symbols.insert_root(
+        SymbolKind::TypeParameter,
+        SymbolNameRef::Borrowed("Representation"),
+    );
     let token = symbols.insert_root(SymbolKind::Data, SymbolNameRef::Borrowed("Token"));
     let token_bytes = symbols.insert_root(SymbolKind::Data, SymbolNameRef::Borrowed("TokenBytes"));
     let token_representation = symbols.insert_root(
@@ -246,15 +248,20 @@ pub fn fixture() -> Fixture {
         name: Identifier::generated("OpaqueRepresentation"),
         ..Default::default()
     };
-    typed.push_trait_type_parameter(
-        &mut trait_definition,
-        TypeParameter {
-            symbol: trait_parameter,
-            name: Identifier::generated("Opaque"),
-            kind: TypeParameterKind::Type,
-            bounds: DataProperties::default(),
-        },
-    );
+    for (symbol, name) in [
+        (opaque_parameter, "Opaque"),
+        (representation_parameter, "Representation"),
+    ] {
+        typed.push_trait_type_parameter(
+            &mut trait_definition,
+            TypeParameter {
+                symbol,
+                name: Identifier::generated(name),
+                kind: TypeParameterKind::Type,
+                bounds: DataProperties::default(),
+            },
+        );
+    }
     typed.push_trait_definition(trait_definition);
 
     // `Token` is affine, so its selected application is `PlacementOnly`.
@@ -330,13 +337,15 @@ pub fn fixture() -> Fixture {
             "MarkerRepresentation",
         ),
     ] {
+        let carrier_reference = typed.type_reference_table.insert(TypeReferenceNode::Named {
+            symbol: carrier,
+            name: Identifier::generated(carrier_name),
+        });
         let arguments = typed
             .type_reference_table
-            .insert_type_reference_handles([opaque_reference]);
+            .insert_type_reference_handles([opaque_reference, carrier_reference]);
         typed.push_conformance(Conformance {
             symbol: conformance_symbol,
-            subject: ConformanceSubject::Carrier(Identifier::generated(carrier_name)),
-            carrier_symbol: carrier,
             trait_name: Identifier::generated("OpaqueRepresentation"),
             trait_symbol,
             arguments,
@@ -526,8 +535,8 @@ pub fn honest_retained_selection_custody_case() -> RetainedSelectionCustodyCase 
 /// An authentic foreign row of the same family: every substitutable lane
 /// carries foreign evidence assembled through the honest constructor, so
 /// donor-drawn substitutions move real values rather than fabricated noise.
-/// `subject_identity` takes the foreign identity; the `Dropped` leg still
-/// substitutes the fixed `None` alternate.
+/// `subject_identity` takes a foreign identity where the honest subjectless
+/// application retains none.
 pub fn foreign_retained_selection_donor() -> RetainedSelectionCustodyCase {
     let fixture = fixture();
     let mut parts = SelectionParts::of(&fixture.selections[0]);
@@ -613,10 +622,7 @@ pub fn corrupt_retained_selection_custody_for_test(
         Field::ApplicationMachineArguments => {
             parts.application.machine_arguments = donor_parts.application.machine_arguments.clone();
         }
-        Field::ApplicationSubjectIdentityDropped => {
-            parts.application.subject_identity = None;
-        }
-        Field::ApplicationSubjectIdentityForeign => {
+        Field::ApplicationSubjectIdentity => {
             parts.application.subject_identity = donor_parts.application.subject_identity.clone();
         }
         Field::ApplicationTraitDefinition => {

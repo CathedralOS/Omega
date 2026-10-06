@@ -1,9 +1,7 @@
 //! Offline association checks; no compiler replay or source access.
 
 use super::{PackagePolicyRepresentation, PackagePolicyRepresentationDemand};
-use crate::record::{
-    PackageReviewConformanceSubject, PackageReviewNominalIdentity, PackageReviewNominalOwner,
-};
+use crate::record::{PackageReviewNominalIdentity, PackageReviewNominalOwner};
 use std::cmp::Ordering;
 
 impl PackagePolicyRepresentation {
@@ -51,9 +49,10 @@ impl PackagePolicyRepresentation {
             crate::record::public_policy::validation::validate_conformance_shape(conformance)?;
             nominal(&conformance.identity)?;
             nominal(&conformance.interface.trait_identity)?;
+            // `OpaqueRepresentation<Opaque, Representation>` names both data
+            // types as ordinary arguments; the implementation has no subject.
             if conformance.identity.owner != PackageReviewNominalOwner::Package(self.package)
-                || !matches!(&conformance.subject, PackageReviewConformanceSubject::Nominal(carrier) if carrier == &candidate.carrier)
-                || conformance.interface.arguments.len() != 1
+                || conformance.interface.arguments.len() != 2
                 || !conformance.interface.lifetime_arguments.is_empty()
                 || !conformance.interface.requirements.is_empty()
             {
@@ -82,8 +81,7 @@ impl PackagePolicyRepresentation {
             if selection.selection_owner != PackageReviewNominalOwner::Package(self.package)
                 || !application.lifetime_arguments.is_empty()
                 || !application.trait_lifetime_arguments.is_empty()
-                || application.subject.is_none()
-                || application.trait_arguments.len() != 1
+                || application.trait_arguments.len() != 2
                 || !application.rows.is_empty()
             {
                 return Err(

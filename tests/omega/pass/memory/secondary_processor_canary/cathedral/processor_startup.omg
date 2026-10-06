@@ -103,8 +103,10 @@ pub data StartupEnvelopeCarrier {
 // The processor-visible representation of the acknowledgement
 // envelope. Callers never construct one; the boundary materializes the
 // carrier for the dispatch's established envelope.
-pub StartupEnvelopeCarrierRepresentation:
-    StartupEnvelopeCarrier satisfies OpaqueRepresentation<StartupEnvelope>;
+pub StartupEnvelopeCarrierRepresentation satisfies OpaqueRepresentation<
+    StartupEnvelope,
+    StartupEnvelopeCarrier
+> { }
 
 // ---------------------------------------------------------------------------
 // First secondary processor: policy, root, provider
