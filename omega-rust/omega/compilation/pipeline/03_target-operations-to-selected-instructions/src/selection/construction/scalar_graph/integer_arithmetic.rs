@@ -23,6 +23,29 @@ pub(super) fn emit(
     let result = operation.result.ok_or_else(invalid)?;
     let scalar_type = result.scalar_type;
     let constraints = builder.constraints;
+    // Machine arithmetic is modulo 64 bits; a narrow result's carrier
+    // normalization copies the raw register into the fresh result register
+    // unless the identity `CopyI64` already makes it canonical.
+    let normalized_result = |builder: &mut Builder<'_>,
+                             normalization: SelectedInstructionKind,
+                             raw: VirtualRegisterId|
+     -> Result<VirtualRegisterId, SelectedInstructionError> {
+        if normalization == SelectedInstructionKind::CopyI64 {
+            Ok(raw)
+        } else {
+            let output = builder.register(result.value, result.definition_site, scalar_type)?;
+            builder.emit(
+                normalization,
+                constraints.keys.copy_i64,
+                &[raw, output],
+                SelectedInstructionProvenance {
+                    values: vec![result.value],
+                    ..Default::default()
+                },
+            )?;
+            Ok(output)
+        }
+    };
     Ok(match &operation.kind {
         LegalizedScalarInstructionKind::Constant(value) => {
             if scalar_type == ScalarType::Boolean && !matches!(value, IntegerValue::Unsigned(0 | 1))
@@ -126,21 +149,7 @@ pub(super) fn emit(
             } else {
                 SelectedInstructionKind::CopyI64
             };
-            if normalization == SelectedInstructionKind::CopyI64 {
-                raw
-            } else {
-                let output = builder.register(result.value, result.definition_site, scalar_type)?;
-                builder.emit(
-                    normalization,
-                    constraints.keys.copy_i64,
-                    &[raw, output],
-                    SelectedInstructionProvenance {
-                        values: vec![result.value],
-                        ..Default::default()
-                    },
-                )?;
-                output
-            }
+            normalized_result(builder, normalization, raw)?
         }
         LegalizedScalarInstructionKind::SaturatingAdd {
             carrier,
@@ -533,21 +542,7 @@ pub(super) fn emit(
             // this private normalization adds no source operation/fuel.
             let normalization =
                 crate::selection::scalar_call_abi::integer_carrier_normalization(scalar_type);
-            if normalization == SelectedInstructionKind::CopyI64 {
-                raw
-            } else {
-                let output = builder.register(result.value, result.definition_site, scalar_type)?;
-                builder.emit(
-                    normalization,
-                    constraints.keys.copy_i64,
-                    &[raw, output],
-                    SelectedInstructionProvenance {
-                        values: vec![result.value],
-                        ..Default::default()
-                    },
-                )?;
-                output
-            }
+            normalized_result(builder, normalization, raw)?
         }
         LegalizedScalarInstructionKind::WrappingShiftLeft { value, count }
         | LegalizedScalarInstructionKind::WrappingShiftRight { value, count }
@@ -701,21 +696,7 @@ pub(super) fn emit(
             } else {
                 crate::selection::scalar_call_abi::integer_carrier_normalization(scalar_type)
             };
-            if normalization == SelectedInstructionKind::CopyI64 {
-                raw
-            } else {
-                let output = builder.register(result.value, result.definition_site, scalar_type)?;
-                builder.emit(
-                    normalization,
-                    constraints.keys.copy_i64,
-                    &[raw, output],
-                    SelectedInstructionProvenance {
-                        values: vec![result.value],
-                        ..Default::default()
-                    },
-                )?;
-                output
-            }
+            normalized_result(builder, normalization, raw)?
         }
         LegalizedScalarInstructionKind::ExactBinary {
             operator,
