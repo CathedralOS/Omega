@@ -40,22 +40,14 @@ pub fn lower_float_meaning_projection(
         .map_err(FloatMeaningProjectionLoweringError::InvalidCheckedProjection)?;
     let source = match checked.source {
         CheckedFloatProjectionSource::TransitionalInput(input) => {
-            let format = match input.primitive {
-                PrimitiveType::F32 => IeeeFloatFormat::Binary32,
-                PrimitiveType::F64 => IeeeFloatFormat::Binary64,
-                _ => return Err(FloatMeaningProjectionLoweringError::InvalidSourceCarrier),
-            };
+            let format = projection_format(input.primitive)?;
             FloatMeaningSource::TransitionalInput(FloatProjectionInput {
                 id: FloatProjectionInputId(input.id.0),
                 format,
             })
         }
         CheckedFloatProjectionSource::DirectMachineParameter(parameter) => {
-            let format = match parameter.fallback.primitive {
-                PrimitiveType::F32 => IeeeFloatFormat::Binary32,
-                PrimitiveType::F64 => IeeeFloatFormat::Binary64,
-                _ => return Err(FloatMeaningProjectionLoweringError::InvalidSourceCarrier),
-            };
+            let format = projection_format(parameter.fallback.primitive)?;
             match direct_source {
                 Some(FloatMeaningSource::DirectMachineParameter(parameter))
                     if parameter.format == format =>
@@ -72,11 +64,7 @@ pub fn lower_float_meaning_projection(
             }
         }
         CheckedFloatProjectionSource::DirectMachineResult(result) => {
-            let format = match result.fallback.primitive {
-                PrimitiveType::F32 => IeeeFloatFormat::Binary32,
-                PrimitiveType::F64 => IeeeFloatFormat::Binary64,
-                _ => return Err(FloatMeaningProjectionLoweringError::InvalidSourceCarrier),
-            };
+            let format = projection_format(result.fallback.primitive)?;
             match direct_source {
                 Some(FloatMeaningSource::DirectMachineResult(result))
                     if result.format == format =>
@@ -91,11 +79,7 @@ pub fn lower_float_meaning_projection(
             }
         }
         CheckedFloatProjectionSource::DirectBlockParameter(parameter) => {
-            let format = match parameter.fallback.primitive {
-                PrimitiveType::F32 => IeeeFloatFormat::Binary32,
-                PrimitiveType::F64 => IeeeFloatFormat::Binary64,
-                _ => return Err(FloatMeaningProjectionLoweringError::InvalidSourceCarrier),
-            };
+            let format = projection_format(parameter.fallback.primitive)?;
             match direct_source {
                 Some(FloatMeaningSource::DirectBlockParameter(parameter))
                     if parameter.format == format =>
@@ -110,11 +94,7 @@ pub fn lower_float_meaning_projection(
             }
         }
         CheckedFloatProjectionSource::DirectStructuralLeaf(leaf) => {
-            let format = match leaf.fallback.primitive {
-                PrimitiveType::F32 => IeeeFloatFormat::Binary32,
-                PrimitiveType::F64 => IeeeFloatFormat::Binary64,
-                _ => return Err(FloatMeaningProjectionLoweringError::InvalidSourceCarrier),
-            };
+            let format = projection_format(leaf.fallback.primitive)?;
             match direct_source {
                 Some(FloatMeaningSource::DirectStructuralLeaf(direct))
                     if direct.format == format =>
@@ -129,11 +109,7 @@ pub fn lower_float_meaning_projection(
             }
         }
         CheckedFloatProjectionSource::DirectCallResult(result) => {
-            let format = match result.fallback.primitive {
-                PrimitiveType::F32 => IeeeFloatFormat::Binary32,
-                PrimitiveType::F64 => IeeeFloatFormat::Binary64,
-                _ => return Err(FloatMeaningProjectionLoweringError::InvalidSourceCarrier),
-            };
+            let format = projection_format(result.fallback.primitive)?;
             match direct_source {
                 Some(FloatMeaningSource::DirectCallResult(direct)) if direct.format == format => {
                     FloatMeaningSource::DirectCallResult(direct)
@@ -146,11 +122,7 @@ pub fn lower_float_meaning_projection(
             }
         }
         CheckedFloatProjectionSource::DirectOperationResult(result) => {
-            let format = match result.fallback.primitive {
-                PrimitiveType::F32 => IeeeFloatFormat::Binary32,
-                PrimitiveType::F64 => IeeeFloatFormat::Binary64,
-                _ => return Err(FloatMeaningProjectionLoweringError::InvalidSourceCarrier),
-            };
+            let format = projection_format(result.fallback.primitive)?;
             match direct_source {
                 Some(FloatMeaningSource::DirectOperationResult(direct))
                     if direct.format == format =>
@@ -262,11 +234,8 @@ pub(crate) fn resolve_direct_float_source_binding(
             )
         }
         CheckedFloatProjectionSource::DirectMachineResult(result) => {
-            let format = match result.fallback.primitive {
-                PrimitiveType::F32 => IeeeFloatFormat::Binary32,
-                PrimitiveType::F64 => IeeeFloatFormat::Binary64,
-                _ => return Err(invalid_source()),
-            };
+            let format =
+                projection_format(result.fallback.primitive).map_err(|_| invalid_source())?;
             if checked
                 .typed
                 .primitive_type_reference(source_entry.return_type)
@@ -298,11 +267,8 @@ pub(crate) fn resolve_direct_float_source_binding(
             )
         }
         CheckedFloatProjectionSource::DirectCallResult(result) => {
-            let format = match result.fallback.primitive {
-                PrimitiveType::F32 => IeeeFloatFormat::Binary32,
-                PrimitiveType::F64 => IeeeFloatFormat::Binary64,
-                _ => return Err(invalid_source()),
-            };
+            let format =
+                projection_format(result.fallback.primitive).map_err(|_| invalid_source())?;
             let mut occurrences = source_call_occurrences.iter().filter(|occurrence| {
                 occurrence.source_state == result.use_site.owner_state
                     && occurrence.statement_index == result.use_site.statement_index
@@ -327,11 +293,8 @@ pub(crate) fn resolve_direct_float_source_binding(
         // fallback stands.
         CheckedFloatProjectionSource::DirectOperationResult(_) => Ok(None),
         CheckedFloatProjectionSource::DirectStructuralLeaf(leaf) => {
-            let format = match leaf.fallback.primitive {
-                PrimitiveType::F32 => IeeeFloatFormat::Binary32,
-                PrimitiveType::F64 => IeeeFloatFormat::Binary64,
-                _ => return Err(invalid_source()),
-            };
+            let format =
+                projection_format(leaf.fallback.primitive).map_err(|_| invalid_source())?;
             let parameter = terminal_machine
                 .structural_parameters
                 .iter()
@@ -407,11 +370,7 @@ fn resolve_direct_float_parameter(
         .parameters
         .get(position)
         .ok_or_else(invalid_source)?;
-    let format = match parameter.fallback.primitive {
-        PrimitiveType::F32 => IeeeFloatFormat::Binary32,
-        PrimitiveType::F64 => IeeeFloatFormat::Binary64,
-        _ => return Err(invalid_source()),
-    };
+    let format = projection_format(parameter.fallback.primitive).map_err(|_| invalid_source())?;
     if terminal_parameter.scalar_type != ScalarType::IeeeFloat(format) {
         return Err(invalid_source());
     }
@@ -442,11 +401,7 @@ fn resolve_direct_block_float_parameter(
             FloatMeaningProjectionLoweringError::InvalidSourceCarrier,
         )
     };
-    let format = match parameter.fallback.primitive {
-        PrimitiveType::F32 => IeeeFloatFormat::Binary32,
-        PrimitiveType::F64 => IeeeFloatFormat::Binary64,
-        _ => return Err(invalid_source()),
-    };
+    let format = projection_format(parameter.fallback.primitive).map_err(|_| invalid_source())?;
     let graph = checked
         .facts
         .flow
@@ -654,6 +609,18 @@ pub(crate) fn rejoin_float_semantic_applications(
         }
     }
     Ok(())
+}
+
+/// The IEEE format a float projection's carrier primitive fixes, or the
+/// invalid-source rejection a non-float carrier reports.
+fn projection_format(
+    primitive: PrimitiveType,
+) -> Result<IeeeFloatFormat, FloatMeaningProjectionLoweringError> {
+    match primitive {
+        PrimitiveType::F32 => Ok(IeeeFloatFormat::Binary32),
+        PrimitiveType::F64 => Ok(IeeeFloatFormat::Binary64),
+        _ => Err(FloatMeaningProjectionLoweringError::InvalidSourceCarrier),
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
