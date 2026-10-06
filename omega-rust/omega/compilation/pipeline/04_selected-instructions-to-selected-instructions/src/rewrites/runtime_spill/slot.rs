@@ -38,8 +38,8 @@
 
 use register_model::RegisterOperandAccess;
 use selected_instructions::{
-    FrameStorageSlotId, LocalStorageSlotId, SelectedFunction, SelectedInstructionKind,
-    VirtualRegisterId,
+    FrameStorageSlotId, LocalStorageSlotId, SelectedFunction, SelectedInstructionId,
+    SelectedInstructionKind, VirtualRegisterId,
 };
 
 use super::{StorageDefinition, StoragePosition};
@@ -83,6 +83,20 @@ impl BlockUsePositions {
             recorded.push(instruction_index);
         }
     }
+}
+
+/// The block holding an instruction id: a victim's producing-instruction
+/// origins resolve to the block that instruction lands in.
+pub(super) fn instruction_block(
+    function: &SelectedFunction,
+    instruction: SelectedInstructionId,
+) -> Option<usize> {
+    function.blocks.iter().position(|block| {
+        block
+            .instructions
+            .iter()
+            .any(|candidate| candidate.id == instruction)
+    })
 }
 
 /// The slot resolution the rewrite commits to: every emitted store and every

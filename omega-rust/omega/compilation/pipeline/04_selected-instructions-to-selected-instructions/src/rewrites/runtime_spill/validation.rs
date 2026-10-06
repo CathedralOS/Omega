@@ -474,16 +474,8 @@ fn reconstruct<'source>(
             instruction,
             source_value,
         } => {
-            let block_index = function
-                .blocks
-                .iter()
-                .position(|block| {
-                    block
-                        .instructions
-                        .iter()
-                        .any(|candidate| candidate.id == instruction)
-                })
-                .ok_or(RuntimeSpillError::UnsupportedValue)?;
+            let block_index = slot::instruction_block(function, instruction)
+                    .ok_or(RuntimeSpillError::UnsupportedValue)?;
             (
                 VictimLineage::Scalar(source_value),
                 Some(instruction),
@@ -600,16 +592,8 @@ fn reconstruct<'source>(
             // exactly like a scalar result, but restates no `ValueId`: its
             // provenance is the place and byte offset the origin declares,
             // which the reload's observation origin carries on.
-            let block_index = function
-                .blocks
-                .iter()
-                .position(|block| {
-                    block
-                        .instructions
-                        .iter()
-                        .any(|candidate| candidate.id == instruction)
-                })
-                .ok_or(RuntimeSpillError::UnsupportedValue)?;
+            let block_index = slot::instruction_block(function, instruction)
+                    .ok_or(RuntimeSpillError::UnsupportedValue)?;
             (
                 VictimLineage::Structural { place, byte_offset },
                 Some(instruction),
