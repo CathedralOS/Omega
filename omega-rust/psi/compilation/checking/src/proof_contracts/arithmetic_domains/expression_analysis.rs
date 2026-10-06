@@ -52,6 +52,9 @@ pub(super) struct CheckedAnalysis {
 #[derive(Debug, Default)]
 pub(crate) struct ArithmeticDecisions {
     pub(crate) exact_integer_casts: Vec<crate::ExactIntegerCastFact>,
+    /// Immediate receiving ranges proved for exact assignment occurrences.
+    /// A deferred invariant window never contributes a successful row.
+    pub(crate) integer_assignments: Vec<checked_trees::CheckedIntegerAssignmentDecision>,
     /// Integer operations whose every formation condition under their
     /// selected policy was proven: a nonzero divisor and, for an Exact signed
     /// division, the excluded `MIN / -1` pair; a representable Exact sum,
@@ -70,6 +73,7 @@ pub(crate) struct ArithmeticDecisions {
 impl ArithmeticDecisions {
     pub(crate) fn extend(&mut self, other: Self) {
         self.exact_integer_casts.extend(other.exact_integer_casts);
+        self.integer_assignments.extend(other.integer_assignments);
         self.decided_formations.extend(other.decided_formations);
         self.expression_intervals.extend(other.expression_intervals);
     }

@@ -3295,15 +3295,15 @@ deletions, which the commit lists.
   domain, and inferred additions to an arrival withdraw its source-checked mark.
   Remaining:
   - Carry decisions through every emission route, including nested/non-root
-    expressions, refined element-view writes, generated selectors and remaining
+    expressions, generated selectors and remaining
     semantic-to-storage casts. Synthesized widenings and generated scalar-graph
     casts still use search.
     Join the exact checked occurrence rather than performing another syntax walk
     or extending certificate search.
   - Cover shift counts, representation geometry, capacities
     and remaining bounded stores outside completed bounded-integer field
-    replacements, including generated indexed stores and refined element-view
-    writes. Finish the formation audit across aggregate and proposition
+    replacements and interval-refined element-view writes, including generated
+    indexed stores. Finish the formation audit across aggregate and proposition
     positions; unify abstract declaration-contract carrier resolution with the
     ordinary formation walk.
   - Replace search for invocation-entry, scalar-graph, local-refinement and
@@ -3323,6 +3323,9 @@ deletions, which the commit lists.
   `collections/runtime_nested_array_view_call_write_exit` and
   `collections/runtime_nested_record_element_window_store_exit` (0) for
   receiving-field domains, captured selectors and original window backing.
+  `collections/runtime_multi_field_element_view_domains_exit` (0) and
+  `range/element_view_field_domain_occurrence` constrain full one-sided carrier
+  bounds and prevent transferring a write judgment between fields.
   Existing wildcard debt and
   out-of-domain results must still reject. Wrong-path, escaped, stale-index,
   mutated-subject facts and byte-domain corruption must still reject.

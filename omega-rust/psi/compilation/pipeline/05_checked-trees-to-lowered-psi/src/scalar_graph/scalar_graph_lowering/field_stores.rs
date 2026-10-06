@@ -91,7 +91,9 @@ pub(super) fn prepare(
         checked,
         machine.symbol,
         state,
-        store,
+        store.statement_index,
+        store.primitive_type,
+        store.range_decision,
         match &field.field_type {
             terminal_psi::StructuralFieldType::BoundedInteger(integer) => Some(*integer),
             _ => None,

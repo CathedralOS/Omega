@@ -13,6 +13,37 @@ use typed_trees::{TypedTrees, statement::StatementNode};
 
 pub(super) mod obligations;
 
+/// Join independently checked receiving constraints at one authored write.
+/// A declared integer bound and an interval-only data domain can both constrain
+/// the same field. Neither supersedes the other, and duplicate rows must not
+/// turn a completed occurrence into an ambiguous decision handle.
+pub(super) fn retain_assignment_decision(
+    program: &TypedTrees,
+    proof: &mut checked_trees::ProofFacts,
+    decision: checked_trees::CheckedIntegerAssignmentDecision,
+) {
+    let existing = proof
+        .integer_assignments
+        .iter()
+        .find_map(|(handle, retained)| {
+            (retained.machine == decision.machine
+                && retained.state == decision.state
+                && retained.statement_index == decision.statement_index
+                && retained.target == decision.target
+                && retained.value == decision.value
+                && program.primitive_type_reference(retained.target_type)
+                    == program.primitive_type_reference(decision.target_type))
+            .then_some(handle)
+        });
+    if let Some(handle) = existing {
+        let retained = proof.integer_assignments.get_mut(handle);
+        retained.minimum = retained.minimum.clone().max(decision.minimum);
+        retained.maximum = retained.maximum.clone().min(decision.maximum);
+    } else {
+        proof.integer_assignments.append(decision);
+    }
+}
+
 pub(super) fn retain(
     program: &TypedTrees,
     operators: &CheckedOperatorFacts,

@@ -163,6 +163,9 @@ pub(crate) fn build_check_facts(
                 maximum: decision.range.maximum.clone(),
             });
     }
+    for decision in validation_facts.integer_assignments.drain(..) {
+        integer_writes::retain_assignment_decision(program, &mut proof, decision);
+    }
 
     crate::proof::bind_float_meaning_projection_facts(
         program,

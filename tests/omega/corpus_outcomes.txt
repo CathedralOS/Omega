@@ -1410,6 +1410,8 @@ fail/providers/via_signature_mismatch_rejected rejected 252ms expected @2d8ed253
 	machine `exit_leaf` state `entry` does not satisfy trait `Process` machine `exit` parameter `code`: expected `i32`, got `u32`
 fail/providers/via_with_body_rejected rejected 250ms expected @2d8ed253669f
 	machine `exit_composite` carries a `via` binding but is not an external leaf: `satisfies Requirement via <Binding>;` belongs on a BODYLESS non-boundary machine (a composite lowering is an ordinary checked body; an accepted axiom carries no realization)
+fail/range/element_view_field_domain_occurrence rejected 187ms expected @27c2f2bab4ff+wt
+	machine `store` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
 fail/range/funnel_guard_one_edge_unguarded rejected 303ms expected @c08960bee2b1+wt
 	cannot prove requires contract for call push from Main::main: main.sp >= 0 && main.sp < 16 (needs fact `main.sp >= 0 && main.sp < 16` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/range/guarded_copy_stale_after_write rejected 299ms expected @c08960bee2b1+wt
@@ -2205,6 +2207,7 @@ pass/collections/runtime_indexed_write_call_value_exit checked 1927ms check-targ
 pass/collections/runtime_initialized_array_state_loan_exit checked 1135ms check-target:macos_arm64 @89d265022a73+wt
 pass/collections/runtime_maze_pathfind_exit checked 4147ms check-target:macos_arm64 @2d8ed253669f
 pass/collections/runtime_member_decrement_index_bound_exit checked 3012ms check-target:macos_arm64 @6d05c993ca61
+pass/collections/runtime_multi_field_element_view_domains_exit checked 1711ms check-target:macos_arm64 @27c2f2bab4ff+wt
 pass/collections/runtime_nested_array_view_call_write_exit checked 1749ms check-target:macos_arm64 @65c3b89f46f4+wt
 pass/collections/runtime_nested_const_row_indexed_read_exit checked 1481ms check-target:macos_arm64 @2d8ed253669f
 pass/collections/runtime_nested_fixed_array_projected_write_exit checked 1900ms check-target:macos_arm64 @3ff24ec6504a+wt

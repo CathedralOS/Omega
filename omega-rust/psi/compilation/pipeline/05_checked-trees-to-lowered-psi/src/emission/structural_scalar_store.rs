@@ -1,4 +1,9 @@
 //! Shared checked custody replay for scalar stores through structural fields.
+//!
+//! Direct fields and element-view leaves consume the same occurrence-bound
+//! receiving-range judgment. Its exact emitted interval must match: an index
+//! proof, a final state invariant, or a different field's bounds cannot stand
+//! in for checking this value immediately before this store.
 
 use super::{
     CheckedBooleanExpression, CheckedScalarExpression, CheckedUnitStructuralPathSegment,
@@ -64,8 +69,15 @@ impl LoweredStructuralScalarStore {
         state: symbols::SymbolHandle,
         store: &checked_trees::CheckedStructuralScalarFieldStorePlan,
     ) -> Result<(), LoweringError> {
-        self.range_decided =
-            source_range_decided(checked, machine, state, store, self.bounded_integer)?;
+        self.range_decided = source_range_decided(
+            checked,
+            machine,
+            state,
+            store.statement_index,
+            store.primitive_type,
+            store.range_decision,
+            self.bounded_integer,
+        )?;
         Ok(())
     }
 
@@ -115,21 +127,30 @@ pub(crate) fn source_range_decided(
     checked: &checked_trees::CheckedTrees,
     machine: symbols::SymbolHandle,
     state: symbols::SymbolHandle,
-    store: &checked_trees::CheckedStructuralScalarFieldStorePlan,
+    statement_index: u32,
+    primitive_type: checked_trees::types::PrimitiveType,
+    range_decision: arena::Handle<checked_trees::CheckedIntegerAssignmentDecision>,
     bounded_integer: Option<semantic_vocabulary::BoundedIntegerType>,
 ) -> Result<bool, LoweringError> {
-    if !store.range_decision.is_valid() {
+    if !range_decision.is_valid() {
         return Ok(false);
     }
-    let decision = checked
-        .facts
-        .proof
-        .integer_assignments
-        .get(store.range_decision);
+    let decision = checked.facts.proof.integer_assignments.get(range_decision);
+    let (owner, authored) = crate::declarations::state_declaration(checked, state)?;
+    let Some(checked_trees::statement::StatementNode::Assignment(assignment)) = checked
+        .statement_table
+        .statements(authored.statement_nodes)
+        .get(statement_index as usize)
+    else {
+        return unsupported("bounded store lost its authored assignment");
+    };
     if decision.machine != machine
+        || owner.symbol != machine
         || decision.state != state
-        || decision.statement_index != store.statement_index as usize
-        || checked.primitive_type_reference(decision.target_type) != Some(store.primitive_type)
+        || decision.statement_index != statement_index as usize
+        || decision.target != assignment.target
+        || decision.value != assignment.value
+        || checked.primitive_type_reference(decision.target_type) != Some(primitive_type)
     {
         return unsupported("bounded store lost its exact completed source judgment");
     }
@@ -144,7 +165,7 @@ pub(crate) fn source_range_decided(
             numerics::bignum::BigInt::from_u128(value)
         }
     };
-    let decided = terminal_scalar_type(store.primitive_type)?
+    let decided = terminal_scalar_type(primitive_type)?
         == ScalarType::Integer(integer.integer_type())
         && decision.minimum == mathematical(integer.minimum())
         && decision.maximum == mathematical(integer.maximum());

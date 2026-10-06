@@ -1181,6 +1181,10 @@ impl OperationFrame<'_, '_> {
     /// positions are dense on the ordinary route.
     fn indexed_write(&mut self, target: IndexedWriteTarget<'_>) -> Result<(), LoweringError> {
         let leaf = target.leaf();
+        let destination = target.destination(
+            &self.evaluation.structural_parameters,
+            self.structural_types.declarations(),
+        )?;
         let dense;
         let bindings = match &self.evaluation.scalar_bindings {
             Some(bindings) => {
@@ -1230,7 +1234,8 @@ impl OperationFrame<'_, '_> {
         } else {
             Some(leaf.lower_value(bindings, self.checked, self.state, self.values)?)
         };
-        let decisions = leaf.source_decisions(self.checked, self.state)?;
+        let decisions =
+            destination.source_decisions(self.checked, self.machine, self.state, leaf)?;
         let selector_position = self.values.len();
         let coordinate_type = terminal_scalar_type(checked_trees::types::PrimitiveType::U64)?;
         let coordinate = crate::emission::indexed_write::emit_index_coordinate(
@@ -1284,9 +1289,8 @@ impl OperationFrame<'_, '_> {
             };
         let kind = crate::emission::indexed_write::emit(
             target,
+            destination,
             decisions,
-            &self.evaluation.structural_parameters,
-            self.structural_types.declarations(),
             &index,
             value,
             self.values,

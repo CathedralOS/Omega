@@ -290,12 +290,28 @@ pub(super) fn validate<'a, 'p>(
                 assignment.target,
             )
         }) {
-            arithmetic_domains::check_where_interval_containment(
+            let contained = arithmetic_domains::check_where_interval_containment(
                 stated,
                 interval,
                 &owner,
                 diagnostics,
             );
+            if contained
+                && diagnostics.len() == before
+                && let (Some(state), Some(target_type)) =
+                    (current_state, assignment_target_type_raw)
+                && let Some(decision) = checked_integer_assignment(
+                    program,
+                    machine,
+                    state,
+                    scope.statement_index,
+                    assignment,
+                    target_type,
+                    stated,
+                )
+            {
+                arithmetic_decisions.integer_assignments.push(decision);
+            }
         }
     }
     // Analyze the RHS against pre-store facts, then invalidate every
@@ -334,4 +350,44 @@ pub(super) fn validate<'a, 'p>(
             assignment.value,
         );
     }
+}
+
+/// Retain the complete receiving interval only after this statement's value
+/// passed containment. The carrier supplies unstated ends, and declared type
+/// bounds intersect the data's bounds just as field retention does. This is
+/// not the state walk's establishment flag: a later repairing store cannot
+/// authorize this occurrence's earlier value.
+fn checked_integer_assignment(
+    program: &TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    statement_index: usize,
+    assignment: &typed_trees::statement::TableAssignment,
+    target_type: typed_trees::types::TypeReferenceHandle,
+    stated: arithmetic_domains::Interval,
+) -> Option<checked_trees::CheckedIntegerAssignmentDecision> {
+    let primitive = program.primitive_type_reference(target_type)?;
+    let (mut minimum, mut maximum) =
+        crate::proof_contracts::proof_embeddings::primitive_range(primitive)?;
+    for interval in std::iter::once(stated).chain(arithmetic_domains::enforced_declared_range(
+        program,
+        target_type,
+    )) {
+        if let Some(lower) = interval.low() {
+            minimum = minimum.max(numerics::bignum::BigInt::from_i64(lower));
+        }
+        if let Some(upper) = interval.high() {
+            maximum = maximum.min(numerics::bignum::BigInt::from_i64(upper));
+        }
+    }
+    (minimum <= maximum).then_some(checked_trees::CheckedIntegerAssignmentDecision {
+        machine: machine.symbol,
+        state: state.symbol,
+        statement_index,
+        target: assignment.target,
+        value: assignment.value,
+        target_type,
+        minimum,
+        maximum,
+    })
 }

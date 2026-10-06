@@ -355,7 +355,7 @@ fn element_view_local_indexed(
 }
 
 /// A leaf's destination after its emission-time check.
-struct Destination {
+pub(crate) struct Destination {
     place: PlaceId,
     /// The Terminal scalar type the stored value must carry.
     value_type: ScalarType,
@@ -395,12 +395,12 @@ impl<'a> IndexedWriteTarget<'a> {
     /// counts structural parameters only), so a scalar formal ahead of the
     /// root would make a lookup by declaration position select the next
     /// borrowed parameter, or none.
-    fn destination(
+    pub(crate) fn destination(
         self,
         parameters: &[(u32, StructuralParameterDeclaration)],
         structural_types: &[StructuralTypeDeclaration],
-        operands: &'static str,
     ) -> Result<Destination, LoweringError> {
+        let operands = self.leaf().wording().operands;
         match self {
             Self::OwnedBytes {
                 place,
@@ -538,6 +538,37 @@ impl<'a> IndexedWriteTarget<'a> {
 }
 
 impl Destination {
+    /// Consume source decisions against the one prepared destination. Refined
+    /// elements require both the selected coordinate and the complete receiving
+    /// interval; byte predicates retain their independent preservation decision.
+    pub(crate) fn source_decisions(
+        &self,
+        checked: &CheckedTrees,
+        machine: SymbolHandle,
+        state: SymbolHandle,
+        leaf: IndexedWriteLeaf<'_>,
+    ) -> Result<IndexedWriteDecisions, LoweringError> {
+        let mut decisions = leaf.source_decisions(checked, state)?;
+        if let (IndexedWriteLeaf::ElementView(write), DestinationShape::ElementView { leaf, .. }) =
+            (leaf, &self.shape)
+        {
+            decisions.write = decisions.index
+                && match leaf.bounds {
+                    None => true,
+                    Some(bounds) => super::structural_scalar_store::source_range_decided(
+                        checked,
+                        machine,
+                        state,
+                        write.statement_index,
+                        write.element,
+                        write.range_decision,
+                        Some(bounds),
+                    )?,
+                };
+        }
+        Ok(decisions)
+    }
+
     /// The destination's live length. A bound proven against an earlier
     /// field `.len` observation discharges a byte field store only when the
     /// operand names that same dominating value; otherwise mint a current
@@ -605,15 +636,12 @@ pub(crate) enum IndexedWriteValue<'a> {
 }
 
 /// Emit one indexed write after the frame lowered its index and value: the
-/// leaf's destination check, the shared operand check, the index coordinate,
+/// prepared destination, the shared operand check, the index coordinate,
 /// the value, the destination's length, and the write with its obligation.
-/// `parameters` is the frame's authored-to-lowered parameter roster, in which
-/// a byte leaf resolves its root.
 pub(crate) fn emit(
     target: IndexedWriteTarget<'_>,
+    destination: Destination,
     decisions: IndexedWriteDecisions,
-    parameters: &[(u32, StructuralParameterDeclaration)],
-    structural_types: &[StructuralTypeDeclaration],
     index: &LoweredDirectExpression,
     value: IndexedWriteValue<'_>,
     values: &[ValueDeclaration],
@@ -622,7 +650,6 @@ pub(crate) fn emit(
     operations: &mut OperationBuffer,
 ) -> Result<OperationKind, LoweringError> {
     let operands = target.leaf().wording().operands;
-    let destination = target.destination(parameters, structural_types, operands)?;
     let value_type = match value {
         IndexedWriteValue::Expression(expression) => expression.scalar_type(),
         IndexedWriteValue::Established(value) => value.scalar_type,
@@ -659,14 +686,7 @@ pub(crate) fn emit(
     };
     let length = destination.length(next_value, operations)?;
     let obligation = obligation_id(allocate_dense(next_obligation)?);
-    // A plain element leaf's canonical operation condition is only its index
-    // bound. A refined leaf also owes value bounds; byte destinations owe
-    // predicate preservation. Do not let index authority decide either.
-    let formation_decided = match &destination.shape {
-        DestinationShape::ElementView { leaf, .. } if leaf.bounds.is_none() => decisions.index,
-        _ => decisions.write,
-    };
-    if formation_decided {
+    if decisions.write {
         operations.source_checked_obligations.push(obligation);
     }
     let place = destination.place;

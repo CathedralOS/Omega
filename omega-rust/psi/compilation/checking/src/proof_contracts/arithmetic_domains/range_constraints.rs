@@ -228,7 +228,7 @@ pub(crate) fn check_where_interval_containment(
     interval: Interval,
     owner: &str,
     diagnostics: &mut Vec<Diagnostic>,
-) {
+) -> bool {
     let contained_low = stated
         .low
         .is_none_or(|bound| interval.low.is_some_and(|low| low >= bound));
@@ -245,7 +245,9 @@ pub(crate) fn check_where_interval_containment(
              trusts them (indexes, exact arithmetic), so the stored value must be proven to \
              honor them. Narrow the value with a dominating guard or a requires coupling",
         )));
+        return false;
     }
+    true
 }
 
 /// The declared literal `[a..=b]` of a type reference, ONLY under all-Exact

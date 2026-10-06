@@ -486,6 +486,7 @@ pass/collections/runtime_indexed_write_call_value_exit built 3844ms exit:70 @d6b
 pass/collections/runtime_initialized_array_state_loan_exit built 1098ms exit:70 @89d265022a73+wt
 pass/collections/runtime_maze_pathfind_exit built 1835ms exit:70
 pass/collections/runtime_member_decrement_index_bound_exit built 2270ms exit:70 @6d05c993ca61
+pass/collections/runtime_multi_field_element_view_domains_exit built 4021ms exit:0 @27c2f2bab4ff+wt
 pass/collections/runtime_nested_array_view_call_write_exit built 1808ms exit:0 @65c3b89f46f4+wt
 pass/collections/runtime_nested_const_row_indexed_read_exit built 576ms exit:1
 pass/collections/runtime_nested_fixed_array_projected_write_exit built 962ms exit:70 @8093eb34a6ed+wt

@@ -188,6 +188,10 @@ pub struct CheckedElementViewWritePlan {
     /// Projection within the selected element; empty for a scalar element.
     pub path: Vec<CheckedUnitStructuralPathSegment>,
     pub element: PrimitiveType,
+    /// Immediate receiving-range judgment for this exact authored assignment.
+    /// The index judgment is independent and deferred invariant windows do
+    /// not authorize the scalar value through this handle.
+    pub range_decision: arena::Handle<crate::CheckedIntegerAssignmentDecision>,
     pub value: crate::CheckedStoreValue,
 }
 

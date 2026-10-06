@@ -144,6 +144,7 @@ pass/collections/runtime_indexed_bounded_field_local_exit built 3717ms exit:70 i
 pass/collections/runtime_indexed_float_field_compare_exit built 27797ms exit:70 interpreter-exit:70 interpreter:agrees @056c1343fac1+wt
 pass/collections/runtime_indexed_record_field_read_exit built 3868ms exit:70 interpreter-exit:70 interpreter:agrees @056c1343fac1+wt
 pass/collections/runtime_indexed_struct_field_rmw_exit built 4482ms exit:1 interpreter-exit:1 interpreter:agrees @e477ee0294de+wt
+pass/collections/runtime_multi_field_element_view_domains_exit built 1639ms exit:0 interpreter-exit:0 interpreter:agrees @27c2f2bab4ff+wt
 pass/collections/runtime_nested_array_view_call_write_exit built 1796ms exit:0 interpreter-exit:0 interpreter:agrees @65c3b89f46f4+wt
 pass/collections/runtime_nested_record_element_window_store_exit built 1771ms exit:0 interpreter-exit:0 interpreter:agrees @65c3b89f46f4+wt
 pass/collections/runtime_parameter_nested_literal_index_read_exit built 4356ms exit:70 interpreter-exit:70 interpreter:agrees @056c1343fac1+wt

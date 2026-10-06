@@ -68,6 +68,13 @@ pub(super) fn store(
             index: element_selector,
             path: path.to_vec(),
             element: primitive_type,
+            range_decision: facts.proof.integer_assignment_at(
+                machine.symbol,
+                state.symbol,
+                statement_index as usize,
+                assignment.target,
+                assignment.value,
+            ),
             value: value::assignment_value(
                 program,
                 facts,

@@ -84,6 +84,8 @@ pub fn expression_interval(
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ProgramValidationFacts {
     pub stored_integer_writes: Vec<checked_trees::CheckedStoredIntegerWrite>,
+    /// Successful immediate receiving judgments, not invariant-window closure.
+    pub integer_assignments: Vec<checked_trees::CheckedIntegerAssignmentDecision>,
     pub boundary_operator_applications: Vec<ValidatedBoundaryOperatorApplication>,
     pub exact_integer_casts: Vec<ExactIntegerCastFact>,
     /// Integer operations whose formation conditions every clean arithmetic
@@ -625,6 +627,7 @@ fn validate(
                     &symbols,
                     &writable_roots,
                     statement_handle,
+                    statement_index,
                     statement,
                     &mut value_environment,
                     &transition_values,
@@ -656,6 +659,7 @@ fn validate(
     finish_diagnostics(literals::anonymous_integer_landing_warnings(program))?;
     let arithmetic_domains::ArithmeticDecisions {
         mut exact_integer_casts,
+        mut integer_assignments,
         mut decided_formations,
         expression_intervals: walked_intervals,
     } = arithmetic_decisions;
@@ -680,6 +684,19 @@ fn validate(
     decided_formations
         .sort_by_key(|expression| checked_trees::operators::handle_position(*expression));
     decided_formations.dedup();
+    // The receiving declaration is immutable across arithmetic walks. Retain
+    // each exact assignment once, after every walk has returned clean.
+    integer_assignments.sort_by_key(|decision| {
+        (
+            (
+                decision.machine.arena_index(),
+                decision.machine.generation(),
+            ),
+            (decision.state.arena_index(), decision.state.generation()),
+            decision.statement_index,
+        )
+    });
+    integer_assignments.dedup();
     exact_integer_casts
         .sort_by_key(|fact| (fact.expression.arena_index(), fact.expression.generation()));
     exact_integer_casts.dedup_by(|right, left| {
@@ -697,6 +714,7 @@ fn validate(
         service_reaches: conformance_service_reaches,
         facts: ProgramValidationFacts {
             stored_integer_writes,
+            integer_assignments,
             boundary_operator_applications,
             exact_integer_casts,
             decided_formations,
