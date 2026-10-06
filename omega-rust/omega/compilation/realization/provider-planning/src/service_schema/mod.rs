@@ -695,23 +695,11 @@ fn synchronous_invocation_names(
         .state_signature_parameters(signature)
         .iter()
         .collect::<Vec<_>>();
-    let mut names = validation::declared_signature_invocations(program, signature)
-        .into_iter()
-        .filter_map(|target| match target {
-            flow_effects::InvocationTarget::Parameter(index) => parameters
-                .get(index as usize)
-                .map(|parameter| parameter.type_reference)
-                .and_then(|type_reference| boundary_trait_name_for_type(program, type_reference)),
-            flow_effects::InvocationTarget::Service(symbol) => program
-                .traits()
-                .iter()
-                .find(|definition| definition.is_boundary && definition.symbol == symbol)
-                .map(|definition| program.trait_declaration_path(definition)),
-        })
-        .collect::<Vec<_>>();
-    names.sort_unstable();
-    names.dedup();
-    names
+    boundary_invocation_names(
+        program,
+        validation::declared_signature_invocations(program, signature),
+        &parameters,
+    )
 }
 
 fn machine_synchronous_invocation_names(
@@ -722,23 +710,11 @@ fn machine_synchronous_invocation_names(
         return Vec::new();
     };
     let parameters = program.state_parameters(entry).iter().collect::<Vec<_>>();
-    let mut names = validation::declared_machine_invocations(program, machine)
-        .into_iter()
-        .filter_map(|target| match target {
-            flow_effects::InvocationTarget::Parameter(index) => parameters
-                .get(index as usize)
-                .map(|parameter| parameter.type_reference)
-                .and_then(|type_reference| boundary_trait_name_for_type(program, type_reference)),
-            flow_effects::InvocationTarget::Service(symbol) => program
-                .traits()
-                .iter()
-                .find(|definition| definition.is_boundary && definition.symbol == symbol)
-                .map(|definition| program.trait_declaration_path(definition)),
-        })
-        .collect::<Vec<_>>();
-    names.sort_unstable();
-    names.dedup();
-    names
+    boundary_invocation_names(
+        program,
+        validation::declared_machine_invocations(program, machine),
+        &parameters,
+    )
 }
 
 fn boundary_trait_name_for_type(
@@ -754,4 +730,32 @@ fn boundary_trait_name_for_type(
         .iter()
         .find(|definition| definition.is_boundary && definition.symbol == symbol)
         .map(|definition| program.trait_declaration_path(definition))
+}
+
+/// The sorted, deduplicated boundary-invocation names a signature or
+/// machine entry declares: parameter targets resolve through the entry's
+/// own parameter roster to their boundary-trait type name, and service
+/// targets name the boundary trait directly.
+fn boundary_invocation_names(
+    program: &typed_trees::TypedTrees,
+    targets: Vec<flow_effects::InvocationTarget>,
+    parameters: &[&typed_trees::signature::StateParameter],
+) -> Vec<String> {
+    let mut names = targets
+        .into_iter()
+        .filter_map(|target| match target {
+            flow_effects::InvocationTarget::Parameter(index) => parameters
+                .get(index as usize)
+                .map(|parameter| parameter.type_reference)
+                .and_then(|type_reference| boundary_trait_name_for_type(program, type_reference)),
+            flow_effects::InvocationTarget::Service(symbol) => program
+                .traits()
+                .iter()
+                .find(|definition| definition.is_boundary && definition.symbol == symbol)
+                .map(|definition| program.trait_declaration_path(definition)),
+        })
+        .collect::<Vec<_>>();
+    names.sort_unstable();
+    names.dedup();
+    names
 }
