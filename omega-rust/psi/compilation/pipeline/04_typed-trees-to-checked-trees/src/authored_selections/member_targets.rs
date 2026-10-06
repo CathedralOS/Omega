@@ -468,44 +468,13 @@ pub(crate) fn expression_is_intrinsic_primitive_without_origin(
             )
         }
         ExpressionNode::Binary(binary)
-            if matches!(
-                binary.operator,
-                typed_trees::expression::BinaryOperator::And
-                    | typed_trees::expression::BinaryOperator::BitwiseAnd
-                    | typed_trees::expression::BinaryOperator::BitwiseOr
-                    | typed_trees::expression::BinaryOperator::BitwiseXor
-                    | typed_trees::expression::BinaryOperator::Or
-                    | typed_trees::expression::BinaryOperator::ShiftLeft
-                    | typed_trees::expression::BinaryOperator::ShiftRight
-                    | typed_trees::expression::BinaryOperator::CaseMembership
-            ) =>
+            if crate::operators::binary_operator_spelling(binary.operator).is_none() =>
         {
             return true;
         }
         ExpressionNode::Binary(binary) => {
-            use language_core::OperatorSpelling;
-            use typed_trees::expression::BinaryOperator;
-
-            let spelling = match binary.operator {
-                BinaryOperator::Add => OperatorSpelling::Add,
-                BinaryOperator::Subtract => OperatorSpelling::Subtract,
-                BinaryOperator::Multiply => OperatorSpelling::Multiply,
-                BinaryOperator::Divide => OperatorSpelling::Divide,
-                BinaryOperator::Modulo => OperatorSpelling::Modulo,
-                BinaryOperator::Equal => OperatorSpelling::Equal,
-                BinaryOperator::NotEqual => OperatorSpelling::NotEqual,
-                BinaryOperator::Less => OperatorSpelling::Less,
-                BinaryOperator::LessOrEqual => OperatorSpelling::LessEqual,
-                BinaryOperator::Greater => OperatorSpelling::Greater,
-                BinaryOperator::GreaterOrEqual => OperatorSpelling::GreaterEqual,
-                BinaryOperator::And
-                | BinaryOperator::BitwiseAnd
-                | BinaryOperator::BitwiseOr
-                | BinaryOperator::BitwiseXor
-                | BinaryOperator::Or
-                | BinaryOperator::ShiftLeft
-                | BinaryOperator::ShiftRight
-                | BinaryOperator::CaseMembership => unreachable!("handled above"),
+            let Some(spelling) = crate::operators::binary_operator_spelling(binary.operator) else {
+                unreachable!("handled above")
             };
             let operand_types = [
                 authored_operand_descriptor(program, binary.left),

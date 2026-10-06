@@ -135,32 +135,11 @@ fn checked_spelled_operator_resolution(
     node: &ExpressionNode,
     owner_index: Option<&super::contexts::OwnerEnvironmentIndex>,
 ) -> Option<CheckedContractOperatorResolution> {
-    use language_core::OperatorSpelling;
-    use typed_trees::expression::BinaryOperator;
-
     let ExpressionNode::Binary(binary) = node else {
         return None;
     };
-    let spelling = match binary.operator {
-        BinaryOperator::Add => OperatorSpelling::Add,
-        BinaryOperator::Subtract => OperatorSpelling::Subtract,
-        BinaryOperator::Multiply => OperatorSpelling::Multiply,
-        BinaryOperator::Divide => OperatorSpelling::Divide,
-        BinaryOperator::Modulo => OperatorSpelling::Modulo,
-        BinaryOperator::Equal => OperatorSpelling::Equal,
-        BinaryOperator::NotEqual => OperatorSpelling::NotEqual,
-        BinaryOperator::Less => OperatorSpelling::Less,
-        BinaryOperator::LessOrEqual => OperatorSpelling::LessEqual,
-        BinaryOperator::Greater => OperatorSpelling::Greater,
-        BinaryOperator::GreaterOrEqual => OperatorSpelling::GreaterEqual,
-        BinaryOperator::And
-        | BinaryOperator::BitwiseAnd
-        | BinaryOperator::BitwiseOr
-        | BinaryOperator::BitwiseXor
-        | BinaryOperator::Or
-        | BinaryOperator::ShiftLeft
-        | BinaryOperator::ShiftRight
-        | BinaryOperator::CaseMembership => return None,
+    let Some(spelling) = crate::operators::binary_operator_spelling(binary.operator) else {
+        return None;
     };
     let operand_types = [
         checked_operand_type(program, facts, expression, binary.left, owner_index),

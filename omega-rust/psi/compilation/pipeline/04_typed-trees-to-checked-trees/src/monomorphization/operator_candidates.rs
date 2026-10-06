@@ -602,7 +602,8 @@ fn selected_operator_application_at_expression(
                 (operands, Some(call.machine_arguments.as_ref()))
             }
             ExpressionNode::Binary(binary) => {
-                let Some(spelling) = binary_operator_spelling(binary.operator) else {
+                let Some(spelling) = crate::operators::binary_operator_spelling(binary.operator)
+                else {
                     return Ok(None);
                 };
                 if operator.spelling != Some(spelling) {
@@ -680,33 +681,4 @@ fn selected_operator_application_at_expression(
     };
     validation::validate_closed_operator_application(program, symbols, operator, &application)?;
     Ok(Some(application))
-}
-
-fn binary_operator_spelling(
-    operator: typed_trees::expression::BinaryOperator,
-) -> Option<language_core::operator_spelling::OperatorSpelling> {
-    use language_core::operator_spelling::OperatorSpelling;
-    use typed_trees::expression::BinaryOperator;
-
-    Some(match operator {
-        BinaryOperator::Add => OperatorSpelling::Add,
-        BinaryOperator::Subtract => OperatorSpelling::Subtract,
-        BinaryOperator::Multiply => OperatorSpelling::Multiply,
-        BinaryOperator::Divide => OperatorSpelling::Divide,
-        BinaryOperator::Modulo => OperatorSpelling::Modulo,
-        BinaryOperator::Equal => OperatorSpelling::Equal,
-        BinaryOperator::NotEqual => OperatorSpelling::NotEqual,
-        BinaryOperator::Less => OperatorSpelling::Less,
-        BinaryOperator::LessOrEqual => OperatorSpelling::LessEqual,
-        BinaryOperator::Greater => OperatorSpelling::Greater,
-        BinaryOperator::GreaterOrEqual => OperatorSpelling::GreaterEqual,
-        BinaryOperator::And
-        | BinaryOperator::BitwiseAnd
-        | BinaryOperator::BitwiseOr
-        | BinaryOperator::BitwiseXor
-        | BinaryOperator::Or
-        | BinaryOperator::ShiftLeft
-        | BinaryOperator::ShiftRight
-        | BinaryOperator::CaseMembership => return None,
-    })
 }

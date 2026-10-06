@@ -390,30 +390,11 @@ fn resolve_authored_operator_without_use_fact<'program>(
     node: &ExpressionNode,
 ) -> Option<&'program typed_trees::operator::OperatorDefinition> {
     use language_core::OperatorSpelling;
-    pub(crate) use typed_trees::expression::BinaryOperator;
 
     let (spelling, operand_types) = match node {
         ExpressionNode::Binary(binary) => {
-            let spelling = match binary.operator {
-                BinaryOperator::Add => OperatorSpelling::Add,
-                BinaryOperator::Subtract => OperatorSpelling::Subtract,
-                BinaryOperator::Multiply => OperatorSpelling::Multiply,
-                BinaryOperator::Divide => OperatorSpelling::Divide,
-                BinaryOperator::Modulo => OperatorSpelling::Modulo,
-                BinaryOperator::Equal => OperatorSpelling::Equal,
-                BinaryOperator::NotEqual => OperatorSpelling::NotEqual,
-                BinaryOperator::Less => OperatorSpelling::Less,
-                BinaryOperator::LessOrEqual => OperatorSpelling::LessEqual,
-                BinaryOperator::Greater => OperatorSpelling::Greater,
-                BinaryOperator::GreaterOrEqual => OperatorSpelling::GreaterEqual,
-                BinaryOperator::And
-                | BinaryOperator::BitwiseAnd
-                | BinaryOperator::BitwiseOr
-                | BinaryOperator::BitwiseXor
-                | BinaryOperator::Or
-                | BinaryOperator::ShiftLeft
-                | BinaryOperator::ShiftRight
-                | BinaryOperator::CaseMembership => return None,
+            let Some(spelling) = crate::operators::binary_operator_spelling(binary.operator) else {
+                return None;
             };
             (
                 spelling,
@@ -674,29 +655,13 @@ fn operator_has_no_authored_spelling_candidate(
     node: &ExpressionNode,
 ) -> bool {
     use language_core::OperatorSpelling;
-    use typed_trees::expression::BinaryOperator;
     let spelling = match node {
-        ExpressionNode::Binary(binary) => match binary.operator {
-            BinaryOperator::Add => OperatorSpelling::Add,
-            BinaryOperator::Subtract => OperatorSpelling::Subtract,
-            BinaryOperator::Multiply => OperatorSpelling::Multiply,
-            BinaryOperator::Divide => OperatorSpelling::Divide,
-            BinaryOperator::Modulo => OperatorSpelling::Modulo,
-            BinaryOperator::Equal => OperatorSpelling::Equal,
-            BinaryOperator::NotEqual => OperatorSpelling::NotEqual,
-            BinaryOperator::Less => OperatorSpelling::Less,
-            BinaryOperator::LessOrEqual => OperatorSpelling::LessEqual,
-            BinaryOperator::Greater => OperatorSpelling::Greater,
-            BinaryOperator::GreaterOrEqual => OperatorSpelling::GreaterEqual,
-            BinaryOperator::And
-            | BinaryOperator::BitwiseAnd
-            | BinaryOperator::BitwiseOr
-            | BinaryOperator::BitwiseXor
-            | BinaryOperator::Or
-            | BinaryOperator::ShiftLeft
-            | BinaryOperator::ShiftRight
-            | BinaryOperator::CaseMembership => return true,
-        },
+        ExpressionNode::Binary(binary) => {
+            let Some(spelling) = crate::operators::binary_operator_spelling(binary.operator) else {
+                return true;
+            };
+            spelling
+        }
         ExpressionNode::Indexed(indexed) => {
             if matches!(
                 program.expression_table.expression(indexed.index),
@@ -766,30 +731,11 @@ fn candidate_operators<'program>(
     binary_operands: &[typed_trees::operator::OperandType],
 ) -> Vec<typed_trees::operator::SpelledOperator<'program>> {
     use language_core::OperatorSpelling;
-    pub(crate) use typed_trees::expression::BinaryOperator;
 
     let (spelling, operand_types) = match program.expression_table.expression(expression) {
         ExpressionNode::Binary(binary) => {
-            let spelling = match binary.operator {
-                BinaryOperator::Add => OperatorSpelling::Add,
-                BinaryOperator::Subtract => OperatorSpelling::Subtract,
-                BinaryOperator::Multiply => OperatorSpelling::Multiply,
-                BinaryOperator::Divide => OperatorSpelling::Divide,
-                BinaryOperator::Modulo => OperatorSpelling::Modulo,
-                BinaryOperator::Equal => OperatorSpelling::Equal,
-                BinaryOperator::NotEqual => OperatorSpelling::NotEqual,
-                BinaryOperator::Less => OperatorSpelling::Less,
-                BinaryOperator::LessOrEqual => OperatorSpelling::LessEqual,
-                BinaryOperator::Greater => OperatorSpelling::Greater,
-                BinaryOperator::GreaterOrEqual => OperatorSpelling::GreaterEqual,
-                BinaryOperator::And
-                | BinaryOperator::BitwiseAnd
-                | BinaryOperator::BitwiseOr
-                | BinaryOperator::BitwiseXor
-                | BinaryOperator::Or
-                | BinaryOperator::ShiftLeft
-                | BinaryOperator::ShiftRight
-                | BinaryOperator::CaseMembership => return Vec::new(),
+            let Some(spelling) = crate::operators::binary_operator_spelling(binary.operator) else {
+                return Vec::new();
             };
             (
                 spelling,
