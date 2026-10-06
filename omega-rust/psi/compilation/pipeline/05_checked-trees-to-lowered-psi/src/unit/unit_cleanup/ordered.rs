@@ -4,7 +4,7 @@
 use super::{
     CheckedNominalAffineUnitCleanupMachinePlan, CheckedTrees, CheckedUnitEffectOperationPlan,
     CheckedUnitStructuralTypeShape, LoweredPsi, LoweringError, is_bounded_nominal_cleanup_record,
-    lower_unit_closure, unique_unit_machine, unsupported,
+    lower_unit_closure, unsupported,
 };
 use crate::unit::attached_unit::UnitClosureRequest;
 use crate::unit::attached_unit::bodies::UnitPlans;
@@ -76,7 +76,7 @@ pub(super) fn lower_ordered_nominal_affine_unit_cleanup_machine(
     let published = UnitPlans::published(&checked.facts.flow.terminal_unit_effects);
     let mut roots = Vec::new();
     for cleanup in &nominal.cleanups {
-        unique_unit_machine(published, cleanup.cleanup_machine)?;
+        super::checked_hook_entry(checked, cleanup)?;
         let contract = checked
             .facts
             .contract_plans

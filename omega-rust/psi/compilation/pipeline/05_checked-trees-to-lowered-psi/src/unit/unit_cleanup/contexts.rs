@@ -178,12 +178,7 @@ pub(crate) fn prepare_signature(
         if nominal.is_some() {
             return unsupported("nominal cleanup dispatcher is its own hook");
         }
-        super::unique_unit_machine(
-            crate::unit::attached_unit::bodies::UnitPlans::published(
-                &checked.facts.flow.terminal_unit_effects,
-            ),
-            source,
-        )?;
+        super::checked_hook_entry(checked, hook)?;
         let contract =
             checked
                 .facts

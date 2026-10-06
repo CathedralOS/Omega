@@ -598,14 +598,13 @@ pub(crate) fn build_structural_scalar_return_machine(
                 let [cleanup_machine] = cleanup_machines.as_slice() else {
                     return None;
                 };
-                let [cleanup_state] = program.machine_states(cleanup_machine) else {
-                    return None;
-                };
+                let cleanup_state = program.machine_states(cleanup_machine).first()?;
                 let [cleanup_receiver] = program.state_parameters(cleanup_state) else {
                     return None;
                 };
                 let unit_effects = unit_effects?;
-                let cleanup_target = unit_effects.for_machine(cleanup_machine.symbol)?;
+                let cleanup_target =
+                    unit_effects.callable_entry_for_machine(cleanup_machine.symbol)?;
                 let cleanup_requirements = nominal_cleanup_boolean_requirements(
                     program,
                     facts,
@@ -633,7 +632,7 @@ pub(crate) fn build_structural_scalar_return_machine(
                     program,
                     cleanup_machine,
                     cleanup_state,
-                    cleanup_target,
+                    &cleanup_target,
                     &checked_parameter.type_identity,
                 ) {
                     return None;

@@ -1,16 +1,11 @@
 //! Borrowed views of ordinary statement and graph bodies. Structural result
 //! calls traverse either complete body through the same closure; result shape
 //! does not select a different producer. No synthetic checked plans or states.
-use super::super::ServiceReachPlan;
 use super::{
     CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan, LoweringError, SemanticDomainId,
     ServiceReachSummary, unsupported,
 };
-use checked_trees::{
-    CheckedComposedUnitControlMachinePlan, CheckedErasedProofParameterPlan,
-    CheckedStructuralScalarParameterPlan, CheckedUnitEntryClaimPlan,
-    CheckedUnitStructuralParameterPlan,
-};
+use checked_trees::{CheckedComposedUnitControlMachinePlan, CheckedUnitStructuralParameterPlan};
 
 /// The Unit plan roster one closure assembly reads. Ordinary closures read
 /// the checked `terminal_unit_effects` lane as published. A cleanup closure
@@ -125,18 +120,7 @@ pub(crate) enum UnitBody<'a> {
     Composed(&'a CheckedComposedUnitControlMachinePlan),
 }
 
-pub(crate) struct UnitEntry<'a> {
-    pub(crate) machine: symbols::SymbolHandle,
-    pub(crate) state: symbols::SymbolHandle,
-    pub(crate) structural_parameters: &'a [CheckedUnitStructuralParameterPlan],
-    pub(crate) scalar_parameters: &'a [CheckedStructuralScalarParameterPlan],
-    /// Proof-only erased scalar formals in authored order.
-    pub(crate) erased_scalar_parameters: &'a [CheckedStructuralScalarParameterPlan],
-    pub(crate) erased_proof_parameters: &'a [CheckedErasedProofParameterPlan],
-    pub(crate) entry_claims: &'a [CheckedUnitEntryClaimPlan],
-    pub(crate) contract_report_fingerprint: u64,
-    pub(crate) contract_service_reach: ServiceReachPlan,
-}
+pub(crate) type UnitEntry<'a> = checked_trees::CheckedUnitCallableEntry<'a>;
 
 impl<'a> UnitBody<'a> {
     /// Body membership routes closure traversal, not validation. find still
@@ -224,33 +208,10 @@ impl<'a> UnitBody<'a> {
 
     pub(crate) fn entry(self) -> Result<UnitEntry<'a>, LoweringError> {
         Ok(match self {
-            Self::Ordinary(plan) => UnitEntry {
-                machine: plan.machine,
-                state: plan.state,
-                structural_parameters: &plan.structural_parameters,
-                scalar_parameters: &plan.scalar_parameters,
-                erased_scalar_parameters: &plan.erased_scalar_parameters,
-                erased_proof_parameters: &plan.erased_proof_parameters,
-                entry_claims: &plan.entry_claims,
-                contract_report_fingerprint: plan.contract_report_fingerprint,
-                contract_service_reach: plan.contract_service_reach,
-            },
-            Self::Composed(plan) => {
-                let state = plan.states.first().ok_or(LoweringError::Unsupported(
-                    "composed Unit body has no entry state",
-                ))?;
-                UnitEntry {
-                    machine: plan.machine,
-                    state: state.state,
-                    structural_parameters: &state.structural_parameters,
-                    scalar_parameters: &state.scalar_parameters,
-                    erased_scalar_parameters: &state.erased_scalar_parameters,
-                    erased_proof_parameters: &state.erased_proof_parameters,
-                    entry_claims: &state.entry_claims,
-                    contract_report_fingerprint: plan.contract_report_fingerprint,
-                    contract_service_reach: plan.contract_service_reach,
-                }
-            }
+            Self::Ordinary(plan) => plan.callable_entry(),
+            Self::Composed(plan) => plan.callable_entry().ok_or(LoweringError::Unsupported(
+                "composed Unit body has no entry state",
+            ))?,
         })
     }
 

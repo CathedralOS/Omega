@@ -4,7 +4,7 @@
 
 use crate::execution::terminal_unit::types::{ShapeCollector, machine_binders};
 use checked_trees::{
-    CheckFacts, CheckedNormalCleanupAction, CheckedUnitEffectMachinePlan,
+    CheckFacts, CheckedNormalCleanupAction, CheckedUnitCallableEntry,
     CheckedUnitNominalAffineCleanupPlan, CheckedUnitPartialAffineDiscardPlan,
     CheckedUnitStructuralArgumentSourcePlan,
 };
@@ -13,7 +13,7 @@ use typed_trees::TypedTrees;
 pub(super) fn disposition_actions(
     program: &TypedTrees,
     facts: &CheckFacts,
-    targets: &[CheckedUnitEffectMachinePlan],
+    targets: &[CheckedUnitCallableEntry<'_>],
     shapes: &mut ShapeCollector<'_>,
     disposition: &checked_trees::ContextualCleanupDisposition,
     source: CheckedUnitStructuralArgumentSourcePlan,
@@ -209,18 +209,16 @@ fn concrete_paths(path: &[facts::PlaceSegment]) -> Option<Vec<Vec<facts::PlaceSe
 
 fn selected_nominal(
     program: &TypedTrees,
-    targets: &[CheckedUnitEffectMachinePlan],
+    targets: &[CheckedUnitCallableEntry<'_>],
     hook: symbols::SymbolHandle,
     source: CheckedUnitStructuralArgumentSourcePlan,
     path: Vec<checked_trees::CheckedUnitStructuralPathSegment>,
     type_identity: String,
 ) -> Option<CheckedUnitNominalAffineCleanupPlan> {
     let machine = crate::lookup::machine_by_symbol(program, hook)?;
-    let [state] = program.machine_states(machine) else {
-        return None;
-    };
-    let target = targets.iter().find(|target| target.machine == hook)?;
-    if !super::nominal_cleanup_target_matches(program, machine, state, target, &type_identity) {
+    let state = program.machine_states(machine).first()?;
+    let target = super::callable_target(targets, hook)?;
+    if !super::nominal_cleanup_target_matches(program, machine, state, &target, &type_identity) {
         return None;
     }
     Some(CheckedUnitNominalAffineCleanupPlan {

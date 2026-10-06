@@ -119,8 +119,9 @@ pub use unit_call_plans::{
     CheckedUnitCallTarget, CheckedUnitCallTransfers,
 };
 pub use unit_effect_plans::{
-    CheckedOperandSequence, CheckedStructuralValueCall, CheckedUnitCleanupBoundary,
-    CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan, CheckedUnitEffectPlans,
-    CheckedUnitPlanOmission, CheckedUnitPlanOmissionStage, CheckedUnitScalarControlPlan,
+    CheckedOperandSequence, CheckedStructuralValueCall, CheckedUnitCallableEntry,
+    CheckedUnitCleanupBoundary, CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan,
+    CheckedUnitEffectPlans, CheckedUnitPlanOmission, CheckedUnitPlanOmissionStage,
+    CheckedUnitScalarControlPlan,
 };
 pub use unit_plans::CheckedUnitPlan;

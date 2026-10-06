@@ -99,6 +99,27 @@ pub enum CheckedUnitPlanOmissionStage {
 }
 
 impl CheckedUnitEffectPlans {
+    /// One published callable entry, independent of operation or graph body.
+    /// Competing bodies do not select a fallback signature.
+    pub fn callable_entry_for_machine(
+        &self,
+        machine: SymbolHandle,
+    ) -> Option<CheckedUnitCallableEntry<'_>> {
+        let mut entries = self
+            .machines
+            .iter()
+            .filter(|plan| plan.machine == machine)
+            .map(CheckedUnitEffectMachinePlan::callable_entry)
+            .chain(
+                self.composed_machines
+                    .iter()
+                    .filter(|plan| plan.machine == machine)
+                    .filter_map(CheckedComposedUnitControlMachinePlan::callable_entry),
+            );
+        let entry = entries.next()?;
+        entries.next().is_none().then_some(entry)
+    }
+
     pub fn for_machine(&self, machine: SymbolHandle) -> Option<&CheckedUnitEffectMachinePlan> {
         self.machines.iter().find(|plan| plan.machine == machine)
     }
@@ -660,4 +681,62 @@ pub struct CheckedUnitEffectMachinePlan {
     pub contract_service_reach: ServiceReachPlan,
     pub service_reach: ServiceReachSummary,
     pub operations: Vec<CheckedUnitEffectOperationPlan>,
+}
+
+/// Borrowed entry vocabulary shared by ordinary sequences and state graphs.
+/// This is a view of the owning plan, not another durable body or signature.
+/// Cleanup and authored calls select the same entry; the complete body stays
+/// in its original representation and travels through the ordinary closure.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CheckedUnitCallableEntry<'plan> {
+    pub machine: SymbolHandle,
+    pub state: SymbolHandle,
+    pub returns_unit: bool,
+    pub attachment_type_identity: Option<&'plan str>,
+    pub structural_parameters: &'plan [CheckedUnitStructuralParameterPlan],
+    pub scalar_parameters: &'plan [CheckedStructuralScalarParameterPlan],
+    pub erased_scalar_parameters: &'plan [CheckedStructuralScalarParameterPlan],
+    pub erased_proof_parameters: &'plan [CheckedErasedProofParameterPlan],
+    pub entry_claims: &'plan [CheckedUnitEntryClaimPlan],
+    pub contract_report_fingerprint: u64,
+    pub contract_service_reach: ServiceReachPlan,
+}
+
+impl CheckedUnitEffectMachinePlan {
+    pub fn callable_entry(&self) -> CheckedUnitCallableEntry<'_> {
+        CheckedUnitCallableEntry {
+            machine: self.machine,
+            state: self.state,
+            returns_unit: self.scalar_result.is_none()
+                && self.scalar_control.is_none()
+                && self.structural_result.is_none(),
+            attachment_type_identity: self.attachment_type_identity.as_deref(),
+            structural_parameters: &self.structural_parameters,
+            scalar_parameters: &self.scalar_parameters,
+            erased_scalar_parameters: &self.erased_scalar_parameters,
+            erased_proof_parameters: &self.erased_proof_parameters,
+            entry_claims: &self.entry_claims,
+            contract_report_fingerprint: self.contract_report_fingerprint,
+            contract_service_reach: self.contract_service_reach,
+        }
+    }
+}
+
+impl CheckedComposedUnitControlMachinePlan {
+    pub fn callable_entry(&self) -> Option<CheckedUnitCallableEntry<'_>> {
+        let state = self.states.first()?;
+        Some(CheckedUnitCallableEntry {
+            machine: self.machine,
+            state: state.state,
+            returns_unit: matches!(self.result, super::CheckedControlResultPlan::Unit),
+            attachment_type_identity: self.attachment_type_identity.as_deref(),
+            structural_parameters: &state.structural_parameters,
+            scalar_parameters: &state.scalar_parameters,
+            erased_scalar_parameters: &state.erased_scalar_parameters,
+            erased_proof_parameters: &state.erased_proof_parameters,
+            entry_claims: &state.entry_claims,
+            contract_report_fingerprint: self.contract_report_fingerprint,
+            contract_service_reach: self.contract_service_reach,
+        })
+    }
 }

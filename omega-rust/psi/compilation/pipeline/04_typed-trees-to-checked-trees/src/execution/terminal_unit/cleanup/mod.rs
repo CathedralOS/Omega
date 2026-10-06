@@ -51,15 +51,29 @@ use crate::execution::terminal_unit::calls::{
 use crate::execution::terminal_unit::types::{
     ShapeCollector, is_unit, machine_binders, state_flow,
 };
+use checked_trees::CheckedUnitCallableEntry;
 
-/// `plans` is the checked ordinary-Unit roster this plan may join: the
-/// completed `terminal_unit_effects.machines` at finalize time, or the live
-/// candidate pool while closure pruning still needs the generic consuming
-/// machine as a resolvable call target.
+/// Construction may temporarily retain both body descriptions of one entry.
+/// They must agree on the signature; ordinary overlap resolution and closure
+/// pruning still choose exactly one complete body before publication.
+fn callable_target<'plan>(
+    entries: &[CheckedUnitCallableEntry<'plan>],
+    machine: symbols::SymbolHandle,
+) -> Option<CheckedUnitCallableEntry<'plan>> {
+    let mut matches = entries.iter().filter(|entry| entry.machine == machine);
+    let entry = *matches.next()?;
+    matches
+        .all(|candidate| *candidate == entry)
+        .then_some(entry)
+}
+
+/// `plans` borrows entries from both complete body catalogs: the published
+/// roster at finalize time, or the live candidates while closure pruning still
+/// needs the generic consuming machine as a resolvable call target.
 pub(super) fn build_nominal_affine_unit_cleanup_machine(
     program: &TypedTrees,
     facts: &CheckFacts,
-    plans: &[CheckedUnitEffectMachinePlan],
+    plans: &[CheckedUnitCallableEntry<'_>],
     shapes: &mut ShapeCollector<'_>,
     machine: &typed_trees::machine::Machine,
     diagnostics: &mut Vec<Diagnostic>,
@@ -227,20 +241,16 @@ pub(super) fn build_nominal_affine_unit_cleanup_machine(
         let [cleanup_machine] = cleanup_machines.as_slice() else {
             return None;
         };
-        let [cleanup_state] = program.machine_states(cleanup_machine) else {
-            return None;
-        };
+        let cleanup_state = program.machine_states(cleanup_machine).first()?;
         let [cleanup_receiver] = program.state_parameters(cleanup_state) else {
             return None;
         };
-        let cleanup_target = plans
-            .iter()
-            .find(|candidate| candidate.machine == cleanup_machine.symbol)?;
+        let cleanup_target = callable_target(plans, cleanup_machine.symbol)?;
         if !nominal_cleanup_target_matches(
             program,
             cleanup_machine,
             cleanup_state,
-            cleanup_target,
+            &cleanup_target,
             &checked_parameter.type_identity,
         ) {
             return None;
@@ -314,15 +324,15 @@ pub(super) fn build_nominal_affine_unit_cleanup_machine(
     })
 }
 
-/// The selected owner hook has one ordinary Unit body, regardless of its
-/// caller's result. Source admission already checks finite normal completion
+/// The selected owner hook is an ordinary Unit callable, whether its body is
+/// a sequence or a state graph. Source admission checks finite normal completion
 /// and propagates its actual reach; retaining a borrowed subject or effectful
 /// body does not create a different cleanup operation.
 pub(crate) fn nominal_cleanup_target_matches(
     program: &TypedTrees,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
-    plan: &CheckedUnitEffectMachinePlan,
+    plan: &CheckedUnitCallableEntry<'_>,
     type_identity: &str,
 ) -> bool {
     let [receiver] = program.state_parameters(state) else {
@@ -347,6 +357,7 @@ pub(crate) fn nominal_cleanup_target_matches(
         && !machine.suspends
         && !machine.blocks
         && is_unit(program, state.return_type)
+        && plan.returns_unit
         && plan.machine == machine.symbol
         && plan.state == state.symbol
         && plan

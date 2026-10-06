@@ -3,36 +3,18 @@
 //! hook requirements remain obligations at that edge, never new unconditional facts.
 use crate::execution::terminal_unit::types::ShapeCollector;
 use checked_trees::{
-    CheckFacts, CheckedComposedUnitControlMachinePlan, CheckedComposedUnitControlStatePlan,
-    CheckedNormalExitCleanupPlan, CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan,
+    CheckFacts, CheckedComposedUnitControlStatePlan, CheckedNormalExitCleanupPlan,
+    CheckedUnitCallableEntry, CheckedUnitEffectOperationPlan,
     CheckedUnitStructuralArgumentSourcePlan,
 };
 use facts::PlaceRoot;
 use language_semantics::PermissionEventSource;
 use typed_trees::{TypedTrees, statement::StatementNode};
 
-pub(in crate::execution::terminal_unit) fn retain_planned(
+pub(in crate::execution::terminal_unit) fn state_cleanups(
     program: &TypedTrees,
     facts: &CheckFacts,
-    targets: &[CheckedUnitEffectMachinePlan],
-    shapes: &mut ShapeCollector<'_>,
-    machines: &mut Vec<CheckedComposedUnitControlMachinePlan>,
-) {
-    machines.retain_mut(|plan| {
-        for state in &mut plan.states {
-            let Some(rows) = state_cleanups(program, facts, targets, shapes, state) else {
-                return false;
-            };
-            state.normal_exit_cleanups = rows;
-        }
-        true
-    });
-}
-
-fn state_cleanups(
-    program: &TypedTrees,
-    facts: &CheckFacts,
-    targets: &[CheckedUnitEffectMachinePlan],
+    targets: &[CheckedUnitCallableEntry<'_>],
     shapes: &mut ShapeCollector<'_>,
     state_plan: &CheckedComposedUnitControlStatePlan,
 ) -> Option<Vec<CheckedNormalExitCleanupPlan>> {

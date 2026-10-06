@@ -231,7 +231,7 @@ impl<'program> Evaluator<'program> {
             .facts
             .flow
             .terminal_unit_effects
-            .for_machine(action.cleanup_machine)
+            .callable_entry_for_machine(action.cleanup_machine)
             .ok_or_else(|| {
                 Halt::Unsupported("nominal cleanup target has no checked body".into())
             })?;

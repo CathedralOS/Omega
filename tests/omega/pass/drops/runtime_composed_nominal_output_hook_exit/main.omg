@@ -1,0 +1,62 @@
+use omega::language::core::binding;
+use omega::language::core::external_binding;
+
+// This fixture retains the existing reviewed finite byte-write assumption.
+// It does not strengthen the standard Console contract.
+pub boundary trait Console {
+    machine write_byte(byte: i32) reaches Console terminates;
+    machine exit_process(return_code: i32) reaches Console;
+}
+
+pub data ConsoleNativeProvider {}
+macos_arm64 boundary machine ConsoleNativeProvider::write_byte(byte: i32)
+    satisfies Console::write_byte;
+macos_arm64 boundary machine ConsoleNativeProvider::exit_process(return_code: i32)
+    satisfies Console::exit_process;
+linux_x86_64 boundary machine ConsoleNativeProvider::write_byte(byte: i32)
+    satisfies Console::write_byte;
+linux_x86_64 boundary machine ConsoleNativeProvider::exit_process(return_code: i32)
+    satisfies Console::exit_process;
+linux_arm64 boundary machine ConsoleNativeProvider::write_byte(byte: i32)
+    satisfies Console::write_byte;
+linux_arm64 boundary machine ConsoleNativeProvider::exit_process(return_code: i32)
+    satisfies Console::exit_process;
+windows_x86_64 machine ConsoleNativeProvider::write_byte(byte: i32)
+    satisfies Console::write_byte
+    via ForeignBinding::CompilerIntrinsic;
+windows_x86_64 machine exit_process_binding() -> ForeignBinding<12, 11, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::PeByName {
+            library: "kernel32.dll",
+            export: "ExitProcess",
+        },
+    }
+}
+windows_x86_64 machine ConsoleNativeProvider::exit_process(return_code: i32)
+    satisfies Console::exit_process
+    via exit_process_binding();
+
+data Token { first: bool; }
+machine Token::drop(token: &mut Token) reaches Console {
+    transition token.first {
+        true -> first()
+        false -> second()
+    }
+    state first() { Console::write_byte(65); }
+    state second() { Console::write_byte(66); }
+}
+
+machine exercise(first: bool) reaches Console {
+    let token: Token = Token { first: first };
+}
+
+machine inspect(token: &Token) -> bool { token.first }
+
+data Main { console: Binding<Console>; }
+machine Main::main(main: &mut Main) reaches Console {
+    exercise(true);
+    // The second cleanup uses the scalar-call continuation rather than an
+    // owned local's state exit, but invokes the same complete callable body.
+    let observed: bool = inspect(&Token { first: false });
+    main.console.write_byte(10);
+}

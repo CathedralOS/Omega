@@ -1,5 +1,12 @@
+//! Owner hooks remain ordinary machines with compiler-selected invocations.
+//! An authored call cannot select that reserved role. Once invoked, however,
+//! the hook may transition between its own states: those exact selections
+//! select control-flow destinations, not another invocation of the hook.
+
 use diagnostics::Diagnostic;
-use language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget;
+use language_semantics::declaration_selection::{
+    AuthoredDeclarationSelectionOccurrenceId, AuthoredDeclarationSelectionTarget,
+};
 use language_semantics::{
     MachineSupplyMode, ReferenceAccess, TerminationGuarantee, TerminationInterface,
 };
@@ -9,6 +16,7 @@ use typed_trees::TypedTrees;
 use typed_trees::data::DataMember;
 use typed_trees::machine::Machine;
 use typed_trees::signature::SignatureContractKind;
+use typed_trees::statement::{StatementNode, TransitionTargetNode};
 use typed_trees::type_identity::TypeIdentityRequest;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
@@ -213,6 +221,7 @@ pub(crate) fn collect_reserved_cleanup_selection_diagnostics(
     if cleanups.is_empty() {
         return;
     }
+    let internal_transitions = internal_cleanup_transitions(program, &cleanups);
     for selection in program.authored_declaration_selections() {
         let AuthoredDeclarationSelectionTarget::Resolved(target) = selection.target() else {
             continue;
@@ -222,6 +231,9 @@ pub(crate) fn collect_reserved_cleanup_selection_diagnostics(
         else {
             continue;
         };
+        if internal_transitions.contains(&selection.occurrence_id()) {
+            continue;
+        }
         diagnostics.push(
             Diagnostic::error(format!(
                 "reserved cleanup machine `{}` is compiler-selected and cannot be selected by source; consume the value with `omega::core::drop(value)` or call an ordinary owner-published protocol operation",
@@ -230,6 +242,48 @@ pub(crate) fn collect_reserved_cleanup_selection_diagnostics(
             .with_source_span(selection.source_span()),
         );
     }
+}
+
+/// A transition selects a state within the already executing machine, not a
+/// callable hook. Join the exact retained occurrence and resolved state owner;
+/// a same-spelled call, static argument or external state path gains no access.
+fn internal_cleanup_transitions(
+    program: &TypedTrees,
+    cleanups: &[&Machine],
+) -> BTreeSet<AuthoredDeclarationSelectionOccurrenceId> {
+    let mut transitions = BTreeSet::new();
+    for machine in cleanups {
+        for state in program.machine_states(machine) {
+            for statement in program.statement_table.statements(state.statement_nodes) {
+                let StatementNode::Transition(transition) = statement else {
+                    continue;
+                };
+                for target in [transition.target, transition.continuation] {
+                    if !target.is_valid() {
+                        continue;
+                    }
+                    let TransitionTargetNode::Named {
+                        path,
+                        authored_call_selection: Some(occurrence),
+                        ..
+                    } = program.statement_table.transition_target(target)
+                    else {
+                        continue;
+                    };
+                    if !path.symbol.is_valid() {
+                        continue;
+                    }
+                    let selected = program.symbols.get(path.symbol);
+                    if selected.kind == symbols::SymbolKind::State
+                        && selected.parent == machine.symbol
+                    {
+                        transitions.insert(*occurrence);
+                    }
+                }
+            }
+        }
+    }
+    transitions
 }
 
 pub fn validate_reserved_cleanup_selections(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {

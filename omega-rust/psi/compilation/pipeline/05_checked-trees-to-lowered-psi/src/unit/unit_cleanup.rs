@@ -17,7 +17,7 @@ use super::{
     StructuralTypeId, StructuralTypeShape, TerminalMachine, Terminator, lookup_machine_id,
     lookup_type_id, lower_unit_closure, obligation_id, unique_unit_machine, unsupported,
 };
-use crate::unit::attached_unit::bodies::UnitPlans;
+use crate::unit::attached_unit::bodies::{UnitBody, UnitPlans};
 use checked_trees::CheckedUnitNominalAffineCleanupPlan;
 use symbols::SymbolHandle;
 pub(crate) mod contexts;
@@ -26,6 +26,27 @@ mod ordered;
 mod partial;
 use ordered::lower_ordered_nominal_affine_unit_cleanup_machine;
 pub(crate) use partial::checked_partial_affine_residuals;
+
+/// Cleanup invokes the complete ordinary callable body. Authenticate the same
+/// entry that closure traversal emits, without requiring an operation sequence
+/// instead of a state graph or manufacturing a synthetic single-state hook.
+pub(super) fn checked_hook_entry<'checked>(
+    checked: &'checked CheckedTrees,
+    cleanup: &CheckedUnitNominalAffineCleanupPlan,
+) -> Result<checked_trees::CheckedUnitCallableEntry<'checked>, LoweringError> {
+    let entry = UnitBody::find(
+        UnitPlans::published(&checked.facts.flow.terminal_unit_effects),
+        cleanup.cleanup_machine,
+    )?
+    .entry()?;
+    if !entry.returns_unit
+        || entry.state != cleanup.cleanup_state
+        || entry.contract_report_fingerprint != cleanup.cleanup_contract_report_fingerprint
+    {
+        return unsupported("nominal cleanup callable entry differs from its selected body");
+    }
+    Ok(entry)
+}
 
 /// Lower a nominal affine Unit cleanup machine. One route serves any number
 /// of structural parameters: each root owns exactly one cleanup action, and
@@ -177,10 +198,7 @@ pub(crate) fn lower_nominal_cleanup_action(
     requirement_counts: &[(SymbolHandle, usize)],
     next_obligation: &mut u64,
 ) -> Result<NominalAffineCleanup, LoweringError> {
-    unique_unit_machine(
-        UnitPlans::published(&checked.facts.flow.terminal_unit_effects),
-        cleanup.cleanup_machine,
-    )?;
+    checked_hook_entry(checked, cleanup)?;
     if lookup_type_id(type_ids, &cleanup.type_identity)? != structural_type {
         return unsupported("nominal cleanup receiver type differs from its checked subject");
     }
@@ -335,10 +353,7 @@ pub(super) fn finalize_nominal_cleanup_actions(
         let Ok(target_id) = lookup_machine_id(machine_ids, cleanup.cleanup_machine) else {
             continue;
         };
-        unique_unit_machine(
-            UnitPlans::published(&checked.facts.flow.terminal_unit_effects),
-            cleanup.cleanup_machine,
-        )?;
+        checked_hook_entry(checked, cleanup)?;
         let owner = lookup_type_id(type_ids, &cleanup.type_identity)?;
         let emitted = machines
             .iter_mut()

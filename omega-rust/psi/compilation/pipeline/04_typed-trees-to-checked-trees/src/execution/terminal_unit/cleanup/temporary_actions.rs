@@ -6,9 +6,8 @@
 use super::actions::disposition_actions;
 use crate::execution::terminal_unit::types::ShapeCollector;
 use checked_trees::{
-    CheckFacts, CheckedNormalCleanupAction, CheckedUnitCallCoordinate,
-    CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan,
-    CheckedUnitStructuralArgumentSourcePlan,
+    CheckFacts, CheckedNormalCleanupAction, CheckedUnitCallCoordinate, CheckedUnitCallableEntry,
+    CheckedUnitEffectOperationPlan, CheckedUnitStructuralArgumentSourcePlan,
 };
 use language_semantics::PermissionEventSource;
 use symbols::SymbolHandle;
@@ -17,7 +16,7 @@ use typed_trees::TypedTrees;
 fn selected_actions(
     program: &TypedTrees,
     facts: &CheckFacts,
-    targets: &[CheckedUnitEffectMachinePlan],
+    targets: &[CheckedUnitCallableEntry<'_>],
     shapes: &mut ShapeCollector<'_>,
     machine: SymbolHandle,
     state: SymbolHandle,
@@ -44,7 +43,7 @@ fn selected_actions(
 pub(in crate::execution::terminal_unit) fn operations(
     program: &TypedTrees,
     facts: &CheckFacts,
-    targets: &[CheckedUnitEffectMachinePlan],
+    targets: &[CheckedUnitCallableEntry<'_>],
     shapes: &mut ShapeCollector<'_>,
     machine: SymbolHandle,
     state: SymbolHandle,
@@ -155,7 +154,21 @@ pub(in crate::execution::terminal_unit) fn install(
 /// Action storage is rebuilt once: scratch geometry never remains as a second
 /// published cleanup stream beside the selected hooks.
 pub(crate) fn finalize_scalar_actions(program: &TypedTrees, facts: &mut CheckFacts) -> Option<()> {
-    let targets = &facts.flow.terminal_unit_effects.machines;
+    let targets = facts
+        .flow
+        .terminal_unit_effects
+        .machines
+        .iter()
+        .map(checked_trees::CheckedUnitEffectMachinePlan::callable_entry)
+        .chain(
+            facts
+                .flow
+                .terminal_unit_effects
+                .composed_machines
+                .iter()
+                .filter_map(checked_trees::CheckedComposedUnitControlMachinePlan::callable_entry),
+        )
+        .collect::<Vec<_>>();
     let mut shapes = ShapeCollector::new(program);
     let plans = &facts.values.scalar_computations;
     let mut replacements = Vec::new();
@@ -213,7 +226,7 @@ pub(crate) fn finalize_scalar_actions(program: &TypedTrees, facts: &mut CheckFac
                 selected_actions(
                     program,
                     facts,
-                    targets,
+                    &targets,
                     &mut shapes,
                     state_flow.machine_symbol,
                     state_flow.state_symbol,

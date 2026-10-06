@@ -236,6 +236,24 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
             }
         }
     }
+    let mut composed_construction = BTreeMap::new();
+    let mut composed_machines = build_checked_composed_unit_control_machines_traced(
+        program,
+        facts,
+        scalar_callees,
+        &mut shapes,
+        call_frames,
+        &mut composed_construction,
+    );
+    let targets = candidates
+        .iter()
+        .map(CheckedUnitEffectMachinePlan::callable_entry)
+        .chain(
+            composed_machines
+                .iter()
+                .filter_map(CheckedComposedUnitControlMachinePlan::callable_entry),
+        )
+        .collect::<Vec<_>>();
     // A free consuming machine (a `drop<T>` specialization) whose parameters
     // carry an exact owner-attached `::drop` hook has no authored body, so the
     // ordinary builder omits it at completion. It is still a real call target:
@@ -256,13 +274,14 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
             build_nominal_affine_unit_cleanup_machine(
                 program,
                 facts,
-                &candidates,
+                &targets,
                 &mut shapes,
                 machine,
                 &mut nominal_diagnostics,
             )
         })
         .collect::<Vec<_>>();
+    drop(targets);
     candidates.extend(
         nominal_candidates
             .iter()
@@ -278,15 +297,6 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
         })
         .collect::<Vec<_>>();
 
-    let mut composed_construction = BTreeMap::new();
-    let mut composed_machines = build_checked_composed_unit_control_machines_traced(
-        program,
-        facts,
-        scalar_callees,
-        &mut shapes,
-        call_frames,
-        &mut composed_construction,
-    );
     let mut omissions = OmissionLedger::new(
         program,
         &local_construction,
@@ -295,14 +305,25 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
         &composed_machines,
     );
     // Storage planning precedes executable hook selection. Complete the
-    // contextual temporary actions once the immutable target roster exists.
+    // contextual actions against the same immutable callable entry roster,
+    // before mutating either body catalog. Entry metadata borrows the real
+    // bodies; no temporary ordinary plan stands in for a state graph.
+    let targets = candidates
+        .iter()
+        .map(CheckedUnitEffectMachinePlan::callable_entry)
+        .chain(
+            composed_machines
+                .iter()
+                .filter_map(CheckedComposedUnitControlMachinePlan::callable_entry),
+        )
+        .collect::<Vec<_>>();
     let mut temporary_selections = candidates
         .iter()
         .map(|plan| {
             cleanup::temporary_actions::operations(
                 program,
                 facts,
-                &candidates,
+                &targets,
                 &mut shapes,
                 plan.machine,
                 plan.state,
@@ -311,20 +332,42 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
         })
         .collect::<Vec<_>>()
         .into_iter();
+    let mut composed_selections = composed_machines
+        .iter()
+        .map(|plan| {
+            plan.states
+                .iter()
+                .map(|state| {
+                    let temporary = cleanup::temporary_actions::operations(
+                        program,
+                        facts,
+                        &targets,
+                        &mut shapes,
+                        plan.machine,
+                        state.state,
+                        &state.operations,
+                    )?;
+                    let normal = cleanup::normal_edges::state_cleanups(
+                        program,
+                        facts,
+                        &targets,
+                        &mut shapes,
+                        state,
+                    )?;
+                    Some((temporary, normal))
+                })
+                .collect::<Option<Vec<_>>>()
+        })
+        .collect::<Vec<_>>()
+        .into_iter();
+    drop(targets);
     composed_machines.retain_mut(|plan| {
-        for state in &mut plan.states {
-            let Some(selected) = cleanup::temporary_actions::operations(
-                program,
-                facts,
-                &candidates,
-                &mut shapes,
-                plan.machine,
-                state.state,
-                &state.operations,
-            ) else {
-                return false;
-            };
+        let Some(Some(selected)) = composed_selections.next() else {
+            return false;
+        };
+        for (state, (selected, normal)) in plan.states.iter_mut().zip(selected) {
             cleanup::temporary_actions::install(&mut state.operations, selected);
+            state.normal_exit_cleanups = normal;
         }
         true
     });
@@ -335,13 +378,6 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
         cleanup::temporary_actions::install(&mut plan.operations, selected);
         true
     });
-    cleanup::normal_edges::retain_planned(
-        program,
-        facts,
-        &candidates,
-        &mut shapes,
-        &mut composed_machines,
-    );
     // Attribute the cleanup-planning drop before overlap resolution runs, so
     // a row names the one stage that removed the machine. Overlap resolution
     // below only chooses between two descriptions of the same entry; a
@@ -1049,6 +1085,17 @@ pub(crate) fn build_checked_nominal_affine_unit_cleanup_plans(
     diagnostics: &mut Vec<Diagnostic>,
 ) -> CheckedNominalAffineUnitCleanupPlans {
     let mut shapes = ShapeCollector::new(program);
+    let targets = unit_effects
+        .machines
+        .iter()
+        .map(CheckedUnitEffectMachinePlan::callable_entry)
+        .chain(
+            unit_effects
+                .composed_machines
+                .iter()
+                .filter_map(CheckedComposedUnitControlMachinePlan::callable_entry),
+        )
+        .collect::<Vec<_>>();
     let machines = program
         .machines()
         .iter()
@@ -1057,7 +1104,7 @@ pub(crate) fn build_checked_nominal_affine_unit_cleanup_plans(
             let plan = build_nominal_affine_unit_cleanup_machine(
                 program,
                 facts,
-                &unit_effects.machines,
+                &targets,
                 &mut shapes,
                 machine,
                 diagnostics,

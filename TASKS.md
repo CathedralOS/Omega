@@ -753,8 +753,12 @@ defines the complete product bar.
     Preserve selected-subtree contracts as **OMEGA-READS-TERMINAL-UNVERIFIED**
     moves ownership analysis out of the retiring verifier; do not add a second
     independent replay. Coordinate the static-maze loan outcome.
-  - Complete claim-bearing temporary cleanup and general nominal-hook
-    selection on
+    Reference-bearing nominal owners remain excluded by
+    `checking/src/machine_calls/reference_result_custody.rs`; admitting their
+    intact receiver also reaches `InvalidNominalAffineCleanup` in the retiring
+    replay. Preserve receiver custody through the ordinary callable path as
+    that replay is removed, rather than expanding its bounded receiver model.
+  - Complete claim-bearing temporary cleanup on
     **STATE-LOCAL-VALUE-FRONTIER**'s computed-call evaluation path. Extend the
     checked ordered temporary action roster and its scalar-call continuation in
     `omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/scalar_graph/scalar_computations/calls.rs`
@@ -765,9 +769,7 @@ defines the complete product bar.
     `pass/drops/runtime_nested_nominal_producer_loans_exit` as the operand-loan
     lifetime control: cleanup must not prolong a completed borrow-free
     producer's input loans.
-    Hook selection in `cleanup/actions.rs` still requires a single-state body.
-    Carry complete callable bodies through that shared selector and closure,
-    not new hook-pattern lanes. Generic prerequisite transport in
+    Generic prerequisite transport in
     `facts/contextual_cleanup/requirements.rs` still retains direct Boolean
     entry-field rows; widen that invocation carrier without inventing a new
     authored caller demand or skipping clauses the carrier cannot express.
@@ -779,12 +781,13 @@ defines the complete product bar.
   retry cannot repeat one. No affine occurrence outlives its required edge.
   Current Terminal failure for the output-bearing controls:
   `program-entry-arrival-values` for their one structural entry parameter on
-  macOS ARM64. Keep `pass/drops/runtime_projected_nominal_core_exit` as the
-  host-independent native/Terminal value-preservation control; it does not
+  macOS ARM64. Keep `pass/drops/runtime_projected_nominal_core_exit` and
+  `pass/drops/runtime_composed_nominal_return_hook_exit` as
+  host-independent native/Terminal value-preservation controls; they do not
   establish observable hook order.
   **TERMINAL-RUNTIME-DRIVERS** owns that provision and subsequent exact host
   bindings. Reproduce with `python tools/corpus_gate.py --both --filter
-  runtime_projected_nominal_cleanup_exit,runtime_indexed_nominal_cleanup_exit`.
+  runtime_projected_nominal_cleanup_exit,runtime_indexed_nominal_cleanup_exit,runtime_composed_nominal_output_hook_exit`.
   Tree comparison is being retired and does not establish Terminal acceptance.
 
 - **ATOMIC-MEMORY-MODEL.** Complete atomic/fence semantics and native execution
