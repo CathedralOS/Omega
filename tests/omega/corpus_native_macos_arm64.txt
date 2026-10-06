@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": "3", "load1_end": 6.41, "load1_start": 7.01, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "3", "load1_end": 6.14, "load1_start": 6.86, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 189ms
 pass/arithmetic/anonymous_rational_integer_landing checked 186ms
 pass/arithmetic/bounded_assignment checked 197ms
@@ -76,10 +76,8 @@ pass/borrows/local_reference_record_transfer_exit built 1613ms exit:70 @82ec69a9
 pass/borrows/loop_descriptor_reformation_exit built 1933ms exit:70 @63377f7122bb+wt
 pass/borrows/mut_loan_local_write_through_exit built 11207ms exit:9 @51b2cebdd24f
 pass/borrows/mutable_record_loan_read_in_state_arms_exit built 1383ms exit:70 @a9f373809a48+wt
-pass/borrows/nested_reference_crossings_exit rejected 1112ms regressed-from:built+exit:70 @0604ece757cd+wt
-	terminal-artifact production failed: Lowering(InvalidTerminalModule(EdgeAffineDiscardsInvalid { edge: EdgeId(9) }))
-pass/borrows/nested_reference_leaf_projection_exit rejected 1112ms regressed-from:built+exit:70 @0604ece757cd+wt
-	terminal-artifact production failed: Lowering(InvalidTerminalModule(EdgeAffineDiscardsInvalid { edge: EdgeId(5) }))
+pass/borrows/nested_reference_crossings_exit built 1618ms exit:70 @104c2da31081
+pass/borrows/nested_reference_leaf_projection_exit built 1617ms exit:70 @104c2da31081
 pass/borrows/owned_byte_value_call_exit built 3530ms exit:70 @316799d840c3+wt
 pass/borrows/owned_nested_record_copy_exit built 956ms exit:70 @3a0c3ba44cd8+wt
 pass/borrows/projected_indexed_member_loan built 2120ms exit:0 @bed5f45e9185+wt
@@ -104,43 +102,55 @@ pass/borrows/returned_record_projected_call_exit built 1243ms exit:70 @011fd400e
 pass/borrows/runtime_affine_local_case_return_exit built 1865ms exit:42 @5b34dbe4df3d+wt
 pass/borrows/runtime_affine_local_scalar_exit built 885ms exit:42 @48008365d839
 pass/borrows/runtime_captured_record_nested_field_snapshot_exit built 3466ms exit:70 @681c48c0cebc+wt
+pass/borrows/runtime_carrier_reference_reselection_exit built 1618ms exit:70 @104c2da31081
 pass/borrows/runtime_constructed_reference_array_restoration_exit built 1599ms exit:70 @b5d8c6882a8b+wt
 pass/borrows/runtime_forwarded_primitive_state_loan_exit built 1428ms exit:70 @63377f7122bb+wt
 pass/borrows/runtime_forwarded_reference_array_bounded_read_exit built 2195ms exit:70 @6ba9c43af356+wt
 pass/borrows/runtime_index_mut_loan_write_exit built 2117ms exit:0 @af9f91f2fb06+wt
+pass/borrows/runtime_indexed_carrier_bounded_reference_read_exit built 1142ms exit:70 @104c2da31081
+pass/borrows/runtime_indexed_carrier_reference_read_exit built 1140ms exit:70 @104c2da31081
 pass/borrows/runtime_indexed_reference_array_bounded_read_exit built 1818ms exit:70 @15c77983aab0+wt
 pass/borrows/runtime_mutable_reference_array_bounded_read_exit built 1743ms exit:70 @15c77983aab0+wt
+pass/borrows/runtime_nested_carrier_bounded_reference_read_exit built 1155ms exit:70 @104c2da31081
+pass/borrows/runtime_nested_carrier_reference_read_exit built 1164ms exit:70 @104c2da31081
 pass/borrows/runtime_nested_reference_array_bounded_read_exit built 1916ms exit:70 @15c77983aab0+wt
-pass/borrows/runtime_nested_reference_record_direct_payload_restoration_exit rejected 826ms regressed-from:built+exit:70 @0604ece757cd+wt
-	terminal-artifact production failed: Lowering(InvalidTerminalModule(EdgeAffineDiscardsInvalid { edge: EdgeId(16) }))
+pass/borrows/runtime_nested_reference_record_direct_payload_restoration_exit built 1200ms exit:70 @104c2da31081
 pass/borrows/runtime_qualified_byte_argument_snapshot_exit built 1955ms exit:70 @cfbb6c8709b4+wt
 pass/borrows/runtime_record_byte_region_loan_exit built 30261ms exit:50 @48008365d839
+pass/borrows/runtime_record_primitive_reference_capture_exit built 1607ms exit:0 @104c2da31081
 pass/borrows/runtime_reference_array_pressure_exit built 2056ms exit:70 @a195e6cdf066+wt
-pass/borrows/runtime_reference_record_array_field_read_exit rejected 830ms regressed-from:built+exit:70 @0604ece757cd+wt
-	terminal-artifact production failed: Lowering(InvalidTerminalModule(EdgeAffineDiscardsInvalid { edge: EdgeId(8) }))
-pass/borrows/runtime_reference_record_call_completion_exit rejected 830ms regressed-from:built+exit:70 @0604ece757cd+wt
-	terminal-artifact production failed: Lowering(InvalidTerminalModule(UnitReturnAffineDiscardsMismatch { machine: MachineId(2), block: BlockId(20) }))
-pass/borrows/runtime_reference_record_call_payload_restoration_exit rejected 813ms regressed-from:built+exit:70 @0604ece757cd+wt
-	terminal-artifact production failed: Lowering(InvalidTerminalModule(EdgeAffineDiscardsInvalid { edge: EdgeId(8) }))
-pass/borrows/runtime_reference_record_direct_payload_restoration_exit rejected 824ms regressed-from:built+exit:70 @0604ece757cd+wt
-	terminal-artifact production failed: Lowering(InvalidTerminalModule(EdgeAffineDiscardsInvalid { edge: EdgeId(11) }))
+pass/borrows/runtime_reference_local_constructor_leaf_retirement_exit built 1162ms exit:70 @104c2da31081
+pass/borrows/runtime_reference_record_array_field_read_exit built 1171ms exit:70 @104c2da31081
+pass/borrows/runtime_reference_record_call_completion_exit built 1159ms exit:70 @104c2da31081
+pass/borrows/runtime_reference_record_call_payload_restoration_exit built 1146ms exit:70 @104c2da31081
+pass/borrows/runtime_reference_record_direct_payload_restoration_exit built 1157ms exit:70 @104c2da31081
 pass/borrows/runtime_released_loan_with_forwarded_view_exit built 1743ms exit:70 @ba014724095f+wt
 pass/borrows/runtime_returned_mutable_reference_array_bounded_read_exit built 2110ms exit:70 @6ba9c43af356+wt
 pass/borrows/runtime_returned_nested_reference_array_bounded_read_exit built 2357ms exit:70 @6ba9c43af356+wt
 pass/borrows/runtime_returned_reference_array_bounded_read_exit built 1712ms exit:70 @6ba9c43af356+wt
 pass/borrows/runtime_returned_reference_array_restoration_exit built 1759ms exit:70 @b5d8c6882a8b+wt
+pass/borrows/runtime_returned_reference_constructor_leaf_retirement_exit built 1177ms exit:70 @104c2da31081
 pass/borrows/runtime_shared_reference_array_cohort_restoration_exit built 1342ms exit:70 @b5d8c6882a8b+wt
-pass/borrows/runtime_shared_reference_record_direct_payload_restoration_exit rejected 823ms regressed-from:built+exit:70 @0604ece757cd+wt
-	terminal-artifact production failed: Lowering(InvalidTerminalModule(EdgeAffineDiscardsInvalid { edge: EdgeId(11) }))
+pass/borrows/runtime_shared_reference_record_direct_payload_restoration_exit built 1171ms exit:70 @104c2da31081
 pass/borrows/runtime_shared_temporary_call_exit built 945ms exit:42 @48008365d839
+pass/borrows/runtime_stored_reference_array_constructor_transfer_exit built 1225ms exit:70 @104c2da31081
+pass/borrows/runtime_stored_reference_array_leaf_retirement_exit built 1185ms exit:70 @104c2da31081
+pass/borrows/runtime_stored_reference_child_constructor_retirement_exit built 1183ms exit:70 @104c2da31081
+pass/borrows/runtime_stored_reference_leaf_call_retirement_exit built 1147ms exit:70 @104c2da31081
+pass/borrows/runtime_stored_reference_leaf_child_retirement_exit built 1156ms exit:70 @104c2da31081
+pass/borrows/runtime_stored_reference_leaf_constructor_transfer_exit built 1183ms exit:70 @104c2da31081
+pass/borrows/runtime_stored_reference_leaf_field_retirement_exit built 1161ms exit:70 @104c2da31081
+pass/borrows/runtime_stored_reference_leaf_match_join_retirement_exit built 1299ms exit:70 @104c2da31081
+pass/borrows/runtime_stored_reference_shared_cohort_retirement_exit built 1190ms exit:70 @104c2da31081
 pass/borrows/runtime_whole_referent_case_store_exit built 1291ms exit:70 @6ec9ff444c14+wt
 pass/borrows/runtime_whole_referent_payload_case_store_exit built 1289ms exit:70 @6ec9ff444c14+wt
 pass/borrows/runtime_whole_referent_record_store_exit built 1395ms exit:70 @6ec9ff444c14+wt
 pass/borrows/runtime_whole_referent_scalar_store_exit built 1098ms exit:70 @6ec9ff444c14+wt
 pass/borrows/shared_recast_loan_member_read built 746ms exit:0 @d629c0d993ca+wt
+pass/borrows/static_carrier_bounded_reference_read_exit built 1158ms exit:70 @104c2da31081
+pass/borrows/static_carrier_reference_read_exit built 1134ms exit:70 @104c2da31081
 pass/borrows/static_record_reference_return_exit built 1143ms exit:0 @2816825e8941
-pass/borrows/stored_reference_projection_exit rejected 831ms regressed-from:built+exit:70 @0604ece757cd+wt
-	terminal-artifact production failed: Lowering(InvalidTerminalModule(EdgeAffineDiscardsInvalid { edge: EdgeId(6) }))
+pass/borrows/stored_reference_projection_exit built 1133ms exit:70 @104c2da31081
 pass/borrows/transition_shared_borrow_result rejected 928ms regressed-from:built+exit:181 @0604ece757cd+wt
 	native artifact target lowering failed: UnsupportedControlFlow { machine: MachineId(1), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }
 pass/borrows/view_field_record_exit_disposal checked 246ms @48008365d839
@@ -608,8 +618,7 @@ pass/expressions/arithmetic_domain_requires_proven_exact_exit built 614ms exit:7
 pass/expressions/arithmetic_domain_saturating_signed_exit built 513ms exit:70
 pass/expressions/arithmetic_domain_trapping_overflow built 587ms exit:signal signal:5
 pass/expressions/arithmetic_domain_wrapping_exit built 609ms exit:70
-pass/expressions/borrow_carrying_data_field_exit rejected 809ms regressed-from:built+exit:70 @0604ece757cd+wt
-	terminal-artifact production failed: Lowering(InvalidTerminalModule(EdgeAffineDiscardsInvalid { edge: EdgeId(4) }))
+pass/expressions/borrow_carrying_data_field_exit built 1126ms exit:70 @104c2da31081
 pass/expressions/dead_trapping_let_traps built 608ms exit:signal signal:5
 pass/expressions/declared_operator_match_result built 17618ms exit:70 @7c6892099245+wt
 pass/expressions/explicit_scalar_tag_erasure checked 170ms
