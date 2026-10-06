@@ -150,11 +150,6 @@ fn append_substituted_projection_requests(
         return;
     }
     match program.expression_table.expression(expression) {
-        ExpressionNode::Match(dispatch) => {
-            for child in crate::expression_traversal::match_children(program, *dispatch) {
-                append_substituted_projection_requests(program, child, bindings, requests);
-            }
-        }
         ExpressionNode::Member(member) => {
             if let ExpressionNode::Name(path) = program.expression_table.expression(member.receiver)
                 && let Some((_, actual)) = bindings
@@ -169,54 +164,9 @@ fn append_substituted_projection_requests(
             }
             append_substituted_projection_requests(program, member.receiver, bindings, requests);
         }
-        ExpressionNode::Atomic(atomic) => {
-            append_substituted_projection_requests(program, atomic.value, bindings, requests);
-            append_substituted_projection_requests(program, atomic.result, bindings, requests);
-        }
-        ExpressionNode::Binary(binary) => {
-            append_substituted_projection_requests(program, binary.left, bindings, requests);
-            append_substituted_projection_requests(program, binary.right, bindings, requests);
-        }
-        ExpressionNode::Borrow(inner) => {
-            append_substituted_projection_requests(program, inner.target, bindings, requests)
-        }
-        ExpressionNode::Cast(cast) => {
-            append_substituted_projection_requests(program, cast.value, bindings, requests)
-        }
-        ExpressionNode::Call(call) => {
-            append_substituted_projection_requests(program, call.receiver, bindings, requests);
-            for argument in program.expression_table.expression_handles(call.arguments) {
-                append_substituted_projection_requests(program, *argument, bindings, requests);
-            }
-        }
-        ExpressionNode::Indexed(indexed) => {
-            append_substituted_projection_requests(program, indexed.collection, bindings, requests);
-            append_substituted_projection_requests(program, indexed.index, bindings, requests);
-        }
-        ExpressionNode::Range(range) => {
-            append_substituted_projection_requests(program, range.start, bindings, requests);
-            append_substituted_projection_requests(program, range.end, bindings, requests);
-        }
-        ExpressionNode::StructLiteral(literal) => {
-            for field in program.expression_table.struct_fields(literal.fields) {
-                append_substituted_projection_requests(program, field.value, bindings, requests);
-            }
-        }
-        ExpressionNode::Unary(unary) => {
-            append_substituted_projection_requests(program, unary.operand, bindings, requests)
-        }
-        ExpressionNode::ArrayLiteral(values) => {
-            for value in program.expression_table.expression_handles(*values) {
-                append_substituted_projection_requests(program, *value, bindings, requests);
-            }
-        }
-        ExpressionNode::Boolean(_)
-        | ExpressionNode::Float(_)
-        | ExpressionNode::UndeterminedNaN(_)
-        | ExpressionNode::Integer(_)
-        | ExpressionNode::Name(_)
-        | ExpressionNode::String(_)
-        | ExpressionNode::ZeroValue(_) => {}
+        other => crate::expression_traversal::children(program, other, |child| {
+            append_substituted_projection_requests(program, child, bindings, requests);
+        }),
     }
 }
 
