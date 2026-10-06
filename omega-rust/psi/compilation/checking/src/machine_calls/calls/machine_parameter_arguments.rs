@@ -82,24 +82,9 @@ pub(super) fn validate_machine_parameter_arguments(
                 };
                 let actual =
                     crate::value_custody::places::peel_declared_constraints(program, actual);
-                match (
-                    program.type_reference_table.type_reference(actual),
-                    program.type_reference_table.type_reference(required),
-                ) {
-                    (
-                        TypeReferenceNode::Reference {
-                            referee: actual,
-                            access: language_semantics::ReferenceAccess::Mutable,
-                            ..
-                        },
-                        TypeReferenceNode::Reference {
-                            referee: required,
-                            access: language_semantics::ReferenceAccess::Shared,
-                            ..
-                        },
-                    ) => (*actual, *required),
-                    _ => (actual, required),
-                }
+                crate::program_scope::type_shape::attenuated_reference_pair(
+                    program, actual, required,
+                )
             };
             crate::machine_calls::machine_parameters::required_type_matches_exact_with_subject(
                 program,

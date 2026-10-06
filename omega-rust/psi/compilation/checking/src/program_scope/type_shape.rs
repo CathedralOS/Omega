@@ -46,3 +46,30 @@ pub(crate) fn scalar_parameter_type_pair(
         _ => None,
     }
 }
+
+/// A mutable actual reference may satisfy a shared required reference:
+/// compare their referents for that one permitted attenuation.
+pub(crate) fn attenuated_reference_pair(
+    program: &TypedTrees,
+    actual: TypeReferenceHandle,
+    required: TypeReferenceHandle,
+) -> (TypeReferenceHandle, TypeReferenceHandle) {
+    match (
+        program.type_reference_table.type_reference(actual),
+        program.type_reference_table.type_reference(required),
+    ) {
+        (
+            TypeReferenceNode::Reference {
+                referee: actual,
+                access: language_semantics::ReferenceAccess::Mutable,
+                ..
+            },
+            TypeReferenceNode::Reference {
+                referee: required,
+                access: language_semantics::ReferenceAccess::Shared,
+                ..
+            },
+        ) => (*actual, *required),
+        _ => (actual, required),
+    }
+}

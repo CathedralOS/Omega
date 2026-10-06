@@ -51,24 +51,9 @@ pub(super) fn validate_requirement_call_arguments(
                 // Ordinary calls permit mutable-to-shared attenuation. Trait
                 // signature matching is invariant in access, so compare the
                 // referents explicitly for that one permitted call relation.
-                let (actual, required) = match (
-                    program.type_reference_table.type_reference(actual),
-                    program.type_reference_table.type_reference(required),
-                ) {
-                    (
-                        TypeReferenceNode::Reference {
-                            referee: actual,
-                            access: language_semantics::ReferenceAccess::Mutable,
-                            ..
-                        },
-                        TypeReferenceNode::Reference {
-                            referee: required,
-                            access: language_semantics::ReferenceAccess::Shared,
-                            ..
-                        },
-                    ) => (*actual, *required),
-                    _ => (actual, required),
-                };
+                let (actual, required) = crate::program_scope::type_shape::attenuated_reference_pair(
+                    program, actual, required,
+                );
                 return crate::declarations::traits::named_conformance_argument_matches(
                     program,
                     actual,
