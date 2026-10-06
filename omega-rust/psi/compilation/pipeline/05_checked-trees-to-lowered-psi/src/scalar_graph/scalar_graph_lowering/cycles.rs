@@ -230,19 +230,24 @@ pub(super) fn prepare(
                             | StructuralTypeShape::ByteSequence(_)
                     )
                 });
-        // Ordinary record loans move only the usable binding across the
-        // edge, never the caller's storage or an owned disposal obligation.
-        // Signature and successor custody independently rejoin the exact
-        // referent and access; Terminal replay checks the resulting aliases.
-        let borrowed_record = matches!(
+        // Ordinary record and fixed-array loans move only the usable binding
+        // across the edge, never the caller's storage or an owned disposal
+        // obligation. Signature and successor custody independently rejoin
+        // the exact referent and access; Terminal replay checks the resulting
+        // aliases.
+        let borrowed_aggregate = matches!(
             parameter.access,
             StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
-        ) && parameter.multiplicity == StructuralMultiplicity::Unrestricted
+        ) && parameter.multiplicity
+            == StructuralMultiplicity::Unrestricted
             && structural_types.iter().any(|declaration| {
                 declaration.id == parameter.structural_type
-                    && matches!(declaration.shape, StructuralTypeShape::Record { .. })
+                    && matches!(
+                        declaration.shape,
+                        StructuralTypeShape::Record { .. } | StructuralTypeShape::FixedArray { .. }
+                    )
             });
-        !(plain_owned || shared_view || borrowed_record)
+        !(plain_owned || shared_view || borrowed_aggregate)
             || !parameter.qualifications.is_empty()
             || !parameter.projected_qualifications.is_empty()
     }) {

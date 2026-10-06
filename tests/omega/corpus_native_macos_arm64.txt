@@ -144,6 +144,7 @@ pass/borrows/runtime_record_byte_region_loan_exit built 30261ms exit:50 @4800836
 pass/borrows/runtime_record_primitive_reference_capture_exit built 1607ms exit:0 @104c2da31081
 pass/borrows/runtime_recursive_mutable_array_store_exit built 1300ms exit:70 @ad65d2640206+wt
 pass/borrows/runtime_recursive_shared_array_read_exit built 2356ms exit:70 @6d05c993ca61
+pass/borrows/runtime_reentered_mutable_array_loan_exit built 1705ms exit:70 @98f54226c10c
 pass/borrows/runtime_reference_array_pressure_exit built 2056ms exit:70 @a195e6cdf066+wt
 pass/borrows/runtime_reference_local_constructor_leaf_retirement_exit built 1162ms exit:70 @104c2da31081
 pass/borrows/runtime_reference_record_array_field_read_exit built 1171ms exit:70 @104c2da31081
