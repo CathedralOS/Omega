@@ -2358,20 +2358,6 @@ crash and native exit behavior.
   Acceptance: the three reach `checked` and their authored native outcomes,
   each cleared by an observed corpus result rather than a re-pin.
 
-- **GUARDED-TRANSITION-ARGUMENT-PROOF-REGRESSED.** (new-scope)
-  `pass/calls/runtime_guarded_effectful_transition_argument_exit` moved
-  `checked` to `rejected` somewhere in `5fc8d6f1ec2..62b1b0cb656`. It refuses
-  with `cannot prove requires contract for call bump_and_value from Main::main:
-  Main.bump_and_value(seed, main) <= 20 (needs fact `value <= 20` here;
-  establish it before the call via a prior contract guarantee, domain
-  membership, or guard)`. Reproduced on an unmodified checkout at
-  `62b1b0cb656` and `checked` at `5fc8d6f1ec2`, so it is a real loss in that
-  eight-commit window and **not** the edge-cleanup repair, which was measured
-  with and without its one file. The golden row is stamped `@2d8ed253669f`,
-  about 2058 commits behind, so the golden cannot date the loss -- bisect the
-  window. Acceptance: the row reaches `checked` again.
-
-
 - **CONSTRUCTED-ARGUMENT-SCHEDULE-REGRESSED-NINE.** (new-scope)
   Five customers still need the shared constructed-argument schedule completed:
   `pass/borrows/{branch_selected_record_composed_receiver_exit,
