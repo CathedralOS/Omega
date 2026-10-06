@@ -28,7 +28,7 @@ pub boundary trait Gui {
 // Exact i32).
 // Persistent native handles belong to the application-owned Window. Provider
 // selection supplies only code; each operation keeps its scratch in locals.
-data Window {
+pub data Window {
     window: u64;
     view: u64;
     app: u64;
@@ -59,23 +59,23 @@ reaches CoreGraphics + ObjectiveC
 {
     let rx: f64 = F64::from_i32(x);
     let ry: f64 = F64::from_i32(y);
-    let rw: f64 = F64::from_i32(width);
-    let rh: f64 = F64::from_i32(height);
+    let mut rw: f64 = F64::from_i32(width);
+    let mut rh: f64 = F64::from_i32(height);
     rw = rw - 16.0;
     rh = rh - 39.0;
     let cbuf1: [u8; 14] = "NSApplication\0";
-    let cls: u64 = objc_get_class(&cbuf1[0]);
+    let mut cls: u64 = objc_get_class(&cbuf1[0]);
     let cbuf2: [u8; 18] = "sharedApplication\0";
-    let sel: u64 = objc_register_selector(&cbuf2[0]);
+    let mut sel: u64 = objc_register_selector(&cbuf2[0]);
     let app: u64 = objc_send(cls, sel);
     let cbuf3: [u8; 21] = "setActivationPolicy:\0";
     sel = objc_register_selector(&cbuf3[0]);
-    let rc: u64 = objc_send_scalar(app, sel, 0);
+    let mut rc: u64 = objc_send_scalar(app, sel, 0);
     let cbuf4: [u8; 9] = "NSWindow\0";
     cls = objc_get_class(&cbuf4[0]);
     let cbuf5: [u8; 6] = "alloc\0";
     sel = objc_register_selector(&cbuf5[0]);
-    let tmp: u64 = objc_send(cls, sel);
+    let mut tmp: u64 = objc_send(cls, sel);
     let cbuf6: [u8; 45] = "initWithContentRect:styleMask:backing:defer:\0";
     sel = objc_register_selector(&cbuf6[0]);
     let window: u64 = objc_send_rect(tmp, sel, rx, ry, rw, rh, 15, 2, 0);
@@ -170,7 +170,7 @@ reaches CoreGraphics + ObjectiveC
 {
     let close_name: [u8; 6] = "close\0";
     let close_selector: u64 = objc_register_selector(&close_name[0]);
-    let ignored: u64 = objc_send(window.window, close_selector);
+    let mut ignored: u64 = objc_send(window.window, close_selector);
     ignored = objc_send(window.window, window.relsel);
     ignored = objc_send(window.view, window.relsel);
     ignored = objc_send(window.mode, window.relsel);
@@ -232,14 +232,14 @@ reaches CoreGraphics + ObjectiveC
     let cbuf30: [u8; 8] = "NSImage\0";
     let cls: u64 = objc_get_class(&cbuf30[0]);
     let cbuf31: [u8; 6] = "alloc\0";
-    let sel: u64 = objc_register_selector(&cbuf31[0]);
+    let mut sel: u64 = objc_register_selector(&cbuf31[0]);
     let tmp: u64 = objc_send(cls, sel);
     let cbuf32: [u8; 22] = "initWithCGImage:size:\0";
     sel = objc_register_selector(&cbuf32[0]);
     let nsimg: u64 = objc_send_image_size(tmp, sel, cgimg, fbwf, fbhf);
     let cbuf33: [u8; 10] = "setImage:\0";
     sel = objc_register_selector(&cbuf33[0]);
-    let rc: u64 = objc_send_scalar(window_state.view, sel, nsimg);
+    let mut rc: u64 = objc_send_scalar(window_state.view, sel, nsimg);
     // Per-frame lifecycle: the context and CGImage are Create-rule owned, and
     // setImage: retains the NSImage, so drop our +1 on all three — without
     // these releases every presented frame leaked ~3 objects at ~60fps.
@@ -268,7 +268,6 @@ data Main {
     title: [u8; 11];
     pixels: [i32; 4096];
     info: [i32; 11];
-    window: Window;
     hwnd: u64;
     hdc: u64;
     message: [u64; 6];
@@ -313,26 +312,28 @@ machine Main::main(main: &mut Main) reaches Clock + Console + CoreGraphics + Dar
     // WS_VISIBLE | WS_OVERLAPPEDWINDOW (0x10CF0000): a real titled app window,
     // not a naked popup. The outer size is padded (+16, +39)
     // so the CLIENT area is ~256x256 without an AdjustWindowRect import.
-    main.window = main.gui.window_create(main.cls, main.title, 282001408, 200, 200, 272, 295);
-    main.hwnd = main.window.window;
-    transition main.hwnd > 0 { true -> dc(main) _ -> bad(main) }
-    state dc(main: &mut Main) {
-        main.hdc = main.gui.get_dc(&main.window, main.hwnd);
+    // The created resource is owned by the state machine, independently of
+    // its borrowed rendering context. Each transition transfers that owner.
+    let window: Window = main.gui.window_create(main.cls, main.title, 282001408, 200, 200, 272, 295);
+    main.hwnd = window.window;
+    transition main.hwnd > 0 { true -> dc(main, window) _ -> bad(main, window) }
+    state dc(main: &mut Main, window: Window) {
+        main.hdc = main.gui.get_dc(&window, main.hwnd);
         main.frame = 0;
-        transition main.hdc > 0 { true -> frame_loop(main) _ -> bad(main) }
+        transition main.hdc > 0 { true -> frame_loop(main, window) _ -> bad(main, window) }
     }
-    state frame_loop(main: &mut Main) {
-        transition main.frame < 60 { true -> fill_init(main) _ -> finish(main) }
+    state frame_loop(main: &mut Main, window: Window) {
+        transition main.frame < 60 { true -> fill_init(main, window) _ -> finish(main, window) }
     }
     // --- fill the framebuffer: one linear pass, an animated diagonal wash ---
-    state fill_init(main: &mut Main) {
+    state fill_init(main: &mut Main, window: Window) {
         main.i = 0;
-        transition { _ -> fill_loop(main) }
+        transition { _ -> fill_loop(main, window) }
     }
-    state fill_loop(main: &mut Main) {
-        transition main.i >= 0 && main.i < 4096 { true -> fill_cell(main) _ -> present(main) }
+    state fill_loop(main: &mut Main, window: Window) {
+        transition main.i >= 0 && main.i < 4096 { true -> fill_cell(main, window) _ -> present(main, window) }
     }
-    state fill_cell(main: &mut Main) {
+    state fill_cell(main: &mut Main, window: Window) {
         // row + col + phase, folded through % 256: i/64 <= 64, i%64 <= 63,
         // frame*4 <= 240 -- every step provably bounded, no domain needed.
         main.c = (main.i / 64) + (main.i % 64);
@@ -342,64 +343,64 @@ machine Main::main(main: &mut Main) reaches Clock + Console + CoreGraphics + Dar
         main.px = main.c * 65536;
         main.px = main.px + (255 - main.c) * 256;
         main.px = main.px + 64;
-        transition main.i >= 0 && main.i < 4096 { true -> fill_put(main) _ -> bad(main) }
+        transition main.i >= 0 && main.i < 4096 { true -> fill_put(main, window) _ -> bad(main, window) }
     }
-    state fill_put(main: &mut Main) {
+    state fill_put(main: &mut Main, window: Window) {
         main.pixels[main.i] = main.px;
         main.i = main.i + 1;
-        transition { _ -> fill_loop(main) }
+        transition { _ -> fill_loop(main, window) }
     }
     // --- present: stretch the 64x64 buffer into the 256x256 client area ---
-    state present(main: &mut Main) {
-        main.copied = main.gui.blit(&main.window, main.hdc, 256, 256, 64, 64, main.pixels, main.info);
-        transition main.copied == 64 { true -> pace(main) _ -> bad(main) }
+    state present(main: &mut Main, window: Window) {
+        main.copied = main.gui.blit(&window, main.hdc, 256, 256, 64, 64, main.pixels, main.info);
+        transition main.copied == 64 { true -> pace(main, window) _ -> bad(main, window) }
     }
-    state pace(main: &mut Main) {
+    state pace(main: &mut Main, window: Window) {
         main.clock.sleep(25);
-        transition { _ -> pump_init(main) }
+        transition { _ -> pump_init(main, window) }
     }
     // --- pump: drain queued messages so the titlebar responds (drag, X) ---
-    state pump_init(main: &mut Main) {
+    state pump_init(main: &mut Main, window: Window) {
         main.pumped = 0;
-        transition { _ -> pump_loop(main) }
+        transition { _ -> pump_loop(main, window) }
     }
-    state pump_loop(main: &mut Main) {
-        main.have = main.gui.msg_peek(&mut main.window, main.message);
-        transition main.have > 0 { true -> pump_handle(main) _ -> liveness(main) }
+    state pump_loop(main: &mut Main, mut window: Window) {
+        main.have = main.gui.msg_peek(&mut window, main.message);
+        transition main.have > 0 { true -> pump_handle(main, window) _ -> liveness(main, window) }
     }
-    state pump_handle(main: &mut Main) {
-        main.translated = main.gui.msg_translate(&main.window, main.message);
-        main.dispatched = main.gui.msg_dispatch(&main.window, main.message);
-        transition main.pumped < 16 { true -> pump_next(main) _ -> liveness(main) }
+    state pump_handle(main: &mut Main, window: Window) {
+        main.translated = main.gui.msg_translate(&window, main.message);
+        main.dispatched = main.gui.msg_dispatch(&window, main.message);
+        transition main.pumped < 16 { true -> pump_next(main, window) _ -> liveness(main, window) }
     }
-    state pump_next(main: &mut Main) {
+    state pump_next(main: &mut Main, window: Window) {
         main.pumped = main.pumped + 1;
-        transition { _ -> pump_loop(main) }
+        transition { _ -> pump_loop(main, window) }
     }
     // --- liveness: if the window is destroyed, stop blitting into it ---
-    state liveness(main: &mut Main) {
-        main.alive = main.gui.is_window(&main.window, main.hwnd);
-        transition main.alive > 0 { true -> next_frame(main) _ -> bad(main) }
+    state liveness(main: &mut Main, window: Window) {
+        main.alive = main.gui.is_window(&window, main.hwnd);
+        transition main.alive > 0 { true -> next_frame(main, window) _ -> bad(main, window) }
     }
-    state next_frame(main: &mut Main) {
+    state next_frame(main: &mut Main, window: Window) {
         // re-guard so the increment's edge carries the frame bound (the
         // keystone reads the DIRECT incoming edge; frame_loop's guard is
         // several states upstream by now).
-        transition main.frame < 60 { true -> advance(main) _ -> finish(main) }
+        transition main.frame < 60 { true -> advance(main, window) _ -> finish(main, window) }
     }
-    state advance(main: &mut Main) {
+    state advance(main: &mut Main, window: Window) {
         main.frame = main.frame + 1;
-        transition { _ -> frame_loop(main) }
+        transition { _ -> frame_loop(main, window) }
     }
-    state finish(main: &mut Main) {
-        transition main.frame == 60 { true -> complete(main) _ -> bad(main) }
+    state finish(main: &mut Main, window: Window) {
+        transition main.frame == 60 { true -> complete(main, window) _ -> bad(main, window) }
     }
-    state complete(main: &mut Main) {
-        main.gui.window_destroy(main.window);
+    state complete(main: &mut Main, window: Window) {
+        main.gui.window_destroy(window);
         main.console.write_line("PASS: 60 frames blitted (exit 0)");
         main.console.exit_process(0);
     }
-    state bad(main: &mut Main) {
+    state bad(main: &mut Main, window: Window) {
         main.console.write_line("FAIL: creation, rendering, or window closure before 60 frames (exit 1)");
         main.console.exit_process(1);
     }

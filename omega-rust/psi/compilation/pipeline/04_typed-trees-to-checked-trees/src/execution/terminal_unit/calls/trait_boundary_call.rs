@@ -259,6 +259,7 @@ pub(super) fn build(
             continue;
         }
         let byte_sequence = byte_sequence_carrier(program, formal, substitutions.as_slice());
+        phase("call operation: boundary argument identity");
         let target_identity = if byte_sequence.is_some() {
             byte_sequence_type_identity(program, formal, &[], substitutions.as_slice())?
         } else {
@@ -293,6 +294,7 @@ pub(super) fn build(
         // sequencer. Pass that independent owned value, not the borrowed
         // receiver path which supplied its contents. Ordinary calls make the
         // same distinction between evaluated operands and source storage.
+        phase("call operation: boundary argument place");
         let place = caller_structural_results
             .iter()
             .find(|(_, root)| *root == facts::PlaceRoot::Expression(*argument))
@@ -314,6 +316,7 @@ pub(super) fn build(
         {
             // Result operands own type/presentation and loan admission. A
             // borrowed formal need not itself be the local's owned array type.
+            phase("call operation: boundary result argument");
             structural_arguments.push(result_arguments::argument(
                 program,
                 facts,
@@ -329,6 +332,7 @@ pub(super) fn build(
             )?);
             continue;
         }
+        phase("call operation: boundary argument parameter");
         let facts::PlaceRoot::Symbol(source_symbol) = place.root else {
             return None;
         };
@@ -344,12 +348,14 @@ pub(super) fn build(
             target: formal,
             target_identity: &target_identity,
         };
+        phase("call operation: boundary argument projection");
         let path = boundary_parameter_path(argument, custody, substitutions.as_slice())?;
         // A whole array and its field projection lend the same fixed range;
         // access and source custody still replay below.
         // Whole bounded storage presents the same live byte view as an inline
         // field. Its qualifications do not turn a shared observation into a
         // fixed-capacity array loan; access and predicate custody replay below.
+        phase("call operation: boundary argument presentation");
         if path.is_empty()
             && !argument.whole_parameter_is_admitted(
                 source,
@@ -359,6 +365,7 @@ pub(super) fn build(
         {
             return None;
         }
+        phase("call operation: boundary argument access");
         structural_arguments.push(CheckedUnitStructuralArgumentPlan {
             source: CheckedUnitStructuralArgumentSourcePlan::Parameter {
                 parameter_index: u32::try_from(source.index).ok()?,

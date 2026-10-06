@@ -1,0 +1,25 @@
+use omega::language::core::binding;
+
+pub data Counter { value: i32; }
+pub boundary trait CounterOperations {
+    machine read(counter: &Counter) -> i32;
+}
+pub boundary trait OtherOperations {
+    machine read(counter: &Counter) -> i32;
+}
+machine read_counter(counter: &Counter) -> i32
+satisfies OtherOperations::read { counter.value }
+
+// Equal names and signatures cannot substitute a different requirement owner.
+WrongProvider satisfies CounterOperations {
+    OtherOperations::read = read_counter;
+}
+
+data Main {
+    counters: Binding<CounterOperations>;
+    counter: Counter;
+    observed: i32;
+}
+machine Main::main(main: &mut Main) reaches CounterOperations {
+    main.observed = main.counters.read(&main.counter);
+}

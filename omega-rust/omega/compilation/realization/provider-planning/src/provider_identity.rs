@@ -42,6 +42,58 @@ pub(crate) fn named_provider<'a>(
     matching.next().is_none().then_some(result)
 }
 
+/// Authenticate the selected trait association at its declaration owner.
+/// A closed map owns its rows; a nominal provider owns authored machine edges.
+pub fn provider_trait_requirement_matches(
+    context: ProviderPlanningContext<'_>,
+    plan: &ProviderPlan,
+    row: &ProviderPlanRow,
+    machine: &typed_trees::machine::Machine,
+    declaring_trait: SymbolHandle,
+    requirement: SymbolHandle,
+) -> bool {
+    let typed = context.typed;
+    if !context.contains(declaring_trait)
+        || !context.contains(requirement)
+        || !provider_row_matches(context, plan, row, machine)
+    {
+        return false;
+    }
+    if let Some(implementation) = named_provider(context, plan) {
+        let ConformanceImplementation::Closed { rows } = &implementation.implementation else {
+            return false;
+        };
+        return rows
+            .iter()
+            .filter(|entry| {
+                entry.declaring_trait == declaring_trait && entry.requirement == requirement
+            })
+            .count()
+            == 1;
+    }
+    typed
+        .machine_trait_conformances(machine)
+        .iter()
+        .filter(|conformance| {
+            if conformance.external_binding.is_some() {
+                return false;
+            }
+            let Some(typed_trees::machine::SatisfiedDeclaration::Trait {
+                definition,
+                requirement: signature,
+            }) = typed_trees::machine::resolve_satisfied_declaration(typed, machine, conformance)
+            else {
+                return false;
+            };
+            definition.symbol == declaring_trait
+                && signature.symbol == requirement
+                && typed.trait_requirement_callable_identity_text(definition, signature)
+                    == row.requirement_identity
+        })
+        .count()
+        == 1
+}
+
 /// Rejoin a provider row to its declaration, including an exact specialization
 /// of the map's realization. Physical machine ownership is not map ownership.
 pub fn provider_row_matches(

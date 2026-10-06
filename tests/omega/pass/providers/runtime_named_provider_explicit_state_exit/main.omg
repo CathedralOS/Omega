@@ -1,0 +1,39 @@
+use omega::language::core::binding;
+use omega_language_std::console;
+
+pub data Counter { value: i32; }
+pub boundary trait CounterOperations {
+    machine replace(counter: &mut Counter, value: i32);
+    machine read(counter: &Counter) -> i32;
+}
+
+// The selected map owns code. Two explicit state values remain independent.
+CounterProvider satisfies CounterOperations {
+    CounterOperations::replace = replace_counter;
+    CounterOperations::read = read_counter;
+}
+machine replace_counter(counter: &mut Counter, value: i32) {
+    counter.value = value;
+}
+machine read_counter(counter: &Counter) -> i32 { counter.value }
+
+data Main {
+    console: Binding<Console>;
+    counters: Binding<CounterOperations>;
+    first: Counter;
+    second: Counter;
+    first_observed: i32;
+    second_observed: i32;
+}
+machine Main::main(main: &mut Main) reaches Console + CounterOperations {
+    main.counters.replace(&mut main.first, 30);
+    main.counters.replace(&mut main.second, 40);
+    main.first_observed = main.counters.read(&main.first);
+    main.second_observed = main.counters.read(&main.second);
+    transition main.first_observed == 30 && main.second_observed == 40 {
+        true -> good(main)
+        _ -> bad(main)
+    }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main) { main.console.exit_process(71); }
+}

@@ -20,6 +20,8 @@ use super::{
 use checked_trees::machine::{Machine, TraitConformance};
 use validation::{TopLevelSymbols, resolve_closed_requirement_application};
 
+mod named;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum ProviderBody {
     Callable,
@@ -231,17 +233,28 @@ pub(super) fn checked_unit_provider_candidates(
         }
         for machine in checked.typed.machines().iter().filter(|machine| {
             machine.supply_mode == language_semantics::MachineSupplyMode::CheckedBody
-                && machine.attached_data.is_some()
+                && machine.target.is_none()
         }) {
-            let mut matches = false;
-            for conformance in checked.typed.machine_trait_conformances(machine) {
-                if satisfies_requirement(checked, machine, conformance, requirement, &mut symbols)?
-                {
-                    matches = true;
-                    break;
+            let mut providers = named::provider_identities(checked, machine, requirement)?;
+            if machine.attached_data.is_some() {
+                for conformance in checked.typed.machine_trait_conformances(machine) {
+                    if satisfies_requirement(
+                        checked,
+                        machine,
+                        conformance,
+                        requirement,
+                        &mut symbols,
+                    )? {
+                        providers.push(checked.typed.attached_data_path(machine).ok_or(
+                            LoweringError::Unsupported(
+                                "provider candidate has no attached data path",
+                            ),
+                        )?);
+                        break;
+                    }
                 }
             }
-            if !matches {
+            if providers.is_empty() {
                 continue;
             }
             let body = match &boundary.result {
@@ -311,25 +324,25 @@ pub(super) fn checked_unit_provider_candidates(
                     }
                 }
             };
-            output.push(CheckedUnitProviderCandidate {
-                body,
-                boundary: boundary_symbol,
-                candidate: machine.symbol,
-                requirement_identity: requirement_identity.clone(),
-                // Planning and Terminal installation compare the same complete
-                // nominal path. A leaf spelling aliases sibling providers.
-                provider_identity: checked.typed.attached_data_path(machine).ok_or(
-                    LoweringError::Unsupported("provider candidate has no attached data path"),
-                )?,
-                // Provider selection compares semantic overload identities;
-                // diagnostic display paths cannot distinguish those overloads.
-                candidate_identity: checked
-                    .typed
-                    .machine_callable_identity_text(machine)
-                    .ok_or(LoweringError::Unsupported(
-                        "provider candidate has no normalized callable identity",
-                    ))?,
-            });
+            for provider_identity in providers {
+                output.push(CheckedUnitProviderCandidate {
+                    body,
+                    boundary: boundary_symbol,
+                    candidate: machine.symbol,
+                    requirement_identity: requirement_identity.clone(),
+                    // The selected declaration owns provider identity; the body
+                    // may be an independently owned named-map realization.
+                    provider_identity,
+                    // Provider selection compares semantic overload identities;
+                    // diagnostic display paths cannot distinguish those overloads.
+                    candidate_identity: checked
+                        .typed
+                        .machine_callable_identity_text(machine)
+                        .ok_or(LoweringError::Unsupported(
+                            "provider candidate has no normalized callable identity",
+                        ))?,
+                });
+            }
         }
     }
     output.sort_by(|left, right| {

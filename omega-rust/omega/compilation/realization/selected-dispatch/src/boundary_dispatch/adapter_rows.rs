@@ -1,8 +1,6 @@
 //! Adapter rows, generic boundary requirements and their resolution.
 
-use crate::boundary_dispatch::boundary_fields::{
-    exact_boundary_trait, exact_conformance_requirement_identity,
-};
+use crate::boundary_dispatch::boundary_fields::exact_boundary_trait;
 use crate::boundary_dispatch::signature_families::{FamilyProbe, finite_signature_family};
 use diagnostics::Diagnostic;
 use typed_trees::TypedTrees;
@@ -298,29 +296,16 @@ pub(crate) fn resolve_selected_adapter_row(
         )));
     }
 
-    let conformances = typed
-        .machine_trait_conformances(adapter)
-        .iter()
-        .filter(|conformance| {
-            conformance.external_binding.is_none()
-                && conformance.symbol == requirement_owner.symbol
-                && conformance
-                    .requirement
-                    .as_ref()
-                    .is_some_and(|requirement| requirement.as_str() == method.name)
-                && exact_conformance_requirement_identity(
-                    typed,
-                    adapter,
-                    requirement_owner,
-                    method.name.as_str(),
-                )
-                .as_deref()
-                    == Some(method.requirement_identity.as_str())
-        })
-        .count();
-    if conformances != 1 {
+    if !provider_planning::provider_trait_requirement_matches(
+        provider_planning::ProviderPlanningContext::new(typed, source::DependencyScope::Product),
+        plan,
+        row,
+        adapter,
+        requirement_owner.symbol,
+        signature.symbol,
+    ) {
         return Err(Diagnostic::error(format!(
-            "selected checked adapter `{machine_identity}` binds exact overload `{}` through {conformances} checked conformances",
+            "selected checked adapter `{machine_identity}` has no exact selected provider association for overload `{}`",
             method.requirement_identity,
         )));
     }
@@ -790,29 +775,16 @@ fn resolve_family_adapter_row(
         )));
     };
 
-    let conformances = typed
-        .machine_trait_conformances(adapter)
-        .iter()
-        .filter(|conformance| {
-            conformance.external_binding.is_none()
-                && conformance.symbol == requirement_owner.symbol
-                && conformance
-                    .requirement
-                    .as_ref()
-                    .is_some_and(|requirement| requirement.as_str() == method.name)
-                && exact_conformance_requirement_identity(
-                    typed,
-                    adapter,
-                    requirement_owner,
-                    method.name.as_str(),
-                )
-                .as_deref()
-                    == Some(method.requirement_identity.as_str())
-        })
-        .count();
-    if conformances != 1 {
+    if !provider_planning::provider_trait_requirement_matches(
+        provider_planning::ProviderPlanningContext::new(typed, source::DependencyScope::Product),
+        plan,
+        row,
+        adapter,
+        requirement_owner.symbol,
+        signature.symbol,
+    ) {
         return Err(Diagnostic::error(format!(
-            "selected checked adapter `{machine_identity}` binds exact overload `{}` through {conformances} checked conformances",
+            "selected checked adapter `{machine_identity}` has no exact selected provider association for overload `{}`",
             method.requirement_identity,
         )));
     }
