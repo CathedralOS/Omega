@@ -220,6 +220,18 @@ pub(super) fn validate_bindings(
             // `&mut [T]` view local's affine binding is the exclusive loan
             // custody its `let` established; the target's mutable view
             // parameter continues that same loan.
+            //
+            // The move/copy case reads no binding mutability. `mut` is the
+            // source-level write permission on the name, not an ownership
+            // category: the local's custody at this edge is the result
+            // binding's multiplicity, this edge's cleanup evidence, and the
+            // checked ownership roster, all of which the plan already carries
+            // and the Terminal ownership verifier independently reconstructs.
+            // Re-deriving a refusal from the authored `mut` token refused
+            // exactly the shape the source contract requires an implementation
+            // to support -- a scratch buffer filled through `&mut` in one state
+            // and passed on as a state argument, rather than parked in a
+            // persistent context record.
             let expression =
                 arguments
                     .get(target.position as usize)
@@ -279,9 +291,6 @@ pub(super) fn validate_bindings(
                 }
                 borrow.target
             } else {
-                if local.is_mutable {
-                    return unsupported("Unit graph moved local is mutable");
-                }
                 *expression
             };
             if !matches!(checked.expression_table.expression(actual), ExpressionNode::Name(path) if path.symbol == local.symbol && path.head_symbol == local.symbol && checked.expression_table.name_path_members(path.members).len() == 1)

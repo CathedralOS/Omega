@@ -1399,8 +1399,7 @@ pass/text/view_field_literal_store_outlives_helper_exit built 1073ms exit:70 @2c
 pass/text/zii_default_string_equality_exit built 1614ms exit:70 @5715dd4d97f7+wt
 pass/time/runtime_checked_time_arith_exit built 940ms exit:70
 pass/time/runtime_duration_core_exit built 14314ms exit:70 @fb2178def922
-pass/time/runtime_fs_mtime_system_time_interop_exit rejected 5402ms @e01f73c689de+wt
-	terminal-artifact production failed: Lowering(Unsupported("Unit graph moved local is mutable"))
+pass/time/runtime_fs_mtime_system_time_interop_exit built 7991ms exit:70 @ad65d2640206+wt
 pass/time/runtime_time_elapsed_since_exit built 12008ms exit:70 @dfbd9bc4ec99+wt
 pass/time/runtime_time_host_native_darwin_exit built 2086ms exit:70 @dfbd9bc4ec99+wt
 pass/time/runtime_time_host_native_darwin_x86_64_exit built 9486ms @22d7c734257c+wt
