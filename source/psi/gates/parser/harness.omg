@@ -6,6 +6,7 @@ use omega_language_std::console;
 use omega::language::core::binding;
 use psi::lex::lexer;
 use psi::parse::parser;
+use psi::source::source;
 use psi::syntax::syntax;
 
 pub data ParserHarness {
@@ -177,9 +178,7 @@ machine ParserHarness::write_parse_observation(
     }
 
     state parse_diagnostic_coordinates(parser_harness: &mut ParserHarness, output: &SyntaxTrees) {
-        ParserHarness::write_u64(parser_harness, output.diagnostic.source_span.source.value as u64 in Trapping);
-        ParserHarness::write_u64(parser_harness, output.diagnostic.source_span.span.start);
-        ParserHarness::write_u64(parser_harness, output.diagnostic.source_span.span.end);
+        ParserHarness::write_source_span(parser_harness, output.diagnostic.source_span);
         ParserHarness::write_u64(parser_harness, output.root_count as u64 in Trapping);
         transition output.root_count > 0 {
             true -> parse_root(parser_harness, output, 0)
@@ -202,9 +201,7 @@ machine ParserHarness::write_parse_observation(
     ) {
         ParserHarness::write_byte(parser_harness, 1);
         ParserHarness::write_u64(parser_harness, root.item_index);
-        ParserHarness::write_u64(parser_harness, root.source_span.source.value as u64 in Trapping);
-        ParserHarness::write_u64(parser_harness, root.source_span.span.start);
-        ParserHarness::write_u64(parser_harness, root.source_span.span.end);
+        ParserHarness::write_source_span(parser_harness, root.source_span);
         let next: u64 = index + 1;
         transition next < output.root_count {
             true -> parse_root_bound(parser_harness, output, next)
@@ -219,9 +216,7 @@ machine ParserHarness::write_parse_observation(
     ) {
         ParserHarness::write_byte(parser_harness, 2);
         ParserHarness::write_u64(parser_harness, root.item_index);
-        ParserHarness::write_u64(parser_harness, root.source_span.source.value as u64 in Trapping);
-        ParserHarness::write_u64(parser_harness, root.source_span.span.start);
-        ParserHarness::write_u64(parser_harness, root.source_span.span.end);
+        ParserHarness::write_source_span(parser_harness, root.source_span);
         let next: u64 = index + 1;
         transition next < output.root_count {
             true -> parse_root_bound(parser_harness, output, next)
@@ -248,9 +243,7 @@ machine ParserHarness::write_parse_observation(
         let item: UseItem = output.uses[index];
         ParserHarness::write_u64(parser_harness, item.first_member);
         ParserHarness::write_u64(parser_harness, item.member_count as u64 in Trapping);
-        ParserHarness::write_u64(parser_harness, item.source_span.source.value as u64 in Trapping);
-        ParserHarness::write_u64(parser_harness, item.source_span.span.start);
-        ParserHarness::write_u64(parser_harness, item.source_span.span.end);
+        ParserHarness::write_source_span(parser_harness, item.source_span);
         let next: u64 = index + 1;
         transition next < output.use_count {
             true -> parse_use_bound(parser_harness, output, next)
@@ -275,9 +268,7 @@ machine ParserHarness::write_parse_observation(
 
     state parse_member(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 [0..=1023]) {
         let member: IdentifierSpan = output.members[index];
-        ParserHarness::write_u64(parser_harness, member.source_span.source.value as u64 in Trapping);
-        ParserHarness::write_u64(parser_harness, member.source_span.span.start);
-        ParserHarness::write_u64(parser_harness, member.source_span.span.end);
+        ParserHarness::write_source_span(parser_harness, member.source_span);
         let next: u64 = index + 1;
         transition next < output.member_count {
             true -> parse_member_bound(parser_harness, output, next)
@@ -302,9 +293,7 @@ machine ParserHarness::write_parse_observation(
 
     state parse_data_item(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 [0..=255]) {
         let item: DataItem = output.data_items[index];
-        ParserHarness::write_u64(parser_harness, item.name.source_span.source.value as u64 in Trapping);
-        ParserHarness::write_u64(parser_harness, item.name.source_span.span.start);
-        ParserHarness::write_u64(parser_harness, item.name.source_span.span.end);
+        ParserHarness::write_source_span(parser_harness, item.name.source_span);
         ParserHarness::write_u64(parser_harness, item.first_member);
         ParserHarness::write_u64(parser_harness, item.member_count as u64 in Trapping);
         ParserHarness::write_u64(parser_harness, item.first_field);
@@ -354,9 +343,7 @@ machine ParserHarness::write_parse_observation(
         item: DataItem,
         index: u64 [0..=255]
     ) {
-        ParserHarness::write_u64(parser_harness, item.source_span.source.value as u64 in Trapping);
-        ParserHarness::write_u64(parser_harness, item.source_span.span.start);
-        ParserHarness::write_u64(parser_harness, item.source_span.span.end);
+        ParserHarness::write_source_span(parser_harness, item.source_span);
         ParserHarness::write_u64(parser_harness, item.first_generic_parameter);
         ParserHarness::write_u64(parser_harness, item.generic_parameter_count as u64 in Trapping);
         let next: u64 = index + 1;
@@ -397,9 +384,7 @@ machine ParserHarness::write_parse_observation(
     ) {
         ParserHarness::write_byte(parser_harness, kind);
         ParserHarness::write_u64(parser_harness, member.item_index);
-        ParserHarness::write_u64(parser_harness, member.source_span.source.value as u64 in Trapping);
-        ParserHarness::write_u64(parser_harness, member.source_span.span.start);
-        ParserHarness::write_u64(parser_harness, member.source_span.span.end);
+        ParserHarness::write_source_span(parser_harness, member.source_span);
         let next: u64 = index + 1;
         transition next < output.data_member_count {
             true -> parse_data_member_bound(parser_harness, output, next)
@@ -424,13 +409,9 @@ machine ParserHarness::write_parse_observation(
 
     state parse_field(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 [0..=1023]) {
         let field: DataField = output.fields[index];
-        ParserHarness::write_u64(parser_harness, field.name.source_span.source.value as u64 in Trapping);
-        ParserHarness::write_u64(parser_harness, field.name.source_span.span.start);
-        ParserHarness::write_u64(parser_harness, field.name.source_span.span.end);
+        ParserHarness::write_source_span(parser_harness, field.name.source_span);
         ParserHarness::write_u64(parser_harness, field.type_reference);
-        ParserHarness::write_u64(parser_harness, field.source_span.source.value as u64 in Trapping);
-        ParserHarness::write_u64(parser_harness, field.source_span.span.start);
-        ParserHarness::write_u64(parser_harness, field.source_span.span.end);
+        ParserHarness::write_source_span(parser_harness, field.source_span);
         let next: u64 = index + 1;
         transition next < output.field_count {
             true -> parse_field_bound(parser_harness, output, next)
@@ -455,13 +436,9 @@ machine ParserHarness::write_parse_observation(
 
     state parse_payload_field(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 [0..=1023]) {
         let field: DataField = output.payload_fields[index];
-        ParserHarness::write_u64(parser_harness, field.name.source_span.source.value as u64 in Trapping);
-        ParserHarness::write_u64(parser_harness, field.name.source_span.span.start);
-        ParserHarness::write_u64(parser_harness, field.name.source_span.span.end);
+        ParserHarness::write_source_span(parser_harness, field.name.source_span);
         ParserHarness::write_u64(parser_harness, field.type_reference);
-        ParserHarness::write_u64(parser_harness, field.source_span.source.value as u64 in Trapping);
-        ParserHarness::write_u64(parser_harness, field.source_span.span.start);
-        ParserHarness::write_u64(parser_harness, field.source_span.span.end);
+        ParserHarness::write_source_span(parser_harness, field.source_span);
         let next: u64 = index + 1;
         transition next < output.payload_field_count {
             true -> parse_payload_field_bound(parser_harness, output, next)
@@ -486,12 +463,8 @@ machine ParserHarness::write_parse_observation(
 
     state parse_case(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 [0..=511]) {
         let data_case: DataCase = output.cases[index];
-        ParserHarness::write_u64(parser_harness, data_case.name.source_span.source.value as u64 in Trapping);
-        ParserHarness::write_u64(parser_harness, data_case.name.source_span.span.start);
-        ParserHarness::write_u64(parser_harness, data_case.name.source_span.span.end);
-        ParserHarness::write_u64(parser_harness, data_case.source_span.source.value as u64 in Trapping);
-        ParserHarness::write_u64(parser_harness, data_case.source_span.span.start);
-        ParserHarness::write_u64(parser_harness, data_case.source_span.span.end);
+        ParserHarness::write_source_span(parser_harness, data_case.name.source_span);
+        ParserHarness::write_source_span(parser_harness, data_case.source_span);
         ParserHarness::write_u64(parser_harness, data_case.first_payload_field);
         ParserHarness::write_u64(parser_harness, data_case.payload_field_count as u64 in Trapping);
         let next: u64 = index + 1;
@@ -533,16 +506,10 @@ machine ParserHarness::write_parse_observation(
         index: u64 [0..=1023]
     ) {
         ParserHarness::write_byte(parser_harness, 2);
-        ParserHarness::write_u64(parser_harness, type_reference.name.source_span.source.value as u64 in Trapping);
-        ParserHarness::write_u64(parser_harness, type_reference.name.source_span.span.start);
-        ParserHarness::write_u64(parser_harness, type_reference.name.source_span.span.end);
-        ParserHarness::write_u64(parser_harness, type_reference.source_span.source.value as u64 in Trapping);
-        ParserHarness::write_u64(parser_harness, type_reference.source_span.span.start);
-        ParserHarness::write_u64(parser_harness, type_reference.source_span.span.end);
+        ParserHarness::write_source_span(parser_harness, type_reference.name.source_span);
+        ParserHarness::write_source_span(parser_harness, type_reference.source_span);
         ParserHarness::write_byte(parser_harness, 1);
-        ParserHarness::write_u64(parser_harness, type_reference.domain.source_span.source.value as u64 in Trapping);
-        ParserHarness::write_u64(parser_harness, type_reference.domain.source_span.span.start);
-        ParserHarness::write_u64(parser_harness, type_reference.domain.source_span.span.end);
+        ParserHarness::write_source_span(parser_harness, type_reference.domain.source_span);
         let next: u64 = index + 1;
         transition next < output.type_reference_count {
             true -> parse_type_reference_bound(parser_harness, output, next)
@@ -556,12 +523,8 @@ machine ParserHarness::write_parse_observation(
         index: u64 [0..=1023]
     ) {
         ParserHarness::write_byte(parser_harness, 1);
-        ParserHarness::write_u64(parser_harness, type_reference.name.source_span.source.value as u64 in Trapping);
-        ParserHarness::write_u64(parser_harness, type_reference.name.source_span.span.start);
-        ParserHarness::write_u64(parser_harness, type_reference.name.source_span.span.end);
-        ParserHarness::write_u64(parser_harness, type_reference.source_span.source.value as u64 in Trapping);
-        ParserHarness::write_u64(parser_harness, type_reference.source_span.span.start);
-        ParserHarness::write_u64(parser_harness, type_reference.source_span.span.end);
+        ParserHarness::write_source_span(parser_harness, type_reference.name.source_span);
+        ParserHarness::write_source_span(parser_harness, type_reference.source_span);
         ParserHarness::write_byte(parser_harness, 0);
         ParserHarness::write_u64(parser_harness, 0);
         ParserHarness::write_u64(parser_harness, 0);
@@ -614,9 +577,7 @@ machine ParserHarness::write_parse_observation(
         parameter: GenericParameter,
         index: u64 [0..=255]
     ) {
-        ParserHarness::write_u64(parser_harness, parameter.name.source_span.source.value as u64 in Trapping);
-        ParserHarness::write_u64(parser_harness, parameter.name.source_span.span.start);
-        ParserHarness::write_u64(parser_harness, parameter.name.source_span.span.end);
+        ParserHarness::write_source_span(parser_harness, parameter.name.source_span);
         transition parameter.has_type_reference {
             true -> parse_generic_parameter_typed(parser_harness, output, parameter, index)
             _ -> parse_generic_parameter_untyped(parser_harness, output, parameter, index)
@@ -660,9 +621,7 @@ machine ParserHarness::write_parse_observation(
         bounds: u8
     ) {
         ParserHarness::write_byte(parser_harness, bounds);
-        ParserHarness::write_u64(parser_harness, parameter.source_span.source.value as u64 in Trapping);
-        ParserHarness::write_u64(parser_harness, parameter.source_span.span.start);
-        ParserHarness::write_u64(parser_harness, parameter.source_span.span.end);
+        ParserHarness::write_source_span(parser_harness, parameter.source_span);
         let next: u64 = index + 1;
         transition next < output.generic_parameter_count {
             true -> parse_generic_parameter_bound(parser_harness, output, next)
@@ -678,6 +637,12 @@ machine ParserHarness::write_parse_observation(
     }
 
     state parse_done() { }
+}
+
+machine ParserHarness::write_source_span(parser_harness: &mut ParserHarness, source_span: SourceSpan) reaches Console {
+    ParserHarness::write_u64(parser_harness, source_span.source.value as u64 in Trapping);
+    ParserHarness::write_u64(parser_harness, source_span.span.start);
+    ParserHarness::write_u64(parser_harness, source_span.span.end);
 }
 
 machine ParserHarness::write_u64(parser_harness: &mut ParserHarness, value: u64 in Trapping) reaches Console {
