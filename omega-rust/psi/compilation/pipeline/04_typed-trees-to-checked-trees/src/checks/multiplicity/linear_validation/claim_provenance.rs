@@ -128,6 +128,117 @@ pub(crate) fn written_owner_targets(
         .collect()
 }
 
+/// The descent-and-match core both permission provenance walks share: peel a
+/// `Case`/`FixedIndex`/`Field` segment into the literal that produced it, then
+/// resolve the remaining expression to its canonical place and take the live
+/// places its path covers. `descend` is the caller's own recursive step,
+/// `claim` the per-walk field, `common` the unanimous-match fold.
+#[allow(clippy::too_many_arguments)]
+fn expression_permission_claim_scan<X>(
+    program: &typed_trees::TypedTrees,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    expression: typed_trees::expression::ExpressionHandle,
+    relative_path: &[facts::PlaceSegment],
+    places: &[LinearPlace],
+    descend: &dyn Fn(
+        &typed_trees::TypedTrees,
+        SymbolHandle,
+        usize,
+        typed_trees::expression::ExpressionHandle,
+        &[facts::PlaceSegment],
+        &[LinearPlace],
+    ) -> Option<X>,
+    claim: fn(&LinearPlace) -> Option<X>,
+    common: &dyn Fn(Vec<X>) -> Option<X>,
+) -> Option<X> {
+    if let typed_trees::expression::ExpressionNode::StructLiteral(literal) =
+        program.expression_table.expression(expression)
+        && let Some(facts::PlaceSegment::Case { variant }) = relative_path.first()
+    {
+        if literal_variant(program, literal).map(|candidate| candidate.symbol) != Some(*variant) {
+            return None;
+        }
+        return descend(
+            program,
+            state_symbol,
+            statement_index,
+            expression,
+            &relative_path[1..],
+            places,
+        );
+    }
+
+    if let typed_trees::expression::ExpressionNode::ArrayLiteral(values) =
+        program.expression_table.expression(expression)
+        && let Some(facts::PlaceSegment::FixedIndex { index }) = relative_path.first()
+    {
+        let value = *program
+            .expression_table
+            .expression_handles(*values)
+            .get(*index)?;
+        return descend(
+            program,
+            state_symbol,
+            statement_index,
+            value,
+            &relative_path[1..],
+            places,
+        );
+    }
+
+    if let typed_trees::expression::ExpressionNode::StructLiteral(literal) =
+        program.expression_table.expression(expression)
+        && let Some(facts::PlaceSegment::Field { symbol }) = relative_path.first()
+    {
+        let field_name = data_field_name(program, *symbol)?;
+        let field = program
+            .expression_table
+            .struct_fields(literal.fields)
+            .iter()
+            .find(|field| field.name.as_str() == field_name)?;
+        return descend(
+            program,
+            state_symbol,
+            statement_index,
+            field.value,
+            &relative_path[1..],
+            places,
+        );
+    }
+
+    if !relative_path.is_empty()
+        && matches!(
+            program.expression_table.expression(expression),
+            typed_trees::expression::ExpressionNode::Call(_)
+        )
+    {
+        // Multi-output call mappings need the explicit P1c outcome map. Do
+        // not guess a field origin from argument order.
+        return None;
+    }
+
+    let source = crate::flow::canonical_place_from_expression_in_state(
+        program,
+        state_symbol,
+        statement_index,
+        expression,
+    )?;
+    let mut source_path = source.segments;
+    source_path.extend_from_slice(relative_path);
+    let matches = places
+        .iter()
+        .filter(|place| {
+            place.root == source.root
+                && place.live
+                && (place.path == source_path
+                    || (place.conditional && source_path.starts_with(place.path.as_slice())))
+        })
+        .filter_map(claim)
+        .collect();
+    common(matches)
+}
+
 fn expression_permission_claim_identity_for_claim(
     program: &typed_trees::TypedTrees,
     state_symbol: SymbolHandle,
@@ -204,88 +315,17 @@ fn expression_permission_claim_identity_for_claim(
         }
     }
 
-    if let typed_trees::expression::ExpressionNode::StructLiteral(literal) =
-        program.expression_table.expression(expression)
-        && let Some(facts::PlaceSegment::Case { variant }) = relative_path.first()
-    {
-        if literal_variant(program, literal).map(|candidate| candidate.symbol) != Some(*variant) {
-            return None;
-        }
-        return expression_permission_claim_identity_for_claim(
-            program,
-            state_symbol,
-            statement_index,
-            expression,
-            &relative_path[1..],
-            places,
-        );
-    }
-
-    if let typed_trees::expression::ExpressionNode::ArrayLiteral(values) =
-        program.expression_table.expression(expression)
-        && let Some(facts::PlaceSegment::FixedIndex { index }) = relative_path.first()
-    {
-        let value = *program
-            .expression_table
-            .expression_handles(*values)
-            .get(*index)?;
-        return expression_permission_claim_identity_for_claim(
-            program,
-            state_symbol,
-            statement_index,
-            value,
-            &relative_path[1..],
-            places,
-        );
-    }
-
-    if let typed_trees::expression::ExpressionNode::StructLiteral(literal) =
-        program.expression_table.expression(expression)
-        && let Some(facts::PlaceSegment::Field { symbol }) = relative_path.first()
-    {
-        let field_name = data_field_name(program, *symbol)?;
-        let field = program
-            .expression_table
-            .struct_fields(literal.fields)
-            .iter()
-            .find(|field| field.name.as_str() == field_name)?;
-        return expression_permission_claim_identity_for_claim(
-            program,
-            state_symbol,
-            statement_index,
-            field.value,
-            &relative_path[1..],
-            places,
-        );
-    }
-
-    if !relative_path.is_empty()
-        && matches!(
-            program.expression_table.expression(expression),
-            typed_trees::expression::ExpressionNode::Call(_)
-        )
-    {
-        return None;
-    }
-
-    let source = crate::flow::canonical_place_from_expression_in_state(
+    expression_permission_claim_scan(
         program,
         state_symbol,
         statement_index,
         expression,
-    )?;
-    let mut source_path = source.segments;
-    source_path.extend_from_slice(relative_path);
-    let matches = places
-        .iter()
-        .filter(|place| {
-            place.root == source.root
-                && place.live
-                && (place.path == source_path
-                    || (place.conditional && source_path.starts_with(place.path.as_slice())))
-        })
-        .filter_map(|place| place.claim_identity);
-    common_permission_claim_identity(matches)
+        relative_path,
+        places,
+        &expression_permission_claim_identity_for_claim,
+        |place| place.claim_identity,
+        &|matches: Vec<_>| common_permission_claim_identity(matches.into_iter()),
+    )
 }
 
 fn expression_permission_provenance_for_claim(
@@ -328,90 +368,17 @@ fn expression_permission_provenance_for_claim(
         .flatten();
     }
 
-    if let typed_trees::expression::ExpressionNode::StructLiteral(literal) =
-        program.expression_table.expression(expression)
-        && let Some(facts::PlaceSegment::Case { variant }) = relative_path.first()
-    {
-        if literal_variant(program, literal).map(|candidate| candidate.symbol) != Some(*variant) {
-            return None;
-        }
-        return expression_permission_provenance_for_claim(
-            program,
-            state_symbol,
-            statement_index,
-            expression,
-            &relative_path[1..],
-            places,
-        );
-    }
-
-    if let typed_trees::expression::ExpressionNode::ArrayLiteral(values) =
-        program.expression_table.expression(expression)
-        && let Some(facts::PlaceSegment::FixedIndex { index }) = relative_path.first()
-    {
-        let value = *program
-            .expression_table
-            .expression_handles(*values)
-            .get(*index)?;
-        return expression_permission_provenance_for_claim(
-            program,
-            state_symbol,
-            statement_index,
-            value,
-            &relative_path[1..],
-            places,
-        );
-    }
-
-    if let typed_trees::expression::ExpressionNode::StructLiteral(literal) =
-        program.expression_table.expression(expression)
-        && let Some(facts::PlaceSegment::Field { symbol }) = relative_path.first()
-    {
-        let field_name = data_field_name(program, *symbol)?;
-        let field = program
-            .expression_table
-            .struct_fields(literal.fields)
-            .iter()
-            .find(|field| field.name.as_str() == field_name)?;
-        return expression_permission_provenance_for_claim(
-            program,
-            state_symbol,
-            statement_index,
-            field.value,
-            &relative_path[1..],
-            places,
-        );
-    }
-
-    if !relative_path.is_empty()
-        && matches!(
-            program.expression_table.expression(expression),
-            typed_trees::expression::ExpressionNode::Call(_)
-        )
-    {
-        // Multi-output call mappings need the explicit P1c outcome map. Do
-        // not guess a field origin from argument order.
-        return None;
-    }
-
-    let source = crate::flow::canonical_place_from_expression_in_state(
+    expression_permission_claim_scan(
         program,
         state_symbol,
         statement_index,
         expression,
-    )?;
-    let mut source_path = source.segments;
-    source_path.extend_from_slice(relative_path);
-    let matches = places
-        .iter()
-        .filter(|place| {
-            place.root == source.root
-                && place.live
-                && (place.path == source_path
-                    || (place.conditional && source_path.starts_with(place.path.as_slice())))
-        })
-        .filter_map(|place| place.provenance);
-    common_permission_provenance(matches)
+        relative_path,
+        places,
+        &expression_permission_provenance_for_claim,
+        |place| place.provenance,
+        &|matches: Vec<_>| common_permission_provenance(matches.into_iter()),
+    )
 }
 
 fn common_permission_provenance(
