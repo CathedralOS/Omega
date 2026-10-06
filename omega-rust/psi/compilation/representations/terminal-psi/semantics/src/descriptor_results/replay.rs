@@ -1507,11 +1507,3 @@ impl<'a> DescriptorAnalysis<'a> {
         Some(flow)
     }
 }
-
-pub fn reconstruct_flow(
-    types: &[StructuralTypeDeclaration],
-    machines: &[DescriptorMachine],
-    identity: MachineId,
-) -> Option<BTreeMap<DescriptorPosition, DescriptorFlowStep>> {
-    DescriptorAnalysis::new(types, machines).flow(identity)
-}
