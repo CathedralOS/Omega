@@ -902,6 +902,17 @@ defines the complete product bar.
     natively (`pass/borrows/runtime_shared_qualified_view_cycle_exit`).
     Result custody and nested-field initialization stay with
     **STATE-LOCAL-VALUE-FRONTIER**.
+  - `text/caesar_cipher` and `simulation/game_of_life_glider` lend a mutable
+    `Utf8`-qualified fixed-array local to a later state. Stage 04's local
+    loan transfer (`execution/terminal_unit/state_graph/mod.rs`) admits only
+    numeric constraints; admitting represented byte predicates instead
+    reaches the Terminal verifier's `InvalidStructuralSuccessorArgument`,
+    because stores through the loan owe `valid_utf8` over content the
+    receiving state does not see. **STATIC-MACHINE-MIGRATION** records the
+    glider shape.
+  - `simulation/game_of_life`: Terminal production stops at the private
+    `proof_search_integer_certificate_work` capacity (`Incomplete`), which
+    **PCC-CERTIFICATES-DELETED** removes.
 
   Host coverage still owed:
   - std `Clock` on Linux (`rendering/{bouncing_ball_2d,mandelbrot_zoom,bouncing_particles}`):
