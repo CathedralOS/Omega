@@ -73,6 +73,7 @@ pub fn encode_aapcs64_frame_protocol(
     }
     validate_probe(frame_size_bytes, probe)?;
     validate_slots(frame_size_bytes, slots)?;
+    let scratch = frame_scratch(model, slots)?;
     let mut prologue = Vec::new();
     let mut epilogue = Vec::new();
     if probe.touches == 0 {
@@ -94,6 +95,7 @@ pub fn encode_aapcs64_frame_protocol(
             &mut prologue,
             register(model, slot.view)?,
             slot.offset_bytes,
+            scratch,
             false,
         )?;
     }
@@ -102,6 +104,7 @@ pub fn encode_aapcs64_frame_protocol(
             &mut epilogue,
             register(model, slot.view)?,
             slot.offset_bytes,
+            scratch,
             true,
         )?;
     }
@@ -178,7 +181,6 @@ fn validate_slots(
             .ok_or(Aarch64FrameProtocolError::OffsetOutOfRange)?;
         if slot.size_bytes != 8
             || !slot.offset_bytes.is_multiple_of(8)
-            || slot.offset_bytes / 8 > 4095
             || end > frame_size_bytes
             || (index != 0 && slot.offset_bytes < previous_end)
         {
@@ -217,23 +219,69 @@ fn register(
     }
 }
 
+/// IP0/IP1 are call-clobbered and outside AAPCS64's argument/result banks
+/// (including the x8 indirect result pointer). They can address preservation
+/// slots before the body and after its result is ready without moving SP or
+/// clobbering a saved register. Canonical preservation rosters never contain
+/// either; still refuse a supplied roster that leaves neither scratch free.
+fn frame_scratch(
+    model: &ValidatedPhysicalRegisterModel,
+    slots: &[Aarch64FrameSlot],
+) -> Result<Option<u8>, Aarch64FrameProtocolError> {
+    if slots.iter().all(|slot| slot.offset_bytes / 8 <= 4095) {
+        return Ok(None);
+    }
+    let mut available = [true, true];
+    for slot in slots {
+        match register(model, slot.view)? {
+            Register::X(16) => available[0] = false,
+            Register::X(17) => available[1] = false,
+            _ => {}
+        }
+    }
+    if available[0] {
+        Ok(Some(16))
+    } else if available[1] {
+        Ok(Some(17))
+    } else {
+        Err(Aarch64FrameProtocolError::NonCanonicalSlots)
+    }
+}
+
 fn append_memory(
     bytes: &mut Vec<u8>,
     register: Register,
     offset_bytes: u64,
+    scratch: Option<u8>,
     load: bool,
 ) -> Result<(), Aarch64FrameProtocolError> {
-    if !offset_bytes.is_multiple_of(8) || offset_bytes / 8 > 4095 {
+    if !offset_bytes.is_multiple_of(8) || offset_bytes > MAX_STACK_POINTER_ADJUST_BYTES {
         return Err(Aarch64FrameProtocolError::OffsetOutOfRange);
     }
-    let scaled = (offset_bytes / 8) as u32;
-    let (base, number) = match (register, load) {
-        (Register::X(number), false) => (0xf900_03e0, number),
-        (Register::X(number), true) => (0xf940_03e0, number),
-        (Register::D(number), false) => (0xfd00_03e0, number),
-        (Register::D(number), true) => (0xfd40_03e0, number),
+    let (base_register, displacement) = if offset_bytes / 8 <= 4095 {
+        (31, offset_bytes)
+    } else {
+        let scratch = scratch.ok_or(Aarch64FrameProtocolError::NonCanonicalSlots)?;
+        // add xIP, sp, #(offset >> 12), lsl #12; the memory operation
+        // carries the aligned low 12 bits. SP remains at the committed base
+        // throughout, so earlier saves stay inside the live activation.
+        append_word(
+            bytes,
+            0x9140_03e0 | (((offset_bytes >> 12) as u32) << 10) | u32::from(scratch),
+        );
+        (scratch, offset_bytes & 4095)
     };
-    append_word(bytes, base | (scaled << 10) | u32::from(number));
+    let scaled = (displacement / 8) as u32;
+    let (base, number) = match (register, load) {
+        (Register::X(number), false) => (0xf900_0000, number),
+        (Register::X(number), true) => (0xf940_0000, number),
+        (Register::D(number), false) => (0xfd00_0000, number),
+        (Register::D(number), true) => (0xfd40_0000, number),
+    };
+    append_word(
+        bytes,
+        base | (scaled << 10) | (u32::from(base_register) << 5) | u32::from(number),
+    );
     Ok(())
 }
 
@@ -380,6 +428,140 @@ mod tests {
             ]
             .concat()
         );
+    }
+
+    #[test]
+    fn large_frame_preserves_integer_float_and_link_register_slots() {
+        let model =
+            validate_physical_register_model(crate::aarch64_physical_register_model()).unwrap();
+        let slots =
+            [("x19", 65_536), ("d8", 65_544), ("x30", 65_552)].map(|(name, offset_bytes)| {
+                Aarch64FrameSlot {
+                    view: model.model().view_named(name).unwrap().id,
+                    offset_bytes,
+                    size_bytes: 8,
+                }
+            });
+        let (prologue, epilogue) = encode_aapcs64_frame_protocol(
+            &model,
+            65_568,
+            Aarch64StackProbe {
+                touches: 5,
+                ..DARWIN_PROBE
+            },
+            &slots,
+        )
+        .unwrap();
+        // Each address is sp + 64 KiB; the three memory displacements are
+        // 0, 8 and 16 bytes. The epilogue reverses the same save roster.
+        let saves = [
+            0x9140_43f0_u32,
+            0xf900_0213,
+            0x9140_43f0,
+            0xfd00_0608,
+            0x9140_43f0,
+            0xf900_0a1e,
+        ]
+        .into_iter()
+        .flat_map(u32::to_le_bytes)
+        .collect::<Vec<_>>();
+        let restores = [
+            0x9140_43f0_u32,
+            0xf940_0a1e,
+            0x9140_43f0,
+            0xfd40_0608,
+            0x9140_43f0,
+            0xf940_0213,
+            0x9140_43ff,
+            0x9100_83ff,
+        ]
+        .into_iter()
+        .flat_map(u32::to_le_bytes)
+        .collect::<Vec<_>>();
+        assert!(prologue.ends_with(&saves));
+        assert_eq!(epilogue, restores);
+    }
+
+    #[test]
+    fn large_slot_address_never_clobbers_a_saved_scratch() {
+        let model =
+            validate_physical_register_model(crate::aarch64_physical_register_model()).unwrap();
+        let x16 = model.model().view_named("x16").unwrap().id;
+        let x17 = model.model().view_named("x17").unwrap().id;
+        let x19 = model.model().view_named("x19").unwrap().id;
+        let probe = Aarch64StackProbe {
+            touches: 5,
+            ..DARWIN_PROBE
+        };
+        let slots = [
+            Aarch64FrameSlot {
+                view: x16,
+                offset_bytes: 0,
+                size_bytes: 8,
+            },
+            Aarch64FrameSlot {
+                view: x19,
+                offset_bytes: 65_536,
+                size_bytes: 8,
+            },
+        ];
+        let (prologue, epilogue) =
+            encode_aapcs64_frame_protocol(&model, 65_552, probe, &slots).unwrap();
+        // IP1 addresses the large save while IP0's value is preserved.
+        let save = [0x9140_43f1_u32.to_le_bytes(), 0xf900_0233_u32.to_le_bytes()].concat();
+        assert!(prologue.ends_with(&save));
+        assert_eq!(
+            &epilogue[..8],
+            &[0x9140_43f1_u32.to_le_bytes(), 0xf940_0233_u32.to_le_bytes()].concat()
+        );
+        let occupied = [
+            slots[0],
+            Aarch64FrameSlot {
+                view: x17,
+                offset_bytes: 8,
+                size_bytes: 8,
+            },
+            slots[1],
+        ];
+        assert_eq!(
+            encode_aapcs64_frame_protocol(&model, 65_552, probe, &occupied),
+            Err(Aarch64FrameProtocolError::NonCanonicalSlots),
+        );
+    }
+
+    #[test]
+    fn large_frames_still_reject_invalid_slot_geometry() {
+        let model =
+            validate_physical_register_model(crate::aarch64_physical_register_model()).unwrap();
+        let x19 = model.model().view_named("x19").unwrap().id;
+        let x30 = model.model().view_named("x30").unwrap().id;
+        let first = Aarch64FrameSlot {
+            view: x19,
+            offset_bytes: 65_536,
+            size_bytes: 8,
+        };
+        for (offset_bytes, size_bytes) in [(65_536, 8), (65_540, 8), (65_552, 8), (65_544, 4)] {
+            assert_eq!(
+                encode_aapcs64_frame_protocol(
+                    &model,
+                    65_552,
+                    Aarch64StackProbe {
+                        touches: 5,
+                        ..DARWIN_PROBE
+                    },
+                    &[
+                        first,
+                        Aarch64FrameSlot {
+                            view: x30,
+                            offset_bytes,
+                            size_bytes
+                        }
+                    ],
+                ),
+                Err(Aarch64FrameProtocolError::NonCanonicalSlots),
+                "offset {offset_bytes}, size {size_bytes}",
+            );
+        }
     }
 
     #[test]
