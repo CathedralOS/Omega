@@ -8,7 +8,6 @@ use calling_conventions::{CallSignature, NativePlace, ValueShape};
 use semantic_vocabulary::OperationId;
 use std::collections::BTreeMap;
 use target::NativeTarget;
-use target_operations::{TargetOperationPlan, TargetUnitOperation};
 
 pub(crate) fn bind_native_callback_arguments(
     plan: &AbstractOperationPlan,
@@ -178,32 +177,3 @@ fn native_callback_application_is_exact(
     }
 }
 
-pub(crate) fn validate_native_callback_target_rows(
-    plan: &TargetOperationPlan,
-    expected: &BTreeMap<OperationId, Vec<target_operations::TargetNativeCallbackArgument>>,
-) -> Result<(), LoweringError> {
-    for (operation, callbacks) in expected {
-        let matches = plan
-            .functions
-            .iter()
-            .flat_map(|function| &function.graph.blocks)
-            .flat_map(|block| &block.operations)
-            .filter(|candidate| {
-                matches!(candidate,
-                TargetUnitOperation::NormalizedForeignCall { psi_operation, binding, .. }
-                    if psi_operation == operation
-                        && callbacks.iter().all(|callback| {
-                            binding.boundary_entry_plan
-                                == callback.registrar_boundary_entry_plan
-                        }))
-            })
-            .count();
-        if matches == 0 {
-            return Err(LoweringError::UnusedNativeCallbackArgument(*operation));
-        }
-        if matches != 1 {
-            return Err(LoweringError::InvalidNativeCallbackArgument(*operation));
-        }
-    }
-    Ok(())
-}

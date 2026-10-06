@@ -155,9 +155,5 @@ pub(super) fn lower_to_target_operations_with_settlements_and_installation(
             })
             .collect::<Result<Vec<_>, _>>()?,
     };
-    native_callbacks::validate_native_callback_target_rows(
-        &target_plan,
-        &native_callbacks_by_operation,
-    )?;
     Ok(target_plan)
 }

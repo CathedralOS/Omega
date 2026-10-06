@@ -122,7 +122,6 @@ pub enum LoweringError {
     UnknownNativeCallbackArgument(OperationId),
     InvalidNativeCallbackArgument(OperationId),
     MissingNativeCallbackArgument(OperationId),
-    UnusedNativeCallbackArgument(OperationId),
     IeeeFloatFmaOperandMismatch(ValueId),
     /// Target-neutral custody retains this verified semantic write, but no
     /// target operation may realize it until parameter address, scalar width,
