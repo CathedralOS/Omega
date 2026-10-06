@@ -26,28 +26,6 @@ impl TypedTrees {
         });
     }
 
-    /// The derived wire plan for a schema, when one was computed -- the
-    /// placements in tag order. `None` for schemas the plan pass skipped.
-    pub fn wire_schema_plan(
-        &self,
-        schema: symbols::SymbolHandle,
-    ) -> Option<&[wire::WirePlacement]> {
-        self.wire_schema_plans
-            .iter()
-            .find(|plan| plan.schema == schema)
-            .and_then(|plan| self.wire_placements.span(plan.placements))
-    }
-
-    /// Whether the schema's recorded plan was checked against the authored
-    /// grammar policy. `false` when no plan was recorded (the pass skipped
-    /// the schema) or no `CompactBinary::plan` policy was defined.
-    pub fn wire_schema_plan_policy_verified(&self, schema: symbols::SymbolHandle) -> bool {
-        self.wire_schema_plans
-            .iter()
-            .find(|plan| plan.schema == schema)
-            .is_some_and(|plan| plan.policy_verified)
-    }
-
     /// Dynamic encode obligations retained beside one schema's placements.
     pub fn wire_schema_encode_obligations(
         &self,
