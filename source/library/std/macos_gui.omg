@@ -59,6 +59,7 @@ pub boundary trait ObjectiveC {
 // The Core Graphics seam (CoreGraphics framework) for the framebuffer blit.
 pub boundary trait CoreGraphics {
     machine color_space_rgb() -> u64;
+    machine color_space_release(space: u64);
     // `data` is READ-ONLY here: the framebuffer is snapshotted into the CGImage
     // (`bitmap_context_image`), never drawn into, so an immutable ref suffices —
     // and a by-value `pixels` PARAM cannot be borrowed `&mut`. The ABI passes a

@@ -313,6 +313,7 @@ fn exact_provenance_realization<'typed>(
     context: ProviderPlanningContext<'typed>,
     plan: &ProviderPlan,
     provenance: &ProviderPlanProvenance,
+    row: &ProviderPlanRow,
     realization_symbol: symbols::SymbolHandle,
 ) -> Result<&'typed typed_trees::machine::Machine, diagnostics::Diagnostic> {
     let typed = context.typed;
@@ -335,6 +336,19 @@ fn exact_provenance_realization<'typed>(
             realizations.len(),
         )));
     };
+    if let Some(provider) = crate::provider_identity::named_provider(context, plan) {
+        if provenance.provider_type != Some(provider.symbol)
+            || typed.symbols.symbol_package_identity(provider.symbol)
+                != plan.origin_package_identity
+            || !crate::provider_identity::provider_row_matches(context, plan, row, realization)
+        {
+            return Err(diagnostics::Diagnostic::error(format!(
+                "ProviderPlan `{}` realization does not rejoin its named implementation row",
+                plan.name,
+            )));
+        }
+        return Ok(*realization);
+    }
     if typed.symbols.symbol_package_identity(realization.symbol) != plan.origin_package_identity {
         return Err(diagnostics::Diagnostic::error(format!(
             "ProviderPlan `{}` retained realization {:?} does not belong to its origin package",
@@ -387,7 +401,7 @@ fn replay_provider_row_binding(
     plan: &ProviderPlan,
     row: &ProviderPlanRow,
     realization: &typed_trees::machine::Machine,
-    conformance: &typed_trees::machine::TraitConformance,
+    conformance: Option<&typed_trees::machine::TraitConformance>,
     target_machine_origin: Option<&SelectedTargetMachineOrigin>,
 ) -> Result<(), diagnostics::Diagnostic> {
     let typed = context.typed;
@@ -406,9 +420,11 @@ fn replay_provider_row_binding(
                 || adapter.symbol != realization.symbol
                 || adapter.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
                 || !adapter.body_is_present
-                || conformance.external_binding.is_some()
-                || conformance.via_expression.is_valid()
-                || conformance.external_binding_source_span.is_some()
+                || conformance.is_some_and(|conformance| {
+                    conformance.external_binding.is_some()
+                        || conformance.via_expression.is_valid()
+                        || conformance.external_binding_source_span.is_some()
+                })
             {
                 return Err(diagnostics::Diagnostic::error(format!(
                     "ProviderPlan `{}` row `{}` does not replay its exact checked-adapter realization {:?}",
@@ -417,6 +433,11 @@ fn replay_provider_row_binding(
             }
         }
         _ => {
+            let conformance = conformance.ok_or_else(|| {
+                diagnostics::Diagnostic::error(
+                    "external provider binding is missing its exact realization edge",
+                )
+            })?;
             if realization.body_is_present {
                 return Err(diagnostics::Diagnostic::error(format!(
                     "ProviderPlan `{}` row `{}` retains a body-bearing external realization",
@@ -603,28 +624,41 @@ fn validate_derived_provider_plan_provenance(
             )));
             continue;
         }
-        let realization =
-            match exact_provenance_realization(context, plan, provenance, realization_symbol) {
-                Ok(realization) => realization,
-                Err(diagnostic) => {
-                    diagnostics.push(diagnostic);
-                    continue;
-                }
-            };
-        let conformance = match exact_provider_row_conformance(
+        let realization = match exact_provenance_realization(
             context,
-            &mut top_level_symbols,
             plan,
+            provenance,
             row,
-            realization,
-            requirement_symbol,
-            kind,
+            realization_symbol,
         ) {
-            Ok(conformance) => conformance,
+            Ok(realization) => realization,
             Err(diagnostic) => {
                 diagnostics.push(diagnostic);
                 continue;
             }
+        };
+        let conformance = if crate::provider_identity::named_provider(context, plan).is_some()
+            && matches!(row.binding, ProviderBinding::CheckedAdapter { .. })
+        {
+            None
+        } else {
+            Some(
+                match exact_provider_row_conformance(
+                    context,
+                    &mut top_level_symbols,
+                    plan,
+                    row,
+                    realization,
+                    requirement_symbol,
+                    kind,
+                ) {
+                    Ok(conformance) => conformance,
+                    Err(diagnostic) => {
+                        diagnostics.push(diagnostic);
+                        continue;
+                    }
+                },
+            )
         };
         if let Err(diagnostic) = replay_provider_row_binding(
             context,

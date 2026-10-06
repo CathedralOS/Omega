@@ -355,13 +355,11 @@ fn parse_declared_item<'tokens, 'source>(
         return Ok((Item::Machine(machine), rest));
     }
 
-    // The settled whole-conformance declaration names its evidence identity
-    // first: `Primary: Circle satisfies Shape { ... }`, or
-    // `ConcreteEvidence: satisfies Evidence { ... }` for carrierless proof
-    // evidence. The telescope is owned by that declared name and is never
-    // inferred from the subject or trait arguments.
+    // A named implementation owns its complete requirement map and telescope.
+    // Its name is code identity, never a data subject or implicit argument.
     if let Ok((alias, rest)) = input.take_identifier()
-        && (rest.at_punctuation(PunctuationKind::Colon)
+        && (rest.at_contextual("satisfies")
+            || rest.at_punctuation(PunctuationKind::Colon)
             || rest.at_punctuation(PunctuationKind::Less))
     {
         return super::conformance::parse_conformance(syntax_trees, alias, rest);
@@ -372,18 +370,7 @@ fn parse_declared_item<'tokens, 'source>(
     // evidence identity that must move to the front.
     if input.at_contextual("satisfies") {
         return Err(input.error_here(
-            "the subjectless `satisfies Trait as Name { ... }` conformance header is retired; write `Name: satisfies Trait { ... }`",
-        ));
-    }
-
-    // Retired unnamed carrier order. Bodyless conformances still use attached
-    // exact-requirement machines, but their evidence identity is explicit in
-    // the same name-first position as closed conformances.
-    if let Ok((_type_name, rest)) = input.take_identifier()
-        && rest.at_contextual("satisfies")
-    {
-        return Err(input.error_here(
-            "the unnamed `Subject satisfies Trait` conformance header is retired; write `Name: Subject satisfies Trait`",
+            "the subjectless `satisfies Trait as Name { ... }` conformance header is retired; write `Name satisfies Trait { ... }`",
         ));
     }
 

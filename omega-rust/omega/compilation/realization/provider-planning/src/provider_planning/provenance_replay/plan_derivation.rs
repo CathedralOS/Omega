@@ -226,7 +226,139 @@ pub(crate) fn derive_provider_plans(
         selected_target,
         evaluated_bindings,
     ));
+    let named = derive_named_provider_plans(context, selected_target, &plans);
+    plans.extend(named);
     plans
+}
+
+fn derive_named_provider_plans(
+    context: ProviderPlanningContext<'_>,
+    selected_target: Option<&str>,
+    candidates: &[DerivedProviderPlan],
+) -> Vec<DerivedProviderPlan> {
+    let typed = context.typed;
+    typed
+        .conformances()
+        .iter()
+        .filter_map(|implementation| {
+            if !crate::provider_identity::eligible(implementation)
+                || !context.contains(implementation.symbol)
+            {
+                return None;
+            }
+            let typed_trees::trait_definition::ConformanceImplementation::Closed { rows } =
+                &implementation.implementation
+            else {
+                return None;
+            };
+            let definition = typed.traits().iter().find(|definition| {
+                definition.symbol == implementation.trait_symbol
+                    && definition.is_boundary
+                    && context.contains(definition.symbol)
+            })?;
+            let arguments = typed
+                .type_reference_table
+                .type_reference_handles(implementation.arguments);
+            let schema =
+                crate::service_schema::from_typed_instance(context, definition, arguments)?;
+            let provider_type = typed.symbols.display_path(implementation.symbol, "::");
+            let package = typed.symbols.symbol_package_identity(implementation.symbol);
+            let origin_package = typed
+                .symbols
+                .symbol_package_identity(rows.first()?.realization_machine);
+            let target = selected_target.unwrap_or_default().to_owned();
+            let mut plan = ProviderPlan {
+                name: satisfies_plan_name(&target, &schema.trait_name, &provider_type),
+                provider_type,
+                provider_type_package_identity: package,
+                target,
+                schema,
+                rows: Vec::new(),
+                origin_package_identity: origin_package,
+                origin_package: String::new(),
+                digest_memo: Default::default(),
+            };
+            let mut provenance = ProviderPlanProvenance {
+                schema: ProviderSchemaDeclaration::BoundaryTrait(definition.symbol),
+                provider_type: Some(implementation.symbol),
+                row_requirements: Vec::new(),
+                row_realizations: Vec::new(),
+                row_target_machine_origins: Vec::new(),
+            };
+            for row in rows {
+                let machine = typed.machines().iter().find(|machine| {
+                    machine.symbol == row.realization_machine
+                        && machine.target.is_none()
+                        && context.contains(machine.symbol)
+                        && typed.symbols.symbol_package_identity(machine.symbol) == origin_package
+                })?;
+                if typed.machine_states(machine).first()?.symbol != row.realization_state {
+                    return None;
+                }
+                let identity = exact_satisfied_requirement_identity(
+                    typed,
+                    row.declaring_trait,
+                    row.requirement,
+                );
+                let (binding, lifetime_partition, origin) = if machine.supply_mode.is_checked_body()
+                    && machine.body_is_present
+                {
+                    (
+                        ProviderBinding::CheckedAdapter {
+                            machine_identity: typed.machine_callable_identity_text(machine)?,
+                            machine_package_identity: typed
+                                .symbols
+                                .symbol_package_identity(machine.symbol),
+                        },
+                        typed_trees::machine::normalize_requirement_lifetime_partition(
+                            &implementation.trait_lifetime_arguments,
+                        ),
+                        None,
+                    )
+                } else {
+                    let mut matched = Vec::new();
+                    for candidate in candidates {
+                        for (index, binding) in candidate.plan.rows.iter().enumerate() {
+                            if candidate.provenance.row_requirements.get(index)
+                                == Some(&row.requirement)
+                                && candidate.provenance.row_realizations.get(index)
+                                    == Some(&row.realization_machine)
+                                && binding.requirement_identity == identity
+                            {
+                                matched.push((
+                                    binding,
+                                    candidate.provenance.row_target_machine_origins.get(index)?,
+                                ));
+                            }
+                        }
+                    }
+                    let (binding, origin) = *matched.first()?;
+                    if matched
+                        .iter()
+                        .any(|(other, other_origin)| *other != binding || *other_origin != origin)
+                    {
+                        return None;
+                    }
+                    let origin = origin.clone();
+                    (
+                        binding.binding.clone(),
+                        binding.requirement_lifetime_partition.clone(),
+                        origin,
+                    )
+                };
+                plan.rows.push(ProviderPlanRow {
+                    method: row.requirement_name.as_str().to_owned(),
+                    requirement_identity: identity,
+                    requirement_lifetime_partition: lifetime_partition,
+                    binding,
+                });
+                provenance.row_requirements.push(row.requirement);
+                provenance.row_realizations.push(machine.symbol);
+                provenance.row_target_machine_origins.push(origin);
+            }
+            Some(DerivedProviderPlan { plan, provenance })
+        })
+        .collect()
 }
 
 fn derive_top_level_requirement_plans(

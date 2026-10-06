@@ -718,7 +718,7 @@ fn parses_named_concrete_subjectless_conformance_block() {
             machine witness(value: i32);
         }
 
-        ConcreteEvidence: satisfies Evidence {
+        ConcreteEvidence satisfies Evidence {
             machine witness(value: i32) { }
         }
     "#;
@@ -752,7 +752,7 @@ fn parses_named_concrete_subjectless_conformance_block() {
 fn name_first_subjectless_conformance_requires_a_closed_body() {
     for source in [
         "satisfies Evidence { }",
-        "ConcreteEvidence: satisfies Evidence;",
+        "ConcreteEvidence satisfies Evidence;",
     ] {
         let tokens = Lexer::new(source)
             .tokenize()
@@ -765,25 +765,15 @@ fn name_first_subjectless_conformance_requires_a_closed_body() {
 }
 
 #[test]
-fn retired_named_conformance_headers_direct_the_name_first_migration() {
-    for (source, replacement) in [
-        (
-            "Item satisfies Shape as Primary {}",
-            "Name: Subject satisfies Trait",
-        ),
-        (
-            "satisfies Evidence as ConcreteEvidence {}",
-            "`Name: satisfies Trait { ... }`",
-        ),
-        ("Item satisfies Shape {}", "Name: Subject satisfies Trait"),
-        ("Item satisfies Shape;", "Name: Subject satisfies Trait"),
+fn retired_conformance_alias_order_is_rejected() {
+    for source in [
+        "Item satisfies Shape as Primary {}",
+        "satisfies Evidence as ConcreteEvidence {}",
     ] {
         let tokens = Lexer::new(source)
             .tokenize()
             .expect("tokenize should succeed");
-        let error = parse_syntax_trees(&tokens).expect_err("retired header must reject");
-        assert!(error.message.contains("is retired"));
-        assert!(error.message.contains(replacement));
+        parse_syntax_trees(&tokens).expect_err("the implementation name must precede satisfies");
     }
 }
 

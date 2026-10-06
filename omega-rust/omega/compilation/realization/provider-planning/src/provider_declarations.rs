@@ -297,10 +297,11 @@ fn collect_provider_selections<'a>(
             return;
         };
         if !provider_type.symbol.is_valid()
-            || typed.symbols.get(provider_type.symbol).kind != SymbolKind::Data
+            || (typed.symbols.get(provider_type.symbol).kind != SymbolKind::Data
+                && !crate::provider_identity::is_named_provider(typed, provider_type.symbol))
         {
             diagnostics.push(Diagnostic::error(format!(
-                "provider selection type `{}` does not resolve to an exact data declaration",
+                "provider selection type `{}` does not resolve to an exact provider data declaration or named implementation",
                 provider_type.authored_path
             )));
             return;
@@ -346,7 +347,6 @@ fn collect_provider_selections<'a>(
         Err(diagnostics)
     }
 }
-
 
 fn provider_selection_composition_mode(
     typed: &TypedTrees,

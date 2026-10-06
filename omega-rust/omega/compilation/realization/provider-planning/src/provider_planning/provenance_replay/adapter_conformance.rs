@@ -229,6 +229,14 @@ pub fn exact_checked_adapter<'typed>(
             plan.name,
         )));
     }
+    if !plan.provider_type.is_empty()
+        && !crate::provider_identity::provider_row_matches(context, plan, row, adapter)
+    {
+        return Err(diagnostics::Diagnostic::error(format!(
+            "checked adapter `{machine_identity}` does not rejoin provider `{}` row `{}`",
+            plan.provider_type, row.requirement_identity,
+        )));
+    }
     validate_exact_requirement_lifetime_partition(context, plan, row, adapter)?;
     Ok(adapter)
 }

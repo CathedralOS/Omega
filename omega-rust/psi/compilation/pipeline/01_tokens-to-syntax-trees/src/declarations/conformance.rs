@@ -16,13 +16,19 @@ pub(super) fn parse_conformance<'tokens, 'source>(
 ) -> ParseResult<'tokens, 'source, Item> {
     let (generic_parameters, rest) =
         parse_generic_parameters(syntax_trees, rest, GenericParameterSyntax::StaticBinders)?;
-    let mut rest = rest.take_punctuation(PunctuationKind::Colon, ":")?;
-    let subject = if rest.at_contextual("satisfies") {
-        syntax_trees::item::ConformanceSubject::Subjectless
+    let (subject, mut rest) = if rest.at_contextual("satisfies") {
+        (syntax_trees::item::ConformanceSubject::Subjectless, rest)
     } else {
-        let (subject, next) = rest.take_identifier()?;
-        rest = next;
-        syntax_trees::item::ConformanceSubject::Carrier(subject)
+        let rest = rest.take_punctuation(PunctuationKind::Colon, ":")?;
+        if rest.at_contextual("satisfies") {
+            (syntax_trees::item::ConformanceSubject::Subjectless, rest)
+        } else {
+            let (subject, rest) = rest.take_identifier()?;
+            (
+                syntax_trees::item::ConformanceSubject::Carrier(subject),
+                rest,
+            )
+        }
     };
     rest = rest.take_contextual("satisfies")?;
     let ((trait_name, trait_lifetime_arguments, trait_arguments), rest) =

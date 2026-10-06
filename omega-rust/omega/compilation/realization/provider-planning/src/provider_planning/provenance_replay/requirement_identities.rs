@@ -374,7 +374,9 @@ pub(crate) fn provider_boundary_arguments(
         .conformances()
         .iter()
         .find(|conformance| {
-            Some(conformance.carrier_symbol) == provider_symbol
+            (Some(conformance.carrier_symbol) == provider_symbol
+                || (Some(conformance.symbol) == provider_symbol
+                    && crate::provider_identity::eligible(conformance)))
                 && conformance.trait_symbol == boundary.symbol
         })
         .map(|conformance| {

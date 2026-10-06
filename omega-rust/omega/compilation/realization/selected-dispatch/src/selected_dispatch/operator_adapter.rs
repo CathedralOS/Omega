@@ -173,7 +173,15 @@ pub(super) fn resolve_checked_adapter_for_operator(
             }
         }
     };
-    if checked.typed.attached_data_path(provider).as_deref() != Some(plan.provider_type.as_str()) {
+    if !provider_planning::provider_row_matches(
+        provider_planning::ProviderPlanningContext::new(
+            &checked.typed,
+            source::DependencyScope::Product,
+        ),
+        plan,
+        row,
+        provider,
+    ) {
         return Err(Diagnostic::error(format!(
             "selected checked-operator adapter `{machine_identity}` does not belong to nominal provider `{}`",
             plan.provider_type,

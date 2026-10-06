@@ -263,7 +263,12 @@ pub(crate) fn resolve_selected_adapter_row(
         plan,
         row,
     )?;
-    if typed.attached_data_path(adapter).as_deref() != Some(plan.provider_type.as_str()) {
+    if !provider_planning::provider_row_matches(
+        provider_planning::ProviderPlanningContext::new(typed, source::DependencyScope::Product),
+        plan,
+        row,
+        adapter,
+    ) {
         return Err(Diagnostic::error(format!(
             "selected checked adapter `{machine_identity}` does not belong to nominal provider `{}`",
             plan.provider_type,
@@ -412,7 +417,12 @@ fn resolve_top_level_requirement_adapter_row(
         plan,
         row,
     )?;
-    if typed.attached_data_path(adapter).as_deref() != Some(plan.provider_type.as_str()) {
+    if !provider_planning::provider_row_matches(
+        provider_planning::ProviderPlanningContext::new(typed, source::DependencyScope::Product),
+        plan,
+        row,
+        adapter,
+    ) {
         return Err(Diagnostic::error(format!(
             "selected checked adapter `{machine_identity}` does not belong to nominal provider `{}`",
             plan.provider_type,
@@ -599,7 +609,15 @@ fn resolve_specialized_top_level_requirement_adapter_rows(
                 specialization.machine_identity,
             )));
         }
-        if typed.attached_data_path(instance).as_deref() != Some(plan.provider_type.as_str()) {
+        if !provider_planning::provider_row_matches(
+            provider_planning::ProviderPlanningContext::new(
+                typed,
+                source::DependencyScope::Product,
+            ),
+            plan,
+            row,
+            instance,
+        ) {
             return Err(Diagnostic::error(format!(
                 "selected provider instance `{}` does not belong to nominal provider `{}`",
                 specialization.machine_identity, plan.provider_type,
@@ -724,7 +742,12 @@ fn resolve_family_adapter_row(
         plan,
         row,
     )?;
-    if typed.attached_data_path(adapter).as_deref() != Some(plan.provider_type.as_str()) {
+    if !provider_planning::provider_row_matches(
+        provider_planning::ProviderPlanningContext::new(typed, source::DependencyScope::Product),
+        plan,
+        row,
+        adapter,
+    ) {
         return Err(Diagnostic::error(format!(
             "selected checked adapter `{machine_identity}` does not belong to nominal provider `{}`",
             plan.provider_type,

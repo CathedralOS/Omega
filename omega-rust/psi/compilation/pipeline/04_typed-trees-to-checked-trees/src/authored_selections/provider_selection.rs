@@ -202,6 +202,22 @@ pub(crate) fn resolve_product_operand(
             .data_definitions()
             .iter()
             .map(|definition| (definition.symbol, definition.is_public))
+            .chain(
+                program
+                    .conformances()
+                    .iter()
+                    .filter(|definition| {
+                        matches!(
+                            definition.subject,
+                            typed_trees::trait_definition::ConformanceSubject::Subjectless
+                        ) && matches!(
+                            definition.implementation,
+                            typed_trees::trait_definition::ConformanceImplementation::Closed { .. }
+                        ) && definition.type_parameters.is_empty()
+                            && definition.lifetime_parameters.is_empty()
+                    })
+                    .map(|definition| (definition.symbol, definition.is_public)),
+            )
             .collect()
     };
     let token_bound_machines = program

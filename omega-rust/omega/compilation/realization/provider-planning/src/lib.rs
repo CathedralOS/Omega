@@ -22,6 +22,8 @@ mod intrinsic_requirements;
 mod planning_context;
 pub mod program_entry;
 mod provider_declarations;
+mod provider_identity;
+pub use provider_identity::provider_row_matches;
 mod provider_planning;
 mod provider_settlement;
 pub mod service_schema;
@@ -40,7 +42,7 @@ pub use intrinsic_requirements::{IntrinsicRequirement, IntrinsicRequirementKind}
 pub use planning_context::ProviderPlanningContext;
 pub use provider_declarations::{
     collect_executed_provider_selections, harvest_provider_selections,
-    };
+};
 pub use provider_planning::selection::{
     CompositionMode, ProviderOperatorFamilyCoordinate, ProviderOperatorFamilySelection,
     ProviderSelection, ProviderSelectionIdentity, ProviderSelectionSubject,
