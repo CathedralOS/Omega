@@ -445,6 +445,8 @@ fail/calls/boundary_nested_argument_conflicting_loan rejected 1030ms expected @c
 	state `Math::inspect` receives `buffer` as both mutable and read-only
 fail/calls/computed_zero_requires_argument_rejected rejected 333ms expected @2d8ed253669f
 	machine `Main::main` state `main` value call to `Main::scale` violates required fact `divisor != 0`: the instantiated fact is structurally false
+fail/calls/constructed_case_invalid_common_zero rejected 418ms expected @b2906d953be
+	data `Reply` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/calls/discarded_call_result rejected 339ms expected @2d8ed253669f
 	call to `roll` discards its non-unit `bool` result; consume the value or discard it explicitly with `_ = roll(...);`
 fail/calls/duplicate_named_machine_overload_rejected rejected 745ms expected @3eebfe9c3de
@@ -1792,6 +1794,8 @@ pass/calls/runtime_case_terminal_payload_result_exit checked 1182ms check-target
 pass/calls/runtime_computed_case_subject_affine_argument_exit checked 851ms check-target:macos_arm64 @92bbd31b7820
 pass/calls/runtime_computed_case_terminal_payload_result_exit checked 783ms check-target:macos_arm64 @95bd0eaccc6e
 pass/calls/runtime_constructed_borrowed_payload_arguments_exit checked 1957ms check-target:macos_arm64 @a9ea4297a1a9
+pass/calls/runtime_constructed_copy_payload_arguments_exit checked 6100ms check-target:macos_arm64 @b2906d953be
+pass/calls/runtime_constructed_payload_arguments_exit checked 6944ms check-target:macos_arm64 @b2906d953be
 pass/calls/runtime_constructor_computed_field_exit checked 1305ms check-target:macos_arm64 @2d8ed253669f
 pass/calls/runtime_cross_machine_substate_name_exit checked 1579ms check-target:macos_arm64 @2d8ed253669f
 pass/calls/runtime_cyclic_state_reference_result_exit checked 5224ms check-target:macos_arm64 @8ed3ee405530
