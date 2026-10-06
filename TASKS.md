@@ -401,6 +401,19 @@ helper that passes does not close an item.
   A mismatched trait application rejects, and copying/rebinding the selector
   neither captures data nor changes its borrow lifetime. No legacy dynamic
   subject path remains. Native completion depends on the custody task below.
+  **One customer is design-blocked and the item did not say so.**
+  `pass/traits/runtime_dyn_two_impl_dispatch_exit` erases a concrete reference
+  to `&mut dyn` at a **call-argument** position, and
+  `collect_dynamic_conformance_selections` only visits a local declaration
+  carrying a coercion cast, so no conformance selection is recorded at all and
+  no dispatch plan can exist. That is the open decision
+  `dynamic-erasure-at-argument-position` in `OWNER_QUESTIONS.md`, which also
+  has to settle per-call-site selection, since this fixture calls one helper
+  from two sites choosing different conformances while a caller admits exactly
+  one plan. Do not widen `base_type_identity` to make it pass: a `&mut dyn`
+  argument is a two-word descriptor, not a structural operand, so its having no
+  structural-argument identity is correct.
+
 
 - **STATIC-MACHINE-MIGRATION.** (new-scope) Eliminate machine/state `self`
   receivers and implicit receiver calls under the
