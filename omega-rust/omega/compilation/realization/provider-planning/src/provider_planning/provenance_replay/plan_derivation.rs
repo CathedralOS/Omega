@@ -444,14 +444,7 @@ fn derive_top_level_requirement_plans(
                 (language_semantics::MachineSupplyMode::CheckedBody, None)
                     if machine.body_is_present && !clause.via_expression.is_valid() =>
                 {
-                    ProviderBinding::CheckedAdapter {
-                        machine_identity: typed
-                            .machine_callable_identity_text(machine)
-                            .unwrap_or_default(),
-                        machine_package_identity: typed
-                            .symbols
-                            .symbol_package_identity(machine.symbol),
-                    }
+                    checked_adapter_binding(typed, machine)
                 }
                 (
                     language_semantics::MachineSupplyMode::ExternalRealization { .. },
@@ -707,14 +700,7 @@ fn derive_boundary_operator_plans(
                 (language_semantics::MachineSupplyMode::CheckedBody, None)
                     if machine.body_is_present && !clause.via_expression.is_valid() =>
                 {
-                    ProviderBinding::CheckedAdapter {
-                        machine_identity: typed
-                            .machine_callable_identity_text(machine)
-                            .unwrap_or_default(),
-                        machine_package_identity: typed
-                            .symbols
-                            .symbol_package_identity(machine.symbol),
-                    }
+                    checked_adapter_binding(typed, machine)
                 }
                 _ => continue, // invalid via/body combinations are refused elsewhere
             };
@@ -787,4 +773,18 @@ fn derive_boundary_operator_plans(
         }
     }
     plans
+}
+
+/// The checked-adapter provider binding a machine supplies through its own
+/// checked body: the machine's callable identity plus its package identity.
+fn checked_adapter_binding(
+    typed: &typed_trees::TypedTrees,
+    machine: &typed_trees::machine::Machine,
+) -> ProviderBinding {
+    ProviderBinding::CheckedAdapter {
+        machine_identity: typed
+            .machine_callable_identity_text(machine)
+            .unwrap_or_default(),
+        machine_package_identity: typed.symbols.symbol_package_identity(machine.symbol),
+    }
 }
