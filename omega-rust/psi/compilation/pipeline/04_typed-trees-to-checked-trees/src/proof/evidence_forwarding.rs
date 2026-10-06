@@ -301,7 +301,9 @@ fn checked_evidence_producer(
                 realization_state: row.realization_state,
                 realization_identity,
                 source: match row.source {
-                    ConformanceRowSource::Inline => {
+                    // A synthesized core row is an ordinary checked member
+                    // body of its own block, exactly as an inline row is.
+                    ConformanceRowSource::Inline | ConformanceRowSource::Synthesized => {
                         checked_trees::DynamicConformanceRowSource::Inline
                     }
                     ConformanceRowSource::Reference => {

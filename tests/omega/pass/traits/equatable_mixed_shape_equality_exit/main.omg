@@ -16,11 +16,11 @@ data RoomEvent {
     case Treasure(gold: i32);
 }
 
-trait Equatable {
-    machine equals(subject: &Self, other: &Self) -> bool;
+trait Equatable<T> {
+    machine equals(left: &T, right: &T) -> bool;
 }
 
-RoomEventEquatable: RoomEvent satisfies Equatable;
+RoomEventEquality satisfies Equatable<RoomEvent> { }
 
 data Main {
     console: Binding<Console>;

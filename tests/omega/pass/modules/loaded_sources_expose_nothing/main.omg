@@ -6,15 +6,15 @@
 // resolves, `<=` over anonymous integers stays builtin although core's
 // `Nat::less_or_equal` is loaded, and `(6 + 1) - 0` stays builtin although
 // `Float::subtract` is loaded.
-trait Equatable {
-    machine equals(value: &Self, other: &Self) -> bool;
+trait Equatable<T> {
+    machine equals(left: &T, right: &T) -> bool;
 }
 
 data Nat {
     tag: u8;
 }
 
-NatEquatable: Nat satisfies Equatable;
+NatEquality satisfies Equatable<Nat> { }
 
 machine bounded(value: i32)
 requires value <= 7

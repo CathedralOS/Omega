@@ -1,36 +1,49 @@
-//! Equatable synthesis (frozen decisions 8 + 11): `Type satisfies Equatable;`
-//! on a record or payload-bearing sum makes `==`/`!=` legal on that type by
-//! synthesizing STRUCTURAL equality. This module owns the shared vocabulary:
-//! which types need a declared conformance, whether a conformance is declared,
-//! whether every member can participate in synthesized equality, and the
-//! typing scope the expression lowerer uses to find an operand's data type.
+//! Equatable synthesis (frozen decisions 8 + 11): a named implementation
+//! `PointEquality satisfies Equatable<Point> { }` on a record or
+//! payload-bearing sum makes `==`/`!=` legal on `Point` by synthesizing
+//! STRUCTURAL equality. The implementation, not the data type, owns the
+//! `equals` row; `Point` is only its trait argument. This module owns the
+//! shared vocabulary: which types need an implementation, which implementation
+//! the sealed operator route selects for an operand type, whether every member
+//! can participate in synthesized equality, and the typing scope the
+//! expression lowerer uses to find an operand's data type.
 //!
 //! Mechanism choice: equality is expanded INLINE at the same resolved->typed
 //! lowering point where case membership already synthesizes tag compares (see
 //! `expression::table::structural_equality`). The expansion is an AND/OR tree
 //! of field compares and tag-guarded payload compares, so it rides every
-//! existing backend and interpreter path with zero new runtime surface. A
-//! pre-resolution wrapper also makes that exact expansion callable as
-//! `Type::equals`; direct calls to the compiler-owned surface expand in the
-//! caller's storage scope, and the wrapper is excluded from the hand-written-
-//! override lookup so its own operand comparison cannot recursively target
-//! itself. A hand-written `Type::equals` still wins.
+//! existing backend and interpreter path with zero new runtime surface.
+//! Pre-resolution synthesis gives the implementation an ordinary `equals`
+//! member row whose body is `left == right`; a call through that row
+//! (`PointEquality::equals(&a, &b)`) expands in the caller's storage scope
+//! exactly like `==`. An authored `equals` member or reference row replaces
+//! the synthesized row, and `==` then calls it.
 //!
-//! The conformance PREREQUISITES are validated up front (before machine
-//! lowering) so violations error at the conformance item, not at some later
+//! The operator route selects at most one implementation per operand type:
+//! zero rejects with the declaration to add, and two reject as ambiguous
+//! while explicit calls through either implementation stay available.
+//!
+//! The synthesis PREREQUISITES are validated up front (before machine
+//! lowering) so violations error at the implementation, not at some later
 //! `==` site: every field must be a scalar primitive, a `String` (text
 //! content equality -- length AND bytes -- through the backend's dedicated
-//! value-position text-equals operand), a payload-less sum, or itself an
-//! Equatable-conforming data type; recursive types are rejected (inline
+//! value-position text-equals operand), a payload-less sum, or itself covered
+//! by one Equatable implementation; recursive types are rejected (inline
 //! expansion would not terminate).
 
 use diagnostics::Diagnostic;
 use resolved::SymbolResolvedTrees;
 use resolved::data::{DataDefinition, DataField, DataMember, DataShapeKind};
+use resolved::trait_definition::{
+    Conformance, ConformanceImplementation, ConformanceRow, ConformanceRowSource,
+};
 use symbol_resolved_trees as resolved;
 use typed_trees::types::PrimitiveType;
 
-pub(crate) const EQUATABLE_TRAIT: &str = "Equatable";
+/// The exact declaration path of the root trait whose implementations the
+/// sealed `==` route consults: the same trait stage 02 synthesizes rows for.
+const EQUATABLE_TRAIT_PATH: &str = "Equatable";
+const EQUALS_REQUIREMENT: &str = "equals";
 
 /// How `==` treats a data definition (decision 11).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -38,9 +51,9 @@ pub(crate) enum DataEqualityShape {
     /// Empty records and payload-less sums: tag/value identity IS total
     /// equality, so `==` stays the existing direct compare.
     Implicit,
-    /// Records, payload-bearing sums, and mixed shapes: `==` requires a
-    /// declared `Type satisfies Equatable;` conformance and expands
-    /// structurally (mixed = common fields AND tag AND matching payload).
+    /// Records, payload-bearing sums, and mixed shapes: `==` requires one
+    /// `Equatable<Type>` implementation and expands structurally (mixed =
+    /// common fields AND tag AND matching payload).
     Structural,
 }
 
@@ -118,96 +131,121 @@ pub(crate) fn data_equality_shape(
     }
 }
 
-/// Whether `data` itself declares `satisfies Equatable`. The carrier symbol
-/// decides; a same-named declaration loaded from another source does not.
-pub(crate) fn equatable_conformance_declared(
+/// The equality meaning the sealed operator route selects for one data type.
+pub(crate) enum EqualitySelection<'program> {
+    /// No Equatable implementation names the type as its trait argument.
+    Missing,
+    /// Exactly one implementation names the type.
+    Selected(EqualityImplementation<'program>),
+    /// Several implementations name the type; the route selects none of them.
+    Ambiguous(Vec<String>),
+}
+
+/// The implementation the operator route selected and its `equals` row.
+pub(crate) struct EqualityImplementation<'program> {
+    pub(crate) conformance: &'program Conformance,
+    /// Realization state of the implementation's `equals` row; invalid when
+    /// the implementation retains no such row.
+    pub(crate) equals_state: symbols::SymbolHandle,
+    /// The compiler synthesized the row, so its uses expand structurally.
+    pub(crate) synthesized: bool,
+}
+
+fn is_equatable_implementation(program: &SymbolResolvedTrees, conformance: &Conformance) -> bool {
+    program.symbols.display_path(conformance.trait_symbol, "::") == EQUATABLE_TRAIT_PATH
+}
+
+/// The data declaration an Equatable implementation compares: its single
+/// trait argument, selected by the argument's resolved symbol.
+pub(crate) fn equatable_operand_data<'program>(
+    program: &'program SymbolResolvedTrees,
+    conformance: &Conformance,
+) -> Option<&'program DataDefinition> {
+    let [resolved::types::TypeReference::Named { symbol, name }] =
+        program.child_type_references(conformance.arguments)
+    else {
+        return None;
+    };
+    if symbol.is_valid() {
+        data_definition_by_symbol(program, *symbol)
+    } else {
+        data_definition_by_name_from(program, name.as_str(), name.source_span())
+    }
+}
+
+/// The implementation's name for diagnostics and generated receivers.
+pub(crate) fn implementation_name(
     program: &SymbolResolvedTrees,
+    conformance: &Conformance,
+) -> String {
+    conformance.alias.as_ref().map_or_else(
+        || program.symbols.display_path(conformance.symbol, "::"),
+        |alias| alias.as_str().to_owned(),
+    )
+}
+
+/// The `equals` row of one closed implementation.
+fn equals_row(conformance: &Conformance) -> Option<&ConformanceRow> {
+    let ConformanceImplementation::Closed { rows } = &conformance.implementation else {
+        return None;
+    };
+    rows.iter()
+        .find(|row| row.requirement_name.as_str() == EQUALS_REQUIREMENT)
+}
+
+/// Select the Equatable implementation for `data` by its trait argument.
+pub(crate) fn equality_selection<'program>(
+    program: &'program SymbolResolvedTrees,
     data: &DataDefinition,
-) -> bool {
-    program.conformances.iter().any(|conformance| {
-        conformance.trait_name.as_str() == EQUATABLE_TRAIT
-            && if conformance.carrier_symbol.is_valid() {
-                conformance.carrier_symbol == data.symbol
-            } else {
-                conformance
-                    .carrier_name()
-                    .is_some_and(|carrier| carrier.as_str() == data.name.as_str())
-            }
+) -> EqualitySelection<'program> {
+    let candidates = program
+        .conformances
+        .iter()
+        .filter(|conformance| {
+            is_equatable_implementation(program, conformance)
+                && equatable_operand_data(program, conformance)
+                    .is_some_and(|operand| operand.symbol == data.symbol)
+        })
+        .collect::<Vec<_>>();
+    match candidates.as_slice() {
+        [] => EqualitySelection::Missing,
+        [conformance] => {
+            let row = equals_row(conformance);
+            EqualitySelection::Selected(EqualityImplementation {
+                conformance,
+                equals_state: row
+                    .map_or_else(symbols::SymbolHandle::invalid, |row| row.realization_state),
+                synthesized: row.is_some_and(|row| row.source == ConformanceRowSource::Synthesized),
+            })
+        }
+        _ => EqualitySelection::Ambiguous(
+            candidates
+                .iter()
+                .map(|conformance| implementation_name(program, conformance))
+                .collect(),
+        ),
+    }
+}
+
+/// The data type compared by the synthesized `equals` row that `state`
+/// realizes. A call targeting that row expands structurally in the caller.
+pub(crate) fn synthesized_equality_row<'program>(
+    program: &'program SymbolResolvedTrees,
+    state: symbols::SymbolHandle,
+) -> Option<&'program DataDefinition> {
+    program.conformances.iter().find_map(|conformance| {
+        (is_equatable_implementation(program, conformance)
+            && equals_row(conformance).is_some_and(|row| {
+                row.source == ConformanceRowSource::Synthesized && row.realization_state == state
+            }))
+        .then(|| equatable_operand_data(program, conformance))
+        .flatten()
     })
 }
 
-/// Whether `machine` is attached to exactly `data`, by symbol where the
-/// machine records one and by spelling otherwise.
-fn machine_attached_to(machine: &resolved::machine::Machine, data: &DataDefinition) -> bool {
-    if machine.attached_data_symbol.is_valid() {
-        return machine.attached_data_symbol == data.symbol;
-    }
-    machine
-        .attached_data
-        .as_ref()
-        .is_some_and(|attached| attached.as_str() == data.name.as_str())
-}
-
-/// A hand-written `machine Type::equals(...)` wins over synthesis (check-
-/// then-synthesize, chapter 13): `==` on a conforming type with a written
-/// member lowers to a call targeting its entry state.
-pub(crate) fn written_equals_state_symbol(
-    program: &SymbolResolvedTrees,
-    data: &DataDefinition,
-) -> Option<symbols::SymbolHandle> {
-    program
-        .machines
-        .iter()
-        .filter(|machine| {
-            !machine
-                .name
-                .as_str()
-                .starts_with("__omega_synthesized_equatable::")
-                && machine_attached_to(machine, data)
-        })
-        .find_map(|machine| {
-            program
-                .machine_state_handles(machine.states)
-                .iter()
-                .map(|handle| program.machine_state(*handle))
-                .find(|state| state.name.as_str() == "equals")
-                .map(|state| state.symbol)
-        })
-}
-
-/// The one compiler-generated callable face for structural equality.
-///
-/// Authored `value.equals(...)` syntax selects this declaration even though
-/// typed lowering expands its body inline. Returning only an exact singleton
-/// keeps declaration custody fail-closed if synthesis ever duplicates or
-/// omits the wrapper.
-pub(crate) fn synthesized_equals_state_symbol(
-    program: &SymbolResolvedTrees,
-    data: &DataDefinition,
-) -> Option<symbols::SymbolHandle> {
-    let matches = program
-        .machines
-        .iter()
-        .filter(|machine| {
-            machine
-                .name
-                .as_str()
-                .starts_with("__omega_synthesized_equatable::")
-                && machine_attached_to(machine, data)
-        })
-        .flat_map(|machine| {
-            program
-                .machine_state_handles(machine.states)
-                .iter()
-                .map(|handle| program.machine_state(*handle))
-        })
-        .filter(|state| state.name.as_str() == "equals")
-        .map(|state| state.symbol)
-        .collect::<Vec<_>>();
-    let [symbol] = matches.as_slice() else {
-        return None;
-    };
-    Some(*symbol)
+/// The declaration the diagnostics suggest for a type without equality.
+pub(crate) fn suggested_equality_declaration(type_name: &str) -> String {
+    format!("{type_name}Equality satisfies Equatable<{type_name}> {{ }}")
 }
 
 /// How one field participates in synthesized structural equality.
@@ -218,13 +256,17 @@ pub(crate) enum FieldEquality<'program> {
     /// must be stored PLACES -- the backend lowers it to the value-position
     /// text content compare (length AND bytes), not a scalar word compare.
     Text,
-    /// A nested Equatable-conforming record / payload-bearing sum: recurse.
+    /// A nested record / payload-bearing sum with an Equatable
+    /// implementation: recurse.
     Structural(&'program DataDefinition),
 }
 
+/// Classify one field for synthesized equality. `context` names the
+/// implementation or expansion a diagnostic belongs to; it is formatted only
+/// when the field rejects.
 pub(crate) fn field_equality<'program>(
     program: &'program SymbolResolvedTrees,
-    conforming_type: &str,
+    context: impl Fn() -> String,
     owner_data: &DataDefinition,
     field: &DataField,
 ) -> Result<FieldEquality<'program>, Diagnostic> {
@@ -243,7 +285,8 @@ pub(crate) fn field_equality<'program>(
 
     let Some(base_name) = value_type_base_name(program, &field.type_reference) else {
         return Err(Diagnostic::error(format!(
-            "conformance `{conforming_type} satisfies Equatable`: field `{}` of `{owner}` is not Equatable: only scalar primitives, payload-less sums, and Equatable-conforming data types participate in synthesized structural equality",
+            "{}: field `{}` of `{owner}` is not Equatable: only scalar primitives, payload-less sums, and data types with an Equatable implementation participate in synthesized structural equality",
+            context(),
             field.name
         )));
     };
@@ -263,69 +306,79 @@ pub(crate) fn field_equality<'program>(
             .unwrap_or_default(),
     ) else {
         return Err(Diagnostic::error(format!(
-            "conformance `{conforming_type} satisfies Equatable`: field `{}` of `{owner}` is not Equatable: `{base_name}` is not a comparable data type",
+            "{}: field `{}` of `{owner}` is not Equatable: `{base_name}` is not a comparable data type",
+            context(),
             field.name
         )));
     };
 
     if field_data.quotient.is_some() {
         return Err(Diagnostic::error(format!(
-            "conformance `{conforming_type} satisfies Equatable`: field `{}` of `{owner}` has quotient type `{base_name}`; quotient representatives have no synthesized structural equality, so use a named lifted equality operation instead",
+            "{}: field `{}` of `{owner}` has quotient type `{base_name}`; quotient representatives have no synthesized structural equality, so use a named lifted equality operation instead",
+            context(),
             field.name
         )));
     }
 
     match data_equality_shape(program, field_data) {
         DataEqualityShape::Implicit => Ok(FieldEquality::Direct),
-        DataEqualityShape::Structural => {
-            if equatable_conformance_declared(program, field_data) {
-                Ok(FieldEquality::Structural(field_data))
-            } else {
-                Err(Diagnostic::error(format!(
-                    "conformance `{conforming_type} satisfies Equatable`: field `{}` of `{owner}` is not Equatable: add `{base_name} satisfies Equatable;`",
-                    field.name
-                )))
-            }
-        }
+        DataEqualityShape::Structural => match equality_selection(program, field_data) {
+            EqualitySelection::Selected(_) => Ok(FieldEquality::Structural(field_data)),
+            EqualitySelection::Missing => Err(Diagnostic::error(format!(
+                "{}: field `{}` of `{owner}` is not Equatable: add `{}`",
+                context(),
+                field.name,
+                suggested_equality_declaration(&base_name)
+            ))),
+            EqualitySelection::Ambiguous(implementations) => Err(Diagnostic::error(format!(
+                "{}: field `{}` of `{owner}` has {} Equatable implementations for `{base_name}` (`{}`); structural equality selects at most one",
+                context(),
+                field.name,
+                implementations.len(),
+                implementations.join("`, `")
+            ))),
+        },
     }
 }
 
-/// Validate every declared Equatable conformance BEFORE machine lowering so
-/// prerequisite violations error at the conformance item, not at a later
-/// `==` site. Unknown data/trait names are left to `validation`.
+/// Validate every synthesized Equatable row BEFORE machine lowering so
+/// prerequisite violations error at the implementation, not at a later `==`
+/// site. An authored `equals` row is an ordinary checked body with no
+/// structural prerequisites. Unknown data/trait names are left to
+/// `validation`.
 pub(crate) fn validate_equatable_conformances(
     program: &SymbolResolvedTrees,
 ) -> Result<(), Diagnostic> {
     for conformance in &program.conformances {
-        if conformance.trait_name.as_str() != EQUATABLE_TRAIT {
+        if !is_equatable_implementation(program, conformance)
+            || !equals_row(conformance)
+                .is_some_and(|row| row.source == ConformanceRowSource::Synthesized)
+        {
             continue;
         }
-        let Some(type_name) = conformance.carrier_name().map(|name| name.as_str()) else {
+        let Some(data) = equatable_operand_data(program, conformance) else {
             continue;
         };
-        let data = if conformance.carrier_symbol.is_valid() {
-            data_definition_by_symbol(program, conformance.carrier_symbol)
-        } else {
-            data_definition_by_name_from(program, type_name, source::SourceSpan::default())
-        };
-        let Some(data) = data else {
-            continue;
-        };
+        let type_name = data.name.as_str();
+        let context = format!(
+            "conformance `{} satisfies Equatable<{type_name}>`",
+            implementation_name(program, conformance)
+        );
         if data.quotient.is_some() {
             return Err(Diagnostic::error(format!(
-                "conformance `{type_name} satisfies Equatable` cannot synthesize equality for a quotient type; quotient representatives are opaque, so equality requires a named lifted operation"
+                "{context} cannot synthesize equality for a quotient type; quotient representatives are opaque, so equality requires a named lifted operation"
             )));
         }
 
         let mut visiting = vec![type_name.to_owned()];
-        validate_equatable_data(program, type_name, data, &mut visiting)?;
+        validate_equatable_data(program, &context, data, &mut visiting)?;
     }
     Ok(())
 }
 
 fn validate_equatable_data(
     program: &SymbolResolvedTrees,
-    conforming_type: &str,
+    context: &str,
     data: &DataDefinition,
     visiting: &mut Vec<String>,
 ) -> Result<(), Diagnostic> {
@@ -337,19 +390,19 @@ fn validate_equatable_data(
         };
         for field in fields {
             let FieldEquality::Structural(nested) =
-                field_equality(program, conforming_type, data, field)?
+                field_equality(program, || context.to_owned(), data, field)?
             else {
                 continue;
             };
             let nested_name = nested.name.as_str();
             if visiting.iter().any(|name| name == nested_name) {
                 return Err(Diagnostic::error(format!(
-                    "conformance `{conforming_type} satisfies Equatable`: type `{nested_name}` is recursive through field `{}` of `{owner}`: synthesized structural equality would not terminate, so recursive Equatable conformance is not supported yet",
+                    "{context}: type `{nested_name}` is recursive through field `{}` of `{owner}`: synthesized structural equality would not terminate, so recursive Equatable implementations are not supported yet",
                     field.name
                 )));
             }
             visiting.push(nested_name.to_owned());
-            validate_equatable_data(program, conforming_type, nested, visiting)?;
+            validate_equatable_data(program, context, nested, visiting)?;
             visiting.pop();
         }
     }
@@ -481,6 +534,11 @@ pub(crate) fn table_type_base_name(
 pub(crate) struct EqualityScope {
     /// Parameter, owned-data, and local names mapped to base type names.
     pub(crate) value_types: Vec<(String, String)>,
+    /// The data type whose synthesized `equals` row this state realizes, or
+    /// invalid. Inside that row, `==` on the type IS the structural expansion
+    /// the row defines; the operator route must not select it again, since a
+    /// second implementation for the same type would make it ambiguous.
+    pub(crate) synthesized_row_data: symbols::SymbolHandle,
 }
 
 impl EqualityScope {
@@ -501,7 +559,22 @@ impl EqualityScope {
                 value_types.push((parameter.name.as_str().to_owned(), base));
             }
         }
-        Self { value_types }
+        let synthesized_row_data = program
+            .conformances
+            .iter()
+            .find(|conformance| {
+                is_equatable_implementation(program, conformance)
+                    && equals_row(conformance).is_some_and(|row| {
+                        row.source == ConformanceRowSource::Synthesized
+                            && row.realization_machine == machine.symbol
+                    })
+            })
+            .and_then(|conformance| equatable_operand_data(program, conformance))
+            .map_or_else(symbols::SymbolHandle::invalid, |data| data.symbol);
+        Self {
+            value_types,
+            synthesized_row_data,
+        }
     }
 
     pub(crate) fn for_state(

@@ -1,10 +1,9 @@
-// A recursive type cannot satisfy Equatable yet: the synthesized inline
-// field-by-field expansion would not terminate, so the conformance item is
-// rejected cleanly (recorded as future work alongside the callable
-// synthesized `equals` machine).
+// A recursive type has no synthesized Equatable row yet: the inline
+// field-by-field expansion would not terminate, so the implementation is
+// rejected cleanly.
 
-trait Equatable {
-    machine equals(value: &Self, other: &Self) -> bool;
+trait Equatable<T> {
+    machine equals(left: &T, right: &T) -> bool;
 }
 
 data Node {
@@ -12,7 +11,7 @@ data Node {
     next: Node;
 }
 
-NodeEquatable: Node satisfies Equatable;
+NodeEquality satisfies Equatable<Node> { }
 
 machine main() {
 }

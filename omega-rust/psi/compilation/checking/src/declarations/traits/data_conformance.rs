@@ -1,16 +1,17 @@
-//! Named bodyless conformance items (`PointEquatable: Point satisfies
-//! Equatable;`) claim a whole trait for a data type. The claim is checked
-//! against the type's attached machines (`machine Point::equals(...)`), whether
-//! authored or synthesized, using the same signature matching as machine-level
-//! `satisfies` clauses.
+//! Named bodyless conformance items (`PointShape: Point satisfies Shape;`)
+//! claim a whole trait for a data type. The claim is checked against the
+//! type's attached machines (`machine Point::area(...)`), whether authored or
+//! synthesized, using the same signature matching as machine-level
+//! `satisfies` clauses. Closed blocks are checked row by row instead.
 //!
-//! Check-then-synthesize (chapter 13): a written member is CHECKED; the core
-//! `Equatable::equals` member and trait machines with bodies are synthesized as
-//! ordinary attached machines before resolution. `equals` then expands to
-//! structural equality during resolved->typed lowering, which also enforces
-//! the structural prerequisites at the conformance item (see the lowering
-//! crate's `equatable` module). Written members remain authoritative; a missing
-//! bodyless requirement stays an error naming the machine the type must write.
+//! Check-then-synthesize (chapter 13): a written member is CHECKED; trait
+//! machines with bodies are synthesized before resolution, and a closed
+//! `Equatable<T>` implementation without an `equals` member receives a
+//! synthesized row that typed lowering expands structurally (see the lowering
+//! crate's `equatable` module). Every row, authored or synthesized, is
+//! validated here against its requirement. Written members remain
+//! authoritative; a missing bodyless requirement stays an error naming the
+//! machine the type must write.
 
 use super::trait_definition_by_symbol;
 use diagnostics::Diagnostic;

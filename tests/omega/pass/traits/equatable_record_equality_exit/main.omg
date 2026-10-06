@@ -1,17 +1,18 @@
-// Equatable synthesis (frozen decisions 8 + 11): `Point satisfies
-// Equatable;` synthesizes structural equality for the record, so `==`/`!=`
-// on Point values is legal and compares field by field. Equal points must
-// match; a single differing middle field must miss (a compare that only
-// reads a prefix of the fields, or compares storage width, takes the wrong
-// arm). The conformance also emits a callable Point::equals wrapper over the
-// same structural expansion. Exits 70 only when operator and callable faces
-// all agree.
+// Equatable synthesis (frozen decisions 8 + 11): the empty named
+// implementation `PointEquality satisfies Equatable<Point> { }` receives a
+// synthesized structural `equals` row, so `==`/`!=` on Point values is legal
+// and compares field by field. Equal points must match; a single differing
+// middle field must miss (a compare that only reads a prefix of the fields,
+// or compares storage width, takes the wrong arm). The call
+// `PointEquality::equals` selects the same synthesized row. An authored
+// `equals` member overrides synthesis, and `==` then calls it. Exits 70 only
+// when operator and callable faces all agree.
 
 use omega_language_std::console;
 use omega::language::core::binding;
 
-trait Equatable {
-    machine equals(subject: &Self, rhs: &Self) -> bool;
+trait Equatable<T> {
+    machine equals(left: &T, right: &T) -> bool;
 }
 
 data Point {
@@ -20,16 +21,16 @@ data Point {
     z: i32;
 }
 
-PointEquatable: Point satisfies Equatable;
+PointEquality satisfies Equatable<Point> { }
 
 data OverridePoint {
     value: i32;
 }
 
-OverridePointEquatable: OverridePoint satisfies Equatable;
-
-machine OverridePoint::equals(point: &OverridePoint, rhs: &OverridePoint) -> bool {
-    false
+OverrideEquality satisfies Equatable<OverridePoint> {
+    machine equals(left: &OverridePoint, right: &OverridePoint) -> bool {
+        false
+    }
 }
 
 data Main {
@@ -54,7 +55,7 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state check_callable(main: &mut Main) {
-        let callable: bool = Point::equals(&main.a, &main.b);
+        let callable: bool = PointEquality::equals(&main.a, &main.b);
 
         transition callable {
             true -> check_callable_unequal(main)
@@ -63,7 +64,7 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 
     state check_callable_unequal(main: &mut Main) {
-        let callable: bool = Point::equals(&main.a, &main.c);
+        let callable: bool = PointEquality::equals(&main.a, &main.c);
 
         transition callable {
             false -> check_unequal(main)

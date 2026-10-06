@@ -1,9 +1,10 @@
-// Equatable prerequisites are checked at the CONFORMANCE ITEM: a field
-// whose type is itself a structural record/sum must also conform, otherwise
-// the synthesized field-by-field expansion has no equality to recurse into.
+// Equatable prerequisites are checked at the IMPLEMENTATION: a field whose
+// type is itself a structural record/sum must also have an Equatable
+// implementation, otherwise the synthesized field-by-field expansion has no
+// equality to recurse into.
 
-trait Equatable {
-    machine equals(value: &Self, other: &Self) -> bool;
+trait Equatable<T> {
+    machine equals(left: &T, right: &T) -> bool;
 }
 
 data Pos {
@@ -16,7 +17,7 @@ data Player {
     health: i32;
 }
 
-PlayerEquatable: Player satisfies Equatable;
+PlayerEquality satisfies Equatable<Player> { }
 
 machine main() {
 }

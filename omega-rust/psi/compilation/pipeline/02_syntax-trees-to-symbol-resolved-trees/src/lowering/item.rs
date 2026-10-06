@@ -111,6 +111,18 @@ fn lower_item_with_exposure(
                                     symbol_resolved_trees::trait_definition::ConformanceRowSource::Inline,
                                 )?);
                             }
+                            syntax::item::ConformanceMember::Synthesized(machine) => {
+                                rows.push(lower_closed_machine_row(
+                                    lowerer,
+                                    syntax_trees,
+                                    conformance,
+                                    conformance_name,
+                                    None,
+                                    None,
+                                    machine,
+                                    symbol_resolved_trees::trait_definition::ConformanceRowSource::Synthesized,
+                                )?);
+                            }
                             syntax::item::ConformanceMember::TraitDefault {
                                 declaring_trait,
                                 requirement_ordinal,

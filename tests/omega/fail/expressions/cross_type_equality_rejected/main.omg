@@ -3,13 +3,13 @@
 // reading Q's bytes as if they were a P, and ran to a garbage bool. Structural
 // equality is synthesized from ONE resolved type name, so the mismatch is caught
 // at the expansion site now (before lowering). Same-type `==` stays valid.
-trait Equatable { machine equals(value: &Self, other: &Self) -> bool; }
+trait Equatable<T> { machine equals(left: &T, right: &T) -> bool; }
 use omega::language::std::console;
 use omega::language::core::binding;
 data P { x: i32; y: i32; }
 data Q { a: i32; b: i32; }
-PEquatable: P satisfies Equatable;
-QEquatable: Q satisfies Equatable;
+PEquality satisfies Equatable<P> { }
+QEquality satisfies Equatable<Q> { }
 data Main { console: Binding<Console>; p: P; q: Q; }
 machine Main::main(main: &mut Main) {
     main.p = P { x: 1, y: 2 };

@@ -2,9 +2,9 @@
 //! equality. A bare PAYLOAD-BEARING case name (`Command::Move`) denotes no
 //! value -- only its domain -- so comparing against it is an error that
 //! suggests `in`. The brace form (`Command::Move { dx: 1 }`) IS a constructed
-//! value: when the sum declares `Type satisfies Equatable;` the compare is
-//! legal and expands to synthesized structural equality (`crate::expressions::equatable`);
-//! without the conformance it stays an error that now suggests declaring it.
+//! value: when an `Equatable<Type>` implementation exists the compare is
+//! legal and lowers through it (`crate::expressions::equatable`); without
+//! one it stays an error that suggests declaring the implementation.
 //! Payload-less cases stay legal `==` operands everywhere (tag identity is
 //! the only thing equality could mean for them).
 //!
@@ -260,10 +260,13 @@ fn check_equality_operand(
                 return Ok(());
             };
             let data_name = data.name.as_str();
-            // A declared `Type satisfies Equatable;` synthesizes structural
-            // equality, so the constructed-case compare is legal and lowers
-            // to the inline expansion (`expression::table::structural_equality`).
-            if crate::expressions::equatable::equatable_conformance_declared(program, data) {
+            // An `Equatable<Type>` implementation makes the constructed-case
+            // compare legal; typed lowering selects it and expands or calls
+            // its `equals` row (`expression::table::structural_equality`).
+            if !matches!(
+                crate::expressions::equatable::equality_selection(program, data),
+                crate::expressions::equatable::EqualitySelection::Missing
+            ) {
                 return Ok(());
             }
             // FACT position over RECURSIVE (hence proof-only) data: no
@@ -275,7 +278,8 @@ fn check_equality_operand(
                 return Ok(());
             }
             Err(Diagnostic::error(format!(
-                "cannot compare against payload-bearing case `{data_name}::{case_name}` with `==`: structural equality is not synthesized for non-conforming types -- match on the case in a transition to bind its payload, or declare `{data_name}Equatable: {data_name} satisfies Equatable;` to synthesize structural equality"
+                "cannot compare against payload-bearing case `{data_name}::{case_name}` with `==`: structural equality is synthesized only through a named implementation -- match on the case in a transition to bind its payload, or declare `{}` to synthesize structural equality",
+                crate::expressions::equatable::suggested_equality_declaration(data_name)
             )))
         }
         _ => Ok(()),

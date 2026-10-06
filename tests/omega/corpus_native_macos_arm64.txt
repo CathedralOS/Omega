@@ -1483,6 +1483,7 @@ pass/time/runtime_time_host_virtual_exit checked 413ms
 pass/time/static_duration_accessors built 2763ms exit:70 @48008365d839
 pass/traits/boundary_trait_effects_host_call built 1527ms exit:0 @b8c70eeec573
 pass/traits/dyn_finite_family_dispatch checked 171ms
+pass/traits/equatable_implementation_selection_exit built 1404ms exit:70 @e3131e3bcd65+wt
 pass/traits/equatable_mixed_shape_equality_exit built 2037ms exit:70 @fb2178def922
 pass/traits/equatable_record_equality_exit built 1490ms exit:70
 pass/traits/equatable_string_field_equality_exit built 3979ms exit:70 @11b293f8af86+wt

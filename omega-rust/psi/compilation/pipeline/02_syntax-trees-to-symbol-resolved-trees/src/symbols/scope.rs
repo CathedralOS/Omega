@@ -42,9 +42,7 @@ pub(super) fn attached_machines(
 fn attached_machine_list(
     program: &symbol_resolved_trees::SymbolResolvedTrees,
 ) -> Vec<AttachedMachine> {
-    use symbol_resolved_trees::trait_definition::{
-        ConformanceImplementation, ConformanceRowSource,
-    };
+    use symbol_resolved_trees::trait_definition::ConformanceImplementation;
     program
         .machines
         .iter()
@@ -58,16 +56,14 @@ fn attached_machine_list(
                     return false;
                 };
                 rows.iter().any(|row| {
-                    matches!(
-                        row.source,
-                        ConformanceRowSource::Inline | ConformanceRowSource::TraitDefault
-                    ) && row.provisional_realization_ordinal.map_or_else(
-                        || {
-                            row.realization_machine.is_valid()
-                                && row.realization_machine == machine.symbol
-                        },
-                        |selected| selected == ordinal,
-                    )
+                    row.source.owns_realization()
+                        && row.provisional_realization_ordinal.map_or_else(
+                            || {
+                                row.realization_machine.is_valid()
+                                    && row.realization_machine == machine.symbol
+                            },
+                            |selected| selected == ordinal,
+                        )
                 })
             });
             // A target sibling is checked but never an ambient method of the

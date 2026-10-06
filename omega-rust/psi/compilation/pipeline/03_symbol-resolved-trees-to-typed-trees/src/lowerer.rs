@@ -7,7 +7,7 @@
 //!
 //! 1. Three checks that need case membership as a distinct node, before
 //!    lowering erases it: `==` against bare payload-bearing case names,
-//!    `Equatable` conformance prerequisites, and case-dispatch exhaustiveness.
+//!    synthesized `Equatable` row prerequisites, and case-dispatch exhaustiveness.
 //! 2. Builds the `Lowerer`, copies the service reaches, semantic domains,
 //!    external bindings and authored declaration selections, types each
 //!    constant's declared type, and converts the evidence forwardings.
@@ -63,8 +63,8 @@ pub(crate) fn validate_resolved_semantics(
     // tag-equality compares, which are deliberately the same typed shape.
     crate::expressions::equality::validate_equality_operands(symbol_resolved_trees)?;
 
-    // Equatable conformance prerequisites error at the conformance item,
-    // before any `==` site tries to expand against a malformed type.
+    // Synthesized Equatable rows check their structural prerequisites at
+    // the implementation, before any `==` site tries to expand them.
     crate::expressions::equatable::validate_equatable_conformances(symbol_resolved_trees)?;
 
     // Exhaustiveness counting over case domains also needs the resolved

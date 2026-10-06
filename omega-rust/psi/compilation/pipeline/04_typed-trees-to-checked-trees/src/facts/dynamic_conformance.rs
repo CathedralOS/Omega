@@ -40,7 +40,10 @@ pub(crate) fn build_dynamic_conformance_facts(
                 realization_state: row.realization_state,
                 realization_identity,
                 source: match row.source {
-                    typed_trees::trait_definition::ConformanceRowSource::Inline => {
+                    // A synthesized core row is an ordinary checked member
+                    // body of its own block, exactly as an inline row is.
+                    typed_trees::trait_definition::ConformanceRowSource::Inline
+                    | typed_trees::trait_definition::ConformanceRowSource::Synthesized => {
                         checked_trees::DynamicConformanceRowSource::Inline
                     }
                     typed_trees::trait_definition::ConformanceRowSource::Reference => {

@@ -114,32 +114,27 @@ pub(super) fn assign_top_level_symbols(
 }
 
 fn attach_conformance_parameter_scopes(program: &mut SymbolResolvedTrees) {
-    let scopes = program
-        .conformances
-        .iter()
-        .filter_map(|conformance| {
-            let symbol_resolved_trees::trait_definition::ConformanceImplementation::Closed {
-                rows,
-            } = &conformance.implementation
-            else {
-                return None;
-            };
-            Some((
-                rows.iter()
-                    .filter(|row| {
-                        matches!(
-                            row.source,
-                            symbol_resolved_trees::trait_definition::ConformanceRowSource::Inline
-                                | symbol_resolved_trees::trait_definition::ConformanceRowSource::TraitDefault
-                        )
-                    })
-                    .filter_map(|row| row.provisional_realization_ordinal)
-                    .collect::<Vec<_>>(),
-                conformance.lifetime_parameters.clone(),
-                conformance.type_parameters,
-            ))
-        })
-        .collect::<Vec<_>>();
+    let scopes =
+        program
+            .conformances
+            .iter()
+            .filter_map(|conformance| {
+                let symbol_resolved_trees::trait_definition::ConformanceImplementation::Closed {
+                    rows,
+                } = &conformance.implementation
+                else {
+                    return None;
+                };
+                Some((
+                    rows.iter()
+                        .filter(|row| row.source.owns_realization())
+                        .filter_map(|row| row.provisional_realization_ordinal)
+                        .collect::<Vec<_>>(),
+                    conformance.lifetime_parameters.clone(),
+                    conformance.type_parameters,
+                ))
+            })
+            .collect::<Vec<_>>();
     let mut ordinal = 0usize;
     program.machines.for_each_mut(|machine| {
         if let Some((_, lifetimes, parameters)) = scopes

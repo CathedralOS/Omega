@@ -297,8 +297,9 @@ pub(super) fn append_move_events_for_expression(
 /// Static type/module receivers name declarations rather than runtime storage.
 /// A binary expression whose authored selection resolved to a machine that
 /// takes every operand by shared reference observes its operands, exactly as
-/// a call to that machine lends its arguments: `a.equals(&b)` over a derived
-/// `Equatable` lowers to such an `a == b`, and neither side moves.
+/// a call to that machine lends its arguments: `a == b` over an `Equatable`
+/// implementation with an authored `equals` row selects that row, and neither
+/// side moves.
 fn selected_meaning_borrows_operands(
     program: &typed_trees::TypedTrees,
     expression: ExpressionHandle,

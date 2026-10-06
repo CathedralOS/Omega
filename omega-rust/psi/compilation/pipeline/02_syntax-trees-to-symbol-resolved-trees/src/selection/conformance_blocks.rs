@@ -317,11 +317,7 @@ pub(crate) fn route_conformance_requirement_calls(
             symbol_resolved_trees::trait_definition::ConformanceSubject::Subjectless => Vec::new(),
         };
         for row in rows {
-            if !matches!(
-                row.source,
-                ConformanceRowSource::Inline | ConformanceRowSource::TraitDefault
-            ) || !row.realization_machine.is_valid()
-            {
+            if !row.source.owns_realization() || !row.realization_machine.is_valid() {
                 continue;
             }
             closed_realizations.push(row.realization_machine);

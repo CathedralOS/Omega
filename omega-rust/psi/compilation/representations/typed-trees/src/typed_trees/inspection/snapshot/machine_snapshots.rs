@@ -452,6 +452,7 @@ pub(crate) fn conformance_snapshot(
                     source: match row.source {
                         crate::trait_definition::ConformanceRowSource::Inline => "inline",
                         crate::trait_definition::ConformanceRowSource::Reference => "reference",
+                        crate::trait_definition::ConformanceRowSource::Synthesized => "synthesized",
                         crate::trait_definition::ConformanceRowSource::TraitDefault => {
                             "trait_default"
                         }

@@ -216,6 +216,9 @@ pub enum ConformanceMemberSnapshot {
     Machine {
         declaration: Box<ItemSnapshot>,
     },
+    Synthesized {
+        declaration: Box<ItemSnapshot>,
+    },
     TraitDefault {
         declaring_trait: IdentifierSnapshot,
         requirement_ordinal: usize,
@@ -438,6 +441,14 @@ pub(crate) fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnap
                             .map(|member| match member {
                                 crate::item::ConformanceMember::Machine(machine) => {
                                     ConformanceMemberSnapshot::Machine {
+                                        declaration: Box::new(snapshot_item(
+                                            syntax_trees,
+                                            &Item::Machine(machine.clone()),
+                                        )),
+                                    }
+                                }
+                                crate::item::ConformanceMember::Synthesized(machine) => {
+                                    ConformanceMemberSnapshot::Synthesized {
                                         declaration: Box::new(snapshot_item(
                                             syntax_trees,
                                             &Item::Machine(machine.clone()),

@@ -758,8 +758,8 @@ fail/data/boundary_data_construction_rejected rejected 245ms expected @2d8ed2536
 	opaque boundary data `Token` has no public constructor; a boundary provider must establish its values
 fail/data/boundary_data_relaxed_carry_unadmitted rejected 267ms expected @2d8ed253669f
 	opaque boundary data `Lease` cannot relax its carry policy without an admitted property receipt
-fail/data/case_payload_equality_interim rejected 41ms expected @2d8ed253669f
-	cannot compare against payload-bearing case `Command::Move` with `==`: structural equality is not synthesized for non-conforming types -- match on the case in a transition to bind its payload, or declare `CommandEquatable: Command satisfies Equatable;` to synthesize structural equality
+fail/data/case_payload_equality_interim rejected 26ms expected @e3131e3bcd65+wt
+	cannot compare against payload-bearing case `Command::Move` with `==`: structural equality is synthesized only through a named implementation -- match on the case in a transition to bind its payload, or declare `CommandEquality satisfies Equatable<Command> { }` to synthesize structural equality
 fail/data/constructor_prior_operand_write rejected 182ms expected @c4e45d3dda38+wt
 	data `Bounded` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 fail/data/constructor_stale_local_bounds rejected 182ms expected @c4e45d3dda38+wt
@@ -1679,12 +1679,14 @@ fail/traits/conformance_item_missing_member rejected 14ms expected @e3131e3bcd65
 	closed conformance `PointShape satisfies Shape` is incomplete: missing `Shape::code`
 fail/traits/dyn_finite_family_non_member rejected 213ms expected @2d8ed253669f
 	dynamic family call `Shape::code` requires exactly one closed roster tuple ((16) or (32)); runtime subjects and non-member values cannot select a family row
-fail/traits/equatable_field_not_equatable rejected 33ms expected @2d8ed253669f
-	conformance `Player satisfies Equatable`: field `pos` of `Player` is not Equatable: add `Pos satisfies Equatable;`
-fail/traits/equatable_missing_conformance_suggested rejected 35ms expected @2d8ed253669f
-	cannot compare `Point` values with `==`: structural equality is not synthesized for non-conforming types -- declare `PointEquatable: Point satisfies Equatable;` to synthesize structural equality
-fail/traits/equatable_recursive_type rejected 36ms expected @2d8ed253669f
-	conformance `Node satisfies Equatable`: type `Node` is recursive through field `next` of `Node`: synthesized structural equality would not terminate, so recursive Equatable conformance is not supported yet
+fail/traits/equatable_field_not_equatable rejected 17ms expected @e3131e3bcd65+wt
+	conformance `PlayerEquality satisfies Equatable<Player>`: field `pos` of `Player` is not Equatable: add `PosEquality satisfies Equatable<Pos> { }`
+fail/traits/equatable_missing_conformance_suggested rejected 24ms expected @e3131e3bcd65+wt
+	cannot compare `Point` values with `==`: structural equality is synthesized only through a named implementation -- declare `PointEquality satisfies Equatable<Point> { }` to synthesize structural equality
+fail/traits/equatable_operator_ambiguous_implementations rejected 24ms expected @e3131e3bcd65+wt
+	cannot compare `Coin` values with `==`: 2 Equatable implementations satisfy `Equatable<Coin>` (`CoinEquality`, `CoinValueEquality`) and the operator selects at most one -- call the intended implementation's `equals` explicitly
+fail/traits/equatable_recursive_type rejected 20ms expected @e3131e3bcd65+wt
+	conformance `NodeEquality satisfies Equatable<Node>`: type `Node` is recursive through field `next` of `Node`: synthesized structural equality would not terminate, so recursive Equatable implementations are not supported yet
 fail/traits/evidence_binder_given_data_type rejected 48ms expected @65c3b89f46f4+wt
 	machine `apply` static argument 2 requires its declared binder kind, not a type argument
 fail/traits/evidence_binder_subject_retired rejected 3ms expected @65c3b89f46f4+wt
@@ -3247,6 +3249,7 @@ pass/time/runtime_time_host_virtual_exit checked 1234ms @2d8ed253669f
 pass/time/static_duration_accessors checked 7010ms check-target:macos_arm64 @2d8ed253669f
 pass/traits/boundary_trait_effects_host_call checked 1388ms check-target:macos_arm64 @b8c70eeec573
 pass/traits/dyn_finite_family_dispatch checked 368ms @2d8ed253669f
+pass/traits/equatable_implementation_selection_exit checked 1312ms check-target:macos_arm64 @e3131e3bcd65+wt
 pass/traits/equatable_mixed_shape_equality_exit checked 3655ms check-target:macos_arm64 @ca8c127c90c5
 pass/traits/equatable_record_equality_exit checked 6146ms check-target:macos_arm64 @2d8ed253669f
 pass/traits/equatable_string_field_equality_exit checked 3111ms check-target:macos_arm64 @11b293f8af86+wt

@@ -157,6 +157,18 @@ pub enum ConformanceRowSource {
     Inline,
     Reference,
     TraitDefault,
+    /// A sealed core-trait row the compiler emitted as an ordinary checked
+    /// member body (structural `Equatable<T>::equals`). An authored member or
+    /// reference row suppresses it, so a block holds at most one per slot.
+    Synthesized,
+}
+
+impl ConformanceRowSource {
+    /// Whether the row's realization machine is a member of its own closed
+    /// block rather than an independently declared machine the row references.
+    pub fn owns_realization(self) -> bool {
+        matches!(self, Self::Inline | Self::TraitDefault | Self::Synthesized)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

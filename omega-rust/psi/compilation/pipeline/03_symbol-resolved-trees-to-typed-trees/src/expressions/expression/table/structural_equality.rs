@@ -1,8 +1,9 @@
 //! Inline structural-equality expansion (frozen decisions 8 + 11): `==` on a
-//! record or payload-bearing sum whose `Type satisfies Equatable;` conformance
-//! is declared lowers to an AND/OR tree of field compares -- the typed-tree
-//! shape the author would have written by hand -- so every existing backend
-//! and interpreter comparison path is reused with zero new runtime surface.
+//! record or payload-bearing sum whose one Equatable implementation carries the
+//! compiler-synthesized `equals` row lowers to an AND/OR tree of field
+//! compares -- the typed-tree shape the author would have written by hand --
+//! so every existing backend and interpreter comparison path is reused with
+//! zero new runtime surface.
 //!
 //! Records expand to a conjunction of per-field compares. Sums expand to a
 //! disjunction over cases, each arm a conjunction whose TAG compares come
@@ -11,10 +12,9 @@
 //! while the native backend's eager evaluation reads in-allocation payload
 //! bytes whose garbage compare is masked by the false tag compare.
 //!
-//! A hand-written `Type::equals` wins (check-then-synthesize): `==` lowers to
-//! an ordinary static call targeting it instead of expanding. The data name
-//! selects the declaration; both compared values are explicit shared operands.
-//! Receiver spelling never decides which equality operand reaches the callee.
+//! An authored `equals` row wins: `==` lowers to an ordinary static call
+//! through the selected implementation (`Impl::equals(&left, &right)`), with
+//! both compared values as explicit shared operands.
 //!
 //! Generated tag guards use typed CaseMembership rather than value equality.
 //! Their RHS is a classifier, not a payload constructor, and their subject is
@@ -29,9 +29,9 @@
 
 use super::lowerer::ExpressionTableLowerer;
 use crate::expressions::equatable::{
-    DataEqualityShape, FieldEquality, data_definition_by_name_from, data_definition_by_symbol,
-    data_equality_shape, equatable_conformance_declared, field_equality,
-    synthesized_equals_state_symbol, value_type_base_name, written_equals_state_symbol,
+    DataEqualityShape, EqualitySelection, FieldEquality, data_definition_by_name_from,
+    data_equality_shape, equality_selection, field_equality, implementation_name,
+    suggested_equality_declaration, synthesized_equality_row, value_type_base_name,
 };
 use crate::lowerer::name::lower_name;
 use arena::HandleSpan;
@@ -52,52 +52,32 @@ enum Operand {
 }
 
 impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope> {
-    /// Expand calls to the compiler-owned `equals` surface in the caller's
-    /// storage scope, exactly like `==`. Generated calls can pass through a
-    /// name alias before their final state symbol is assigned. Normalize the
-    /// namespace or value receiver to the same two operands, then authenticate
-    /// their declaration before expanding the one compiler-owned operation.
+    /// Expand a call through a synthesized `equals` row
+    /// (`PointEquality::equals(&a, &b)`) in the caller's storage scope,
+    /// exactly like `==`. Stage 02 routed the call to the row's realization
+    /// state; the row identifies the compared data type, so the operator
+    /// route's selection plays no part and a second implementation for the
+    /// same type does not make this explicit call ambiguous.
     pub(super) fn try_lower_synthesized_equatable_call(
         &mut self,
         expression: resolved::expression::ExpressionHandle,
         call: &resolved::expression::TableCallExpression,
     ) -> Result<Option<typed::expression::ExpressionHandle>, Diagnostic> {
-        if call.target.as_str() != "equals" || !call.receiver.is_valid() {
-            return Ok(None);
-        }
         let Some(program) = self.program else {
             return Ok(None);
         };
-        let arguments = self.source.expression_handles(call.arguments);
-        let namespace = match self.source.expression(call.receiver) {
-            resolved::expression::ExpressionNode::Name(path) => {
-                data_definition_by_symbol(program, path.symbol)
-            }
-            _ => None,
+        if !call.target_symbol.is_valid() {
+            return Ok(None);
+        }
+        let Some(data) = synthesized_equality_row(program, call.target_symbol) else {
+            return Ok(None);
         };
-        let (data, left, right) = if let Some(data) = namespace {
-            let [left, right] = arguments else {
-                return Ok(None);
-            };
-            (data, *left, *right)
-        } else {
-            let [right] = arguments else {
-                return Ok(None);
-            };
-            let Some(type_name) = self.operand_data_type_name(call.receiver) else {
-                return Ok(None);
-            };
-            let Some(data) = data_definition_by_name_from(
-                program,
-                &type_name,
-                self.source.source_span(call.receiver),
-            ) else {
-                return Ok(None);
-            };
-            (data, call.receiver, *right)
+        let [left, right] = self.source.expression_handles(call.arguments) else {
+            return Ok(None);
         };
-        // Namespace selection is not operand typing. An unrelated pair must
-        // stay an ordinary call so its declared parameter checks can reject it.
+        let (left, right) = (*left, *right);
+        // Row selection is not operand typing. An unrelated pair must stay
+        // an ordinary call so its declared parameter checks can reject it.
         for operand in [left, right] {
             // A mutable loan may attenuate at the ordinary shared formal, but
             // expanding it into reads would erase its authored formation.
@@ -116,22 +96,10 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                 return Ok(None);
             }
         }
-        let type_name = data.name.as_str();
-        if !equatable_conformance_declared(program, data)
-            || written_equals_state_symbol(program, data).is_some()
-        {
-            return Ok(None);
-        }
-        let synthesized_target =
-            synthesized_equals_state_symbol(program, data).ok_or_else(|| {
-                Diagnostic::error(format!(
-                    "compiler-generated `{type_name}::equals` declaration is missing or ambiguous"
-                ))
-            })?;
-        self.finalize_synthesized_equatable_call_selection(expression, synthesized_target)?;
-        // Both call spellings observe the referents of shared arguments.
-        // This is one expansion after operand normalization, with each place
-        // lowered once by structural equality's ordinary operand owner.
+        self.finalize_synthesized_equatable_call_selection(expression, call.target_symbol)?;
+        // The call observes the referents of its shared arguments. This is
+        // one expansion after operand normalization, with each place lowered
+        // once by structural equality's ordinary operand owner.
         let observed_operand = |operand| match self.source.expression(operand) {
             resolved::expression::ExpressionNode::Borrow(borrow)
                 if borrow.access == language_semantics::ReferenceAccess::Shared =>
@@ -145,13 +113,15 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
             operator: resolved::expression::BinaryOperator::Equal,
             right: observed_operand(right),
         };
-        if let Some(lowered) = self.try_lower_structural_equality(&equality)? {
-            return Ok(Some(lowered));
+        if data.quotient.is_none()
+            && data_equality_shape(program, data) == DataEqualityShape::Structural
+        {
+            return self.expand_structural_equality(data, &equality).map(Some);
         }
 
         // Empty records and payload-less sums use their existing direct value
         // equality. Lower that comparison in the caller too: besides avoiding
-        // a needless call, this preserves the value width when a small `&Self`
+        // a needless call, this preserves the value width when a small shared
         // argument is content-spilled into a pointer-sized parameter slot.
         let left = self.lower(equality.left)?;
         let right = self.lower(equality.right)?;
@@ -340,89 +310,127 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
             return Ok(None);
         }
 
-        if !equatable_conformance_declared(program, data) {
-            // PROOF-FACT position over RECURSIVE (proof-only) data: the
-            // compare stays a raw Binary for the structural entailment judge
-            // (math roster N3) -- no runtime lowering exists to synthesize,
-            // and the resolved-level pre-pass already stood down for exactly
-            // this shape.
-            if self.fact_position
-                && crate::expressions::equality::data_is_directly_recursive(program, data)
-            {
-                return Ok(None);
+        if self
+            .equality_scope
+            .is_some_and(|scope| scope.synthesized_row_data == data.symbol)
+        {
+            return self.expand_structural_equality(data, binary).map(Some);
+        }
+        let implementation = match equality_selection(program, data) {
+            EqualitySelection::Selected(implementation) => implementation,
+            EqualitySelection::Missing => {
+                // PROOF-FACT position over RECURSIVE (proof-only) data: the
+                // compare stays a raw Binary for the structural entailment
+                // judge (math roster N3) -- no runtime lowering exists to
+                // synthesize, and the resolved-level pre-pass already stood
+                // down for exactly this shape.
+                if self.fact_position
+                    && crate::expressions::equality::data_is_directly_recursive(program, data)
+                {
+                    return Ok(None);
+                }
+                return Err(Diagnostic::error(format!(
+                    "cannot compare `{type_name}` values with `==`: structural equality is synthesized only through a named implementation -- declare `{}` to synthesize structural equality",
+                    suggested_equality_declaration(&type_name)
+                )));
             }
+            EqualitySelection::Ambiguous(implementations) => {
+                return Err(Diagnostic::error(format!(
+                    "cannot compare `{type_name}` values with `==`: {} Equatable implementations satisfy `Equatable<{type_name}>` (`{}`) and the operator selects at most one -- call the intended implementation's `equals` explicitly",
+                    implementations.len(),
+                    implementations.join("`, `")
+                )));
+            }
+        };
+        if implementation.synthesized {
+            return self.expand_structural_equality(data, binary).map(Some);
+        }
+        if !implementation.equals_state.is_valid() {
             return Err(Diagnostic::error(format!(
-                "cannot compare `{type_name}` values with `==`: structural equality is not synthesized for non-conforming types -- declare `{type_name}Equatable: {type_name} satisfies Equatable;` to synthesize structural equality"
+                "cannot compare `{type_name}` values with `==`: Equatable implementation `{}` retains no `equals` row; declare it as a closed block",
+                implementation_name(program, implementation.conformance)
             )));
         }
 
-        if let Some(equals_state) = written_equals_state_symbol(program, data) {
-            // Namespace selection matches authored `Type::equals(&left,
-            // &right)`. Static call checking consumes every declared formal,
-            // including a legacy self formal, without an implicit operand.
-            let mut members = HandleSpan::empty();
-            self.target()
-                .push_name_path_member(&mut members, lower_name(&data.name));
-            let mut member_symbols = HandleSpan::empty();
-            self.target()
-                .push_name_path_member_symbol(&mut member_symbols, data.symbol);
-            let receiver = self
+        // The authored row is selected exactly as `Impl::equals(&left,
+        // &right)` selects it: the implementation is the call's declaration
+        // namespace and the row's realization state is its target.
+        let conformance = implementation.conformance;
+        let mut members = HandleSpan::empty();
+        let receiver_name = conformance.alias.as_ref().map_or_else(
+            || typed::name::Identifier::generated(implementation_name(program, conformance)),
+            lower_name,
+        );
+        self.target()
+            .push_name_path_member(&mut members, receiver_name);
+        let mut member_symbols = HandleSpan::empty();
+        self.target()
+            .push_name_path_member_symbol(&mut member_symbols, conformance.symbol);
+        let receiver = self
+            .target()
+            .insert(typed::expression::ExpressionNode::Name(
+                typed::expression::TableNamePath {
+                    members,
+                    member_symbols,
+                    head_symbol: conformance.symbol,
+                    symbol: conformance.symbol,
+                },
+            ));
+        // Each operand is lowered once in authored order. Shared loans
+        // express equality's observation; the ordinary call and borrow
+        // checks still validate the selected declaration and live places.
+        let mut arguments = Vec::with_capacity(2);
+        for operand in [binary.left, binary.right] {
+            let target = self.lower(operand)?;
+            let argument = self
                 .target()
-                .insert(typed::expression::ExpressionNode::Name(
-                    typed::expression::TableNamePath {
-                        members,
-                        member_symbols,
-                        head_symbol: data.symbol,
-                        symbol: data.symbol,
+                .insert(typed::expression::ExpressionNode::Borrow(
+                    typed::expression::TableBorrowExpression {
+                        target,
+                        access: language_semantics::ReferenceAccess::Shared,
                     },
                 ));
-            // Each operand is lowered once in authored order. Shared loans
-            // express equality's observation; the ordinary call and borrow
-            // checks still validate the selected declaration and live places.
-            let mut arguments = Vec::with_capacity(2);
-            for operand in [binary.left, binary.right] {
-                let target = self.lower(operand)?;
-                let argument = self
-                    .target()
-                    .insert(typed::expression::ExpressionNode::Borrow(
-                        typed::expression::TableBorrowExpression {
-                            target,
-                            access: language_semantics::ReferenceAccess::Shared,
-                        },
-                    ));
-                arguments.push(argument);
-            }
-            let arguments = self.target().insert_expression_handles(arguments);
-            let call = self
-                .target()
-                .insert(typed::expression::ExpressionNode::Call(
-                    typed::expression::TableCallExpression {
-                        receiver,
-                        target_symbol: equals_state,
-                        target: typed::name::Identifier::generated_static("equals"),
-                        static_machine_parameter: symbols::SymbolHandle::invalid(),
-                        static_requirement_dispatch: None,
-                        machine_arguments: Box::default(),
-                        quotient_operation: None,
-                        private_layout_operation: None,
-                    layout_query: None,
-                        arguments,
-                        evidence_arguments: Box::default(),
-                        operational_acknowledgement:
-                            language_semantics::CallOperationalAcknowledgement {
-                                origin: language_semantics::CallOperationalAcknowledgementOrigin::CompilerSynthesized,
-                                ..Default::default()
-                            },
-                    },
-                ));
-            return Ok(Some(self.with_equality_polarity(call, binary.operator)));
+            arguments.push(argument);
         }
+        let arguments = self.target().insert_expression_handles(arguments);
+        let call = self
+            .target()
+            .insert(typed::expression::ExpressionNode::Call(
+                typed::expression::TableCallExpression {
+                    receiver,
+                    target_symbol: implementation.equals_state,
+                    target: typed::name::Identifier::generated_static("equals"),
+                    static_machine_parameter: symbols::SymbolHandle::invalid(),
+                    static_requirement_dispatch: None,
+                    machine_arguments: Box::default(),
+                    quotient_operation: None,
+                    private_layout_operation: None,
+                    layout_query: None,
+                    arguments,
+                    evidence_arguments: Box::default(),
+                    operational_acknowledgement:
+                        language_semantics::CallOperationalAcknowledgement {
+                            origin: language_semantics::CallOperationalAcknowledgementOrigin::CompilerSynthesized,
+                            ..Default::default()
+                        },
+                },
+            ));
+        Ok(Some(self.with_equality_polarity(call, binary.operator)))
+    }
 
+    /// The structural expansion of `left == right` (or `!=`) over `data`,
+    /// once an implementation's synthesized row selected it.
+    fn expand_structural_equality(
+        &mut self,
+        data: &'program DataDefinition,
+        binary: &resolved::expression::TableBinaryExpression,
+    ) -> Result<typed::expression::ExpressionHandle, Diagnostic> {
+        let type_name = data.name.as_str().to_owned();
         let mut visiting = vec![type_name.clone()];
         let left = self.classify_operand(binary.left, &type_name)?;
         let right = self.classify_operand(binary.right, &type_name)?;
         let equality = self.structural_equality(data, &left, &right, &mut visiting)?;
-        Ok(Some(self.with_equality_polarity(equality, binary.operator)))
+        Ok(self.with_equality_polarity(equality, binary.operator))
     }
 
     /// `!=` is the negated expansion. Unary logical-not has no runtime
@@ -786,7 +794,8 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
         let program = self
             .program
             .expect("structural equality requires program context");
-        match field_equality(program, &visiting[0], data, field)? {
+        let context = || format!("structural equality of `{}`", visiting[0]);
+        match field_equality(program, context, data, field)? {
             FieldEquality::Direct => {
                 let left_value = self.operand_field_value(field, case_variant, left)?;
                 let right_value = self.operand_field_value(field, case_variant, right)?;
@@ -830,8 +839,10 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                 let nested_name = nested.name.as_str();
                 if visiting.iter().any(|name| name == nested_name) {
                     return Err(Diagnostic::error(format!(
-                        "conformance `{} satisfies Equatable`: type `{nested_name}` is recursive through field `{}` of `{}`: synthesized structural equality would not terminate, so recursive Equatable conformance is not supported yet",
-                        visiting[0], field.name, data.name
+                        "{}: type `{nested_name}` is recursive through field `{}` of `{}`: synthesized structural equality would not terminate, so recursive Equatable implementations are not supported yet",
+                        context(),
+                        field.name,
+                        data.name
                     )));
                 }
                 let left_nested =

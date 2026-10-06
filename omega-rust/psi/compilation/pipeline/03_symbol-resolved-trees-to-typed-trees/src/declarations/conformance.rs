@@ -130,6 +130,7 @@ pub(crate) fn lower_conformance(
                                 symbol_resolved_trees::trait_definition::ConformanceRowSource::Inline => typed_trees::trait_definition::ConformanceRowSource::Inline,
                                 symbol_resolved_trees::trait_definition::ConformanceRowSource::Reference => typed_trees::trait_definition::ConformanceRowSource::Reference,
                                 symbol_resolved_trees::trait_definition::ConformanceRowSource::TraitDefault => typed_trees::trait_definition::ConformanceRowSource::TraitDefault,
+                                symbol_resolved_trees::trait_definition::ConformanceRowSource::Synthesized => typed_trees::trait_definition::ConformanceRowSource::Synthesized,
                             },
                         })
                         .collect(),
@@ -153,13 +154,7 @@ pub(crate) fn lower_conformance(
     let realization_machines = match &conformance.implementation {
         typed_trees::trait_definition::ConformanceImplementation::Closed { rows } => rows
             .iter()
-            .filter(|row| {
-                matches!(
-                    row.source,
-                    typed_trees::trait_definition::ConformanceRowSource::Inline
-                        | typed_trees::trait_definition::ConformanceRowSource::TraitDefault
-                )
-            })
+            .filter(|row| row.source.owns_realization())
             .map(|row| row.realization_machine)
             .collect::<Vec<_>>(),
         typed_trees::trait_definition::ConformanceImplementation::AttachedRequirementMachines => {

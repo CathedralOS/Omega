@@ -112,6 +112,7 @@ pub(super) fn reject_unprojected_dependency_syntax(
                 for member in syntax_trees.items.conformance_members(*members) {
                     match member {
                         ConformanceMember::Machine(machine)
+                        | ConformanceMember::Synthesized(machine)
                         | ConformanceMember::TraitDefault { machine, .. } => {
                             reject_machine_dependency_statements(
                                 syntax_trees,

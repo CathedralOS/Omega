@@ -6,11 +6,11 @@ domain [u8; 8]::Utf8(bytes)
 requires
     valid_utf8(bytes);
 
-trait Equatable {
-    machine equals(subject: &Self, rhs: &Self) -> bool;
+trait Equatable<T> {
+    machine equals(left: &T, right: &T) -> bool;
 }
 data Message { active: bool; text: [u8; 8] in Utf8; }
-MessageEquatable: Message satisfies Equatable;
+MessageEquality satisfies Equatable<Message> { }
 
 data Main { console: Binding<Console>; left: Message; right: Message; }
 machine Main::inspect(main: &Main)

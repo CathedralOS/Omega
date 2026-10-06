@@ -8,8 +8,8 @@
 //! exposure scope every module below borrows.
 //!
 //! 1. `expressions` first rejects the resolved shapes typing is about to
-//!    erase: `==` against bare payload-bearing case names, malformed
-//!    `Equatable` conformances, and non-exhaustive case dispatch. Those checks
+//!    erase: `==` against bare payload-bearing case names, synthesized
+//!    `Equatable` rows over malformed types, and non-exhaustive case dispatch. Those checks
 //!    must run while membership is still a distinct node.
 //! 2. `declarations` then types each declaration form, in the order the
 //!    entrance walks the package: constants, data, domains, propositions,

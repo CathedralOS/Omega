@@ -1,7 +1,7 @@
-// `==` on a structural type WITHOUT a declared Equatable conformance is an
-// error that suggests the one-line fix (frozen decision 11): records and
-// payload-bearing sums only get structural equality through
-// `Type satisfies Equatable;`.
+// `==` on a structural type WITHOUT an Equatable implementation is an error
+// that suggests the one-line fix (frozen decision 11): records and
+// payload-bearing sums only get structural equality through a named
+// implementation `TypeEquality satisfies Equatable<Type> { }`.
 
 data Point {
     x: i32;

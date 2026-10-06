@@ -1,9 +1,18 @@
-//! Pre-resolution synthesis for trait machines with authored bodies.
+//! Pre-resolution synthesis for trait machines with authored bodies, and for
+//! the sealed core `Equatable<T>` row.
 //!
 //! A standalone `Data satisfies Trait;` conformance may omit a machine when
 //! the trait supplies its body. Materialize that body as an ordinary attached
 //! machine before symbol resolution, so typing, effects, proofs, dispatch, both
 //! execution engines, and override precedence all reuse the established paths.
+//! A closed block instead receives each omitted default as its own member row.
+//!
+//! A closed `Name satisfies Equatable<T> { }` block that authors no `equals`
+//! member or reference row receives a compiler-emitted `equals` member whose
+//! body compares its two operands with `==`; typed lowering expands that
+//! comparison structurally for `T` (core equality acquisition in
+//! `wiki/spec/language/conformances.md`). The row belongs to the named
+//! implementation, never to `T`.
 //!
 //! Trait and carrier identity join by exact source selection through the
 //! shared constant-header table, never by leaf spelling: same-leaf module
@@ -341,6 +350,18 @@ pub(crate) fn synthesize_trait_defaults_after_module_validation(
                 existing_defaults.insert(key);
                 added = true;
             }
+            if selection.declaration_path(trait_symbol) == EQUATABLE_TRAIT_PATH
+                && let Some(member) = synthesized_equality_member(
+                    syntax,
+                    &conformance.declaration,
+                    conformed_trait,
+                    &closed_members,
+                    &substitution,
+                )
+            {
+                closed_members.push(member);
+                added = true;
+            }
             if added {
                 replace_closed_members(
                     syntax,
@@ -357,20 +378,6 @@ pub(crate) fn synthesize_trait_defaults_after_module_validation(
         };
         let subject_path = selection.declaration_path(subject_symbol);
 
-        if selection.declaration_path(trait_symbol) == "Equatable"
-            && let Some(signature) = conformed_trait
-                .signatures
-                .iter()
-                .map(|declaration| &declaration.signature)
-                .find(|signature| signature.name.as_str() == "equals" && !signature.is_default)
-        {
-            let attached_method = (subject_symbol, "equals".to_string());
-            if !attached_methods.contains(&attached_method)
-                && synthesize_equatable_machine(syntax, subject_name, &subject_path, signature)
-            {
-                attached_methods.insert(attached_method);
-            }
-        }
         let defaults = collect_effective_defaults(
             syntax,
             trait_symbol,
@@ -520,70 +527,82 @@ fn replace_closed_members(
         .replace_item(handle, Item::Conformance(conformance));
 }
 
-fn synthesize_equatable_machine(
-    syntax: &mut SyntaxTrees,
-    subject: &Identifier,
-    subject_path: &str,
-    signature: &StateSignatureNode,
-) -> bool {
-    let [receiver_handle, other_handle] = syntax.items.state_parameters(signature.parameters)
-    else {
-        return false;
-    };
-    let receiver = syntax.items.state_parameter(*receiver_handle);
-    let other = syntax.items.state_parameter(*other_handle);
-    let receiver_name = Identifier::generated(receiver.name.as_str());
-    let other_name = other.name.as_str().to_string();
-    let snapshot = syntax.clone();
-    let type_watermark = syntax.type_references.node_count();
-    let mut signature = syntax.copy_state_signature_node_from(&snapshot, signature);
-    for handle in syntax.type_references.self_type_nodes_from(type_watermark) {
-        syntax
-            .type_references
-            .replace_type_reference(handle, TypeReferenceNode::Named(subject.clone()));
-    }
+/// The root trait whose closed implementations acquire a synthesized
+/// structural `equals` row. Selection is by the exact declaration path, so a
+/// module-scoped trait that merely shares the leaf name gains no privilege.
+const EQUATABLE_TRAIT_PATH: &str = "Equatable";
 
-    let receiver = {
-        let member = syntax
-            .expressions
-            .append_identifier_path_member(receiver_name);
+/// The `equals` member a closed `Equatable<T>` implementation receives when it
+/// authors neither an `equals` member nor a reference row for it: the trait's
+/// requirement signature instantiated at `T`, with the body `left == right`
+/// over its two parameters. Typed lowering expands that comparison
+/// structurally and routes every use of this row to the same expansion. A
+/// trait without exactly one type parameter and one two-parameter `equals`
+/// requirement synthesizes nothing; ordinary row completeness reports it.
+fn synthesized_equality_member(
+    syntax: &mut SyntaxTrees,
+    declaration: &ConformanceItem,
+    equatable: &TraitDefaultsInput,
+    members: &[ConformanceMember],
+    substitution: &HashMap<String, TypeReferenceHandle>,
+) -> Option<ConformanceMember> {
+    const EQUALS: &str = "equals";
+    if equatable.parameter_names.len() != 1
+        || members.iter().any(|member| match member {
+            ConformanceMember::Machine(machine) => machine.name.as_str() == EQUALS,
+            ConformanceMember::Reference { requirement, .. } => requirement.as_str() == EQUALS,
+            ConformanceMember::Synthesized(_) => true,
+            ConformanceMember::TraitDefault { .. } => false,
+        })
+    {
+        return None;
+    }
+    let requirement = equatable
+        .signatures
+        .iter()
+        .map(|declaration| &declaration.signature)
+        .find(|signature| signature.name.as_str() == EQUALS && !signature.is_default)?;
+    if syntax.items.state_parameters(requirement.parameters).len() != 2 {
+        return None;
+    }
+    let mut signature = instantiate_default_signature(syntax, requirement, substitution, None);
+    let [left, right] = syntax.items.state_parameters(signature.parameters) else {
+        return None;
+    };
+    let [left, right] = [*left, *right].map(|parameter| {
+        let name = Identifier::generated(syntax.items.state_parameter(parameter).name.as_str());
+        let member = syntax.expressions.append_identifier_path_member(name);
         syntax
             .expressions
             .insert(ExpressionNode::Name(HandleSpan::from_parts(member, 1)))
-    };
-    let other_member = syntax
-        .expressions
-        .append_identifier_path_member(Identifier::generated(other_name));
-    let other = syntax
-        .expressions
-        .insert(ExpressionNode::Name(HandleSpan::from_parts(
-            other_member,
-            1,
-        )));
+    });
     let equality = syntax
         .expressions
         .insert(ExpressionNode::Binary(TableBinaryExpression {
-            left: receiver,
+            left,
             operator: BinaryOperator::Equal,
-            right: other,
+            right,
         }));
     let statement = syntax
         .statements
         .insert(StatementNode::Expression(equality));
     let statement = syntax.items.append_statement_handle(statement);
     signature.default_body = HandleSpan::from_parts(statement, 1);
-
-    synthesize_machine_named(
+    // The implementation's own name occurrence gives the row its package
+    // provenance: a subjectless block has no carrier occurrence to lend it,
+    // and a generated name would belong to no package that may select it.
+    let name = declaration.alias.as_ref().map_or_else(
+        || Identifier::generated(EQUALS),
+        |alias| Identifier::new(EQUALS, alias.source_span()),
+    );
+    Some(ConformanceMember::Synthesized(machine_from_signature(
         syntax,
-        subject.clone(),
-        Identifier::generated(format!(
-            "__omega_synthesized_equatable::{subject_path}::equals"
-        )),
+        attached_subject(declaration),
+        name,
         &signature,
         None,
         Identifier::default(),
-    );
-    true
+    )))
 }
 
 /// Compute the defaults visible from one trait. A declaration on the child,

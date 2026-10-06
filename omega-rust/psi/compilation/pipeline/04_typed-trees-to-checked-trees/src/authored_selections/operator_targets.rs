@@ -315,38 +315,31 @@ fn checked_operator_expression_is_intrinsic_primitive(
     })
 }
 
+/// Whether a `==`/`!=` occurrence typed lowering rewrote into a call selects
+/// the `equals` row of an `Equatable` implementation, and checking resolved
+/// that call to exactly the same row. The operator occurrence then settles as
+/// the builtin operator: the implementation's authored row supplies its meaning.
 pub(crate) fn checked_structural_equality_call(
     program: &TypedTrees,
     facts: &CheckFacts,
     expression: typed_trees::expression::ExpressionHandle,
     call: &typed_trees::expression::TableCallExpression,
 ) -> bool {
-    if call.target.as_str() != "equals" || !call.target_symbol.is_valid() {
+    if !call.target_symbol.is_valid() {
         return false;
     }
-
-    let owners = program
-        .machines()
-        .iter()
-        .filter(|machine| {
-            machine.attached_data.is_some()
-                && program.machine_states(machine).iter().any(|state| {
-                    state.symbol == call.target_symbol && state.name.as_str() == "equals"
+    let selects_equality_row = program.conformances().iter().any(|conformance| {
+        program.symbols.display_path(conformance.trait_symbol, "::") == "Equatable"
+            && program
+                .closed_conformance_rows(conformance)
+                .is_some_and(|rows| {
+                    rows.iter().any(|row| {
+                        row.realization_state == call.target_symbol
+                            && row.requirement_name.as_str() == "equals"
+                    })
                 })
-        })
-        .collect::<Vec<_>>();
-    let [owner] = owners.as_slice() else {
-        return false;
-    };
-    let Some(carrier) = owner.attached_data.as_ref() else {
-        return false;
-    };
-    if !program.conformances().iter().any(|conformance| {
-        conformance.trait_name.as_str() == "Equatable"
-            && conformance
-                .carrier_name()
-                .is_some_and(|candidate| candidate.as_str() == carrier.as_str())
-    }) {
+    });
+    if !selects_equality_row {
         return false;
     }
 

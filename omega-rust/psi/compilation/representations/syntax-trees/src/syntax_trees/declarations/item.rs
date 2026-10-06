@@ -491,6 +491,12 @@ pub enum ConformanceMember {
         requirement_ordinal: usize,
         machine: Machine,
     },
+    /// A sealed core-trait row the compiler emits as an ordinary checked
+    /// machine body: the structural `equals` of an `Equatable<T>`
+    /// implementation that authors no `equals` member or reference row. It is
+    /// synthesized before symbol resolution and never accepted from source;
+    /// typed lowering expands uses of this row structurally.
+    Synthesized(Machine),
     /// An explicit row reference such as
     /// `Ranked::rank_value = Card::stable_rank_value;`.
     Reference {

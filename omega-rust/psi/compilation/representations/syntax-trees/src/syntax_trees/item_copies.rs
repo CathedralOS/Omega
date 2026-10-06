@@ -181,6 +181,11 @@ impl SyntaxTrees {
                                         self.copy_machine(other, machine),
                                     )
                                 }
+                                crate::item::ConformanceMember::Synthesized(machine) => {
+                                    crate::item::ConformanceMember::Synthesized(
+                                        self.copy_machine(other, machine),
+                                    )
+                                }
                                 crate::item::ConformanceMember::TraitDefault {
                                     declaring_trait,
                                     requirement_ordinal,

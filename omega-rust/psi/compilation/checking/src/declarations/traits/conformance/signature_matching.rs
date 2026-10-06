@@ -224,12 +224,7 @@ pub(crate) fn validate_machine_state_satisfies_trait_signature_with_arguments(
                 .closed_conformance_rows(conformance)
                 .is_some_and(|rows| {
                     rows.iter().any(|row| {
-                        row.realization_machine == machine.symbol
-                            && matches!(
-                                row.source,
-                                typed_trees::trait_definition::ConformanceRowSource::Inline
-                                    | typed_trees::trait_definition::ConformanceRowSource::TraitDefault
-                            )
+                        row.realization_machine == machine.symbol && row.source.owns_realization()
                     })
                 })
         })

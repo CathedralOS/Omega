@@ -69,8 +69,9 @@
 //! binding in transition arms (`Command::Move { steps } -> done(steps)`, with the
 //! bound names rewritten to payload member reads), and tag compares against case
 //! references (the lowering of `in` and of payload-less case `==`, matching the
-//! native 4-byte tag clamp). Structural `==` on CONFORMING types (`Type
-//! satisfies Equatable;`) is expanded by the FRONTEND into ordinary field
+//! native 4-byte tag clamp). Structural `==` through a synthesized Equatable
+//! row (`TypeEquality satisfies Equatable<Type> { }`) is expanded by the
+//! FRONTEND into ordinary field
 //! compares and tag-guarded payload compares before either engine runs, so the
 //! interpreter's `Value::Enum` equality stays a tag compare -- by the time a
 //! payload matters, the expansion already reads it field by field. Expression

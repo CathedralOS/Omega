@@ -18,11 +18,11 @@ data Tag {
     weight: i32;
 }
 
-trait Equatable {
-    machine equals(this: &Self, other: &Self) -> bool;
+trait Equatable<T> {
+    machine equals(left: &T, right: &T) -> bool;
 }
 
-TagEquatable: Tag satisfies Equatable;
+TagEquality satisfies Equatable<Tag> { }
 
 data Main {
     console: Binding<Console>;
