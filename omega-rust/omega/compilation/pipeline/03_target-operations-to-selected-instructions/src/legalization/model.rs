@@ -93,17 +93,6 @@ pub enum LegalizationError {
     UnsupportedSourceShape {
         function: usize,
     },
-    UnsupportedCondition {
-        function: usize,
-    },
-    MissingConstantDefinition {
-        function: usize,
-        arm_edge: semantic_vocabulary::EdgeId,
-    },
-    MissingFuelProvenance {
-        function: usize,
-    },
-    NonCanonicalLegalizedPlan,
 }
 
 impl std::fmt::Display for LegalizationError {

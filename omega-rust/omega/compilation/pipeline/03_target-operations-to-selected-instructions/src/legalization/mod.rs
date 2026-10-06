@@ -1,10 +1,9 @@
 //! Optimizer module role: stage group. Mandatory target legalization: construct the canonical plan.
 //!
-//! `source` projects ordinary instruction graphs; `replay` is the retained-plan
-//! verifier behind `validate_legalized_operations`.
+//! `source` projects ordinary instruction graphs. The legalized plan is
+//! consumed in the same compile, so no verifier replays it.
 
 mod model;
-mod replay;
 mod runtime_indices;
 mod scalar_graph_input;
 mod source;
@@ -18,7 +17,6 @@ use abstract_operations::AbstractOperationPlan;
 use legalized_operations::{LegalizedOperationPlan, legalized_operation_plan_identity};
 use target_operations::TargetOperationPlan;
 
-use replay::replay_terminal_legalized_plan;
 use source::derive_source_function_rosters;
 
 pub fn legalize_target_operations<'source>(
@@ -40,20 +38,6 @@ pub fn legalize_target_operations<'source>(
     Ok(seal(target, unit, plan))
 }
 
-/// Independently replay the admitted projection from the raw target,
-/// abstract, and verified optimization-unit custody against every proposed
-/// field.
-pub fn validate_legalized_operations<'source>(
-    target: &TargetOperationPlan,
-    abstract_plan: &AbstractOperationPlan,
-    source: impl Into<LegalizationSource<'source>>,
-    plan: LegalizedOperationPlan,
-) -> Result<ValidatedLegalizedOperations, LegalizationError> {
-    let source = source.into();
-    let unit = source.unit;
-    replay_terminal_legalized_plan(target, abstract_plan, unit, &plan, source.verified_input)?;
-    Ok(seal(target, unit, plan))
-}
 
 fn seal(
     target: &TargetOperationPlan,

@@ -6,8 +6,6 @@
 //! owns the target-register environment, runs [`legalize_target_operations`]
 //! and then [`select_instructions`], each of which seals its own plan with a
 //! receipt, and records their identities in one custody receipt.
-//! [`validate_legalized_operations`] is the retained-plan verifier; the
-//! compile path does not call it.
 //! `legalization` is the raw-target to legal-operation join, `selection` the
 //! legal-operation to selected-CFG join, and `structural_inputs` the
 //! input-only reconstruction of structural storage, parameter shape and
@@ -28,7 +26,7 @@ pub use optimized::{
 // The two joins the entry sequences.
 pub use legalization::{
     LegalizationError, LegalizationSource, LegalizationValidationReceipt,
-    ValidatedLegalizedOperations, legalize_target_operations, validate_legalized_operations,
+    ValidatedLegalizedOperations, legalize_target_operations,
 };
 pub use selection::{
     SelectedInstructionError, SelectedInstructionValidationReceipt, ValidatedSelectedInstructions,

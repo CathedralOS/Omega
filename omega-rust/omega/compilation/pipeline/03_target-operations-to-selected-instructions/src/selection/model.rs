@@ -104,16 +104,6 @@ pub enum SelectedInstructionError {
         first: &'static str,
         second: &'static str,
     },
-    UnsupportedCondition {
-        function: usize,
-    },
-    MissingConstantDefinition {
-        function: usize,
-        arm_edge: semantic_vocabulary::EdgeId,
-    },
-    MissingFuelProvenance {
-        function: usize,
-    },
     MissingConstraint(RegisterConstraintKey),
     MissingInputRegisterView {
         function: usize,
