@@ -378,6 +378,31 @@ fn lower_selected_instruction(
     Ok(())
 }
 
+/// An identifier's position once the sorted `removed` roster's ids are
+/// subtracted: a removed id is an underflow, any other shifts by its rank.
+fn lower_id<Id: Copy + PartialEq>(
+    function_index: usize,
+    id: Id,
+    removed: &[Id],
+    raw: impl Fn(Id) -> u32 + Copy,
+) -> Result<u32, LiteralFoldError> {
+    if removed.contains(&id) {
+        return Err(LiteralFoldError::IdentifierUnderflow {
+            function: function_index,
+        });
+    }
+    Ok(raw(id).checked_sub(
+        u32::try_from(removed.partition_point(|removed| raw(*removed) < raw(id))).map_err(
+            |_| LiteralFoldError::IdentifierUnderflow {
+                function: function_index,
+            },
+        )?,
+    )
+    .ok_or(LiteralFoldError::IdentifierUnderflow {
+        function: function_index,
+    })?)
+}
+
 /// The dense successor of `id` after the sorted `removed` set leaves: an
 /// identifier still naming a removed member is an inconsistency — the fold's
 /// custody scans already proved no surviving reference exists.
@@ -386,23 +411,12 @@ fn lower_instruction(
     id: SelectedInstructionId,
     removed: &[SelectedInstructionId],
 ) -> Result<SelectedInstructionId, LiteralFoldError> {
-    if removed.contains(&id) {
-        return Err(LiteralFoldError::IdentifierUnderflow {
-            function: function_index,
-        });
-    }
-    Ok(SelectedInstructionId(
-        id.0.checked_sub(
-            u32::try_from(removed.partition_point(|removed| removed.0 < id.0)).map_err(|_| {
-                LiteralFoldError::IdentifierUnderflow {
-                    function: function_index,
-                }
-            })?,
-        )
-        .ok_or(LiteralFoldError::IdentifierUnderflow {
-            function: function_index,
-        })?,
-    ))
+    Ok(SelectedInstructionId(lower_id(
+        function_index,
+        id,
+        removed,
+        |id| id.0,
+    )?))
 }
 
 fn lower_register(
@@ -410,23 +424,12 @@ fn lower_register(
     id: VirtualRegisterId,
     removed: &[VirtualRegisterId],
 ) -> Result<VirtualRegisterId, LiteralFoldError> {
-    if removed.contains(&id) {
-        return Err(LiteralFoldError::IdentifierUnderflow {
-            function: function_index,
-        });
-    }
-    Ok(VirtualRegisterId(
-        id.0.checked_sub(
-            u32::try_from(removed.partition_point(|removed| removed.0 < id.0)).map_err(|_| {
-                LiteralFoldError::IdentifierUnderflow {
-                    function: function_index,
-                }
-            })?,
-        )
-        .ok_or(LiteralFoldError::IdentifierUnderflow {
-            function: function_index,
-        })?,
-    ))
+    Ok(VirtualRegisterId(lower_id(
+        function_index,
+        id,
+        removed,
+        |id| id.0,
+    )?))
 }
 
 fn selected_operand(
