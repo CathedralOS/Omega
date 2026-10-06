@@ -6,14 +6,13 @@
 use super::{
     BTreeMap, BTreeSet, Block, CheckedStructuralUnitControlMachinePlan,
     CheckedStructuralUnitControlTerminatorPlan, CheckedTrees, EdgeId, IntegerSign, IntegerValue,
-    LoweredPsi, LoweringError, MachineContract, Multiplicity, Operation, OperationKind,
-    OperationResult, PlaceId, PrimitiveType, ScalarType, StructuralPlaceDeclaration,
-    StructuralPlaceKind, SuccessorEdge, TerminalBlockNaturalRank, TerminalMachine,
-    TerminalMachineResult, TerminalModule, TerminalNaturalCycle, TerminalNaturalRankComparison,
-    TerminalNaturalRankEdge, TerminalRankedScc, Terminator, ValueDeclaration, allocate_dense,
-    block_id, contract_id, dense_identity, edge_id, lookup_type_id, lower_structural_type_plans,
-    lower_unit_parameters, machine_id, obligation_id, operation_id, terminal_scalar_type,
-    unsupported, value_id,
+    LoweredPsi, LoweringError, MachineContract, Multiplicity, Operation, OperationKind, PlaceId,
+    PrimitiveType, ScalarType, StructuralPlaceDeclaration, StructuralPlaceKind, SuccessorEdge,
+    TerminalBlockNaturalRank, TerminalMachine, TerminalMachineResult, TerminalModule,
+    TerminalNaturalCycle, TerminalNaturalRankComparison, TerminalNaturalRankEdge,
+    TerminalRankedScc, Terminator, ValueDeclaration, allocate_dense, block_id, contract_id,
+    dense_identity, edge_id, lookup_type_id, lower_structural_type_plans, lower_unit_parameters,
+    machine_id, obligation_id, operation_id, terminal_scalar_type, unsupported, value_id,
 };
 use crate::emission::operation_emission::buffer::scalar_result_declaration;
 use crate::terminal_identities::lookup_attachment_type_id;
