@@ -315,3 +315,34 @@ pub(super) fn validate_named_conformance_arguments(
         }
     }
 }
+
+/// Why a call through a named implementation (`Impl::member(...)`) selected no
+/// row: the implementation has no row for that requirement, or several
+/// inherited rows share its spelling. Resolution leaves both unresolved
+/// rather than choosing one.
+pub(super) fn unresolved_implementation_call(
+    program: &TypedTrees,
+    implementation: symbols::SymbolHandle,
+    target: &str,
+) -> String {
+    let name = program.symbols.name(implementation);
+    let rows = program
+        .conformances()
+        .iter()
+        .find(|conformance| conformance.symbol == implementation)
+        .and_then(|conformance| program.closed_conformance_rows(conformance))
+        .unwrap_or_default()
+        .iter()
+        .filter(|row| row.requirement_name.as_str() == target)
+        .map(|row| format!("`{}::{}`", row.declaring_trait_name, row.requirement_name))
+        .collect::<Vec<_>>();
+    if rows.is_empty() {
+        format!("implementation `{name}` has no row for requirement `{target}`")
+    } else {
+        format!(
+            "implementation `{name}` has {} rows named `{target}` ({}); a call through the implementation must select exactly one",
+            rows.len(),
+            rows.join(", ")
+        )
+    }
+}

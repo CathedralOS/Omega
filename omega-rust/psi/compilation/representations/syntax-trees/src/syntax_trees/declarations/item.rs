@@ -576,8 +576,13 @@ pub enum MachineParameterContract {
     /// executable machine contract.
     RequirementIdentity,
     Structural(StateSignature),
+    /// `where machine Step satisfies Visitor<Context>::visit;`: the exact
+    /// requirement path plus the trait application the binder's callable
+    /// contract is instantiated under. Empty arguments for a parameterless
+    /// trait.
     Nominal {
         requirement: HandleSpan<Identifier>,
+        trait_arguments: HandleSpan<crate::types::TypeReferenceHandle>,
     },
 }
 

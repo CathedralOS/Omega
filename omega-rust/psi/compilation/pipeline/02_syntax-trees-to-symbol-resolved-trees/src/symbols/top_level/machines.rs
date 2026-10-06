@@ -254,6 +254,20 @@ pub(super) fn assign_machine_symbols(
                     symbol_resolved_trees::data::TypeParameterKind::Value { type_reference }
                 }
                 symbol_resolved_trees::data::TypeParameterKind::Machine { mut contract } => {
+                    if let symbol_resolved_trees::data::MachineParameterContract::AuthoredNominal {
+                        trait_arguments,
+                        ..
+                    } = &contract
+                    {
+                        assign_type_reference_argument_symbols_with_constraints(
+                            symbols,
+                            child_type_references,
+                            type_constraints,
+                            &local_type_parameters,
+                            machine_symbol,
+                            *trait_arguments,
+                        );
+                    }
                     if let Some(signature) = contract.structural_mut() {
                         assign_machine_parameter_signature_symbols(
                             symbols,

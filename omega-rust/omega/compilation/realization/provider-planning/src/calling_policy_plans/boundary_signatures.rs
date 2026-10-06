@@ -638,6 +638,7 @@ pub(crate) fn call_signature_from_typed(
         let typed_trees::data::MachineParameterContract::Nominal {
             trait_definition,
             requirement,
+            ..
         } = contract
         else {
             continue;

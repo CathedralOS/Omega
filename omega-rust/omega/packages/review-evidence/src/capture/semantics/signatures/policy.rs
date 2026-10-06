@@ -274,10 +274,12 @@ fn machine(
             PackageReviewMachineParameterContract::Nominal {
                 trait_identity,
                 requirement_identity,
+                trait_arguments,
             },
         ) => Ok(PackagePolicyMachineParameterContract::Nominal {
             trait_identity,
             requirement_identity,
+            trait_arguments,
         }),
         (
             MachineParameterContract::RequirementIdentity,

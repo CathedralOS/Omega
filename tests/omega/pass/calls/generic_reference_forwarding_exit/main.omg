@@ -4,29 +4,31 @@
 use omega_language_std::console;
 use omega::language::core::binding;
 
-trait Incrementable {
-    machine increment(subject: &mut Self);
+trait Incrementable<T> {
+    machine increment(counter: &mut T);
 }
 
 data Counter {
     value: i32 in Wrapping;
 }
 
-machine Counter::increment(counter: &mut Counter) satisfies Incrementable::increment {
+machine Counter::increment(counter: &mut Counter) satisfies Incrementable<Counter>::increment {
     counter.value = counter.value + 1;
 }
-CounterIncrementable: Counter satisfies Incrementable;
+CounterIncrementable satisfies Incrementable<Counter> {
+    Incrementable::increment = Counter::increment;
+}
 
 // The two helpers own distinct type parameters; the explicit applications
 // connect them by identity while preserving the existing mutable reference.
 machine nominal_step<StepSubject, machine Increment>(subject: &mut StepSubject)
-where machine Increment satisfies Incrementable::increment;
+where machine Increment satisfies Incrementable<StepSubject>::increment;
 {
     Increment(subject);
 }
 
 machine nominal_forward<ForwardedSubject, machine Increment>(subject: &mut ForwardedSubject)
-where machine Increment satisfies Incrementable::increment;
+where machine Increment satisfies Incrementable<ForwardedSubject>::increment;
 {
     nominal_step<ForwardedSubject, Increment>(subject);
 }

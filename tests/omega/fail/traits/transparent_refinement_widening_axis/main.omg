@@ -1,8 +1,8 @@
 // A refinement narrows axes the base already permits: asserting `suspends`
 // where the base requirement does not declare it widens the contract.
 
-trait Logger {
-    machine write(subject: &mut Self);
+trait Logger<T> {
+    machine write(subject: &mut T);
 }
 
 trait LocalLogger = Logger {

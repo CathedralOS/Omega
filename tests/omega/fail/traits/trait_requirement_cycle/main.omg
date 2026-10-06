@@ -1,11 +1,11 @@
 trait A {
     requires B;
-    machine a(subject: &mut Self);
+    machine a(thing: &mut Thing);
 }
 
 trait B {
     requires A;
-    machine b(subject: &mut Self);
+    machine b(thing: &mut Thing);
 }
 
 data Thing {

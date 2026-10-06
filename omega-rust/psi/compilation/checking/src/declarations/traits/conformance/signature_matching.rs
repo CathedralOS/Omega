@@ -640,10 +640,50 @@ fn validate_trait_parameter_match(
             trait_name,
             requirement.name,
             required.name,
-            type_reference_label(program, required.type_reference),
+            bound_type_reference_label(program, required.type_reference, type_bindings),
             type_reference_label(program, actual.type_reference)
         )));
     }
+}
+
+/// A requirement parameter's type as the satisfier must spell it: each trait
+/// parameter the edge has bound reads as its argument (`&mut Counter`, not
+/// the declaration's `&mut T`). Diagnostic text only.
+fn bound_type_reference_label(
+    program: &TypedTrees,
+    handle: TypeReferenceHandle,
+    bindings: &[TraitTypeBinding],
+) -> String {
+    let mut label = type_reference_label(program, handle);
+    for binding in bindings {
+        let TraitTypeBindingTarget::Type(argument) = binding.target else {
+            continue;
+        };
+        if binding.parameter_name.is_empty() {
+            continue;
+        }
+        let replacement = type_reference_label(program, argument);
+        let mut rebuilt = String::with_capacity(label.len());
+        let mut rest = label.as_str();
+        while let Some(index) = rest.find(binding.parameter_name.as_str()) {
+            let end = index + binding.parameter_name.len();
+            let word = |character: Option<char>| {
+                character.is_some_and(|character| character.is_alphanumeric() || character == '_')
+            };
+            let bounded =
+                !word(rest[..index].chars().next_back()) && !word(rest[end..].chars().next());
+            rebuilt.push_str(&rest[..index]);
+            rebuilt.push_str(if bounded {
+                &replacement
+            } else {
+                &binding.parameter_name
+            });
+            rest = &rest[end..];
+        }
+        rebuilt.push_str(rest);
+        label = rebuilt;
+    }
+    label
 }
 
 #[derive(Debug, Clone)]

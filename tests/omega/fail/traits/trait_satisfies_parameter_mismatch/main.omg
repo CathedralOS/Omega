@@ -1,5 +1,5 @@
-trait Drawable {
-    machine draw(sprite: &Self, canvas: &mut Canvas);
+trait Drawable<T> {
+    machine draw(sprite: &T, canvas: &mut Canvas);
 }
 
 data Canvas {
@@ -13,7 +13,7 @@ data Main {
     canvas: Canvas;
 }
 
-machine Sprite::draw(sprite: &Sprite, canvas: Canvas) satisfies Drawable::draw {
+machine Sprite::draw(sprite: &Sprite, canvas: Canvas) satisfies Drawable<Sprite>::draw {
 }
 
 machine Main::main() {

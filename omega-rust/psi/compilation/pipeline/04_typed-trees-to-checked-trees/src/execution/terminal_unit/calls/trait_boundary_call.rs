@@ -204,6 +204,7 @@ pub(super) fn build(
                 typed_trees::data::MachineParameterContract::Nominal {
                     trait_definition,
                     requirement,
+                    ..
                 },
         } = parameter.kind
         else {

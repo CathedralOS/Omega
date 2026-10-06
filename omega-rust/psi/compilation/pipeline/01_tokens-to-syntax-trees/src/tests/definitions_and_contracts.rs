@@ -852,7 +852,7 @@ fn parses_nominal_machine_parameter_requirement() {
         panic!("expected one machine parameter");
     };
     let syntax_trees::item::TypeParameterKind::Machine {
-        contract: Some(syntax_trees::item::MachineParameterContract::Nominal { requirement }),
+        contract: Some(syntax_trees::item::MachineParameterContract::Nominal { requirement, .. }),
     } = &parameter.kind
     else {
         panic!("Selected should retain its nominal requirement path");
@@ -967,6 +967,59 @@ fn parses_structural_and_nominal_machine_parameter_contracts_together() {
 }
 
 #[test]
+fn retains_nominal_machine_parameter_trait_application() {
+    let source = r#"
+        trait Visitor<Context> {
+            machine visit(context: &mut Context);
+        }
+        machine walk<Context, machine Step>(context: &mut Context)
+        where machine Step satisfies Visitor<Context>::visit;
+        {
+            Step(context);
+        }
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let parsed = parse_syntax_trees(&tokens).expect("an applied nominal binder should parse");
+    let machine = parsed
+        .root_items()
+        .find_map(|item| match item {
+            syntax_trees::item::Item::Machine(machine) if machine.name.as_str() == "walk" => {
+                Some(machine)
+            }
+            _ => None,
+        })
+        .expect("generic machine");
+    let step = parsed
+        .items
+        .type_parameters(machine.type_parameters)
+        .iter()
+        .find(|parameter| parameter.name.as_str() == "Step")
+        .expect("machine parameter");
+    let syntax_trees::item::TypeParameterKind::Machine {
+        contract:
+            Some(syntax_trees::item::MachineParameterContract::Nominal {
+                requirement,
+                trait_arguments,
+            }),
+    } = &step.kind
+    else {
+        panic!("Step should retain its nominal requirement");
+    };
+    assert_eq!(
+        parsed
+            .items
+            .identifier_path_members(*requirement)
+            .iter()
+            .map(|member| member.as_str())
+            .collect::<Vec<_>>(),
+        vec!["Visitor", "visit"]
+    );
+    assert_eq!(trait_arguments.len(), 1);
+}
+
+#[test]
 fn rejects_malformed_nominal_machine_parameter_requirements() {
     let cases = [
         (
@@ -982,8 +1035,8 @@ fn rejects_malformed_nominal_machine_parameter_requirements() {
             "cannot use `via`",
         ),
         (
-            "where machine Selected satisfies WindowProcedure<u64>::call;",
-            "generic trait arguments are not supported",
+            "where machine Selected satisfies WindowProcedure<u64>;",
+            "must be followed by `::requirement`",
         ),
     ];
 

@@ -354,6 +354,8 @@ fn project_machine_parameter_contract_inner(
         typed_trees::data::MachineParameterContract::Nominal {
             trait_definition,
             requirement,
+            trait_arguments,
+            ..
         } => {
             let matching_traits = compilation
                 .traits()
@@ -392,9 +394,22 @@ fn project_machine_parameter_contract_inner(
                     "public {declaration_kind} `{declaration_path}` static-machine contract has mismatched trait and requirement ownership",
                 ))]);
             }
+            let trait_arguments = trait_arguments
+                .iter()
+                .map(|argument| {
+                    projection.value_type(
+                        typed,
+                        compilation,
+                        *argument,
+                        outer_binders,
+                        outer_lifetime_binders,
+                    )
+                })
+                .collect::<Result<Vec<_>, _>>()?;
             Ok(PackageReviewMachineParameterContract::Nominal {
                 trait_identity,
                 requirement_identity,
+                trait_arguments,
             })
         }
     }

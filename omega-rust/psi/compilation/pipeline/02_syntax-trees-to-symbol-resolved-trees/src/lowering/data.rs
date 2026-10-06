@@ -399,7 +399,10 @@ where_facts: contract.where_facts })?;
                             )),
                         )
                     }
-                    syntax::item::MachineParameterContract::Nominal { requirement } => (
+                    syntax::item::MachineParameterContract::Nominal {
+                        requirement,
+                        trait_arguments,
+                    } => (
                         TypeParameterKind::Machine {
                             contract: symbol_resolved_trees::data::MachineParameterContract::AuthoredNominal {
                                 requirement: syntax_trees
@@ -408,6 +411,11 @@ where_facts: contract.where_facts })?;
                                     .iter()
                                     .map(crate::lowering::name::lower_name)
                                     .collect(),
+                                trait_arguments: crate::lowering::type_reference::lower_child_type_references(
+                                    lowerer,
+                                    syntax_trees,
+                                    *trait_arguments,
+                                )?,
                             },
                         },
                         None,

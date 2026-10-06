@@ -1,24 +1,26 @@
 // A trait default body sees only its own trait's requirements. `Resettable`
-// declares no `set`; the child trait `Counter` adds one and both conformances
-// below supply it, yet the default authored in `Resettable` cannot name it:
-// the trait's author cannot see what a conformer adds. The bodyless
-// conformance (an attached `Value::set`) and the closed block (an inline `set`
-// row) reject the same call.
-trait Resettable {
-    machine reset(subject: &mut Self) {
+// declares no `set`; the child trait `Counter` adds one and both
+// implementations below supply it, yet the default authored in `Resettable`
+// cannot name it: the trait's author cannot see what an implementation adds.
+// A reference row (`Counter::set = Value::set`) and an inline `set` row reject
+// the same call.
+trait Resettable<T> {
+    machine reset(subject: &mut T) {
         set(subject, 30);
     }
 }
 
-trait Counter: Resettable {
-    machine set(subject: &mut Self, value: i32);
+trait Counter<T>: Resettable<T> {
+    machine set(subject: &mut T, value: i32);
 }
 
 data Value {
     value: i32;
 }
 
-ValueCounter: Value satisfies Counter;
+ValueCounter satisfies Counter<Value> {
+    Counter::set = Value::set;
+}
 
 machine Value::set(value: &mut Value, next: i32) {
     value.value = next;
@@ -28,7 +30,7 @@ data Gauge {
     value: i32;
 }
 
-GaugeCounter: Gauge satisfies Counter {
+GaugeCounter satisfies Counter<Gauge> {
     machine set(gauge: &mut Gauge, next: i32) {
         gauge.value = next;
     }

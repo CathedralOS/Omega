@@ -1,1 +1,1 @@
-data `Counter` inherits conflicting default machine `Counter::reset` from traits `LeftReset`, `RightReset`; write an override
+implementation `CounterResettable` has 2 rows named `reset` (`LeftReset::reset`, `RightReset::reset`)

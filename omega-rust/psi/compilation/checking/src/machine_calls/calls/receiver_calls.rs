@@ -43,6 +43,19 @@ pub(super) fn validate_receiver_call(
     // keep their separate signature validator; absence of an ordinary selected
     // target is a rejection, never permission to search by name again.
     if call_gates::receiver_is_declaration_namespace(scope, receiver_members) {
+        if scope.program.symbols.get(scope.call.receiver_symbol).kind
+            == symbols::SymbolKind::Conformance
+            && !scope.call.target_symbol.is_valid()
+        {
+            diagnostics.push(Diagnostic::error(
+                super::generic_requirement::unresolved_implementation_call(
+                    scope.program,
+                    scope.call.receiver_symbol,
+                    scope.call.target.as_str(),
+                ),
+            ));
+            return;
+        }
         if !validate_resolved_receiver_call(scope, arguments, true, diagnostics)
             && !call_gates::receiver_is_operator_namespace(scope, receiver_members, arguments.len())
         {
@@ -225,7 +238,12 @@ fn validate_resolved_receiver_call(
     // registrar). Return whether a declaration was found so namespace
     // callers reject missing identity.
     if let Some((callee_machine, state)) = machine_state_by_symbol(program, call.target_symbol) {
+        // A named implementation's row may be any machine, attached to any
+        // data; the implementation, not the data, qualifies the call.
+        let receiver_is_implementation =
+            program.symbols.get(call.receiver_symbol).kind == symbols::SymbolKind::Conformance;
         if namespace
+            && !receiver_is_implementation
             && callee_machine.attached_data_symbol.is_valid()
             && call.receiver_symbol != callee_machine.attached_data_symbol
         {

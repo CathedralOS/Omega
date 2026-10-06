@@ -45,7 +45,13 @@ fn machine(
         PackagePolicyMachineParameterContract::Nominal {
             trait_identity,
             requirement_identity,
-        } => return owned_pair(trait_identity, requirement_identity),
+            trait_arguments,
+        } => {
+            for argument in trait_arguments {
+                value_type(argument)?;
+            }
+            return owned_pair(trait_identity, requirement_identity);
+        }
         PackagePolicyMachineParameterContract::Structural(signature) => signature,
     };
     let mut scope = child(

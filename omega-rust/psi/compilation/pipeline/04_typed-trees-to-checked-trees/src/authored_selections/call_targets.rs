@@ -342,6 +342,31 @@ fn authored_contextual_root(
     selected
 }
 
+/// A call through a named implementation (`Ascending::before(left, right)`)
+/// selects the implementation: its visibility and package authority govern
+/// the call, and the row it reaches may be a synthesized default machine that
+/// has no separate authority of its own.
+pub(crate) fn implementation_call_selection(
+    program: &TypedTrees,
+    receiver: SymbolHandle,
+) -> Option<SymbolHandle> {
+    (receiver.is_valid() && program.symbols.get(receiver).kind == symbols::SymbolKind::Conformance)
+        .then_some(receiver)
+}
+
+pub(crate) fn expression_receiver_symbol(
+    program: &TypedTrees,
+    receiver: typed_trees::expression::ExpressionHandle,
+) -> SymbolHandle {
+    if !receiver.is_valid() {
+        return SymbolHandle::invalid();
+    }
+    match program.expression_table.expression(receiver) {
+        ExpressionNode::Name(path) => path.symbol,
+        _ => SymbolHandle::invalid(),
+    }
+}
+
 pub(crate) fn declaration_target(symbol: SymbolHandle) -> Option<CheckedResolutionTarget> {
     symbol
         .is_valid()

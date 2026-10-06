@@ -1,8 +1,8 @@
-trait Sink<T> {
-    machine put(sink: &mut Self, value: T);
+trait Sink<S, T> {
+    machine put(sink: &mut S, value: T);
 }
 
-trait IntSink: Sink<i32> {
+trait IntSink<S>: Sink<S, i32> {
 }
 
 data Counter {
@@ -13,9 +13,11 @@ data Main {
     counter: Counter;
 }
 
-CounterIntSink: Counter satisfies IntSink;
+CounterIntSink satisfies IntSink<Counter> {
+    Sink::put = Counter::put;
+}
 
-machine Counter::put(counter: &mut Counter, value: i32) satisfies Sink<i32>::put {
+machine Counter::put(counter: &mut Counter, value: i32) satisfies Sink<Counter, i32>::put {
     counter.value = value;
 }
 

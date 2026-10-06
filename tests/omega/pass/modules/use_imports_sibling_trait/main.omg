@@ -10,7 +10,7 @@ data Sprite {
 
 data Main {}
 
-machine Sprite::draw(sprite: &Sprite, canvas: &mut Canvas) satisfies Drawable::draw {
+machine Sprite::draw(sprite: &Sprite, canvas: &mut Canvas) satisfies Drawable<Sprite, Canvas>::draw {
     canvas.width = 80;
 }
 

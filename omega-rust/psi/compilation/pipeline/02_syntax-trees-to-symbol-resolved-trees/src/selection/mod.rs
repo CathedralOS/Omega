@@ -67,8 +67,22 @@ pub(crate) fn finalize(lowerer: &mut Lowerer) -> Result<(), Vec<Diagnostic>> {
     evidence_forwardings::bind_evidence_forwarding_owners(&mut lowerer.symbol_resolved_trees);
     let (pending_machine_service_reaches, pending_signature_service_reaches) =
         lowerer.pending_service_reaches();
-    conformance_blocks::normalize_closed_conformance_blocks(&mut lowerer.symbol_resolved_trees)
-        .map_err(|diagnostic| vec![diagnostic])?;
+    let machine_ordinals =
+        conformance_blocks::normalize_closed_conformance_blocks(&mut lowerer.symbol_resolved_trees)
+            .map_err(|diagnostic| vec![diagnostic])?;
+    lowerer.pending_machine_bodies.retain_mut(|pending| {
+        match machine_ordinals
+            .get(pending.machine_ordinal)
+            .copied()
+            .flatten()
+        {
+            Some(ordinal) => {
+                pending.machine_ordinal = ordinal;
+                true
+            }
+            None => false,
+        }
+    });
     authored_selections::finalize_conformance_reference_selections(
         &mut lowerer.symbol_resolved_trees,
     )

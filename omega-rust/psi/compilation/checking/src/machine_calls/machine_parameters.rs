@@ -441,6 +441,8 @@ fn validate_call_selection(
             requirement,
             selected.symbol,
             &rendered,
+            &generic_types,
+            &mut bindings,
             diagnostics,
         ) else {
             continue;
@@ -528,6 +530,7 @@ pub(crate) fn validate_data_machine_selection(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let index = machine_state_index(program);
+    let mut bindings = Vec::new();
     if validate_nominal_machine_selection(
         program,
         &index,
@@ -536,6 +539,8 @@ pub(crate) fn validate_data_machine_selection(
         requirement,
         selected_symbol,
         selected_name,
+        generic_types,
+        &mut bindings,
         diagnostics,
     )
     .is_err()
@@ -563,7 +568,7 @@ pub(crate) fn validate_data_machine_selection(
         selected_symbol,
         selected_name,
         generic_types,
-        &mut Vec::new(),
+        &mut bindings,
         diagnostics,
     );
 }

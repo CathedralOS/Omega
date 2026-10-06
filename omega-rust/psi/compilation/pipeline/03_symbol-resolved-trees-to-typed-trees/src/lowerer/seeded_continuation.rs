@@ -1406,6 +1406,7 @@ fn exact_extension_nominal_machine_parameter(
         trait_definition,
         requirement,
         authored_path,
+        ..
     } = contract
     else {
         return false;

@@ -1,30 +1,43 @@
-trait LeftReset {
-    machine set(subject: &mut Self, value: i32);
+// FAIL CANARY. Two inherited traits each supply a `reset` default, so the
+// named implementation keeps two exact rows, `LeftReset::reset` and
+// `RightReset::reset`. A call through the implementation that spells only
+// `reset` selects neither.
+trait LeftReset<T> {
+    machine set(subject: &mut T, value: i32);
 
-    machine reset(subject: &mut Self) {
+    machine reset(subject: &mut T) {
         set(&mut subject, 10);
     }
 }
 
-trait RightReset {
-    machine set(subject: &mut Self, value: i32);
+trait RightReset<T> {
+    machine set(subject: &mut T, value: i32);
 
-    machine reset(subject: &mut Self) {
+    machine reset(subject: &mut T) {
         set(&mut subject, 20);
     }
 }
 
-trait Resettable {
-    requires LeftReset;
-    requires RightReset;
+trait Resettable<T>: LeftReset<T> + RightReset<T> {
 }
 
 data Counter {
     value: i32;
 }
 
-CounterResettable: Counter satisfies Resettable;
+CounterResettable satisfies Resettable<Counter> {
+    LeftReset::set = Counter::set;
+    RightReset::set = Counter::set;
+}
 
 machine Counter::set(counter: &mut Counter, value: i32) {
     counter.value = value;
+}
+
+data Main {
+    counter: Counter;
+}
+
+machine Main::main(main: &mut Main) {
+    CounterResettable::reset(&mut main.counter);
 }

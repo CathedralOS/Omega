@@ -3,12 +3,12 @@
 // operational axes only. A refinement is never a `satisfies` target itself —
 // evidence binders (`B satisfies R`) are its legal consumers.
 
-trait Logger {
-    machine write(subject: &mut Self) suspends; blocks;
-    machine flush(subject: &mut Self);
+trait Logger<T> {
+    machine write(subject: &mut T) suspends; blocks;
+    machine flush(subject: &mut T);
 }
 
-trait LocalLogger = Logger {
+trait LocalLogger<T> = Logger<T> {
     machine * suspends false; blocks false; terminates;
     machine Logger::flush terminates;
 }
@@ -17,15 +17,18 @@ data Sink {
     pending: i32;
 }
 
-machine Sink::write(sink: &mut Sink) satisfies Logger::write {
+machine Sink::write(sink: &mut Sink) satisfies Logger<Sink>::write {
     sink.pending = 0;
 }
 
-machine Sink::flush(sink: &mut Sink) satisfies Logger::flush {
+machine Sink::flush(sink: &mut Sink) satisfies Logger<Sink>::flush {
     sink.pending = 0;
 }
 
-SinkLogger: Sink satisfies Logger;
+SinkLogger satisfies Logger<Sink> {
+    Logger::write = Sink::write;
+    Logger::flush = Sink::flush;
+}
 
 data Main {
 }

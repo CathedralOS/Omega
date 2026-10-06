@@ -66,6 +66,8 @@ pub enum PackageReviewMachineParameterContract {
     Nominal {
         trait_identity: PackageReviewNominalIdentity,
         requirement_identity: PackageReviewNominalIdentity,
+        /// The binder's trait application, empty for a parameterless trait.
+        trait_arguments: Vec<PackageReviewTypeIdentity>,
     },
     RequirementIdentity,
 }

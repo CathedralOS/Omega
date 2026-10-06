@@ -162,6 +162,7 @@ pub enum MachineParameterContract {
     /// symbols. The syntax-to-resolved finisher must eliminate this variant.
     AuthoredNominal {
         requirement: Vec<DiagnosticName>,
+        trait_arguments: HandleSpan<crate::types::TypeReference>,
     },
     Nominal {
         trait_definition: SymbolHandle,
@@ -169,6 +170,10 @@ pub enum MachineParameterContract {
         /// Exact source-backed `Trait::requirement` path retained until typed
         /// lowering records both authored declaration selections.
         authored_path: Vec<DiagnosticName>,
+        /// The trait application the binder's callable contract is
+        /// instantiated under (`Visitor<Context>::visit`); empty for a
+        /// parameterless trait.
+        trait_arguments: HandleSpan<crate::types::TypeReference>,
     },
 }
 

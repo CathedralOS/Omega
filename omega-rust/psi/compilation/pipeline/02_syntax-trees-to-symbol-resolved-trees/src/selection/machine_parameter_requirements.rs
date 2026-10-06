@@ -24,7 +24,11 @@ pub(crate) fn normalize_nominal_machine_parameter_requirements(
 
     for (handle, parameter) in program.tables.declarations.data_type_parameters.iter() {
         let TypeParameterKind::Machine {
-            contract: MachineParameterContract::AuthoredNominal { requirement },
+            contract:
+                MachineParameterContract::AuthoredNominal {
+                    requirement,
+                    trait_arguments,
+                },
         } = &parameter.kind
         else {
             continue;
@@ -56,10 +60,11 @@ pub(crate) fn normalize_nominal_machine_parameter_requirements(
             exact.trait_definition.symbol,
             exact.requirement.symbol,
             requirement.clone(),
+            *trait_arguments,
         ));
     }
 
-    for (handle, trait_definition, requirement, authored_path) in replacements {
+    for (handle, trait_definition, requirement, authored_path, trait_arguments) in replacements {
         let parameter = program
             .tables
             .declarations
@@ -70,6 +75,7 @@ pub(crate) fn normalize_nominal_machine_parameter_requirements(
                 trait_definition,
                 requirement,
                 authored_path,
+                trait_arguments,
             },
         };
     }

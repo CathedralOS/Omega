@@ -844,7 +844,7 @@ pub(crate) fn snapshot_type_parameter(
                     None,
                     None,
                 ),
-                Some(crate::item::MachineParameterContract::Nominal { requirement }) => (
+                Some(crate::item::MachineParameterContract::Nominal { requirement, .. }) => (
                     "machine",
                     None,
                     None,

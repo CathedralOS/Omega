@@ -75,6 +75,7 @@ pub(crate) fn lower_type_parameter_kind(
                     trait_definition,
                     requirement,
                     authored_path,
+                    trait_arguments,
                 } => {
                     let [trait_path @ .., requirement_name] = authored_path.as_slice() else {
                         return Err(Diagnostic::error(
@@ -101,9 +102,15 @@ pub(crate) fn lower_type_parameter_kind(
                         lowerer.type_reference_exposure,
                         "nominal machine-parameter requirement",
                     )?;
+                    let mut lowered_arguments = Vec::new();
+                    for argument in lowerer.source_trees.child_type_references(*trait_arguments) {
+                        lowered_arguments.push(lower_type_reference_into_table(lowerer, argument)?);
+                    }
                     typed::data::MachineParameterContract::Nominal {
                         trait_definition: *trait_definition,
                         requirement: *requirement,
+                        trait_arguments: lowered_arguments,
+                        instantiated: None,
                     }
                 }
             };

@@ -189,6 +189,14 @@ pub enum MachineParameterContract {
     Nominal {
         trait_definition: SymbolHandle,
         requirement: SymbolHandle,
+        /// The trait application the binder is declared under
+        /// (`Visitor<Context>::visit`); empty for a parameterless trait.
+        trait_arguments: Vec<crate::types::TypeReferenceHandle>,
+        /// The requirement's signature with the trait's parameters replaced
+        /// by `trait_arguments`, built once every trait is lowered. Absent when
+        /// the trait takes no arguments: the requirement's own signature is
+        /// the binder's callable contract then.
+        instantiated: Option<Box<crate::signature::StateSignature>>,
     },
 }
 

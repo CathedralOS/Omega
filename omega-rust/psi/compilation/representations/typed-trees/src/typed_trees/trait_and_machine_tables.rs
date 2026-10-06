@@ -1,9 +1,190 @@
 //! The trait, conformance, boundary calling plan, machine and state tables.
 
 use crate::typed_trees::{BoundaryCallingPlanIdentity, TypedTrees};
-use crate::{data, machine, signature, trait_definition};
+use crate::{data, machine, signature, trait_definition, types};
+use symbols::SymbolHandle;
 
 impl TypedTrees {
+    /// Instantiate every nominal machine binder's callable contract under its
+    /// authored trait application (`Visitor<Context>::visit`). Machines lower
+    /// before traits, so this runs once the whole program is typed. The trait's
+    /// parameters are replaced by the binder's arguments in fresh rows; shared
+    /// subtrees that mention no parameter are reused, never rewritten.
+    pub fn instantiate_nominal_machine_parameter_contracts(&mut self) {
+        let pending = self
+            .data_type_parameters
+            .iter()
+            .filter_map(|(handle, parameter)| match &parameter.kind {
+                data::TypeParameterKind::Machine {
+                    contract:
+                        data::MachineParameterContract::Nominal {
+                            trait_definition,
+                            requirement,
+                            trait_arguments,
+                            instantiated: None,
+                        },
+                } if !trait_arguments.is_empty() => Some((
+                    handle,
+                    *trait_definition,
+                    *requirement,
+                    trait_arguments.clone(),
+                )),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        for (handle, trait_symbol, requirement_symbol, trait_arguments) in pending {
+            let Some(trait_definition) = self
+                .traits()
+                .iter()
+                .find(|candidate| candidate.symbol == trait_symbol)
+            else {
+                continue;
+            };
+            let parameters = self
+                .trait_type_parameters(trait_definition)
+                .iter()
+                .map(|parameter| parameter.symbol)
+                .collect::<Vec<_>>();
+            // An arity mismatch stays uninstantiated; checking reports it.
+            if parameters.len() != trait_arguments.len() {
+                continue;
+            }
+            let Some(declared) = self
+                .trait_machine_signatures(trait_definition)
+                .iter()
+                .find(|candidate| candidate.symbol == requirement_symbol)
+                .cloned()
+            else {
+                continue;
+            };
+            let substitution = parameters
+                .into_iter()
+                .zip(trait_arguments)
+                .collect::<Vec<_>>();
+            let mut instantiated = declared.clone();
+            instantiated.parameters = arena::HandleSpan::empty();
+            for parameter in self.state_signature_parameters(&declared).to_vec() {
+                let mut parameter = parameter;
+                parameter.type_reference =
+                    self.instantiated_type_reference(parameter.type_reference, &substitution);
+                self.state_parameters
+                    .append_to_span(&mut instantiated.parameters, parameter);
+            }
+            instantiated.return_type =
+                self.instantiated_type_reference(declared.return_type, &substitution);
+            if let data::TypeParameterKind::Machine {
+                contract:
+                    data::MachineParameterContract::Nominal {
+                        instantiated: slot, ..
+                    },
+            } = &mut self.data_type_parameters.get_mut(handle).kind
+            {
+                *slot = Some(Box::new(instantiated));
+            }
+        }
+    }
+
+    fn instantiated_type_reference(
+        &mut self,
+        handle: types::TypeReferenceHandle,
+        substitution: &[(SymbolHandle, types::TypeReferenceHandle)],
+    ) -> types::TypeReferenceHandle {
+        if !handle.is_valid() {
+            return handle;
+        }
+        match self.type_reference_table.type_reference(handle).clone() {
+            types::TypeReferenceNode::Named { symbol, .. } => substitution
+                .iter()
+                .find(|(parameter, _)| *parameter == symbol)
+                .map_or(handle, |(_, argument)| *argument),
+            types::TypeReferenceNode::Reference {
+                referee,
+                access,
+                lifetime,
+            } => {
+                let instantiated = self.instantiated_type_reference(referee, substitution);
+                if instantiated == referee {
+                    return handle;
+                }
+                self.type_reference_table
+                    .insert(types::TypeReferenceNode::Reference {
+                        referee: instantiated,
+                        access,
+                        lifetime,
+                    })
+            }
+            types::TypeReferenceNode::Constrained {
+                base_type,
+                constraints,
+            } => {
+                let instantiated = self.instantiated_type_reference(base_type, substitution);
+                if instantiated == base_type {
+                    return handle;
+                }
+                self.type_reference_table
+                    .insert(types::TypeReferenceNode::Constrained {
+                        base_type: instantiated,
+                        constraints,
+                    })
+            }
+            types::TypeReferenceNode::FixedArray {
+                element_type,
+                length,
+            } => {
+                let instantiated = self.instantiated_type_reference(element_type, substitution);
+                if instantiated == element_type {
+                    return handle;
+                }
+                self.type_reference_table
+                    .insert(types::TypeReferenceNode::FixedArray {
+                        element_type: instantiated,
+                        length,
+                    })
+            }
+            types::TypeReferenceNode::Slice { element_type } => {
+                let instantiated = self.instantiated_type_reference(element_type, substitution);
+                if instantiated == element_type {
+                    return handle;
+                }
+                self.type_reference_table
+                    .insert(types::TypeReferenceNode::Slice {
+                        element_type: instantiated,
+                    })
+            }
+            types::TypeReferenceNode::Generic {
+                base_symbol,
+                base_name,
+                lifetime_arguments,
+                arguments,
+            } => {
+                let original = self
+                    .type_reference_table
+                    .type_reference_handles(arguments)
+                    .to_vec();
+                let instantiated = original
+                    .iter()
+                    .map(|argument| self.instantiated_type_reference(*argument, substitution))
+                    .collect::<Vec<_>>();
+                if instantiated == original {
+                    return handle;
+                }
+                let arguments = self
+                    .type_reference_table
+                    .insert_type_reference_handles(instantiated);
+                self.type_reference_table
+                    .insert(types::TypeReferenceNode::Generic {
+                        base_symbol,
+                        base_name,
+                        lifetime_arguments,
+                        arguments,
+                    })
+            }
+            types::TypeReferenceNode::ConstExpression(_)
+            | types::TypeReferenceNode::DynamicTrait { .. }
+            | types::TypeReferenceNode::Unit => handle,
+        }
+    }
+
     pub fn push_trait_definition(&mut self, trait_definition: trait_definition::TraitDefinition) {
         self.tables
             .traits
@@ -184,18 +365,20 @@ impl TypedTrees {
             data::MachineParameterContract::Nominal {
                 trait_definition,
                 requirement,
+                instantiated,
+                ..
             } => {
                 let trait_definition = self
                     .traits()
                     .iter()
                     .find(|candidate| candidate.symbol == *trait_definition)?;
-                let requirement = self
+                let declared = self
                     .trait_machine_signatures(trait_definition)
                     .iter()
                     .find(|candidate| candidate.symbol == *requirement)?;
                 Some(data::MachineParameterContractView::Nominal {
                     trait_definition,
-                    requirement,
+                    requirement: instantiated.as_deref().unwrap_or(declared),
                 })
             }
         }

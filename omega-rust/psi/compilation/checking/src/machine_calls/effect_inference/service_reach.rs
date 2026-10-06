@@ -521,11 +521,14 @@ fn indexed_contract_view<'program>(
         typed_trees::data::MachineParameterContract::Nominal {
             trait_definition,
             requirement,
+            instantiated,
+            ..
         } => {
             let trait_definition =
                 &program.traits()[*index.trait_by_symbol.get(trait_definition)? as usize];
-            let requirement = &program.trait_machine_signatures(trait_definition)
+            let declared = &program.trait_machine_signatures(trait_definition)
                 [index.trait_signature.get(requirement)?.1 as usize];
+            let requirement = instantiated.as_deref().unwrap_or(declared);
             Some(typed_trees::data::MachineParameterContractView::Nominal {
                 trait_definition,
                 requirement,

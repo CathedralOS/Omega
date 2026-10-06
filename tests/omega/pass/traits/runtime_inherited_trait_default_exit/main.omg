@@ -1,52 +1,51 @@
-// Defaults flow through both body-level `requires` and header-parent
-// composition. A conformance to the child trait alone receives the inherited
-// machine. Exits 70 only when each reset ran its own resolution: 30 from the
-// required default, 30 through the parent, and 10 from the authored override
-// that settles the two conflicting defaults.
+// Defaults flow through header-parent composition. A named implementation of
+// the child trait alone receives the inherited machine. Exits 70 only when
+// each reset ran its own resolution: 30 from the first child's default, 30
+// through the second, and 10 from the authored override that settles the two
+// conflicting defaults.
 use omega_language_std::console;
 use omega::language::core::binding;
 
-trait Resettable {
-    machine set(subject: &mut Self, value: i32);
+trait Resettable<T> {
+    machine set(subject: &mut T, value: i32);
 
-    machine reset(subject: &mut Self) {
+    machine reset(subject: &mut T) {
         set(&mut subject, 30);
     }
 }
 
-trait RequiredCounter {
-    requires Resettable;
+trait RequiredCounter<T>: Resettable<T> {
 }
 
-trait ParentCounter: Resettable {
+trait ParentCounter<T>: Resettable<T> {
 }
 
-trait LeftReset {
-    machine set(subject: &mut Self, value: i32);
+trait LeftReset<T> {
+    machine set(subject: &mut T, value: i32);
 
-    machine reset(subject: &mut Self) {
+    machine reset(subject: &mut T) {
         set(&mut subject, 1);
     }
 }
 
-trait RightReset {
-    machine set(subject: &mut Self, value: i32);
+trait RightReset<T> {
+    machine set(subject: &mut T, value: i32);
 
-    machine reset(subject: &mut Self) {
+    machine reset(subject: &mut T) {
         set(&mut subject, 2);
     }
 }
 
-trait ResolvedCounter {
-    requires LeftReset;
-    requires RightReset;
+trait ResolvedCounter<T>: LeftReset<T> + RightReset<T> {
 }
 
 data RequiredValue {
     value: i32;
 }
 
-RequiredValueRequiredCounter: RequiredValue satisfies RequiredCounter;
+RequiredValueCounter satisfies RequiredCounter<RequiredValue> {
+    Resettable::set = RequiredValue::set;
+}
 
 machine RequiredValue::set(required_value: &mut RequiredValue, value: i32) {
     required_value.value = value;
@@ -56,7 +55,9 @@ data ParentValue {
     value: i32;
 }
 
-ParentValueParentCounter: ParentValue satisfies ParentCounter;
+ParentValueCounter satisfies ParentCounter<ParentValue> {
+    Resettable::set = ParentValue::set;
+}
 
 machine ParentValue::set(parent_value: &mut ParentValue, value: i32) {
     parent_value.value = value;
@@ -66,7 +67,12 @@ data ResolvedValue {
     value: i32;
 }
 
-ResolvedValueResolvedCounter: ResolvedValue satisfies ResolvedCounter;
+ResolvedValueCounter satisfies ResolvedCounter<ResolvedValue> {
+    LeftReset::set = ResolvedValue::set;
+    RightReset::set = ResolvedValue::set;
+    LeftReset::reset = ResolvedValue::reset;
+    RightReset::reset = ResolvedValue::reset;
+}
 
 machine ResolvedValue::set(resolved_value: &mut ResolvedValue, value: i32) {
     resolved_value.value = value;
@@ -84,8 +90,8 @@ data Main {
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    RequiredValue::reset(&mut main.required_value);
-    ParentValue::reset(&mut main.parent_value);
+    RequiredValueCounter::reset(&mut main.required_value);
+    ParentValueCounter::reset(&mut main.parent_value);
     ResolvedValue::reset(&mut main.resolved_value);
     transition main.required_value.value == 30
         && main.parent_value.value == 30

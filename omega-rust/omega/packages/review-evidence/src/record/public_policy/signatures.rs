@@ -28,6 +28,7 @@ pub enum PackagePolicyMachineParameterContract {
     Nominal {
         trait_identity: PackageReviewNominalIdentity,
         requirement_identity: PackageReviewNominalIdentity,
+        trait_arguments: Vec<PackageReviewTypeIdentity>,
     },
     Structural(PackagePolicyMachineParameterSignature),
 }
@@ -70,6 +71,7 @@ impl PackagePolicyMachineParameterContract {
         if let Self::Nominal {
             trait_identity,
             requirement_identity,
+            ..
         } = self
         {
             Some((trait_identity, requirement_identity))

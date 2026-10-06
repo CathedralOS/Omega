@@ -174,6 +174,7 @@ pub(crate) fn build_static_boundary_requirements(
                             typed_trees::data::MachineParameterContract::Nominal {
                                 trait_definition,
                                 requirement,
+                                ..
                             },
                     } = parameter.kind
                     else {

@@ -1,6 +1,6 @@
 // A default body names requirements of its own trait by bare spelling, in the
-// trait's scope rather than the conforming carrier's, and each conformance
-// runs them through its own satisfiers: `reset` calls `set`, which
+// trait's scope rather than an implementing data type's, and each named
+// implementation runs them through its own rows: `reset` calls `set`, which
 // `Resettable` inherits from `Settable`, and `prepare`, another default; the
 // generic `Store<Item>` default calls `put` under the conformance's `i32`; and
 // the free machine `set` never captures the requirement's spelling. Exits 70
@@ -9,25 +9,25 @@
 use omega_language_std::console;
 use omega::language::core::binding;
 
-trait Settable {
-    machine set(subject: &mut Self, value: i32);
+trait Settable<T> {
+    machine set(subject: &mut T, value: i32);
 }
 
-trait Resettable: Settable {
-    machine prepare(subject: &mut Self) {
+trait Resettable<T>: Settable<T> {
+    machine prepare(subject: &mut T) {
         set(subject, 10);
     }
 
-    machine reset(subject: &mut Self) {
+    machine reset(subject: &mut T) {
         prepare(subject);
         set(subject, 30);
     }
 }
 
-trait Store<Item> {
-    machine put(subject: &mut Self, item: Item);
+trait Store<Container, Item> {
+    machine put(subject: &mut Container, item: Item);
 
-    machine put_twice(subject: &mut Self, item: Item) {
+    machine put_twice(subject: &mut Container, item: Item) {
         put(subject, item);
         put(subject, item);
     }
@@ -42,7 +42,9 @@ data Counter {
     prepared: bool;
 }
 
-CounterResettable: Counter satisfies Resettable;
+CounterResettable satisfies Resettable<Counter> {
+    Settable::set = Counter::set;
+}
 
 machine Counter::set(counter: &mut Counter, value: i32) {
     transition value == 10 {
@@ -65,7 +67,9 @@ data Slot {
     writes: i32 in Wrapping;
 }
 
-SlotStore: Slot satisfies Store<i32>;
+SlotStore satisfies Store<Slot, i32> {
+    Store::put = Slot::put;
+}
 
 machine Slot::put(slot: &mut Slot, item: i32) {
     slot.value = item;
@@ -79,8 +83,8 @@ data Main {
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    Counter::reset(&mut main.counter);
-    Slot::put_twice(&mut main.slot, 40);
+    CounterResettable::reset(&mut main.counter);
+    SlotStore::put_twice(&mut main.slot, 40);
     transition main.counter.value == 30
         && main.counter.prepared
         && main.slot.value == 40

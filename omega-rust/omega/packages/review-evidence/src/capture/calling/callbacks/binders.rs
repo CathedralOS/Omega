@@ -69,6 +69,7 @@ pub(super) fn project(
             MachineParameterContract::Nominal {
                 trait_definition,
                 requirement,
+                ..
             },
     } = &parameters[*ordinal].kind
     else {

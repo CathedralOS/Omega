@@ -504,14 +504,21 @@ fn validate_expression_call_bounds(
     {
         match machine_state_by_symbol(program, call.target_symbol) {
             Some((machine, state)) => {
-                site.validate_callee(symbols, ValueCallee::named(machine, state, call), diagnostics);
+                site.validate_callee(
+                    symbols,
+                    ValueCallee::named(machine, state, call),
+                    diagnostics,
+                );
             }
             None => diagnostics.push(Diagnostic::error(format!(
-                "machine `{}` state `{}`: implementation `{}` has no unique row for requirement `{}`",
+                "machine `{}` state `{}`: {}",
                 current_machine.name,
                 current_state.name,
-                program.symbols.name(path.symbol),
-                call.target,
+                super::generic_requirement::unresolved_implementation_call(
+                    program,
+                    path.symbol,
+                    call.target.as_str(),
+                ),
             ))),
         }
         return;

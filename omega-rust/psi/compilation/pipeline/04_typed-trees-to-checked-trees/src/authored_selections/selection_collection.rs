@@ -1,7 +1,9 @@
 //! Collecting statement, transition-target and proof membership
 //! selections.
 
-use crate::authored_selections::call_targets::{checked_statement_call_target, declaration_target};
+use crate::authored_selections::call_targets::{
+    checked_statement_call_target, declaration_target, implementation_call_selection,
+};
 use crate::authored_selections::finalization::push_consistent_resolution;
 use crate::authored_selections::intrinsic_calls::checked_statement_call_intrinsic;
 use crate::authored_selections::{CheckedResolution, CheckedResolutionTarget};
@@ -282,14 +284,17 @@ pub(crate) fn collect_checked_statement_selections(
                 {
                     continue;
                 }
-                let target = checked_statement_call_target(
-                    program,
-                    facts,
-                    machine.symbol,
-                    state.symbol,
-                    statement_index,
-                    call.target_symbol,
-                );
+                let target = implementation_call_selection(program, call.receiver_symbol)
+                    .unwrap_or_else(|| {
+                        checked_statement_call_target(
+                            program,
+                            facts,
+                            machine.symbol,
+                            state.symbol,
+                            statement_index,
+                            call.target_symbol,
+                        )
+                    });
                 let Some(occurrence) = call.authored_call_selection else {
                     return Err(Diagnostic::error(
                         "source-authored checked statement call has no attached call selection",

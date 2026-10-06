@@ -566,12 +566,15 @@ impl SyntaxTrees {
                                         this.copy_state_signature_value(other, signature),
                                     )
                                 }
-                                crate::item::MachineParameterContract::Nominal { requirement } => {
-                                    crate::item::MachineParameterContract::Nominal {
-                                        requirement: this
-                                            .copy_item_identifier_span(other, *requirement),
-                                    }
-                                }
+                                crate::item::MachineParameterContract::Nominal {
+                                    requirement,
+                                    trait_arguments,
+                                } => crate::item::MachineParameterContract::Nominal {
+                                    requirement: this
+                                        .copy_item_identifier_span(other, *requirement),
+                                    trait_arguments: this
+                                        .copy_type_reference_handle_span(other, *trait_arguments),
+                                },
                             }),
                         }
                     }

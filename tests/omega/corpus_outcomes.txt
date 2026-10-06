@@ -1675,8 +1675,8 @@ fail/text/element_guard_other_index_unbounded rejected 250ms expected @954364ed0
 	exact arithmetic in machine `digit` state `entry` return value may overflow `u8`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u8 in Wrapping`/`Saturating`/`Trapping`).
 fail/text/later_arm_guard_read_unbounded rejected 423ms expected @954364ed064e
 	cannot prove index `index` is within unknown slice length of `text` in at_space::entry
-fail/traits/conformance_item_missing_member rejected 253ms expected @2d8ed253669f
-	data `Point` does not satisfy trait `Shape`: no written or default machine `Point::code`
+fail/traits/conformance_item_missing_member rejected 14ms expected @e3131e3bcd65+wt
+	closed conformance `PointShape satisfies Shape` is incomplete: missing `Shape::code`
 fail/traits/dyn_finite_family_non_member rejected 213ms expected @2d8ed253669f
 	dynamic family call `Shape::code` requires exactly one closed roster tuple ((16) or (32)); runtime subjects and non-member values cannot select a family row
 fail/traits/equatable_field_not_equatable rejected 33ms expected @2d8ed253669f
@@ -1691,23 +1691,24 @@ fail/traits/evidence_binder_subject_retired rejected 3ms expected @65c3b89f46f4+
 	tests/omega/fail/traits/evidence_binder_subject_retired/main.omg:8:28: a conformance has no data subject; write the evidence binder as `Order satisfies Trait<Data>`
 fail/traits/evidence_binder_wrong_trait_arguments rejected 49ms expected @65c3b89f46f4+wt
 	generic machine `apply` cannot bind `Operations` to conformance `GaugeIncrement`: expected a complete `Incrementable` implementation with the instantiated trait arguments
+fail/traits/exact_requirement_edge_wrong_data_rejected rejected 385ms expected @e3131e3bcd65+wt
+	machine `Counter::increment` state `increment` does not satisfy trait `Incrementable` machine `increment` parameter `counter`: expected `&mut Counter`, got `&mut Other`
+	machine `Counter::increment` state `increment` does not satisfy trait `Incrementable` machine `increment` parameter `counter`: expected `&mut Counter`, got `&mut Other`
 fail/traits/generic_reference_forwarding_carrier_mismatch rejected 1304ms expected @f3a79ef091a9
 	argument `subject` for state `entry` expects `&mut T`, got `named value`
 	argument `subject` for state `entry` expects `&mut Counter`, got `named value`
 	argument `subject` for state `entry` expects the `Counter` data type but got `Other` in the `argument` position; these are incompatible data types (a place is accepted structurally, but its declared type must match)
-fail/traits/implementation_call_unknown_requirement rejected 146ms expected @65c3b89f46f4+wt
-	qualified call `decrement` has no resolved callable declaration
-fail/traits/inherited_default_ambiguous rejected 16ms expected @2d8ed253669f
-	data `Counter` inherits conflicting default machine `Counter::reset` from traits `LeftReset`, `RightReset`; write an override
+fail/traits/implementation_call_unknown_requirement rejected 210ms expected @e3131e3bcd65+wt
+	implementation `NormalIncrement` has no row for requirement `decrement`
+fail/traits/inherited_default_ambiguous rejected 213ms expected @e3131e3bcd65+wt
+	implementation `CounterResettable` has 2 rows named `reset` (`LeftReset::reset`, `RightReset::reset`); a call through the implementation must select exactly one
 fail/traits/ordinary_trait_inherits_boundary rejected 275ms expected @2d8ed253669f
 	ordinary trait `HiddenDevice` cannot inherit boundary service `Device`; declare the child as `boundary trait`
-fail/traits/static_subject_wrong_data_rejected rejected 848ms expected @c5d32a00863
-	machine `Counter::increment` state `increment` does not satisfy trait `Incrementable` machine `increment` parameter 0: expected `subject: &mut Self`, got `other: &mut Other`
-fail/traits/trait_contract_undeclared_self_member rejected 1172ms expected @c5d32a00863
-	authored MemberAccess declaration selection occurrence 0 (`value` in tests/omega/fail/traits/trait_contract_undeclared_self_member/main.omg) remained unresolved after successful checking (CheckedMember)
-fail/traits/trait_default_outside_requirement_call rejected 22ms expected @c4e45d3dda38+wt
-	default body in trait `Resettable` calls `set`, which is not a requirement of `Resettable` or a trait it inherits; its instantiation for `Gauge` cannot name what that conformance adds
-	default body in trait `Resettable` calls `set`, which is not a requirement of `Resettable` or a trait it inherits; its instantiation for `Value` cannot name what that conformance adds
+fail/traits/trait_contract_undeclared_parameter_member rejected 493ms expected @e3131e3bcd65+wt
+	authored MemberAccess declaration selection occurrence 0 (`value` in tests/omega/fail/traits/trait_contract_undeclared_parameter_member/main.omg) remained unresolved after successful checking (CheckedMember)
+fail/traits/trait_default_outside_requirement_call rejected 20ms expected @e3131e3bcd65+wt
+	default body in trait `Resettable` calls `set`, which is not a requirement of `Resettable` or a trait it inherits; its instantiation for `ValueCounter` cannot name what that conformance adds
+	default body in trait `Resettable` calls `set`, which is not a requirement of `Resettable` or a trait it inherits; its instantiation for `GaugeCounter` cannot name what that conformance adds
 fail/traits/trait_requirement_cycle rejected 237ms expected @2d8ed253669f
 	trait requirement cycle detected: A -> B -> A
 fail/traits/trait_satisfies_parameter_mismatch rejected 119ms expected @474542aa7f86
@@ -3256,6 +3257,7 @@ pass/traits/nominal_machine_binder_static_dispatch checked 675ms check-target:ma
 pass/traits/ring_requirement_satisfies_exit checked 3090ms check-target:macos_arm64 @2d8ed253669f
 pass/traits/runtime_dyn_two_impl_dispatch_exit rejected 1375ms check-target:macos_arm64 @58e4f6f8667
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `call operation: structural arguments: alias and identity` (state 0, statement 0)
+pass/traits/runtime_exact_requirement_edge_exit checked 2044ms check-target:macos_arm64 @e3131e3bcd65+wt
 pass/traits/runtime_inherited_trait_default_exit checked 3274ms check-target:macos_arm64 @c4e45d3dda38+wt
 pass/traits/runtime_local_named_dyn_devirtualized_exit rejected 2456ms check-target:macos_arm64 @e8239f945e8
 	Terminal native proposal ProgramEntry settlement failed: FusedServiceEstablishmentDrift
@@ -3264,7 +3266,6 @@ pass/traits/runtime_local_named_dyn_pass_through_exit rejected 1016ms check-targ
 pass/traits/runtime_named_implementation_selection_exit checked 1127ms check-target:macos_arm64 @65c3b89f46f4+wt
 pass/traits/runtime_qualified_byte_crash_equality_exit checked 2530ms check-target:macos_arm64 @2d8ed253669f
 pass/traits/runtime_trait_default_requirement_scope_exit checked 3622ms check-target:macos_arm64 @c4e45d3dda38+wt
-pass/traits/static_subject_satisfies_receiver_requirement_exit checked 638ms check-target:macos_arm64 @125b05ae4947+wt
 pass/traits/trait_generic_bound_static_dispatch checked 3015ms check-target:macos_arm64 @2d8ed253669f
 pass/traits/transparent_refinement_declaration checked 823ms check-target:macos_arm64 @2d8ed253669f
 pass/types/runtime_addr_algebra_exit checked 1286ms check-target:macos_arm64 @ca8c127c90c5

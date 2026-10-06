@@ -1,16 +1,16 @@
-// A conformance item is checked against WRITTEN members: `Point satisfies
-// Shape;` with no written `Point::code` is an error because the requirement
-// has no default body.
+// A named implementation owns one complete closed map: `PointShape satisfies
+// Shape<Point> { }` supplies no `code` row, and the requirement has no
+// default body, so the map is incomplete.
 
-trait Shape {
-    machine code(subject: &mut Self) -> i32;
+trait Shape<T> {
+    machine code(subject: &mut T) -> i32;
 }
 
 data Point {
     x: i32;
 }
 
-PointShape: Point satisfies Shape;
+PointShape satisfies Shape<Point> { }
 
 data Main {
     value: i32;

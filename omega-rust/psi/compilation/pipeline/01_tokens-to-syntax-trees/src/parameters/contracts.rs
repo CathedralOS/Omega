@@ -1,4 +1,4 @@
-use crate::input::token_cursor::{Input, ParseResult, parse_path_handle_span};
+use crate::input::token_cursor::{Input, ParseResult};
 use crate::parameters::parse_generic_parameters::GenericParameterSyntax;
 use crate::parameters::parse_generic_parameters::parse_generic_parameters;
 use crate::parameters::parse_parameters::{parse_optional_parameters, parse_optional_return_type};
@@ -81,15 +81,8 @@ fn parse_machine_parameter_contracts_in<'tokens, 'source>(
 
         if after_name.at_contextual("satisfies") {
             let after_satisfies = after_name.take_contextual("satisfies")?;
-            let (requirement, after_requirement) =
-                parse_path_handle_span(after_satisfies, |member| {
-                    syntax_trees.items.append_identifier_path_member(member)
-                })?;
-            if after_requirement.at_punctuation(PunctuationKind::Less) {
-                return Err(after_requirement.error_here(
-                    "generic trait arguments are not supported in nominal machine parameter requirements; name one exact `Trait::requirement`",
-                ));
-            }
+            let (requirement, trait_arguments, after_requirement) =
+                parse_nominal_requirement_path(syntax_trees, after_satisfies)?;
             if requirement.len() < 2 {
                 return Err(after_requirement.error_here(format!(
                     "nominal machine parameter `{}` must name an exact `Trait::requirement`; bare `satisfies Trait` is not a callable contract",
@@ -121,6 +114,7 @@ fn parse_machine_parameter_contracts_in<'tokens, 'source>(
             parameter.kind = syntax_trees::item::TypeParameterKind::Machine {
                 contract: Some(syntax_trees::item::MachineParameterContract::Nominal {
                     requirement,
+                    trait_arguments,
                 }),
             };
             input = rest;
@@ -244,4 +238,62 @@ fn continues_after_machine_parameter_contract(input: Input<'_, '_>) -> bool {
         || input.at_contextual("ensures")
         || input.at_contextual("where")
         || input.at_contextual("satisfies")
+}
+
+/// `Trait::requirement` or `Trait<Arguments>::requirement`, optionally
+/// module-qualified. The trait application, when present, directly precedes
+/// the final requirement segment.
+fn parse_nominal_requirement_path<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    input: Input<'tokens, 'source>,
+) -> Result<
+    (
+        HandleSpan<syntax_trees::identifier::Identifier>,
+        HandleSpan<syntax_trees::types::TypeReferenceHandle>,
+        Input<'tokens, 'source>,
+    ),
+    crate::diagnostics::parse_error::ParseError,
+> {
+    let (first, mut rest) = input.take_identifier()?;
+    let mut members = vec![first];
+    let mut trait_arguments = HandleSpan::empty();
+    loop {
+        if rest.at_punctuation(PunctuationKind::Less) {
+            if !trait_arguments.is_empty() {
+                return Err(rest
+                    .error_here("a nominal machine parameter requirement applies its trait once"));
+            }
+            let (arguments, next) =
+                crate::contracts::conformance::parse_conformance::parse_optional_satisfies_type_arguments(
+                    syntax_trees,
+                    rest,
+                )?;
+            trait_arguments = arguments;
+            rest = next;
+            if !rest.at_punctuation(PunctuationKind::ColonColon) {
+                return Err(rest.error_here(
+                    "a trait application in a nominal machine parameter requirement must be followed by `::requirement`",
+                ));
+            }
+        }
+        if !rest.at_punctuation(PunctuationKind::ColonColon) {
+            break;
+        }
+        rest = rest.take_punctuation(PunctuationKind::ColonColon, "::")?;
+        let (member, next) = rest.take_identifier()?;
+        members.push(member);
+        rest = next;
+        if !trait_arguments.is_empty() {
+            break;
+        }
+    }
+    let mut start = arena::Handle::invalid();
+    let count = u32::try_from(members.len()).expect("nominal requirement path length overflow");
+    for (ordinal, member) in members.into_iter().enumerate() {
+        let handle = syntax_trees.items.append_identifier_path_member(member);
+        if ordinal == 0 {
+            start = handle;
+        }
+    }
+    Ok((HandleSpan::from_parts(start, count), trait_arguments, rest))
 }

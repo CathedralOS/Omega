@@ -45,9 +45,12 @@ struct MachineCatalogEntry {
     states: Vec<State>,
 }
 
+/// Returns each machine's new ordinal (`None` for a dropped synthesized
+/// default that no row selected), so ordinal-keyed sidecars such as deferred
+/// machine bodies stay joined to the same declaration.
 pub(crate) fn normalize_closed_conformance_blocks(
     program: &mut SymbolResolvedTrees,
-) -> Result<(), Diagnostic> {
+) -> Result<Vec<Option<usize>>, Diagnostic> {
     let trait_catalog = build_trait_catalog(program);
     let machine_catalog = build_machine_catalog(program);
     let synthesized_default_candidates = program
@@ -116,20 +119,23 @@ pub(crate) fn normalize_closed_conformance_blocks(
                 .collect(),
         })
         .collect::<Vec<_>>();
-    let retained_machines = program
-        .machines
-        .iter()
-        .filter(|machine| {
-            !synthesized_default_candidates.contains(&machine.symbol)
-                || selected_realizations.contains(&machine.symbol)
-        })
-        .cloned()
-        .collect::<Vec<_>>();
+    let mut ordinals = Vec::with_capacity(program.machines.len());
+    let mut retained_machines = Vec::with_capacity(program.machines.len());
+    for machine in program.machines.iter() {
+        if !synthesized_default_candidates.contains(&machine.symbol)
+            || selected_realizations.contains(&machine.symbol)
+        {
+            ordinals.push(Some(retained_machines.len()));
+            retained_machines.push(machine.clone());
+        } else {
+            ordinals.push(None);
+        }
+    }
     program.machines = Default::default();
     for machine in retained_machines {
         program.machines.push(machine);
     }
-    Ok(())
+    Ok(ordinals)
 }
 
 #[derive(Clone)]

@@ -7,7 +7,7 @@
 
 use crate::authored_selections::call_targets::{
     checked_call_target, checked_name_path_segment_target, checked_operator_conformance_targets,
-    declaration_target,
+    declaration_target, expression_receiver_symbol, implementation_call_selection,
 };
 use crate::authored_selections::intrinsic_calls::{
     checked_expression_call_intrinsic, checked_intrinsic_call_target, exact_build_prelude_data,
@@ -235,13 +235,21 @@ pub(crate) fn finalize_checked_authored_selections(
                     })
                     .map(CheckedResolutionTarget::Intrinsic)
                     .or_else(|| {
-                        declaration_target(checked_call_target(
-                            program,
-                            facts,
-                            expression,
-                            call.target_symbol,
-                            selection.source_span(),
-                        ))
+                        declaration_target(
+                            implementation_call_selection(
+                                program,
+                                expression_receiver_symbol(program, call.receiver),
+                            )
+                            .unwrap_or_else(|| {
+                                checked_call_target(
+                                    program,
+                                    facts,
+                                    expression,
+                                    call.target_symbol,
+                                    selection.source_span(),
+                                )
+                            }),
+                        )
                     }),
                 (
                     AuthoredDeclarationSelectionLateBinding::CheckedMember,

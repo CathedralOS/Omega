@@ -184,7 +184,10 @@ pub(crate) fn validate_signature_free_requirement_compatibility(
     for (_, parameter) in program.tables.declarations.data_type_parameters.iter() {
         let symbol_resolved_trees::data::TypeParameterKind::Machine {
             contract:
-                symbol_resolved_trees::data::MachineParameterContract::AuthoredNominal { requirement },
+                symbol_resolved_trees::data::MachineParameterContract::AuthoredNominal {
+                    requirement,
+                    ..
+                },
         } = &parameter.kind
         else {
             continue;

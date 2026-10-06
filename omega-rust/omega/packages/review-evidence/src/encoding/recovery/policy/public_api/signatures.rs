@@ -49,6 +49,7 @@ pub(in crate::encoding::recovery) fn machine_contract(
             1 => PackagePolicyMachineParameterContract::Nominal {
                 trait_identity: nominal(reader)?,
                 requirement_identity: nominal(reader)?,
+                trait_arguments: reader.sequence(8, type_identity)?,
             },
             2 => PackagePolicyMachineParameterContract::RequirementIdentity,
             _ => return Err(Error::InvalidTag),
