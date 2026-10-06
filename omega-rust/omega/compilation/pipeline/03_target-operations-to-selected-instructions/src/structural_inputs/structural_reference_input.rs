@@ -409,29 +409,10 @@ pub(crate) fn parameter_shape(
     if parameter.access == StructuralAccess::Owned
         && parameter.multiplicity == StructuralMultiplicity::Unrestricted
     {
-        // Bounded bytes arrive as the same by-value `{length, bytes}`
-        // aggregate their declaration lays out. No borrowed-pointer shape or
-        // mutable-view authority follows from observing this owned payload.
-        if abstract_operations::control_flow::owner_loans::is_owned_bounded_byte_parameter_in(
-            parameter,
-            declarations,
-        ) {
-            return shape(parameter.structural_type, declarations);
-        }
-        return primitive_array_shape(parameter.structural_type, declarations).or_else(|| {
-            declarations
-                .iter()
-                .find(|declaration| declaration.id == parameter.structural_type)
-                .filter(|declaration| {
-                    matches!(
-                        declaration.shape,
-                        StructuralTypeShape::Sum { .. }
-                            | StructuralTypeShape::Record { .. }
-                            | StructuralTypeShape::Mixed { .. }
-                    )
-                })
-                .and_then(|_| shape(parameter.structural_type, declarations))
-        });
+        // Owned aggregate parameters use the same recursively retained payload
+        // geometry as their local and result homes. Array element shape does
+        // not change whole-value ownership or permit borrowed-pointer ABI.
+        return owned_storage_shape(parameter.structural_type, declarations);
     }
     let referent = shape(parameter.structural_type, declarations)?;
     match (parameter.access, parameter.multiplicity) {

@@ -50,9 +50,15 @@ pub(crate) fn actual_place(
     requirement: &ContextualCleanupEntryRequirement,
     paths: &Arena<CheckedStructuralPredicatePathSegment>,
 ) -> Option<CanonicalPlace> {
-    let mut actual = actual(program, state, call, requirement, paths)?;
-    actual.place.segments.extend(actual.path);
-    Some(actual.place)
+    let actual = actual(program, state, call, requirement, paths)?;
+    crate::semantic::facts::projected_argument_place(
+        program,
+        state.state_symbol,
+        call.statement_index,
+        actual.argument?,
+        actual.parameter.type_reference,
+        &actual.path,
+    )
 }
 
 pub(crate) fn entry_subject(
@@ -70,8 +76,14 @@ pub(crate) fn entry_subject(
         &facts.contextual_cleanup.entry_requirements.paths,
     )?;
     let operand = captured_actual(program, facts, state, call, &actual)?;
-    let mut place = actual.place;
-    place.segments.extend(actual.path);
+    let place = crate::semantic::facts::projected_argument_place(
+        program,
+        state.state_symbol,
+        call.statement_index,
+        actual.argument?,
+        actual.parameter.type_reference,
+        &actual.path,
+    )?;
     crate::flow::operand_entry_origin_is_stable(program, &facts.flow, operand, &place)
         .then_some(())?;
     crate::facts::entry_parameter_place_before_statement(

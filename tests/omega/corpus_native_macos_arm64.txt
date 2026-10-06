@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": "3", "load1_end": 9.85, "load1_start": 1.38, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "3", "load1_end": 6.41, "load1_start": 7.01, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 189ms
 pass/arithmetic/anonymous_rational_integer_landing checked 186ms
 pass/arithmetic/bounded_assignment checked 197ms
@@ -236,6 +236,11 @@ pass/calls/runtime_borrowed_binding_field_state_loan_exit built 966ms exit:70 st
 pass/calls/runtime_call_statement_before_state_return_exit built 1440ms exit:42 @63377f7122bb+wt
 pass/calls/runtime_case_record_return_exit built 1202ms exit:70
 pass/calls/runtime_constructed_borrowed_payload_arguments_exit built 1975ms exit:0 @a9ea4297a1a9
+pass/calls/runtime_constructed_copy_payload_arguments_exit built 1361ms exit:0 @8093eb34a6ed+wt
+pass/calls/runtime_constructor_child_equal_captures_exit built 1370ms exit:0 @8093eb34a6ed+wt
+pass/calls/runtime_constructor_child_inherited_captures_exit built 1328ms exit:0 @8093eb34a6ed+wt
+pass/calls/runtime_constructor_child_membership_snapshot_exit built 1306ms exit:0 @8093eb34a6ed+wt
+pass/calls/runtime_constructor_child_named_state_captures_exit built 1358ms exit:0 @8093eb34a6ed+wt
 pass/calls/runtime_constructor_computed_field_exit built 530ms exit:1
 pass/calls/runtime_constructor_projected_membership_snapshot_exit built 2048ms exit:0 @cfbb6c8709b4+wt
 pass/calls/runtime_copied_argument_live_mutable_ensures_exit built 1988ms exit:0 @cfbb6c8709b4+wt
@@ -262,6 +267,7 @@ pass/calls/runtime_mut_ref_forward_exit built 1147ms exit:70 @48008365d839
 pass/calls/runtime_mutable_call_before_transition_args_exit built 5538ms exit:70 @fb2178def922
 pass/calls/runtime_mutable_local_parameter_write_exit built 756ms exit:171 @6c1f965d49de+wt
 pass/calls/runtime_nested_case_argument_exit built 2633ms exit:70 @b6846d69ce88+wt
+pass/calls/runtime_nested_constructor_child_snapshots_exit built 1325ms exit:0 @8093eb34a6ed+wt
 pass/calls/runtime_nested_local_field_store_exit built 1817ms exit:42 @1da616075c39+wt
 pass/calls/runtime_nested_receiver_guard_exit built 1030ms exit:42 @ac942fdbba24+wt
 pass/calls/runtime_nested_value_call_guard_exit built 4993ms exit:70
@@ -363,6 +369,7 @@ pass/collections/runtime_declared_range_index_write_exit built 597ms exit:30
 pass/collections/runtime_double_indexed_rmw_exit rejected 813ms regressed-from:built+exit:1 @0604ece757cd+wt
 	terminal-artifact production failed: Lowering(InvalidTerminalModule(InvalidStructuralSuccessorArgument { edge: EdgeId(5), place: PlaceId(10) }))
 pass/collections/runtime_dutch_flag_partition_exit built 9802ms exit:70 @fb2178def922
+pass/collections/runtime_fixed_array_projected_write_exit built 8532ms exit:45 @8093eb34a6ed+wt
 pass/collections/runtime_fixed_vec_round_trip_exit built 1057ms exit:70 @dab35460b4c5+wt
 pass/collections/runtime_frame_indexed_param_read_exit built 2209ms exit:1 @fb2178def922
 pass/collections/runtime_hoisted_index_write_exit built 729ms exit:7
@@ -376,6 +383,7 @@ pass/collections/runtime_indexed_successor_argument_exit built 1723ms exit:70 @4
 pass/collections/runtime_initialized_array_state_loan_exit built 1098ms exit:70 @89d265022a73+wt
 pass/collections/runtime_maze_pathfind_exit built 1835ms exit:70
 pass/collections/runtime_nested_const_row_indexed_read_exit built 576ms exit:1
+pass/collections/runtime_nested_fixed_array_projected_write_exit built 962ms exit:70 @8093eb34a6ed+wt
 pass/collections/runtime_parameter_nested_literal_index_read_exit built 1177ms exit:70 @5f978f80e84b+wt
 pass/collections/runtime_shared_fixed_array_cycle_exit built 18248ms exit:42 stdout:match @57334c2f117f
 pass/collections/runtime_signed_element_offset_read_exit built 587ms exit:70
@@ -577,6 +585,7 @@ pass/drops/core_drop_owner_hook built 573ms exit:0 @302faee005ee
 pass/drops/core_drop_owner_hook_body built 735ms exit:0 @302faee005ee
 pass/drops/erased_record_initializer_exit built 818ms exit:70 @302faee005ee
 pass/drops/runtime_local_nominal_cleanup_exit built 1886ms exit:0 stdout:match @093f0ff4e0f2+wt
+pass/drops/runtime_local_nominal_return_exit built 1318ms exit:0 stdout:match @8093eb34a6ed+wt
 pass/drops/runtime_nominal_successor_argument_order_exit built 1886ms exit:0 stdout:match @093f0ff4e0f2+wt
 pass/drops/runtime_scalar_exit_nominal_cleanup_exit built 2030ms exit:0 stdout:match @792abb82ccd2
 pass/drops/transfer_cleanup_into_state checked 229ms @0aa983f6af47+wt
@@ -1040,6 +1049,7 @@ pass/slices/runtime_mutable_byte_view_loop_write_exit built 987ms exit:70 @59aa9
 pass/slices/runtime_mutable_slice_element_write_exit built 1421ms exit:21 @fb2178def922
 pass/slices/runtime_nested_subslice_fixed_index_exit built 1602ms exit:215 @fb2178def922
 pass/slices/runtime_policy_element_view_tail_recursion_exit built 865ms exit:70 @de74b73e1452+wt
+pass/slices/runtime_qualified_record_copy_local_exit built 1360ms exit:70 @8093eb34a6ed+wt
 pass/slices/runtime_saturating_array_element_guard_exit built 1780ms exit:70 @fb2178def922
 pass/slices/runtime_shared_subslice_return_exit built 1249ms exit:70 interpreter-exit:70 interpreter:agrees @1ee38ae14295+wt
 pass/slices/runtime_shared_whole_view_return_exit built 1164ms exit:70 interpreter-exit:70 interpreter:agrees @1ee38ae14295+wt

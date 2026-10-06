@@ -44,7 +44,24 @@ pub(crate) fn bind_entry(
     let entry =
         crate::checks::termination::named_transition_target_state_index(program, owner, machine)?;
     let state = program.machine_states(owner).get(entry)?;
-    let parameters = program.state_parameters(state);
+    bind_parameters(
+        program,
+        machine,
+        state.symbol,
+        program.state_parameters(state),
+        expression,
+    )
+}
+
+/// Bind checked scalar coordinates against the exact supplied telescope. The
+/// caller retains declaration ownership separately from actual call positions.
+pub(crate) fn bind_parameters(
+    program: &TypedTrees,
+    machine: SymbolHandle,
+    state: SymbolHandle,
+    parameters: &[typed_trees::signature::StateParameter],
+    expression: Boolean,
+) -> Option<BoundPredicate> {
     let mut bindings = Vec::new();
     let mut inspection = expression.clone();
     map_observations(&mut inspection, &mut |operand| {
@@ -62,6 +79,15 @@ pub(crate) fn bind_entry(
                     .nth(*position)?;
                 (
                     crate::flow::canonical_place_from_symbol(parameter.symbol)?,
+                    parameter.type_reference,
+                )
+            }
+            Scalar::StorageRead { symbol, .. } => {
+                let parameter = parameters
+                    .iter()
+                    .find(|parameter| parameter.symbol == *symbol)?;
+                (
+                    crate::flow::canonical_place_from_symbol(*symbol)?,
                     parameter.type_reference,
                 )
             }
@@ -99,7 +125,7 @@ pub(crate) fn bind_entry(
     })?;
     Some(BoundPredicate {
         machine,
-        entry_state: state.symbol,
+        entry_state: state,
         expression,
         bindings,
     })
@@ -788,7 +814,15 @@ pub(crate) fn proves(
                 (Some(false), Some(false)) => Some(false),
                 _ => None,
             },
+            // Normalization has already joined observations by exact place and
+            // primitive type. Invocation binders additionally establish capture
+            // epoch agreement before presenting those places to this algebra.
+            Boolean::Equal { left, right } if left == right => Some(true),
             Boolean::Equal { left, right } => Some(known(left, truths)? == known(right, truths)?),
+            Boolean::IntegerComparison { kind, left, right } if left == right => Some(!matches!(
+                kind,
+                checked_trees::CheckedIntegerComparisonKind::LessThan
+            )),
             _ => None,
         }
     }

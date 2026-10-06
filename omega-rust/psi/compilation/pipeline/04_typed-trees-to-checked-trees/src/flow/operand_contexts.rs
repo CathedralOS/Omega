@@ -78,6 +78,25 @@ fn invocation_contexts_at_referents(
         .collect()
 }
 
+/// Positive view-carrier classification. An opaque owned value is not a live
+/// referent merely because its contents cannot be proved stable. Constraints
+/// preserve the carrier's reference or slice identity.
+pub(crate) fn operand_binds_live_view(
+    program: &TypedTrees,
+    mut reference: TypeReferenceHandle,
+) -> bool {
+    if !reference.is_valid() {
+        return false;
+    }
+    loop {
+        match program.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::Constrained { base_type, .. } => reference = *base_type,
+            TypeReferenceNode::Reference { .. } | TypeReferenceNode::Slice { .. } => return true,
+            _ => return false,
+        }
+    }
+}
+
 /// Whether the operand bound to this formal is a detached copy of stable
 /// contents, so its operand-time facts describe the invocation value outright.
 /// A copied scalar is the narrow case; a by-value record, sum, or fixed array

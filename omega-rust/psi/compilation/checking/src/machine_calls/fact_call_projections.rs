@@ -436,6 +436,27 @@ fn validate_direct_projection(
     })
 }
 
+/// Whether this exact checked call has the existing custody-free denotational
+/// identity. This query grants no fact-position totality or projection: those
+/// consumers still owe their independent termination and result-shape checks.
+/// Runtime callers use it only after both actual evaluations have completed.
+pub fn has_checked_denotational_call_identity(
+    program: &TypedTrees,
+    call: &TableCallExpression,
+    operational: &flow_effects::OperationalPlan,
+    service_reaches: &flow_effects::ServiceReachInferencePlan,
+) -> bool {
+    validate_checked_call_candidate(
+        program,
+        call,
+        operational,
+        service_reaches,
+        &|_, _| {},
+        &mut Vec::new(),
+    )
+    .is_some()
+}
+
 /// Shared source admission for denotational calls. Final checked termination
 /// remains mandatory for every candidate, including integer embeddings.
 pub(crate) fn validate_checked_call_candidate<'program>(

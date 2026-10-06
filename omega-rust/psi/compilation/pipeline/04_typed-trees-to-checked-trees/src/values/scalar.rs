@@ -57,7 +57,9 @@ pub(crate) use expression_facts::{
 pub(crate) use expression_plans::{
     assignment_target_primitive_type, build_checked_scalar_expression_plans,
 };
-pub(crate) use machine_parameter_booleans::lower_machine_parameter_boolean_expression;
+pub(crate) use machine_parameter_booleans::{
+    lower_machine_parameter_boolean_expression, lower_parameter_boolean_expression,
+};
 pub(crate) use result_contract::{
     lower_callable_parameter_range_requirements, lower_scalar_contract_predicate,
     lower_scalar_parameter_range_requirements, lower_scalar_parameter_refinement_predicates,

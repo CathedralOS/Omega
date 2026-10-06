@@ -128,15 +128,6 @@ pub(super) fn check(
                 )
             })
         };
-        // Field contracts describe the completed argument value. A later
-        // argument can replace its original storage; only reference formals
-        // observe the live referent rather than the saved owned value.
-        let argument_contexts =
-            super::call_values::actual_at(program, state, call, argument_index - 1, Vec::new())
-                .map(|actual| {
-                    super::call_values::actual_contexts(program, facts, state, call, &actual)
-                });
-        let contexts = argument_contexts.as_deref().unwrap_or(contexts);
         // Every formal owes the same declared fields, including a subject
         // forwarded from the caller, independently of declaration qualification.
         // Its nominal type cannot restore evidence invalidated by a write.
@@ -153,6 +144,20 @@ pub(super) fn check(
             }) {
                 continue;
             }
+            // The required field may have completed before a later sibling
+            // changed its source. Select its capture independently, including
+            // every candidate of a runtime-indexed constructed array.
+            let captured_actual = super::call_values::actual_at(
+                program,
+                state,
+                call,
+                argument_index - 1,
+                segments.clone(),
+            );
+            let argument_contexts = captured_actual.as_ref().map(|actual| {
+                super::call_values::actual_contexts(program, facts, state, call, actual)
+            });
+            let contexts = argument_contexts.as_deref().unwrap_or(contexts);
             let proves = |subject: &crate::flow::CanonicalPlace| {
                 prove_declared_field_domain(
                     program,
@@ -163,19 +168,23 @@ pub(super) fn check(
                     *semantic_domain,
                 )
             };
-            let satisfied = argument
-                .and_then(|argument| {
-                    crate::flow::literal_value_projections(
-                        program,
-                        argument,
-                        parameter.type_reference,
-                        segments,
-                        false,
-                    )
+            let satisfied = captured_actual
+                .as_ref()
+                .and_then(|actual| {
+                    super::call_values::captured_values(program, facts, state, call, actual)
                 })
                 .is_some_and(|projections| {
                     !projections.is_empty()
-                        && projections.iter().all(|projection| {
+                        && projections.iter().all(|captured| {
+                            let contexts = crate::flow::operand_contexts(
+                                program,
+                                &facts.flow,
+                                &facts.semantic,
+                                captured.operand,
+                                captured.type_reference,
+                                call.entry_constraints,
+                            );
+                            let projection = &captured.projection;
                             crate::flow::canonical_place_from_expression_in_state(
                                 program,
                                 state.state_symbol,
@@ -186,7 +195,7 @@ pub(super) fn check(
                                 if !crate::flow::place_cases_are_selected(
                                     program,
                                     &facts.semantic,
-                                    contexts,
+                                    &contexts,
                                     state.machine_symbol,
                                     state.state_symbol,
                                     call.statement_index,
@@ -195,7 +204,14 @@ pub(super) fn check(
                                     return false;
                                 }
                                 subject.extend_segments(&projection.remaining);
-                                proves(&subject)
+                                prove_declared_field_domain(
+                                    program,
+                                    facts,
+                                    &contexts,
+                                    &subject,
+                                    *domain_symbol,
+                                    *semantic_domain,
+                                )
                             })
                         })
                 })

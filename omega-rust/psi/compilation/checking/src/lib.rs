@@ -131,6 +131,8 @@ pub use crate::machine_calls::calls::{
     generic_bound_value_call_requirement, operand_call_plans,
     state_reference_parameter_binding_is_stable,
 };
+pub use crate::machine_calls::denotational_calls::normal_return_call_candidate;
+pub use crate::machine_calls::fact_call_projections::has_checked_denotational_call_identity;
 pub use crate::proof_contracts::slice_ranking::slice_tail_strictly_decreases_with_bound_lookup;
 pub use crate::value_custody::cleanup::{
     nominal_cleanup_owner, validate_reserved_cleanup_selections,

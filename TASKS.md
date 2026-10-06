@@ -508,11 +508,29 @@ defines the complete product bar.
     engines). Use ordinary expression continuations for selected payload returns,
     not raw jump arguments.
     Structural arrays and value dispatch still need their full construction
-    schedule. Retain each constructor child's completion facts when a later
-    field writes its source: the issued ticket in
-    `pending/calls/runtime_constructor_child_membership_snapshot_exit` is
-    copied before replacement, but whole-constructor evidence drops its
-    membership. The opposite order must not retroactively issue the saved child.
+    schedule. Two constructor consumers remain: transport routed child
+    qualifications through record construction for
+    `pending/calls/runtime_constructor_child_declared_membership_exit`, and
+    preserve a checked return summary or pure-call congruence through Terminal
+    call composition for `pending/calls/runtime_constructor_child_pure_calls_exit`.
+    Both pass source checking and checked interpretation (exit 0); native
+    production lacks the record qualification transport and CallRequires
+    certificate, respectively. The fixture READMEs identify the producer and
+    consumer joins. Preserve issuer provenance and exact call observations;
+    repeated syntax alone cannot establish either obligation.
+    Terminal `StructuralLeafCopy` also needs bounded-byte content-predicate
+    transport to the fresh destination: record-only fact reconstruction drops
+    it. `pending/borrows/runtime_copied_byte_predicate_snapshot_exit` source-checks
+    but lacks its native call-requirement proof on the published baseline too.
+    Its saved ASCII argument precedes a non-ASCII overwrite; preserve the copy's
+    predicate while still invalidating facts about the rewritten source.
+    Stored constructor values also need the completed RHS operand tree on
+    `FlowStatementFact`, shared by initialization, assignment and value-origin
+    transfer. `pending/calls/constructor_child_local_epochs_not_equal` still
+    falsely source-accepts on the published baseline: the structural-term
+    reader replays an immutable initializer and merges observations across a
+    write. Retain the original child epochs and retire that syntax replay;
+    an unchanged same-epoch pair must remain provably equal.
     The checked interpreter still declines explicit borrowing of an owned call
     result in `checked-interpreter/.../names_recasts_and_places.rs::resolve_place`;
     exercise `pass/calls/runtime_temporary_lending_order_exit` (native exit 0)

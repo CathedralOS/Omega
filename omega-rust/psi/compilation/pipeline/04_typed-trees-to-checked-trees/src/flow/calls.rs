@@ -39,7 +39,7 @@ pub(super) fn build_call_flow_fact<'plans>(
     active_contexts: &mut arena::HandleSpan<FlowSemanticContextRef>,
     active_constraints: &mut arena::HandleSpan<FlowConstraintRef>,
     borrow_call: &BorrowCallFact,
-    changed_operand_sources: &[super::CanonicalPlace],
+    captured_operands: &[checked_trees::FlowOperandFact],
 ) -> FlowCallFact {
     super::state_values::record_invocation(program, build, machine, state, borrow_call);
     let contract_call = proof_contract_call(
@@ -77,7 +77,8 @@ pub(super) fn build_call_flow_fact<'plans>(
         state.symbol,
         borrow_call,
         invalidation.storage_writes.as_deref(),
-        changed_operand_sources,
+        &build.control,
+        captured_operands,
     );
     let mut exit = build_call_exit_contexts(
         program,

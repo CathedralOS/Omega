@@ -16,7 +16,7 @@ use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTarge
 /// The caller must separately compare exact input values and invalidate their
 /// dependencies across writes; equal target spelling is never sufficient.
 /// Both summaries must belong to this same typed program.
-pub(crate) fn normal_return_call_candidate<'program>(
+pub fn normal_return_call_candidate<'program>(
     program: &'program TypedTrees,
     call: &TableCallExpression,
     operational: &flow_effects::OperationalPlan,

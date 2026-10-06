@@ -112,6 +112,8 @@ impl FlowBoundaryFacts {
 pub struct FlowControlFacts {
     pub operator_invocations: Arena<super::FlowOperatorInvocationFact>,
     pub operands: Arena<super::FlowOperandFact>,
+    pub operand_children: Arena<super::FlowOperandChild>,
+    pub operand_child_paths: Arena<facts::PlaceSegment>,
     /// Exact storage an operand's evaluated view carrier denotes, one row per
     /// resolvable referent; segment payloads live in `operand_referent_segments`
     /// in the semantic `Place` vocabulary.
@@ -144,6 +146,8 @@ impl FlowControlFacts {
             statements,
             operator_invocations: Arena::default(),
             operands: Arena::default(),
+            operand_children: Arena::default(),
+            operand_child_paths: Arena::default(),
             operand_origin_writes: Arena::default(),
             operand_referents: Arena::default(),
             operand_referent_segments: Arena::default(),

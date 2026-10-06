@@ -24,7 +24,8 @@ pub(crate) use comparison::{
 };
 pub(crate) use contextual::contextual_canonical_place_from_expression;
 pub(crate) use literal_projection::{
-    literal_argument_access_places, literal_value_path_is_inactive, literal_value_projections,
+    LiteralValueProjection, literal_argument_access_places, literal_value_path_is_inactive,
+    literal_value_projections,
 };
 pub(crate) use resolution::{
     effective_member_symbol, effective_member_symbol_from_type_symbol,

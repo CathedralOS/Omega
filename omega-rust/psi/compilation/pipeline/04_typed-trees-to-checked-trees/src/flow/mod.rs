@@ -44,9 +44,11 @@ pub(crate) use entry_origins::{
 mod exits;
 mod expression;
 mod operand_contexts;
+mod operand_values;
+pub(crate) use operand_values::{CapturedValue, captured_operand_values};
 mod operator_calls;
 pub(crate) use operand_contexts::{
-    entry_origin_is_stable, operand_binds_stable_copy, operand_contexts,
+    entry_origin_is_stable, operand_binds_live_view, operand_contexts,
     operand_entry_origin_is_stable, operand_observations_agree,
 };
 mod state;
@@ -183,15 +185,16 @@ pub(crate) use ownership::{
 };
 #[allow(unused_imports)]
 pub(crate) use place::{
-    CanonicalPlace, canonical_place_from_expression, canonical_place_from_expression_in_state,
-    canonical_place_from_semantic_place, canonical_place_from_symbol,
-    canonical_place_joined_segments_may_overlap, canonical_place_overlaps_segments,
-    canonical_place_segments_equal, canonical_place_segments_may_overlap, canonical_places_agree,
-    effective_member_symbol, effective_member_symbol_from_type_symbol,
-    expression_place_type_reference, expression_type_symbol, index_place_segment,
-    literal_argument_access_places, literal_value_path_is_inactive, literal_value_projections,
-    narrow_pinned_index_segments, place_case_has_value, place_case_path_is_inactive,
-    place_cases_are_selected, place_segment_has_unresolved_identity, push_field_place_segments,
+    CanonicalPlace, LiteralValueProjection, canonical_place_from_expression,
+    canonical_place_from_expression_in_state, canonical_place_from_semantic_place,
+    canonical_place_from_symbol, canonical_place_joined_segments_may_overlap,
+    canonical_place_overlaps_segments, canonical_place_segments_equal,
+    canonical_place_segments_may_overlap, canonical_places_agree, effective_member_symbol,
+    effective_member_symbol_from_type_symbol, expression_place_type_reference,
+    expression_type_symbol, index_place_segment, literal_argument_access_places,
+    literal_value_path_is_inactive, literal_value_projections, narrow_pinned_index_segments,
+    place_case_has_value, place_case_path_is_inactive, place_cases_are_selected,
+    place_segment_has_unresolved_identity, push_field_place_segments,
     resolve_member_symbol_from_type_symbol, symbol_type_symbol,
 };
 pub(crate) use reach::attach_reach_summaries;

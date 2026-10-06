@@ -16,14 +16,9 @@ impl Execution<'_, '_, '_> {
         contexts: &mut HandleSpan<FlowSemanticContextRef>,
         constraints: &mut HandleSpan<FlowConstraintRef>,
     ) {
-        let subject_capture_writes = self.operand_writes.len();
-        self.expression(dispatch.subject, contexts, constraints);
-        let subject_operand = self.capture_operand(
-            dispatch.subject,
-            subject_capture_writes,
-            *contexts,
-            *constraints,
-        );
+        let subject_operand = self
+            .evaluated_operand(dispatch.subject, contexts, constraints)
+            .capture;
         let subject_writes = self.operand_writes.len();
         let mut joined = None;
         let mut completed_writes = Vec::new();
@@ -37,10 +32,9 @@ impl Execution<'_, '_, '_> {
         {
             let mut covered = matches!(arm.pattern, MatchPattern::Wildcard);
             if let MatchPattern::Value(pattern) = arm.pattern {
-                let pattern_capture_writes = self.operand_writes.len();
-                self.expression(pattern, contexts, constraints);
-                let pattern_operand =
-                    self.capture_operand(pattern, pattern_capture_writes, *contexts, *constraints);
+                let pattern_operand = self
+                    .evaluated_operand(pattern, contexts, constraints)
+                    .capture;
                 if let Ok(ordinal) = u32::try_from(ordinal)
                     && let Some(arm_index) =
                         dispatch.arms.start().arena_index().checked_add(ordinal)

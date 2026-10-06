@@ -25,7 +25,7 @@ use checked_trees::{
 use facts::{FactPlan, ProgramPoint};
 use typed_trees::expression::{BinaryOperator, UnaryOperator};
 use typed_trees::statement::{TableTransition, TransitionTargetHandle, TransitionTargetNode};
-use typed_trees::types::TypeReferenceNode;
+use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 mod dispatch;
 mod result_domains;
@@ -35,6 +35,11 @@ struct Invocation<'a> {
     call: &'a BorrowCallFact,
     site: InvocationSite,
     visited: bool,
+}
+
+struct EvaluatedOperand {
+    boolean: Option<bool>,
+    capture: checked_trees::FlowOperandFact,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -107,7 +112,13 @@ pub(super) fn append_statement_calls<'plans>(
             execution.expression(assignment.value, contexts, constraints);
             // Assignment evaluates its value before resolving the destination.
             // Schedule target children without treating the target as a read.
-            execution.evaluate_expression(assignment.target, contexts, constraints);
+            execution.evaluate_expression(
+                assignment.target,
+                TypeReferenceHandle::invalid(),
+                contexts,
+                constraints,
+                &mut HandleSpan::empty(),
+            );
         }
         StatementNode::LocalData(local) => {
             execution.expression(local.initial_value, contexts, constraints);
@@ -116,26 +127,22 @@ pub(super) fn append_statement_calls<'plans>(
             execution.expression(*expression, contexts, constraints);
         }
         StatementNode::Call(call) => {
-            let mut operands = Vec::new();
             let mut captured = Vec::new();
-            for argument in program.statement_table.expression_handles(call.arguments) {
-                let first_write = execution.operand_writes.len();
-                operands.push((*argument, first_write));
-                execution.expression(*argument, contexts, constraints);
-                captured.push(execution.capture_operand(
-                    *argument,
-                    first_write,
-                    *contexts,
-                    *constraints,
-                ));
+            for (position, argument) in program
+                .statement_table
+                .expression_handles(call.arguments)
+                .iter()
+                .enumerate()
+            {
+                let destination =
+                    execution.invocation_parameter_type(InvocationSite::Statement, position);
+                captured.push(
+                    execution
+                        .evaluated_operand_as(*argument, destination, contexts, constraints)
+                        .capture,
+                );
             }
-            execution.invoke(
-                InvocationSite::Statement,
-                &operands,
-                &captured,
-                contexts,
-                constraints,
-            );
+            execution.invoke(InvocationSite::Statement, &captured, contexts, constraints);
         }
         StatementNode::RootBinding(binding) => {
             execution.expression(binding.receiver, contexts, constraints);
@@ -268,7 +275,6 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
     fn invoke(
         &mut self,
         site: InvocationSite,
-        operands: &[(ExpressionHandle, usize)],
         captured_operands: &[checked_trees::FlowOperandFact],
         contexts: &mut HandleSpan<FlowSemanticContextRef>,
         constraints: &mut HandleSpan<FlowConstraintRef>,
@@ -282,7 +288,6 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         };
         invocation.visited = true;
         let borrowed_call = invocation.call;
-        let captured_sources = self.changed_operand_sources(operands);
         let writes = super::call_phases::call_storage_writes(
             self.program,
             self.borrow,
@@ -303,7 +308,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             contexts,
             constraints,
             borrowed_call,
-            &captured_sources,
+            captured_operands,
         );
         // Evaluation consumers need this occurrence before the later package
         // source-custody binding pass. The authored ordinal identifies a call;
@@ -337,9 +342,66 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         contexts: &mut HandleSpan<FlowSemanticContextRef>,
         constraints: &mut HandleSpan<FlowConstraintRef>,
     ) -> Option<bool> {
-        let value = { self.evaluate_expression(expression, contexts, constraints) };
+        self.expression_result(
+            expression,
+            TypeReferenceHandle::invalid(),
+            contexts,
+            constraints,
+        )
+        .0
+    }
+
+    fn expression_result(
+        &mut self,
+        expression: ExpressionHandle,
+        destination: TypeReferenceHandle,
+        contexts: &mut HandleSpan<FlowSemanticContextRef>,
+        constraints: &mut HandleSpan<FlowConstraintRef>,
+    ) -> (Option<bool>, HandleSpan<checked_trees::FlowOperandChild>) {
+        let mut children = HandleSpan::empty();
+        let value = self.evaluate_expression(
+            expression,
+            destination,
+            contexts,
+            constraints,
+            &mut children,
+        );
         self.append_result_domains(expression, contexts, constraints);
-        value
+        (value, children)
+    }
+
+    /// Capture the completed evaluation itself, including nested constructed
+    /// children. No expression-key lookup can substitute another evaluation.
+    fn evaluated_operand(
+        &mut self,
+        expression: ExpressionHandle,
+        contexts: &mut HandleSpan<FlowSemanticContextRef>,
+        constraints: &mut HandleSpan<FlowConstraintRef>,
+    ) -> EvaluatedOperand {
+        self.evaluated_operand_as(
+            expression,
+            TypeReferenceHandle::invalid(),
+            contexts,
+            constraints,
+        )
+    }
+
+    fn evaluated_operand_as(
+        &mut self,
+        expression: ExpressionHandle,
+        destination: TypeReferenceHandle,
+        contexts: &mut HandleSpan<FlowSemanticContextRef>,
+        constraints: &mut HandleSpan<FlowConstraintRef>,
+    ) -> EvaluatedOperand {
+        let first_write = self.operand_writes.len();
+        let (boolean, children) =
+            self.expression_result(expression, destination, contexts, constraints);
+        let mut capture = self.capture_operand(expression, first_write, *contexts, *constraints);
+        capture.children = children;
+        if destination.is_valid() && self.is_view_type(destination) {
+            capture.referents = self.reference_operand_referents(expression);
+        }
+        EvaluatedOperand { boolean, capture }
     }
 
     pub(in crate::flow) fn write_prefix(&self) -> EvaluatedWritePrefix {
@@ -391,11 +453,82 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         self.filter_captured_sources(&changed, &mut captured_contexts, &mut captured_constraints);
         checked_trees::FlowOperandFact {
             expression,
+            children: HandleSpan::empty(),
             entry_origin_writes: self.entry_origin_writes,
             entry_origin_unknown_write: self.entry_origin_unknown_write,
             constraints: captured_constraints,
             referents: self.operand_referents(expression),
         }
+    }
+
+    fn invocation_parameter_type(
+        &self,
+        site: InvocationSite,
+        position: usize,
+    ) -> TypeReferenceHandle {
+        self.invocations
+            .iter()
+            .find(|invocation| !invocation.visited && invocation.site == site)
+            .and_then(|invocation| {
+                crate::semantic::calls::call_target_parameters(
+                    self.program,
+                    invocation.call.target_symbol,
+                )
+            })
+            .and_then(|parameters| parameters.get(position))
+            .map_or_else(TypeReferenceHandle::invalid, |parameter| {
+                parameter.type_reference
+            })
+    }
+
+    fn constructed_child_type(
+        &mut self,
+        parent: ExpressionHandle,
+        destination: TypeReferenceHandle,
+        path: &[facts::PlaceSegment],
+    ) -> TypeReferenceHandle {
+        if let Some(reference) = super::operand_values::operand_child_type(
+            self.program,
+            destination,
+            path,
+            TypeReferenceHandle::invalid(),
+        ) {
+            return reference;
+        }
+        let declared = self
+            .context
+            .expression_result_type_at(self.program, self.machine, self.state, parent)
+            .and_then(|reference| {
+                super::project_type_reference_from_segments(self.program, reference, path)
+            })
+            .or_else(|| super::expression_place_type_reference(self.program, parent, path))
+            .unwrap_or_default();
+        super::operand_values::operand_child_type(self.program, destination, path, declared)
+            .unwrap_or_default()
+    }
+
+    fn append_operand_child(
+        &mut self,
+        path: &[facts::PlaceSegment],
+        type_reference: TypeReferenceHandle,
+        capture: checked_trees::FlowOperandFact,
+        children: &mut HandleSpan<checked_trees::FlowOperandChild>,
+    ) {
+        let value = self.context.control.operands.append(capture);
+        let path = self
+            .context
+            .control
+            .operand_child_paths
+            .insert_many(path.iter().copied());
+        reference_spans::append_flow_reference(
+            &mut self.context.control.operand_children,
+            children,
+            checked_trees::FlowOperandChild {
+                path,
+                value,
+                type_reference,
+            },
+        );
     }
 
     /// Exact storage this operand's evaluated value denotes at invocation when
@@ -417,31 +550,32 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         ) {
             true
         } else {
-            let Some(mut result_type) = self.context.expression_result_type_at(
-                self.program,
-                self.machine,
-                self.state,
-                expression,
-            ) else {
-                return HandleSpan::empty();
-            };
-            loop {
-                match self
-                    .program
-                    .type_reference_table
-                    .type_reference(result_type)
-                {
-                    TypeReferenceNode::Constrained { base_type, .. } => result_type = *base_type,
-                    TypeReferenceNode::Reference { .. } | TypeReferenceNode::Slice { .. } => {
-                        break true;
-                    }
-                    _ => break false,
-                }
-            }
+            self.context
+                .expression_result_type_at(self.program, self.machine, self.state, expression)
+                .is_some_and(|reference| self.is_view_type(reference))
         };
         if !is_view {
             return HandleSpan::empty();
         }
+        self.reference_operand_referents(expression)
+    }
+
+    fn is_view_type(&self, mut reference: typed_trees::types::TypeReferenceHandle) -> bool {
+        loop {
+            match self.program.type_reference_table.type_reference(reference) {
+                TypeReferenceNode::Constrained { base_type, .. } => reference = *base_type,
+                TypeReferenceNode::Reference { .. } | TypeReferenceNode::Slice { .. } => {
+                    return true;
+                }
+                _ => return false,
+            }
+        }
+    }
+
+    fn reference_operand_referents(
+        &mut self,
+        expression: ExpressionHandle,
+    ) -> HandleSpan<checked_trees::FlowOperandReferent> {
         let Some(referents) = crate::flow::reference_expression_storage_places(
             self.program,
             self.state.symbol,
@@ -601,8 +735,10 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
     fn evaluate_expression(
         &mut self,
         expression: ExpressionHandle,
+        destination: TypeReferenceHandle,
         contexts: &mut HandleSpan<FlowSemanticContextRef>,
         constraints: &mut HandleSpan<FlowConstraintRef>,
+        children: &mut HandleSpan<checked_trees::FlowOperandChild>,
     ) -> Option<bool> {
         if !self
             .program
@@ -626,8 +762,8 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                 return self.live_boolean(expression, *contexts);
             }
             ExpressionNode::Binary(binary) => {
-                let left_capture_writes = self.operand_writes.len();
-                let left = self.expression(binary.left, contexts, constraints);
+                let evaluated_left = self.evaluated_operand(binary.left, contexts, constraints);
+                let left = evaluated_left.boolean;
                 if matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or) {
                     let evaluate_when = binary.operator == BinaryOperator::And;
                     if left == Some(!evaluate_when) {
@@ -661,16 +797,10 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                     self.meet(skipped_contexts, skipped_constraints, contexts, constraints);
                     return (right == Some(!evaluate_when)).then_some(!evaluate_when);
                 }
-                let left_operand =
-                    self.capture_operand(binary.left, left_capture_writes, *contexts, *constraints);
-                let right_capture_writes = self.operand_writes.len();
-                self.expression(binary.right, contexts, constraints);
-                let right_operand = self.capture_operand(
-                    binary.right,
-                    right_capture_writes,
-                    *contexts,
-                    *constraints,
-                );
+                let left_operand = evaluated_left.capture;
+                let right_operand = self
+                    .evaluated_operand(binary.right, contexts, constraints)
+                    .capture;
                 self.record_operator_invocation(
                     expression,
                     checked_trees::CheckedOperatorOccurrence::Expression,
@@ -692,34 +822,34 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                 // operand's write destroys facts an earlier copied operand
                 // still owns.
                 let named_uses = self.named_uses_at(expression);
-                let mut operands = vec![(call.receiver, self.operand_writes.len())];
                 let mut captured = Vec::new();
-                self.expression(call.receiver, contexts, constraints);
                 if call.receiver.is_valid() {
                     captured.push((
                         call.receiver,
-                        self.capture_operand(call.receiver, operands[0].1, *contexts, *constraints),
+                        self.evaluated_operand(call.receiver, contexts, constraints)
+                            .capture,
                     ));
                 }
-                for argument in self
+                for (position, argument) in self
                     .program
                     .expression_table
                     .expression_handles(call.arguments)
+                    .iter()
+                    .enumerate()
                 {
-                    let first_write = self.operand_writes.len();
-                    operands.push((*argument, first_write));
-                    self.expression(*argument, contexts, constraints);
-                    {
-                        captured.push((
-                            *argument,
-                            self.capture_operand(*argument, first_write, *contexts, *constraints),
-                        ));
-                    }
+                    let destination = self.invocation_parameter_type(
+                        InvocationSite::Expression(expression),
+                        position,
+                    );
+                    captured.push((
+                        *argument,
+                        self.evaluated_operand_as(*argument, destination, contexts, constraints)
+                            .capture,
+                    ));
                 }
                 self.record_named_operator_invocations(call, &named_uses, &captured, *constraints);
                 self.invoke(
                     InvocationSite::Expression(expression),
-                    &operands,
                     &captured
                         .iter()
                         .map(|(_, operand)| *operand)
@@ -762,13 +892,41 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                 }
             }
             ExpressionNode::ArrayLiteral(values) => {
-                for value in self.program.expression_table.expression_handles(*values) {
-                    self.expression(*value, contexts, constraints);
+                for (index, value) in self
+                    .program
+                    .expression_table
+                    .expression_handles(*values)
+                    .iter()
+                    .enumerate()
+                {
+                    let path = [facts::PlaceSegment::FixedIndex { index }];
+                    let child_type = self.constructed_child_type(expression, destination, &path);
+                    let capture = self
+                        .evaluated_operand_as(*value, child_type, contexts, constraints)
+                        .capture;
+                    self.append_operand_child(&path, child_type, capture, children);
                 }
             }
             ExpressionNode::StructLiteral(value) => {
                 for field in self.program.expression_table.struct_fields(value.fields) {
-                    self.expression(field.value, contexts, constraints);
+                    if !field.field_symbol.is_valid() {
+                        self.expression(field.value, contexts, constraints);
+                        continue;
+                    }
+                    let mut path = Vec::with_capacity(2);
+                    if let Some(variant) =
+                        facts::payload_variant_for_field(self.program, field.field_symbol)
+                    {
+                        path.push(facts::PlaceSegment::Case { variant });
+                    }
+                    path.push(facts::PlaceSegment::Field {
+                        symbol: field.field_symbol,
+                    });
+                    let child_type = self.constructed_child_type(expression, destination, &path);
+                    let capture = self
+                        .evaluated_operand_as(field.value, child_type, contexts, constraints)
+                        .capture;
+                    self.append_operand_child(&path, child_type, capture, children);
                 }
             }
             ExpressionNode::Range(range) => {
@@ -785,26 +943,19 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                 // meaning whose operands are the bounds — `operands()`
                 // expands it to [collection, start, end] — so each bound is
                 // evaluated and captured at its own completion.
-                let collection_writes = self.operand_writes.len();
-                self.expression(indexed.collection, contexts, constraints);
-                let collection_operand = self.capture_operand(
-                    indexed.collection,
-                    collection_writes,
-                    *contexts,
-                    *constraints,
-                );
+                let collection_operand = self
+                    .evaluated_operand(indexed.collection, contexts, constraints)
+                    .capture;
                 if indexed.index.is_valid()
                     && let ExpressionNode::Range(range) =
                         self.program.expression_table.expression(indexed.index)
                 {
-                    let start_writes = self.operand_writes.len();
-                    self.expression(range.start, contexts, constraints);
-                    let start_operand =
-                        self.capture_operand(range.start, start_writes, *contexts, *constraints);
-                    let end_writes = self.operand_writes.len();
-                    self.expression(range.end, contexts, constraints);
-                    let end_operand =
-                        self.capture_operand(range.end, end_writes, *contexts, *constraints);
+                    let start_operand = self
+                        .evaluated_operand(range.start, contexts, constraints)
+                        .capture;
+                    let end_operand = self
+                        .evaluated_operand(range.end, contexts, constraints)
+                        .capture;
                     // `self.expression(indexed.index)` would publish the
                     // range node's own result tags after evaluating both
                     // bounds; keep that publication now that the bounds were
@@ -817,10 +968,9 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                         *constraints,
                     );
                 } else {
-                    let index_writes = self.operand_writes.len();
-                    self.expression(indexed.index, contexts, constraints);
-                    let index_operand =
-                        self.capture_operand(indexed.index, index_writes, *contexts, *constraints);
+                    let index_operand = self
+                        .evaluated_operand(indexed.index, contexts, constraints)
+                        .capture;
                     self.record_operator_invocation(
                         expression,
                         checked_trees::CheckedOperatorOccurrence::Expression,

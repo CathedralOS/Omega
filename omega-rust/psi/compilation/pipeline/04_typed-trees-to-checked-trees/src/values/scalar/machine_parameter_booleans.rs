@@ -65,3 +65,40 @@ pub(crate) fn lower_machine_parameter_boolean_expression(
         exact_integer_casts,
     )
 }
+
+/// Lower one predicate in its authored parameter namespace. Call binding may
+/// instantiate the parameter types, but never replaces authored symbols or
+/// manufactures an executable state for a bodyless requirement.
+pub(crate) fn lower_parameter_boolean_expression(
+    program: &TypedTrees,
+    operators: &CheckedOperatorFacts,
+    owner: symbols::SymbolHandle,
+    parameters: &[typed_trees::signature::StateParameter],
+    expression: ExpressionHandle,
+    exact_integer_casts: &[validation::ExactIntegerCastFact],
+) -> Option<CheckedBooleanExpression> {
+    if !validation::has_builtin_parameter_bound_expression_meaning(
+        program, owner, parameters, expression,
+    ) {
+        return None;
+    }
+    let scalar_parameters = parameters
+        .iter()
+        .filter(|parameter| crate::values::scalar::occupies_scalar_position(program, parameter))
+        .cloned()
+        .collect::<Vec<_>>();
+    let parameter_types = scalar_parameters
+        .iter()
+        .map(|parameter| program.primitive_type_reference(parameter.type_reference))
+        .collect::<Option<Vec<_>>>()?;
+    lower_boolean_expression(
+        program,
+        operators,
+        expression,
+        &scalar_parameters,
+        parameters,
+        &parameter_types,
+        &[],
+        exact_integer_casts,
+    )
+}

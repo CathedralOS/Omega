@@ -38,6 +38,8 @@ pub(super) use scalars::{
     has_builtin_operators,
 };
 mod booleans;
+mod place_predicates;
+pub(super) use place_predicates::place_predicate;
 pub(in crate::checks) mod call_guarantees;
 mod current_boolean;
 mod field_actuals;
@@ -106,12 +108,10 @@ pub(super) fn call_entry_contexts_prove_boolean_contract_expression(
         return true;
     }
 
-    // `pred(actual)` — a byte-predicate requirement over one operand: the
-    // callee's subject instantiates to the caller actual, whose place must
-    // already carry a per-byte class implying the probe (a dominating
-    // validating guard minted it, or the caller's own `requires` assumed it).
-    if let Some((required, subject)) =
-        typed_trees::byte_predicates::byte_predicate_call(program, expression)
+    // Semantic place observations share one predicate owner. Ordinary calls
+    // resolve the subject at invocation; captured callers supply the selected
+    // operand's own place and contexts to the same query.
+    if let Some((predicate, subject)) = place_predicate(program, expression)
         && let Some((value, remaining)) =
             case_test_subject_actual(program, &call_site, target_parameters, subject)
         && let Some(mut place) = crate::flow::canonical_place_from_expression_in_state(
@@ -122,35 +122,13 @@ pub(super) fn call_entry_contexts_prove_boolean_contract_expression(
         )
     {
         place.segments.extend(remaining);
-        if byte_predicate_proven_at_place(program, semantic, entry_contexts, &place, required) {
-            return true;
-        }
-    }
-
-    // `subject in T::C` lowers to `subject == T::C`: the caller's installed or
-    // observed case at the place the subject actual names decides it, not a
-    // value comparison.
-    if let Some((subject, case)) = crate::proof::exact_outcome_case_test(program, expression)
-        && let Some((value, remaining)) =
-            case_test_subject_actual(program, &call_site, target_parameters, subject)
-        && let Some(mut place) = crate::flow::canonical_place_from_expression_in_state(
+        if predicate.proven(
             program,
-            state_flow.state_symbol,
-            call_flow.statement_index,
-            value,
-        )
-    {
-        place.segments.extend(remaining);
-        if crate::flow::place_case_has_value(
-            program,
-            semantic,
+            facts,
+            state_flow,
+            call_flow,
             entry_contexts,
-            state_flow.machine_symbol,
-            state_flow.state_symbol,
-            call_flow.statement_index,
             &place,
-            case,
-            true,
         ) {
             return true;
         }

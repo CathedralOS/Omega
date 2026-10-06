@@ -305,7 +305,9 @@ impl ContractPredicates<'_, '_> {
                 if !self
                     .parameters
                     .get(position as usize)
-                    .is_some_and(|parameter| caller_storage_root(program, parameter))
+                    .is_some_and(|parameter| {
+                        contract_storage_root(program, parameter, self.allow_result)
+                    })
                 {
                     return None;
                 }
@@ -580,13 +582,16 @@ impl ContractPredicates<'_, '_> {
     }
 }
 
-/// Whether a structural parameter's member storage is a place the caller
-/// names before and after the call: the receiver, or a parameter borrowed
-/// through a shared or exclusive reference. A contract fact about that
-/// storage substitutes to the caller's actual place, entry and post-state
-/// alike. An owned by-value parameter is the callee's own copy, so its
-/// post-state is no caller fact and its members stay outside the namespace.
-fn caller_storage_root(program: &TypedTrees, parameter: &StateParameter) -> bool {
+/// Entry requirements observe every readable argument's completed value,
+/// including an owned structural copy. Normal guarantees use the post-state;
+/// this namespace can transport that storage only through a readable reference.
+/// Keeping these phases distinct avoids excluding owned fields from requires
+/// merely because their callee-local post-state is not a caller observation.
+fn contract_storage_root(
+    program: &TypedTrees,
+    parameter: &StateParameter,
+    allow_result: bool,
+) -> bool {
     let mut type_reference = parameter.type_reference;
     loop {
         match program.type_reference_table.type_reference(type_reference) {
@@ -598,7 +603,7 @@ fn caller_storage_root(program: &TypedTrees, parameter: &StateParameter) -> bool
                         | language_core::ReferenceAccess::Mutable
                 );
             }
-            _ => return false,
+            _ => return !allow_result,
         }
     }
 }

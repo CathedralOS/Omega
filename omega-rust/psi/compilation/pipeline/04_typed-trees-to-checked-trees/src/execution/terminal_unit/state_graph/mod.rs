@@ -734,29 +734,9 @@ pub(super) fn build_traced(
             }
             match parameter.access {
                 CheckedStructuralAccess::Owned => {
-                    // Primitive arrays and bounded byte owners carry their
-                    // checked payload shape rather than a nominal identity.
-                    // Edge custody still checks the exact source/destination;
-                    // adding states must not remove the ordinary call carrier.
-                    let owned_sequence = parameter.multiplicity == Multiplicity::Unrestricted
-                        && !program.state_parameters(state)[parameter.position as usize].is_mutable
-                        && (validation::is_closed_primitive_array_type(program, reference())
-                            || (validation::bounded_byte_buffer_capacity(program, reference()).is_some()
-                                && validation::has_plain_owned_contents_with_represented_constraints(
-                                    program, reference(),
-                                )));
-                    if parameter.multiplicity != Multiplicity::Linear
-                        && !owned_sequence
-                        && !matches!(
-                            program.type_reference_table.type_reference(reference()),
-                            TypeReferenceNode::Named { .. }
-                        )
-                    {
-                        trace.phase(
-                            "state graph: state signature: parameter custody shape: owned non-linear unnamed type",
-                        );
-                        return None;
-                    }
+                    // The registered structural shape carries records and
+                    // fixed arrays alike. Admission depends on their recursive
+                    // contents and custody, not a nominal type spelling.
                     // A parameter carries an established value, not a fresh
                     // initializer. Exact edge custody retains represented byte
                     // predicates, including those below record/array children.
@@ -781,7 +761,6 @@ pub(super) fn build_traced(
                     // exact selected normal-edge actions dispose only what
                     // remains after transfers and returned-value custody.
                     if parameter.multiplicity != Multiplicity::Linear
-                        && !owned_sequence
                         && !validation::has_cleanup_owned_contents(program, reference())
                         && !validation::has_plain_owned_contents_with_represented_constraints(
                             program,

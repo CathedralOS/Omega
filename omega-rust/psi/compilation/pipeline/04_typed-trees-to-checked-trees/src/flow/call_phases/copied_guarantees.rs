@@ -5,7 +5,10 @@
 
 use super::super::{CanonicalPlace, FlowBuildContext};
 use arena::{Handle, HandleSpan};
-use checked_trees::{BorrowCallFact, ContractCallFact, FlowSemanticContextRef, ProofFacts};
+use checked_trees::{
+    BorrowCallFact, ContractCallFact, FlowControlFacts, FlowOperandFact, FlowSemanticContextRef,
+    ProofFacts,
+};
 use facts::{FactPayload, FactPlan, PlaceRoot, PlaceSegment};
 use symbols::SymbolHandle;
 use typed_trees::{TypedTrees, domain::ProofFact, expression::ExpressionHandle};
@@ -17,7 +20,112 @@ pub(in crate::flow) struct ArgumentSources<'program, 'writes> {
     parameters: &'program [typed_trees::signature::StateParameter],
     arguments: &'program [ExpressionHandle],
     writes: Option<&'writes [CanonicalPlace]>,
-    changed_operands: &'writes [CanonicalPlace],
+    captures: Vec<CapturedSource>,
+}
+
+/// Scratch custody copied before publication mutates the flow arenas. Paths
+/// identify destination children; later writes retain each child's own epoch.
+struct CapturedSource {
+    position: usize,
+    destination: Vec<PlaceSegment>,
+    expression: ExpressionHandle,
+    type_reference: typed_trees::types::TypeReferenceHandle,
+    later_writes: Option<Vec<CanonicalPlace>>,
+}
+
+fn writes_after_capture(
+    control: &FlowControlFacts,
+    captured: &FlowOperandFact,
+    invocation: &FlowOperandFact,
+) -> Option<Vec<CanonicalPlace>> {
+    if captured.entry_origin_unknown_write || invocation.entry_origin_unknown_write {
+        return None;
+    }
+    let prefix = control
+        .operand_origin_writes
+        .span(captured.entry_origin_writes)?;
+    let complete = control
+        .operand_origin_writes
+        .span(invocation.entry_origin_writes)?;
+    if prefix.len() > complete.len()
+        || !prefix.iter().zip(complete).all(|(left, right)| {
+            left.root == right.root
+                && control
+                    .operand_referent_segments
+                    .span(left.segments)
+                    .zip(control.operand_referent_segments.span(right.segments))
+                    .is_some_and(|(left, right)| left == right)
+        })
+    {
+        return None;
+    }
+    complete[prefix.len()..]
+        .iter()
+        .map(|write| {
+            Some(CanonicalPlace {
+                root: write.root,
+                segments: control
+                    .operand_referent_segments
+                    .span(write.segments)?
+                    .to_vec(),
+            })
+        })
+        .collect()
+}
+
+#[allow(clippy::too_many_arguments)]
+fn retain_capture(
+    program: &TypedTrees,
+    control: &FlowControlFacts,
+    capture: &FlowOperandFact,
+    invocation: &FlowOperandFact,
+    position: usize,
+    destination: Vec<PlaceSegment>,
+    type_reference: typed_trees::types::TypeReferenceHandle,
+    active: &mut Vec<Handle<FlowOperandFact>>,
+    captures: &mut Vec<CapturedSource>,
+) -> Option<()> {
+    if !type_reference.is_valid() {
+        return None;
+    }
+    captures.push(CapturedSource {
+        position,
+        destination: destination.clone(),
+        expression: capture.expression,
+        type_reference,
+        later_writes: writes_after_capture(control, capture, invocation),
+    });
+    for child in control.operand_children.span(capture.children)? {
+        if !control.operands.is_valid(child.value) || active.contains(&child.value) {
+            return None;
+        }
+        let suffix = control.operand_child_paths.span(child.path)?;
+        if suffix.is_empty() {
+            return None;
+        }
+        let mut path = destination.clone();
+        path.extend_from_slice(suffix);
+        active.push(child.value);
+        let child_type = super::super::operand_values::operand_child_type(
+            program,
+            type_reference,
+            suffix,
+            child.type_reference,
+        )?;
+        retain_capture(
+            program,
+            control,
+            control.operands.get(child.value),
+            invocation,
+            position,
+            path,
+            child_type,
+            active,
+            captures,
+        )?;
+        active.pop();
+    }
+    Some(())
 }
 
 impl<'program, 'writes> ArgumentSources<'program, 'writes> {
@@ -27,7 +135,8 @@ impl<'program, 'writes> ArgumentSources<'program, 'writes> {
         state: SymbolHandle,
         call: &BorrowCallFact,
         writes: Option<&'writes [CanonicalPlace]>,
-        changed_operands: &'writes [CanonicalPlace],
+        control: &FlowControlFacts,
+        captured_operands: &[FlowOperandFact],
     ) -> Option<Self> {
         let site = crate::semantic::calls::find_call_site(
             program,
@@ -36,17 +145,50 @@ impl<'program, 'writes> ArgumentSources<'program, 'writes> {
             call.statement_index,
             call.call_ordinal,
         )?;
+        let parameters =
+            crate::semantic::calls::call_target_parameters(program, call.target_symbol)?;
+        let arguments = crate::semantic::calls::call_site_argument_expressions(program, &site);
+        let receiver = match &site {
+            crate::semantic::calls::CallSite::Expression { call, .. }
+                if call.receiver.is_valid() =>
+            {
+                Some(call.receiver)
+            }
+            _ => None,
+        };
+        if parameters.len() != arguments.len()
+            || !captured_operands
+                .iter()
+                .map(|capture| capture.expression)
+                .eq(receiver.into_iter().chain(arguments.iter().copied()))
+        {
+            return None;
+        }
+        let mut captures = Vec::new();
+        if let Some(invocation) = captured_operands.last() {
+            let offset = usize::from(receiver.is_some());
+            for (position, parameter) in parameters.iter().enumerate() {
+                retain_capture(
+                    program,
+                    control,
+                    captured_operands.get(position + offset)?,
+                    invocation,
+                    position,
+                    Vec::new(),
+                    parameter.type_reference,
+                    &mut Vec::new(),
+                    &mut captures,
+                )?;
+            }
+        }
         Some(Self {
             program,
             state,
             statement: call.statement_index,
-            parameters: crate::semantic::calls::call_target_parameters(
-                program,
-                call.target_symbol,
-            )?,
-            arguments: crate::semantic::calls::call_site_argument_expressions(program, &site),
+            parameters,
+            arguments,
             writes,
-            changed_operands,
+            captures,
         })
     }
 
@@ -58,9 +200,6 @@ impl<'program, 'writes> ArgumentSources<'program, 'writes> {
         let Some(parameter) = self.parameters.get(position) else {
             return false;
         };
-        if !super::super::operand_binds_stable_copy(self.program, parameter.type_reference) {
-            return true;
-        }
         let Some(argument) = self.arguments.get(position) else {
             return false;
         };
@@ -75,6 +214,28 @@ impl<'program, 'writes> ArgumentSources<'program, 'writes> {
         };
         !projections.is_empty()
             && projections.iter().all(|projection| {
+                let mut candidates = self.captures.iter().filter(|capture| {
+                    capture.position == position
+                        && capture.destination.len() == projection.destination.len()
+                        && capture.destination.iter().zip(&projection.destination).all(
+                            |(left, right)| {
+                                super::super::canonical_place_segments_equal(
+                                    self.program,
+                                    *left,
+                                    *right,
+                                )
+                            },
+                        )
+                });
+                let Some(capture) = candidates.next() else {
+                    return false;
+                };
+                if candidates.next().is_some() || capture.expression != projection.expression {
+                    return false;
+                }
+                if super::super::operand_binds_live_view(self.program, capture.type_reference) {
+                    return true;
+                }
                 let Some(mut source) = super::super::canonical_place_from_expression_in_state(
                     self.program,
                     self.state,
@@ -90,7 +251,7 @@ impl<'program, 'writes> ArgumentSources<'program, 'writes> {
                 if matches!(source.root, PlaceRoot::Expression(_)) {
                     return true;
                 }
-                if !self.source_survives(&source) {
+                if !self.source_survives(capture, &source) {
                     return false;
                 }
                 // A changed runtime selector also prevents substitution onto the
@@ -112,22 +273,24 @@ impl<'program, 'writes> ArgumentSources<'program, 'writes> {
                     };
                     // The selected value was checked at its exact projected path;
                     // only independent selector observations are additional debt.
-                    dependency == base_source || self.source_survives(&dependency)
+                    dependency == base_source || self.source_survives(capture, &dependency)
                 })
             })
     }
 
-    fn source_survives(&self, source: &CanonicalPlace) -> bool {
-        self.writes.is_some_and(|writes| {
-            writes.iter().chain(self.changed_operands).all(|write| {
-                source.root != write.root
-                    || !super::super::canonical_place_segments_may_overlap(
-                        self.program,
-                        &source.segments,
-                        &write.segments,
-                    )
+    fn source_survives(&self, capture: &CapturedSource, source: &CanonicalPlace) -> bool {
+        self.writes
+            .zip(capture.later_writes.as_deref())
+            .is_some_and(|(writes, later)| {
+                writes.iter().chain(later).all(|write| {
+                    source.root != write.root
+                        || !super::super::canonical_place_segments_may_overlap(
+                            self.program,
+                            &source.segments,
+                            &write.segments,
+                        )
+                })
             })
-        })
     }
 }
 

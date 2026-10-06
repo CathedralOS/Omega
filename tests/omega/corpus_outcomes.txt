@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": "2", "load1_end": 2.17, "load1_start": 2.17, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "3", "load1_end": 6.08, "load1_start": 6.41, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -447,8 +447,16 @@ fail/calls/computed_zero_requires_argument_rejected rejected 333ms expected @2d8
 	machine `Main::main` state `main` value call to `Main::scale` violates required fact `divisor != 0`: the instantiated fact is structurally false
 fail/calls/constructed_case_invalid_common_zero rejected 418ms expected @b2906d953be
 	data `Reply` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/calls/constructor_child_distinct_epochs_not_equal rejected 284ms expected @8093eb34a6ed+wt
+	cannot prove requires contract for call observe from main: constructor:4:Pair6:record17:common:name:first13:holder.amount20:common:name:replaced37:Main.replace(mut holder, replacement)18:common:name:second13:holder.amount.first == constructor:4:Pair6:record17:common:name:first13:holder.amount20:common:name:replaced37:Main.replace(mut holder, replacement)18:common:name:second13:holder.amount.second (needs fact `value.first == value.second` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/calls/constructor_child_effectful_calls_not_equal rejected 271ms expected @8093eb34a6ed+wt
+	cannot prove requires contract for call observe from main: constructor:4:Pair6:record17:common:name:first23:Holder.flip(mut holder)18:common:name:second23:Holder.flip(mut holder).first == constructor:4:Pair6:record17:common:name:first23:Holder.flip(mut holder)18:common:name:second23:Holder.flip(mut holder).second (needs fact `value.first == value.second` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/calls/constructor_child_inherited_epochs_not_equal rejected 262ms expected @8093eb34a6ed+wt
+	cannot prove requires contract for call observe from main: constructor:4:Pair6:record17:common:name:first13:holder.amount20:common:name:replaced39:Holder.replace(mut holder, replacement)18:common:name:second13:holder.amount.first == constructor:4:Pair6:record17:common:name:first13:holder.amount20:common:name:replaced39:Holder.replace(mut holder, replacement)18:common:name:second13:holder.amount.second (needs fact `pair.first == pair.second` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/calls/constructor_child_membership_precedes_repair rejected 237ms expected @cfbb6c8709b4+wt
 	cannot prove requires contract for call observe from main: holder.ticket in Ticket::Issued
+fail/calls/constructor_child_named_state_epochs_not_equal rejected 275ms expected @8093eb34a6ed+wt
+	cannot prove requires contract for call selected from main: constructor:4:Pair6:record17:common:name:first13:holder.amount20:common:name:replaced39:Holder.replace(mut holder, replacement)18:common:name:second13:holder.amount.first == constructor:4:Pair6:record17:common:name:first13:holder.amount20:common:name:replaced39:Holder.replace(mut holder, replacement)18:common:name:second13:holder.amount.second (needs fact `captured.first == captured.second` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/calls/constructor_projected_membership_precedes_repair rejected 426ms expected @cfbb6c8709b4+wt
 	cannot prove requires contract for call observe from main: holder.envelope.ticket in Ticket::Issued
 fail/calls/copied_argument_ensures_cannot_restore_callee_mutated_source rejected 371ms expected @cfbb6c8709b4+wt
@@ -460,6 +468,8 @@ fail/calls/copied_argument_inherited_membership_precedes_repair rejected 493ms e
 fail/calls/copied_argument_routed_ensures_cannot_restore_callee_mutated_source rejected 443ms expected @cfbb6c8709b4+wt
 	cannot prove requires contract for call require_issued from main: holder.ticket in Ticket::Issued (invalidated by prior mutation of holder.ticket; holder.ticket is part of Ticket::Issued)
 fail/calls/copied_argument_routed_ensures_cannot_restore_mutated_source rejected 337ms expected @cfbb6c8709b4+wt
+	cannot prove requires contract for call require_issued from main: holder.ticket in Ticket::Issued (invalidated by prior mutation of holder.ticket; holder.ticket is part of Ticket::Issued)
+fail/calls/copied_constructor_child_ensures_cannot_restore_mutated_source rejected 278ms expected @8093eb34a6ed+wt
 	cannot prove requires contract for call require_issued from main: holder.ticket in Ticket::Issued (invalidated by prior mutation of holder.ticket; holder.ticket is part of Ticket::Issued)
 fail/calls/copied_nominal_argument_precedes_field_repair rejected 325ms expected @cfbb6c8709b4+wt
 	cannot prove default-domain field requirement for call observe from main::entry: parameter value.level requires i32::Positive
@@ -1849,6 +1859,10 @@ pass/calls/runtime_computed_case_terminal_payload_result_exit checked 783ms chec
 pass/calls/runtime_constructed_borrowed_payload_arguments_exit checked 1957ms check-target:macos_arm64 @a9ea4297a1a9
 pass/calls/runtime_constructed_copy_payload_arguments_exit checked 6100ms check-target:macos_arm64 @b2906d953be
 pass/calls/runtime_constructed_payload_arguments_exit checked 6944ms check-target:macos_arm64 @b2906d953be
+pass/calls/runtime_constructor_child_equal_captures_exit checked 1282ms check-target:macos_arm64 @8093eb34a6ed+wt
+pass/calls/runtime_constructor_child_inherited_captures_exit checked 1233ms check-target:macos_arm64 @8093eb34a6ed+wt
+pass/calls/runtime_constructor_child_membership_snapshot_exit checked 1205ms check-target:macos_arm64 @8093eb34a6ed+wt
+pass/calls/runtime_constructor_child_named_state_captures_exit checked 1232ms check-target:macos_arm64 @8093eb34a6ed+wt
 pass/calls/runtime_constructor_computed_field_exit checked 1305ms check-target:macos_arm64 @2d8ed253669f
 pass/calls/runtime_constructor_projected_membership_snapshot_exit checked 2264ms check-target:macos_arm64 @cfbb6c8709b4+wt
 pass/calls/runtime_copied_argument_live_mutable_ensures_exit checked 1886ms check-target:macos_arm64 @cfbb6c8709b4+wt
@@ -1896,6 +1910,7 @@ pass/calls/runtime_mutable_call_before_transition_args_exit checked 8001ms check
 pass/calls/runtime_mutable_local_parameter_write_exit checked 632ms check-target:macos_arm64 @6c1f965d49de+wt
 pass/calls/runtime_nested_case_argument_exit checked 2176ms check-target:macos_arm64 @b6846d69ce88+wt
 pass/calls/runtime_nested_case_subject_operand_order_exit checked 695ms check-target:macos_arm64 @3daca3fd87c2
+pass/calls/runtime_nested_constructor_child_snapshots_exit checked 1221ms check-target:macos_arm64 @8093eb34a6ed+wt
 pass/calls/runtime_nested_local_field_store_exit checked 1769ms check-target:macos_arm64 @1da616075c39+wt
 pass/calls/runtime_nested_receiver_guard_exit checked 803ms check-target:macos_arm64 @ac942fdbba24
 pass/calls/runtime_nested_value_call_guard_exit checked 7580ms check-target:macos_arm64 @2b2f058c0e38+wt

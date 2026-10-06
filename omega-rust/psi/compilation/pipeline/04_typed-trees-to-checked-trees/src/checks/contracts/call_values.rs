@@ -124,7 +124,7 @@ pub(crate) fn projected_expression(
         .then_some(projection.expression)
 }
 
-pub(crate) fn captured_actual<'facts>(
+fn captured_operand<'facts>(
     program: &TypedTrees,
     facts: &'facts CheckFacts,
     state: &FlowStateFact,
@@ -158,6 +158,47 @@ pub(crate) fn captured_actual<'facts>(
         return None;
     }
     operands.get(actual.operand_position)
+}
+
+pub(crate) fn captured_values<'facts>(
+    program: &TypedTrees,
+    facts: &'facts CheckFacts,
+    state: &FlowStateFact,
+    call: &FlowCallFact,
+    actual: &Actual<'_>,
+) -> Option<Vec<crate::flow::CapturedValue<'facts>>> {
+    let operand = captured_operand(program, facts, state, call, actual)?;
+    crate::flow::captured_operand_values(
+        program,
+        &facts.flow.control,
+        operand,
+        actual.parameter.type_reference,
+        &actual.path,
+    )
+}
+
+fn captured_value<'facts>(
+    program: &TypedTrees,
+    facts: &'facts CheckFacts,
+    state: &FlowStateFact,
+    call: &FlowCallFact,
+    actual: &Actual<'_>,
+) -> Option<crate::flow::CapturedValue<'facts>> {
+    let mut values = captured_values(program, facts, state, call, actual)?;
+    if values.len() != 1 {
+        return None;
+    }
+    values.pop()
+}
+
+pub(crate) fn captured_actual<'facts>(
+    program: &TypedTrees,
+    facts: &'facts CheckFacts,
+    state: &FlowStateFact,
+    call: &FlowCallFact,
+    actual: &Actual<'_>,
+) -> Option<&'facts checked_trees::FlowOperandFact> {
+    Some(captured_value(program, facts, state, call, actual)?.operand)
 }
 
 /// Select the evidence epoch of a declared membership's exact formal. A
@@ -262,8 +303,8 @@ pub(crate) fn membership_contexts(
     Some(actual_contexts(program, facts, state, call, &actual))
 }
 
-/// Memberships of an actual and its declared fields share one evaluation
-/// epoch. Absent or mismatched occurrence custody cannot provide evidence.
+/// A projected field observes its own completed child. A stored aggregate
+/// retains its whole-value capture; its initializer is never replayed.
 pub(crate) fn actual_contexts(
     program: &TypedTrees,
     facts: &CheckFacts,
@@ -271,15 +312,15 @@ pub(crate) fn actual_contexts(
     call: &FlowCallFact,
     actual: &Actual<'_>,
 ) -> Vec<FactContextHandle> {
-    let Some(captured) = captured_actual(program, facts, state, call, actual) else {
+    let Some(captured) = captured_value(program, facts, state, call, actual) else {
         return Vec::new();
     };
     crate::flow::operand_contexts(
         program,
         &facts.flow,
         &facts.semantic,
-        captured,
-        actual.parameter.type_reference,
+        captured.operand,
+        captured.type_reference,
         call.entry_constraints,
     )
 }
@@ -333,8 +374,24 @@ fn current_actual(
             return Some(value);
         }
     }
-    let mut place = actual.place.clone();
-    place.segments.extend_from_slice(&actual.path);
+    // Unknown copied values retain the same selected source projection as
+    // membership facts. Binding the constructor's destination here would lose
+    // equality between child captures of one local field. The caller checks
+    // capture epochs before joining these exact source places.
+    let place = if let Some(argument) = actual.argument {
+        crate::semantic::facts::projected_argument_place(
+            program,
+            state.state_symbol,
+            call.statement_index,
+            argument,
+            actual.parameter.type_reference,
+            &actual.path,
+        )?
+    } else {
+        let mut place = actual.place.clone();
+        place.segments.extend_from_slice(&actual.path);
+        place
+    };
     bind_current(
         program, facts, state, call, place, primitive, contexts, bindings,
     )
@@ -443,8 +500,31 @@ pub(crate) fn proves_entry_predicate(
     if target_machine(program, call) != Some(target) {
         return false;
     }
+    proves_bound_predicate(
+        program,
+        facts,
+        state,
+        call,
+        contexts,
+        &predicate,
+        &|observation| observation_actual(program, state, call, observation),
+    )
+}
+
+/// The source row owns its formal-to-actual correspondence. Entry cleanup,
+/// ordinary declarations, named states and inherited rows share one captured
+/// Boolean algebra after supplying that exact correspondence.
+pub(crate) fn proves_bound_predicate<'program>(
+    program: &'program TypedTrees,
+    facts: &CheckFacts,
+    state: &FlowStateFact,
+    call: &FlowCallFact,
+    contexts: &[FactContextHandle],
+    predicate: &crate::facts::boolean_predicates::BoundPredicate,
+    actual: &impl Fn(&crate::facts::boolean_predicates::BoundObservation) -> Option<Actual<'program>>,
+) -> bool {
     let mut selected_contexts: Option<Vec<FactContextHandle>> = None;
-    let mut binding_epochs: Vec<usize> = Vec::new();
+    let mut binding_epochs: Vec<&checked_trees::FlowOperandFact> = Vec::new();
     let mut current = predicate.clone();
     current.bindings.clear();
     if crate::facts::boolean_predicates::map_observations(&mut current.expression, &mut |operand| {
@@ -452,14 +532,15 @@ pub(crate) fn proves_entry_predicate(
             .bindings
             .iter()
             .find(|binding| binding.operand == *operand)?;
-        let actual = observation_actual(program, state, call, observation)?;
-        let capture = captured_actual(program, facts, state, call, &actual)?;
+        let actual = actual(observation)?;
+        let captured = captured_value(program, facts, state, call, &actual)?;
+        let capture = captured.operand;
         let operand_contexts = crate::flow::operand_contexts(
             program,
             &facts.flow,
             &facts.semantic,
             capture,
-            actual.parameter.type_reference,
+            captured.type_reference,
             call.entry_constraints,
         );
         if let Some(selected) = &mut selected_contexts {
@@ -467,18 +548,11 @@ pub(crate) fn proves_entry_predicate(
         } else {
             selected_contexts = Some(operand_contexts.clone());
         }
-        let epoch =
-            if crate::flow::operand_binds_stable_copy(program, actual.parameter.type_reference) {
-                actual.operand_position
-            } else {
-                facts
-                    .flow
-                    .control
-                    .operands
-                    .span(call.operands)?
-                    .len()
-                    .checked_sub(1)?
-            };
+        let epoch = if crate::flow::operand_binds_live_view(program, captured.type_reference) {
+            facts.flow.control.operands.span(call.operands)?.last()?
+        } else {
+            capture
+        };
         let first_binding = current.bindings.len();
         *operand = current_actual(
             program,
@@ -490,7 +564,6 @@ pub(crate) fn proves_entry_predicate(
             &operand_contexts,
             &mut current.bindings,
         )?;
-        let operands = facts.flow.control.operands.span(call.operands)?;
         for binding in &current.bindings[first_binding..] {
             for (previous, previous_epoch) in current.bindings[..first_binding]
                 .iter()
@@ -500,8 +573,8 @@ pub(crate) fn proves_entry_predicate(
                     && !crate::flow::operand_observations_agree(
                         program,
                         &facts.flow,
-                        operands.get(*previous_epoch)?,
-                        operands.get(epoch)?,
+                        previous_epoch,
+                        epoch,
                         &binding.place,
                     )
                 {

@@ -30,13 +30,12 @@ impl Execution<'_, '_, '_> {
                 {
                     let first_write = self.operand_writes.len();
                     operands.push((*argument, first_write));
-                    self.expression(*argument, contexts, constraints);
-                    captured_operands.push(self.capture_operand(
-                        *argument,
-                        first_write,
-                        *contexts,
-                        *constraints,
-                    ));
+                    let destination =
+                        self.invocation_parameter_type(InvocationSite::Transition(target), ordinal);
+                    captured_operands.push(
+                        self.evaluated_operand_as(*argument, destination, contexts, constraints)
+                            .capture,
+                    );
                     captured_qualifications.extend(qualifications::capture_argument(
                         self.program,
                         self.semantic,
@@ -109,7 +108,6 @@ impl Execution<'_, '_, '_> {
         );
         self.invoke(
             InvocationSite::Transition(target),
-            &operands,
             &captured_operands,
             contexts,
             constraints,

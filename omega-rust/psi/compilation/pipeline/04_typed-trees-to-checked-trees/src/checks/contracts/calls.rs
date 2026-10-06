@@ -1,4 +1,5 @@
 mod boolean_requirements;
+mod captured_boolean;
 
 use checked_trees::{CheckFacts, FlowCallFact, FlowStateFact};
 use diagnostics::Diagnostic;
@@ -68,7 +69,15 @@ pub(super) fn check_call_requires(
                 program, facts, state_flow, call_flow, fact,
             );
             let requirement_contexts = captured_contexts.as_deref().unwrap_or(&entry_contexts);
-            let satisfied = match fact.payload {
+            let captured_judgment = captured_boolean::judgment(
+                program,
+                facts,
+                state_flow,
+                call_flow,
+                requirement_contexts,
+                fact,
+            );
+            let satisfied = captured_judgment.unwrap_or_else(|| match fact.payload {
                 FactPayload::ContractBooleanExpression { expression, .. } => {
                     boolean_requirements::proves(
                         program,
@@ -93,13 +102,14 @@ pub(super) fn check_call_requires(
                     requirement_contexts,
                     fact,
                 ),
-            };
+            });
             // ch8 construction-grant: a string literal whose compile-time bytes
             // satisfy a domain's declared byte-predicate fact grants that
             // domain without a validating boundary call -- this is how a literal
             // flows into a `&[u8] in Utf8` target.
             let satisfied = satisfied
-                || (!super::prover::indexed_membership(program, fact.payload)
+                || (captured_judgment.is_none()
+                    && !super::prover::indexed_membership(program, fact.payload)
                     && (transition_guard_proves_requires(
                         program,
                         facts,
