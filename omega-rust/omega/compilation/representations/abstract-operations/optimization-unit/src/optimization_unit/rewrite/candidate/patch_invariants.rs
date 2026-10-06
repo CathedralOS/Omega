@@ -5,6 +5,7 @@ use super::super::{
     PsiRealizationSite, PsiRewriteCandidateError, PsiRewritePatch, PsiRewriteWitness,
     ScalarSubstitution, ScalarType,
 };
+use semantic_vocabulary::EdgeId;
 use std::collections::BTreeSet;
 
 pub(super) fn validate(
@@ -152,64 +153,37 @@ pub(super) fn validate(
             }
         }
         PsiRewritePatch::MergeAdjacentBlock(patch) => {
-            let incoming = PsiRealizationSite::Edge {
-                machine: patch.predecessor.machine,
-                edge: patch.incoming_edge,
-            };
-            if !affected_blocks.contains(&patch.target)
-                || !provenance.iter().any(|row| row.input == incoming)
-                || provenance.iter().any(|row| {
-                    let ProvenanceDisposition::RealizedAt(site) = row.disposition else {
-                        return true;
-                    };
-                    site.machine() != patch.predecessor.machine
-                        || site
-                            .node()
-                            .is_some_and(|location| !affected_blocks.contains(&location.block))
-                })
-                || !matches!(witness, PsiRewriteWitness::OwnershipFrontiers(_))
+            if !incoming_realization_consistent(
+                patch.predecessor,
+                patch.incoming_edge,
+                patch.target,
+                affected_blocks,
+                provenance,
+            ) || !matches!(witness, PsiRewriteWitness::OwnershipFrontiers(_))
             {
                 return Err(PsiRewriteCandidateError::PatchDecisionPointMismatch);
             }
         }
         PsiRewritePatch::MergeNonAdjacentBlock(patch) => {
-            let incoming = PsiRealizationSite::Edge {
-                machine: patch.predecessor.machine,
-                edge: patch.incoming_edge,
-            };
-            if !affected_blocks.contains(&patch.target)
-                || !provenance.iter().any(|row| row.input == incoming)
-                || provenance.iter().any(|row| {
-                    let ProvenanceDisposition::RealizedAt(site) = row.disposition else {
-                        return true;
-                    };
-                    site.machine() != patch.predecessor.machine
-                        || site
-                            .node()
-                            .is_some_and(|location| !affected_blocks.contains(&location.block))
-                })
-                || !matches!(witness, PsiRewriteWitness::StructuralIdentity)
+            if !incoming_realization_consistent(
+                patch.predecessor,
+                patch.incoming_edge,
+                patch.target,
+                affected_blocks,
+                provenance,
+            ) || !matches!(witness, PsiRewriteWitness::StructuralIdentity)
             {
                 return Err(PsiRewriteCandidateError::PatchDecisionPointMismatch);
             }
         }
         PsiRewritePatch::FuseSharedTerminalJump(patch) => {
-            let incoming = PsiRealizationSite::Edge {
-                machine: patch.predecessor.machine,
-                edge: patch.incoming_edge,
-            };
-            if !affected_blocks.contains(&patch.target)
-                || !provenance.iter().any(|row| row.input == incoming)
-                || provenance.iter().any(|row| {
-                    let ProvenanceDisposition::RealizedAt(site) = row.disposition else {
-                        return true;
-                    };
-                    site.machine() != patch.predecessor.machine
-                        || site
-                            .node()
-                            .is_some_and(|location| !affected_blocks.contains(&location.block))
-                })
-                || !matches!(witness, PsiRewriteWitness::StructuralIdentity)
+            if !incoming_realization_consistent(
+                patch.predecessor,
+                patch.incoming_edge,
+                patch.target,
+                affected_blocks,
+                provenance,
+            ) || !matches!(witness, PsiRewriteWitness::StructuralIdentity)
             {
                 return Err(PsiRewriteCandidateError::PatchDecisionPointMismatch);
             }
@@ -512,4 +486,31 @@ pub(super) fn validate(
         }
     }
     Ok(())
+}
+
+/// Whether a block-merge or jump-fusion patch's incoming edge is a realized
+/// provenance input whose every realization row stays on the predecessor's
+/// machine inside the affected blocks.
+fn incoming_realization_consistent(
+    predecessor: NodeLocation,
+    incoming_edge: EdgeId,
+    target: BlockId,
+    affected_blocks: &[BlockId],
+    provenance: &[ProvenanceRewrite],
+) -> bool {
+    let incoming = PsiRealizationSite::Edge {
+        machine: predecessor.machine,
+        edge: incoming_edge,
+    };
+    affected_blocks.contains(&target)
+        && provenance.iter().any(|row| row.input == incoming)
+        && provenance.iter().all(|row| {
+            let ProvenanceDisposition::RealizedAt(site) = row.disposition else {
+                return false;
+            };
+            site.machine() == predecessor.machine
+                && site
+                    .node()
+                    .map_or(true, |location| affected_blocks.contains(&location.block))
+        })
 }
