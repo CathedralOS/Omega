@@ -13,6 +13,7 @@
 use crate::{EvaluationAccountingError, EvaluationMeasurementIdentity};
 use std::sync::Arc;
 use std::sync::Mutex;
+use std::sync::MutexGuard;
 
 pub const BUILD_EVALUATION_SPONSOR_LIMITS_SCHEMA_VERSION: u32 = 7;
 
@@ -205,81 +206,57 @@ impl BuildEvaluationSponsor {
         self.account.limits
     }
 
+    /// Poison-tolerant read of the live consumption counters: a poisoned lock
+    /// still carries the recorded usage, so reads unwrap the guard contents.
+    fn consumption(&self) -> MutexGuard<'_, BuildEvaluationSponsorConsumption> {
+        self.account
+            .consumed
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+
     pub fn consumed_fuel_units(&self) -> u64 {
-        match self.account.consumed.lock() {
-            Ok(consumed) => consumed.fuel_units,
-            Err(poisoned) => poisoned.into_inner().fuel_units,
-        }
+        self.consumption().fuel_units
     }
 
     pub fn consumed_build_log_bytes(&self) -> u64 {
-        match self.account.consumed.lock() {
-            Ok(consumed) => consumed.build_log_bytes,
-            Err(poisoned) => poisoned.into_inner().build_log_bytes,
-        }
+        self.consumption().build_log_bytes
     }
 
     pub fn consumed_filesystem_operation_attempts(&self) -> u64 {
-        match self.account.consumed.lock() {
-            Ok(consumed) => consumed.filesystem_operation_attempts,
-            Err(poisoned) => poisoned.into_inner().filesystem_operation_attempts,
-        }
+        self.consumption().filesystem_operation_attempts
     }
 
     pub fn live_filesystem_handles(&self) -> u64 {
-        match self.account.consumed.lock() {
-            Ok(consumed) => consumed.live_filesystem_handles,
-            Err(poisoned) => poisoned.into_inner().live_filesystem_handles,
-        }
+        self.consumption().live_filesystem_handles
     }
 
     pub fn peak_live_filesystem_handles(&self) -> u64 {
-        match self.account.consumed.lock() {
-            Ok(consumed) => consumed.peak_live_filesystem_handles,
-            Err(poisoned) => poisoned.into_inner().peak_live_filesystem_handles,
-        }
+        self.consumption().peak_live_filesystem_handles
     }
 
     pub fn live_storage_cells(&self) -> u64 {
-        match self.account.consumed.lock() {
-            Ok(consumed) => consumed.live_storage_cells,
-            Err(poisoned) => poisoned.into_inner().live_storage_cells,
-        }
+        self.consumption().live_storage_cells
     }
 
     pub fn peak_live_storage_cells(&self) -> u64 {
-        match self.account.consumed.lock() {
-            Ok(consumed) => consumed.peak_live_storage_cells,
-            Err(poisoned) => poisoned.into_inner().peak_live_storage_cells,
-        }
+        self.consumption().peak_live_storage_cells
     }
 
     pub fn live_payload_bytes(&self) -> u64 {
-        match self.account.consumed.lock() {
-            Ok(consumed) => consumed.live_payload_bytes,
-            Err(poisoned) => poisoned.into_inner().live_payload_bytes,
-        }
+        self.consumption().live_payload_bytes
     }
 
     pub fn peak_live_payload_bytes(&self) -> u64 {
-        match self.account.consumed.lock() {
-            Ok(consumed) => consumed.peak_live_payload_bytes,
-            Err(poisoned) => poisoned.into_inner().peak_live_payload_bytes,
-        }
+        self.consumption().peak_live_payload_bytes
     }
 
     pub fn consumed_result_storage_cells(&self) -> u64 {
-        match self.account.consumed.lock() {
-            Ok(consumed) => consumed.result_storage_cells,
-            Err(poisoned) => poisoned.into_inner().result_storage_cells,
-        }
+        self.consumption().result_storage_cells
     }
 
     pub fn consumed_result_payload_bytes(&self) -> u64 {
-        match self.account.consumed.lock() {
-            Ok(consumed) => consumed.result_payload_bytes,
-            Err(poisoned) => poisoned.into_inner().result_payload_bytes,
-        }
+        self.consumption().result_payload_bytes
     }
 
     /// Charge one historical checked-tree site. The caller owns site issuance
@@ -441,28 +418,19 @@ impl BuildEvaluationSponsor {
     }
 
     fn release_live_filesystem_handle(&self) {
-        let mut consumed = match self.account.consumed.lock() {
-            Ok(consumed) => consumed,
-            Err(poisoned) => poisoned.into_inner(),
-        };
+        let mut consumed = self.consumption();
         debug_assert!(consumed.live_filesystem_handles > 0);
         consumed.live_filesystem_handles = consumed.live_filesystem_handles.saturating_sub(1);
     }
 
     fn release_live_cell(&self) {
-        let mut consumed = match self.account.consumed.lock() {
-            Ok(consumed) => consumed,
-            Err(poisoned) => poisoned.into_inner(),
-        };
+        let mut consumed = self.consumption();
         debug_assert!(consumed.live_storage_cells > 0);
         consumed.live_storage_cells = consumed.live_storage_cells.saturating_sub(1);
     }
 
     fn release_live_payload_bytes(&self, bytes: u64) {
-        let mut consumed = match self.account.consumed.lock() {
-            Ok(consumed) => consumed,
-            Err(poisoned) => poisoned.into_inner(),
-        };
+        let mut consumed = self.consumption();
         debug_assert!(consumed.live_payload_bytes >= bytes);
         consumed.live_payload_bytes = consumed.live_payload_bytes.saturating_sub(bytes);
     }
