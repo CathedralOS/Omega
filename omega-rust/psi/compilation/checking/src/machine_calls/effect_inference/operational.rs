@@ -347,25 +347,8 @@ fn collect_expression_calls(
     }
 
     match program.expression_table.expression(expression) {
-        ExpressionNode::Match(dispatch) => {
-            for child in crate::expression_traversal::match_children(program, *dispatch) {
-                collect_expression_calls(program, child, statement_index, call_ordinal, calls);
-            }
-        }
         ExpressionNode::Atomic(atomic) => {
             collect_expression_calls(program, atomic.value, statement_index, call_ordinal, calls);
-        }
-        ExpressionNode::ArrayLiteral(values) => {
-            for value in program.expression_table.expression_handles(*values) {
-                collect_expression_calls(program, *value, statement_index, call_ordinal, calls);
-            }
-        }
-        ExpressionNode::Binary(binary) => {
-            collect_expression_calls(program, binary.left, statement_index, call_ordinal, calls);
-            collect_expression_calls(program, binary.right, statement_index, call_ordinal, calls);
-        }
-        ExpressionNode::Cast(cast) => {
-            collect_expression_calls(program, cast.value, statement_index, call_ordinal, calls);
         }
         ExpressionNode::Call(call) => {
             push_expression_call(program, call, statement_index, call_ordinal, calls);
@@ -374,56 +357,9 @@ fn collect_expression_calls(
                 collect_expression_calls(program, *argument, statement_index, call_ordinal, calls);
             }
         }
-        ExpressionNode::Indexed(indexed) => {
-            collect_expression_calls(
-                program,
-                indexed.collection,
-                statement_index,
-                call_ordinal,
-                calls,
-            );
-            collect_expression_calls(program, indexed.index, statement_index, call_ordinal, calls);
-        }
-        ExpressionNode::Member(member) => {
-            collect_expression_calls(
-                program,
-                member.receiver,
-                statement_index,
-                call_ordinal,
-                calls,
-            );
-        }
-        ExpressionNode::Borrow(inner) => {
-            collect_expression_calls(program, inner.target, statement_index, call_ordinal, calls);
-        }
-        ExpressionNode::Unary(unary) => {
-            collect_expression_calls(program, unary.operand, statement_index, call_ordinal, calls);
-        }
-        ExpressionNode::Range(range) => {
-            collect_expression_calls(program, range.start, statement_index, call_ordinal, calls);
-            collect_expression_calls(program, range.end, statement_index, call_ordinal, calls);
-        }
-        ExpressionNode::StructLiteral(struct_literal) => {
-            for field in program
-                .expression_table
-                .struct_fields(struct_literal.fields)
-            {
-                collect_expression_calls(
-                    program,
-                    field.value,
-                    statement_index,
-                    call_ordinal,
-                    calls,
-                );
-            }
-        }
-        ExpressionNode::Boolean(_)
-        | ExpressionNode::Float(_)
-        | ExpressionNode::UndeterminedNaN(_)
-        | ExpressionNode::Integer(_)
-        | ExpressionNode::Name(_)
-        | ExpressionNode::String(_)
-        | ExpressionNode::ZeroValue(_) => {}
+        other => crate::expression_traversal::children(program, other, |child| {
+            collect_expression_calls(program, child, statement_index, call_ordinal, calls);
+        }),
     }
 }
 
