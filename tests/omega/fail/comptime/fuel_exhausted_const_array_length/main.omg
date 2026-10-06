@@ -10,6 +10,12 @@
 // so this canary stays pointed at the fuel limit alone. The parenthesized
 // BARE-call arm spelling is covered separately by
 // pass/comptime/runtime_const_array_length_bare_call_arm_exit.
+//
+// `burn` carries no accumulator. An `acc + 1` on an unbounded `u64` is not
+// provably in range, so exact arithmetic refused the callee and const
+// evaluation never reached its step budget -- the fixture rejected for the
+// wrong reason. Counting down alone keeps the only arithmetic here a
+// guarded `remaining - 1`, which the guard proves.
 
 use omega::language::std::console;
 use omega::language::core::binding;
@@ -19,19 +25,19 @@ data Main {
     slots: [i64; table_size()];
 }
 
-machine burn(remaining: u64, acc: u64)
+machine burn(remaining: u64)
 terminates by remaining;
 -> u64
 {
     transition remaining > 0 {
-        true -> burn(remaining - 1, acc + 1)
-        false -> acc
+        true -> burn(remaining - 1)
+        false -> 16
     }
 }
 
 machine table_size() -> u64 {
     transition {
-        _ -> (burn(10000000, 16) + 0)
+        _ -> (burn(10000000) + 0)
     }
 }
 

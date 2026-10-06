@@ -1,2 +1,2 @@
-cannot prove requires contract for call index from Main::main: 3 < main.values.len
-needs fact `index < items.len` here
+machine `Main::main` state `main` value call to `Slice::index` violates required fact
+`index < items.len`: the instantiated fact is structurally false

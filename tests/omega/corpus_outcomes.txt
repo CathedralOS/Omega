@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": null, "load1_end": 7.3, "load1_start": 6.13, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": null, "load1_end": 10.76, "load1_start": 10.76, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -587,8 +587,8 @@ fail/comptime/const_array_length_dependency_cycle rejected 79ms expected @aeb3a4
 	fixed-array length `[u8; second_size()]`: const evaluation of `second_size` failed: fixed-array length `[u8; first_size()]`: const evaluation of `first_size` failed: fixed-array length dependency cycle: first_size at Handle { arena_index: 2, generation: 1 } -> first_size at Handle { arena_index: 2, generation: 1 }
 fail/comptime/effectful_const_array_length rejected 69ms expected @2d8ed253669f
 	fixed-array length `[i64; loud_size()]`: const evaluation of `loud_size` failed: machine `loud_size` is not build-time admissible: service reach [Console]; build-time evaluation requires empty service reach, no possible suspension or blocking, ordinary checked termination, no unadmitted linear runtime carrier, and admitted declaration-selection authority across the complete call closure
-fail/comptime/fuel_exhausted_const_array_length rejected 62ms unexpected @aeb3a47a1e0
-	fixed-array length `[i64; table_size()]`: const evaluation of `table_size` failed: exact arithmetic in machine `burn` state `entry` transition argument may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/comptime/fuel_exhausted_const_array_length rejected 65ms expected @5aed35f3503f+wt
+	fixed-array length `[i64; table_size()]`: const evaluation of `table_size` failed: step budget exceeded
 fail/comptime/negative_const_array_length rejected 116ms expected @2d8ed253669f
 	fixed-array length `[i64; shrunk_size()]`: const evaluation of `shrunk_size` failed: the call returned -5, but an array length must be a non-negative integer
 fail/comptime/recursive_accumulator_requires_coupling rejected 677ms expected @2d8ed253669f
@@ -1389,7 +1389,7 @@ fail/slices/inclusive_last_element_overlap rejected 325ms expected @dd31f301c60c
 	statement 1 creates local borrow `second` while local borrow `first` is still active (borrowed at statement 0; its last use is at statement 2 and it is released at state exit)
 fail/slices/inclusive_negative_endpoint rejected 338ms expected @dd31f301c60c+wt
 	cannot prove subslice range end bound `0..end` is within unknown slice length
-fail/slices/index_operator_contract_unproven rejected 579ms unexpected @c5d32a00863
+fail/slices/index_operator_contract_unproven rejected 185ms expected @5aed35f3503f+wt
 	machine `Main::main` state `main` value call to `Slice::index` violates required fact `index < items.len`: the instantiated fact is structurally false
 fail/slices/invalid_slice_reassigned_local_index_unchecked rejected 683ms expected @2d8ed253669f
 	cannot prove index `index` is within length 4
@@ -1441,11 +1441,9 @@ fail/targets/target_machine_missing_rejected rejected 15ms expected @2d8ed253669
 	machine `Helper::pick` has no implementation for the selected target -- target-scoped implementations exist for: demo_target, demo_target2 (add this target's `<target> machine Helper::pick(..)` in that target package)
 fail/tasks/task_runtime_machine_selection_effect_mismatch rejected 145ms expected @2d8ed253669f
 	machine argument `Worker::run` for `start` does not refine `Target`: service reach `DiskIo` exceeds its authored ceiling
-fail/tasks/task_runtime_provider_contract_narrowing rejected 1201ms unexpected @c5d32a00863
-	machine `NarrowTaskRuntime::start` state `start` does not satisfy trait `TaskRuntime` machine `start`: expected 1 parameter(s), got 2
-	machine `NarrowTaskRuntime::try_start` state `try_start` does not satisfy trait `TaskRuntime` machine `try_start`: expected 1 parameter(s), got 2
-	machine `NarrowTaskRuntime::start` state `start` does not satisfy trait `TaskRuntime` machine `start`: expected 1 parameter(s), got 2
-	machine `NarrowTaskRuntime::try_start` state `try_start` does not satisfy trait `TaskRuntime` machine `try_start`: expected 1 parameter(s), got 2
+fail/tasks/task_runtime_provider_contract_narrowing rejected 273ms expected @5aed35f3503f+wt
+	machine parameter `Target` of provider machine `NarrowTaskRuntime::start` for trait requirement `TaskRuntime::start` narrows `Target` by omitting `blocks;`
+	machine parameter `Target` of provider machine `NarrowTaskRuntime::start` for trait requirement `TaskRuntime::start` narrows `Target` by omitting `blocks;`
 fail/tasks/task_runtime_selected_provider_missing rejected 734ms expected @2d8ed253669f
 	TaskRuntime boundary slot has no retained selected provider plan
 fail/termination/bounded_distance_inverted rejected 248ms expected @c08960bee2b1+wt
