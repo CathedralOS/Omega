@@ -120,17 +120,6 @@ pub struct DynamicConformanceBindingFacts {
 }
 
 impl DynamicConformanceFacts {
-    pub fn for_binding(
-        &self,
-        machine: SymbolHandle,
-        state: SymbolHandle,
-        binding: SymbolHandle,
-    ) -> Option<&DynamicConformanceSelectionFact> {
-        self.selections.iter().find(|selection| {
-            selection.machine == machine && selection.state == state && selection.binding == binding
-        })
-    }
-
     pub fn binding_facts(&self) -> DynamicConformanceBindingFacts {
         DynamicConformanceBindingFacts {
             selections: self
@@ -176,15 +165,4 @@ impl DynamicConformanceFacts {
 }
 
 impl DynamicConformanceBindingFacts {
-    pub fn for_binding(
-        &self,
-        machine: SymbolHandle,
-        state: SymbolHandle,
-        binding: SymbolHandle,
-    ) -> Option<&DynamicConformanceBindingFact> {
-        self.selections.iter().find(|selection| {
-            selection.machine == machine && selection.state == state && selection.binding == binding
-        })
-    }
-
 }

@@ -330,41 +330,6 @@ impl CheckedComposedUnitControlTerminatorPlan {
         }
     }
 
-    /// Mutable completion arms for reconciling their retained calls in place.
-    pub fn return_arms_mut(&mut self) -> Vec<&mut CheckedConditionalReturnArm> {
-        match self {
-            Self::ConditionalReturn { return_arm, .. } => vec![return_arm],
-            Self::ConditionalCompletion {
-                when_true,
-                when_false,
-                ..
-            } => {
-                vec![when_true, when_false]
-            }
-            Self::GuardedJumps { arms, fallback } => {
-                let mut returned: Vec<_> = arms
-                    .iter_mut()
-                    .filter_map(|arm| match arm {
-                        CheckedGuardedJumpArmPlan::Return(plan) => Some(&mut plan.return_arm),
-                        CheckedGuardedJumpArmPlan::Jump(_) => None,
-                    })
-                    .collect();
-                if let CheckedGuardedJumpFallbackPlan::Return(arm) = fallback {
-                    returned.push(arm);
-                }
-                returned
-            }
-            Self::ClosedSum { cases, .. } => cases
-                .iter_mut()
-                .filter_map(|case| match &mut case.outcome {
-                    CheckedClosedSumCaseOutcomePlan::Return(arm) => Some(arm),
-                    CheckedClosedSumCaseOutcomePlan::Successor(_) => None,
-                })
-                .collect(),
-            _ => Vec::new(),
-        }
-    }
-
     /// Terminal invocations retained by the completion arms, in arm order.
     pub fn arm_calls(&self) -> Vec<&CheckedUnitEffectOperationPlan> {
         self.return_arms()

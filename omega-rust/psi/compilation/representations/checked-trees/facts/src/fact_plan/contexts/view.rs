@@ -1,7 +1,6 @@
 use arena::HandleSpan;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
-use typed_trees::expression::ExpressionHandle;
 
 use crate::{
     DomainMembershipFact, Fact, FactPayload, FactPlace, FactPlan, FactRef,
@@ -45,22 +44,6 @@ impl<'facts> FactContextView<'facts> {
                 semantic_domain,
             }),
             _ => None,
-        })
-    }
-
-    pub fn proves_domain_membership(
-        self,
-        program: &TypedTrees,
-        value: ExpressionHandle,
-        domain_symbol: SymbolHandle,
-    ) -> bool {
-        if !typed_trees::domain::supports_symbol_only_proof(program, domain_symbol) {
-            return false;
-        }
-        self.domain_memberships().any(|fact| {
-            typed_trees::domain::supports_symbol_only_proof(program, fact.domain_symbol)
-                && fact.value == value
-                && self.plan.domain_implies(fact.domain_symbol, domain_symbol)
         })
     }
 

@@ -825,19 +825,6 @@ impl CheckedOperatorFacts {
         );
     }
 
-    pub fn expression_use_in_origin(
-        &self,
-        expression: ExpressionHandle,
-        origin: CheckedValueOrigin,
-    ) -> Option<&CheckedOperatorUseFact> {
-        self.uses.iter().find_map(|(_, operator_use)| {
-            (operator_use.expression == expression
-                && operator_use.origin == origin
-                && operator_use.occurrence == CheckedOperatorOccurrence::Expression)
-                .then_some(operator_use)
-        })
-    }
-
     pub fn uses_with_status(
         &self,
         status: CheckedOperatorResolutionStatus,
@@ -908,17 +895,6 @@ impl CheckedOperatorFacts {
         self.named_requirement_uses
             .iter()
             .map(|(_, requirement_use)| requirement_use)
-    }
-
-    pub fn named_expression_use_in_origin(
-        &self,
-        expression: ExpressionHandle,
-        origin: CheckedValueOrigin,
-    ) -> Option<&CheckedNamedOperatorUseFact> {
-        self.named_uses.iter().find_map(|(_, operator_use)| {
-            (operator_use.expression == expression && operator_use.origin == origin)
-                .then_some(operator_use)
-        })
     }
 
     pub fn resolution_issues(&self) -> impl Iterator<Item = CheckedOperatorResolutionIssue<'_>> {
