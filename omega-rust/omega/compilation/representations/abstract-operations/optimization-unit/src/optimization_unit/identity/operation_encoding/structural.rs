@@ -220,29 +220,7 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             bytes.id(*psi_operation);
             encode_structural_operation_result(bytes, result);
             bytes.id(*result_case);
-            bytes.slice(fields, |bytes, initializer| {
-                bytes.id(initializer.field);
-                match &initializer.value {
-                    terminal_psi::RecordFieldValue::Scalar {
-                        value,
-                        range_obligation,
-                    } => {
-                        bytes.u8(0);
-                        bytes.id(*value);
-                        match range_obligation {
-                            Some(obligation) => {
-                                bytes.u8(1);
-                                bytes.id(*obligation);
-                            }
-                            None => bytes.u8(0),
-                        }
-                    }
-                    terminal_psi::RecordFieldValue::Structural(argument) => {
-                        bytes.u8(1);
-                        encode_structural_argument(bytes, argument);
-                    }
-                }
-            });
+            bytes.slice(fields, encode_record_initializer);
         }
         O::EstablishByteSequenceLiteral {
             psi_operation,
@@ -293,29 +271,7 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             bytes.u8(56);
             bytes.id(*psi_operation);
             encode_structural_operation_result(bytes, result);
-            bytes.slice(fields, |bytes, initializer| {
-                bytes.id(initializer.field);
-                match &initializer.value {
-                    terminal_psi::RecordFieldValue::Scalar {
-                        value,
-                        range_obligation,
-                    } => {
-                        bytes.u8(0);
-                        bytes.id(*value);
-                        match range_obligation {
-                            Some(obligation) => {
-                                bytes.u8(1);
-                                bytes.id(*obligation);
-                            }
-                            None => bytes.u8(0),
-                        }
-                    }
-                    terminal_psi::RecordFieldValue::Structural(argument) => {
-                        bytes.u8(1);
-                        encode_structural_argument(bytes, argument);
-                    }
-                }
-            });
+            bytes.slice(fields, encode_record_initializer);
         }
         O::EstablishReference {
             psi_operation,
@@ -417,6 +373,36 @@ fn encode_store_destination(
             bytes.u8(2);
             bytes.id(*block);
             encode_structural_parameter(bytes, parameter);
+        }
+    }
+}
+
+/// Encode one record/case field initializer: the field identity, then its
+/// value — a scalar (tag 0, value + optional range obligation) or a
+/// structural argument (tag 1).
+fn encode_record_initializer(
+    bytes: &mut super::CanonicalBytes,
+    initializer: &terminal_psi::RecordFieldInitializer,
+) {
+    bytes.id(initializer.field);
+    match &initializer.value {
+        terminal_psi::RecordFieldValue::Scalar {
+            value,
+            range_obligation,
+        } => {
+            bytes.u8(0);
+            bytes.id(*value);
+            match range_obligation {
+                Some(obligation) => {
+                    bytes.u8(1);
+                    bytes.id(*obligation);
+                }
+                None => bytes.u8(0),
+            }
+        }
+        terminal_psi::RecordFieldValue::Structural(argument) => {
+            bytes.u8(1);
+            encode_structural_argument(bytes, argument);
         }
     }
 }
