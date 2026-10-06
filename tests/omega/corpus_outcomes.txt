@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": "3", "load1_end": 16.71, "load1_start": 25.82, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": "2", "load1_end": 3.38, "load1_start": 3.38, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -609,6 +609,8 @@ fail/contracts/named_tail_return_contract rejected 202ms expected @43a77116e58+w
 	cannot prove ensures contract for exit from forward at statement 0: result == 1
 fail/contracts/negated_edge_guard_unproven_bound rejected 1025ms expected @2d8ed253669f
 	cannot prove requires contract for call check from main: v < 50 (needs fact `v < 50` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/contracts/nested_array_boolean_requires rejected 325ms expected @40cf22348cf8+wt
+	cannot prove requires contract for call consume from main: input.leaves[1].ready (needs fact `input.leaves[1].ready` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/contracts/proof_fact_indexed_domain_application_mismatch rejected 808ms expected @2d8ed253669f
 	index compatibility condition `index-equality:Resident:exercise_placed::entry:statement-0:Resident<SlotPlacement, Slot>==Resident<OtherPlacement, Slot>` is not established: actual `Resident<SlotPlacement, Slot>` and expected `Resident<OtherPlacement, Slot>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
 fail/contracts/proof_fact_indexed_domain_application_unevidenced rejected 850ms expected @2d8ed253669f
@@ -831,6 +833,8 @@ fail/drops/drop_ensures_unlocked_predicate rejected 131ms expected @3a2d2f7aa797
 	cannot prove ensures contract for exit from MutexGuard::drop at statement 0: mutex_guard.mutex.unlocked()
 fail/drops/local_cleanup_unmet_prerequisite rejected 1058ms expected @74a22511782
 	cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: missing token.ready == true required by Token::drop clause `token.ready`
+fail/drops/partial_move_inside_nominal_child rejected 267ms expected @40cf22348cf8+wt
+	cleanup effect dependency in `main` has no exact structural residual disposition
 fail/drops/successor_cleanup_unmet_prerequisite rejected 1064ms expected @74a22511782
 	cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: missing token.ready == true required by Token::drop clause `token.ready`
 fail/effects/nominal_callback_console_const_reach rejected 73ms expected @2d8ed253669f
@@ -2232,9 +2236,12 @@ pass/drops/core_drop_explicit_consume checked 261ms check-target:macos_arm64 @0a
 pass/drops/core_drop_owner_hook checked 251ms check-target:macos_arm64 @0aa983f6af47+wt
 pass/drops/core_drop_owner_hook_body checked 240ms check-target:macos_arm64 @0aa983f6af47+wt
 pass/drops/erased_record_initializer_exit checked 862ms check-target:macos_arm64 @302faee005ee
+pass/drops/runtime_indexed_nominal_cleanup_exit checked 1596ms check-target:macos_arm64 @40cf22348cf8+wt
 pass/drops/runtime_local_nominal_cleanup_exit checked 3992ms check-target:macos_arm64 @74a22511782
 pass/drops/runtime_local_nominal_return_exit checked 3810ms check-target:macos_arm64 @74a22511782
 pass/drops/runtime_nominal_successor_argument_order_exit checked 3687ms check-target:macos_arm64 @74a22511782
+pass/drops/runtime_projected_nominal_cleanup_exit checked 1592ms check-target:macos_arm64 @40cf22348cf8+wt
+pass/drops/runtime_projected_nominal_core_exit checked 1844ms check-target:macos_arm64 @40cf22348cf8+wt
 pass/drops/runtime_scalar_exit_nominal_cleanup_exit checked 6918ms check-target:macos_arm64 @faca6c5c7f5
 pass/drops/transfer_cleanup_into_state checked 259ms @0aa983f6af47+wt
 pass/dungeon/runtime_ordered_room_dispatch_exit checked 1484ms check-target:macos_arm64 @2d8ed253669f

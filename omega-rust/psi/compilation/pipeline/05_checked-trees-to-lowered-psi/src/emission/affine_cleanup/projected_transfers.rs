@@ -4,8 +4,9 @@
 //! whole discard into the maximal complement of its earlier owned transfers
 //! and ended reference leaves. Storage remains available to scalar siblings.
 //! Joins require identical transfer frontiers; a result birth starts a fresh
-//! occurrence. The independent receiver authenticates source custody and the
-//! cleanup-free meaning of every residual.
+//! occurrence. Selected nominal subjects remain intact boundaries within the
+//! same ordered complement. This pass neither invents hooks nor disposes a
+//! transferred subtree to make the remaining partition fit.
 use super::{LoweringError, block_position, unsupported};
 use crate::direct_calls::call_structural_arguments;
 use semantic_vocabulary::{BlockId, PlaceId, StructuralTypeId};

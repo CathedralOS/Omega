@@ -269,8 +269,8 @@ pub(super) fn prepare(
             .collect::<Result<BTreeMap<_, _>, LoweringError>>()?;
         substitute_structural_crash_route_roots(&mut crash_continuations, &substitutions)?;
     }
-    // Retain one identity per published requirement while certificates remain
-    // in the wire format. The source checker has already discharged authored
+    // Retain one identity per published requirement while certificate production
+    // remains. The source checker has already discharged authored
     // clauses at this exact call, including projected aggregate observations.
     // Re-searching those decisions after lowering loses source fact transport
     // and duplicates checking. Generated runtime requirements retain their

@@ -737,28 +737,24 @@ defines the complete product bar.
   disposition. Clean dying roots in reverse declaration order and abandoned
   construction prefixes in
   [reverse establishment order](wiki/spec/language/ownership.md#construction-and-disposal-order).
-  Crash/abort/process exit has no cleanup successor. Whole-root conditional
-  scalar returns preserve reverse parameter order, covered by
-  `pass/borrows/runtime_affine_local_case_return_exit` (42) and
-  `pass/borrows/runtime_case_return_parameter_order_exit` (0) on the native
-  route. The remaining frontier is residual cleanup:
+  Crash/abort/process exit has no cleanup successor. Remaining work:
   - Extend the ordinary normal-edge cleanup plans in
-    `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/execution/terminal_cleanup.rs`
-    to abandoned construction prefixes and mixed dying roots with executable
-    hooks. Preserve mixed-root establishment order in the existing ordered
-    action stream through Terminal, Abstract, interpreter and native consumers;
+    `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/execution/terminal_unit/cleanup/normal_edges.rs`
+    to abandoned construction prefixes. Preserve establishment order in the
+    existing ordered action stream through Terminal, Abstract, interpreter and
+    native consumers;
     do not regroup residuals behind whole roots. Keep machine parameter custody
     distinct from edge cleanup. No runtime liveness flags, untouched-array leaf
     expansion or deferral to final return. Keep
-    `pass/drops/runtime_projected_transition_cleanup_exit` and
-    `pass/drops/runtime_local_indexed_transition_cleanup_exit` as value-transfer
-    controls while adding observable cleanup-order coverage.
+    `pass/drops/runtime_projected_nominal_cleanup_exit` (`XDCBEA`) and
+    `pass/drops/runtime_indexed_nominal_cleanup_exit` (`XGFDCBEA`) as
+    value-transfer and recursive cleanup-order controls.
   - Abstract optimization validation still requires whole owned successor
     arguments in
     `omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/unit_validation/function_structure/structural_transfers.rs`.
-    Reconstruct the selected subtree's contract instead of comparing its
-    destination to the containing root. Coordinate the live static-maze loan
-    assignment on that file; this is not a native-emission blocker.
+    Preserve selected-subtree contracts as **OMEGA-READS-TERMINAL-UNVERIFIED**
+    moves ownership analysis out of the retiring verifier; do not add a second
+    independent replay. Coordinate the static-maze loan outcome.
   - Generalize temporary cleanup beyond empty effect-free Unit consumers
     (other argument effects, non-Unit results, borrowed/owned mixtures,
     claims) on **STATE-LOCAL-VALUE-FRONTIER**'s evaluation path.
@@ -773,9 +769,15 @@ defines the complete product bar.
   duplicate, reordered, overlapping, wrong-root and post-transfer cleanup,
   and transfer after disposal, reject. Fuel exhaustion commits no disposal;
   retry cannot repeat one. No affine occurrence outlives its required edge.
-  Interpreted execution of these entry-bound controls currently requires
-  **TERMINAL-RUNTIME-DRIVERS**'s `program-entry-arrival-values` adapter; prior
-  checked-interpreter results do not establish the new Terminal route.
+  Current Terminal failure for the output-bearing controls:
+  `program-entry-arrival-values` for their one structural entry parameter on
+  macOS ARM64. Keep `pass/drops/runtime_projected_nominal_core_exit` as the
+  host-independent native/Terminal value-preservation control; it does not
+  establish observable hook order.
+  **TERMINAL-RUNTIME-DRIVERS** owns that provision and subsequent exact host
+  bindings. Reproduce with `python tools/corpus_gate.py --both --filter
+  runtime_projected_nominal_cleanup_exit,runtime_indexed_nominal_cleanup_exit`.
+  Tree comparison is being retired and does not establish Terminal acceptance.
 
 - **ATOMIC-MEMORY-MODEL.** Complete atomic/fence semantics and native execution
   under [concurrency](wiki/spec/language/concurrency.md) and the

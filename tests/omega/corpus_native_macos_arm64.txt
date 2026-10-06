@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": "3", "load1_end": 12.38, "load1_start": 12.38, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": "2", "load1_end": 3.38, "load1_start": 3.38, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 189ms
 pass/arithmetic/anonymous_rational_integer_landing checked 186ms
 pass/arithmetic/bounded_assignment checked 197ms
@@ -599,9 +599,12 @@ pass/drops/core_drop_explicit_consume built 661ms exit:0 @302faee005ee
 pass/drops/core_drop_owner_hook built 573ms exit:0 @302faee005ee
 pass/drops/core_drop_owner_hook_body built 735ms exit:0 @302faee005ee
 pass/drops/erased_record_initializer_exit built 818ms exit:70 @302faee005ee
+pass/drops/runtime_indexed_nominal_cleanup_exit built 1672ms exit:0 stdout:match @40cf22348cf8+wt
 pass/drops/runtime_local_nominal_cleanup_exit built 1886ms exit:0 stdout:match @093f0ff4e0f2+wt
 pass/drops/runtime_local_nominal_return_exit built 1318ms exit:0 stdout:match @8093eb34a6ed+wt
 pass/drops/runtime_nominal_successor_argument_order_exit built 1886ms exit:0 stdout:match @093f0ff4e0f2+wt
+pass/drops/runtime_projected_nominal_cleanup_exit built 1672ms exit:0 stdout:match @40cf22348cf8+wt
+pass/drops/runtime_projected_nominal_core_exit built 1782ms exit:0 @40cf22348cf8+wt
 pass/drops/runtime_scalar_exit_nominal_cleanup_exit built 2030ms exit:0 stdout:match @792abb82ccd2
 pass/drops/transfer_cleanup_into_state checked 229ms @0aa983f6af47+wt
 pass/dungeon/runtime_ordered_room_dispatch_exit built 812ms exit:73
