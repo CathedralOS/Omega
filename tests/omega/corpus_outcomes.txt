@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": "3", "load1_end": 14.41, "load1_start": 14.41, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": null, "load1_end": 7.3, "load1_start": 6.13, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -845,15 +845,21 @@ fail/domains/unit_membership_postcondition_unestablished rejected 225ms expected
 	cannot prove ensures contract for exit from Main::spoil at statement 1: main.raw in [u8; N]::Utf8
 fail/domains/view_field_store_literal_outside_domain rejected 256ms expected @c08960bee2b1+wt
 	cannot prove the value assigned to `main.name` in Main::main is in domain `[u8]::Utf8`; a place declared `in [u8]::Utf8` requires every write to be established in that domain (pass a value already proven in the domain, or a literal its byte-predicate fact accepts)
-fail/drops/authored_cleanup_static_argument_rejected rejected 46ms expected @3a2d2f7aa797+wt
+fail/drops/authored_cleanup_static_argument_rejected rejected 72ms expected @9beb2be72f2d+wt
 	machine argument `Resource::drop` for `accept` does not refine `Selected`: expected 1 parameter(s), got 0
-fail/drops/drop_ensures_unlocked_predicate rejected 131ms expected @3a2d2f7aa797+wt
+fail/drops/drop_ensures_unlocked_predicate rejected 316ms expected @9beb2be72f2d+wt
 	cannot prove ensures contract for exit from MutexGuard::drop at statement 0: mutex_guard.mutex.unlocked()
-fail/drops/local_cleanup_unmet_prerequisite rejected 1058ms expected @74a22511782
+fail/drops/local_cleanup_unmet_prerequisite rejected 309ms expected @9beb2be72f2d+wt
 	cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: missing token.ready == true required by Token::drop clause `token.ready`
-fail/drops/partial_move_inside_nominal_child rejected 267ms expected @40cf22348cf8+wt
+fail/drops/overlapping_projected_reference_transition rejected 2442ms expected @9beb2be72f2d+wt
+	terminal-artifact production failed: Lowering(Unsupported("projected custody overlaps an earlier transfer or release"))
+fail/drops/overlapping_projected_transition rejected 2541ms expected @9beb2be72f2d+wt
+	terminal-artifact production failed: Lowering(Unsupported("projected custody overlaps an earlier transfer or release"))
+fail/drops/partial_move_inside_nominal_child rejected 264ms expected @9beb2be72f2d+wt
 	cleanup effect dependency in `main` has no exact structural residual disposition
-fail/drops/successor_cleanup_unmet_prerequisite rejected 1064ms expected @74a22511782
+fail/drops/read_after_conditional_call_move rejected 462ms expected @9beb2be72f2d+wt
+	cannot use `owner.value` in machine `invalid` state `entry` (statement 2) after `owner` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `owner` first
+fail/drops/successor_cleanup_unmet_prerequisite rejected 331ms expected @9beb2be72f2d+wt
 	cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: missing token.ready == true required by Token::drop clause `token.ready`
 fail/effects/nominal_callback_console_const_reach rejected 73ms expected @2d8ed253669f
 	fixed-array length `[u8; length()]`: const evaluation of `length` failed: machine `length` is not build-time admissible: service reach [Console]; build-time evaluation requires empty service reach, no possible suspension or blocking, ordinary checked termination, no unadmitted linear runtime carrier, and admitted declaration-selection authority across the complete call closure
@@ -2242,23 +2248,28 @@ pass/domains/utf8_field_read_carries_domain_exit checked 807ms check-target:maco
 pass/domains/utf8_field_write_from_param checked 471ms check-target:macos_arm64 @6949147699f7
 pass/domains/vacuous_domain_qualification checked 282ms @2d8ed253669f
 pass/domains/view_field_literal_store_reads_exit checked 943ms check-target:macos_arm64 @4e4bfed13aee+wt
-pass/drops/cleanup_machine_drop_shape checked 240ms @0aa983f6af47+wt
-pass/drops/conditional_structural_return_cleanup_exit checked 4350ms check-target:macos_arm64 @cfe60a3a242
-pass/drops/contextual_cleanup_exit checked 840ms check-target:macos_arm64 @db0816c5dcd4+wt
-pass/drops/contextual_core_drop_exit checked 4447ms check-target:macos_arm64 @cfe60a3a242
-pass/drops/core_drop_explicit_consume checked 261ms check-target:macos_arm64 @0aa983f6af47+wt
-pass/drops/core_drop_owner_hook checked 251ms check-target:macos_arm64 @0aa983f6af47+wt
-pass/drops/core_drop_owner_hook_body checked 240ms check-target:macos_arm64 @0aa983f6af47+wt
-pass/drops/erased_record_initializer_exit checked 862ms check-target:macos_arm64 @302faee005ee
-pass/drops/runtime_indexed_nominal_cleanup_exit checked 1596ms check-target:macos_arm64 @40cf22348cf8+wt
-pass/drops/runtime_local_nominal_cleanup_exit checked 3992ms check-target:macos_arm64 @74a22511782
-pass/drops/runtime_local_nominal_return_exit checked 3810ms check-target:macos_arm64 @74a22511782
-pass/drops/runtime_nominal_successor_argument_order_exit checked 3687ms check-target:macos_arm64 @74a22511782
-pass/drops/runtime_projected_nominal_cleanup_exit checked 1592ms check-target:macos_arm64 @40cf22348cf8+wt
-pass/drops/runtime_projected_nominal_core_exit checked 1844ms check-target:macos_arm64 @40cf22348cf8+wt
-pass/drops/runtime_scalar_exit_nominal_cleanup_exit checked 6918ms check-target:macos_arm64 @faca6c5c7f5
-pass/drops/runtime_unobserved_owned_state_transfer_exit checked 1535ms check-target:macos_arm64 @e6b33888c415+wt
-pass/drops/transfer_cleanup_into_state checked 259ms @0aa983f6af47+wt
+pass/drops/cleanup_machine_drop_shape checked 691ms @9beb2be72f2d+wt
+pass/drops/conditional_structural_return_cleanup_exit checked 2965ms check-target:macos_arm64 @9beb2be72f2d+wt
+pass/drops/contextual_cleanup_exit checked 2742ms check-target:macos_arm64 @9beb2be72f2d+wt
+pass/drops/contextual_core_drop_exit checked 3206ms check-target:macos_arm64 @9beb2be72f2d+wt
+pass/drops/core_drop_explicit_consume checked 2579ms check-target:macos_arm64 @9beb2be72f2d+wt
+pass/drops/core_drop_owner_hook checked 2599ms check-target:macos_arm64 @9beb2be72f2d+wt
+pass/drops/core_drop_owner_hook_body checked 2629ms check-target:macos_arm64 @9beb2be72f2d+wt
+pass/drops/erased_record_initializer_exit checked 2276ms check-target:macos_arm64 @9beb2be72f2d+wt
+pass/drops/runtime_computed_call_owner_retirement_exit checked 2434ms check-target:macos_arm64 @9beb2be72f2d+wt
+pass/drops/runtime_indexed_nominal_cleanup_exit checked 2774ms check-target:macos_arm64 @9beb2be72f2d+wt
+pass/drops/runtime_local_indexed_transition_cleanup_exit checked 1537ms check-target:macos_arm64 @9beb2be72f2d+wt
+pass/drops/runtime_local_nominal_cleanup_exit checked 2404ms check-target:macos_arm64 @9beb2be72f2d+wt
+pass/drops/runtime_local_nominal_return_exit checked 2225ms check-target:macos_arm64 @9beb2be72f2d+wt
+pass/drops/runtime_nominal_successor_argument_order_exit checked 2265ms check-target:macos_arm64 @9beb2be72f2d+wt
+pass/drops/runtime_projected_nominal_cleanup_exit checked 2301ms check-target:macos_arm64 @9beb2be72f2d+wt
+pass/drops/runtime_projected_nominal_core_exit checked 2218ms check-target:macos_arm64 @9beb2be72f2d+wt
+pass/drops/runtime_projected_reference_siblings_exit checked 1510ms check-target:macos_arm64 @9beb2be72f2d+wt
+pass/drops/runtime_projected_reference_transition_cleanup_exit checked 1397ms check-target:macos_arm64 @9beb2be72f2d+wt
+pass/drops/runtime_projected_transition_cleanup_exit checked 1359ms check-target:macos_arm64 @9beb2be72f2d+wt
+pass/drops/runtime_scalar_exit_nominal_cleanup_exit checked 2409ms check-target:macos_arm64 @9beb2be72f2d+wt
+pass/drops/runtime_unobserved_owned_state_transfer_exit checked 1978ms check-target:macos_arm64 @9beb2be72f2d+wt
+pass/drops/transfer_cleanup_into_state checked 342ms @9beb2be72f2d+wt
 pass/dungeon/runtime_ordered_room_dispatch_exit checked 1484ms check-target:macos_arm64 @2d8ed253669f
 pass/dungeon/runtime_threaded_mut_arg_interrupt_soak_exit checked 1332ms check-target:macos_arm64 @2d8ed253669f
 pass/effects/generic_callback_schema_reach checked 315ms @2d8ed253669f
