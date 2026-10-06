@@ -17,7 +17,7 @@ use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::emission::operation_emission::expressions::{
     LoweredDirectExpression, emit_direct_expression, emit_scalar_leaf,
 };
-use crate::expression_preparation::bindings::LoanAccess;
+use crate::expression_preparation::bindings::{LoanAccess, ScalarBindings};
 use crate::expression_preparation::source_custody::structural as source_custody;
 use checked_trees::{CheckedStructuralValueHandle, CheckedStructuralValueKind};
 
@@ -1107,13 +1107,7 @@ impl Emission<'_, '_, '_> {
             }
             CheckedStructuralValueKind::ScalarCasePlace { source, .. } => {
                 let authored = crate::declarations::state_declaration(self.checked, self.state)?;
-                let argument = crate::expression_preparation::bindings::ScalarBindings::new(
-                    self.values.iter().map(|value| value.scalar_type),
-                )
-                .with_structural_parameters(&self.evaluation.structural_parameters)
-                .with_structural_locals(&self.evaluation.structural_locals)
-                .with_structural_observations(self.structural_types)
-                .shared_structural_argument(
+                let argument = self.structural_bindings().shared_structural_argument(
                     &source,
                     authored.0,
                     self.checked.state_parameters(authored.1),
@@ -1283,14 +1277,10 @@ impl Emission<'_, '_, '_> {
                     if let Some(place) = self.parameter_source(&argument)? {
                         return Ok(place);
                     }
-                    return crate::expression_preparation::bindings::ScalarBindings::new(
-                        self.values.iter().map(|value| value.scalar_type),
-                    )
-                    .with_structural_parameters(&self.evaluation.structural_parameters)
-                    .with_structural_locals(&self.evaluation.structural_locals)
-                    .with_structural_observations(self.structural_types)
-                    .owned_argument(&argument)
-                    .map(|binding| binding.place);
+                    return self
+                        .structural_bindings()
+                        .owned_argument(&argument)
+                        .map(|binding| binding.place);
                 }
                 if !argument.path.is_empty()
                     || argument.access != checked_trees::CheckedStructuralAccess::Owned
@@ -1720,12 +1710,7 @@ impl Emission<'_, '_, '_> {
                 source,
                 self.structural_types,
             )?;
-            let bindings = crate::expression_preparation::bindings::ScalarBindings::new(
-                self.values.iter().map(|value| value.scalar_type),
-            )
-            .with_structural_parameters(&self.evaluation.structural_parameters)
-            .with_structural_locals(&self.evaluation.structural_locals)
-            .with_structural_observations(self.structural_types);
+            let bindings = self.structural_bindings();
             let whole = storage
                 .requires_establishment()
                 .then(|| allocate_dense(self.next_place).map(place_id))
@@ -1808,12 +1793,7 @@ impl Emission<'_, '_, '_> {
                 LoanAccess::Shared => "borrowed element view lost its element carrier",
                 LoanAccess::Mutable => "mutable element view lost its element carrier",
             }))?;
-        let bindings = crate::expression_preparation::bindings::ScalarBindings::new(
-            self.values.iter().map(|value| value.scalar_type),
-        )
-        .with_structural_parameters(&self.evaluation.structural_parameters)
-        .with_structural_locals(&self.evaluation.structural_locals)
-        .with_structural_observations(self.structural_types);
+        let bindings = self.structural_bindings();
         let (machine, authored) = crate::declarations::state_declaration(self.checked, self.state)?;
         let parameters = self.checked.state_parameters(authored);
         let argument = match loan {
@@ -2706,6 +2686,16 @@ impl Emission<'_, '_, '_> {
         };
         self.complete_value(place, None, continuation)?;
         Ok(continuation.place)
+    }
+
+    /// The scalar namespace augmented with every structural observation
+    /// this emission can name — the same bindings shape structural reads,
+    /// views, and argument resolution share.
+    fn structural_bindings(&self) -> ScalarBindings {
+        ScalarBindings::new(self.values.iter().map(|value| value.scalar_type))
+            .with_structural_parameters(&self.evaluation.structural_parameters)
+            .with_structural_locals(&self.evaluation.structural_locals)
+            .with_structural_observations(self.structural_types)
     }
 
     pub(super) fn scalar(
