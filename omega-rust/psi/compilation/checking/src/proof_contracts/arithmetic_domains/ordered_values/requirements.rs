@@ -56,11 +56,6 @@ pub fn validate_ordered_requirement_call_totality(
         }
         visited.push(expression);
         match program.expression_table.expression(expression) {
-            ExpressionNode::Match(dispatch) => {
-                for child in crate::expression_traversal::match_children(program, *dispatch) {
-                    pending.push(child);
-                }
-            }
             ExpressionNode::Call(call) => {
                 if let Ok((machine, _)) =
                     crate::machine_calls::denotational_calls::normal_return_call_candidate(
@@ -99,31 +94,9 @@ pub fn validate_ordered_requirement_call_totality(
                 pending
                     .extend_from_slice(program.expression_table.expression_handles(call.arguments));
             }
-            ExpressionNode::Binary(binary) => pending.extend([binary.left, binary.right]),
-            ExpressionNode::Atomic(atomic) => pending.extend([atomic.value, atomic.result]),
-            ExpressionNode::Borrow(borrow) => pending.push(borrow.target),
-            ExpressionNode::Cast(cast) => pending.push(cast.value),
-            ExpressionNode::Indexed(indexed) => pending.extend([indexed.collection, indexed.index]),
-            ExpressionNode::Member(member) => pending.push(member.receiver),
-            ExpressionNode::Range(range) => pending.extend([range.start, range.end]),
-            ExpressionNode::Unary(unary) => pending.push(unary.operand),
-            ExpressionNode::StructLiteral(literal) => pending.extend(
-                program
-                    .expression_table
-                    .struct_fields(literal.fields)
-                    .iter()
-                    .map(|field| field.value),
-            ),
-            ExpressionNode::ArrayLiteral(values) => {
-                pending.extend_from_slice(program.expression_table.expression_handles(*values))
-            }
-            ExpressionNode::Boolean(_)
-            | ExpressionNode::Float(_)
-            | ExpressionNode::UndeterminedNaN(_)
-            | ExpressionNode::Integer(_)
-            | ExpressionNode::Name(_)
-            | ExpressionNode::String(_)
-            | ExpressionNode::ZeroValue(_) => {}
+            other => crate::expression_traversal::children(program, other, |child| {
+                pending.push(child);
+            }),
         }
     }
 }
