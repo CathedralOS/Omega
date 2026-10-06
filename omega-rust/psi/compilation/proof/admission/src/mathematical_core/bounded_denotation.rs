@@ -321,41 +321,20 @@ pub fn denote_bounded_certificate(
     semantic_axioms: &[Proposition],
     proof: &ProofNode,
 ) -> Result<BoundedDenotation, BoundedDenotationError> {
-    denote_bounded_certificate_with_machine_parameters(
-        context,
-        goal,
-        assumptions,
-        semantic_axioms,
-        &BTreeSet::new(),
-        proof,
-    )
-}
-
-/// The same denotation with the verifier-reconstructed scalar signature
-/// roots parameter-custody witness rules may name — exactly as
-/// `accept_certificate_with_machine_parameters` scopes them.
-pub fn denote_bounded_certificate_with_machine_parameters(
-    context: &PropositionContext,
-    goal: &Proposition,
-    assumptions: &[Proposition],
-    semantic_axioms: &[Proposition],
-    machine_parameter_values: &BTreeSet<ValueId>,
-    proof: &ProofNode,
-) -> Result<BoundedDenotation, BoundedDenotationError> {
     run_on_verification_stack(|| {
         denote_bounded_certificate_on_current_thread(
             context,
             goal,
             assumptions,
             semantic_axioms,
-            machine_parameter_values,
+            &BTreeSet::new(),
             proof,
         )
     })
 }
 
-/// [`denote_bounded_certificate_with_machine_parameters`] on the caller's
-/// stack, for the verification route that already reserves
+/// [`denote_bounded_certificate`] on the caller's stack, for the
+/// verification route that already reserves
 /// [`run_on_verification_stack`]'s depth.
 fn denote_bounded_certificate_on_current_thread(
     context: &PropositionContext,
@@ -401,44 +380,20 @@ pub fn verify_bounded_certificate(
     proof: &ProofNode,
     budget: &mut Budget,
 ) -> Result<BoundedDenotation, BoundedDenotationError> {
-    verify_bounded_certificate_with_machine_parameters(
-        context,
-        goal,
-        assumptions,
-        semantic_axioms,
-        &BTreeSet::new(),
-        proof,
-        budget,
-    )
-}
-
-/// Denote and re-decide under the verifier-reconstructed machine
-/// parameter values — the full route
-/// `accept_certificate_with_machine_parameters` consults.
-pub fn verify_bounded_certificate_with_machine_parameters(
-    context: &PropositionContext,
-    goal: &Proposition,
-    assumptions: &[Proposition],
-    semantic_axioms: &[Proposition],
-    machine_parameter_values: &BTreeSet<ValueId>,
-    proof: &ProofNode,
-    budget: &mut Budget,
-) -> Result<BoundedDenotation, BoundedDenotationError> {
     run_on_verification_stack(|| {
         verify_bounded_certificate_on_current_thread(
             context,
             goal,
             assumptions,
             semantic_axioms,
-            machine_parameter_values,
+            &BTreeSet::new(),
             proof,
             budget,
         )
     })
 }
 
-/// [`verify_bounded_certificate_with_machine_parameters`] on the caller's
-/// stack. Elaboration recurses over the certificate's proof tree and the
+/// [`verify_bounded_certificate`] on the caller's stack. Elaboration recurses over the certificate's proof tree and the
 /// kernel recurses over the elaborated term, so the public entry runs the
 /// whole route inside [`run_on_verification_stack`] — one deep stack for
 /// both stages. `accept_certificate` calls this directly because it
