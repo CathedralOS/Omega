@@ -891,6 +891,13 @@ fail/drops/composed_cleanup_external_hook_state rejected 188ms expected @47ad8bb
 	machine `main` state `entry`: value call `drop.finish(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
 fail/drops/drop_ensures_unlocked_predicate rejected 316ms expected @9beb2be72f2d+wt
 	cannot prove ensures contract for exit from MutexGuard::drop at statement 0: mutex_guard.mutex.unlocked()
+fail/drops/generic_cleanup_fixed_owner_cannot_infer_demand rejected 374ms expected @65e8a0783b05
+	cannot prove automatic cleanup requires at selected edge from retire state entry after statement 1: token does not establish Token::drop clause `token.value == 7`
+	cannot prove automatic cleanup requires at selected edge from retire$specialized$5ae389475f33531d$0 state entry after statement 1: token does not establish Token::drop clause `token.value == 7`
+fail/drops/generic_cleanup_incomplete_compound_prerequisite rejected 503ms expected @65e8a0783b05
+	cannot prove contextual cleanup prerequisite for call forward$specialized$fe70d3b61e29b8d9$0 from main: token.ready does not establish Token::drop clause `token.ready && token.value == 7`
+fail/drops/generic_cleanup_mutated_integer_prerequisite rejected 512ms expected @65e8a0783b05
+	cannot prove contextual cleanup prerequisite for call forward$specialized$fe70d3b61e29b8d9$0 from main: token.value does not establish Token::drop clause `token.value == 7`
 fail/drops/local_cleanup_unmet_prerequisite rejected 309ms expected @9beb2be72f2d+wt
 	cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: missing token.ready == true required by Token::drop clause `token.ready`
 fail/drops/overlapping_projected_reference_transition rejected 2442ms expected @9beb2be72f2d+wt
@@ -1917,6 +1924,7 @@ pass/calls/nested_self_call_argument_exit checked 1287ms check-target:macos_arm6
 pass/calls/nested_subject_call_operand checked 126ms @cb6b089b27de+wt
 pass/calls/nested_value_call_arg_compile checked 1255ms check-target:macos_arm64 @2d8ed253669f
 pass/calls/ordered_field_selector_calls_exit checked 1986ms check-target:macos_arm64 @2d8ed253669f
+pass/calls/owned_indirect_argument_complete_forwarding_exit checked 1748ms check-target:macos_arm64 @65e8a0783b05
 pass/calls/owned_state_parameter_call_exit checked 1250ms check-target:macos_arm64 @2d8ed253669f
 pass/calls/qualified_record_call_result_field_exit checked 902ms check-target:macos_arm64 @e687de1f01bf
 pass/calls/requires_carrier_ceiling_vacuous checked 3103ms check-target:macos_arm64 @527c7c316c6f+wt
@@ -2339,6 +2347,8 @@ pass/drops/runtime_composed_nominal_output_hook_exit checked 1668ms check-target
 pass/drops/runtime_composed_nominal_return_hook_exit checked 1666ms check-target:macos_arm64 @47ad8bb72cea
 pass/drops/runtime_computed_call_owner_retirement_exit checked 2434ms check-target:macos_arm64 @9beb2be72f2d+wt
 pass/drops/runtime_effectful_projected_temporary_cleanup_exit checked 3581ms check-target:macos_arm64 @e28fa01a1e73+wt
+pass/drops/runtime_generic_nominal_compound_prerequisite_exit checked 2091ms check-target:macos_arm64 @65e8a0783b05
+pass/drops/runtime_generic_nominal_integer_prerequisite_exit checked 2027ms check-target:macos_arm64 @65e8a0783b05
 pass/drops/runtime_indexed_nominal_cleanup_exit checked 2774ms check-target:macos_arm64 @9beb2be72f2d+wt
 pass/drops/runtime_local_indexed_transition_cleanup_exit checked 1537ms check-target:macos_arm64 @9beb2be72f2d+wt
 pass/drops/runtime_local_nominal_cleanup_exit checked 2404ms check-target:macos_arm64 @9beb2be72f2d+wt

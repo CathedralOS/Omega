@@ -280,6 +280,7 @@ pass/calls/nested_self_call_argument_exit built 4661ms exit:70 @45c8d6b8b1ce+wt
 pass/calls/nested_subject_call_operand checked 722ms @9beb2be72f2d+wt
 pass/calls/nested_value_call_arg_compile built 1695ms exit:1 @bed5f45e9185+wt
 pass/calls/ordered_field_selector_calls_exit built 902ms exit:70 @e3012d6c0627+wt
+pass/calls/owned_indirect_argument_complete_forwarding_exit built 1724ms exit:0 @65e8a0783b05
 pass/calls/owned_state_parameter_call_exit built 512ms exit:70 @4ecfdc78f8c7+wt
 pass/calls/qualified_record_call_result_field_exit built 1818ms exit:70 @33d47d475b22+wt
 pass/calls/requires_carrier_ceiling_vacuous built 3069ms exit:70 @527c7c316c6f+wt
@@ -702,6 +703,8 @@ pass/drops/runtime_composed_nominal_output_hook_exit built 1653ms exit:0 stdout:
 pass/drops/runtime_composed_nominal_return_hook_exit built 1646ms exit:0 @47ad8bb72cea
 pass/drops/runtime_computed_call_owner_retirement_exit built 2808ms exit:0 @9beb2be72f2d+wt
 pass/drops/runtime_effectful_projected_temporary_cleanup_exit built 3588ms exit:0 @e28fa01a1e73+wt
+pass/drops/runtime_generic_nominal_compound_prerequisite_exit built 2042ms exit:0 stdout:match @65e8a0783b05
+pass/drops/runtime_generic_nominal_integer_prerequisite_exit built 1993ms exit:0 @65e8a0783b05
 pass/drops/runtime_indexed_nominal_cleanup_exit built 3463ms exit:0 stdout:match @9beb2be72f2d+wt
 pass/drops/runtime_local_indexed_transition_cleanup_exit built 2005ms exit:0 @9beb2be72f2d+wt
 pass/drops/runtime_local_nominal_cleanup_exit built 2602ms exit:0 stdout:match @9beb2be72f2d+wt
