@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": "2", "load1_end": 4.31, "load1_start": 3.3, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "1", "load1_end": 5.4, "load1_start": 5.43, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 189ms
 pass/arithmetic/anonymous_rational_integer_landing checked 186ms
 pass/arithmetic/bounded_assignment checked 197ms
@@ -323,6 +323,7 @@ pass/calls/runtime_guarded_terminal_reference_write_exit built 4317ms exit:0 @9b
 pass/calls/runtime_guarded_terminal_structural_result_exit built 4355ms exit:0 @9beb2be72f2d+wt
 pass/calls/runtime_indexed_scalar_calls_exit built 1627ms exit:70 @63377f7122bb+wt
 pass/calls/runtime_inherited_membership_argument_snapshot_exit built 2072ms exit:0 @cfbb6c8709b4+wt
+pass/calls/runtime_large_structural_frame_exit built 2593ms exit:70 @48547351f382+wt
 pass/calls/runtime_let_mut_reassign_exit built 591ms exit:2
 pass/calls/runtime_lifetime_only_constructor_result_exit built 1050ms exit:70
 pass/calls/runtime_linear_guarded_owner_disposition_exit built 2494ms exit:0 @9beb2be72f2d+wt

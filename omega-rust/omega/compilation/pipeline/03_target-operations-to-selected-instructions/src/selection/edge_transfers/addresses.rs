@@ -126,14 +126,17 @@ pub(super) fn store(
             register
         };
         let id = next_id(next_instruction)?;
+        let key = constraints.keys.store64.ok_or_else(error)?;
+        let row = super::super::constraints::row(catalog, key)?;
+        let operands = super::super::constraints::store_registers(id, &[pointer], row, registers)?;
         instructions.push(super::super::constraints::instruction(
             id,
             SelectedInstructionKind::Store64 {
                 slot: FrameStorageSlotId::Local(destination),
                 byte_offset: 0,
             },
-            constraints.keys.store64.ok_or_else(error)?,
-            &[pointer],
+            key,
+            &operands,
             provenance(edge),
             catalog,
         )?);

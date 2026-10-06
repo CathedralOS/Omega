@@ -147,6 +147,8 @@ struct ExpectedStore {
     /// The `to_bits` result the store writes — present only for a converted
     /// victim.
     carrier_register: Option<VirtualRegister>,
+    /// The target's frame-address temporary, independent of the stored payload.
+    address_scratch: Option<VirtualRegister>,
     /// `to_bits` exposing the stored register's payload in the carrier class.
     convert: Option<SelectedInstruction>,
     store: SelectedInstruction,
@@ -157,7 +159,10 @@ impl ExpectedStore {
     /// in stream order — conversion ahead of the `Store64`.
     fn into_streams(self) -> (Vec<VirtualRegister>, Vec<SelectedInstruction>) {
         (
-            self.carrier_register.into_iter().collect(),
+            self.carrier_register
+                .into_iter()
+                .chain(self.address_scratch)
+                .collect(),
             [self.convert, Some(self.store)]
                 .into_iter()
                 .flatten()
@@ -350,6 +355,27 @@ fn expected_store(
     // The register the slot write reads: the stored value itself, or the
     // carrier holding its raw bits after `to_bits`.
     let stored_register = carrier_id.unwrap_or(stored);
+    let address_scratch = reconstructed
+        .store
+        .operands
+        .get(1)
+        .map(|operand| {
+            Ok::<_, RuntimeSpillError>(VirtualRegister {
+                id: VirtualRegisterId(fresh(next_register)?),
+                scalar_type: reconstructed.address_scalar_type,
+                class: operand.class,
+                origin: VirtualRegisterOrigin::InstructionScratch {
+                    instruction: store_instruction,
+                    operand: operand.operand,
+                },
+                definition_site: None,
+                entry_fixed_view: None,
+            })
+        })
+        .transpose()?;
+    let store_registers = std::iter::once(stored_register)
+        .chain(address_scratch.as_ref().map(|register| register.id))
+        .collect::<Vec<_>>();
     Ok(ExpectedStore {
         carrier_register: carrier_id.map(|id| VirtualRegister {
             id,
@@ -371,6 +397,7 @@ fn expected_store(
             definition_site: reconstructed.victim.definition_site,
             entry_fixed_view: None,
         }),
+        address_scratch,
         convert: conversion.map(|conversion| {
             expected_instruction(
                 convert_instruction.unwrap_or(store_instruction),
@@ -386,7 +413,7 @@ fn expected_store(
                 byte_offset: 0,
             },
             reconstructed.store,
-            &[stored_register],
+            &store_registers,
         ),
     })
 }
@@ -1181,7 +1208,14 @@ fn reconstruct<'source>(
             load,
             &[RegisterOperandAccess::Use, RegisterOperandAccess::Def][..],
         ),
-        (store, &[RegisterOperandAccess::Use][..]),
+        (
+            store,
+            if store.operands.len() == 2 {
+                &[RegisterOperandAccess::Use, RegisterOperandAccess::Def][..]
+            } else {
+                &[RegisterOperandAccess::Use][..]
+            },
+        ),
     ] {
         if row.operands.len() != accesses.len()
             || !row.implicit_defs.is_empty()
@@ -1194,7 +1228,7 @@ fn reconstruct<'source>(
                 || operand.access != *access
                 || operand.fixed_view.is_some()
                 || operand.tied_to.is_some()
-                || operand.early_clobber
+                || operand.early_clobber != (row.key == store.key && ordinal == 1)
             {
                 return Err(RuntimeSpillError::ConstraintMismatch);
             }
@@ -1242,6 +1276,7 @@ fn reconstruct<'source>(
         // A converted victim emits one more instruction and one more
         // register at every store and every reload, so its replay charges
         // six per use and three per definition instead of four and one.
+        // A target-declared frame-address scratch adds one register per store.
         .and_then(|total| {
             total.checked_add(uses.checked_mul(if bits_conversion.is_some() { 6 } else { 4 })?)
         })
@@ -1257,11 +1292,9 @@ fn reconstruct<'source>(
             )
         })
         .and_then(|total| {
-            total.checked_add(
-                definitions
-                    .len()
-                    .checked_mul(if bits_conversion.is_some() { 3 } else { 1 })?,
-            )
+            total.checked_add(definitions.len().checked_mul(
+                (if bits_conversion.is_some() { 3 } else { 1 }) + store.operands.len() - 1,
+            )?)
         })
         .and_then(|total| total.checked_add(function.blocks.len().checked_mul(2)?))
         // The open/close decision replays once over the victim function's own

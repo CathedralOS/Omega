@@ -191,7 +191,7 @@ struct MemoryContract {
     uses_stack_pointer: bool,
 }
 
-fn memory_contract(semantic: MachineSemanticKind) -> MemoryContract {
+fn memory_contract(semantic: MachineSemanticKind, architecture: Architecture) -> MemoryContract {
     use MachineSemanticKind::*;
     use RegisterOperandAccess::{Def, Use};
     match semantic {
@@ -259,10 +259,22 @@ fn memory_contract(semantic: MachineSemanticKind) -> MemoryContract {
             uses_stack_pointer: false,
         },
         Store64 => MemoryContract {
-            accesses: &[Use],
-            early_clobbers: &[],
+            accesses: if architecture == Architecture::Aarch64 {
+                &[Use, Def]
+            } else {
+                &[Use]
+            },
+            early_clobbers: if architecture == Architecture::Aarch64 {
+                &[1]
+            } else {
+                &[]
+            },
             reads: &[0],
-            writes: &[],
+            writes: if architecture == Architecture::Aarch64 {
+                &[1]
+            } else {
+                &[]
+            },
             memory: MachineMemoryEffect::WriteFrameStorageV1,
             faulting: true,
             uses_stack_pointer: true,
@@ -381,7 +393,8 @@ fn expected_size(
             }
             StorePacked => resolved(24, 56),
             FrameAddress | AddressOffset => resolved(4, 8),
-            Store | Load8Indexed | Load8 | Load16 | Load32 | Load64 | Store64 => {
+            Store64 => MachineSizeKnowledge::ExactBytes(8),
+            Store | Load8Indexed | Load8 | Load16 | Load32 | Load64 => {
                 MachineSizeKnowledge::ExactBytes(4)
             }
             other => panic!("{other:?} is not a selected memory rule"),
@@ -447,7 +460,8 @@ fn every_selected_memory_rule_binds_the_declared_abi_memory_contract() {
                 .iter()
                 .copied()
                 .filter(|(_, semantic)| {
-                    memory_contract(*semantic).memory != MachineMemoryEffect::NoneV1
+                    memory_contract(*semantic, case.target.architecture).memory
+                        != MachineMemoryEffect::NoneV1
                 })
                 .chain(floating_control_rules(&environment))
                 .collect::<BTreeSet<_>>(),
@@ -490,7 +504,7 @@ fn every_selected_memory_rule_binds_the_declared_abi_memory_contract() {
         );
 
         for (key, semantic) in &memory_rules {
-            let contract = memory_contract(*semantic);
+            let contract = memory_contract(*semantic, case.target.architecture);
             let row = environment
                 .constraint(*key)
                 .unwrap_or_else(|| panic!("environment missing selected memory row {key:?}"));
@@ -647,7 +661,7 @@ fn every_selected_memory_rule_rejects_encoded_memory_forgery_on_every_target() {
             .unwrap()
             .units[0];
         for (key, semantic) in selected_memory_rules(&environment) {
-            let contract = memory_contract(semantic);
+            let contract = memory_contract(semantic, case.target.architecture);
             let row = environment.constraint(key).unwrap();
 
             // The declared footprint cannot be silently replaced: a real
@@ -908,7 +922,7 @@ fn every_memory_family_rejects_memory_contract_corruption_on_every_target() {
 
         let memory_rules = selected_memory_rules(&environment);
         for (key, semantic) in &memory_rules {
-            let contract = memory_contract(*semantic);
+            let contract = memory_contract(*semantic, case.target.architecture);
 
             // A declaration cannot borrow the control-flow barrier class.
             let mut corrupted = catalog.clone();
@@ -973,6 +987,7 @@ fn every_memory_family_rejects_memory_contract_corruption_on_every_target() {
                     .find(|(rule_key, _)| rule_key == key)
                     .unwrap()
                     .1,
+                case.target.architecture,
             );
 
             // Pinning an allocatable memory operand to the ABI's own argument

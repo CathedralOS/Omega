@@ -638,6 +638,18 @@ impl Builder<'_> {
         if constraint.key != key {
             return Err(SelectedInstructionError::custody());
         }
+        let store_operands;
+        let operands = if matches!(kind, SelectedInstructionKind::Store64 { .. }) {
+            store_operands = super::super::constraints::store_registers(
+                id,
+                operands,
+                &constraint,
+                &mut self.registers,
+            )?;
+            store_operands.as_slice()
+        } else {
+            operands
+        };
         let instruction = super::super::constraints::instruction_from_row(
             id,
             kind,

@@ -917,10 +917,11 @@ fn forwarding_source(
             let row_constraint = environment
                 .constraint(instruction.constraint)
                 .ok_or(StoredLoadForwardingError::ConstraintMismatch)?;
-            if row_constraint.operands.len() != 1
-                || row_constraint.operands[0].operand != 0
-                || row_constraint.operands[0].access != RegisterOperandAccess::Use
-            {
+            let mut stored = row_constraint
+                .operands
+                .iter()
+                .filter(|operand| operand.access == RegisterOperandAccess::Use);
+            if stored.next().is_none_or(|operand| operand.operand != 0) || stored.next().is_some() {
                 return Err(StoredLoadForwardingError::ConstraintMismatch);
             }
             let mut uses = instruction

@@ -391,6 +391,12 @@ pub(super) fn admit<'source>(
         local_store_shape(dead_store, environment, || {
             DeadStoreEliminationError::ConstraintMismatch
         })?;
+        if dead_store.operands.iter().any(|operand| {
+            operand.access == RegisterOperandAccess::Def
+                && !scratch_definition_is_dead(function, operand.virtual_register)
+        }) {
+            return Err(DeadStoreEliminationError::ConstraintMismatch);
+        }
     } else if byte_span {
         byte_span_store_shape(dead_store, write, function, environment)?;
     } else {

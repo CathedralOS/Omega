@@ -1204,15 +1204,15 @@ defines the complete product bar.
   package/inner-executable accessors. Keep provider selection as named
   implementations and window state as explicit owned data.
 
-  On macOS ARM64, `omega update --project samples/gui/window_demo --target
-  macos_arm64 --offline` succeeds. `omega run --keep
-  samples/gui/window_demo/main.omg` now reaches ARM64 instruction encoding and
-  fails encoding a `Store64` at stack displacement 35040 with
-  `FunctionRelativeRealization(Encoding(Aarch64(EncodedFormMismatch)))`.
-  Carry large frame-relative addresses through
-  `post-allocation-machine-to-selected-form-encoding` and `isa-aarch64`, then
-  continue the same program through publication and real execution. No window,
-  rendering or native exit has yet been observed for this sample.
+  Finish visual rendering and input/close verification for `window_demo` on
+  a desktop session that permits observation. Its public CLI run now publishes
+  `window_demo.app`, prints `PASS: 60 frames blitted (exit 0)` and exits 0;
+  a separate `open -n -W` launch also completes with that output. The current
+  macOS host denies Screen Recording; WindowServer supplies a 256-by-284
+  application-window record but no onscreen observation or captured pixels.
+  A system-Clang AppKit control has the same observation limit. Do not infer
+  visible rendering from the PASS line. Reproduce using
+  [the sample commands](samples/gui/window_demo/README.md).
   `window_app` and `windowed_calculator` still need the explicit-state provider
   migration under **STATELESS-PROVIDERS** and a fresh native run; their old
   stage-05 diagnostics are not the current frontier. General lowering also

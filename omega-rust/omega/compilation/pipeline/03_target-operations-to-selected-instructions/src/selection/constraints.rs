@@ -105,3 +105,55 @@ pub(super) fn fixed_input_constraint(
     let first = matches.next()?;
     matches.next().is_none().then_some(first)
 }
+
+/// Frame stores keep one semantic input. A target may also require an
+/// early-clobber address temporary, whose definition must exist before allocation.
+pub(super) fn store_registers(
+    instruction: SelectedInstructionId,
+    inputs: &[VirtualRegisterId],
+    row: &RegisterInstructionConstraint,
+    registers: &mut Vec<selected_instructions::VirtualRegister>,
+) -> Result<Vec<VirtualRegisterId>, SelectedInstructionError> {
+    use register_model::RegisterOperandAccess;
+    let reject = || SelectedInstructionError::MissingConstraint(row.key);
+    let [value] = inputs else {
+        return Err(reject());
+    };
+    if !matches!(row.operands.len(), 1 | 2)
+        || row.operands[0].operand != 0
+        || row.operands[0].access != RegisterOperandAccess::Use
+    {
+        return Err(reject());
+    }
+    let mut operands = vec![*value];
+    if let Some(scratch) = row.operands.get(1) {
+        if scratch.operand != 1
+            || scratch.access != RegisterOperandAccess::Def
+            || !scratch.early_clobber
+            || scratch.tied_to.is_some()
+            || scratch.fixed_view.is_some()
+        {
+            return Err(reject());
+        }
+        let id = VirtualRegisterId(registers.len().try_into().map_err(|_| reject())?);
+        registers.push(selected_instructions::VirtualRegister {
+            id,
+            scalar_type: semantic_vocabulary::ScalarType::Integer(
+                semantic_vocabulary::IntegerType::new(
+                    semantic_vocabulary::IntegerSign::Unsigned,
+                    64,
+                )
+                .map_err(|_| reject())?,
+            ),
+            class: scratch.class,
+            origin: selected_instructions::VirtualRegisterOrigin::InstructionScratch {
+                instruction,
+                operand: scratch.operand,
+            },
+            definition_site: None,
+            entry_fixed_view: None,
+        });
+        operands.push(id);
+    }
+    Ok(operands)
+}

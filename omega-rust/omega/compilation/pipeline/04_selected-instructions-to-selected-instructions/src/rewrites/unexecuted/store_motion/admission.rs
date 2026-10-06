@@ -594,7 +594,7 @@ struct Carried {
 
 /// Collect the moved store's register surface. Every operand must sit at the
 /// position its index declares; a use joins the carried reads while the
-/// packed form's scratch `Def` joins the writes. A definition on any other
+/// packed or frame store's scratch `Def` joins the writes. A definition on any other
 /// form, or implicit writes or clobbers on a non-packed store, is a write
 /// surface the route never declared and stays inadmissible.
 fn carried_surface(
@@ -612,7 +612,12 @@ fn carried_surface(
         }
         match operand.access {
             RegisterOperandAccess::Use => registers.push(operand.virtual_register),
-            _ if packed => writes.push(operand.virtual_register),
+            RegisterOperandAccess::Def
+                if packed
+                    || matches!(instruction.kind, SelectedInstructionKind::Store64 { .. }) =>
+            {
+                writes.push(operand.virtual_register)
+            }
             _ => return Err(StoreMutationMotionError::UnsupportedPair),
         }
     }

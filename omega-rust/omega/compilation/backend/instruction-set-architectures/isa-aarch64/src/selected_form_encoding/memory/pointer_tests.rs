@@ -355,15 +355,21 @@ fn incoming_slot_address_and_pointer_load_replay_without_a_store() {
         variant: 0,
     };
     assert!(
-        encode_aarch64_selected_memory_form(&physical, store_kind, store_key, &[pointer_view], 48)
-            .is_err()
+        encode_aarch64_selected_memory_form(
+            &physical,
+            store_kind,
+            store_key,
+            &[pointer_view, address_view],
+            48
+        )
+        .is_err()
     );
     assert!(
         validate_aarch64_selected_memory_form(
             &physical,
             store_kind,
             store_key,
-            &[pointer_view],
+            &[pointer_view, address_view],
             48,
             encoded.bytes()
         )

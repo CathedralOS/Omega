@@ -45,8 +45,8 @@ pub fn encode_aarch64_selected_memory_form(
             displacement,
         );
     }
-    // AArch64 frame and pointer addressing is a scaled unsigned immediate;
-    // negative (below-SP) displacements are not encodable and are rejected.
+    // Frame displacements are nonnegative; larger frame addresses use an
+    // allocated scratch. Pointer forms retain their own scaled-offset bounds.
     let displacement = u32::try_from(displacement)
         .map_err(|_| Aarch64SelectedFormEncodingError::EncodedFormMismatch)?;
     if matches!(

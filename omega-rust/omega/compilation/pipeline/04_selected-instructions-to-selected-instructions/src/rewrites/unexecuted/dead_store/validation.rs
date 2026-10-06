@@ -256,11 +256,11 @@ fn packed_store_row(
 }
 
 /// The direct slot store's operand surface: the target's declared `store64`
-/// row — exactly `[use value]` — and the instruction carrying just that one
-/// use. Removing it removes no register definition, so no custody check like
-/// the packed scratch's is needed.
+/// row — one stored-value use and an optional early-clobber address scratch.
+/// Removing it also requires that scratch definition to be unused.
 fn local_store_row(
     instruction: &SelectedInstruction,
+    function: &SelectedFunction,
     environment: &ValidatedTargetRegisterEnvironment,
 ) -> Result<(), DeadStoreEliminationError> {
     if environment.selected_keys().store64 != Some(instruction.constraint) {
@@ -269,13 +269,36 @@ fn local_store_row(
     let row = environment
         .constraint(instruction.constraint)
         .ok_or(DeadStoreEliminationError::ConstraintMismatch)?;
-    if row.operands.len() != 1
+    if !matches!(row.operands.len(), 1 | 2)
         || row.operands[0].operand != 0
         || row.operands[0].access != RegisterOperandAccess::Use
-        || instruction.operands.len() != 1
-        || instruction.operands[0].operand != 0
-        || instruction.operands[0].access != RegisterOperandAccess::Use
+        || row.operands.get(1).is_some_and(|operand| {
+            operand.operand != 1
+                || operand.access != RegisterOperandAccess::Def
+                || !operand.early_clobber
+                || operand.tied_to.is_some()
+                || operand.fixed_view.is_some()
+        })
+        || instruction.operands.len() != row.operands.len()
+        || instruction
+            .operands
+            .iter()
+            .zip(&row.operands)
+            .any(|(actual, expected)| {
+                actual.operand != expected.operand
+                    || actual.access != expected.access
+                    || actual.class != expected.class
+                    || actual.early_clobber != expected.early_clobber
+                    || actual.tied_to != expected.tied_to
+                    || actual.fixed_view != expected.fixed_view
+            })
     {
+        return Err(DeadStoreEliminationError::ConstraintMismatch);
+    }
+    if instruction.operands.iter().any(|operand| {
+        operand.access == RegisterOperandAccess::Def
+            && !scratch_dies(function, operand.virtual_register)
+    }) {
         return Err(DeadStoreEliminationError::ConstraintMismatch);
     }
     Ok(())
@@ -1092,7 +1115,7 @@ fn reconstruct<'source>(
     if packed {
         packed_store_row(dead_store, function, environment)?;
     } else if direct_slot.is_some() {
-        local_store_row(dead_store, environment)?;
+        local_store_row(dead_store, function, environment)?;
     } else if byte_span {
         byte_span_row(dead_store, write, function, environment)?;
     } else {

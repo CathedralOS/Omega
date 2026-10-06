@@ -424,19 +424,27 @@ pub fn aarch64_register_constraint_catalog(
             clobbers: Vec::new(),
         });
     }
-    for (key, access) in [
-        (AARCH64_STORE64, RegisterOperandAccess::Use),
-        (AARCH64_FRAME_ADDRESS, RegisterOperandAccess::Def),
-    ] {
-        constraints.push(RegisterInstructionConstraint {
-            id: RegisterConstraintId(0),
-            key,
-            operands: vec![allocatable(0, access, GPR64)],
-            implicit_uses: view("sp").units.clone(),
-            implicit_defs: Vec::new(),
-            clobbers: Vec::new(),
-        });
-    }
+    let mut store_address = allocatable(1, RegisterOperandAccess::Def, GPR64);
+    store_address.early_clobber = true;
+    constraints.push(RegisterInstructionConstraint {
+        id: RegisterConstraintId(0),
+        key: AARCH64_STORE64,
+        operands: vec![
+            allocatable(0, RegisterOperandAccess::Use, GPR64),
+            store_address,
+        ],
+        implicit_uses: view("sp").units.clone(),
+        implicit_defs: Vec::new(),
+        clobbers: Vec::new(),
+    });
+    constraints.push(RegisterInstructionConstraint {
+        id: RegisterConstraintId(0),
+        key: AARCH64_FRAME_ADDRESS,
+        operands: vec![allocatable(0, RegisterOperandAccess::Def, GPR64)],
+        implicit_uses: view("sp").units.clone(),
+        implicit_defs: Vec::new(),
+        clobbers: Vec::new(),
+    });
     let scalar_call = constraints
         .iter()
         .find(|row| row.key == AARCH64_AAPCS64_CALL_I64_PAIR_TO_I64)

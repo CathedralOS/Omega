@@ -578,7 +578,7 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
         | MachineSemanticKind::ReturnAggregate
         | MachineSemanticKind::Jump
         | MachineSemanticKind::ReturnUnit => (vec![], vec![]),
-        MachineSemanticKind::Store64 => (vec![0], vec![]),
+        MachineSemanticKind::Store64 => (vec![0], vec![1]),
         MachineSemanticKind::Store => (vec![0, 1], vec![]),
         MachineSemanticKind::FrameAddress => (vec![], vec![0]),
         MachineSemanticKind::HostedExitProcessI32
@@ -799,6 +799,9 @@ fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
     }
     match semantic {
         MachineSemanticKind::Crash => MachineSizeKnowledge::ExactBytes(4),
+        // The allocated address scratch is always written before the store,
+        // including small offsets; its early-clobber contract is not optional.
+        MachineSemanticKind::Store64 => MachineSizeKnowledge::ExactBytes(8),
         MachineSemanticKind::CopyBytes => MachineSizeKnowledge::ExactBytes(28),
         MachineSemanticKind::ScanByteSequence => MachineSizeKnowledge::EncoderResolved {
             minimum_bytes: 20,

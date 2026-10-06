@@ -403,8 +403,8 @@ pub(super) fn packed_store_row_shape<E>(
 }
 
 /// The direct slot store's operand surface: the target's declared `store64`
-/// row — exactly `[use value]` — and the instruction carrying just that one
-/// use. The instruction defines nothing, so no custody check is needed.
+/// row — one stored-value use and an optional early-clobber address scratch.
+/// Rewrites must preserve or discharge the scratch definition independently.
 pub(super) fn local_store_shape<E>(
     instruction: &SelectedInstruction,
     environment: &ValidatedTargetRegisterEnvironment,
@@ -416,12 +416,29 @@ pub(super) fn local_store_shape<E>(
     let row = environment
         .constraint(instruction.constraint)
         .ok_or_else(&reject)?;
-    if row.operands.len() != 1
+    if !matches!(row.operands.len(), 1 | 2)
         || row.operands[0].operand != 0
         || row.operands[0].access != RegisterOperandAccess::Use
-        || instruction.operands.len() != 1
-        || instruction.operands[0].operand != 0
-        || instruction.operands[0].access != RegisterOperandAccess::Use
+        || row.operands.get(1).is_some_and(|operand| {
+            operand.operand != 1
+                || operand.access != RegisterOperandAccess::Def
+                || !operand.early_clobber
+                || operand.tied_to.is_some()
+                || operand.fixed_view.is_some()
+        })
+        || instruction.operands.len() != row.operands.len()
+        || instruction
+            .operands
+            .iter()
+            .zip(&row.operands)
+            .any(|(actual, expected)| {
+                actual.operand != expected.operand
+                    || actual.access != expected.access
+                    || actual.class != expected.class
+                    || actual.early_clobber != expected.early_clobber
+                    || actual.tied_to != expected.tied_to
+                    || actual.fixed_view != expected.fixed_view
+            })
     {
         return Err(reject());
     }

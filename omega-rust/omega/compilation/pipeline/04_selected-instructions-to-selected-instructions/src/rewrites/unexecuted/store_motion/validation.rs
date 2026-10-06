@@ -379,7 +379,7 @@ struct Carried {
 /// Collect the moved store's register surface — the validator's own
 /// operand-position audit. Every operand must sit at the position its
 /// index declares; a use joins the carried reads while the packed form's
-/// scratch `Def` joins the writes. A definition on any other form, or
+/// or frame store's scratch `Def` joins the writes. A definition on any other form, or
 /// implicit writes or clobbers on a non-packed store, is a write surface
 /// the route never declared and stays inadmissible.
 fn carried_surface(
@@ -397,7 +397,12 @@ fn carried_surface(
         }
         match operand.access {
             RegisterOperandAccess::Use => registers.push(operand.virtual_register),
-            _ if packed => writes.push(operand.virtual_register),
+            RegisterOperandAccess::Def
+                if packed
+                    || matches!(instruction.kind, SelectedInstructionKind::Store64 { .. }) =>
+            {
+                writes.push(operand.virtual_register)
+            }
             _ => return Err(StoreMutationMotionError::UnsupportedPair),
         }
     }
@@ -433,8 +438,8 @@ fn place_store_shape(
 
 /// The direct slot store's operand surface — the validator's own
 /// surface audit: the target's declared `store64` row, exactly
-/// `[use value]`, and the instruction carrying just that one use. The
-/// move defines nothing, so no custody check is needed.
+/// one stored-value use and an optional early-clobber address scratch.
+/// The ordinary movement hazards preserve that scratch definition.
 fn local_store_shape(
     instruction: &SelectedInstruction,
     environment: &ValidatedTargetRegisterEnvironment,
@@ -445,12 +450,29 @@ fn local_store_shape(
     let row = environment
         .constraint(instruction.constraint)
         .ok_or(StoreMutationMotionError::ConstraintMismatch)?;
-    if row.operands.len() != 1
+    if !matches!(row.operands.len(), 1 | 2)
         || row.operands[0].operand != 0
         || row.operands[0].access != RegisterOperandAccess::Use
-        || instruction.operands.len() != 1
-        || instruction.operands[0].operand != 0
-        || instruction.operands[0].access != RegisterOperandAccess::Use
+        || row.operands.get(1).is_some_and(|operand| {
+            operand.operand != 1
+                || operand.access != RegisterOperandAccess::Def
+                || !operand.early_clobber
+                || operand.tied_to.is_some()
+                || operand.fixed_view.is_some()
+        })
+        || instruction.operands.len() != row.operands.len()
+        || instruction
+            .operands
+            .iter()
+            .zip(&row.operands)
+            .any(|(actual, expected)| {
+                actual.operand != expected.operand
+                    || actual.access != expected.access
+                    || actual.class != expected.class
+                    || actual.early_clobber != expected.early_clobber
+                    || actual.tied_to != expected.tied_to
+                    || actual.fixed_view != expected.fixed_view
+            })
     {
         return Err(StoreMutationMotionError::ConstraintMismatch);
     }

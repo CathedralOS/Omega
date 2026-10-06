@@ -2,7 +2,10 @@
 //! A `FrameAddress` is one `add xD, sp, #imm` inside the first 4 KiB of the
 //! frame and a shifted-then-unshifted `add` pair past it — the same immediate
 //! reach the frame protocol's `sp` adjustment admits — so every displacement
-//! a committable frame can resolve encodes exactly.
+//! a committable frame can resolve encodes exactly. `Store64` always writes
+//! an allocated early-clobber address scratch before its memory operation.
+//! The two-word form covers the same frame extent without hidden register
+//! clobbers or an unused definition in a compact encoding.
 
 use super::{
     Aarch64SelectedFormEncodingError, Aarch64SelectedFormFootprint, MachineAlternativeFamily,
@@ -37,7 +40,7 @@ fn request(
     alternative: MachineAlternativeKey,
     operands: &[RegisterViewId],
     displacement: u32,
-) -> Result<(u8, bool), Aarch64SelectedFormEncodingError> {
+) -> Result<(u8, Option<u8>), Aarch64SelectedFormEncodingError> {
     let store = matches!(kind, SelectedInstructionKind::Store64 { .. });
     let family = if store {
         MachineAlternativeFamily::Store64
@@ -59,19 +62,17 @@ fn request(
             SelectedInstructionKind::Store64 { .. } | SelectedInstructionKind::FrameAddress { .. }
         )
         || alternative != (MachineAlternativeKey { family, variant: 0 })
-        || if store {
-            !displacement.is_multiple_of(8) || displacement > 32760
-        } else {
-            u64::from(displacement) > crate::frame_protocol::MAX_STACK_POINTER_ADJUST_BYTES
-        }
+        || (store && !displacement.is_multiple_of(8))
+        || u64::from(displacement) > crate::frame_protocol::MAX_STACK_POINTER_ADJUST_BYTES
     {
         return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
     }
     let registers = resolve_registers(physical, operands)?;
-    let [register] = registers.as_slice() else {
-        return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
-    };
-    Ok((*register, store))
+    match registers.as_slice() {
+        [value, scratch] if store && value != scratch => Ok((*value, Some(*scratch))),
+        [register] if !store => Ok((*register, None)),
+        _ => Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch),
+    }
 }
 
 pub(super) fn encode(
@@ -81,10 +82,18 @@ pub(super) fn encode(
     operands: &[RegisterViewId],
     displacement: u32,
 ) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
-    let (register, store) = request(physical, kind, alternative, operands, displacement)?;
-    let bytes: Vec<u8> = if store {
-        let word = 0xf900_0000 | ((displacement / 8) << 10) | (31 << 5) | u32::from(register);
-        word.to_le_bytes().to_vec()
+    let (register, scratch) = request(physical, kind, alternative, operands, displacement)?;
+    let bytes: Vec<u8> = if let Some(scratch) = scratch {
+        // add xScratch, sp, #high, lsl #12; str xValue, [xScratch, #low].
+        let address = 0x9140_03e0 | ((displacement >> 12) << 10) | u32::from(scratch);
+        let store = 0xf900_0000
+            | (((displacement & 4095) / 8) << 10)
+            | (u32::from(scratch) << 5)
+            | u32::from(register);
+        [address, store]
+            .into_iter()
+            .flat_map(u32::to_le_bytes)
+            .collect()
     } else {
         let (first, second) = frame_address_words(register, displacement);
         first
@@ -104,17 +113,20 @@ pub(super) fn validate(
     displacement: u32,
     bytes: &[u8],
 ) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
-    let (register, store) = request(physical, kind, alternative, operands, displacement)?;
-    if store {
-        let word = bytes
+    let (register, scratch) = request(physical, kind, alternative, operands, displacement)?;
+    if let Some(scratch) = scratch {
+        let words: [u8; 8] = bytes
             .try_into()
-            .ok()
-            .map(u32::from_le_bytes)
-            .ok_or(Aarch64SelectedFormEncodingError::MalformedEncoding)?;
-        if word & 0xffc0_0000 != 0xf900_0000
-            || word & 31 != u32::from(register)
-            || (word >> 5) & 31 != 31
-            || ((word >> 10) & 4095) * 8 != displacement
+            .map_err(|_| Aarch64SelectedFormEncodingError::MalformedEncoding)?;
+        let address = u32::from_le_bytes([words[0], words[1], words[2], words[3]]);
+        let store = u32::from_le_bytes([words[4], words[5], words[6], words[7]]);
+        if address & 0xffc0_03e0 != 0x9140_03e0
+            || address & 31 != u32::from(scratch)
+            || (address >> 10) & 4095 != displacement >> 12
+            || store & 0xffc0_0000 != 0xf900_0000
+            || store & 31 != u32::from(register)
+            || (store >> 5) & 31 != u32::from(scratch)
+            || ((store >> 10) & 4095) * 8 != (displacement & 4095)
         {
             return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
         }
@@ -132,6 +144,7 @@ pub(super) fn validate(
             return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
         }
     }
+    let store = scratch.is_some();
     let stack_pointer = physical
         .model()
         .view_named("sp")
@@ -139,12 +152,12 @@ pub(super) fn validate(
     Ok(ValidatedAarch64SelectedFormEncoding {
         bytes: bytes.to_vec(),
         footprint: Aarch64SelectedFormFootprint {
-            register_reads: if store { operands.to_vec() } else { Vec::new() },
-            register_writes: if store { Vec::new() } else { operands.to_vec() },
+            register_reads: if store { vec![operands[0]] } else { Vec::new() },
+            register_writes: vec![operands[usize::from(store)]],
             writes_nzcv: false,
             encoded: MachineEncodedEffects {
                 external_operand_reads: if store { vec![0] } else { Vec::new() },
-                external_operand_writes: if store { Vec::new() } else { vec![0] },
+                external_operand_writes: vec![u16::from(store)],
                 implicit_unit_uses: stack_pointer.units.clone(),
                 implicit_unit_defs: Vec::new(),
                 implicit_unit_clobbers: Vec::new(),
@@ -207,19 +220,35 @@ mod tests {
                 variant: 0,
             };
             let displacements: &[u32] = if store {
-                &[0, 8, 32760]
+                &[0, 8, 32760, 32768, 35040, 65_536, 16_777_208]
             } else {
                 &[0, 17, 4095, 4096, 4192, 16_777_215]
             };
             for displacement in displacements.iter().copied() {
-                let operands = [physical.model().view_named("x9").unwrap().id];
+                let mut operands = vec![physical.model().view_named("x9").unwrap().id];
+                if store {
+                    operands.push(physical.model().view_named("x10").unwrap().id);
+                }
                 let encoded =
                     encode(&physical, kind, alternative, &operands, displacement).unwrap();
                 assert_eq!(
                     encoded.footprint.encoded.implicit_unit_uses,
                     physical.model().view_named("sp").unwrap().units
                 );
-                if !store {
+                if store {
+                    assert_eq!(encoded.bytes().len(), 8);
+                    assert_eq!(encoded.footprint.register_writes, vec![operands[1]]);
+                    assert!(
+                        encode(
+                            &physical,
+                            kind,
+                            alternative,
+                            &[operands[0], operands[0]],
+                            displacement
+                        )
+                        .is_err()
+                    );
+                } else {
                     assert_eq!(
                         encoded.bytes().len(),
                         if displacement <= 4095 || displacement % 4096 == 0 {
@@ -277,16 +306,7 @@ mod tests {
                     )
                     .is_err()
                 );
-                assert!(
-                    encode(
-                        &physical,
-                        kind,
-                        alternative,
-                        &operands,
-                        if store { 32768 } else { 16_777_216 }
-                    )
-                    .is_err()
-                );
+                assert!(encode(&physical, kind, alternative, &operands, 16_777_216).is_err());
                 assert!(encode(&physical, kind, alternative, &[], displacement).is_err());
             }
             if store {
