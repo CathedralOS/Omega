@@ -458,6 +458,9 @@ impl LoanChains {
             if chain.multiplicity != StructuralMultiplicity::Affine {
                 continue;
             }
+            if let ChainBacking::LenderHome { home: Some(home) } = chain.backing {
+                retain_lent_home(&mut machine.blocks, home);
+            }
             let member_headers = chain
                 .members
                 .iter()
@@ -514,6 +517,56 @@ impl LoanChains {
             }
         }
         Ok(())
+    }
+}
+
+/// Drop a lender home's disposal from each edge that lends the home onward.
+///
+/// The lender is not a chain member, so `finish` never reaches its exits:
+/// only the chain's ends own the home's disposal. Stage 04 still records the
+/// lender state's whole dying complement on that exit, because the authored
+/// local's last source use is the transition, so `cleanup::for_exit` lowers a
+/// `DiscardRoot` of the home onto the very edge that hands out the loan. An
+/// edge cannot both carry a borrow of a root and destroy it: the loan's
+/// referent would be gone on arrival, and terminal validation refuses that
+/// pairing (`block_views::mutable_records::validate_terminator`, "a loan
+/// carried on this edge still needs its home"). Keyed on the argument rather
+/// than on which state lends, so a lender that lends on one arm and lets the
+/// local die on another keeps the dying arm's disposal.
+fn retain_lent_home(blocks: &mut [terminal_psi::Block], home: PlaceId) {
+    for block in blocks {
+        match &mut block.terminator {
+            Terminator::Jump {
+                structural_arguments,
+                cleanup_actions,
+                ..
+            } => retain_unless_lent(structural_arguments, cleanup_actions, home),
+            Terminator::Conditional {
+                when_true,
+                when_false,
+                ..
+            } => {
+                for arm in [when_true, when_false] {
+                    retain_unless_lent(&arm.structural_arguments, &mut arm.cleanup_actions, home);
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
+/// Transferred chain storage moves as an `Owned` argument and still dies on
+/// the edge that moves it; only a retained borrow keeps the home alive.
+fn retain_unless_lent(
+    arguments: &[StructuralArgument],
+    actions: &mut Vec<TerminalAffineCleanupAction>,
+    home: PlaceId,
+) {
+    if arguments
+        .iter()
+        .any(|argument| argument.place == home && argument.access != StructuralAccess::Owned)
+    {
+        actions.retain(|action| action.place() != home);
     }
 }
 
