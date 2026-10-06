@@ -4,5 +4,11 @@
     "capability": "selected-reference-result-backing",
     "task": "TERMINAL-CONST-STRUCTURES",
     "route": "interpreter"
+  },
+  {
+    "fixture": "pass/collections/runtime_fixed_array_selector_call_store_exit",
+    "capability": "external-completion-invocation",
+    "task": "TERMINAL-RUNTIME-DRIVERS",
+    "route": "interpreter"
   }
 ]

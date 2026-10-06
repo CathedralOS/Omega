@@ -2,17 +2,23 @@
 //!
 //! A valid selected reference result can retain several possible ingress
 //! backings; the current reference runtime transports only singleton origins.
-//! Reject that missing transport before any entry operation, rather than after
+//! External completions also need a closed terminal invocation; the transitional
+//! Unit result is not a normal return the runtime can commit. Reject these
+//! missing capabilities before any entry operation, rather than after
 //! a preceding boundary effect. This is not semantic verification: admission
 //! already authenticated these signatures and dispatch tables. Walk possible
 //! executable calls from the chosen entry, preserving descriptor arguments and
 //! installed providers, so unrelated retained declarations and unused dynamic
 //! requirement rows do not impose runtime capabilities.
+//! The existing selected-backing refusal takes priority over external completion:
+//! collect external demands while inspecting the rest of the closure, without
+//! following them as normal provider calls. This keeps independent transport
+//! limitations visible regardless of when an external call is encountered.
 
 use crate::effects::AdmittedProviderInstallation;
 use crate::errors::TerminalInterpretError;
 use crate::program::AdmittedTerminalProgram;
-use semantic_vocabulary::{BoundaryMachineId, MachineId, OperationId};
+use semantic_vocabulary::{BoundaryMachineId, ExternalCompletionKind, MachineId, OperationId};
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{
     OperationKind, StructuralPathSegment, TerminalAffineCleanupAction,
@@ -23,6 +29,10 @@ use terminal_psi::{
 /// Driver task names and display diagnostics belong to the driver, not Psi.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TerminalUnsupportedCapability {
+    ExternalCompletionInvocation {
+        boundary: BoundaryMachineId,
+        kind: ExternalCompletionKind,
+    },
     SelectedReferenceResultBacking {
         machine: MachineId,
         result_path: Vec<StructuralPathSegment>,
@@ -48,6 +58,7 @@ pub(crate) fn check(
     }
     let mut imports = BTreeSet::new();
     let mut missing_providers = BTreeSet::new();
+    let mut external_completion = None;
     let mut pending = vec![(program.catalogs.entry, DescriptorParameters::new())];
     let mut visited = BTreeSet::new();
     while let Some((machine_id, parameters)) = pending.pop() {
@@ -130,6 +141,17 @@ pub(crate) fn check(
                             .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?,
                     ),
                     OperationKind::BoundaryCall { boundary, .. } => {
+                        let declaration = program.boundary_machines.get(boundary).ok_or(
+                            TerminalInterpretError::VerifiedBoundaryMachineMissing(*boundary),
+                        )?;
+                        if let terminal_psi::BoundaryCompletion::External(kind) =
+                            declaration.completion
+                        {
+                            if external_completion.is_none_or(|(found, _)| *boundary < found) {
+                                external_completion = Some((*boundary, kind));
+                            }
+                            continue;
+                        }
                         // An admitted assumed binding may also resolve a
                         // required boundary to a checked provider. Follow the
                         // exact installation map, not only direct candidates.
@@ -185,6 +207,11 @@ pub(crate) fn check(
                     }),
             );
         }
+    }
+    if let Some((boundary, kind)) = external_completion {
+        return Err(TerminalInterpretError::UnsupportedCapability(
+            TerminalUnsupportedCapability::ExternalCompletionInvocation { boundary, kind },
+        ));
     }
     Ok(TerminalExecutionRequirements {
         imports: imports.into_iter().collect(),
@@ -314,7 +341,151 @@ mod tests {
         let entry = MachineId::new(1).unwrap();
         let mut program = AdmittedTerminalProgram::admit(TerminalModule::for_entry(entry)).unwrap();
         program.machines.insert(entry, machine(1, Vec::new()));
+        let boundary = BoundaryMachineId::new(1).unwrap();
         program
+            .boundary_machines
+            .insert(boundary, boundary_declaration(boundary));
+        program
+    }
+
+    fn boundary_declaration(
+        boundary: BoundaryMachineId,
+    ) -> terminal_psi::BoundaryMachineDeclaration {
+        terminal_psi::BoundaryMachineDeclaration {
+            id: boundary,
+            kind: semantic_vocabulary::BoundaryRequirementKind::Machine,
+            completion: terminal_psi::BoundaryCompletion::NormalReturn,
+            unconditional_termination: false,
+            identity: "graph boundary".into(),
+            attachment: None,
+            parameter_order: Vec::new(),
+            scalar_parameters: Vec::new(),
+            crash_routes: Vec::new(),
+            structural_parameters: Vec::new(),
+            result: terminal_psi::BoundaryMachineResult::Unit,
+            requires: Vec::new(),
+            scalar_requires: Vec::new(),
+            scalar_ensures: Vec::new(),
+            program_local_root_introductions: Vec::new(),
+            content_guarantees: Vec::new(),
+            fixed_service_reach: Vec::new(),
+            published_service_ceiling: Vec::new(),
+        }
+    }
+
+    fn boundary_call(boundary: BoundaryMachineId) -> OperationKind {
+        OperationKind::BoundaryCall {
+            boundary,
+            arguments: Vec::new(),
+            structural_arguments: Vec::new(),
+            completion_receipts: Vec::new(),
+            requirement_obligations: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn capability_graph_refuses_external_completion_before_provider_dispatch() {
+        let mut program = program();
+        let boundary = BoundaryMachineId::new(1).unwrap();
+        program
+            .boundary_machines
+            .get_mut(&boundary)
+            .unwrap()
+            .completion =
+            terminal_psi::BoundaryCompletion::External(ExternalCompletionKind::ProcessExit);
+        program.machines.insert(
+            program.catalogs.entry,
+            machine(0, vec![boundary_call(boundary)]),
+        );
+        program.provider_candidates.insert(boundary);
+        assert_eq!(
+            check(&program, None),
+            Err(TerminalInterpretError::UnsupportedCapability(
+                TerminalUnsupportedCapability::ExternalCompletionInvocation {
+                    boundary,
+                    kind: ExternalCompletionKind::ProcessExit,
+                },
+            ))
+        );
+    }
+
+    #[test]
+    fn capability_graph_ignores_unreachable_external_completion() {
+        let mut program = program();
+        let boundary = BoundaryMachineId::new(1).unwrap();
+        program
+            .boundary_machines
+            .get_mut(&boundary)
+            .unwrap()
+            .completion =
+            terminal_psi::BoundaryCompletion::External(ExternalCompletionKind::ProcessExit);
+        program.machines.insert(
+            MachineId::new(2).unwrap(),
+            machine(0, vec![boundary_call(boundary)]),
+        );
+        assert!(check(&program, None).unwrap().imports.is_empty());
+    }
+
+    #[test]
+    fn capability_graph_missing_declaration_remains_malformed() {
+        let mut program = program();
+        let boundary = BoundaryMachineId::new(2).unwrap();
+        program.machines.insert(
+            program.catalogs.entry,
+            machine(0, vec![boundary_call(boundary)]),
+        );
+        assert_eq!(
+            check(&program, None),
+            Err(TerminalInterpretError::VerifiedBoundaryMachineMissing(
+                boundary
+            ))
+        );
+    }
+
+    #[test]
+    fn capability_graph_selected_backing_precedes_external_completion() {
+        let mut program = program();
+        let boundary = BoundaryMachineId::new(1).unwrap();
+        let selected = MachineId::new(2).unwrap();
+        program
+            .boundary_machines
+            .get_mut(&boundary)
+            .unwrap()
+            .completion =
+            terminal_psi::BoundaryCompletion::External(ExternalCompletionKind::ProcessExit);
+        program.machines.insert(
+            program.catalogs.entry,
+            machine(0, vec![boundary_call(boundary), unit_call(selected)]),
+        );
+        program.machines.insert(selected, machine(2, Vec::new()));
+        assert!(
+            matches!(check(&program, None), Err(TerminalInterpretError::UnsupportedCapability(
+            TerminalUnsupportedCapability::SelectedReferenceResultBacking { machine, .. }
+        )) if machine == selected)
+        );
+    }
+
+    #[test]
+    fn capability_graph_external_completion_does_not_hide_malformed_closure() {
+        let mut program = program();
+        let external = BoundaryMachineId::new(1).unwrap();
+        let missing = BoundaryMachineId::new(2).unwrap();
+        program
+            .boundary_machines
+            .get_mut(&external)
+            .unwrap()
+            .completion =
+            terminal_psi::BoundaryCompletion::External(ExternalCompletionKind::ProcessExit);
+        program.machines.insert(
+            program.catalogs.entry,
+            machine(0, vec![boundary_call(external), boundary_call(missing)]),
+        );
+        assert_eq!(
+            check(&program, None),
+            Err(TerminalInterpretError::VerifiedBoundaryMachineMissing(
+                missing
+            ))
+        );
     }
 
     fn unit_call(callee: MachineId) -> OperationKind {

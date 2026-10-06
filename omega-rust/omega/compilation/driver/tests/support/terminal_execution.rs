@@ -54,6 +54,15 @@ pub(super) fn interpret(
         Err(error) => {
             return match error {
                 TerminalInterpretError::UnsupportedCapability(
+                    TerminalUnsupportedCapability::ExternalCompletionInvocation { boundary, kind },
+                ) => Observation::missing(
+                    "external-completion-invocation",
+                    "TERMINAL-RUNTIME-DRIVERS",
+                    format!(
+                        "boundary {boundary:?} demands {kind:?}; its closed terminal invocation is missing"
+                    ),
+                ),
+                TerminalInterpretError::UnsupportedCapability(
                     TerminalUnsupportedCapability::SelectedReferenceResultBacking {
                         machine,
                         result_path,
@@ -116,24 +125,12 @@ pub(super) fn interpret(
         let Some(import) = program.import(*slot) else {
             return Observation::failure("reachable import has no admitted declaration");
         };
-        let external = import.completion != terminal_psi::BoundaryCompletion::NormalReturn;
         return Observation::missing(
-            if external {
-                "external-completion-invocation"
-            } else {
-                "runtime-host-import-bindings"
-            },
+            "runtime-host-import-bindings",
             "TERMINAL-RUNTIME-DRIVERS",
             format!(
-                "exact import {:?} ({}) demands {:?}; {}",
-                import.id,
-                import.identity,
-                import.completion,
-                if external {
-                    "terminal external-completion invocation and its host adapter are missing"
-                } else {
-                    "the exact runtime host binding adapter is missing"
-                }
+                "exact import {:?} ({}) demands {:?}; its exact runtime host binding adapter is missing",
+                import.id, import.identity, import.completion,
             ),
         );
     }

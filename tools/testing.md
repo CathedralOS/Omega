@@ -242,7 +242,7 @@ The interpreted and combined defaults name `corpus_interpreted.txt` and
 bounded migration replay explicitly compares with `corpus_outcomes.txt`, leaves
 new runtime facts visible as moves, and uses the exact reviewed
 `tests/omega/interpreter_migration.json` designation. Unimplemented interpreter
-debt stays nonzero and never exempts a wrong native result. The full three-control
+debt stays nonzero and never exempts a wrong native result. The bounded replay
 command is in [the corpus tests guide](../omega-rust/omega/compilation/driver/tests/README.md#reviewed-interpreter-migration-debt).
 
 It realizes for the target the fixture declares, preferring the host when the

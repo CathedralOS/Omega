@@ -21,8 +21,8 @@ use crate::effects::{TerminalEffect, TerminalEffectHandler, TerminalEffectReject
 use crate::values::TerminalScalarValue;
 use semantic_vocabulary::{ScalarType, StructuralDomainId, StructuralTypeId};
 use terminal_psi::{
-    BoundaryMachineDeclaration, BoundaryMachineResult, StructuralAccess, StructuralMultiplicity,
-    StructuralPathQualification,
+    BoundaryCompletion, BoundaryMachineDeclaration, BoundaryMachineResult, ExternalCompletionKind,
+    StructuralAccess, StructuralMultiplicity, StructuralPathQualification,
 };
 
 /// The exact bindable signature of one import slot, projected from its
@@ -30,11 +30,14 @@ use terminal_psi::{
 ///
 /// Equality is contract equality: scalar lane order and types, structural
 /// lane order with type, multiplicity, access and qualifications, and the
-/// closed result. A host implementation differing in any of these is a
-/// different requirement and must not bind — the same rule the verifier
-/// applies to provider conformance.
+/// completion contract and closed result. A host implementation differing in
+/// any of these is a different requirement and must not bind — the same rule
+/// the verifier applies to provider conformance.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalImportSignature {
+    /// Completion is independent of the transitional result shape. An external
+    /// completion with a Unit result cannot bind a normal-return host adapter.
+    pub completion: BoundaryCompletion,
     /// Ordered scalar formals. Boundary calls bind scalar arguments
     /// positionally in exactly this order.
     pub scalar_parameters: Vec<ScalarType>,
@@ -62,6 +65,7 @@ pub struct TerminalImportStructuralParameter {
 impl From<&BoundaryMachineDeclaration> for TerminalImportSignature {
     fn from(declaration: &BoundaryMachineDeclaration) -> Self {
         Self {
+            completion: declaration.completion,
             scalar_parameters: declaration.scalar_parameters.clone(),
             structural_parameters: declaration
                 .structural_parameters
@@ -82,6 +86,8 @@ impl From<&BoundaryMachineDeclaration> for TerminalImportSignature {
 /// Why an adapter cannot be constructed for an import description.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TerminalAdapterError {
+    /// The normal-return adapter cannot supply this external completion.
+    ExternalCompletionUnsupported { kind: ExternalCompletionKind },
     /// The adapter covers scalar formals only; this import declares
     /// structural parameters.
     StructuralParametersUnsupported,
@@ -93,6 +99,10 @@ pub enum TerminalAdapterError {
 impl std::fmt::Display for TerminalAdapterError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Self::ExternalCompletionUnsupported { kind } => write!(
+                formatter,
+                "external completion {kind:?} is outside this normal-return adapter's contract"
+            ),
             Self::StructuralParametersUnsupported => write!(
                 formatter,
                 "import declares structural parameters outside this adapter's contract"
@@ -149,6 +159,7 @@ where
         function: F,
     ) -> Result<Self, TerminalAdapterError> {
         let signature = TerminalImportSignature::from(import);
+        require_normal_completion(&signature)?;
         if !signature.structural_parameters.is_empty() {
             return Err(TerminalAdapterError::StructuralParametersUnsupported);
         }
@@ -225,6 +236,7 @@ where
         function: F,
     ) -> Result<Self, TerminalAdapterError> {
         let signature = TerminalImportSignature::from(import);
+        require_normal_completion(&signature)?;
         if !signature.structural_parameters.is_empty() {
             return Err(TerminalAdapterError::StructuralParametersUnsupported);
         }
@@ -259,6 +271,17 @@ where
         };
         check_scalar_arguments(&self.signature, arguments)?;
         (self.function)(arguments)
+    }
+}
+
+fn require_normal_completion(
+    signature: &TerminalImportSignature,
+) -> Result<(), TerminalAdapterError> {
+    match signature.completion {
+        BoundaryCompletion::NormalReturn => Ok(()),
+        BoundaryCompletion::External(kind) => {
+            Err(TerminalAdapterError::ExternalCompletionUnsupported { kind })
+        }
     }
 }
 

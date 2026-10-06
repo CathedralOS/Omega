@@ -42,27 +42,37 @@ distinct program inputs and each owns one production.
 
 ## Reviewed interpreter migration debt
 
-`tests/omega/interpreter_migration.json` designates only the original selected
-reference-result canary. Its valid Terminal signature retains alternative
+`tests/omega/interpreter_migration.json` designates the original selected
+reference-result and external-completion canaries. The selected reference's valid
+Terminal signature retains alternative
 backings that the runtime cannot yet transport; the common program/start boundary
 reports this capability before entry binding or effects. The source and authored
-exit 70 remain unchanged. Replay it beside the singleton-reference exit-0 and
+exit 70 remain unchanged. Replay both beside the singleton-reference exit-0 and
 typed-Trap controls from the repository root:
 
 ```bash
 python3 tools/corpus_gate.py --interpret \
   --golden tests/omega/corpus_outcomes.txt \
   --migration-roster tests/omega/interpreter_migration.json \
-  --filter pass/references/selected_record_loan_disjoint_fields_exit,pass/borrows/static_record_reference_return_exit,pass/calls/runtime_guarded_reference_return_crash
+  --filter pass/references/selected_record_loan_disjoint_fields_exit,pass/collections/runtime_fixed_array_selector_call_store_exit,pass/borrows/static_record_reference_return_exit,pass/calls/runtime_guarded_reference_return_crash
 ```
 
 The command compares with the existing checked golden because the repository
 does not yet ship an interpreted golden. Its new runtime facts are visible moves;
 the reviewed exact marker reports unresolved interpreter debt and keeps the gate
 nonzero. It does not bless a checker refusal, timeout, wrong exit/stdout, partial
-execution or native failure. When backing transport is implemented, the same
-designation resumes the ordinary unchanged exit/stdout oracle automatically.
-Other entry-arrival, provider-installation, host-import and external-completion
+execution or native failure. When execution completes, the designation resumes
+the ordinary unchanged exit/stdout oracle automatically.
+The second designation preserves the authored exit 70 of
+`runtime_fixed_array_selector_call_store_exit`. Its genuine Terminal artifact
+declares `External(ProcessExit)`; the shared core refuses the missing closed
+invocation before effects. Normal-return Unit/scalar adapters cannot satisfy an
+external completion, and completion kind participates in binding signature
+equality. This is truthful missing capability, not interpreter exit-70 support.
+The [Process-exit contract](../../../../../TASKS.md#process-exit-contract) owns
+the remaining representation, lowering and runtime work.
+
+Other entry-arrival, provider-installation and host-import
 adapters remain `TERMINAL-RUNTIME-DRIVERS` dependencies; undesignated missing
 capabilities still fail their ordinary oracles. This corpus route does not
 establish ordinary CLI package admission or migrate the CLI's comparison driver.
