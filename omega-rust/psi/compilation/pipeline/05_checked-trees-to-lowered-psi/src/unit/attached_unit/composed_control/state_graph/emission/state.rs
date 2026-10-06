@@ -1327,10 +1327,6 @@ impl StateGraphEmission<'_, '_> {
     }
 }
 
-/// The owned parameter each edge of a case-test dispatch consumes, keyed by
-/// the edge's transition ordinal: a tested arm consumes its own subject, and
-/// the dispatch's closing `_` arm the subject of the arm before it.
-
 /// Whether a successor evaluates any argument from an expression, which may
 /// read a case payload its guard selected. Parameter forwards read none.
 pub(super) fn successor_may_read_payloads(
