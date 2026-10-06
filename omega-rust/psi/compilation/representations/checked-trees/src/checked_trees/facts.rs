@@ -82,7 +82,7 @@ pub use contract_plans::{
     MachineContractIdentity, MachineContractPlan, MachineContractPlans,
     RealizedMachineContractEnvelope, contract_identity, contract_report_fingerprint,
 };
-pub use domains::{DomainDependencyFact, DomainDependencyPathFact, DomainElementFact, DomainFacts};
+pub use domains::{DomainDependencyFact, DomainDependencyPathFact, DomainFacts};
 pub use dynamic_conformances::{
     DynamicConformanceBindingFact, DynamicConformanceBindingFacts, DynamicConformanceCandidateFact,
     DynamicConformanceFacts, DynamicConformanceRowFact, DynamicConformanceRowSource,

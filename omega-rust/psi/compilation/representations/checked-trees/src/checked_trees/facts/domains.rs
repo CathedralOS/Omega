@@ -12,27 +12,11 @@ pub struct DomainDependencyFact {
     pub dependencies: HandleSpan<DomainDependencyPathFact>,
 }
 
-/// A sequence-style domain fact: membership in `domain_symbol` for a collection
-/// value means every element (over the collection's full extent) is a member of
-/// `element_domain_symbol`. This is the narrow "for all i in 0..len,
-/// `items[i]` in P" shape used for slice/text invariants; the binder is
-/// proof-only and never lowers to a runtime loop.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub struct DomainElementFact {
-    /// The collection domain whose membership is being characterized.
-    pub domain_symbol: SymbolHandle,
-    /// The per-element predicate domain every element must satisfy.
-    pub element_domain_symbol: SymbolHandle,
-}
-
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct DomainFacts {
     pub segments: Arena<facts::PlaceSegment>,
     pub dependency_paths: Arena<DomainDependencyPathFact>,
     pub dependencies: Arena<DomainDependencyFact>,
-    /// Sequence-style "every element is in the element domain" facts. Additive:
-    /// empty for domains that carry no per-element quantified invariant.
-    pub element_facts: Arena<DomainElementFact>,
 }
 
 impl DomainFacts {
@@ -45,31 +29,7 @@ impl DomainFacts {
             segments,
             dependency_paths,
             dependencies,
-            element_facts: Arena::default(),
         }
-    }
-
-    /// Construct domain facts including sequence-style per-element facts.
-    pub fn with_element_roots(
-        segments: Arena<facts::PlaceSegment>,
-        dependency_paths: Arena<DomainDependencyPathFact>,
-        dependencies: Arena<DomainDependencyFact>,
-        element_facts: Arena<DomainElementFact>,
-    ) -> Self {
-        Self {
-            segments,
-            dependency_paths,
-            dependencies,
-            element_facts,
-        }
-    }
-
-    /// The per-element predicate domain for a collection domain, if it carries a
-    /// sequence-style "every element is in P" fact.
-    pub fn element_domain(&self, domain_symbol: SymbolHandle) -> Option<SymbolHandle> {
-        self.element_facts.iter().find_map(|(_, fact)| {
-            (fact.domain_symbol == domain_symbol).then_some(fact.element_domain_symbol)
-        })
     }
 
     pub fn dependency_fact(&self, domain_symbol: SymbolHandle) -> Option<&DomainDependencyFact> {

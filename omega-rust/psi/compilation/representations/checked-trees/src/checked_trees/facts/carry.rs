@@ -231,20 +231,6 @@ impl StableCrossingHash {
     }
 }
 
-impl CarryFacts {
-    pub fn for_data(&self, data: SymbolHandle) -> Option<&DataCarryFact> {
-        self.data.iter().find(|fact| fact.data == data)
-    }
-
-    pub fn activation_carry_for_machine(
-        &self,
-        machine: SymbolHandle,
-    ) -> Option<&MachineActivationCarryFact> {
-        self.activation_wide_carry
-            .iter()
-            .find(|fact| fact.machine == machine)
-    }
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DataCarryFact {

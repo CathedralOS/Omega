@@ -166,7 +166,7 @@ pub use checked_trees::{
     ContractProofFactRef, CrashCallSiteLocation, CrashCause, CrashContractCapsule, CrashInterface,
     CrashPlan, CrashPredicateExpression, CrashPredicateIdentity, CrashRouteBucket,
     CrashRouteBucketId, CrashRouteGuard, CrashSiteLocation, DataCarryFact, DecidedCallRequires,
-    DomainDependencyFact, DomainDependencyPathFact, DomainElementFact, DomainFacts,
+    DomainDependencyFact, DomainDependencyPathFact, DomainFacts,
     DynamicConformanceBindingFact, DynamicConformanceBindingFacts, DynamicConformanceCandidateFact,
     DynamicConformanceFacts, DynamicConformanceRowFact, DynamicConformanceRowSource,
     DynamicConformanceSelectionFact, DynamicDescriptorStorageFact, EvidenceAssignmentSource,

@@ -187,26 +187,4 @@ impl DynamicConformanceBindingFacts {
         })
     }
 
-    pub fn for_receiver(
-        &self,
-        machine: SymbolHandle,
-        state: SymbolHandle,
-        binding: SymbolHandle,
-        binding_name: &Identifier,
-        use_statement_index: usize,
-    ) -> Option<&DynamicConformanceBindingFact> {
-        self.selections
-            .iter()
-            .filter(|selection| {
-                selection.machine == machine
-                    && selection.state == state
-                    && selection.statement_index < use_statement_index
-                    && if binding.is_valid() {
-                        selection.binding == binding
-                    } else {
-                        selection.binding_name == *binding_name
-                    }
-            })
-            .max_by_key(|selection| selection.statement_index)
-    }
 }

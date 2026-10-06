@@ -68,7 +68,7 @@ pub use facts::{
     CrashCallSiteLocation, CrashCause, CrashContractCapsule, CrashInterface, CrashPlan,
     CrashPredicateExpression, CrashPredicateIdentity, CrashRouteBucket, CrashRouteBucketId,
     CrashRouteGuard, CrashSiteLocation, DataCarryFact, DomainDependencyFact,
-    DomainDependencyPathFact, DomainElementFact, DomainFacts, DynamicConformanceBindingFact,
+    DomainDependencyPathFact, DomainFacts, DynamicConformanceBindingFact,
     DynamicConformanceBindingFacts, DynamicConformanceCandidateFact, DynamicConformanceFacts,
     DynamicConformanceRowFact, DynamicConformanceRowSource, DynamicConformanceSelectionFact,
     DynamicDescriptorStorageFact, IndexCompatibilityDischarge, IndexCompatibilityFact,

@@ -921,21 +921,6 @@ impl CheckedOperatorFacts {
         })
     }
 
-    /// One query for downstream consumers that do not care whether the source
-    /// selected a spelled or named operator identity.
-    pub fn policy_adapter_evidence_for_expression_in_origin(
-        &self,
-        expression: ExpressionHandle,
-        origin: CheckedValueOrigin,
-    ) -> Option<CheckedArithmeticPolicyAdapter> {
-        self.expression_use_in_origin(expression, origin)
-            .map(|operator_use| operator_use.policy_adapter)
-            .or_else(|| {
-                self.named_expression_use_in_origin(expression, origin)
-                    .map(|operator_use| operator_use.policy_adapter)
-            })
-    }
-
     pub fn resolution_issues(&self) -> impl Iterator<Item = CheckedOperatorResolutionIssue<'_>> {
         self.uses
             .iter()
