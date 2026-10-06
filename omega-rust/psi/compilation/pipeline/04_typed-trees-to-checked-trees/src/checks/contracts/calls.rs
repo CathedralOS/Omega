@@ -163,6 +163,7 @@ pub(super) fn check_call_requires(
                         incoming_guards,
                         fact,
                         call_frames,
+                        expression_intervals,
                     )));
 
             let satisfied = satisfied
@@ -479,6 +480,7 @@ fn proven_predicates_grant_domain(
     incoming: &[crate::checks::ranges::incoming_guards::IncomingGuard],
     fact: &facts::Fact,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
+    expression_intervals: &[validation::ExpressionInterval],
 ) -> bool {
     let (FactPayload::ContractDomainMembership { domain_symbol, .. }
     | FactPayload::DomainMembership { domain_symbol, .. }) = fact.payload
@@ -581,20 +583,21 @@ fn proven_predicates_grant_domain(
                         .is_some_and(contains)
                 }) || label_subject_interval(label, &subject_label).is_some_and(contains)
             }) || requirement_subject_expression(facts, fact).is_some_and(
+                // The arithmetic walk bounded the argument where the call
+                // evaluates it, with declared ranges, guards and refuted arms.
                 |argument| {
-                    let context_expressions: Vec<typed_trees::expression::ExpressionHandle> =
-                        context_premises
-                            .iter()
-                            .filter_map(|(expression, _)| *expression)
-                            .collect();
-                    super::intervals::expression_interval(
-                        program,
-                        machine,
-                        state,
-                        &context_expressions,
-                        argument,
+                    validation::expression_interval(expression_intervals, argument).is_some_and(
+                        |interval| {
+                            contains((
+                                numerics::bignum::BigInt::from_i64(
+                                    interval.low.unwrap_or(i64::MIN),
+                                ),
+                                numerics::bignum::BigInt::from_i64(
+                                    interval.high.unwrap_or(i64::MAX),
+                                ),
+                            ))
+                        },
                     )
-                    .is_some_and(contains)
                 },
             );
             let by_guard = !by_context
@@ -1072,17 +1075,7 @@ fn incoming_guard_proves_requires(
                         guard_conjunct_matches(program, guard.guard(), &instantiated)
                     })
             }
-        })
-        || incoming_guard_interval_discharges(
-            program,
-            machine,
-            state,
-            state_flow,
-            expression,
-            incoming,
-            target_parameters,
-            &call_site,
-        );
+        });
     if !guard_matches {
         return false;
     }
@@ -1114,59 +1107,6 @@ fn incoming_guard_proves_requires(
             &super::guard_operands::boolean_requirement_mentions(program, expression),
             call_frames,
         )
-}
-
-/// The label read stands on the required spelling verbatim; the interval read
-/// stands on containment -- `1 <= s` and `s >= 1` state the one bound, and a
-/// requires like `s <= 5` accepts evidence spelled `s <= 3`. The goal conjunct
-/// must put one literal beside one substituted parameter; the evidence side
-/// is the argument's declared-and-guarded interval under the same holding
-/// guard rows the label read uses, so it carries no assumption the labels do
-/// not already owe.
-fn incoming_guard_interval_discharges(
-    program: &typed_trees::TypedTrees,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    state_flow: &FlowStateFact,
-    expression: typed_trees::expression::ExpressionHandle,
-    incoming: &[crate::checks::ranges::incoming_guards::IncomingGuard],
-    target_parameters: &[typed_trees::signature::StateParameter],
-    call_site: &crate::semantic::calls::CallSite<'_>,
-) -> bool {
-    let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
-        return false;
-    };
-    let Some((subject, required_low, required_high)) =
-        super::intervals::required_comparison_interval(program, binary)
-    else {
-        return false;
-    };
-    let ExpressionNode::Name(path) = program.expression_table.expression(subject) else {
-        return false;
-    };
-    if !(path.symbol.is_valid() && path.head_symbol == path.symbol) {
-        return false;
-    }
-    let Some(argument) = target_parameters
-        .iter()
-        .position(|parameter| parameter.symbol == path.symbol)
-        .and_then(|position| {
-            crate::semantic::calls::call_site_argument_expressions(program, call_site).get(position)
-        })
-    else {
-        return false;
-    };
-    let guards: Vec<typed_trees::expression::ExpressionHandle> = incoming
-        .iter()
-        .filter(|guard| guard.holds_at(state_flow.state_symbol))
-        .map(|guard| guard.guard())
-        .collect();
-    let Some((evidence_low, evidence_high)) =
-        super::intervals::expression_interval(program, machine, state, &guards, *argument)
-    else {
-        return false;
-    };
-    evidence_low >= required_low && evidence_high <= required_high
 }
 
 /// The guard match above compares display labels, so it stands only while
@@ -1469,7 +1409,7 @@ fn transition_guard_proves_requires(
     fact: &facts::Fact,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> bool {
-    let Some((call_site, machine, caller_state, guard)) =
+    let Some((call_site, machine, _, guard)) =
         selected_transition_call(program, state_flow, call_flow)
     else {
         return false;
@@ -1513,22 +1453,8 @@ fn transition_guard_proves_requires(
                 let contains = |(low, high): (numerics::bignum::BigInt, numerics::bignum::BigInt)| {
                     low >= required_low && high <= required_high
                 };
-                super::intervals::guard_interval_for_label(program, guard, &subject_label).is_some_and(contains)
-                    // The subject may be an EXPRESSION rather than a name:
-                    // `walk(remaining - 1)` states its bound about the
-                    // subtraction, which no guard spells. Read the argument
-                    // the requirement is about and shift its interval.
-                    || requirement_subject_expression(facts, fact)
-                        .and_then(|argument| {
-                            super::intervals::expression_interval(
-                                program,
-                                machine,
-                                caller_state,
-                                &[guard],
-                                argument,
-                            )
-                        })
-                        .is_some_and(contains)
+                super::intervals::guard_interval_for_label(program, guard, &subject_label)
+                    .is_some_and(contains)
             },
         );
     if !guard_establishes {

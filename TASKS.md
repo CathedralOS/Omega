@@ -2841,9 +2841,11 @@ the validation `src/` (written `omega-rust/psi/compilation/checking/src/`) unles
   (`arithmetic_domains`), and make every listed site a client. Validation
   publishes each walked integer expression's interval
   (`validation::ExpressionInterval`). The stage 04 index checker consumes it
-  for fixed-length reads, and the call-requires check consumes it for
-  parameter-versus-literal requirements. Their name-keyed proofs and
-  unknown-length slice bounds remain private. Float intervals
+  for fixed-length reads, and the call checks consume it for
+  parameter-versus-literal requirements and call-argument domain membership.
+  `checks/contracts/intervals.rs` keeps only the guard-label reader the
+  label routes use. Name-keyed proofs and unknown-length slice bounds remain
+  private. Float intervals
   (`omega-rust/psi/compilation/checking/src/value_custody/expression_types/float_cast_proofs.rs`) stay
   separate. This is large: land it per client, each commit deleting that
   client's private engine. Acceptance: no private integer interval type
