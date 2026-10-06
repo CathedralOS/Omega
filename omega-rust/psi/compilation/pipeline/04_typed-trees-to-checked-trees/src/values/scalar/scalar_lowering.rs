@@ -1044,29 +1044,7 @@ pub(crate) fn retag_exact_integer_literal(
         return None;
     };
     let landed_type = landed_for_primitive(primitive_type)?;
-    let fits = if landed_type.is_signed() {
-        let value = literal.value_i64()?;
-        let bits = landed_type.bit_width();
-        let minimum = -(1_i128 << (bits - 1));
-        let maximum = (1_i128 << (bits - 1)) - 1;
-        let value = i128::from(value);
-        minimum <= value && value <= maximum
-    } else {
-        let value = literal.value_u64()?;
-        let bits = landed_type.bit_width();
-        let maximum = if bits == 64 {
-            u64::MAX
-        } else {
-            (1_u64 << bits) - 1
-        };
-        value <= maximum
-    };
-    fits.then(|| CheckedScalarExpression::IntegerLiteral {
-        literal: literal.with_landing(IntegerLanding {
-            landed_type,
-            domain: ArithmeticDomain::Exact,
-        }),
-    })
+    landed_integer_literal_fits(literal, landed_type)
 }
 
 pub(crate) fn land_contextual_integer_literal(
@@ -1083,28 +1061,7 @@ pub(crate) fn land_contextual_integer_literal(
         PrimitiveType::Addr => LandedIntegerType::Addr,
         primitive_type => landed_for_primitive(primitive_type)?,
     };
-    let fits = if landed_type.is_signed() {
-        let value = i128::from(literal.value_i64()?);
-        let bits = landed_type.bit_width();
-        let minimum = -(1_i128 << (bits - 1));
-        let maximum = (1_i128 << (bits - 1)) - 1;
-        minimum <= value && value <= maximum
-    } else {
-        let value = literal.value_u64()?;
-        let bits = landed_type.bit_width();
-        let maximum = if bits == 64 {
-            u64::MAX
-        } else {
-            (1_u64 << bits) - 1
-        };
-        value <= maximum
-    };
-    fits.then(|| CheckedScalarExpression::IntegerLiteral {
-        literal: literal.with_landing(IntegerLanding {
-            landed_type,
-            domain: ArithmeticDomain::Exact,
-        }),
-    })
+    landed_integer_literal_fits(&literal, landed_type)
 }
 
 pub(crate) fn landed_for_primitive(primitive_type: PrimitiveType) -> Option<LandedIntegerType> {
@@ -1627,4 +1584,36 @@ fn indexed_scalar_read(
         },
         program.arithmetic_domain_for_type_reference(element_type),
     ))
+}
+
+/// `literal`'s bit-width admission against `landed_type` plus the landed
+/// expression it mints — both integer-literal lowering paths share the
+/// signed/unsigned bound test and the `Exact` domain landing.
+fn landed_integer_literal_fits(
+    literal: &numerics::literals::IntegerLiteral,
+    landed_type: LandedIntegerType,
+) -> Option<CheckedScalarExpression> {
+    let fits = if landed_type.is_signed() {
+        let value = literal.value_i64()?;
+        let bits = landed_type.bit_width();
+        let minimum = -(1_i128 << (bits - 1));
+        let maximum = (1_i128 << (bits - 1)) - 1;
+        let value = i128::from(value);
+        minimum <= value && value <= maximum
+    } else {
+        let value = literal.value_u64()?;
+        let bits = landed_type.bit_width();
+        let maximum = if bits == 64 {
+            u64::MAX
+        } else {
+            (1_u64 << bits) - 1
+        };
+        value <= maximum
+    };
+    fits.then(|| CheckedScalarExpression::IntegerLiteral {
+        literal: literal.with_landing(IntegerLanding {
+            landed_type,
+            domain: ArithmeticDomain::Exact,
+        }),
+    })
 }
