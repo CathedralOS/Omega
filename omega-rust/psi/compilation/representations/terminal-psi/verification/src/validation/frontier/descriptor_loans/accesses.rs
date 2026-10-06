@@ -601,6 +601,11 @@ pub(super) fn may_escape(
             )
             .is_none();
     }
+    if matches!(operation.kind, OperationKind::BoundaryCall { .. }) {
+        return !terminal_semantics::descriptor_results::boundary_call_preserves_descriptor_storage(
+            module, machine, operation,
+        );
+    }
     !matches!(
         operation.kind,
         OperationKind::StructuralByteViewFieldStore { .. }

@@ -463,16 +463,18 @@ pub(super) fn adapt(
                     structural_arguments,
                     ..
                 } => {
-                    step.may_escape = true;
-                    for actual in structural_arguments
-                        .iter()
-                        .filter(|actual| actual.access != StructuralAccess::SharedBorrow)
-                    {
-                        step.definitions.extend(replay::descriptor_slots(
-                            &module.structural_types,
-                            actual.place,
-                            *graph.place_types.get(&actual.place)?,
-                        )?);
+                    if !boundary_call_preserves_descriptor_storage(module, machine, operation) {
+                        step.may_escape = true;
+                        for actual in structural_arguments
+                            .iter()
+                            .filter(|actual| actual.access != StructuralAccess::SharedBorrow)
+                        {
+                            step.definitions.extend(replay::descriptor_slots(
+                                &module.structural_types,
+                                actual.place,
+                                *graph.place_types.get(&actual.place)?,
+                            )?);
+                        }
                     }
                 }
                 OperationKind::StoreDynamicDescriptor { .. }

@@ -378,6 +378,11 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
         inventory_machinery: false,
     },
     ImplementationSite {
+        path: "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_results/boundary_calls.rs",
+        sha256: Some("71d8e5f1acbab8c2ca552370b14ad52f4a46c86204cd149066dfb9125ddf8da4"),
+        inventory_machinery: false,
+    },
+    ImplementationSite {
         path: "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_results/owned_shape.rs",
         sha256: Some("b61b272e1943c223c627672e5994f916b876552fbc5ba06add269e1510b1cd32"),
         inventory_machinery: false,
@@ -389,7 +394,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_results/terminal_flow.rs",
-        sha256: Some("4b10dffee40536fe8572ac2ba1fbd39dc053e052a6ccf2268154b1366c0fcfeb"),
+        sha256: Some("02c9d799db9ebe5be0062dea6ff9437b86bec7bf99b6085e6f749d9a41d4aaec"),
         inventory_machinery: false,
     },
     ImplementationSite {
@@ -404,7 +409,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_results.rs",
-        sha256: Some("3ebaf096b02b158bb979db41168b582703eb4a1406f003bf0f38d47c4443c53e"),
+        sha256: Some("d4ff7717067af40172d99c5a7b23b62cdc9e95995b48d2f40fa39fff74c0132c"),
         inventory_machinery: false,
     },
     ImplementationSite {
@@ -424,7 +429,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/frontier/descriptor_loans/accesses.rs",
-        sha256: Some("a19e5e386fc338d06e5ca4e5c16e45739e60aa4e7cdaa841e0c763fea95b3cac"),
+        sha256: Some("3b025ac60ff68113018b1e5a49ea4b8cbd832cdefeef06f9ecf329b23fa99217"),
         inventory_machinery: false,
     },
     ImplementationSite {
