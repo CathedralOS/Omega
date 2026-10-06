@@ -1,6 +1,6 @@
 use super::{
-    ArithmeticDomain, ExpressionHandle, ExpressionNode, Interval, Machine, State,
-    TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode, TypedTrees,
+    ExpressionHandle, ExpressionNode, Interval, Machine, State, TypeConstraintNode,
+    TypeReferenceHandle, TypedTrees,
 };
 use language_core::place_label;
 
@@ -66,45 +66,24 @@ pub(super) fn dependent_maximum_of_type_reference(
     program: &TypedTrees,
     handle: TypeReferenceHandle,
 ) -> Option<(typed_trees::name::Identifier, i64)> {
-    match program.type_reference_table.type_reference(handle) {
-        TypeReferenceNode::Reference { referee, .. } => {
-            dependent_maximum_of_type_reference(program, *referee)
-        }
-        TypeReferenceNode::Constrained {
-            base_type,
-            constraints,
-        } => {
-            let constraints = program.type_reference_table.constraints(*constraints);
-            if constraints.iter().any(|constraint| {
-                matches!(
-                    constraint,
-                    TypeConstraintNode::ArithmeticDomain(domain)
-                        if *domain != ArithmeticDomain::Exact
-                )
-            }) {
-                return None;
+    let shells = crate::program_scope::type_shape::exact_constrained_shells(program, handle)?;
+    shells.iter().flat_map(|constraints| constraints.iter()).find_map(|constraint| {
+        match constraint {
+            TypeConstraintNode::Range {
+                maximum,
+                end_inclusive,
+                ..
+            } => {
+                let symbolic = typed_trees::dependent_ranges::symbolic_range_maximum(
+                    program,
+                    *maximum,
+                    *end_inclusive,
+                )?;
+                Some((symbolic.field, symbolic.offset))
             }
-            constraints
-                .iter()
-                .find_map(|constraint| match constraint {
-                    TypeConstraintNode::Range {
-                        maximum,
-                        end_inclusive,
-                        ..
-                    } => {
-                        let symbolic = typed_trees::dependent_ranges::symbolic_range_maximum(
-                            program,
-                            *maximum,
-                            *end_inclusive,
-                        )?;
-                        Some((symbolic.field, symbolic.offset))
-                    }
-                    _ => None,
-                })
-                .or_else(|| dependent_maximum_of_type_reference(program, *base_type))
+            _ => None,
         }
-        _ => None,
-    }
+    })
 }
 
 /// Conservative whole-state field-preservation scan (twin of the proof

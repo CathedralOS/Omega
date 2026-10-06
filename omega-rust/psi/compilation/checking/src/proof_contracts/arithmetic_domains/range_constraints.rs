@@ -2,7 +2,6 @@
 
 use crate::proof_contracts::arithmetic_domains::interval::Interval;
 use diagnostics::Diagnostic;
-use numerics::arithmetic::ArithmeticDomain;
 use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
@@ -27,8 +26,7 @@ pub(crate) fn check_range_under_non_exact_domain(
     owner: crate::value_custody::type_references::TypeReferenceOwner<'_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    use numerics::arithmetic::ArithmeticDomain;
-    // Walk Reference wrappers AND nested Constrained spellings: `u8 [0..=4]
+        // Walk Reference wrappers AND nested Constrained spellings: `u8 [0..=4]
     // in Wrapping` may parse as Constrained(Constrained(u8, [Range]),
     // [Domain]), where the shallow per-node accessors see only one
     // constraint set each.
@@ -56,7 +54,7 @@ pub(crate) fn check_range_under_non_exact_domain(
         return;
     }
     let domain = program.type_reference_table.arithmetic_domain(handle);
-    if domain == ArithmeticDomain::Exact {
+    if domain == numerics::arithmetic::ArithmeticDomain::Exact {
         return;
     }
     diagnostics.push(Diagnostic::error(format!(
@@ -256,41 +254,21 @@ pub(crate) fn enforced_declared_range_interval(
     program: &TypedTrees,
     handle: TypeReferenceHandle,
 ) -> Option<Interval> {
-    match program.type_reference_table.type_reference(handle) {
-        TypeReferenceNode::Reference { referee, .. } => {
-            enforced_declared_range_interval(program, *referee)
-        }
-        TypeReferenceNode::Constrained {
-            base_type,
-            constraints,
-        } => {
-            let constraints = program.type_reference_table.constraints(*constraints);
-            if constraints.iter().any(|constraint| {
-                matches!(
-                    constraint,
-                    TypeConstraintNode::ArithmeticDomain(domain)
-                        if *domain != ArithmeticDomain::Exact
-                )
-            }) {
-                return None;
-            }
-            // Every shell contributes conjunctively. Taking only the first
-            // range could hide a later empty interval and authorize a store.
-            constraints
-                .iter()
-                .filter_map(|constraint| match constraint {
-                    TypeConstraintNode::Range {
-                        minimum,
-                        maximum,
-                        end_inclusive,
-                    } => closed_range_interval(program, *minimum, *maximum, *end_inclusive),
-                    _ => None,
-                })
-                .chain(enforced_declared_range_interval(program, *base_type))
-                .reduce(Interval::intersect)
-        }
-        _ => None,
-    }
+    let shells = crate::program_scope::type_shape::exact_constrained_shells(program, handle)?;
+    // Every shell contributes conjunctively. Taking only the first
+    // range could hide a later empty interval and authorize a store.
+    shells
+        .iter()
+        .flat_map(|constraints| constraints.iter())
+        .filter_map(|constraint| match constraint {
+            TypeConstraintNode::Range {
+                minimum,
+                maximum,
+                end_inclusive,
+            } => closed_range_interval(program, *minimum, *maximum, *end_inclusive),
+            _ => None,
+        })
+        .reduce(Interval::intersect)
 }
 
 /// Whether the type spells a BRACKETED range constraint anywhere in its

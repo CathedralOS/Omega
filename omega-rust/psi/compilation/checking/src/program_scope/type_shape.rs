@@ -127,3 +127,36 @@ pub(crate) fn head_data_symbol(
         _ => None,
     }
 }
+
+/// The constraint slices of each `Constrained` shell `handle` carries,
+/// reached through `Reference` peels, outermost first. `None` when any shell
+/// demands a non-`Exact` arithmetic domain.
+pub(crate) fn exact_constrained_shells<'p>(
+    program: &'p TypedTrees,
+    mut handle: TypeReferenceHandle,
+) -> Option<Vec<&'p [TypeConstraintNode]>> {
+    let mut shells = Vec::new();
+    loop {
+        match program.type_reference_table.type_reference(handle) {
+            TypeReferenceNode::Reference { referee, .. } => handle = *referee,
+            TypeReferenceNode::Constrained {
+                base_type,
+                constraints,
+            } => {
+                let constraints = program.type_reference_table.constraints(*constraints);
+                if constraints.iter().any(|constraint| {
+                    matches!(
+                        constraint,
+                        TypeConstraintNode::ArithmeticDomain(domain)
+                            if *domain != numerics::arithmetic::ArithmeticDomain::Exact
+                    )
+                }) {
+                    return None;
+                }
+                shells.push(constraints);
+                handle = *base_type;
+            }
+            _ => return Some(shells),
+        }
+    }
+}
