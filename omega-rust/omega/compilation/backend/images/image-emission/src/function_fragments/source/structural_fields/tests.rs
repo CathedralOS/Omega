@@ -130,24 +130,14 @@ fn projected_primitive_publication_retains_path_and_requires_native_replay() {
     ));
     for replacement in [0, 2, u64::MAX] {
         let mut changed = target.clone();
-        let TargetUnitOperation::PrimitiveScalarRead { path, .. } =
-            &mut changed.graph.blocks[0].operations[0]
-        else {
-            panic!("read");
-        };
+        let path = target_scalar_read_path_mut(&mut changed.graph, 0).expect("read");
         *path = vec![Segment::FixedIndex(replacement)];
         assert!(!retained(&function, &function.operations[0], &changed));
     }
     let mut invalid = function.clone();
-    let AbstractOperation::PrimitiveScalarRead { path, .. } = &mut invalid.operations[0] else {
-        panic!("read");
-    };
+    let path = abstract_scalar_read_path_mut(&mut invalid, 0).expect("read");
     *path = vec![Segment::FixedIndex(2)];
-    let TargetUnitOperation::PrimitiveScalarRead { path, .. } =
-        &mut target.graph.blocks[0].operations[0]
-    else {
-        panic!("read");
-    };
+    let path = target_scalar_read_path_mut(&mut target.graph, 0).expect("read");
     *path = vec![Segment::FixedIndex(2)];
     assert!(
         !retained(&invalid, &invalid.operations[0], &target),
@@ -163,10 +153,7 @@ fn projected_primitive_publication_retains_path_and_requires_native_replay() {
         obligation,
     }];
     let mut runtime_function = function.clone();
-    let AbstractOperation::PrimitiveScalarRead { path, .. } = &mut runtime_function.operations[0]
-    else {
-        panic!("read");
-    };
+    let path = abstract_scalar_read_path_mut(&mut runtime_function, 0).expect("read");
     *path = runtime.clone();
     let traversal = |value| target_operations::TargetStructuralRuntimeIndex {
         operand: target_operations::TargetUnitScalarArgumentSource::Parameter {
@@ -176,12 +163,9 @@ fn projected_primitive_publication_retains_path_and_requires_native_replay() {
         },
         stride: 1,
     };
-    let TargetUnitOperation::PrimitiveScalarRead { path, indices, .. } =
-        &mut target.graph.blocks[0].operations[0]
-    else {
-        panic!("read");
-    };
+    let path = target_scalar_read_path_mut(&mut target.graph, 0).expect("read");
     *path = runtime;
+    let indices = target_scalar_read_indices_mut(&mut target.graph, 0).expect("read");
     *indices = vec![traversal(selector)];
     assert!(retained(
         &runtime_function,
@@ -189,11 +173,7 @@ fn projected_primitive_publication_retains_path_and_requires_native_replay() {
         &target
     ));
     let mut substituted = target.clone();
-    let TargetUnitOperation::PrimitiveScalarRead { indices, .. } =
-        &mut substituted.graph.blocks[0].operations[0]
-    else {
-        panic!("read");
-    };
+    let indices = target_scalar_read_indices_mut(&mut substituted.graph, 0).expect("read");
     *indices = vec![traversal(ValueId::new(8).unwrap())];
     assert!(
         !retained(
@@ -503,6 +483,65 @@ fn structural_call_result_home_mut(
         unreachable!()
     };
     result_home
+}
+
+fn abstract_scalar_read_path_mut(
+    function: &mut AbstractFunction,
+    operation: usize,
+) -> Option<&mut Vec<StructuralPathSegment>> {
+    let AbstractOperation::PrimitiveScalarRead { path, .. } = &mut function.operations[operation]
+    else {
+        return None;
+    };
+    Some(path)
+}
+
+fn target_scalar_read_path_mut(
+    graph: &mut TargetControlGraph,
+    operation: usize,
+) -> Option<&mut Vec<StructuralPathSegment>> {
+    let TargetUnitOperation::PrimitiveScalarRead { path, .. } =
+        &mut graph.blocks[0].operations[operation]
+    else {
+        return None;
+    };
+    Some(path)
+}
+
+fn target_scalar_read_indices_mut(
+    graph: &mut TargetControlGraph,
+    operation: usize,
+) -> Option<&mut Vec<target_operations::TargetStructuralRuntimeIndex>> {
+    let TargetUnitOperation::PrimitiveScalarRead { indices, .. } =
+        &mut graph.blocks[0].operations[operation]
+    else {
+        return None;
+    };
+    Some(indices)
+}
+
+fn byte_store_destination_mut(
+    graph: &mut TargetControlGraph,
+    operation: usize,
+) -> Option<&mut StructuralArgument> {
+    let TargetUnitOperation::StructuralByteSequenceFieldStore { destination, .. } =
+        &mut graph.blocks[0].operations[operation]
+    else {
+        return None;
+    };
+    Some(destination)
+}
+
+fn zeroed_structural_home_mut(
+    graph: &mut TargetControlGraph,
+    operation: usize,
+) -> Option<&mut TargetStructuralHomeRequirement> {
+    let TargetUnitOperation::EstablishZeroedStructural { result_home, .. } =
+        &mut graph.blocks[0].operations[operation]
+    else {
+        return None;
+    };
+    Some(result_home)
 }
 
 #[test]
@@ -932,11 +971,8 @@ fn local_byte_length_membership_requires_the_exact_owned_home() {
                         changed.graph.blocks[0].operations.remove(0);
                     }
                     1 => {
-                        let TargetUnitOperation::EstablishZeroedStructural { result_home, .. } =
-                            &mut changed.graph.blocks[0].operations[0]
-                        else {
-                            panic!("owned home")
-                        };
+                        let result_home =
+                            zeroed_structural_home_mut(&mut changed.graph, 0).expect("owned home");
                         let TargetStructuralHomeOrigin::OperationResult { operation, .. } =
                             &mut result_home.origin
                         else {
@@ -945,13 +981,8 @@ fn local_byte_length_membership_requires_the_exact_owned_home() {
                         *operation = OperationId::new(99).unwrap();
                     }
                     2 | 3 => {
-                        let TargetUnitOperation::StructuralByteSequenceFieldStore {
-                            destination,
-                            ..
-                        } = &mut changed.graph.blocks[0].operations[1]
-                        else {
-                            panic!("replacement")
-                        };
+                        let destination =
+                            byte_store_destination_mut(&mut changed.graph, 1).expect("replacement");
                         if corruption == 2 {
                             destination.access = StructuralAccess::MutableBorrow;
                         } else {
@@ -977,11 +1008,8 @@ fn local_byte_length_membership_requires_the_exact_owned_home() {
                     changed.graph.blocks[0].operations.remove(0);
                 }
                 1 | 2 => {
-                    let TargetUnitOperation::EstablishZeroedStructural { result_home, .. } =
-                        &mut changed.graph.blocks[0].operations[0]
-                    else {
-                        panic!("owned home")
-                    };
+                    let result_home =
+                        zeroed_structural_home_mut(&mut changed.graph, 0).expect("owned home");
                     let TargetStructuralHomeOrigin::OperationResult { operation, result } =
                         &mut result_home.origin
                     else {
@@ -1228,11 +1256,7 @@ fn byte_replacement_membership_retains_every_operand_and_writable_access() {
         // Equal producer/target operands do not turn a shared loan into write authority.
         function.structural_parameters[0].access = StructuralAccess::SharedBorrow;
         target.graph.parameters[0].access = StructuralAccess::SharedBorrow;
-        let TargetUnitOperation::StructuralByteSequenceFieldStore { destination, .. } =
-            &mut target.graph.blocks[0].operations[0]
-        else {
-            unreachable!()
-        };
+        let destination = byte_store_destination_mut(&mut target.graph, 0).unwrap();
         destination.access = StructuralAccess::SharedBorrow;
         assert!(!replacement_retained(
             &function,
@@ -1568,11 +1592,7 @@ fn returned_reference_byte_store_retains_exact_pointer_home_and_candidates() {
                 }
             }
             _ => {
-                let TargetUnitOperation::StructuralByteSequenceFieldStore { destination, .. } =
-                    &mut changed_target.graph.blocks[0].operations[1]
-                else {
-                    unreachable!()
-                };
+                let destination = byte_store_destination_mut(&mut changed_target.graph, 1).unwrap();
                 destination.place = root;
                 destination.path = holder_path.clone();
             }
