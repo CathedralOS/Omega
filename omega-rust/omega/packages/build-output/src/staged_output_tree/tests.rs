@@ -4,8 +4,6 @@ mod file_selection;
 
 use super::BuildStagedOutputTree;
 use crate::{OutputTreeEntry, from_entries};
-use std::path::PathBuf;
-use std::sync::atomic::{AtomicU64, Ordering};
 
 /// Canonical retained roster: two directories, a nested file pair, and two
 /// top-level files, one of them a generated `.omg` source for the
