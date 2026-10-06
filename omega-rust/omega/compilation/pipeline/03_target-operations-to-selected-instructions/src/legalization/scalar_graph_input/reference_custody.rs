@@ -1872,14 +1872,14 @@ fn re_home_bound_leaves(
             continue;
         }
         for ((carrier, path), leaf) in &custody.leaves {
-            if *carrier == binding.argument.place {
-                if let Some(relative) = path.strip_prefix(binding.argument.path.as_slice()) {
-                    moved.push((
-                        (*carrier, path.clone()),
-                        (parameter.place, relative.to_vec()),
-                        leaf.clone(),
-                    ));
-                }
+            if *carrier == binding.argument.place
+                && let Some(relative) = path.strip_prefix(binding.argument.path.as_slice())
+            {
+                moved.push((
+                    (*carrier, path.clone()),
+                    (parameter.place, relative.to_vec()),
+                    leaf.clone(),
+                ));
             }
         }
     }

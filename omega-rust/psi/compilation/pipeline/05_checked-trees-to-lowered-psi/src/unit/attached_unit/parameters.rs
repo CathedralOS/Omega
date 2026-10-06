@@ -15,9 +15,7 @@ use super::{
 };
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::calls::CallEmissionContext;
-use crate::emission::operation_emission::expressions::{
-    LoweredDirectExpression, emit_direct_expression,
-};
+use crate::emission::operation_emission::expressions::emit_direct_expression;
 use crate::expression_preparation::bindings::structural_paths::{
     lower_structural_path, lower_typed_argument_path, terminal_access,
 };
