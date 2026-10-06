@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 14, "jobs": "4", "load1_end": 3.56, "load1_start": 3.35, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "2", "load1_end": 10.71, "load1_start": 10.6, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/runtime_exact_dispatch_divisor_exit built 1233ms exit:70 interpreter-exit:70 interpreter:agrees @01974e342562+wt
 pass/arithmetic/runtime_exact_projection_sibling_exit built 1644ms exit:70 stdout:match interpreter-exit:70 interpreter-stdout:match interpreter:agrees @ffe8db2ea9e9
 pass/arithmetic/runtime_exact_signed_divisor_exclusions_exit built 1455ms exit:70 interpreter-exit:70 interpreter:agrees @d9720a4fa49b+wt
@@ -113,6 +113,7 @@ pass/calls/runtime_linear_guarded_unit_owner_disposition_exit built 2070ms exit:
 pass/calls/runtime_linear_state_owner_disposition_exit built 4772ms exit:0 interpreter-exit:0 interpreter:agrees @a6d22383c443
 pass/calls/runtime_linear_terminal_owner_disposition_exit built 3673ms exit:0 interpreter-exit:0 interpreter:agrees @a6d22383c443
 pass/calls/runtime_local_case_terminal_payload_result_exit built 875ms exit:0 interpreter-exit:0 interpreter:agrees @cbbe113c2c24
+pass/calls/runtime_nested_case_argument_exit built 4465ms exit:70 interpreter-exit:70 interpreter:agrees @b6846d69ce88+wt
 pass/calls/runtime_nested_case_subject_operand_order_exit built 1052ms exit:0 interpreter-exit:0 interpreter:agrees @3daca3fd87c2
 pass/calls/runtime_nested_value_call_guard_exit built 3472ms exit:70 interpreter-exit:70 interpreter:agrees @d9720a4fa49b+wt
 pass/calls/runtime_owned_parameter_primitive_borrow_exit built 730ms exit:0 interpreter-exit:0 interpreter:agrees @51b4aa0b5a70+wt
@@ -180,6 +181,7 @@ pass/proofs/runtime_byte_predicate_state_contract_exit built 1191ms exit:70 inte
 pass/providers/checked_boundary_operator_const_application_alternate_exit built 2780ms exit:70 interpreter-exit:70 interpreter:agrees @c8e8e86a6e1b
 pass/providers/checked_boundary_requirement_dispatch_exit built 2255ms exit:70 interpreter-exit:70 interpreter:agrees @3416dca58e06+wt
 pass/providers/direct_boundary_array_snapshot_exit built 2032ms exit:70 interpreter-exit:70 interpreter:agrees @3416dca58e06+wt
+pass/providers/runtime_boundary_array_construction_exit built 4358ms exit:70 interpreter-exit:70 interpreter:agrees @b6846d69ce88+wt
 pass/providers/selected_const_provider_call_identity_exit built 2803ms exit:70 interpreter-exit:70 interpreter:agrees @c8e8e86a6e1b
 pass/recast/runtime_aggregate_slice_representation_recast_exit built 5319ms exit:70 interpreter-exit:70 interpreter:agrees @9765a474ac87+wt
 pass/recast/runtime_bool_representation_recast_exit built 1700ms exit:70 interpreter-exit:70 interpreter:agrees @7e0a52664189

@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 24, "jobs": null, "load1_end": null, "load1_start": null, "machine": "amd64", "platform": "windows", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "2", "load1_end": 11.03, "load1_start": 10.86, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -1828,8 +1828,7 @@ pass/calls/runtime_measured_tail_recursion_exit checked 1346ms check-target:maco
 pass/calls/runtime_mut_ref_forward_exit checked 1509ms check-target:macos_arm64 @8778c440081
 pass/calls/runtime_mutable_call_before_transition_args_exit checked 8001ms check-target:macos_arm64 @dac9585f443
 pass/calls/runtime_mutable_local_parameter_write_exit checked 632ms check-target:macos_arm64 @6c1f965d49de+wt
-pass/calls/runtime_nested_case_argument_exit rejected 2316ms check-target:macos_arm64 @8735cafb4cf
-	terminal-artifact production failed: Lowering(Unsupported("structural argument operand is not a construction or copy"))
+pass/calls/runtime_nested_case_argument_exit checked 2176ms check-target:macos_arm64 @b6846d69ce88+wt
 pass/calls/runtime_nested_case_subject_operand_order_exit checked 695ms check-target:macos_arm64 @3daca3fd87c2
 pass/calls/runtime_nested_local_field_store_exit checked 1769ms check-target:macos_arm64 @1da616075c39+wt
 pass/calls/runtime_nested_receiver_guard_exit checked 803ms check-target:macos_arm64 @ac942fdbba24
@@ -2586,8 +2585,7 @@ pass/providers/lifetime_boundary_requirement_dispatch_exit checked 1238ms check-
 pass/providers/local_record_foreign_borrow_exit checked 2194ms check-target:macos_arm64 @59d57ace39f0+wt
 pass/providers/provider_type_target_default_override checked 653ms check-target:macos_arm64 @2d8ed253669f
 pass/providers/runtime_adapter_dispatch_exit checked 1254ms check-target:macos_arm64 @2d8ed253669f
-pass/providers/runtime_boundary_array_construction_exit rejected 2546ms check-target:macos_arm64 @8735cafb4cf
-	terminal-artifact production failed: Lowering(Unsupported("structural argument operand is not a construction or copy"))
+pass/providers/runtime_boundary_array_construction_exit checked 2148ms check-target:macos_arm64 @b6846d69ce88+wt
 pass/providers/runtime_boundary_array_forwarding_exit checked 5758ms check-target:macos_arm64 @72a43a5bee12+wt
 pass/providers/runtime_boundary_array_result_exit checked 713ms check-target:macos_arm64 @c5756d3f7761+wt
 pass/providers/runtime_boundary_primitive_array_argument_exit checked 1198ms check-target:macos_arm64 @474542aa7f86

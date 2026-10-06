@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": "3", "load1_end": 17.59, "load1_start": 18.25, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "2", "load1_end": 10.14, "load1_start": 10.14, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 189ms
 pass/arithmetic/anonymous_rational_integer_landing checked 186ms
 pass/arithmetic/bounded_assignment checked 197ms
@@ -248,8 +248,7 @@ pass/calls/runtime_measured_tail_recursion_exit built 660ms exit:70
 pass/calls/runtime_mut_ref_forward_exit built 1147ms exit:70 @48008365d839
 pass/calls/runtime_mutable_call_before_transition_args_exit built 5538ms exit:70 @fb2178def922
 pass/calls/runtime_mutable_local_parameter_write_exit built 756ms exit:171 @6c1f965d49de+wt
-pass/calls/runtime_nested_case_argument_exit rejected 1253ms regressed-from:built+exit:70 @bf30e2cd0c13+wt
-	terminal-artifact production failed: Lowering(Unsupported("structural argument operand is not a construction or copy"))
+pass/calls/runtime_nested_case_argument_exit built 2633ms exit:70 @b6846d69ce88+wt
 pass/calls/runtime_nested_local_field_store_exit built 1817ms exit:42 @1da616075c39+wt
 pass/calls/runtime_nested_receiver_guard_exit built 1030ms exit:42 @ac942fdbba24+wt
 pass/calls/runtime_nested_value_call_guard_exit built 4993ms exit:70
@@ -930,8 +929,7 @@ pass/providers/lifetime_boundary_requirement_dispatch_exit built 626ms exit:41
 pass/providers/local_record_foreign_borrow_exit built 1903ms exit:70 @59d57ace39f0+wt
 pass/providers/provider_type_target_default_override built 257ms
 pass/providers/runtime_adapter_dispatch_exit built 576ms exit:70
-pass/providers/runtime_boundary_array_construction_exit rejected 1214ms regressed-from:built+exit:70 @bf30e2cd0c13+wt
-	terminal-artifact production failed: Lowering(Unsupported("structural argument operand is not a construction or copy"))
+pass/providers/runtime_boundary_array_construction_exit built 2510ms exit:70 @b6846d69ce88+wt
 pass/providers/runtime_boundary_array_forwarding_exit built 6861ms exit:70 @72a43a5bee12+wt
 pass/providers/runtime_boundary_array_result_exit built 1437ms exit:70 @c5756d3f7761+wt
 pass/providers/runtime_boundary_primitive_array_argument_exit built 901ms exit:70

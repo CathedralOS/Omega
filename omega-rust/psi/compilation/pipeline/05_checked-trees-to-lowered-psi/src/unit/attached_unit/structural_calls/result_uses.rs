@@ -1840,43 +1840,23 @@ fn validate_operand_producers(
             ..
         } = candidate
         {
-            // A construction or copied-place operand has no local symbol;
-            // its call occurrence and authored formal position own the
-            // constructor, exactly like a literal array operand.
-            if !checked
-                .facts
-                .values
-                .structural_values
-                .nodes
-                .is_valid(*value)
-            {
-                return unsupported("case argument operand has a stale value handle");
+            // The checked value root owns this argument occurrence independently
+            // of its evaluator kind. Arrays, cases, records and selected values
+            // share the same exact root/statement/owner join; their evaluators
+            // retain the distinct establishment and transfer operations.
+            let values = &checked.facts.values.structural_values;
+            if !values.nodes.is_valid(*value) {
+                return unsupported("structural argument operand has a stale value handle");
             }
-            let node = checked.facts.values.structural_values.nodes.get(*value);
-            let (construction_expression, construction_type) = match &node.kind {
-                checked_trees::CheckedStructuralValueKind::Case(constructor) => {
-                    (constructor.expression, constructor.type_reference)
-                }
-                checked_trees::CheckedStructuralValueKind::Record { .. }
-                | checked_trees::CheckedStructuralValueKind::StructuralCase { .. }
-                | checked_trees::CheckedStructuralValueKind::CopiedStructuralPlace { .. } => (
-                    node.expression,
-                    checked
-                        .facts
-                        .values
-                        .structural_values
-                        .root_for_expression(caller.state, result.statement_index, node.expression)
-                        .ok_or(LoweringError::Unsupported(
-                            "record argument operand lost its checked root",
-                        ))?
-                        .type_reference,
-                ),
-                _ => {
-                    return unsupported(
-                        "structural argument operand is not a construction or copy",
-                    );
-                }
-            };
+            let node = values.nodes.get(*value);
+            let root = values
+                .root_for_expression(caller.state, result.statement_index, node.expression)
+                .filter(|root| root.machine == caller.machine && root.root == *value)
+                .ok_or(LoweringError::Unsupported(
+                    "structural argument operand lost its exact checked root",
+                ))?;
+            let construction_expression = root.expression;
+            let construction_type = root.type_reference;
             let names_result = result.statement_index == coordinate.statement_index
                 && *call_ordinal == coordinate.call_ordinal
                 && *parameter_position == source_position
