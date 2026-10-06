@@ -230,32 +230,16 @@ pub(crate) fn build_structural_unit_control_machine(
                             })
                         })
                         .collect::<Option<Vec<_>>>()?;
-                let cleanup = facts.flow.terminal_structural_control_cleanups.for_edge(
+                let cleanup = transferred_and_discarded_sources_cover(
+                    facts,
                     machine.symbol,
                     state.symbol,
                     0,
+                    states,
+                    target_index,
+                    source_parameters,
+                    &transferred_sources,
                 )?;
-                if cleanup.target_state != states[target_index].symbol {
-                    return None;
-                }
-                let cleanup_sources = cleanup
-                    .trivial_affine_discard_parameter_positions
-                    .iter()
-                    .map(|position| {
-                        source_parameters
-                            .iter()
-                            .position(|parameter| parameter.position == *position)
-                    })
-                    .collect::<Option<BTreeSet<_>>>()?;
-                if !transferred_sources.is_disjoint(&cleanup_sources)
-                    || transferred_sources
-                        .union(&cleanup_sources)
-                        .copied()
-                        .collect::<BTreeSet<_>>()
-                        != (0..source_parameters.len()).collect::<BTreeSet<_>>()
-                {
-                    return None;
-                }
                 CheckedStructuralUnitControlTerminatorPlan::Jump {
                     statement_ordinal: 0,
                     target_state: path.symbol,
@@ -444,32 +428,16 @@ pub(crate) fn build_structural_unit_control_machine(
                                     })
                                 })
                                 .collect::<Option<Vec<_>>>()?;
-                        let cleanup = facts.flow.terminal_structural_control_cleanups.for_edge(
+                        let cleanup = transferred_and_discarded_sources_cover(
+                            facts,
                             machine.symbol,
                             state.symbol,
                             statement_ordinal,
+                            states,
+                            target_index,
+                            source_parameters,
+                            &transferred_sources,
                         )?;
-                        if cleanup.target_state != states[target_index].symbol {
-                            return None;
-                        }
-                        let cleanup_sources = cleanup
-                            .trivial_affine_discard_parameter_positions
-                            .iter()
-                            .map(|position| {
-                                source_parameters
-                                    .iter()
-                                    .position(|parameter| parameter.position == *position)
-                            })
-                            .collect::<Option<BTreeSet<_>>>()?;
-                        if !transferred_sources.is_disjoint(&cleanup_sources)
-                            || transferred_sources
-                                .union(&cleanup_sources)
-                                .copied()
-                                .collect::<BTreeSet<_>>()
-                                != (0..source_parameters.len()).collect::<BTreeSet<_>>()
-                        {
-                            return None;
-                        }
                         Some(CheckedStructuralControlSuccessorPlan {
                             statement_ordinal,
                             target_state: path.symbol,
@@ -612,4 +580,48 @@ pub(crate) fn build_structural_unit_control_machine(
         states: checked_states,
         ranked_scc,
     })
+}
+
+/// The trivial-discard coverage gate both control successor shapes run: the
+/// edge's cleanup must land on the target state, and its discarded parameter
+/// positions plus the already-transferred ones must partition the source
+/// roster without overlap. Returns the edge cleanup for the caller's plan.
+#[allow(clippy::too_many_arguments)]
+fn transferred_and_discarded_sources_cover<'f>(
+    facts: &'f CheckFacts,
+    machine_symbol: symbols::SymbolHandle,
+    state_symbol: symbols::SymbolHandle,
+    statement_ordinal: u32,
+    states: &[typed_trees::state::State],
+    target_index: usize,
+    source_parameters: &[checked_trees::CheckedUnitStructuralParameterPlan],
+    transferred_sources: &BTreeSet<usize>,
+) -> Option<&'f checked_trees::CheckedStructuralControlEdgeCleanupPlan> {
+    let cleanup = facts.flow.terminal_structural_control_cleanups.for_edge(
+        machine_symbol,
+        state_symbol,
+        statement_ordinal,
+    )?;
+    if cleanup.target_state != states[target_index].symbol {
+        return None;
+    }
+    let cleanup_sources = cleanup
+        .trivial_affine_discard_parameter_positions
+        .iter()
+        .map(|position| {
+            source_parameters
+                .iter()
+                .position(|parameter| parameter.position == *position)
+        })
+        .collect::<Option<BTreeSet<_>>>()?;
+    if !transferred_sources.is_disjoint(&cleanup_sources)
+        || transferred_sources
+            .union(&cleanup_sources)
+            .copied()
+            .collect::<BTreeSet<_>>()
+            != (0..source_parameters.len()).collect::<BTreeSet<_>>()
+    {
+        return None;
+    }
+    Some(cleanup)
 }
