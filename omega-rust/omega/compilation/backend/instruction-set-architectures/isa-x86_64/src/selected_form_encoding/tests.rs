@@ -77,6 +77,25 @@ fn assert_every_bit_change_rejected(
     }
 }
 
+fn assert_every_operand_substitution_rejected(
+    physical: &ValidatedPhysicalRegisterModel,
+    kind: SelectedInstructionKind,
+    key: MachineAlternativeKey,
+    operands: &[RegisterViewId],
+    substitute: RegisterViewId,
+    bytes: &[u8],
+    context: &str,
+) {
+    for operand_position in 0..operands.len() {
+        let mut changed = operands.to_vec();
+        changed[operand_position] = substitute;
+        assert!(
+            validate_x86_64_selected_form_encoding(physical, kind, key, &changed, bytes).is_err(),
+            "{context} substituted operand {operand_position}"
+        );
+    }
+}
+
 #[test]
 fn saturating_subtract_binds_registers_condition_and_flag_effects() {
     let physical = validate_physical_register_model(x86_64_physical_register_model()).unwrap();
@@ -293,20 +312,15 @@ fn wrapping_remainder_binds_guard_signed_division_scratch_and_aliases() {
             encoded.bytes(),
             "mutated",
         );
-        for operand_position in 0..operands.len() {
-            let mut changed = operands;
-            changed[operand_position] = physical.model().view_named("r8").unwrap().id;
-            assert!(
-                validate_x86_64_selected_form_encoding(
-                    &physical,
-                    kind,
-                    key,
-                    &changed,
-                    encoded.bytes(),
-                )
-                .is_err()
-            );
-        }
+        assert_every_operand_substitution_rejected(
+            &physical,
+            kind,
+            key,
+            &operands,
+            physical.model().view_named("r8").unwrap().id,
+            encoded.bytes(),
+            "mutated",
+        );
     }
     let invalid =
         ["rax", "rdx", "rax", "rdx"].map(|name| physical.model().view_named(name).unwrap().id);
@@ -541,14 +555,15 @@ fn exact_divide_binds_unsigned_opcode_and_registers() {
     let encoded = encode_x86_64_selected_form(&physical, kind, key, &operands).unwrap();
     assert_eq!(encoded.bytes(), expected);
     assert_every_byte_change_rejected(&physical, kind, key, &operands, &expected, "changed");
-    for operand in 0..operands.len() {
-        let mut changed = operands;
-        changed[operand] = physical.model().view_named("r8").unwrap().id;
-        assert!(
-            validate_x86_64_selected_form_encoding(&physical, kind, key, &changed, &expected)
-                .is_err()
-        );
-    }
+    assert_every_operand_substitution_rejected(
+        &physical,
+        kind,
+        key,
+        &operands,
+        physical.model().view_named("r8").unwrap().id,
+        &expected,
+        "changed",
+    );
 }
 
 const SATURATING_OPERATIONS: [SaturatingOperation; 5] = [
@@ -1178,21 +1193,15 @@ fn saturating_forms_reject_every_mutation_substitution_and_sibling_carrier() {
                     encoded.bytes(),
                     &format!("{operation:?} {carrier:?} high={high}"),
                 );
-                for operand_position in 0..operands.len() {
-                    let mut changed = operands.clone();
-                    changed[operand_position] = substitute;
-                    assert!(
-                        validate_x86_64_selected_form_encoding(
-                            &physical,
-                            kind,
-                            key,
-                            &changed,
-                            encoded.bytes()
-                        )
-                        .is_err(),
-                        "{operation:?} {carrier:?} substituted operand {operand_position}"
-                    );
-                }
+                assert_every_operand_substitution_rejected(
+                    &physical,
+                    kind,
+                    key,
+                    &operands,
+                    substitute,
+                    encoded.bytes(),
+                    &format!("{operation:?} {carrier:?}"),
+                );
                 if !high {
                     canonical.push((operation, carrier, kind, key, operands, encoded));
                 }
