@@ -70,8 +70,9 @@ const DEFAULT_MAX_RECORDS: usize = 256;
 const DEFAULT_MAX_RECORD_BYTES: u64 = 512 * 1024 * 1024;
 
 /// Capacity contract for one cache directory. A record beyond the byte
-/// ceiling, or a directory already holding `max_records` records, declines
-/// the store — the compile still returns its fresh review.
+/// ceiling declines the store, and a directory holding `max_records` records
+/// evicts its oldest before storing — the compile still returns its fresh
+/// review either way.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct CompiledReviewCacheLimits {
     pub max_records: usize,
@@ -172,7 +173,11 @@ impl CachedCompiledReview {
 
 /// One cache directory: a flat sequence of `<key-hex>.rec` records whose
 /// names are the record keys. Records are immutable, content-named and
-/// self-verifying; a full cache declines rather than evicting.
+/// self-verifying. A full cache evicts its least recently written records:
+/// keys bind the compiler identity and the toolchain library content, so
+/// every compiler rebuild or library edit strands the records it supersedes,
+/// and a cache that declined when full stopped storing for good once those
+/// accumulated. Losing a record costs one fresh compile, never a verdict.
 pub(crate) struct CompiledReviewCache {
     directory: PathBuf,
     limits: CompiledReviewCacheLimits,
@@ -215,10 +220,10 @@ impl CompiledReviewCache {
     }
 
     /// Persist one compiled review record under `key`. Storing is
-    /// best-effort: oversize records and full directories decline silently.
-    /// Store one record. `replace` overwrites an existing record under the
-    /// same key: a recompile forced by a demanded component description
-    /// replaces the record that lacked it.
+    /// best-effort: an oversize record declines silently, and a full
+    /// directory first evicts its oldest records. `replace` overwrites an
+    /// existing record under the same key: a recompile forced by a demanded
+    /// component description replaces the record that lacked it.
     pub(crate) fn store(&self, key: &[u8; 32], review: &CachedCompiledReview, replace: bool) {
         let mut payload = Vec::new();
         encode_record(review, &mut payload);
@@ -234,19 +239,7 @@ impl CompiledReviewCache {
         if exists && !replace {
             return;
         }
-        let count = match std::fs::read_dir(&self.directory) {
-            Ok(entries) => entries
-                .filter_map(|entry| entry.ok())
-                .filter(|entry| {
-                    entry
-                        .path()
-                        .extension()
-                        .is_some_and(|extension| extension == RECORD_EXTENSION)
-                })
-                .count(),
-            Err(_) => return,
-        };
-        if !exists && count >= self.limits.max_records {
+        if !exists && !self.make_room() {
             return;
         }
         static SEQUENCE: AtomicU64 = AtomicU64::new(0);
@@ -267,6 +260,40 @@ impl CompiledReviewCache {
         if std::fs::rename(&temporary, &path).is_err() {
             let _ = std::fs::remove_file(&temporary);
         }
+    }
+
+    /// Leave room for one more record, removing the least recently written
+    /// records when the directory is at capacity. Returns whether a record
+    /// may be added. A concurrent writer can race this count; the bound is a
+    /// size budget, and a removed record is only a later miss.
+    fn make_room(&self) -> bool {
+        let Ok(entries) = std::fs::read_dir(&self.directory) else {
+            return false;
+        };
+        let mut records = entries
+            .filter_map(|entry| entry.ok())
+            .filter(|entry| {
+                entry
+                    .path()
+                    .extension()
+                    .is_some_and(|extension| extension == RECORD_EXTENSION)
+            })
+            .map(|entry| {
+                let written = entry
+                    .metadata()
+                    .and_then(|metadata| metadata.modified())
+                    .unwrap_or(std::time::SystemTime::UNIX_EPOCH);
+                (written, entry.path())
+            })
+            .collect::<Vec<_>>();
+        let Some(excess) = (records.len() + 1).checked_sub(self.limits.max_records) else {
+            return true;
+        };
+        records.sort();
+        for (_, path) in records.iter().take(excess) {
+            let _ = std::fs::remove_file(path);
+        }
+        true
     }
 }
 
@@ -312,4 +339,49 @@ pub(crate) fn record_compiled_review(
         },
         policy_canonical_bytes: u64::try_from(policy_canonical_bytes).ok()?,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{CompiledReviewCache, CompiledReviewCacheLimits};
+    use std::time::{Duration, SystemTime};
+
+    #[test]
+    fn full_cache_evicts_its_oldest_records_before_storing() {
+        let directory = std::env::temp_dir().join(format!(
+            "omega-review-cache-eviction-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&directory);
+        std::fs::create_dir_all(&directory).unwrap();
+        let written = |name: &str, seconds: u64| {
+            let path = directory.join(name);
+            std::fs::write(&path, b"record").unwrap();
+            std::fs::File::options()
+                .write(true)
+                .open(&path)
+                .unwrap()
+                .set_modified(SystemTime::UNIX_EPOCH + Duration::from_secs(seconds))
+                .unwrap();
+        };
+        written("oldest.rec", 100);
+        written("older.rec", 200);
+        written("newest.rec", 300);
+        written("staging.tmp", 50);
+        let cache = CompiledReviewCache {
+            directory: directory.clone(),
+            limits: CompiledReviewCacheLimits {
+                max_records: 2,
+                max_record_bytes: 1024,
+            },
+        };
+        assert!(cache.make_room());
+        let mut remaining = std::fs::read_dir(&directory)
+            .unwrap()
+            .map(|entry| entry.unwrap().file_name().into_string().unwrap())
+            .collect::<Vec<_>>();
+        remaining.sort();
+        assert_eq!(remaining, ["newest.rec", "staging.tmp"]);
+        std::fs::remove_dir_all(&directory).unwrap();
+    }
 }

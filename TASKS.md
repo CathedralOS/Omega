@@ -3264,9 +3264,7 @@ of a check the same flow already performed, not the check itself.
   `settled_checks=2` for the bound pass, both of them build-program checks
   (`build-evaluation/src/admission/checking.rs`, about 7 s together). Remaining:
   let a build activation take an equal build program's judgment the same way,
-  then the bound pass reports `settled_checks=0`. Separately, `omega update
-  --resume` repeats the whole two-pass review (238 s): the persistent review
-  cache never carries std, a path dependency, into the next invocation.
+  then the bound pass reports `settled_checks=0`.
   Acceptance: the bound pass reports `settled_checks=0` for an occurrence whose
   typed program is unchanged, and review output for that command is
   unchanged.
