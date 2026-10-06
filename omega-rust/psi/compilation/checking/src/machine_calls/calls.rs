@@ -9,6 +9,7 @@
 
 use crate::declarations::symbols::{MachineSymbols, TopLevelSymbols};
 use crate::proof_contracts::arithmetic_domains::ValueEnvironment;
+use crate::value_custody::expression_types::declared_reference_access;
 use crate::value_custody::expression_types::{
     argument_matches_carrier, expression_type_name_handle, report_cross_class_store,
     report_data_type_conflict,
@@ -220,135 +221,50 @@ fn report_callable_argument_count_mismatch(
     false
 }
 
-fn declared_reference_access(
+fn report_argument_reference_access(
     program: &TypedTrees,
-    mut reference: TypeReferenceHandle,
-) -> Option<language_semantics::ReferenceAccess> {
-    while let TypeReferenceNode::Constrained { base_type, .. } =
-        program.type_reference_table.type_reference(reference)
-    {
-        reference = *base_type;
-    }
-    match program.type_reference_table.type_reference(reference) {
-        TypeReferenceNode::Reference { access, .. } => Some(*access),
-        _ => None,
-    }
-}
-
-/// The reference access one argument actually supplies: an explicit `&`,
-/// `&mut`, or `&write` borrow expression, or a resolved call result carrying
-/// its declared access. Shared by the statement/transition path
-/// (`validate_call_arguments_handles`) and the value-position path
-/// (`validate_value_call_argument_classes`).
-fn supplied_reference_access(
-    program: &TypedTrees,
-    argument: ExpressionHandle,
-) -> Option<language_semantics::ReferenceAccess> {
-    match program.expression_table.expression(argument) {
-        ExpressionNode::Borrow(borrow) => Some(borrow.access),
-        ExpressionNode::Call(call) => {
-            // A resolved result carries its declared reference access;
-            // passing it onward is not a new borrow of a binding slot.
-            resolved_call_result_type(program, call)
-                .and_then(|reference| declared_reference_access(program, reference))
-        }
-        _ => None,
-    }
-}
-
-/// The `&write` no-read contract is identical at every call boundary: a
-/// `&write` parameter requires an explicit `&write` borrow argument, and a
-/// `&write` argument never widens to shared or mutable authority. Returns
-/// whether it reported, so callers skip the remaining checks on an
-/// already-reported argument.
-fn report_write_only_argument_access(
-    program: &TypedTrees,
+    machine: &Machine,
+    state: Option<&State>,
+    prior_statements: &[typed_trees::statement::StatementNode],
     argument: ExpressionHandle,
     parameter: &StateParameter,
-    expected_access: Option<language_semantics::ReferenceAccess>,
-    supplied_access: Option<language_semantics::ReferenceAccess>,
     target_name: &str,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> bool {
-    if expected_access == Some(language_semantics::ReferenceAccess::WriteOnly)
-        && !matches!(program.expression_table.expression(argument),
-            ExpressionNode::Borrow(borrow)
-                if borrow.access == language_semantics::ReferenceAccess::WriteOnly)
-    {
-        diagnostics.push(Diagnostic::error(format!(
-            "argument `{}` for state `{}` requires explicit write-only attenuation; pass `&write ...` (a bare value or `&mut ...` does not establish the no-read contract)",
-            parameter.name, target_name,
-        )));
-        return true;
-    }
-    if supplied_access == Some(language_semantics::ReferenceAccess::WriteOnly)
-        && expected_access != Some(language_semantics::ReferenceAccess::WriteOnly)
-    {
-        diagnostics.push(Diagnostic::error(format!(
-            "argument `{}` for state `{}` supplies `&write` to a parameter that may read; write-only authority cannot widen to shared or mutable access",
-            parameter.name, target_name,
-        )));
-        return true;
-    }
-    false
-}
-
-/// Forward the selected reference permission, not the mutability of its slot.
-/// An owned aggregate can carry an exclusive reference without a mutable local
-/// binding. Every enclosing reference still limits access: reading that same
-/// leaf through a shared aggregate cannot recover its exclusive permission.
-fn argument_forwards_mutable_reference(
-    program: &TypedTrees,
-    current_machine: &Machine,
-    current_state: Option<&State>,
-    writable_roots: &WritableRoots<'_, '_>,
-    argument: ExpressionHandle,
-) -> bool {
-    let Some(state) = current_state else {
-        return false;
+    use crate::value_custody::reference_access::{
+        ReferenceAccessRefusal, receiving_reference_access_refusal,
     };
-    if !crate::value_custody::places::place_has_builtin_coordinates(
+    let Some(refusal) = receiving_reference_access_refusal(
         program,
-        current_machine,
-        current_state,
-        argument,
-    ) {
-        return false;
-    }
-    let mut root = argument;
-    loop {
-        let receiver = match program.expression_table.expression(root) {
-            ExpressionNode::Member(member) => member.receiver,
-            ExpressionNode::Indexed(indexed) => indexed.collection,
-            ExpressionNode::Name(_) => break,
-            _ => return false,
-        };
-        root = receiver;
-    }
-    let ExpressionNode::Name(path) = program.expression_table.expression(root) else {
-        return false;
-    };
-    let [name] = program.expression_table.name_path_members(path.members) else {
-        return false;
-    };
-    if path.head_symbol != path.symbol {
-        return false;
-    }
-    let Some(binding_type) = crate::value_custody::locals::state_binding_type(
-        program,
+        machine,
         state,
-        writable_roots.statements,
-        path.symbol,
-        name.as_str(),
+        prior_statements,
+        argument,
+        parameter.type_reference,
     ) else {
         return false;
     };
-    crate::value_custody::expression_types::place_forwards_mutable_reference(
-        program,
-        argument,
-        path.symbol,
-        binding_type,
-    )
+    diagnostics.push(Diagnostic::error(match refusal {
+        ReferenceAccessRefusal::ExplicitWriteOnlyRequired => format!(
+            "argument `{}` for state `{}` requires explicit write-only attenuation; pass `&write ...` (a bare value or `&mut ...` does not establish the no-read contract)",
+            parameter.name, target_name,
+        ),
+        ReferenceAccessRefusal::WriteOnlyMayNotRead => format!(
+            "argument `{}` for state `{}` supplies `&write` to a parameter that may read; write-only authority cannot widen to shared or mutable access",
+            parameter.name, target_name,
+        ),
+        ReferenceAccessRefusal::ExclusiveBorrowSourceRequired { root, access } => {
+            let label = if access == language_semantics::ReferenceAccess::WriteOnly { "write-only" } else { "mutable" };
+            let root_name = if root.is_valid() { program.symbols.name(root) } else { parameter.name.as_str() };
+            format!("{label} argument `{root_name}` for state `{target_name}` is not writable in this state; the source cannot lend the requested exclusive access")
+        }
+        ReferenceAccessRefusal::MutableSourceRequired => format!(
+            "argument `{}` for state `{}` is declared `&mut` (`{}`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding",
+            parameter.name, target_name,
+            program.display_type_reference_with_constraints(parameter.type_reference),
+        ),
+    }));
+    true
 }
 
 pub(crate) fn resolved_call_result_type(
@@ -609,53 +525,17 @@ fn validate_call_arguments_with_type_correspondence(
             parameter.type_reference,
             diagnostics,
         );
-        let expected_access = declared_reference_access(program, parameter.type_reference);
-        let supplied_access = supplied_reference_access(program, *argument);
-
-        // Each explicit parameter retains the ordinary write-only attenuation rule.
-        if report_write_only_argument_access(
+        if report_argument_reference_access(
             program,
+            current_machine,
+            current_state,
+            writable_roots.statements,
             *argument,
             parameter,
-            expected_access,
-            supplied_access,
             target_name,
             diagnostics,
         ) {
             continue;
-        }
-
-        let is_mutable = matches!(
-            supplied_access,
-            Some(
-                language_semantics::ReferenceAccess::Mutable
-                    | language_semantics::ReferenceAccess::WriteOnly
-            )
-        );
-
-        // A mutable owned binding can replace its private value; only the
-        // declared reference access grants mutation of caller storage.
-        if expected_access == Some(language_semantics::ReferenceAccess::Mutable) && !is_mutable {
-            // A bare or projected stored reference can forward its existing
-            // permission. Owned scalar storage and mutability of a binding
-            // alone cannot supply a borrow; enclosing access still applies.
-            if !argument_forwards_mutable_reference(
-                program,
-                current_machine,
-                current_state,
-                writable_roots,
-                *argument,
-            ) {
-                diagnostics.push(Diagnostic::error(format!(
-                    "argument `{}` for state `{}` is declared `&mut` (`{}`), but the \
-                     caller lends only immutable access -- pass `&mut ...` or forward a \
-                     `&mut` binding",
-                    parameter.name,
-                    target_name,
-                    program.display_type_reference_with_constraints(parameter.type_reference),
-                )));
-                continue;
-            }
         }
 
         // Mutable-to-shared attenuation changes permission, not carrier or
@@ -820,6 +700,7 @@ fn validate_value_call_argument_classes(
     program: &TypedTrees,
     current_machine: &Machine,
     current_state: &State,
+    prior_statements: &[typed_trees::statement::StatementNode],
     value_environment: &ValueEnvironment,
     arguments: &[ExpressionHandle],
     callee_machine: &Machine,
@@ -912,15 +793,13 @@ fn validate_value_call_argument_classes(
             parameter.type_reference,
             diagnostics,
         );
-        // The write-only access contract is the same one the statement and
-        // transition paths enforce in `validate_call_arguments_handles`; the
-        // `self` receiver place is not an authored borrow argument.
-        if report_write_only_argument_access(
+        if report_argument_reference_access(
             program,
+            current_machine,
+            Some(current_state),
+            prior_statements,
             *argument,
             parameter,
-            declared_reference_access(program, parameter.type_reference),
-            supplied_reference_access(program, *argument),
             callee_state.name.as_str(),
             diagnostics,
         ) {

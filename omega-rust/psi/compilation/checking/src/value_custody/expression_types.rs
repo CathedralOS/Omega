@@ -73,7 +73,9 @@ pub use result_type::{
     join_result_type_references, parameter_expression_result_type_reference,
 };
 
-pub(crate) use reference_values::place_forwards_mutable_reference;
+pub(crate) use reference_values::{
+    declared_reference_access, place_forwards_mutable_reference, place_permits_reference_borrow,
+};
 pub(crate) use result_type::domain_expression_result_type_reference;
 
 pub(crate) use cast_validation::validate_cast_types;

@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 14, "jobs": "2", "load1_end": 3.38, "load1_start": 3.38, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 32, "jobs": "2", "load1_end": null, "load1_start": null, "machine": "amd64", "platform": "windows", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -178,8 +178,9 @@ fail/borrow/view_return_ambiguous_ref_inputs rejected 827ms expected @2d8ed25366
 	machine `pick_either` returns a view but takes 2 candidate ref inputs (`a`, `b`); cannot infer which input the returned view borrows — annotate the return type with the lifetime of the input it borrows, e.g. `-> &'a T` matching an input `&'a T`
 fail/borrow/write_only_implicit_attenuation rejected 307ms expected @2d8ed253669f
 	argument `value` for state `entry` requires explicit write-only attenuation; pass `&write ...` (a bare value or `&mut ...` does not establish the no-read contract)
-fail/borrow/write_only_mutable_widening rejected 294ms expected @2d8ed253669f
+fail/borrow/write_only_mutable_widening rejected 312ms expected @69d297ae3ee5
 	machine `widen` state `entry` widens write-only parameter `value` to `&mut`; forward it explicitly as `&write value` instead
+	mutable argument `value` for state `entry` is not writable in this state; the source cannot lend the requested exclusive access
 fail/borrow/write_only_observation rejected 215ms expected @2d8ed253669f
 	machine `observe` state `entry` reads write-only parameter `source`; `&write` permits replacement or exact `&write` forwarding, never observation
 fail/borrows/affine_record_copy_handoff rejected 149ms expected @14f449e5e62b+wt
@@ -205,10 +206,22 @@ fail/borrows/borrow_unknown_index_pair_mut rejected 1575ms expected @c5d32a00863
 	statement 2 creates local borrow `right` while local borrow `left` is still active (borrowed at statement 1; its last use is at statement 3)
 	cannot prove index `left_index` is within length 2 in Main::main::main
 	cannot prove index `right_index` is within length 2 in Main::main::main
-fail/borrows/case_payload_shared_clone_mutation rejected 134ms expected @bb878591d2fc+wt
-	mutable argument `source` for state `clone` is not writable in this state
+fail/borrows/case_payload_shared_clone_mutation rejected 238ms expected @69d297ae3ee5
+	mutable argument `source` for state `clone` is not writable in this state; the source cannot lend the requested exclusive access
+fail/borrows/case_reference_from_immutable_bytes rejected 296ms expected @69d297ae3ee5
+	construction of `Selection` field `bytes` requires mutable source access; shared or immutable storage cannot supply it
+	construction of `Selection` field `bytes` requires mutable source access; shared or immutable storage cannot supply it
+fail/borrows/case_reference_through_shared_container rejected 301ms expected @69d297ae3ee5
+	construction of `MutableChoice` field `bytes` requires mutable source access; shared or immutable storage cannot supply it
+fail/borrows/constructor_case_owner_mismatch rejected 230ms expected @69d297ae3ee5
+	construction of `Holder` field `choice` expects the `Correct` data type but got `Other` in the `field` position; these are incompatible data types (a place is accepted structurally, but its declared type must match)
+fail/borrows/constructor_reference_element_mismatch rejected 228ms expected @69d297ae3ee5
+	construction of `Record` field `bytes` expects reference `&mut [u16]`, but the source does not supply its carrier and access
+	construction of `Choice` field `bytes` expects reference `&mut [u16]`, but the source does not supply its carrier and access
 fail/borrows/copied_byte_predicate_invalidated_by_destination_write rejected 253ms expected @1a0d1c0cd491+wt
 	cannot prove requires contract for call take_ascii from overwrite_copy: ascii_only(saved) (needs fact `ascii_only(value)` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/borrows/direct_mutable_reference_from_immutable_bytes rejected 299ms expected @69d297ae3ee5
+	argument `bytes` for state `entry` is declared `&mut` (`&mut [u8]`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
 fail/borrows/direct_reference_array_duplicate_mutable rejected 1517ms expected @15c77983aab0+wt
 	terminal-artifact production failed: Lowering(InvalidTerminalModule(InvalidReferenceCustody { machine: MachineId(1), reason: "projected ingress remains suspended by a live reference" }))
 fail/borrows/direct_reference_array_live_source_move rejected 385ms expected @15c77983aab0+wt
@@ -241,6 +254,8 @@ fail/borrows/mutable_primitive_reference_live_owner_read rejected 740ms expected
 	state `observe` receives `value` while local borrow `borrowed` is still active (borrowed at statement 1; its last use is at statement 3)
 fail/borrows/mutable_record_state_alias rejected 661ms expected @2d8ed253669f
 	state `finish` receives `cell` as mutable more than once
+fail/borrows/mutable_reference_borrow_through_shared_container rejected 292ms expected @69d297ae3ee5
+	construction of `MutableChoice` field `bytes` requires mutable source access; shared or immutable storage cannot supply it
 fail/borrows/named_jump_receiver_under_argument_loan rejected 176ms expected @17d6ccc60253+wt
 	state `observe` receives `main.count` as both mutable and read-only
 	state `read_after` receives `main.count` as mutable while its mutable receiver reads `main.count`
@@ -251,6 +266,9 @@ fail/borrows/primitive_aggregate_live_owner_read rejected 853ms expected @99b411
 	state `observe` receives `value` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3)
 fail/borrows/qualified_byte_element_mutable_call_rejected rejected 259ms expected @51b4aa0b5a70+wt
 	cannot prove default-domain field requirement for return from Packet::main at statement 1: packet.bytes requires [u8; N]::Ascii
+fail/borrows/record_reference_from_immutable_bytes rejected 203ms expected @69d297ae3ee5
+	construction of `Holder` field `bytes` requires mutable source access; shared or immutable storage cannot supply it
+	construction of `Holder` field `bytes` requires mutable source access; shared or immutable storage cannot supply it
 fail/borrows/reference_array_result_conditional_live_write rejected 1427ms expected @6ba9c43af356+wt
 	statement 8 mutates `main.cells.first.value` while local borrow `messages` is still active (borrowed at statement 7; its last use is at statement 10)
 	statement 8 mutates `main.cells.first.value` while local borrow `messages` is still active (borrowed at statement 7; its last use is at statement 10)
@@ -1630,6 +1648,7 @@ pass/borrows/branch_selected_record_composed_receiver_exit rejected 1375ms check
 pass/borrows/branch_selected_record_receiver_exit checked 1333ms check-target:macos_arm64 @011fd400e8c1+wt
 pass/borrows/case_payload_shared_transition_exit checked 2612ms check-target:macos_arm64 @e8505b71528
 pass/borrows/case_payload_state_loan_exit checked 2340ms check-target:macos_arm64 @e8505b71528
+pass/borrows/constructor_reference_access checked 537ms @69d297ae3ee5
 pass/borrows/enum_selected_view_reference_exit checked 6317ms check-target:macos_arm64 @cfe60a3a242
 pass/borrows/indexed_record_field_replacement_exit checked 1447ms check-target:macos_arm64 @8d34ee62210f+wt
 pass/borrows/interleaved_parameter_field_replacement_exit checked 1370ms check-target:macos_arm64 @63377f7122bb+wt

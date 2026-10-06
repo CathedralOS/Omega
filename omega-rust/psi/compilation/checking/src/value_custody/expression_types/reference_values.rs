@@ -412,7 +412,7 @@ pub(super) fn subslice_view_matches_reference(
 ) -> bool {
     let mut substitutions = Vec::new();
     let Some(collection) =
-        selected_value_type(program, indexed.collection, &mut substitutions, None)
+        selected_value_type(program, indexed.collection, &mut substitutions, None, None)
     else {
         return false;
     };
@@ -794,7 +794,7 @@ fn declared_value_type(
     expression: ExpressionHandle,
     substitutions: &mut Vec<(symbols::SymbolHandle, TypeReferenceHandle)>,
 ) -> Option<TypeReferenceHandle> {
-    selected_value_type(program, expression, substitutions, None)
+    selected_value_type(program, expression, substitutions, None, None)
 }
 
 /// A known current-state root supplies identity, not a new loan. Intermediate
@@ -811,6 +811,7 @@ pub(crate) fn place_forwards_mutable_reference(
         expression,
         &mut substitutions,
         Some((root, root_type)),
+        Some(ReferenceAccess::Mutable),
     ) else {
         return false;
     };
@@ -831,11 +832,91 @@ pub(crate) fn place_forwards_mutable_reference(
     )
 }
 
+pub(crate) fn declared_reference_access(
+    program: &TypedTrees,
+    mut reference: TypeReferenceHandle,
+) -> Option<language_semantics::ReferenceAccess> {
+    while let TypeReferenceNode::Constrained { base_type, .. } =
+        program.type_reference_table.type_reference(reference)
+    {
+        reference = *base_type;
+    }
+    match program.type_reference_table.type_reference(reference) {
+        TypeReferenceNode::Reference { access, .. } => Some(*access),
+        _ => None,
+    }
+}
+
+/// Borrowing a selected referent preserves the access of every enclosing
+/// reference. The owning context supplies the exact visible root and whether
+/// its owned storage is writable; a mutable reference leaf can lend its
+/// referent without making the containing owned binding mutable.
+pub(crate) fn place_permits_reference_borrow(
+    program: &TypedTrees,
+    mut expression: ExpressionHandle,
+    root: symbols::SymbolHandle,
+    root_type: TypeReferenceHandle,
+    owned_root_is_writable: bool,
+    access: ReferenceAccess,
+) -> bool {
+    // A range lends its collection's backing. Its bounds remain independently
+    // checked; selecting its extent cannot manufacture source permission.
+    if let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression)
+        && matches!(
+            program.expression_table.expression(indexed.index),
+            ExpressionNode::Range(_)
+        )
+    {
+        expression = indexed.collection;
+    }
+    let mut substitutions = Vec::new();
+    let Some(selected) = selected_value_type(
+        program,
+        expression,
+        &mut substitutions,
+        Some((root, root_type)),
+        Some(access),
+    ) else {
+        return false;
+    };
+    let Some(mut selected) = substituted_reference(program, selected, &substitutions) else {
+        return false;
+    };
+    while let TypeReferenceNode::Constrained { base_type, .. } =
+        program.type_reference_table.type_reference(selected)
+    {
+        selected = *base_type;
+    }
+    match program.type_reference_table.type_reference(selected) {
+        TypeReferenceNode::Reference {
+            access: source_access,
+            ..
+        } => reference_access_permits(*source_access, access),
+        _ => {
+            owned_root_is_writable
+                || declared_reference_access(program, root_type)
+                    .is_some_and(|source_access| reference_access_permits(source_access, access))
+        }
+    }
+}
+
+fn reference_access_permits(source: ReferenceAccess, required: ReferenceAccess) -> bool {
+    matches!(
+        (source, required),
+        (ReferenceAccess::Shared, ReferenceAccess::Shared)
+            | (
+                ReferenceAccess::Mutable,
+                ReferenceAccess::Shared | ReferenceAccess::Mutable | ReferenceAccess::WriteOnly
+            )
+            | (ReferenceAccess::WriteOnly, ReferenceAccess::WriteOnly)
+    )
+}
+
 fn projection_receiver_type(
     program: &TypedTrees,
     mut reference: TypeReferenceHandle,
     substitutions: &[(symbols::SymbolHandle, TypeReferenceHandle)],
-    require_mutable_access: bool,
+    required_access: Option<ReferenceAccess>,
 ) -> Option<TypeReferenceHandle> {
     for _ in 0..128 {
         reference = substituted_reference(program, reference, substitutions)?;
@@ -844,7 +925,9 @@ fn projection_receiver_type(
             TypeReferenceNode::Reference {
                 referee, access, ..
             } => {
-                if require_mutable_access && *access != ReferenceAccess::Mutable {
+                if required_access
+                    .is_some_and(|required| !reference_access_permits(*access, required))
+                {
                     return None;
                 }
                 *referee
@@ -860,6 +943,7 @@ fn selected_value_type(
     expression: ExpressionHandle,
     substitutions: &mut Vec<(symbols::SymbolHandle, TypeReferenceHandle)>,
     forwarding_root: Option<(symbols::SymbolHandle, TypeReferenceHandle)>,
+    required_projection_access: Option<ReferenceAccess>,
 ) -> Option<TypeReferenceHandle> {
     match program.expression_table.expression(expression) {
         ExpressionNode::Name(name) => {
@@ -893,13 +977,18 @@ fn selected_value_type(
                 )
                 .map(|field| field.type_reference);
             }
-            let receiver =
-                selected_value_type(program, member.receiver, substitutions, forwarding_root)?;
+            let receiver = selected_value_type(
+                program,
+                member.receiver,
+                substitutions,
+                forwarding_root,
+                required_projection_access,
+            )?;
             let receiver = projection_receiver_type(
                 program,
                 receiver,
                 substitutions,
-                forwarding_root.is_some(),
+                required_projection_access,
             )?;
             let (symbol, arguments) = match program.type_reference_table.type_reference(receiver) {
                 TypeReferenceNode::Named { symbol, .. } => (*symbol, &[][..]),
@@ -1008,8 +1097,13 @@ fn selected_value_type(
             ) {
                 return None;
             }
-            let collection =
-                selected_value_type(program, indexed.collection, substitutions, forwarding_root)?;
+            let collection = selected_value_type(
+                program,
+                indexed.collection,
+                substitutions,
+                forwarding_root,
+                required_projection_access,
+            )?;
             // Selection needs the applied collection, not a raw field
             // telescope whose substituted elements could match another
             // authored operator. This query does not materialize types.
@@ -1068,7 +1162,7 @@ fn selected_value_type(
                 program,
                 collection,
                 substitutions,
-                forwarding_root.is_some(),
+                required_projection_access,
             )?;
             match program.type_reference_table.type_reference(collection) {
                 TypeReferenceNode::FixedArray { element_type, .. }

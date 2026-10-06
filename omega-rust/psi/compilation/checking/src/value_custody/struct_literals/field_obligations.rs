@@ -67,6 +67,72 @@ pub(super) fn enforce_construction_field_obligations(
         else {
             continue;
         };
+        // A structural shell cannot turn shared image bytes or a shared
+        // stored view into exclusive access. Use the same source permission
+        // judgment as calls before the independent domain/shape checks; byte
+        // compatibility and destination mutability establish no authority.
+        let slot_context = format!(
+            "construction of `{type_name}` field `{}`",
+            field.name.as_str()
+        );
+        if crate::value_custody::reference_access::is_reference_destination(program, field_type) {
+            use crate::value_custody::reference_access::ReferenceAccessRefusal;
+            let prior_statements =
+                &program.statement_table.statements(state.statement_nodes)[..statement_index];
+            if let Some(refusal) =
+                crate::value_custody::reference_access::receiving_reference_access_refusal(
+                    program,
+                    machine,
+                    Some(state),
+                    prior_statements,
+                    field.value,
+                    field_type,
+                )
+            {
+                let reason = match refusal {
+                    ReferenceAccessRefusal::ExplicitWriteOnlyRequired => {
+                        "requires explicit write-only attenuation; pass `&write ...`"
+                    }
+                    ReferenceAccessRefusal::WriteOnlyMayNotRead => {
+                        "may read, but the source supplies only write-only authority"
+                    }
+                    ReferenceAccessRefusal::ExclusiveBorrowSourceRequired { access, .. } => {
+                        if access == language_semantics::ReferenceAccess::WriteOnly {
+                            "requires exclusive source access; shared or immutable storage cannot supply it"
+                        } else {
+                            "requires mutable source access; shared or immutable storage cannot supply it"
+                        }
+                    }
+                    ReferenceAccessRefusal::MutableSourceRequired => {
+                        "requires mutable source access; shared or immutable storage cannot supply it"
+                    }
+                };
+                diagnostics.push(Diagnostic::error(format!("{slot_context} {reason}")));
+                continue;
+            }
+            if !crate::value_custody::expression_types::argument_matches_carrier(
+                program,
+                field.value,
+                field_type,
+            ) {
+                diagnostics.push(Diagnostic::error(format!(
+                    "{slot_context} expects reference `{}`, but the source does not supply its carrier and access",
+                    program.display_type_reference_with_constraints(field_type),
+                )));
+                continue;
+            }
+            if crate::value_custody::expression_types::report_view_element_argument_mismatch(
+                program,
+                machine,
+                Some(state),
+                field.value,
+                field_type,
+                &slot_context,
+                diagnostics,
+            ) {
+                continue;
+            }
+        }
         // An array-literal field value (`Holder { arr: [300, ..] }`) is checked
         // element-wise against the field's `[T; N]` element type. The scalar guards
         // below no-op on a non-primitive (array) field, so this is the complement.
@@ -83,10 +149,6 @@ pub(super) fn enforce_construction_field_obligations(
         // assignment / call-argument positions. Reject it before the range check
         // (which only applies to `[a..=b]`-constrained fields), so every primitive
         // field -- range-constrained or not -- is class-checked.
-        let slot_context = format!(
-            "construction of `{type_name}` field `{}`",
-            field.name.as_str()
-        );
         // Shape guard: `P { x: self.xs }` puts an array into a scalar field (or a
         // scalar into an array field). Runs for EVERY field -- the scalar class
         // guard and the data nominal guard below both no-op on an array value.

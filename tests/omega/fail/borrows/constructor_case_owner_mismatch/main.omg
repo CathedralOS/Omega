@@ -1,0 +1,5 @@
+data Correct { case Only; }
+data Other { case Only; }
+data Holder { case Value(choice: Correct); }
+machine main() { inspect(Holder::Value { choice: Other::Only }); }
+machine inspect(value: Holder) {}
