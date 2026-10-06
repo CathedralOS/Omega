@@ -553,10 +553,13 @@ defines the complete product bar.
     natively, including nested borrowing calls, mixed operand order and Unit
     consumers; its interpreter still declines explicit borrowing of an owned
     call result in `checked-interpreter/.../names_recasts_and_places.rs::resolve_place`
-    (unchanged from base `988b7227595`). Selected
-    transfers of empty affine locals still stop in stage 04's ordinary call
-    claim-transfer join; its prefix-local producer also assumes exactly one
-    settlement. Runtime-indexed observations below case payloads still reject
+    (unchanged from base `988b7227595`). Preserve selected local ownership with
+    `pass/calls/runtime_selected_trivial_local_cleanup_exit` and
+    `runtime_selected_local_owner_exit`: both engines exit 0 on macOS ARM64
+    at `16bba2bbc2d`, including nonempty/nonprefix locals, mutually exclusive
+    consuming calls and Unit-return cleanup. Each selected completion owns
+    its transfer/disposal partition; a producer's return-discard flag is not
+    liveness authority. Runtime-indexed observations below case payloads still reject
     an unsupported case path before emission.
     Structural values with nominal
     cleanup hooks or reference debt need the ordinary disposal schedule;

@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": "2", "load1_end": 8.33, "load1_start": 7.84, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": "2", "load1_end": 6.08, "load1_start": 6.35, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -479,6 +479,8 @@ fail/calls/plain_let_reassign_rejected rejected 276ms expected @2d8ed253669f
 fail/calls/qualified_nontail_self_call_rejected rejected 72ms expected @5181ccde6df7+wt
 	`Walker::walk(..)` here is NON-TAIL self-recursion: the result feeds the surrounding computation, so the frame must survive the call. Runtime recursion is TAIL-ONLY (measured recursion amendment) -- recursion depth lives in explicit storage you size. Restructure so the recursive step is the transition arm `-> walk(..)` on a measured machine, or iterate with an explicit stack.
 	exact arithmetic in machine `Walker::walk` state `step` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `walk(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
+fail/calls/selected_local_owner_reuse rejected 346ms expected @16bba2bbc2d5+wt
+	affine value `token` was already transferred or consumed; it cannot be moved here
 fail/calls/statement_call_undeclared_callee_rejected rejected 676ms expected @2d8ed253669f
 	call `no_such_leg` selects no declaration: `no_such_leg` is not a declared machine, data, or proof definition
 fail/calls/static_tail_local_custody_no_decrease rejected 443ms expected @c5d32a008630+wt
@@ -1843,7 +1845,9 @@ pass/calls/runtime_qualified_terminal_result_exit checked 418ms check-target:mac
 pass/calls/runtime_reference_returned_slice_element_write_exit checked 3431ms check-target:macos_arm64 @8b265e4e6ad8+wt
 pass/calls/runtime_referenced_local_outlives_sibling_guard_call_exit checked 1841ms check-target:macos_arm64 @ca8c127c90c5
 pass/calls/runtime_same_type_second_receiver_mutation_exit checked 1311ms check-target:macos_arm64 @2d8ed253669f
+pass/calls/runtime_selected_local_owner_exit checked 1801ms check-target:macos_arm64 @16bba2bbc2d5+wt
 pass/calls/runtime_selected_reference_field_result_exit checked 2338ms check-target:macos_arm64 @a9a2d3b913dd
+pass/calls/runtime_selected_trivial_local_cleanup_exit checked 1797ms check-target:macos_arm64 @16bba2bbc2d5+wt
 pass/calls/runtime_shared_ref_param_member_exit checked 835ms check-target:macos_arm64 @2f8006be6cc9+wt
 pass/calls/runtime_state_reference_field_result_exit checked 3779ms check-target:macos_arm64 @28b8fce37cfd+wt
 pass/calls/runtime_static_entry_context_exit checked 495ms check-target:macos_arm64 @2d8ed253669f
