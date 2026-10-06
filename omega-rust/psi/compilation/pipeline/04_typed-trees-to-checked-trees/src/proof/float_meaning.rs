@@ -17,7 +17,7 @@ use checked_trees::{
     CheckedFloatProjectionInput, CheckedFloatProjectionInputId, CheckedFloatProjectionSource,
     CheckedFloatSemanticApplication, CheckedFloatSemanticApplicationOperand, CheckedFloatUseSite,
     CheckedProofOnlyValueType, CheckedProofPropositionId, CheckedProofValueDeclaration,
-    CheckedProofValueId, ContractProofFactKind, ProofFacts,
+    CheckedProofValueId, ContractProofFactKind, ContractProofFactRef, ProofFacts,
 };
 use diagnostics::Diagnostic;
 use numerics::float_projection::FloatProjectionOperation;
@@ -932,6 +932,63 @@ fn instantiate_transported_ensures(
     equalities: &mut Vec<CheckedFloatMeaningEqualityProposition>,
     applications: &mut Vec<CheckedFloatSemanticApplication>,
 ) -> Result<(), Vec<Diagnostic>> {
+    // Transported `ensures` facts instantiate identically for a contract call
+    // and a boundary operation use once the site coordinate and operand key
+    // are chosen — one shared binding pass over the caller's fact span.
+    let mut instantiate_ensures_at_use =
+        |ensures: arena::HandleSpan<ContractProofFactRef>,
+         use_site: CheckedFloatUseSite,
+         operand_key: &dyn Fn(
+            &ValidatedFloatMeaningProjectionInvocation,
+        ) -> CheckedFloatProjectionSourceKey|
+         -> Result<(), Vec<Diagnostic>> {
+            for fact_ref in proof.contract_fact_refs.span_or_empty(ensures) {
+                let contract_fact = proof.contract_facts.get(fact_ref.fact);
+                if contract_fact.kind != ContractProofFactKind::Ensures {
+                    continue;
+                }
+                let typed_trees::domain::ProofFact::Expression(expression) =
+                    program.proof_facts.get(contract_fact.fact)
+                else {
+                    continue;
+                };
+                let expression = *expression;
+                instantiate_equalities_at_use(
+                    facts,
+                    equality_facts,
+                    expression,
+                    use_site,
+                    operand_key,
+                    projections,
+                    projection_keys,
+                    transitional_source_keys,
+                    invocation_contracts,
+                    equalities,
+                )?;
+                let mut application_values = Vec::new();
+                let mut application_tables = SemanticApplicationTables {
+                    projections,
+                    projection_keys,
+                    transitional_source_keys,
+                    applications,
+                    application_values: &mut application_values,
+                    equalities,
+                };
+                bind_semantic_applications_in_expression(
+                    program,
+                    expression,
+                    &SemanticOperandSite::UseSite {
+                        facts,
+                        invocation_contracts,
+                        operand_key,
+                    },
+                    Some(use_site),
+                    &mut application_tables,
+                    &mut Vec::new(),
+                )?;
+            }
+            Ok(())
+        };
     for (_, call) in proof.contract_calls.iter() {
         let use_site = CheckedFloatUseSite {
             owner_machine: call.caller_machine_symbol,
@@ -958,51 +1015,7 @@ fn instantiate_transported_ensures(
                 argument_expressions,
             )
         };
-        for fact_ref in proof.contract_fact_refs.span_or_empty(call.ensures) {
-            let contract_fact = proof.contract_facts.get(fact_ref.fact);
-            if contract_fact.kind != ContractProofFactKind::Ensures {
-                continue;
-            }
-            let typed_trees::domain::ProofFact::Expression(expression) =
-                program.proof_facts.get(contract_fact.fact)
-            else {
-                continue;
-            };
-            let expression = *expression;
-            instantiate_equalities_at_use(
-                facts,
-                equality_facts,
-                expression,
-                use_site,
-                &operand_key,
-                projections,
-                projection_keys,
-                transitional_source_keys,
-                invocation_contracts,
-                equalities,
-            )?;
-            let mut application_values = Vec::new();
-            let mut application_tables = SemanticApplicationTables {
-                projections,
-                projection_keys,
-                transitional_source_keys,
-                applications,
-                application_values: &mut application_values,
-                equalities,
-            };
-            bind_semantic_applications_in_expression(
-                program,
-                expression,
-                &SemanticOperandSite::UseSite {
-                    facts,
-                    invocation_contracts,
-                    operand_key: &operand_key,
-                },
-                Some(use_site),
-                &mut application_tables,
-                &mut Vec::new(),
-            )?;
-        }
+        instantiate_ensures_at_use(call.ensures, use_site, &operand_key)?;
     }
     for (_, operator_use) in proof.contract_operator_uses.iter() {
         let checked_trees::CheckedValueOrigin::StateStatement {
@@ -1028,51 +1041,7 @@ fn instantiate_transported_ensures(
         let operand_key = |invocation: &ValidatedFloatMeaningProjectionInvocation| {
             imported_operation_operand_key(program, invocation, use_site, use_expression)
         };
-        for fact_ref in proof.contract_fact_refs.span_or_empty(operator_use.ensures) {
-            let contract_fact = proof.contract_facts.get(fact_ref.fact);
-            if contract_fact.kind != ContractProofFactKind::Ensures {
-                continue;
-            }
-            let typed_trees::domain::ProofFact::Expression(expression) =
-                program.proof_facts.get(contract_fact.fact)
-            else {
-                continue;
-            };
-            let expression = *expression;
-            instantiate_equalities_at_use(
-                facts,
-                equality_facts,
-                expression,
-                use_site,
-                &operand_key,
-                projections,
-                projection_keys,
-                transitional_source_keys,
-                invocation_contracts,
-                equalities,
-            )?;
-            let mut application_values = Vec::new();
-            let mut application_tables = SemanticApplicationTables {
-                projections,
-                projection_keys,
-                transitional_source_keys,
-                applications,
-                application_values: &mut application_values,
-                equalities,
-            };
-            bind_semantic_applications_in_expression(
-                program,
-                expression,
-                &SemanticOperandSite::UseSite {
-                    facts,
-                    invocation_contracts,
-                    operand_key: &operand_key,
-                },
-                Some(use_site),
-                &mut application_tables,
-                &mut Vec::new(),
-            )?;
-        }
+        instantiate_ensures_at_use(operator_use.ensures, use_site, &operand_key)?;
     }
     Ok(())
 }
