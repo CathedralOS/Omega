@@ -5,9 +5,11 @@
 //! one explicit selection and retains exact fact coordinates; neither stage
 //! alone grants executable quotient authority.
 
+use super::theorem::SelectedTheoremTelescope;
 use super::{ExactQuotientRelation, InputRelation, RelationPlanError, RepresentativeTelescope};
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
+use typed_trees::domain::ProofFact;
 use typed_trees::signature::SignatureContractKind;
 use typed_trees::types::TypeReferenceHandle;
 
@@ -48,6 +50,62 @@ pub(super) struct TheoremContractFactLocation {
     pub(super) owner: TheoremContractOwner,
     pub(super) contract_position: usize,
     pub(super) fact_position: usize,
+}
+
+#[derive(Clone, Copy)]
+pub(super) struct LocatedFact<'a> {
+    pub(super) location: TheoremContractFactLocation,
+    pub(super) fact: &'a ProofFact,
+}
+
+/// Split a selected theorem's machine and state contracts into requires and
+/// ensures facts with their exact coordinates. Named-evidence lanes and
+/// result-scoped kinds are not part of the theorem schema.
+pub(super) fn collect_contract_facts<'a>(
+    program: &'a TypedTrees,
+    theorem: &SelectedTheoremTelescope,
+) -> Result<(Vec<LocatedFact<'a>>, Vec<LocatedFact<'a>>), RelationPlanError> {
+    let mut requires = Vec::new();
+    let mut ensures = Vec::new();
+    for (owner, span) in [
+        (TheoremContractOwner::Machine, theorem.machine_contracts),
+        (TheoremContractOwner::State, theorem.state_contracts),
+    ] {
+        for (contract_position, contract) in program
+            .signature_contracts
+            .span_or_empty(span)
+            .iter()
+            .enumerate()
+        {
+            if contract.binding.is_some() {
+                return Err(RelationPlanError::TheoremSchemaNamedEvidenceLane);
+            }
+            let destination = match contract.kind {
+                SignatureContractKind::Requires => &mut requires,
+                SignatureContractKind::Ensures => &mut ensures,
+                SignatureContractKind::EnsuresForResultCase { .. }
+                | SignatureContractKind::Crashes { .. } => {
+                    return Err(RelationPlanError::TheoremSchemaUnexpectedContractKind);
+                }
+            };
+            for (fact_position, fact) in program
+                .proof_facts
+                .span_or_empty(contract.facts)
+                .iter()
+                .enumerate()
+            {
+                destination.push(LocatedFact {
+                    location: TheoremContractFactLocation {
+                        owner,
+                        contract_position,
+                        fact_position,
+                    },
+                    fact,
+                });
+            }
+        }
+    }
+    Ok((requires, ensures))
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

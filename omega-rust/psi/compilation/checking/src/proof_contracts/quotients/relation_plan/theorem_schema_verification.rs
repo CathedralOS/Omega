@@ -13,6 +13,7 @@ use super::theorem::SelectedTheoremTelescope;
 use super::theorem_schema::{
     ExpectedTheoremSchema, TheoremApplicationSide, TheoremContractFactLocation,
     TheoremContractOwner, TheoremLegalityPremise, TheoremRepresentativeApplication,
+    collect_contract_facts,
 };
 use super::{RelationPlanError, RepresentativeTelescope};
 use symbols::SymbolHandle;
@@ -42,12 +43,6 @@ pub(in crate::proof_contracts::quotients) struct VerifiedTheoremSchema {
     pub(super) relation_premises: Vec<VerifiedTheoremFact>,
     pub(super) legality_premises: Vec<VerifiedTheoremFact>,
     pub(super) conclusion: TheoremContractFactLocation,
-}
-
-#[derive(Clone, Copy)]
-struct LocatedFact<'a> {
-    location: TheoremContractFactLocation,
-    fact: &'a ProofFact,
 }
 
 pub(super) fn verify_selected_theorem_schema(
@@ -224,54 +219,6 @@ pub(super) fn verify_selected_theorem_schema(
         conclusion: conclusion.location,
     })
 }
-
-fn collect_contract_facts<'a>(
-    program: &'a TypedTrees,
-    theorem: &SelectedTheoremTelescope,
-) -> Result<(Vec<LocatedFact<'a>>, Vec<LocatedFact<'a>>), RelationPlanError> {
-    let mut requires = Vec::new();
-    let mut ensures = Vec::new();
-    for (owner, span) in [
-        (TheoremContractOwner::Machine, theorem.machine_contracts),
-        (TheoremContractOwner::State, theorem.state_contracts),
-    ] {
-        for (contract_position, contract) in program
-            .signature_contracts
-            .span_or_empty(span)
-            .iter()
-            .enumerate()
-        {
-            if contract.binding.is_some() {
-                return Err(RelationPlanError::TheoremSchemaNamedEvidenceLane);
-            }
-            let destination = match contract.kind {
-                SignatureContractKind::Requires => &mut requires,
-                SignatureContractKind::Ensures => &mut ensures,
-                SignatureContractKind::EnsuresForResultCase { .. }
-                | SignatureContractKind::Crashes { .. } => {
-                    return Err(RelationPlanError::TheoremSchemaUnexpectedContractKind);
-                }
-            };
-            for (fact_position, fact) in program
-                .proof_facts
-                .span_or_empty(contract.facts)
-                .iter()
-                .enumerate()
-            {
-                destination.push(LocatedFact {
-                    location: TheoremContractFactLocation {
-                        owner,
-                        contract_position,
-                        fact_position,
-                    },
-                    fact,
-                });
-            }
-        }
-    }
-    Ok((requires, ensures))
-}
-
 fn representative_fact<'a>(
     program: &'a TypedTrees,
     representative: &RepresentativeTelescope,

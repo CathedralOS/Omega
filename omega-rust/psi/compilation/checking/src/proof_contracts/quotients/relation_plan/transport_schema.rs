@@ -18,15 +18,14 @@ use super::proof_fact_identity::{
 use super::theorem::SelectedTheoremTelescope;
 use super::theorem_schema::{
     ExpectedTheoremSchema, TheoremApplicationSide, TheoremContractFactLocation,
-    TheoremContractOwner,
+    collect_contract_facts,
 };
 use super::theorem_schema_verification::VerifiedTheoremParameter;
 use super::{DirectLiftRuntimeCorrespondence, RelationPlanError, RepresentativeTelescope};
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
-use typed_trees::domain::ProofFact;
 use typed_trees::machine::Machine;
-use typed_trees::signature::{SignatureContractKind, StateParameter};
+use typed_trees::signature::StateParameter;
 use typed_trees::state::State;
 use typed_trees::type_identity::TypeIdentityRequest;
 
@@ -49,12 +48,6 @@ pub(in crate::proof_contracts::quotients) struct VerifiedForwardPreconditionTran
     pub(super) parameters: Vec<VerifiedTheoremParameter>,
     pub(super) public_premises: Vec<VerifiedTransportFact>,
     pub(super) representative_conclusions: Vec<VerifiedTransportFact>,
-}
-
-#[derive(Clone, Copy)]
-struct LocatedFact<'a> {
-    location: TheoremContractFactLocation,
-    fact: &'a ProofFact,
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -288,54 +281,6 @@ fn verify_parameters(
         })
         .collect()
 }
-
-fn collect_contract_facts<'a>(
-    program: &'a TypedTrees,
-    theorem: &SelectedTheoremTelescope,
-) -> Result<(Vec<LocatedFact<'a>>, Vec<LocatedFact<'a>>), RelationPlanError> {
-    let mut requires = Vec::new();
-    let mut ensures = Vec::new();
-    for (owner, span) in [
-        (TheoremContractOwner::Machine, theorem.machine_contracts),
-        (TheoremContractOwner::State, theorem.state_contracts),
-    ] {
-        for (contract_position, contract) in program
-            .signature_contracts
-            .span_or_empty(span)
-            .iter()
-            .enumerate()
-        {
-            if contract.binding.is_some() {
-                return Err(RelationPlanError::TheoremSchemaNamedEvidenceLane);
-            }
-            let destination = match contract.kind {
-                SignatureContractKind::Requires => &mut requires,
-                SignatureContractKind::Ensures => &mut ensures,
-                SignatureContractKind::EnsuresForResultCase { .. }
-                | SignatureContractKind::Crashes { .. } => {
-                    return Err(RelationPlanError::TheoremSchemaUnexpectedContractKind);
-                }
-            };
-            for (fact_position, fact) in program
-                .proof_facts
-                .span_or_empty(contract.facts)
-                .iter()
-                .enumerate()
-            {
-                destination.push(LocatedFact {
-                    location: TheoremContractFactLocation {
-                        owner,
-                        contract_position,
-                        fact_position,
-                    },
-                    fact,
-                });
-            }
-        }
-    }
-    Ok((requires, ensures))
-}
-
 fn ordered_locations(
     partition: &RepresentativePreconditionPartition,
 ) -> Vec<RepresentativeContractFactLocation> {
