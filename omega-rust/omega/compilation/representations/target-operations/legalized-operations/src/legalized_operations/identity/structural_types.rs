@@ -1,5 +1,5 @@
 use super::calling::{encode_placement, encode_shape};
-use super::encoding::{encode_ids, encode_len};
+use super::encoding::{encode_ids, encode_len, encode_option_id};
 use super::scalar::encode_scalar_type;
 use semantic_vocabulary::{IeeeFloatFormat, StructuralPlaceKind};
 use terminal_psi::{
@@ -400,4 +400,31 @@ pub(super) fn encode_option_u32(bytes: &mut Vec<u8>, value: Option<u32>) {
 pub(super) fn encode_string(bytes: &mut Vec<u8>, value: &str) {
     encode_len(bytes, value.len());
     bytes.extend_from_slice(value.as_bytes());
+}
+
+/// Encode a record/case field-initializer roster: each entry carries the
+/// field identity and its value — a scalar (tag 0, value + optional range
+/// obligation) or a structural argument (tag 1).
+pub(super) fn encode_record_initializers(
+    bytes: &mut Vec<u8>,
+    fields: &[terminal_psi::RecordFieldInitializer],
+) {
+    encode_len(bytes, fields.len());
+    for field in fields {
+        bytes.extend_from_slice(&field.field.get().to_le_bytes());
+        match &field.value {
+            terminal_psi::RecordFieldValue::Scalar {
+                value,
+                range_obligation,
+            } => {
+                bytes.push(0);
+                bytes.extend_from_slice(&value.get().to_le_bytes());
+                encode_option_id(bytes, range_obligation.map(|id| id.get()));
+            }
+            terminal_psi::RecordFieldValue::Structural(argument) => {
+                bytes.push(1);
+                encode_structural_argument(bytes, argument);
+            }
+        }
+    }
 }

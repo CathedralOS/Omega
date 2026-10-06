@@ -185,26 +185,7 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                 } => {
                     bytes.push(34);
                     super::structural_result::encode_operation_result(bytes, result);
-                    encode_len(bytes, fields.len());
-                    for field in fields {
-                        bytes.extend_from_slice(&field.field.get().to_le_bytes());
-                        match &field.value {
-                            terminal_psi::RecordFieldValue::Scalar {
-                                value,
-                                range_obligation,
-                            } => {
-                                bytes.push(0);
-                                bytes.extend_from_slice(&value.get().to_le_bytes());
-                                encode_option_id(bytes, range_obligation.map(|id| id.get()));
-                            }
-                            terminal_psi::RecordFieldValue::Structural(argument) => {
-                                bytes.push(1);
-                                super::structural_types::encode_structural_argument(
-                                    bytes, argument,
-                                );
-                            }
-                        }
-                    }
+                    super::structural_types::encode_record_initializers(bytes, fields);
                     super::calling::encode_shape(bytes, *shape);
                 }
                 LegalizedScalarInstructionKind::EstablishCase {
@@ -216,26 +197,7 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                     bytes.push(21);
                     super::structural_result::encode_operation_result(bytes, result);
                     bytes.extend_from_slice(&result_case.get().to_le_bytes());
-                    encode_len(bytes, fields.len());
-                    for field in fields {
-                        bytes.extend_from_slice(&field.field.get().to_le_bytes());
-                        match &field.value {
-                            terminal_psi::RecordFieldValue::Scalar {
-                                value,
-                                range_obligation,
-                            } => {
-                                bytes.push(0);
-                                bytes.extend_from_slice(&value.get().to_le_bytes());
-                                encode_option_id(bytes, range_obligation.map(|id| id.get()));
-                            }
-                            terminal_psi::RecordFieldValue::Structural(argument) => {
-                                bytes.push(1);
-                                super::structural_types::encode_structural_argument(
-                                    bytes, argument,
-                                );
-                            }
-                        }
-                    }
+                    super::structural_types::encode_record_initializers(bytes, fields);
                     super::read_byte::encode_layout(bytes, layout);
                 }
                 LegalizedScalarInstructionKind::EstablishReference {
