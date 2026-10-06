@@ -187,7 +187,7 @@ fn validate_structural_field_range_authority(
                     layout.size,
                 )
                 .ok_or_else(|| invalid.clone())?;
-                let proposition = terminal_codec::canonical_proposition_order_key(&goal)
+                terminal_codec::canonical_proposition_order_key(&goal)
                     .map_err(|_| invalid.clone())?;
                 // Rewrites retain the accepted bounds and tiling fact only
                 // when it still proves this operation's exact current region.
@@ -237,7 +237,7 @@ fn validate_structural_field_range_authority(
                     *value,
                 )
                 .ok_or_else(|| invalid.clone())?;
-                let proposition = terminal_codec::canonical_proposition_order_key(&goal)
+                terminal_codec::canonical_proposition_order_key(&goal)
                     .map_err(|_| invalid.clone())?;
                 if unit
                     .accepted_obligation_facts
@@ -317,7 +317,7 @@ fn validate_structural_field_range_authority(
                     goal = terminal_semantics::indexed_byte_store_goal(goal, *value, predicates)
                         .map_err(|_| invalid.clone())?;
                 }
-                let proposition = terminal_codec::canonical_proposition_order_key(&goal)
+                terminal_codec::canonical_proposition_order_key(&goal)
                     .map_err(|_| invalid.clone())?;
                 if unit
                     .accepted_obligation_facts
@@ -365,7 +365,7 @@ fn validate_structural_field_range_authority(
                 };
                 let source_type =
                     IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| invalid.clone())?;
-                let proposition = terminal_codec::canonical_proposition_order_key(
+                terminal_codec::canonical_proposition_order_key(
                     &Proposition::IntegerMathLessOrEqual(
                         IntegerMathTerm::Add(
                             Box::new(IntegerMathTerm::MathValue {
@@ -425,15 +425,14 @@ fn validate_structural_field_range_authority(
                 }
                 let integer =
                     IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| invalid.clone())?;
-                let proposition =
-                    terminal_codec::canonical_proposition_order_key(&Proposition::LessOrEqual(
-                        ScalarTerm::value(*length, ScalarType::Integer(integer)),
-                        ScalarTerm::Integer {
-                            scalar_type: integer,
-                            value: IntegerValue::Unsigned(u128::from(capacity)),
-                        },
-                    ))
-                    .map_err(|_| invalid.clone())?;
+                terminal_codec::canonical_proposition_order_key(&Proposition::LessOrEqual(
+                    ScalarTerm::value(*length, ScalarType::Integer(integer)),
+                    ScalarTerm::Integer {
+                        scalar_type: integer,
+                        value: IntegerValue::Unsigned(u128::from(capacity)),
+                    },
+                ))
+                .map_err(|_| invalid.clone())?;
                 if unit
                     .accepted_obligation_facts
                     .iter()
@@ -498,7 +497,7 @@ fn validate_structural_field_range_authority(
                         *source,
                         &[],
                     );
-                    let proposition = terminal_codec::canonical_proposition_order_key(&goal)
+                    terminal_codec::canonical_proposition_order_key(&goal)
                         .map_err(|_| invalid.clone())?;
                     if unit
                         .accepted_obligation_facts
@@ -666,7 +665,7 @@ fn validate_field_range_authority(
     else {
         return Ok(());
     };
-    let proposition = terminal_codec::canonical_proposition_order_key(&requirement)
+    terminal_codec::canonical_proposition_order_key(&requirement)
         .map_err(|_| OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch)?;
     if unit
         .accepted_obligation_facts
