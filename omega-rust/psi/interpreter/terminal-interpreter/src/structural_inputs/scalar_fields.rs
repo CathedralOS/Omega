@@ -13,7 +13,7 @@ use terminal_psi::{OperationKind, StructuralPathSegment, StructuralTypeDeclarati
 
 use crate::custody::direct_scalar_field_type;
 use crate::custody::resolve_structural_path_type;
-use crate::errors::TerminalInterpretError;
+use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::ExecutableMachine;
 use crate::values::StructuralRuntimePlace;
 use crate::values::StructuralScalarRuntimeField;
@@ -113,7 +113,7 @@ pub(crate) fn bind(
             root.structural_type,
             path,
         )
-        .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+        .ok_or(malformed())?;
         let mut parent = StructuralRuntimePlace::from(root);
         parent.path.extend(carrier.path);
         if !values.contains_key(&StructuralScalarRuntimeField::member(parent, field)) {

@@ -1,4 +1,4 @@
-use crate::errors::TerminalInterpretError;
+use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::ExecutableMachine;
 use crate::execution::LiveClaim;
 use crate::reference;
@@ -292,7 +292,7 @@ pub(crate) fn bind_boundary_arguments(
             .zip(arguments)
             .any(|(parameter, argument)| *parameter != argument.scalar_type())
     {
-        return Err(TerminalInterpretError::VerifiedOperationMalformed);
+        return Err(malformed());
     }
     Ok(())
 }
@@ -363,7 +363,7 @@ pub(crate) fn bind_structural_arguments(
             }
         }
         if values.insert(parameter.place, argument.clone()).is_some() {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         }
     }
     Ok(values)
@@ -475,7 +475,7 @@ pub(crate) fn bind_affine_frontier_types(
                 structural_type: parameter.structural_type,
             })
         {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         }
     }
     Ok(frontier)
@@ -534,7 +534,7 @@ pub(crate) fn split_affine_frontier_at_projection(
     };
     let declaration = structural_types
         .get(&current.structural_type)
-        .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+        .ok_or(malformed())?;
     let selected = match &declaration.shape {
         StructuralTypeShape::Record { fields } => {
             let mut selected = None;
@@ -678,7 +678,7 @@ pub(crate) fn bind_entry_claims(
         let parameter = parameters
             .iter()
             .find(|parameter| parameter.place == entry_claim.input)
-            .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+            .ok_or(malformed())?;
         if parameter.multiplicity == StructuralMultiplicity::Unrestricted
             || !values.contains_key(&parameter.place)
             || claims
@@ -696,7 +696,7 @@ pub(crate) fn bind_entry_claims(
                 )
                 .is_some()
         {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         }
     }
     for entry_claim in content_entry_claims {
@@ -994,7 +994,7 @@ pub(crate) fn validate_boundary_requirements(
     for requirement in &boundary.requires {
         let argument = arguments
             .get(requirement.argument_index as usize)
-            .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+            .ok_or(malformed())?;
         if !argument.qualifications.contains(&requirement.domain) {
             return Err(TerminalInterpretError::BoundaryQualificationMissing {
                 boundary: boundary.id,

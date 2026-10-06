@@ -8,7 +8,7 @@ use std::collections::BTreeSet;
 
 use terminal_psi::StructuralPlaceDeclaration;
 
-use crate::errors::TerminalInterpretError;
+use crate::errors::{TerminalInterpretError, malformed};
 use crate::values::TerminalStructuralValue;
 
 pub(crate) struct LocalStructuralIdentities {
@@ -78,7 +78,7 @@ impl LocalStructuralIdentities {
             (None, Some(_)) => true,
             _ => false,
         } {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         }
         let identity = value.opaque_identity;
         // A host result cannot claim an identity allocated to an interpreter local.

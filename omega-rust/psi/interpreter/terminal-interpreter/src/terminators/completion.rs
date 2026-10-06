@@ -1,6 +1,7 @@
 //! Ordered cleanup for returns and selected successors. Captured outgoing values
 //! and the original frame survive hook suspension; only completion installs them.
 use super::*;
+use crate::errors::malformed;
 use crate::values::TerminalStructuralValue;
 use terminal_psi::{NominalAffineCleanup, TerminalAffineCleanupAction};
 
@@ -115,7 +116,7 @@ impl TerminalExecution {
     ) -> Result<TerminatorFlow, TerminalInterpretError> {
         let Some(caller) = self.call_stack.pop() else {
             if completed.destination.is_some() {
-                return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                return Err(malformed());
             }
             self.retire_plain_locals();
             self.result = Some(completed.value.clone());
@@ -143,20 +144,20 @@ impl TerminalExecution {
             }
             SuspendedCallResult::Unit => {
                 if completed.value != TerminalExecutionResult::Unit {
-                    return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                    return Err(malformed());
                 }
                 Ok(TerminatorFlow::Continue)
             }
             SuspendedCallResult::Scalar(destination) => {
                 let TerminalExecutionResult::Scalar(value) = completed.value else {
-                    return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                    return Err(malformed());
                 };
                 self.values.insert(destination, value);
                 Ok(TerminatorFlow::Continue)
             }
             SuspendedCallResult::Structural { result, .. } => {
                 if completed.destination.as_ref() != Some(&result) {
-                    return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                    return Err(malformed());
                 }
                 match completed.value {
                     TerminalExecutionResult::Structural(returned) => {
@@ -165,7 +166,7 @@ impl TerminalExecution {
                             .insert(result.place, returned.value)
                             .is_some()
                         {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                            return Err(malformed());
                         }
                         if let Some(claims) = completed.rebound_claims {
                             self.live_claims = claims;
@@ -183,7 +184,7 @@ impl TerminalExecution {
                             .insert(result.place, returned.value)
                             .is_some()
                         {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                            return Err(malformed());
                         }
                     }
                     TerminalExecutionResult::ScalarArray(returned) => {
@@ -192,10 +193,10 @@ impl TerminalExecution {
                             .insert(result.place, returned.value)
                             .is_some()
                         {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                            return Err(malformed());
                         }
                     }
-                    _ => return Err(TerminalInterpretError::VerifiedOperationMalformed),
+                    _ => return Err(malformed()),
                 }
                 if result.multiplicity == StructuralMultiplicity::Affine
                     && !self.live_affine_frontier.insert(StructuralAffineDiscard {

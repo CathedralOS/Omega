@@ -2,6 +2,7 @@
 //! common completion retains it across every nominal hook and installs it once.
 use super::*;
 use crate::byte_sequences::binding::ByteSequenceBinding;
+use crate::errors::malformed;
 use crate::scalar_array::TerminalScalarArrayResult;
 
 impl TerminalExecution {
@@ -25,12 +26,12 @@ impl TerminalExecution {
             .get(&self.current_machine)
             .and_then(|machine| machine.result.structural())
             .cloned()
-            .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+            .ok_or(malformed())?;
         if cleanup_actions
             .iter()
             .any(|action| action.place() == *source)
         {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         }
         let destination = match self.call_stack.last() {
             Some(SuspendedCall {
@@ -56,7 +57,7 @@ impl TerminalExecution {
             {
                 Some(result.clone())
             }
-            Some(_) => return Err(TerminalInterpretError::VerifiedOperationMalformed),
+            Some(_) => return Err(malformed()),
             None => None,
         };
         let mut completed = if terminal_semantics::scalar_array_leaf_shape(
@@ -69,7 +70,7 @@ impl TerminalExecution {
                 .scalar_array_values
                 .get(source)
                 .cloned()
-                .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+                .ok_or(malformed())?;
             if value.structural_type != signature.structural_type
                 || signature.multiplicity != StructuralMultiplicity::Unrestricted
                 || !signature.qualifications.is_empty()
@@ -78,7 +79,7 @@ impl TerminalExecution {
                 || !self.live_claims.is_empty()
                 || !self.claim_free_structural_destination()
             {
-                return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                return Err(malformed());
             }
             CompletedReturn::plain(TerminalExecutionResult::ScalarArray(
                 TerminalScalarArrayResult { value },
@@ -90,7 +91,7 @@ impl TerminalExecution {
                 || !self.live_claims.is_empty()
                 || !self.claim_free_structural_destination()
             {
-                return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                return Err(malformed());
             }
             CompletedReturn::plain(TerminalExecutionResult::ScalarCase(
                 TerminalScalarCaseResult { value },
@@ -106,7 +107,7 @@ impl TerminalExecution {
                     .as_ref()
                     .is_some_and(|view| !view.matches_descriptor_home(&value))
             {
-                return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                return Err(malformed());
             }
             for domain in &signature.qualifications {
                 if !value.qualifications.contains(domain) {
@@ -121,7 +122,7 @@ impl TerminalExecution {
                     .iter()
                     .any(|domain| !value.qualifications.contains(domain))
             {
-                return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                return Err(malformed());
             }
             let actual_claims = self
                 .live_claims
@@ -134,7 +135,7 @@ impl TerminalExecution {
                     .keys()
                     .any(|claim| !returned_claims.contains(claim))
             {
-                return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                return Err(malformed());
             }
             let rebound_claims = match self.call_stack.last() {
                 Some(SuspendedCall {
@@ -160,7 +161,7 @@ impl TerminalExecution {
                         )?
                     },
                 ),
-                Some(_) => return Err(TerminalInterpretError::VerifiedOperationMalformed),
+                Some(_) => return Err(malformed()),
                 None => None,
             };
             let byte_sequence = byte_sequence.map(|binding| match binding {

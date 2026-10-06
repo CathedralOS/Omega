@@ -8,7 +8,7 @@
 
 use crate::custody::bind_affine_frontier_types;
 use crate::custody::consume_affine_projection;
-use crate::errors::TerminalInterpretError;
+use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::ExecutableMachine;
 use crate::execution::TerminalExecution;
 use crate::values::{TerminalScalarCaseValue, TerminalStructuralValue};
@@ -29,11 +29,10 @@ impl TerminalExecution {
         parameter: &StructuralParameterDeclaration,
         argument: &StructuralArgument,
     ) -> Result<TerminalScalarCaseValue, TerminalInterpretError> {
-        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
         let value = self
             .scalar_case_values
             .get(&argument.place)
-            .ok_or_else(invalid)?;
+            .ok_or_else(malformed)?;
         if !argument.path.is_empty()
             || argument.access != parameter.access
             || !matches!(
@@ -59,7 +58,7 @@ impl TerminalExecution {
                 .iter()
                 .any(|claim| claim.input.root == parameter.place)
         {
-            return Err(invalid());
+            return Err(malformed());
         }
         let source = self.owned_block_source(argument.place);
         let exact_source = source.is_some_and(|source| {
@@ -94,7 +93,7 @@ impl TerminalExecution {
                 StructuralMultiplicity::Affine | StructuralMultiplicity::Unrestricted
             )
         {
-            return Err(invalid());
+            return Err(malformed());
         }
         if parameter.access == StructuralAccess::Owned
             && parameter.multiplicity == StructuralMultiplicity::Affine
@@ -120,7 +119,7 @@ impl TerminalExecution {
             ..
         }) = self.program.structural_types.get(&value.structural_type)
         else {
-            return Err(invalid());
+            return Err(malformed());
         };
         if !cases.iter().all(|case| {
             case.fields.iter().all(|field| {
@@ -128,12 +127,12 @@ impl TerminalExecution {
                     && field.field_type.scalar_type().is_some()
             })
         }) {
-            return Err(invalid());
+            return Err(malformed());
         }
         let selected = cases
             .iter()
             .find(|case| case.id == value.result_case)
-            .ok_or_else(invalid)?;
+            .ok_or_else(malformed)?;
         if selected.fields.len() != value.fields.len()
             || selected
                 .fields
@@ -144,7 +143,7 @@ impl TerminalExecution {
                         || field.field_type.scalar_type() != Some(value.scalar_type())
                 })
         {
-            return Err(invalid());
+            return Err(malformed());
         }
         Ok(value.clone())
     }

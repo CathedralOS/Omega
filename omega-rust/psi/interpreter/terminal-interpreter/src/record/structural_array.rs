@@ -3,6 +3,7 @@
 //! element and affine transfer has been checked.
 use super::*;
 use crate::byte_sequences::ByteSequenceView;
+use crate::errors::malformed;
 use crate::values::StructuralByteSequenceRuntimeField;
 
 #[derive(Default)]
@@ -78,7 +79,7 @@ impl ConstructorStorage {
         for (home, referent) in &execution.reference_referents {
             if let Some(target) = relocate(home) {
                 if !affine {
-                    return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                    return Err(malformed());
                 }
                 self.references.insert(target, referent.clone());
             }
@@ -135,18 +136,17 @@ impl TerminalExecution {
         &mut self,
         operation: &terminal_psi::Operation,
     ) -> Result<crate::execution::OperationFlow, TerminalInterpretError> {
-        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
         let OperationKind::EstablishStructuralArray { elements } = &operation.kind else {
-            return Err(invalid());
+            return Err(malformed());
         };
-        let result = operation.result.structural().ok_or_else(invalid)?;
+        let result = operation.result.structural().ok_or_else(malformed)?;
         let Some(StructuralTypeShape::FixedArray { element, length }) = self
             .program
             .structural_types
             .get(&result.structural_type)
             .map(|row| &row.shape)
         else {
-            return Err(invalid());
+            return Err(malformed());
         };
         let element = *element;
         if u64::try_from(elements.len()).ok() != Some(*length)
@@ -166,7 +166,7 @@ impl TerminalExecution {
                 .values()
                 .any(|claim| claim.place == Some(result.place))
         {
-            return Err(invalid());
+            return Err(malformed());
         }
         let mut cursor = self.local_structural_identities.cursor();
         let value = TerminalStructuralValue {
@@ -187,22 +187,22 @@ impl TerminalExecution {
                 std::slice::from_ref(argument),
             )?
             .pop()
-            .ok_or_else(invalid)?;
+            .ok_or_else(malformed)?;
             if argument.access != StructuralAccess::Owned
                 || argument.place == result.place
                 || child.structural_type != element
                 || !child.qualifications.is_empty()
             {
-                return Err(invalid());
+                return Err(malformed());
             }
             let affine = self.stage_constructor_operand(argument, &mut frontier, &mut consumed)?;
             if affine && result.multiplicity == StructuralMultiplicity::Unrestricted {
-                return Err(invalid());
+                return Err(malformed());
             }
             let destination = StructuralRuntimePlace {
                 opaque_identity: value.opaque_identity,
                 path: vec![StructuralPathSegment::FixedIndex(
-                    u64::try_from(index).map_err(|_| invalid())?,
+                    u64::try_from(index).map_err(|_| malformed())?,
                 )],
             };
             staged.stage(self, argument, &child, &destination, affine)?;

@@ -1,7 +1,7 @@
 //! Discriminator observations retain the original structural root and path.
 
 use crate::custody::{project_structural_value, resolve_structural_path_type};
-use crate::errors::TerminalInterpretError;
+use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
 use crate::values::{StructuralRuntimePlace, TerminalStructuralValue};
 use semantic_vocabulary::{
@@ -60,7 +60,6 @@ impl TerminalExecution {
         source: PlaceId,
         path: &[CanonicalStructuralPathSegment],
     ) -> Result<TerminalStructuralValue, TerminalInterpretError> {
-        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
         let mut leaf = self.structural_values.get(&source).cloned().ok_or(
             TerminalInterpretError::VerifiedStructuralPlaceMissing(source),
         )?;
@@ -71,29 +70,29 @@ impl TerminalExecution {
                 .program
                 .structural_types
                 .get(&leaf.structural_type)
-                .ok_or_else(invalid)?;
+                .ok_or_else(malformed)?;
             match segment {
                 CanonicalStructuralPathSegment::Case(case) => {
                     if case_fields.is_some() {
-                        return Err(invalid());
+                        return Err(malformed());
                     }
                     let (StructuralTypeShape::Sum { cases }
                     | StructuralTypeShape::Mixed { cases, .. }) = &declaration.shape
                     else {
-                        return Err(invalid());
+                        return Err(malformed());
                     };
                     let contents = self
                         .structural_cases
                         .get(&StructuralRuntimePlace::from(&leaf))
-                        .ok_or_else(invalid)?;
+                        .ok_or_else(malformed)?;
                     if contents.structural_type != leaf.structural_type || contents.case != *case {
-                        return Err(invalid());
+                        return Err(malformed());
                     }
                     case_fields = Some(
                         cases
                             .iter()
                             .find(|candidate| candidate.id == *case)
-                            .ok_or_else(invalid)?
+                            .ok_or_else(malformed)?
                             .fields
                             .as_slice(),
                     );
@@ -105,7 +104,7 @@ impl TerminalExecution {
                         None => match &declaration.shape {
                             StructuralTypeShape::Record { fields }
                             | StructuralTypeShape::Mixed { fields, .. } => fields,
-                            _ => return Err(invalid()),
+                            _ => return Err(malformed()),
                         },
                     };
                     let field = fields
@@ -113,9 +112,9 @@ impl TerminalExecution {
                         .find(|candidate| {
                             candidate.id == *field && !candidate.relevance.is_erased()
                         })
-                        .ok_or_else(invalid)?;
+                        .ok_or_else(malformed)?;
                     let StructuralFieldType::Structural(child) = field.field_type else {
-                        return Err(invalid());
+                        return Err(malformed());
                     };
                     leaf.path
                         .push(StructuralPathSegment::Field(field.identity.clone()));
@@ -124,10 +123,10 @@ impl TerminalExecution {
                 CanonicalStructuralPathSegment::FixedIndex(index) => {
                     let StructuralTypeShape::FixedArray { element, length } = declaration.shape
                     else {
-                        return Err(invalid());
+                        return Err(malformed());
                     };
                     if case_fields.is_some() || *index >= length {
-                        return Err(invalid());
+                        return Err(malformed());
                     }
                     leaf.path.push(StructuralPathSegment::FixedIndex(*index));
                     leaf.structural_type = element;
@@ -135,7 +134,7 @@ impl TerminalExecution {
             }
         }
         if !saw_case || case_fields.is_some() {
-            return Err(invalid());
+            return Err(malformed());
         }
         Ok(leaf)
     }
@@ -148,12 +147,12 @@ impl TerminalExecution {
             .program
             .machines
             .get(&self.current_machine)
-            .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+            .ok_or(malformed())?;
         for contents in cases {
             let parameter = machine
                 .structural_parameters
                 .get(contents.argument_index as usize)
-                .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+                .ok_or(malformed())?;
             let root = self.structural_values.get(&parameter.place).ok_or(
                 TerminalInterpretError::VerifiedStructuralPlaceMissing(parameter.place),
             )?;
@@ -166,19 +165,19 @@ impl TerminalExecution {
                 .program
                 .structural_types
                 .get(&selected_type)
-                .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+                .ok_or(malformed())?;
             // This input form establishes a complete empty-payload case. It
             // cannot claim that a missing payload satisfies its declaration.
             let (StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. }) =
                 &declaration.shape
             else {
-                return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                return Err(malformed());
             };
             if !cases
                 .iter()
                 .any(|case| case.id == contents.case && case.fields.is_empty())
             {
-                return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                return Err(malformed());
             }
             let mut selected = StructuralRuntimePlace::from(root);
             selected.path.extend_from_slice(&contents.path);
@@ -193,7 +192,7 @@ impl TerminalExecution {
                 )
                 .is_some()
             {
-                return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                return Err(malformed());
             }
         }
         Ok(())
@@ -220,7 +219,7 @@ impl TerminalExecution {
                 source,
             ))?;
         if contents.structural_type != selected.structural_type {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         }
         Ok(contents.case)
     }
@@ -235,7 +234,6 @@ fn validate_case_projection(
     source: PlaceId,
     path: &[StructuralPathSegment],
 ) -> Result<(), TerminalInterpretError> {
-    let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
     let mut selected = path
         .iter()
         .enumerate()
@@ -262,9 +260,9 @@ fn validate_case_projection(
         let selected = project_structural_value(types, root, prefix)?;
         let contents = cases
             .get(&StructuralRuntimePlace::from(&selected))
-            .ok_or_else(invalid)?;
+            .ok_or_else(malformed)?;
         if contents.structural_type != selected.structural_type || contents.case != case {
-            return Err(invalid());
+            return Err(malformed());
         }
     }
     Ok(())

@@ -2,7 +2,7 @@
 
 use crate::byte_sequences::ByteSequenceView;
 use crate::custody::bind_structural_arguments;
-use crate::errors::TerminalInterpretError;
+use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
 use crate::scalar_array::TerminalScalarArrayValue;
 use crate::structural_inputs::byte_arrays;
@@ -41,9 +41,7 @@ impl ByteSequenceBinding {
     pub(crate) fn immutable(&self) -> Result<&ByteSequenceView, TerminalInterpretError> {
         match self {
             Self::Immutable(view) => Ok(view),
-            Self::MutableField { .. } | Self::MutableArray { .. } => {
-                Err(TerminalInterpretError::VerifiedOperationMalformed)
-            }
+            Self::MutableField { .. } | Self::MutableArray { .. } => Err(malformed()),
         }
     }
 
@@ -52,7 +50,6 @@ impl ByteSequenceBinding {
         structural_types: &BTreeMap<StructuralTypeId, StructuralTypeDeclaration>,
         value: &TerminalStructuralValue,
     ) -> Result<(), TerminalInterpretError> {
-        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
         if let Self::MutableArray {
             array,
             array_type,
@@ -83,7 +80,7 @@ impl ByteSequenceBinding {
                 ) {
                 Ok(())
             } else {
-                Err(invalid())
+                Err(malformed())
             };
         }
         let Self::MutableField {
@@ -93,11 +90,11 @@ impl ByteSequenceBinding {
             referent,
         } = self
         else {
-            return Err(invalid());
+            return Err(malformed());
         };
         let Some((StructuralPathSegment::Field(identity), prefix)) = referent.path.split_last()
         else {
-            return Err(invalid());
+            return Err(malformed());
         };
         if value != referent
             || field.parent.opaque_identity != referent.opaque_identity
@@ -114,14 +111,14 @@ impl ByteSequenceBinding {
                         )
                     }))
         {
-            return Err(invalid());
+            return Err(malformed());
         }
         let Some(StructuralTypeDeclaration {
             shape: StructuralTypeShape::Record { fields },
             ..
         }) = structural_types.get(parent_type)
         else {
-            return Err(invalid());
+            return Err(malformed());
         };
         if !fields.iter().any(|declaration| {
             declaration.id == field.field
@@ -132,7 +129,7 @@ impl ByteSequenceBinding {
                         capacity: *capacity,
                     })
         }) {
-            return Err(invalid());
+            return Err(malformed());
         }
         Ok(())
     }
@@ -156,7 +153,6 @@ impl TerminalExecution {
         argument: &StructuralArgument,
         value: &TerminalStructuralValue,
     ) -> Result<&ByteSequenceView, TerminalInterpretError> {
-        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
         if !matches!(
             argument.access,
             StructuralAccess::Owned | StructuralAccess::SharedBorrow
@@ -175,19 +171,19 @@ impl TerminalExecution {
                 )
             })
         {
-            return Err(invalid());
+            return Err(malformed());
         }
         let root = self
             .structural_values
             .get(&argument.place)
-            .ok_or_else(invalid)?;
+            .ok_or_else(malformed)?;
         let selected = crate::custody::project_structural_value(
             &self.program.structural_types,
             root,
             &argument.path,
         )?;
         if selected != *value {
-            return Err(invalid());
+            return Err(malformed());
         }
         if argument.path.is_empty()
             && let Some(binding) = self.byte_sequence_values.get(&argument.place)
@@ -196,11 +192,11 @@ impl TerminalExecution {
             return view
                 .matches_descriptor_home(value)
                 .then_some(view)
-                .ok_or_else(invalid);
+                .ok_or_else(malformed);
         }
         self.structural_byte_storage
             .get(&crate::values::StructuralRuntimePlace::from(value))
-            .ok_or_else(invalid)
+            .ok_or_else(malformed)
     }
 
     pub(crate) fn prepare_shared_descriptor_argument(
@@ -258,7 +254,7 @@ impl TerminalExecution {
                 .values()
                 .any(|claim| claim.place == Some(argument.place))
         {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         }
         let bytes = self
             .shared_byte_descriptor(argument, &value)?
@@ -275,12 +271,11 @@ impl TerminalExecution {
         value: &TerminalStructuralValue,
         access: StructuralAccess,
     ) -> Result<ByteSequenceBinding, TerminalInterpretError> {
-        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
         if !matches!(
             access,
             StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
         ) {
-            return Err(invalid());
+            return Err(malformed());
         }
         if let ByteSequenceBinding::Immutable(view) = binding {
             return if access == StructuralAccess::SharedBorrow
@@ -288,7 +283,7 @@ impl TerminalExecution {
             {
                 Ok(binding.clone())
             } else {
-                Err(invalid())
+                Err(malformed())
             };
         }
         binding.validate_mutable_referent(&self.program.structural_types, value)?;
@@ -303,14 +298,14 @@ impl TerminalExecution {
                 ..
             } => self.stored_byte_array_snapshot(
                 array,
-                usize::try_from(*offset).map_err(|_| invalid())?,
-                usize::try_from(offset.checked_add(*length).ok_or_else(invalid)?)
-                    .map_err(|_| invalid())?,
+                usize::try_from(*offset).map_err(|_| malformed())?,
+                usize::try_from(offset.checked_add(*length).ok_or_else(malformed)?)
+                    .map_err(|_| malformed())?,
             )?,
             ByteSequenceBinding::MutableField { field, .. } => self
                 .structural_byte_sequence_fields
                 .get(field)
-                .ok_or_else(invalid)?
+                .ok_or_else(malformed)?
                 .clone(),
             ByteSequenceBinding::Immutable(_) => unreachable!(),
         };
@@ -362,7 +357,7 @@ impl TerminalExecution {
                 }
                 let value = self.prepare_scalar_case_argument(machine, parameter, argument)?;
                 if scalar_cases.insert(parameter.place, value).is_some() {
-                    return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                    return Err(malformed());
                 }
             } else if terminal_semantics::scalar_array_leaf_shape(
                 self.program.structural_types.values(),
@@ -374,7 +369,7 @@ impl TerminalExecution {
             {
                 let value = self.prepare_scalar_array_argument(machine, parameter, argument)?;
                 if scalar_arrays.insert(parameter.place, value).is_some() {
-                    return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                    return Err(malformed());
                 }
             } else {
                 opaque_parameters.push(parameter.clone());

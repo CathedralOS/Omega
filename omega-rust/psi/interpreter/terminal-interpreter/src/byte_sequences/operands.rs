@@ -3,7 +3,7 @@
 //! view, and every consumer reads the same live extent bound.
 
 use crate::byte_sequences::ByteSequenceView;
-use crate::errors::TerminalInterpretError;
+use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
 use crate::values::TerminalScalarValue;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
@@ -14,12 +14,11 @@ impl TerminalExecution {
         &self,
         operand: &ByteSequenceOperand,
     ) -> Result<ByteSequenceView, TerminalInterpretError> {
-        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
         let bytes = match operand {
             ByteSequenceOperand::Whole { source, .. } => self
                 .byte_sequence_values
                 .get(source)
-                .ok_or_else(invalid)?
+                .ok_or_else(malformed)?
                 .immutable()?
                 .clone(),
             ByteSequenceOperand::Field { source, field, .. } => {
@@ -31,16 +30,16 @@ impl TerminalExecution {
                 )?;
                 self.structural_byte_sequence_fields
                     .get(&key)
-                    .ok_or_else(invalid)?
+                    .ok_or_else(malformed)?
                     .clone()
             }
         };
-        let expected = IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| invalid())?;
+        let expected = IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| malformed())?;
         if !matches!(self.values.get(&operand.length()), Some(TerminalScalarValue::Integer {
             scalar_type, value: IntegerValue::Unsigned(length),
         }) if *scalar_type == expected && *length == bytes.len() as u128)
         {
-            return Err(invalid());
+            return Err(malformed());
         }
         Ok(bytes)
     }

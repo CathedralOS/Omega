@@ -8,7 +8,7 @@ use terminal_psi::{
 
 use crate::byte_sequences::binding::ByteSequenceBinding;
 use crate::custody::{project_structural_value, resolve_structural_arguments};
-use crate::errors::TerminalInterpretError;
+use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
 use crate::values::StructuralByteSequenceRuntimeField;
 use crate::values::StructuralRuntimePlace;
@@ -40,7 +40,6 @@ impl TerminalExecution {
         &mut self,
         operation: &Operation,
     ) -> Result<(), TerminalInterpretError> {
-        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
         let OperationKind::StructuralByteSequenceFieldStore {
             destination,
             path,
@@ -50,10 +49,10 @@ impl TerminalExecution {
             ..
         } = &operation.kind
         else {
-            return Err(invalid());
+            return Err(malformed());
         };
         if operation.result != OperationResult::Unit || destination == source {
-            return Err(invalid());
+            return Err(malformed());
         }
         let (destination_field, capacity) =
             self.resolve_structural_byte_sequence_field(*destination, path, *field, true)?;
@@ -62,36 +61,36 @@ impl TerminalExecution {
             .values()
             .any(|claim| claim.place == Some(*source))
         {
-            return Err(invalid());
+            return Err(malformed());
         }
         let TerminalScalarValue::Integer {
             scalar_type,
             value: IntegerValue::Unsigned(length),
-        } = self.values.get(length).ok_or_else(invalid)?
+        } = self.values.get(length).ok_or_else(malformed)?
         else {
-            return Err(invalid());
+            return Err(malformed());
         };
-        if *scalar_type != IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| invalid())?
+        if *scalar_type != IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| malformed())?
             || *length > u128::from(capacity)
         {
-            return Err(invalid());
+            return Err(malformed());
         }
-        let source_value = self.structural_values.get(source).ok_or_else(invalid)?;
+        let source_value = self.structural_values.get(source).ok_or_else(malformed)?;
         if !source_value.path.is_empty()
             || !source_value.qualifications.is_empty()
             || !matches!(self.program.structural_types.get(&source_value.structural_type), Some(declaration)
                             if declaration.shape.is_borrowed_byte_view()
                                 || matches!(declaration.shape, StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned { .. })))
         {
-            return Err(invalid());
+            return Err(malformed());
         }
         let bytes = self
             .byte_sequence_values
             .get(source)
-            .ok_or_else(invalid)?
+            .ok_or_else(malformed)?
             .immutable()?;
         if bytes.len() as u128 != *length {
-            return Err(invalid());
+            return Err(malformed());
         }
         // Sharing immutable backing copies the semantic value. An indexed
         // destination mutation detaches it before changing any byte.
@@ -110,7 +109,7 @@ impl TerminalExecution {
         let (cell, carrier) =
             self.resolve_structural_byte_field_carrier(root, path, field, requires_mutation)?;
         let ByteSequenceCarrier::BoundedOwned { capacity } = carrier else {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         };
         Ok((cell, capacity))
     }
@@ -124,7 +123,6 @@ impl TerminalExecution {
         &mut self,
         operation: &Operation,
     ) -> Result<(), TerminalInterpretError> {
-        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
         let OperationKind::StructuralByteViewFieldStore {
             destination,
             path,
@@ -133,10 +131,10 @@ impl TerminalExecution {
             ..
         } = &operation.kind
         else {
-            return Err(invalid());
+            return Err(malformed());
         };
         if operation.result != OperationResult::Unit || destination == source {
-            return Err(invalid());
+            return Err(malformed());
         }
         let shared_view = ByteSequenceCarrier::BorrowedView {
             access: Some(StructuralAccess::SharedBorrow),
@@ -146,7 +144,7 @@ impl TerminalExecution {
                 let (destination_field, carrier) =
                     self.resolve_structural_byte_field_carrier(*destination, path, *field, true)?;
                 if carrier != shared_view {
-                    return Err(invalid());
+                    return Err(malformed());
                 }
                 Some(destination_field)
             }
@@ -154,7 +152,7 @@ impl TerminalExecution {
                 let home = self
                     .structural_values
                     .get(destination)
-                    .ok_or_else(invalid)?;
+                    .ok_or_else(malformed)?;
                 if !path.is_empty()
                     || !home.path.is_empty()
                     || !matches!(self.program.structural_types.get(&home.structural_type),
@@ -163,22 +161,22 @@ impl TerminalExecution {
                             access: None | Some(StructuralAccess::SharedBorrow),
                         })))
                 {
-                    return Err(invalid());
+                    return Err(malformed());
                 }
                 None
             }
         };
-        let source_value = self.structural_values.get(source).ok_or_else(invalid)?;
+        let source_value = self.structural_values.get(source).ok_or_else(malformed)?;
         if !source_value.path.is_empty()
             || !matches!(self.program.structural_types.get(&source_value.structural_type),
                 Some(declaration) if declaration.shape.is_borrowed_byte_view())
         {
-            return Err(invalid());
+            return Err(malformed());
         }
         let view = self
             .byte_sequence_values
             .get(source)
-            .ok_or_else(invalid)?
+            .ok_or_else(malformed)?
             .immutable()?
             .clone();
         match destination_field {
@@ -204,18 +202,17 @@ impl TerminalExecution {
         requires_mutation: bool,
     ) -> Result<(StructuralByteSequenceRuntimeField, ByteSequenceCarrier), TerminalInterpretError>
     {
-        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
         let machine = self
             .program
             .machines
             .get(&self.current_machine)
-            .ok_or_else(invalid)?;
+            .ok_or_else(malformed)?;
         if self
             .live_claims
             .values()
             .any(|claim| claim.place == Some(root))
         {
-            return Err(invalid());
+            return Err(malformed());
         }
         let (access, parameter_root) = if let Some(parameter) = machine
             .structural_parameters
@@ -234,7 +231,7 @@ impl TerminalExecution {
             ) || !parameter.qualifications.is_empty()
                 || !parameter.projected_qualifications.is_empty()
             {
-                return Err(invalid());
+                return Err(malformed());
             }
             (parameter.access, true)
         } else {
@@ -245,35 +242,35 @@ impl TerminalExecution {
                 .structural_places
                 .iter()
                 .find(|place| place.id == root)
-                .ok_or_else(invalid)?;
+                .ok_or_else(malformed)?;
             let semantic_vocabulary::StructuralPlaceKind::OperationResult {
                 structural_type, ..
             } = declaration.kind
             else {
-                return Err(invalid());
+                return Err(malformed());
             };
             if !self
                 .structural_values
                 .get(&root)
                 .is_some_and(|value| value.structural_type == structural_type)
             {
-                return Err(invalid());
+                return Err(malformed());
             }
             (StructuralAccess::Owned, false)
         };
         let parent = if let Some(view) = self.element_view_values.get(&root) {
             if parameter_root && requires_mutation && access != StructuralAccess::MutableBorrow {
-                return Err(invalid());
+                return Err(malformed());
             }
             let descriptor_type = self.live_structural_type(root)?;
             let StructuralTypeShape::ElementView { element } = self
                 .program
                 .structural_types
                 .get(&descriptor_type)
-                .ok_or_else(invalid)?
+                .ok_or_else(malformed)?
                 .shape
             else {
-                return Err(invalid());
+                return Err(malformed());
             };
             let (collection, selected_path) =
                 view.structural_projection(path, requires_mutation)?;
@@ -284,13 +281,13 @@ impl TerminalExecution {
                 .program
                 .structural_types
                 .get(&collection.structural_type)
-                .ok_or_else(invalid)?
+                .ok_or_else(malformed)?
                 .shape
             else {
-                return Err(invalid());
+                return Err(malformed());
             };
             if element != backing_element {
-                return Err(invalid());
+                return Err(malformed());
             }
             project_structural_value(&self.program.structural_types, &collection, &selected_path)?
         } else {
@@ -305,7 +302,7 @@ impl TerminalExecution {
                         | StructuralAccess::WriteOnlyBorrow
                 )
             {
-                return Err(invalid());
+                return Err(malformed());
             }
             resolve_structural_arguments(
                 &self.program.structural_types,
@@ -317,24 +314,24 @@ impl TerminalExecution {
                 }],
             )?
             .pop()
-            .ok_or_else(invalid)?
+            .ok_or_else(malformed)?
         };
         let declaration = self
             .program
             .structural_types
             .get(&parent.structural_type)
-            .ok_or_else(invalid)?;
+            .ok_or_else(malformed)?;
         let StructuralTypeShape::Record { fields } = &declaration.shape else {
-            return Err(invalid());
+            return Err(malformed());
         };
         let field_declaration = fields
             .iter()
             .find(|candidate| candidate.id == field && !candidate.relevance.is_erased())
-            .ok_or_else(invalid)?;
+            .ok_or_else(malformed)?;
         let carrier = field_declaration
             .field_type
             .byte_sequence_carrier()
-            .ok_or_else(invalid)?;
+            .ok_or_else(malformed)?;
         Ok((
             StructuralByteSequenceRuntimeField {
                 parent: StructuralRuntimePlace::from(&parent),

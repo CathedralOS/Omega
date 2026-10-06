@@ -10,7 +10,7 @@
 //! a boundary-call crash, the reported frontier is the machine-local live
 //! claim set at the operation.
 
-use crate::errors::TerminalInterpretError;
+use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::{OperationFlow, TerminalExecution};
 use crate::results::{TerminalCrash, TerminalCrashSite, TerminalExecutionStatus};
 use crate::values::TerminalScalarValue;
@@ -29,7 +29,7 @@ impl TerminalExecution {
             .ok_or(TerminalInterpretError::VerifiedValueMissing(value))?
         {
             TerminalScalarValue::Integer { scalar_type, value } => Ok((scalar_type, value)),
-            _ => Err(TerminalInterpretError::VerifiedOperationMalformed),
+            _ => Err(malformed()),
         }
     }
 
@@ -44,13 +44,13 @@ impl TerminalExecution {
             unreachable!("dispatched execute_trapping_integer")
         };
         let ScalarType::Integer(result_type) = operation.result.expect_scalar().scalar_type else {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         };
         let binary = |execution: &Self, left: ValueId, right: ValueId| {
             let (left_type, left) = execution.trapping_integer_operand(left)?;
             let (right_type, right) = execution.trapping_integer_operand(right)?;
             if left_type != result_type || right_type != result_type {
-                return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                return Err(malformed());
             }
             Ok((left, right))
         };
@@ -80,7 +80,7 @@ impl TerminalExecution {
                 let (value_type, value) = self.trapping_integer_operand(value)?;
                 let (count_type, count) = self.trapping_integer_operand(count)?;
                 if value_type != result_type {
-                    return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                    return Err(malformed());
                 }
                 if matches!(trapping, TrappingIntegerOperation::ShiftLeft { .. }) {
                     result_type.exact_shift_left(value, count_type, count)

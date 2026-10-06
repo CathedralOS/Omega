@@ -2,7 +2,7 @@
 //! bitwise and width conversions, and the exact, wrapping and saturating
 //! arithmetic families.
 
-use crate::errors::TerminalInterpretError;
+use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::{OperationFlow, TerminalExecution};
 use crate::values::TerminalScalarValue;
 use semantic_vocabulary::ScalarType;
@@ -17,7 +17,7 @@ impl TerminalExecution {
             unreachable!("dispatched execute_integer_constant")
         };
         let ScalarType::Integer(scalar_type) = operation.result.expect_scalar().scalar_type else {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         };
         self.values.insert(
             operation.result.expect_scalar().id,
@@ -34,7 +34,7 @@ impl TerminalExecution {
             unreachable!("dispatched execute_integer_equal")
         };
         if operation.result.expect_scalar().scalar_type != ScalarType::Boolean {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         }
         let TerminalScalarValue::Integer {
             scalar_type: left_type,
@@ -45,7 +45,7 @@ impl TerminalExecution {
             .copied()
             .ok_or(TerminalInterpretError::VerifiedValueMissing(left))?
         else {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         };
         let TerminalScalarValue::Integer {
             scalar_type: right_type,
@@ -56,11 +56,11 @@ impl TerminalExecution {
             .copied()
             .ok_or(TerminalInterpretError::VerifiedValueMissing(right))?
         else {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         };
         let ordering = left_type
             .compare_with(left, right_type, right)
-            .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+            .ok_or(malformed())?;
         self.values.insert(
             operation.result.expect_scalar().id,
             TerminalScalarValue::Boolean(ordering.is_eq()),
@@ -78,7 +78,7 @@ impl TerminalExecution {
             unreachable!("dispatched execute_integer_less_than")
         };
         if operation.result.expect_scalar().scalar_type != ScalarType::Boolean {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         }
         let TerminalScalarValue::Integer {
             scalar_type: left_type,
@@ -89,7 +89,7 @@ impl TerminalExecution {
             .copied()
             .ok_or(TerminalInterpretError::VerifiedValueMissing(left))?
         else {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         };
         let TerminalScalarValue::Integer {
             scalar_type: right_type,
@@ -100,11 +100,11 @@ impl TerminalExecution {
             .copied()
             .ok_or(TerminalInterpretError::VerifiedValueMissing(right))?
         else {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         };
         let ordering = left_type
             .compare_with(left_value, right_type, right_value)
-            .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+            .ok_or(malformed())?;
         let result = match operation.kind {
             OperationKind::IntegerLessThan { .. } => ordering.is_lt(),
             OperationKind::IntegerLessOrEqual { .. } => !ordering.is_gt(),
@@ -125,7 +125,7 @@ impl TerminalExecution {
             unreachable!("dispatched execute_integer_bitwise_not")
         };
         let ScalarType::Integer(scalar_type) = operation.result.expect_scalar().scalar_type else {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         };
         let TerminalScalarValue::Integer {
             scalar_type: operand_type,
@@ -136,14 +136,12 @@ impl TerminalExecution {
             .copied()
             .ok_or(TerminalInterpretError::VerifiedValueMissing(operand))?
         else {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         };
         if operand_type != scalar_type {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         }
-        let value = scalar_type
-            .bitwise_not(operand)
-            .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+        let value = scalar_type.bitwise_not(operand).ok_or(malformed())?;
         self.values.insert(
             operation.result.expect_scalar().id,
             TerminalScalarValue::Integer { scalar_type, value },
@@ -159,7 +157,7 @@ impl TerminalExecution {
             unreachable!("dispatched execute_integer_widen")
         };
         let ScalarType::Integer(target_type) = operation.result.expect_scalar().scalar_type else {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         };
         let TerminalScalarValue::Integer {
             scalar_type: source_type,
@@ -170,11 +168,11 @@ impl TerminalExecution {
             .copied()
             .ok_or(TerminalInterpretError::VerifiedValueMissing(operand))?
         else {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         };
         let value = source_type
             .widen_value_to(target_type, value)
-            .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+            .ok_or(malformed())?;
         self.values.insert(
             operation.result.expect_scalar().id,
             TerminalScalarValue::Integer {
@@ -193,7 +191,7 @@ impl TerminalExecution {
             unreachable!("dispatched execute_integer_exact_cast")
         };
         let ScalarType::Integer(target_type) = operation.result.expect_scalar().scalar_type else {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         };
         let TerminalScalarValue::Integer {
             scalar_type: source_type,
@@ -204,11 +202,11 @@ impl TerminalExecution {
             .copied()
             .ok_or(TerminalInterpretError::VerifiedValueMissing(operand))?
         else {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         };
         let value = source_type
             .exact_cast_value_to(target_type, value)
-            .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+            .ok_or(malformed())?;
         self.values.insert(
             operation.result.expect_scalar().id,
             TerminalScalarValue::Integer {
@@ -230,7 +228,7 @@ impl TerminalExecution {
             unreachable!("dispatched execute_integer_bitwise_and")
         };
         let ScalarType::Integer(scalar_type) = operation.result.expect_scalar().scalar_type else {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         };
         let TerminalScalarValue::Integer {
             scalar_type: left_type,
@@ -241,7 +239,7 @@ impl TerminalExecution {
             .copied()
             .ok_or(TerminalInterpretError::VerifiedValueMissing(left))?
         else {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         };
         let TerminalScalarValue::Integer {
             scalar_type: right_type,
@@ -252,10 +250,10 @@ impl TerminalExecution {
             .copied()
             .ok_or(TerminalInterpretError::VerifiedValueMissing(right))?
         else {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         };
         if left_type != scalar_type || right_type != scalar_type {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         }
         let value = match operation.kind {
             OperationKind::IntegerBitwiseAnd { .. } => {
@@ -269,7 +267,7 @@ impl TerminalExecution {
             }
             _ => unreachable!(),
         }
-        .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+        .ok_or(malformed())?;
         self.values.insert(
             operation.result.expect_scalar().id,
             TerminalScalarValue::Integer { scalar_type, value },
@@ -289,7 +287,7 @@ impl TerminalExecution {
             unreachable!("dispatched execute_wrapping_integer_shift_left")
         };
         let ScalarType::Integer(value_type) = operation.result.expect_scalar().scalar_type else {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         };
         let TerminalScalarValue::Integer {
             scalar_type: actual_value_type,
@@ -300,7 +298,7 @@ impl TerminalExecution {
             .copied()
             .ok_or(TerminalInterpretError::VerifiedValueMissing(value))?
         else {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         };
         let TerminalScalarValue::Integer {
             scalar_type: count_type,
@@ -311,10 +309,10 @@ impl TerminalExecution {
             .copied()
             .ok_or(TerminalInterpretError::VerifiedValueMissing(count))?
         else {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         };
         if actual_value_type != value_type {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         }
         let value = match operation.kind {
             OperationKind::WrappingIntegerShiftLeft { .. } => {
@@ -331,7 +329,7 @@ impl TerminalExecution {
             }
             _ => unreachable!(),
         }
-        .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+        .ok_or(malformed())?;
         self.values.insert(
             operation.result.expect_scalar().id,
             TerminalScalarValue::Integer {
@@ -362,7 +360,7 @@ impl TerminalExecution {
             unreachable!("dispatched execute_exact_integer_add")
         };
         let ScalarType::Integer(scalar_type) = operation.result.expect_scalar().scalar_type else {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         };
         let left = self
             .values
@@ -385,7 +383,7 @@ impl TerminalExecution {
             },
         ) = (left, right)
         else {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         };
         let operands_match = if matches!(operation.kind, OperationKind::ExactIntegerSubtract { .. })
         {
@@ -394,7 +392,7 @@ impl TerminalExecution {
             left_type == scalar_type && right_type == scalar_type
         };
         if !operands_match {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         }
         let value = match operation.kind {
             OperationKind::ExactIntegerAdd { .. } => scalar_type.exact_add(left, right),
@@ -417,7 +415,7 @@ impl TerminalExecution {
             OperationKind::WrappingIntegerMultiply { .. } => scalar_type.wrapping_mul(left, right),
             _ => unreachable!(),
         }
-        .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+        .ok_or(malformed())?;
         self.values.insert(
             operation.result.expect_scalar().id,
             TerminalScalarValue::Integer { scalar_type, value },
@@ -433,7 +431,7 @@ impl TerminalExecution {
             unreachable!("dispatched execute_saturating_integer_add")
         };
         let ScalarType::Integer(scalar_type) = operation.result.expect_scalar().scalar_type else {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         };
         let left = self
             .values
@@ -456,14 +454,12 @@ impl TerminalExecution {
             },
         ) = (left, right)
         else {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         };
         if left_type != scalar_type || right_type != scalar_type {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         }
-        let value = scalar_type
-            .saturating_add(left, right)
-            .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+        let value = scalar_type.saturating_add(left, right).ok_or(malformed())?;
         self.values.insert(
             operation.result.expect_scalar().id,
             TerminalScalarValue::Integer { scalar_type, value },
@@ -479,7 +475,7 @@ impl TerminalExecution {
             unreachable!("dispatched execute_saturating_integer_subtract")
         };
         let ScalarType::Integer(scalar_type) = operation.result.expect_scalar().scalar_type else {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         };
         let left = self
             .values
@@ -502,14 +498,12 @@ impl TerminalExecution {
             },
         ) = (left, right)
         else {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         };
         if left_type != scalar_type || right_type != scalar_type {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         }
-        let value = scalar_type
-            .saturating_sub(left, right)
-            .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+        let value = scalar_type.saturating_sub(left, right).ok_or(malformed())?;
         self.values.insert(
             operation.result.expect_scalar().id,
             TerminalScalarValue::Integer { scalar_type, value },
@@ -525,7 +519,7 @@ impl TerminalExecution {
             unreachable!("dispatched execute_saturating_integer_multiply")
         };
         let ScalarType::Integer(scalar_type) = operation.result.expect_scalar().scalar_type else {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         };
         let left = self
             .values
@@ -548,14 +542,12 @@ impl TerminalExecution {
             },
         ) = (left, right)
         else {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         };
         if left_type != scalar_type || right_type != scalar_type {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         }
-        let value = scalar_type
-            .saturating_mul(left, right)
-            .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+        let value = scalar_type.saturating_mul(left, right).ok_or(malformed())?;
         self.values.insert(
             operation.result.expect_scalar().id,
             TerminalScalarValue::Integer { scalar_type, value },

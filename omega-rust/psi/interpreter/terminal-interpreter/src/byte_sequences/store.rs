@@ -1,6 +1,6 @@
 //! Whole replacement writes the original caller-owned field, after source snapshot.
 use crate::byte_sequences::binding::ByteSequenceBinding;
-use crate::errors::TerminalInterpretError;
+use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
 use crate::values::TerminalScalarValue;
 use semantic_vocabulary::IntegerValue;
@@ -11,7 +11,6 @@ impl TerminalExecution {
         &mut self,
         operation: &Operation,
     ) -> Result<(), TerminalInterpretError> {
-        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
         let OperationKind::ByteSequenceStore {
             destination,
             source,
@@ -19,47 +18,47 @@ impl TerminalExecution {
             ..
         } = &operation.kind
         else {
-            return Err(invalid());
+            return Err(malformed());
         };
         if operation.result != OperationResult::Unit || source == destination {
-            return Err(invalid());
+            return Err(malformed());
         }
         let ByteSequenceBinding::MutableField {
             field, capacity, ..
         } = self
             .byte_sequence_values
             .get(destination)
-            .ok_or_else(invalid)?
+            .ok_or_else(malformed)?
         else {
-            return Err(invalid());
+            return Err(malformed());
         };
         let field = field.clone();
         let capacity = *capacity;
         let binding = self
             .byte_sequence_values
             .get(destination)
-            .ok_or_else(invalid)?;
+            .ok_or_else(malformed)?;
         binding.validate_mutable_referent(
             &self.program.structural_types,
             self.structural_values
                 .get(destination)
-                .ok_or_else(invalid)?,
+                .ok_or_else(malformed)?,
         )?;
         let TerminalScalarValue::Integer {
             value: IntegerValue::Unsigned(length),
             ..
-        } = self.values.get(length).ok_or_else(invalid)?
+        } = self.values.get(length).ok_or_else(malformed)?
         else {
-            return Err(invalid());
+            return Err(malformed());
         };
         let bytes = self
             .byte_sequence_values
             .get(source)
-            .ok_or_else(invalid)?
+            .ok_or_else(malformed)?
             .immutable()?
             .clone();
         if bytes.len() as u128 != *length || *length > u128::from(capacity) {
-            return Err(invalid());
+            return Err(malformed());
         }
         // Immutable backing snapshots the whole input before changing this field.
         self.structural_byte_sequence_fields.insert(field, bytes);

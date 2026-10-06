@@ -1,6 +1,6 @@
 //! Atomic record establishment over the interpreter's existing structural storage.
 use crate::custody::resolve_structural_arguments;
-use crate::errors::TerminalInterpretError;
+use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
 use crate::scalar_operations::terminal_scalar_belongs_to_type;
 use crate::values::StructuralRuntimePlace;
@@ -26,7 +26,6 @@ impl TerminalExecution {
         result: &terminal_psi::StructuralOperationResult,
         fields: &[terminal_psi::RecordFieldInitializer],
     ) -> Result<(), TerminalInterpretError> {
-        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
         if !matches!(
             result.multiplicity,
             StructuralMultiplicity::Affine | StructuralMultiplicity::Unrestricted
@@ -34,24 +33,24 @@ impl TerminalExecution {
             || !result.projected_qualifications.is_empty()
             || !result.claims.is_empty()
         {
-            return Err(invalid());
+            return Err(malformed());
         }
         let declaration = self
             .program
             .structural_types
             .get(&result.structural_type)
-            .ok_or_else(invalid)?;
+            .ok_or_else(malformed)?;
         let StructuralTypeShape::Record {
             fields: declarations,
         } = &declaration.shape
         else {
-            return Err(invalid());
+            return Err(malformed());
         };
         let declarations = declarations
             .iter()
             .filter(|field| !field.relevance.is_erased());
         if fields.len() != declarations.clone().count() {
-            return Err(invalid());
+            return Err(malformed());
         }
         let value = TerminalStructuralValue {
             opaque_identity: self.local_structural_identities.allocate()?,
@@ -67,15 +66,15 @@ impl TerminalExecution {
         let mut frontier = self.live_affine_frontier.clone();
         for (binding, declaration) in fields.iter().zip(declarations) {
             if binding.field != declaration.id || declaration.relevance.is_erased() {
-                return Err(invalid());
+                return Err(malformed());
             }
             match &binding.value {
                 terminal_psi::RecordFieldValue::Scalar { value: operand, .. } => {
-                    let scalar = self.values.get(operand).copied().ok_or_else(invalid)?;
+                    let scalar = self.values.get(operand).copied().ok_or_else(malformed)?;
                     if declaration.field_type.scalar_type() != Some(scalar.scalar_type())
                         || !terminal_scalar_belongs_to_type(scalar)
                     {
-                        return Err(invalid());
+                        return Err(malformed());
                     }
                     staged.insert(
                         StructuralScalarRuntimeField::member(
@@ -92,7 +91,7 @@ impl TerminalExecution {
                         std::slice::from_ref(argument),
                     )?
                     .pop()
-                    .ok_or_else(invalid)?;
+                    .ok_or_else(malformed)?;
                     if matches!(
                         declaration.field_type.byte_sequence_carrier(),
                         Some(terminal_psi::ByteSequenceCarrier::BorrowedView {
@@ -102,7 +101,7 @@ impl TerminalExecution {
                         let bytes = self
                             .byte_sequence_values
                             .get(&argument.place)
-                            .ok_or_else(invalid)?
+                            .ok_or_else(malformed)?
                             .immutable()?;
                         if argument.access != StructuralAccess::Owned
                             || !argument.path.is_empty()
@@ -131,12 +130,12 @@ impl TerminalExecution {
                                 .byte_predicates()
                                 .holds_for(bytes.bytes())
                         {
-                            return Err(invalid());
+                            return Err(malformed());
                         }
                         let affine =
                             self.stage_constructor_operand(argument, &mut frontier, &mut consumed)?;
                         if affine && result.multiplicity == StructuralMultiplicity::Unrestricted {
-                            return Err(invalid());
+                            return Err(malformed());
                         }
                         staged_bytes.insert(
                             crate::values::StructuralByteSequenceRuntimeField {
@@ -156,11 +155,11 @@ impl TerminalExecution {
                             child.structural_type,
                             &child.qualifications,
                         )
-                        .ok_or_else(invalid)?;
+                        .ok_or_else(malformed)?;
                         let bytes = self
                             .byte_sequence_values
                             .get(&argument.place)
-                            .ok_or_else(invalid)?
+                            .ok_or_else(malformed)?
                             .immutable()?;
                         if argument.access != StructuralAccess::Owned
                             || !argument.path.is_empty()
@@ -179,7 +178,7 @@ impl TerminalExecution {
                                 .iter()
                                 .any(|entry| entry.place == argument.place)
                         {
-                            return Err(invalid());
+                            return Err(malformed());
                         }
                         staged_bytes.insert(
                             crate::values::StructuralByteSequenceRuntimeField {
@@ -195,12 +194,12 @@ impl TerminalExecution {
                         || declaration.field_type
                             != StructuralFieldType::Structural(child.structural_type)
                     {
-                        return Err(invalid());
+                        return Err(malformed());
                     }
                     let affine =
                         self.stage_constructor_operand(argument, &mut frontier, &mut consumed)?;
                     if affine && result.multiplicity == StructuralMultiplicity::Unrestricted {
-                        return Err(invalid());
+                        return Err(malformed());
                     }
                     let mut member_path = value.path.clone();
                     member_path.push(StructuralPathSegment::Field(declaration.identity.clone()));

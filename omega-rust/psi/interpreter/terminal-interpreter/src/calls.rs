@@ -16,7 +16,7 @@ use crate::custody::{
 use crate::effects::results;
 use crate::effects::results::TerminalEffectResult;
 use crate::effects::{TerminalEffect, TerminalEffectHandler};
-use crate::errors::TerminalInterpretError;
+use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::{
     LiveClaim, OperationFlow, SuspendedCall, SuspendedCallResult, TerminalExecution,
 };
@@ -42,7 +42,7 @@ impl TerminalExecution {
             unreachable!("dispatched execute_call_unit")
         };
         if !matches!(operation.result, terminal_psi::OperationResult::Unit) {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         }
         let scalar_arguments = scalar_argument_ids
             .iter()
@@ -81,10 +81,7 @@ impl TerminalExecution {
         else {
             unreachable!("dispatched execute_call_structural_scalar")
         };
-        let result = operation
-            .result
-            .scalar()
-            .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+        let result = operation.result.scalar().ok_or(malformed())?;
         let dynamic_parameters = self.resolve_dynamic_call_arguments(operation.id)?;
         let scalar_arguments = arguments
             .iter()
@@ -119,16 +116,13 @@ impl TerminalExecution {
         else {
             unreachable!("dispatched execute_call_dynamic_scalar")
         };
-        let result = operation
-            .result
-            .scalar()
-            .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+        let result = operation.result.scalar().ok_or(malformed())?;
         let (callee, source) = self
             .program
             .dynamic_scalar_calls
             .get(&(self.current_machine, descriptor_ordinal))
             .cloned()
-            .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+            .ok_or(malformed())?;
         let structural_arguments = std::slice::from_ref(&source);
         let prepared_arguments =
             self.prepare_structural_call_arguments(callee, structural_arguments)?;
@@ -156,23 +150,19 @@ impl TerminalExecution {
         else {
             unreachable!("dispatched execute_call_dynamic_parameter_scalar")
         };
-        let result = operation
-            .result
-            .scalar()
-            .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+        let result = operation.result.scalar().ok_or(malformed())?;
         let descriptor = self
             .dynamic_parameters
             .get(&parameter_ordinal)
             .cloned()
-            .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
-        let slot = usize::try_from(requirement_slot)
-            .map_err(|_| TerminalInterpretError::VerifiedOperationMalformed)?;
+            .ok_or(malformed())?;
+        let slot = usize::try_from(requirement_slot).map_err(|_| malformed())?;
         let callee = descriptor
             .callables
             .get(slot)
             .copied()
             .flatten()
-            .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+            .ok_or(malformed())?;
         self.begin_runtime_dynamic_scalar_call(callee, result, descriptor.source)?;
         Ok(OperationFlow::Redispatch)
     }
@@ -188,21 +178,21 @@ impl TerminalExecution {
             unreachable!("dispatched execute_call_dynamic_unit")
         };
         if operation.result != terminal_psi::OperationResult::Unit {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         }
         let (callee, source) = self
             .program
             .dynamic_scalar_calls
             .get(&(self.current_machine, descriptor_ordinal))
             .cloned()
-            .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+            .ok_or(malformed())?;
         let arguments = resolve_structural_arguments(
             &self.program.structural_types,
             &self.structural_values,
             std::slice::from_ref(&source),
         )?;
         let [source] = arguments.as_slice() else {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         };
         self.begin_runtime_dynamic_unit_call(callee, source.clone())?;
         Ok(OperationFlow::Redispatch)
@@ -221,21 +211,20 @@ impl TerminalExecution {
             unreachable!("dispatched execute_call_dynamic_parameter_unit")
         };
         if operation.result != terminal_psi::OperationResult::Unit {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         }
         let descriptor = self
             .dynamic_parameters
             .get(&parameter_ordinal)
             .cloned()
-            .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
-        let slot = usize::try_from(requirement_slot)
-            .map_err(|_| TerminalInterpretError::VerifiedOperationMalformed)?;
+            .ok_or(malformed())?;
+        let slot = usize::try_from(requirement_slot).map_err(|_| malformed())?;
         let callee = descriptor
             .callables
             .get(slot)
             .copied()
             .flatten()
-            .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+            .ok_or(malformed())?;
         self.begin_runtime_dynamic_unit_call(callee, descriptor.source)?;
         Ok(OperationFlow::Redispatch)
     }
@@ -254,11 +243,7 @@ impl TerminalExecution {
         else {
             unreachable!("dispatched execute_call_structural")
         };
-        let result = operation
-            .result
-            .structural()
-            .cloned()
-            .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+        let result = operation.result.structural().cloned().ok_or(malformed())?;
         let prepared_arguments =
             self.prepare_structural_call_arguments(callee, structural_arguments)?;
         self.begin_structural_result_call(
@@ -288,11 +273,7 @@ impl TerminalExecution {
         else {
             unreachable!("dispatched execute_call_structural_with_scalar_arguments")
         };
-        let result = operation
-            .result
-            .structural()
-            .cloned()
-            .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+        let result = operation.result.structural().cloned().ok_or(malformed())?;
         let scalar_arguments = arguments
             .iter()
             .map(|argument| {
@@ -383,7 +364,7 @@ impl TerminalExecution {
                 }
             };
             if !supported_result {
-                return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                return Err(malformed());
             }
             let callee_id = self.provider_installation.get(&boundary).copied().ok_or(
                 TerminalInterpretError::ProviderInstallationMissing(boundary),
@@ -533,7 +514,7 @@ impl TerminalExecution {
                     )
                     .is_some()
                 {
-                    return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                    return Err(malformed());
                 }
             }
         }
@@ -556,7 +537,7 @@ impl TerminalExecution {
             unreachable!("dispatched execute_port_write")
         };
         if !matches!(operation.result, terminal_psi::OperationResult::Unit) {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         }
         let effect = TerminalEffect::PortWrite {
             operation: operation.id,
@@ -606,7 +587,7 @@ impl TerminalExecution {
             || !callee.content_entry_claims.is_empty()
             || !matches!(callee.result, TerminalMachineResult::Scalar(_))
         {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         }
         let values = bind_arguments(&callee.parameters, &arguments)?;
         self.next_operation += 1;

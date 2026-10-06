@@ -15,7 +15,7 @@
 //! through after calls without manufacturing a second element snapshot.
 
 use crate::custody::project_structural_value;
-use crate::errors::TerminalInterpretError;
+use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::{OperationFlow, TerminalExecution};
 use crate::scalar_operations::terminal_scalar_belongs_to_type;
 use crate::values::TerminalScalarValue;
@@ -55,8 +55,7 @@ impl ElementViewHome {
         let mut path = Vec::with_capacity(self.path.len() + 1 + suffix.len());
         path.extend_from_slice(&self.path);
         path.push(StructuralPathSegment::FixedIndex(
-            u64::try_from(position)
-                .map_err(|_| TerminalInterpretError::VerifiedOperationMalformed)?,
+            u64::try_from(position).map_err(|_| malformed())?,
         ));
         path.extend_from_slice(suffix);
         Ok(path)
@@ -127,24 +126,23 @@ impl ElementView {
         path: &[StructuralPathSegment],
         writing: bool,
     ) -> Result<(TerminalStructuralValue, Vec<StructuralPathSegment>), TerminalInterpretError> {
-        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
         let ElementViewBacking::Structural { collection } = &self.backing else {
-            return Err(invalid());
+            return Err(malformed());
         };
         if writing && self.access != StructuralAccess::MutableBorrow {
-            return Err(invalid());
+            return Err(malformed());
         }
         let Some((StructuralPathSegment::FixedIndex(index), suffix)) = path.split_first() else {
-            return Err(invalid());
+            return Err(malformed());
         };
-        let index = usize::try_from(*index).map_err(|_| invalid())?;
+        let index = usize::try_from(*index).map_err(|_| malformed())?;
         if index >= self.len() {
-            return Err(invalid());
+            return Err(malformed());
         }
-        let selected = self.window.start.checked_add(index).ok_or_else(invalid)?;
+        let selected = self.window.start.checked_add(index).ok_or_else(malformed)?;
         let mut path = Vec::with_capacity(path.len());
         path.push(StructuralPathSegment::FixedIndex(
-            u64::try_from(selected).map_err(|_| invalid())?,
+            u64::try_from(selected).map_err(|_| malformed())?,
         ));
         path.extend_from_slice(suffix);
         Ok((collection.clone(), path))
@@ -214,8 +212,7 @@ fn count(
     operand: &ValueId,
     values: &BTreeMap<ValueId, TerminalScalarValue>,
 ) -> Result<usize, TerminalInterpretError> {
-    let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
-    let count_type = IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| invalid())?;
+    let count_type = IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| malformed())?;
     let TerminalScalarValue::Integer {
         scalar_type,
         value: IntegerValue::Unsigned(value),
@@ -223,13 +220,13 @@ fn count(
         .get(operand)
         .ok_or(TerminalInterpretError::VerifiedValueMissing(*operand))?
     else {
-        return Err(invalid());
+        return Err(malformed());
     };
     if *scalar_type != count_type {
-        return Err(invalid());
+        return Err(malformed());
     }
-    let value = u64::try_from(*value).map_err(|_| invalid())?;
-    usize::try_from(value).map_err(|_| invalid())
+    let value = u64::try_from(*value).map_err(|_| malformed())?;
+    usize::try_from(value).map_err(|_| malformed())
 }
 
 impl TerminalExecution {
@@ -246,12 +243,12 @@ impl TerminalExecution {
             return if view.matches_descriptor_home(resolved) {
                 Ok(view)
             } else {
-                Err(TerminalInterpretError::VerifiedOperationMalformed)
+                Err(malformed())
             };
         }
         self.structural_element_view_fields
             .get(&crate::values::StructuralRuntimePlace::from(resolved))
-            .ok_or(TerminalInterpretError::VerifiedOperationMalformed)
+            .ok_or(malformed())
     }
 
     /// Descriptor lifetime ends with its frame. Only debt-free views retire
@@ -290,7 +287,6 @@ impl TerminalExecution {
         &mut self,
         operation: &Operation,
     ) -> Result<OperationFlow, TerminalInterpretError> {
-        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
         let (destination, source, element, region, access, multiplicity) = match &operation.kind {
             OperationKind::EstablishElementView {
                 destination,
@@ -318,10 +314,10 @@ impl TerminalExecution {
                 StructuralAccess::MutableBorrow,
                 StructuralMultiplicity::Affine,
             ),
-            _ => return Err(invalid()),
+            _ => return Err(malformed()),
         };
         let OperationResult::Structural(result) = &operation.result else {
-            return Err(invalid());
+            return Err(malformed());
         };
         if destination != result.place
             || source.access != access
@@ -330,7 +326,7 @@ impl TerminalExecution {
             || !result.projected_qualifications.is_empty()
             || !result.claims.is_empty()
         {
-            return Err(invalid());
+            return Err(malformed());
         }
         let machine = self.program.machines.get(&self.current_machine).ok_or(
             TerminalInterpretError::VerifiedCallTargetMissing(self.current_machine),
@@ -343,13 +339,13 @@ impl TerminalExecution {
                         structural_type: result.structural_type,
                     }
         }) {
-            return Err(invalid());
+            return Err(malformed());
         }
         let element_scalar = match &self
             .program
             .structural_types
             .get(&element)
-            .ok_or_else(invalid)?
+            .ok_or_else(malformed)?
             .shape
         {
             StructuralTypeShape::PrimitiveScalar(scalar) => Some(*scalar),
@@ -359,7 +355,7 @@ impl TerminalExecution {
             .program
             .structural_types
             .get(&result.structural_type)
-            .ok_or_else(invalid)?
+            .ok_or_else(malformed)?
             .shape;
         match descriptor {
             StructuralTypeShape::ElementView {
@@ -369,9 +365,9 @@ impl TerminalExecution {
                 if descriptor.is_borrowed_byte_view()
                     && element_scalar
                         == Some(ScalarType::Integer(
-                            IntegerType::new(IntegerSign::Unsigned, 8).map_err(|_| invalid())?,
+                            IntegerType::new(IntegerSign::Unsigned, 8).map_err(|_| malformed())?,
                         )) => {}
-            _ => return Err(invalid()),
+            _ => return Err(malformed()),
         }
         if self.structural_values.contains_key(&result.place)
             || self.scalar_case_values.contains_key(&result.place)
@@ -392,7 +388,7 @@ impl TerminalExecution {
                     .get(&source.place)
                     .is_some_and(|value| !value.qualifications.is_empty()))
         {
-            return Err(invalid());
+            return Err(malformed());
         }
         // A fixed byte range selects a descriptor window over its collection;
         // it is not a child type or storage-home path. Resolve the backing first
@@ -401,13 +397,13 @@ impl TerminalExecution {
         let (backing_path, selected_window) = match source.path.split_last() {
             Some((StructuralPathSegment::FixedByteRange { start, end }, backing)) => {
                 if region != ElementViewRegion::WholeCollection || start > end {
-                    return Err(invalid());
+                    return Err(malformed());
                 }
                 (
                     backing,
                     Some(
-                        usize::try_from(*start).map_err(|_| invalid())?
-                            ..usize::try_from(*end).map_err(|_| invalid())?,
+                        usize::try_from(*start).map_err(|_| malformed())?
+                            ..usize::try_from(*end).map_err(|_| malformed())?,
                     ),
                 )
             }
@@ -431,16 +427,16 @@ impl TerminalExecution {
                 length,
             } = self.program.structural_types[&collection_type].shape
             else {
-                return Err(invalid());
+                return Err(malformed());
             };
             if source_element != element
                 || element_scalar
                     != Some(ScalarType::Integer(
-                        IntegerType::new(IntegerSign::Unsigned, 8).map_err(|_| invalid())?,
+                        IntegerType::new(IntegerSign::Unsigned, 8).map_err(|_| malformed())?,
                     ))
-                || u64::try_from(window.end).map_err(|_| invalid())? > length
+                || u64::try_from(window.end).map_err(|_| malformed())? > length
             {
-                return Err(invalid());
+                return Err(malformed());
             }
         }
         if let ElementViewRegion::RepresentationBytes { start, end, .. } = region {
@@ -461,7 +457,7 @@ impl TerminalExecution {
                     collection_type,
                     element,
                 )
-                .ok_or_else(invalid)?;
+                .ok_or_else(malformed)?;
                 let bound = match collection.extent {
                     terminal_semantics::CollectionExtent::Fixed(length) => length,
                     // An owned carrier's live count is bounded by its
@@ -469,8 +465,8 @@ impl TerminalExecution {
                     // declared storage even before the live-length read.
                     terminal_semantics::CollectionExtent::LiveLength { capacity } => capacity,
                 };
-                if start > end || u64::try_from(end).map_err(|_| invalid())? > bound {
-                    return Err(invalid());
+                if start > end || u64::try_from(end).map_err(|_| malformed())? > bound {
+                    return Err(malformed());
                 }
                 let mut cursor = self.local_structural_identities.cursor();
                 let (source_value, binding) = self.establish_byte_array_binding(
@@ -491,7 +487,7 @@ impl TerminalExecution {
                 self.byte_sequence_values.insert(result.place, binding);
             } else {
                 if !matches!(descriptor, StructuralTypeShape::ElementView { .. }) {
-                    return Err(invalid());
+                    return Err(malformed());
                 }
                 let view =
                     self.representation_view(source, collection_type, element, start, end)?;
@@ -526,10 +522,10 @@ impl TerminalExecution {
             && source_element != element
         {
             if !matches!(descriptor, StructuralTypeShape::ElementView { .. }) {
-                return Err(invalid());
+                return Err(malformed());
             }
             let typed = self.typed_element_view(source, source_element, element)?;
-            let extent = usize::try_from(length).map_err(|_| invalid())?;
+            let extent = usize::try_from(length).map_err(|_| malformed())?;
             self.element_view_values.insert(
                 result.place,
                 ElementView {
@@ -564,11 +560,11 @@ impl TerminalExecution {
             collection_type,
             element,
         )
-        .ok_or_else(invalid)?;
+        .ok_or_else(malformed)?;
         if collection.storage == terminal_semantics::CollectionStorage::Borrowed
             && !descriptor.is_borrowed_byte_view()
         {
-            return Err(invalid());
+            return Err(malformed());
         }
         let collection_length = match collection.extent {
             terminal_semantics::CollectionExtent::Fixed(length) => length,
@@ -581,9 +577,9 @@ impl TerminalExecution {
             {
                 capacity
             }
-            _ => return Err(invalid()),
+            _ => return Err(malformed()),
         };
-        let extent = usize::try_from(collection_length).map_err(|_| invalid())?;
+        let extent = usize::try_from(collection_length).map_err(|_| malformed())?;
         // Byte loans resolve their live ArrayStorage directly. Only consumers
         // retaining scalar snapshots need to walk and allocate element values.
         let snapshot_scalar = element_scalar
@@ -645,7 +641,7 @@ impl TerminalExecution {
                         std::slice::from_ref(source),
                     )?
                     .pop()
-                    .ok_or_else(invalid)?;
+                    .ok_or_else(malformed)?;
                     ElementView::structural(
                         collection,
                         extent,
@@ -668,7 +664,7 @@ impl TerminalExecution {
                 };
                 let view = if let Some(window) = &selected_window {
                     view.subslice(window.start, window.end, access)
-                        .ok_or_else(invalid)?
+                        .ok_or_else(malformed)?
                 } else {
                     view
                 };
@@ -698,34 +694,33 @@ impl TerminalExecution {
         path: &[StructuralPathSegment],
         scalar_type: ScalarType,
     ) -> Result<Option<StructuralScalarRuntimeField>, TerminalInterpretError> {
-        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
         let Some((StructuralPathSegment::Field(identity), prefix)) = path.split_last() else {
             return Ok(None);
         };
         let mut selected_path = Vec::with_capacity(1 + prefix.len());
         selected_path.push(StructuralPathSegment::FixedIndex(
-            u64::try_from(position).map_err(|_| invalid())?,
+            u64::try_from(position).map_err(|_| malformed())?,
         ));
         selected_path.extend_from_slice(prefix);
         let parent = project_structural_value(
             &self.program.structural_types,
-            collection.ok_or_else(invalid)?,
+            collection.ok_or_else(malformed)?,
             &selected_path,
         )?;
         let StructuralTypeShape::Record { fields } = &self
             .program
             .structural_types
             .get(&parent.structural_type)
-            .ok_or_else(invalid)?
+            .ok_or_else(malformed)?
             .shape
         else {
-            return Err(invalid());
+            return Err(malformed());
         };
         let mut matching = fields
             .iter()
             .filter(|field| field.identity == *identity && !field.relevance.is_erased());
         let (Some(field), None) = (matching.next(), matching.next()) else {
-            return Err(invalid());
+            return Err(malformed());
         };
         if matches!(
             field.field_type,
@@ -734,7 +729,7 @@ impl TerminalExecution {
             return Ok(None);
         }
         if field.field_type.scalar_type() != Some(scalar_type) {
-            return Err(invalid());
+            return Err(malformed());
         }
         Ok(Some(StructuralScalarRuntimeField::member(
             StructuralRuntimePlace::from(&parent),
@@ -749,20 +744,19 @@ impl TerminalExecution {
         path: &[StructuralPathSegment],
         scalar_type: ScalarType,
     ) -> Result<TerminalScalarValue, TerminalInterpretError> {
-        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
         let ElementViewBacking::Structural { collection } = &view.backing else {
-            return Err(invalid());
+            return Err(malformed());
         };
-        let position = view.window.start.checked_add(index).ok_or_else(invalid)?;
+        let position = view.window.start.checked_add(index).ok_or_else(malformed)?;
         if let Some(field) =
             self.element_scalar_field(Some(collection), position, path, scalar_type)?
         {
             self.structural_scalar_fields
                 .get(&field)
                 .copied()
-                .ok_or_else(invalid)
+                .ok_or_else(malformed)
         } else {
-            let home = view.home.as_ref().ok_or_else(invalid)?;
+            let home = view.home.as_ref().ok_or_else(malformed)?;
             self.read_primitive_home(
                 home.storage,
                 &home.selected_path(position, path)?,
@@ -778,25 +772,24 @@ impl TerminalExecution {
         path: &[StructuralPathSegment],
         scalar: TerminalScalarValue,
     ) -> Result<(), TerminalInterpretError> {
-        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
         let ElementViewBacking::Structural { collection } = &view.backing else {
-            return Err(invalid());
+            return Err(malformed());
         };
-        let position = view.window.start.checked_add(index).ok_or_else(invalid)?;
+        let position = view.window.start.checked_add(index).ok_or_else(malformed)?;
         if let Some(field) =
             self.element_scalar_field(Some(collection), position, path, scalar.scalar_type())?
         {
             let stored = self
                 .structural_scalar_fields
                 .get_mut(&field)
-                .ok_or_else(invalid)?;
+                .ok_or_else(malformed)?;
             if stored.scalar_type() != scalar.scalar_type() {
-                return Err(invalid());
+                return Err(malformed());
             }
             *stored = scalar;
             Ok(())
         } else {
-            let home = view.home.as_ref().ok_or_else(invalid)?;
+            let home = view.home.as_ref().ok_or_else(malformed)?;
             self.store_primitive_home(home.storage, &home.selected_path(position, path)?, scalar)
         }
     }
@@ -809,7 +802,6 @@ impl TerminalExecution {
         &mut self,
         operation: &Operation,
     ) -> Result<OperationFlow, TerminalInterpretError> {
-        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
         let OperationKind::ElementViewWrite {
             destination,
             index,
@@ -819,10 +811,10 @@ impl TerminalExecution {
             ..
         } = &operation.kind
         else {
-            return Err(invalid());
+            return Err(malformed());
         };
         if operation.result != OperationResult::Unit {
-            return Err(invalid());
+            return Err(malformed());
         }
         let index = count(index, &self.values)?;
         let length = count(length, &self.values)?;
@@ -832,7 +824,7 @@ impl TerminalExecution {
             .copied()
             .ok_or(TerminalInterpretError::VerifiedValueMissing(*value))?;
         if !terminal_scalar_belongs_to_type(element) {
-            return Err(invalid());
+            return Err(malformed());
         }
         if let Some(view) = self.element_view_values.get(destination)
             && matches!(
@@ -847,7 +839,7 @@ impl TerminalExecution {
                 || view.len() != length
                 || index >= length
             {
-                return Err(invalid());
+                return Err(malformed());
             }
             match &view.backing {
                 ElementViewBacking::Typed(_) => {
@@ -861,7 +853,7 @@ impl TerminalExecution {
             return Ok(OperationFlow::Advance);
         }
         if !path.is_empty() {
-            return Err(invalid());
+            return Err(malformed());
         }
         let Some(view) = self.element_view_values.get_mut(destination) else {
             return Err(TerminalInterpretError::VerifiedStructuralPlaceMissing(
@@ -869,29 +861,29 @@ impl TerminalExecution {
             ));
         };
         let Some(home) = view.home.clone() else {
-            return Err(invalid());
+            return Err(malformed());
         };
         if view.access != StructuralAccess::MutableBorrow || view.len() != length || index >= length
         {
-            return Err(invalid());
+            return Err(malformed());
         }
-        let position = view.window.start.checked_add(index).ok_or_else(invalid)?;
+        let position = view.window.start.checked_add(index).ok_or_else(malformed)?;
         let Some(existing) = view.get(index) else {
-            return Err(invalid());
+            return Err(malformed());
         };
         if existing.scalar_type() != element.scalar_type() {
-            return Err(invalid());
+            return Err(malformed());
         }
         let mut path = home.path.clone();
         path.push(StructuralPathSegment::FixedIndex(
-            u64::try_from(position).map_err(|_| invalid())?,
+            u64::try_from(position).map_err(|_| malformed())?,
         ));
         self.store_primitive_home(home.storage, &path, element)?;
         let Some(view) = self.element_view_values.get_mut(destination) else {
-            return Err(invalid());
+            return Err(malformed());
         };
         let ElementViewBacking::Scalars(elements) = &mut view.backing else {
-            return Err(invalid());
+            return Err(malformed());
         };
         Arc::make_mut(elements)[position] = element;
         Ok(OperationFlow::Advance)
@@ -902,14 +894,13 @@ impl TerminalExecution {
         &mut self,
         operation: &Operation,
     ) -> Result<OperationFlow, TerminalInterpretError> {
-        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
         let OperationKind::ElementViewLength { source } = &operation.kind else {
-            return Err(invalid());
+            return Err(malformed());
         };
-        let result = operation.result.scalar().ok_or_else(invalid)?;
-        let integer_type = IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| invalid())?;
+        let result = operation.result.scalar().ok_or_else(malformed)?;
+        let integer_type = IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| malformed())?;
         if result.scalar_type != ScalarType::Integer(integer_type) {
-            return Err(invalid());
+            return Err(malformed());
         }
         let view = self.element_view_values.get(source).ok_or(
             TerminalInterpretError::VerifiedStructuralPlaceMissing(*source),
@@ -918,7 +909,7 @@ impl TerminalExecution {
             result.id,
             TerminalScalarValue::Integer {
                 scalar_type: integer_type,
-                value: IntegerValue::Unsigned(u128::try_from(view.len()).map_err(|_| invalid())?),
+                value: IntegerValue::Unsigned(u128::try_from(view.len()).map_err(|_| malformed())?),
             },
         );
         Ok(OperationFlow::Advance)
@@ -930,7 +921,6 @@ impl TerminalExecution {
         &mut self,
         operation: &Operation,
     ) -> Result<OperationFlow, TerminalInterpretError> {
-        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
         let OperationKind::ElementViewRead {
             source,
             index,
@@ -939,18 +929,18 @@ impl TerminalExecution {
             ..
         } = &operation.kind
         else {
-            return Err(invalid());
+            return Err(malformed());
         };
         // Scalar element reads use this operation; structural element fields
         // resolve through the common structural projection owner.
-        let result = operation.result.scalar().ok_or_else(invalid)?;
+        let result = operation.result.scalar().ok_or_else(malformed)?;
         let index = count(index, &self.values)?;
         let length = count(length, &self.values)?;
         let view = self.element_view_values.get(source).ok_or(
             TerminalInterpretError::VerifiedStructuralPlaceMissing(*source),
         )?;
         if view.len() != length || index >= length {
-            return Err(invalid());
+            return Err(malformed());
         }
         // A mutable descendant may have updated the original storage while
         // this descriptor was suspended. Snapshots cannot authorize stale reads
@@ -962,20 +952,20 @@ impl TerminalExecution {
         } else if matches!(view.backing, ElementViewBacking::Structural { .. }) {
             self.read_structural_element(view, index, path, result.scalar_type)?
         } else if !path.is_empty() {
-            return Err(invalid());
+            return Err(malformed());
         } else if let Some(home) = &view.home {
             let mut path = home.path.clone();
             path.push(StructuralPathSegment::FixedIndex(
-                u64::try_from(view.window.start.checked_add(index).ok_or_else(invalid)?)
-                    .map_err(|_| invalid())?,
+                u64::try_from(view.window.start.checked_add(index).ok_or_else(malformed)?)
+                    .map_err(|_| malformed())?,
             ));
             self.read_primitive_home(home.storage, &path, result.scalar_type)?
         } else {
-            view.get(index).copied().ok_or_else(invalid)?
+            view.get(index).copied().ok_or_else(malformed)?
         };
         if element.scalar_type() != result.scalar_type || !terminal_scalar_belongs_to_type(element)
         {
-            return Err(invalid());
+            return Err(malformed());
         }
         self.values.insert(result.id, element);
         Ok(OperationFlow::Advance)
@@ -988,7 +978,6 @@ impl TerminalExecution {
         &mut self,
         operation: &Operation,
     ) -> Result<(), TerminalInterpretError> {
-        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
         let OperationKind::ElementViewSubslice {
             source,
             start,
@@ -997,9 +986,9 @@ impl TerminalExecution {
             ..
         } = &operation.kind
         else {
-            return Err(invalid());
+            return Err(malformed());
         };
-        let result = operation.result.structural().ok_or_else(invalid)?;
+        let result = operation.result.structural().ok_or_else(malformed)?;
         let start = count(start, &self.values)?;
         let end = count(end, &self.values)?;
         let length = count(length, &self.values)?;
@@ -1015,7 +1004,7 @@ impl TerminalExecution {
         let access = match result.multiplicity {
             StructuralMultiplicity::Unrestricted => StructuralAccess::SharedBorrow,
             StructuralMultiplicity::Affine => StructuralAccess::MutableBorrow,
-            StructuralMultiplicity::Linear => return Err(invalid()),
+            StructuralMultiplicity::Linear => return Err(malformed()),
         };
         // A call or edge may attenuate a descriptor while retaining the same
         // physical backing. The receiving formal remains authoritative.
@@ -1038,7 +1027,7 @@ impl TerminalExecution {
                 )
                 || (access == StructuralAccess::MutableBorrow && parameter.access != access)
             {
-                return Err(invalid());
+                return Err(malformed());
             }
         } else if view.access == StructuralAccess::MutableBorrow
             && !self
@@ -1049,7 +1038,7 @@ impl TerminalExecution {
                     structural_type: source_value.structural_type,
                 })
         {
-            return Err(invalid());
+            return Err(malformed());
         }
         if result.place == *source
             || !machine.structural_places.iter().any(|place| {
@@ -1084,7 +1073,7 @@ impl TerminalExecution {
             || self.scalar_case_values.contains_key(source)
             || self.scalar_case_values.contains_key(&result.place)
         {
-            return Err(invalid());
+            return Err(malformed());
         }
         let destination = TerminalStructuralValue {
             opaque_identity: result.place.get(),
@@ -1098,11 +1087,11 @@ impl TerminalExecution {
         ) {
             (None, None) => {}
             (Some(previous), Some(_)) if *previous == destination => {}
-            _ => return Err(invalid()),
+            _ => return Err(malformed()),
         }
         let window = view
             .subslice(start, end, access)
-            .ok_or_else(invalid)?
+            .ok_or_else(malformed)?
             .with_descriptor_home(destination.clone());
         self.element_view_values.insert(result.place, window);
         self.structural_values.insert(result.place, destination);

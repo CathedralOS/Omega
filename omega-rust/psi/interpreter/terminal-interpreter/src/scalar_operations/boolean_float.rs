@@ -1,7 +1,7 @@
 //! Boolean and IEEE-float operations of the interpreter loop, including the
 //! scalar representation re-view between those carriers and integers.
 
-use crate::errors::TerminalInterpretError;
+use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::{OperationFlow, TerminalExecution};
 use crate::scalar_operations::{ieee_float_compare, nearest_ieee_float_fused_multiply_add};
 use crate::values::TerminalScalarValue;
@@ -18,7 +18,7 @@ impl TerminalExecution {
             unreachable!("dispatched execute_ieee_float_constant")
         };
         if operation.result.expect_scalar().scalar_type != ScalarType::IeeeFloat(value.format()) {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         }
         self.values.insert(
             operation.result.expect_scalar().id,
@@ -41,7 +41,7 @@ impl TerminalExecution {
         };
         let read_float = |operand| match self.values.get(&operand).copied() {
             Some(TerminalScalarValue::IeeeFloat(value)) => Ok(value),
-            Some(_) => Err(TerminalInterpretError::VerifiedOperationMalformed),
+            Some(_) => Err(malformed()),
             None => Err(TerminalInterpretError::VerifiedValueMissing(operand)),
         };
         let left = read_float(left)?;
@@ -49,7 +49,7 @@ impl TerminalExecution {
         if left.format() != right.format()
             || operation.result.expect_scalar().scalar_type != ScalarType::Boolean
         {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         }
         self.values.insert(
             operation.result.expect_scalar().id,
@@ -90,7 +90,7 @@ impl TerminalExecution {
         };
         let viewed = ScalarRepresentationViewPair::classify(source_type, result.scalar_type)
             .and_then(|pair| pair.view(source_value))
-            .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+            .ok_or(malformed())?;
         let value = match (viewed, result.scalar_type) {
             (ScalarViewValue::Boolean(value), ScalarType::Boolean) => {
                 TerminalScalarValue::Boolean(value)
@@ -101,7 +101,7 @@ impl TerminalExecution {
             (ScalarViewValue::IeeeFloat(value), ScalarType::IeeeFloat(_)) => {
                 TerminalScalarValue::IeeeFloat(value)
             }
-            _ => return Err(TerminalInterpretError::VerifiedOperationMalformed),
+            _ => return Err(malformed()),
         };
         self.values.insert(result.id, value);
         Ok(OperationFlow::Advance)
@@ -120,7 +120,7 @@ impl TerminalExecution {
             unreachable!("dispatched execute_nearest_ieee_float_fused_multiply_add")
         };
         let ScalarType::IeeeFloat(format) = operation.result.expect_scalar().scalar_type else {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         };
         let TerminalScalarValue::IeeeFloat(left) = self
             .values
@@ -128,7 +128,7 @@ impl TerminalExecution {
             .copied()
             .ok_or(TerminalInterpretError::VerifiedValueMissing(left))?
         else {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         };
         let TerminalScalarValue::IeeeFloat(right) = self
             .values
@@ -136,7 +136,7 @@ impl TerminalExecution {
             .copied()
             .ok_or(TerminalInterpretError::VerifiedValueMissing(right))?
         else {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         };
         let TerminalScalarValue::IeeeFloat(addend) = self
             .values
@@ -144,10 +144,10 @@ impl TerminalExecution {
             .copied()
             .ok_or(TerminalInterpretError::VerifiedValueMissing(addend))?
         else {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         };
         if left.format() != format || right.format() != format || addend.format() != format {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         }
         let result = nearest_ieee_float_fused_multiply_add(format, left, right, addend);
         self.values.insert(
@@ -165,7 +165,7 @@ impl TerminalExecution {
             unreachable!("dispatched execute_boolean_constant")
         };
         if operation.result.expect_scalar().scalar_type != ScalarType::Boolean {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         }
         self.values.insert(
             operation.result.expect_scalar().id,
@@ -182,7 +182,7 @@ impl TerminalExecution {
             unreachable!("dispatched execute_boolean_not")
         };
         if operation.result.expect_scalar().scalar_type != ScalarType::Boolean {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         }
         let TerminalScalarValue::Boolean(value) = self
             .values
@@ -190,7 +190,7 @@ impl TerminalExecution {
             .copied()
             .ok_or(TerminalInterpretError::VerifiedValueMissing(operand))?
         else {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         };
         self.values.insert(
             operation.result.expect_scalar().id,
@@ -207,7 +207,7 @@ impl TerminalExecution {
             unreachable!("dispatched execute_boolean_equal")
         };
         if operation.result.expect_scalar().scalar_type != ScalarType::Boolean {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         }
         let TerminalScalarValue::Boolean(left) = self
             .values
@@ -215,7 +215,7 @@ impl TerminalExecution {
             .copied()
             .ok_or(TerminalInterpretError::VerifiedValueMissing(left))?
         else {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         };
         let TerminalScalarValue::Boolean(right) = self
             .values
@@ -223,7 +223,7 @@ impl TerminalExecution {
             .copied()
             .ok_or(TerminalInterpretError::VerifiedValueMissing(right))?
         else {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         };
         self.values.insert(
             operation.result.expect_scalar().id,

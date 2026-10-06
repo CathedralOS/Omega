@@ -3,7 +3,7 @@
 //! Shared float semantics decide policy, but unchanged payloads retain their
 //! original bits because proof meaning deliberately forgets NaN payloads.
 
-use crate::errors::TerminalInterpretError;
+use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::{OperationFlow, TerminalExecution};
 use crate::results::{TerminalCrash, TerminalCrashSite, TerminalExecutionStatus};
 use crate::values::TerminalScalarValue;
@@ -28,7 +28,7 @@ impl TerminalExecution {
             Some(TerminalScalarValue::IeeeFloat(payload)) if payload.format() == format => {
                 Ok(payload)
             }
-            Some(_) => Err(TerminalInterpretError::VerifiedOperationMalformed),
+            Some(_) => Err(malformed()),
             None => Err(TerminalInterpretError::VerifiedValueMissing(value)),
         }
     }
@@ -38,13 +38,13 @@ impl TerminalExecution {
         operation: &Operation,
     ) -> Result<OperationFlow, TerminalInterpretError> {
         let OperationKind::FloatResultPolicy { policy } = operation.kind else {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         };
         let Some(result) = operation.result.scalar_ref() else {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         };
         let ScalarType::IeeeFloat(format) = result.scalar_type else {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         };
         let raw_result = self.float_policy_operand(policy.raw_result(), format)?;
         let raw_meaning = meaning(raw_result);

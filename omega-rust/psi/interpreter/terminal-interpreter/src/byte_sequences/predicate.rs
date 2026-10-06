@@ -2,7 +2,7 @@
 //! resolver already binds the live extent, so `holds_for` sees exactly the
 //! byte window the verifier validated.
 
-use crate::errors::TerminalInterpretError;
+use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::{OperationFlow, TerminalExecution};
 use crate::values::TerminalScalarValue;
 use semantic_vocabulary::ScalarType;
@@ -13,13 +13,12 @@ impl TerminalExecution {
         &mut self,
         operation: &Operation,
     ) -> Result<OperationFlow, TerminalInterpretError> {
-        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
         let OperationKind::ByteSequencePredicate { operand, predicate } = &operation.kind else {
-            return Err(invalid());
+            return Err(malformed());
         };
         let result = operation.result.expect_scalar();
         if result.scalar_type != ScalarType::Boolean {
-            return Err(invalid());
+            return Err(malformed());
         }
         let bytes = self.byte_sequence_operand_view(operand)?;
         let verdict = predicate.holds_for(bytes.bytes());

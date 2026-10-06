@@ -16,7 +16,7 @@ use crate::custody::bind_arguments;
 use crate::custody::bind_structural_arguments;
 use crate::custody::remove_affine_root;
 use crate::custody::resolve_structural_arguments;
-use crate::errors::TerminalInterpretError;
+use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::{LiveClaim, TerminalExecution};
 use crate::scalar_array::TerminalScalarArrayValue;
 use crate::values::{TerminalScalarCaseValue, TerminalScalarValue, TerminalStructuralValue};
@@ -265,7 +265,7 @@ impl TerminalExecution {
                         StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
                     ) || parameter.access == StructuralAccess::Owned))
             {
-                return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                return Err(malformed());
             }
             if self.scalar_array_values.contains_key(&argument.place) {
                 // Arrays already have a complete value carrier. Capture it by
@@ -277,7 +277,7 @@ impl TerminalExecution {
                     })
                     || scalar_arrays.insert(parameter.place, value).is_some()
                 {
-                    return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                    return Err(malformed());
                 }
                 continue;
             }
@@ -299,7 +299,7 @@ impl TerminalExecution {
                         argument.place,
                     ));
                 }
-                _ => return Err(TerminalInterpretError::VerifiedOperationMalformed),
+                _ => return Err(malformed()),
             }
             // A projected owned argument binds the selected subtree, keeping
             // the root's opaque identity and the exact moved path. The caller
@@ -308,7 +308,7 @@ impl TerminalExecution {
             match parameter.access {
                 StructuralAccess::Owned => {
                     if !self.block_parameter_is_declared(target, parameter) {
-                        return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        return Err(malformed());
                     }
                     if argument.path.is_empty() {
                         let source_matches =
@@ -326,7 +326,7 @@ impl TerminalExecution {
                                     case.is_some(),
                                 );
                         if !source_matches {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                            return Err(malformed());
                         }
                         let root = StructuralAffineDiscard {
                             place: argument.place,
@@ -355,17 +355,17 @@ impl TerminalExecution {
                                 continue;
                             }
                             if parameter.multiplicity == StructuralMultiplicity::Unrestricted {
-                                return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                                return Err(malformed());
                             }
                             let mut moved = claim.clone();
                             moved.place = Some(parameter.place);
                             if claims.insert(*identity, moved).is_some() {
-                                return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                                return Err(malformed());
                             }
                             count += 1;
                         }
                         if parameter.multiplicity == StructuralMultiplicity::Linear && count == 0 {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                            return Err(malformed());
                         }
                     } else {
                         if self
@@ -373,7 +373,7 @@ impl TerminalExecution {
                             .values()
                             .any(|claim| claim.place == Some(argument.place))
                         {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                            return Err(malformed());
                         }
                         let root = value.expect("one structural carrier was validated");
                         let view = resolve_structural_arguments(
@@ -382,7 +382,7 @@ impl TerminalExecution {
                             std::slice::from_ref(argument),
                         )?
                         .pop()
-                        .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+                        .ok_or(malformed())?;
                         if view.structural_type != parameter.structural_type {
                             return Err(TerminalInterpretError::StructuralArgumentType {
                                 place: parameter.place,
@@ -408,7 +408,7 @@ impl TerminalExecution {
                         if !source_matches
                             || parameter.multiplicity != StructuralMultiplicity::Affine
                         {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                            return Err(malformed());
                         }
                         let Some(containing) = self.live_affine_frontier.iter().find(|entry| {
                             entry.place == argument.place
@@ -444,7 +444,7 @@ impl TerminalExecution {
                                         || entry.structural_type != parameter.structural_type))
                         })
                     {
-                        return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        return Err(malformed());
                     }
                 }
                 StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
@@ -466,7 +466,7 @@ impl TerminalExecution {
                             && (!self.block_parameter_is_declared(target, parameter)
                                 || !self.mutable_place_source(argument.place)))
                     {
-                        return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        return Err(malformed());
                     }
                     // A borrowed place binds the exact projected view: the
                     // argument path extends the root's stored path and
@@ -481,7 +481,7 @@ impl TerminalExecution {
                         std::slice::from_ref(argument),
                     )?
                     .pop()
-                    .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+                    .ok_or(malformed())?;
                     if view.structural_type != parameter.structural_type {
                         return Err(TerminalInterpretError::StructuralArgumentType {
                             place: parameter.place,
@@ -505,7 +505,7 @@ impl TerminalExecution {
                             .iter()
                             .any(|entry| entry.place == parameter.place)
                     {
-                        return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        return Err(malformed());
                     }
                     if matches!(self.program.structural_types.get(&parameter.structural_type), Some(declaration)
                                             if declaration.shape.is_borrowed_byte_carrier())
@@ -518,10 +518,10 @@ impl TerminalExecution {
                                 .iter()
                                 .any(|entry| entry.place == argument.place)
                         {
-                            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                            return Err(malformed());
                         }
                     } else {
-                        return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        return Err(malformed());
                     }
                 }
                 StructuralAccess::MutableBorrow => {
@@ -532,15 +532,15 @@ impl TerminalExecution {
                             entry.place == argument.place || entry.place == parameter.place
                         })
                     {
-                        return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        return Err(malformed());
                     }
                     self.mutable_byte_sequence_storage(argument.place)?;
                 }
-                _ => return Err(TerminalInterpretError::VerifiedOperationMalformed),
+                _ => return Err(malformed()),
             }
             if let Some(case) = case {
                 if scalar_cases.insert(parameter.place, case.clone()).is_some() {
-                    return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                    return Err(malformed());
                 }
                 if parameter.multiplicity == StructuralMultiplicity::Affine {
                     case_destinations.insert(StructuralAffineDiscard {
@@ -568,7 +568,7 @@ impl TerminalExecution {
                 .any(|claim| claim.place == Some(parameter.place))
                 && !owned_sources.contains(&parameter.place)
             {
-                return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                return Err(malformed());
             }
         }
         // Existing descriptor-only edges reuse their original declaration and

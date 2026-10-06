@@ -3,7 +3,7 @@
 //! byte windows the operands name. Equal live lengths and equal bytes at
 //! every live position answer `true`.
 
-use crate::errors::TerminalInterpretError;
+use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::{OperationFlow, TerminalExecution};
 use crate::values::TerminalScalarValue;
 use semantic_vocabulary::ScalarType;
@@ -14,13 +14,12 @@ impl TerminalExecution {
         &mut self,
         operation: &Operation,
     ) -> Result<OperationFlow, TerminalInterpretError> {
-        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
         let OperationKind::ByteSequenceEqual { left, right } = &operation.kind else {
-            return Err(invalid());
+            return Err(malformed());
         };
         let result = operation.result.expect_scalar();
         if result.scalar_type != ScalarType::Boolean {
-            return Err(invalid());
+            return Err(malformed());
         }
         let left = self.byte_sequence_operand_view(left)?;
         let right = self.byte_sequence_operand_view(right)?;

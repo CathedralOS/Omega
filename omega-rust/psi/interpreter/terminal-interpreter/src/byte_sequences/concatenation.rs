@@ -2,7 +2,7 @@
 //! backing. Reexecuting the operation creates a new activation-local value;
 //! previous shared observations retain their original bytes.
 use crate::byte_sequences::{ByteSequenceView, binding::ByteSequenceBinding};
-use crate::errors::TerminalInterpretError;
+use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::{OperationFlow, TerminalExecution};
 use crate::values::TerminalStructuralValue;
 use terminal_psi::{ByteSequenceCarrier, Operation, OperationKind, StructuralTypeShape};
@@ -12,26 +12,25 @@ impl TerminalExecution {
         &mut self,
         operation: &Operation,
     ) -> Result<OperationFlow, TerminalInterpretError> {
-        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
         let OperationKind::EstablishByteSequenceConcatenation { left, right, .. } = &operation.kind
         else {
-            return Err(invalid());
+            return Err(malformed());
         };
-        let result = operation.result.structural().ok_or_else(invalid)?;
+        let result = operation.result.structural().ok_or_else(malformed)?;
         let StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned { capacity }) =
             self.program
                 .structural_types
                 .get(&result.structural_type)
-                .ok_or_else(invalid)?
+                .ok_or_else(malformed)?
                 .shape
         else {
-            return Err(invalid());
+            return Err(malformed());
         };
         let left = self.byte_sequence_operand_view(left)?;
         let right = self.byte_sequence_operand_view(right)?;
-        let length = left.len().checked_add(right.len()).ok_or_else(invalid)?;
-        if u64::try_from(length).map_err(|_| invalid())? > capacity {
-            return Err(invalid());
+        let length = left.len().checked_add(right.len()).ok_or_else(malformed)?;
+        if u64::try_from(length).map_err(|_| malformed())? > capacity {
+            return Err(malformed());
         }
         let mut bytes = Vec::with_capacity(length);
         bytes.extend_from_slice(left.bytes());

@@ -6,7 +6,7 @@
 //! Loan ancestry and disposal order are independently checked before execution.
 use crate::custody::project_structural_value;
 use crate::custody::resolve_structural_path_type;
-use crate::errors::TerminalInterpretError;
+use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::SuspendedCall;
 use crate::execution::SuspendedCallResult;
 use crate::execution::TerminalExecution;
@@ -55,12 +55,11 @@ impl TerminalExecution {
         owner: &TerminalStructuralValue,
         path: &[StructuralPathSegment],
     ) -> Result<StructuralAccess, TerminalInterpretError> {
-        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
         let machine = self
             .program
             .machines
             .get(&self.current_machine)
-            .ok_or_else(invalid)?;
+            .ok_or_else(malformed)?;
         if let Some(parameter) = machine.structural_parameters.iter().find(|parameter| {
             parameter.place == place && parameter.access != StructuralAccess::Owned
         }) {
@@ -71,7 +70,7 @@ impl TerminalExecution {
                     StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
                 )
             {
-                return Err(invalid());
+                return Err(malformed());
             }
             return Ok(parameter.access);
         }
@@ -90,7 +89,7 @@ impl TerminalExecution {
                     && (!entry.path.is_empty() || entry.structural_type == owner.structural_type)
             })
             .then_some(StructuralAccess::Owned)
-            .ok_or_else(invalid)
+            .ok_or_else(malformed)
     }
 
     fn reference_contract(
@@ -113,7 +112,7 @@ impl TerminalExecution {
                 StructuralAccess::MutableBorrow | StructuralAccess::SharedBorrow
             )
         {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         }
         Ok((*referent, *access))
     }
@@ -123,8 +122,7 @@ impl TerminalExecution {
         operation: &Operation,
         source: &StructuralArgument,
     ) -> Result<(), TerminalInterpretError> {
-        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
-        let result = operation.result.structural().ok_or_else(invalid)?;
+        let result = operation.result.structural().ok_or_else(malformed)?;
         let (_, access) = self.reference_contract(result.structural_type)?;
         // Both local storage and ingress borrows already name their backing.
         // An explicit Referent projection reborrows that backing through a live
@@ -132,7 +130,7 @@ impl TerminalExecution {
         let referent = self
             .resolve_reference_call_arguments(std::slice::from_ref(source))?
             .pop()
-            .ok_or_else(invalid)?;
+            .ok_or_else(malformed)?;
         if !access_covers(source.access, access)
             || result.multiplicity != StructuralMultiplicity::Affine
             || !result.qualifications.is_empty()
@@ -150,7 +148,7 @@ impl TerminalExecution {
                 .iter()
                 .any(|entry| entry.place == result.place)
         {
-            return Err(invalid());
+            return Err(malformed());
         }
         let carrier = TerminalStructuralValue {
             opaque_identity: self.local_structural_identities.allocate()?,
@@ -175,14 +173,13 @@ impl TerminalExecution {
         source: PlaceId,
         path: &[StructuralPathSegment],
     ) -> Result<(), TerminalInterpretError> {
-        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
-        let owner = self.structural_values.get(&source).ok_or_else(invalid)?;
+        let owner = self.structural_values.get(&source).ok_or_else(malformed)?;
         let carrier = project_structural_value(&self.program.structural_types, owner, path)?;
         self.reference_contract(carrier.structural_type)?;
         let key = StructuralRuntimePlace::from(&carrier);
         if operation.result != OperationResult::Unit || !self.reference_referents.contains_key(&key)
         {
-            return Err(invalid());
+            return Err(malformed());
         }
         // Release consumes the descriptor's ordinary owned projection, leaving
         // exactly the same affine complement as transfer. It never removes the
@@ -224,12 +221,11 @@ impl TerminalExecution {
         path: &[StructuralPathSegment],
         access: StructuralAccess,
     ) -> Result<TerminalStructuralValue, TerminalInterpretError> {
-        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
-        let owner = self.structural_values.get(&place).ok_or_else(invalid)?;
+        let owner = self.structural_values.get(&place).ok_or_else(malformed)?;
         if path.contains(&StructuralPathSegment::Referent) {
             let authority = self.reference_carrier_access(place, owner, path)?;
             if !access_covers(authority, access) {
-                return Err(invalid());
+                return Err(malformed());
             }
         }
         self.resolve_reference_path(owner, path, access)
@@ -243,7 +239,6 @@ impl TerminalExecution {
         path: &[StructuralPathSegment],
         access: StructuralAccess,
     ) -> Result<TerminalStructuralValue, TerminalInterpretError> {
-        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
         let mut value = owner.clone();
         let mut remaining = path;
         loop {
@@ -257,20 +252,20 @@ impl TerminalExecution {
             if let Some(boundary) = boundary {
                 let (referent_type, authority) = self.reference_contract(value.structural_type)?;
                 if !access_covers(authority, access) {
-                    return Err(invalid());
+                    return Err(malformed());
                 }
                 let reference_type = value.structural_type;
                 value = self
                     .reference_referents
                     .get(&StructuralRuntimePlace::from(&value))
                     .cloned()
-                    .ok_or_else(invalid)?;
+                    .ok_or_else(malformed)?;
                 if !terminal_semantics::reference_source_compatible(
                     self.program.structural_types.values(),
                     value.structural_type,
                     reference_type,
                 ) {
-                    return Err(invalid());
+                    return Err(malformed());
                 }
                 // Only the view carries the observed type. The captured backing
                 // and its scalar payload retain their original declaration.
@@ -314,7 +309,6 @@ impl TerminalExecution {
         signature: &StructuralResultDeclaration,
         arguments: &BTreeMap<PlaceId, TerminalStructuralValue>,
     ) -> Result<Vec<TerminalStructuralValue>, TerminalInterpretError> {
-        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
         signature
             .reference_sources
             .iter()
@@ -327,7 +321,7 @@ impl TerminalExecution {
                 let parameter = parameters
                     .iter()
                     .find(|parameter| parameter.place == source.place)
-                    .ok_or_else(invalid)?;
+                    .ok_or_else(malformed)?;
                 let leaf_type = resolve_structural_path_type(
                     &self.program.structural_types,
                     signature.structural_type,
@@ -337,16 +331,16 @@ impl TerminalExecution {
                 if !access_covers(parameter.access, source.access)
                     || !access_covers(source.access, access)
                 {
-                    return Err(invalid());
+                    return Err(malformed());
                 }
                 let expected = self.resolve_reference_path(
-                    arguments.get(&parameter.place).ok_or_else(invalid)?,
+                    arguments.get(&parameter.place).ok_or_else(malformed)?,
                     &source.path,
                     source.access,
                 )?;
                 if expected.structural_type != referent_type || !expected.qualifications.is_empty()
                 {
-                    return Err(invalid());
+                    return Err(malformed());
                 }
                 // Retain only the contract's expected backing, not another
                 // owner or lineage. The callee may move or repack its ingress
@@ -369,12 +363,11 @@ impl TerminalExecution {
                     .map(|declaration| &declaration.shape),
                 Some(StructuralTypeShape::Reference { .. })
             ) {
-                Err(TerminalInterpretError::VerifiedOperationMalformed)
+                Err(malformed())
             } else {
                 Ok(())
             };
         }
-        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
         if self.call_stack.is_empty() {
             return Err(TerminalInterpretError::UnsupportedSemanticVariant(
                 "host reference results require an explicit loan carrier interface",
@@ -391,7 +384,7 @@ impl TerminalExecution {
                 .count()
                 != signature.reference_sources.len()
         {
-            return Err(invalid());
+            return Err(malformed());
         }
         let Some(SuspendedCall {
             result:
@@ -402,10 +395,10 @@ impl TerminalExecution {
             ..
         }) = self.call_stack.last()
         else {
-            return Err(invalid());
+            return Err(malformed());
         };
         if expected_reference_backings.len() != signature.reference_sources.len() {
-            return Err(invalid());
+            return Err(malformed());
         }
         // The verifier reconstructs the complete typed result roster. Runtime
         // preflight compares each captured backing against the callee's actual
@@ -422,7 +415,7 @@ impl TerminalExecution {
                 .iter()
                 .any(|previous| previous.path == origin.path)
             {
-                return Err(invalid());
+                return Err(malformed());
             }
             let leaf_type = resolve_structural_path_type(
                 &self.program.structural_types,
@@ -433,12 +426,12 @@ impl TerminalExecution {
             let expected = &expected_reference_backings[ordinal];
             let mut key = StructuralRuntimePlace::from(carrier);
             key.path.extend_from_slice(&origin.path);
-            let actual = self.reference_referents.get(&key).ok_or_else(invalid)?;
+            let actual = self.reference_referents.get(&key).ok_or_else(malformed)?;
             if !access_covers(source.access, access)
                 || expected.structural_type != referent_type
                 || expected != actual
             {
-                return Err(invalid());
+                return Err(malformed());
             }
         }
         Ok(())

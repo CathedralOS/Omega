@@ -4,7 +4,7 @@ use crate::byte_sequences::binding::ByteSequenceBinding;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, StructuralPlaceKind, ValueId};
 use terminal_psi::{Operation, OperationKind, StructuralAccess, StructuralMultiplicity};
 
-use crate::errors::TerminalInterpretError;
+use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
 use crate::values::{TerminalScalarValue, TerminalStructuralValue};
 
@@ -24,14 +24,10 @@ impl TerminalExecution {
             ..
         } = &operation.kind
         else {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         };
-        let result = operation
-            .result
-            .structural()
-            .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
-        let count_type = IntegerType::new(IntegerSign::Unsigned, 64)
-            .map_err(|_| TerminalInterpretError::VerifiedOperationMalformed)?;
+        let result = operation.result.structural().ok_or(malformed())?;
+        let count_type = IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| malformed())?;
         let count = |operand: &ValueId| -> Result<usize, TerminalInterpretError> {
             let value = self
                 .values
@@ -42,14 +38,13 @@ impl TerminalExecution {
                 value: IntegerValue::Unsigned(value),
             } = value
             else {
-                return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                return Err(malformed());
             };
             if *scalar_type != count_type {
-                return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                return Err(malformed());
             }
-            let value = u64::try_from(*value)
-                .map_err(|_| TerminalInterpretError::VerifiedOperationMalformed)?;
-            usize::try_from(value).map_err(|_| TerminalInterpretError::VerifiedOperationMalformed)
+            let value = u64::try_from(*value).map_err(|_| malformed())?;
+            usize::try_from(value).map_err(|_| malformed())
         };
         let start = count(start)?;
         let end = count(end)?;
@@ -107,7 +102,7 @@ impl TerminalExecution {
             || self.scalar_case_values.contains_key(source)
             || self.scalar_case_values.contains_key(&result.place)
         {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         }
         let destination = TerminalStructuralValue {
             opaque_identity: result.place.get(),
@@ -124,7 +119,7 @@ impl TerminalExecution {
                 Some(previous),
                 Some(crate::byte_sequences::binding::ByteSequenceBinding::Immutable(_)),
             ) if *previous == destination => {}
-            _ => return Err(TerminalInterpretError::VerifiedOperationMalformed),
+            _ => return Err(malformed()),
         }
         let (destination, view) = self.narrow_byte_sequence_binding(
             binding,
@@ -160,7 +155,6 @@ impl TerminalExecution {
         access: StructuralAccess,
         mut destination: TerminalStructuralValue,
     ) -> Result<(TerminalStructuralValue, ByteSequenceBinding), TerminalInterpretError> {
-        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
         if window.start > window.end
             || !matches!(
                 access,
@@ -175,17 +169,17 @@ impl TerminalExecution {
                 .get(&destination.structural_type)
                 .is_some_and(|row| row.shape.is_borrowed_byte_view())
         {
-            return Err(invalid());
+            return Err(malformed());
         }
         let narrowed = match binding {
             ByteSequenceBinding::Immutable(bytes) if access == StructuralAccess::SharedBorrow => {
                 if !bytes.matches_descriptor_home(source) {
-                    return Err(invalid());
+                    return Err(malformed());
                 }
                 ByteSequenceBinding::Immutable(
                     bytes
                         .subslice(window.start, window.end)
-                        .ok_or_else(invalid)?,
+                        .ok_or_else(malformed)?,
                 )
             }
             ByteSequenceBinding::MutableArray {
@@ -196,17 +190,17 @@ impl TerminalExecution {
                 ..
             } => {
                 binding.validate_mutable_referent(&self.program.structural_types, source)?;
-                let start = u64::try_from(window.start).map_err(|_| invalid())?;
-                let end = u64::try_from(window.end).map_err(|_| invalid())?;
+                let start = u64::try_from(window.start).map_err(|_| malformed())?;
+                let end = u64::try_from(window.end).map_err(|_| malformed())?;
                 if end > *length {
-                    return Err(invalid());
+                    return Err(malformed());
                 }
-                let start = offset.checked_add(start).ok_or_else(invalid)?;
-                let end = offset.checked_add(end).ok_or_else(invalid)?;
-                if usize::try_from(end).map_err(|_| invalid())?
+                let start = offset.checked_add(start).ok_or_else(malformed)?;
+                let end = offset.checked_add(end).ok_or_else(malformed)?;
+                if usize::try_from(end).map_err(|_| malformed())?
                     > self.stored_byte_array_length(array)?
                 {
-                    return Err(invalid());
+                    return Err(malformed());
                 }
                 if access == StructuralAccess::MutableBorrow {
                     destination = source.clone();
@@ -227,13 +221,13 @@ impl TerminalExecution {
                 } else {
                     ByteSequenceBinding::Immutable(self.stored_byte_array_snapshot(
                         array,
-                        usize::try_from(start).map_err(|_| invalid())?,
-                        usize::try_from(end).map_err(|_| invalid())?,
+                        usize::try_from(start).map_err(|_| malformed())?,
+                        usize::try_from(end).map_err(|_| malformed())?,
                     )?)
                 }
             }
             ByteSequenceBinding::Immutable(_) | ByteSequenceBinding::MutableField { .. } => {
-                return Err(invalid());
+                return Err(malformed());
             }
         };
         let narrowed = match narrowed {

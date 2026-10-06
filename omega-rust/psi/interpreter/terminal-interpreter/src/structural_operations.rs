@@ -5,7 +5,7 @@
 use crate::byte_sequences::ByteSequenceView;
 use crate::byte_sequences::binding::ByteSequenceBinding;
 use crate::custody::{direct_scalar_field_type, remove_affine_root, resolve_structural_arguments};
-use crate::errors::TerminalInterpretError;
+use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::{OperationFlow, TerminalExecution};
 use crate::scalar_operations::terminal_scalar_belongs_to_type;
 use crate::structural_inputs::case_membership::StructuralCaseContents;
@@ -58,7 +58,7 @@ impl TerminalExecution {
                 .dynamic_descriptor_templates
                 .contains_key(&(self.current_machine, descriptor_ordinal))
         {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         }
         Ok(OperationFlow::Advance)
     }
@@ -75,7 +75,7 @@ impl TerminalExecution {
             unreachable!("dispatched execute_establish_scalar_case")
         };
         let terminal_psi::OperationResult::Structural(result) = &operation.result else {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         };
         if self.structural_values.contains_key(&result.place)
             || self.scalar_case_values.contains_key(&result.place)
@@ -87,20 +87,20 @@ impl TerminalExecution {
             || !result.projected_qualifications.is_empty()
             || !result.claims.is_empty()
         {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         }
         let Some(StructuralTypeDeclaration {
             shape: StructuralTypeShape::Sum { cases },
             ..
         }) = self.program.structural_types.get(&result.structural_type)
         else {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         };
         let Some(selected) = cases.iter().find(|case| case.id == result_case) else {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         };
         if selected.fields.len() != fields.len() {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         }
         let mut payload = Vec::with_capacity(fields.len());
         for (declaration, binding) in selected.fields.iter().zip(fields) {
@@ -112,10 +112,10 @@ impl TerminalExecution {
             if declaration.id != binding.field
                 || declaration.field_type.scalar_type() != Some(value.scalar_type())
             {
-                return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                return Err(malformed());
             }
             if !value.satisfies_field(&declaration.field_type) {
-                return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                return Err(malformed());
             }
             payload.push((binding.field, value));
         }
@@ -149,7 +149,7 @@ impl TerminalExecution {
             unreachable!("dispatched execute_establish_structural_case")
         };
         let terminal_psi::OperationResult::Structural(result) = &operation.result else {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         };
         self.establish_structural_case(result, result_case, fields)?;
         Ok(OperationFlow::Advance)
@@ -173,7 +173,6 @@ impl TerminalExecution {
         result_case: semantic_vocabulary::StructuralCaseId,
         fields: &[terminal_psi::RecordFieldInitializer],
     ) -> Result<(), TerminalInterpretError> {
-        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
         if self.structural_values.contains_key(&result.place)
             || self.scalar_case_values.contains_key(&result.place)
             || !matches!(
@@ -184,7 +183,7 @@ impl TerminalExecution {
             || !result.projected_qualifications.is_empty()
             || !result.claims.is_empty()
         {
-            return Err(invalid());
+            return Err(malformed());
         }
         let (common, cases) = match self
             .program
@@ -194,10 +193,10 @@ impl TerminalExecution {
         {
             Some(StructuralTypeShape::Sum { cases }) => (&[][..], cases),
             Some(StructuralTypeShape::Mixed { fields, cases }) => (fields.as_slice(), cases),
-            _ => return Err(invalid()),
+            _ => return Err(malformed()),
         };
         let Some(selected) = cases.iter().find(|case| case.id == result_case) else {
-            return Err(invalid());
+            return Err(malformed());
         };
         let roster = common
             .iter()
@@ -215,7 +214,7 @@ impl TerminalExecution {
             )
             .collect::<Vec<_>>();
         if roster.len() != fields.len() {
-            return Err(invalid());
+            return Err(malformed());
         }
         let value = TerminalStructuralValue {
             opaque_identity: self.local_structural_identities.allocate()?,
@@ -241,18 +240,18 @@ impl TerminalExecution {
         let mut frontier = self.live_affine_frontier.clone();
         for ((declaration, namespace), binding) in roster.into_iter().zip(fields) {
             if binding.field != declaration.id || declaration.relevance.is_erased() {
-                return Err(invalid());
+                return Err(malformed());
             }
             match &binding.value {
                 terminal_psi::RecordFieldValue::Scalar { value: operand, .. } => {
-                    let scalar = self.values.get(operand).copied().ok_or_else(invalid)?;
+                    let scalar = self.values.get(operand).copied().ok_or_else(malformed)?;
                     if declaration.field_type.scalar_type() != Some(scalar.scalar_type())
                         || !terminal_scalar_belongs_to_type(scalar)
                     {
-                        return Err(invalid());
+                        return Err(malformed());
                     }
                     if !scalar.satisfies_field(&declaration.field_type) {
-                        return Err(invalid());
+                        return Err(malformed());
                     }
                     staged_scalars.insert(
                         StructuralScalarRuntimeField {
@@ -269,7 +268,7 @@ impl TerminalExecution {
                     if namespace != ScalarFieldNamespace::CasePayload
                         || argument.access != StructuralAccess::Owned
                     {
-                        return Err(invalid());
+                        return Err(malformed());
                     }
                     let member = StructuralRuntimePlace {
                         opaque_identity: value.opaque_identity,
@@ -278,7 +277,7 @@ impl TerminalExecution {
                     let affine =
                         self.stage_constructor_operand(argument, &mut frontier, &mut consumed)?;
                     if affine && result.multiplicity == StructuralMultiplicity::Unrestricted {
-                        return Err(invalid());
+                        return Err(malformed());
                     }
                     if argument.path.is_empty()
                         && let Some(case) = self.scalar_case_values.get(&argument.place)
@@ -286,7 +285,7 @@ impl TerminalExecution {
                         if declaration.field_type
                             != StructuralFieldType::Structural(case.structural_type)
                         {
-                            return Err(invalid());
+                            return Err(malformed());
                         }
                         staged_cases.insert(
                             member.clone(),
@@ -309,12 +308,12 @@ impl TerminalExecution {
                         std::slice::from_ref(argument),
                     )?
                     .pop()
-                    .ok_or_else(invalid)?;
+                    .ok_or_else(malformed)?;
                     if !child.qualifications.is_empty()
                         || declaration.field_type
                             != StructuralFieldType::Structural(child.structural_type)
                     {
-                        return Err(invalid());
+                        return Err(malformed());
                     }
                     // Retarget every live subtree cell into member coordinates;
                     // affine children additionally vacate their source region
@@ -351,7 +350,7 @@ impl TerminalExecution {
                     for (carrier, referent) in &self.reference_referents {
                         if let Some(place) = retarget(carrier) {
                             if !affine {
-                                return Err(invalid());
+                                return Err(malformed());
                             }
                             staged_referents.insert(place, referent.clone());
                         }
@@ -459,7 +458,7 @@ impl TerminalExecution {
             unreachable!("dispatched execute_establish_byte_sequence_literal")
         };
         if !matches!(operation.result, terminal_psi::OperationResult::Unit) {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         }
         let machine = self.program.machines.get(&self.current_machine).ok_or(
             TerminalInterpretError::VerifiedCallTargetMissing(self.current_machine),
@@ -475,7 +474,7 @@ impl TerminalExecution {
             .iter()
             .find(|place| place.id == destination)
         else {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         };
         if let Some(previous) = self.structural_values.get(&destination) {
             // Reentering the unique literal producer retains the
@@ -489,7 +488,7 @@ impl TerminalExecution {
                     |binding| !matches!(binding.immutable(), Ok(view) if view.bytes() == bytes),
                 )
             {
-                return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                return Err(malformed());
             }
         } else {
             if self
@@ -500,7 +499,7 @@ impl TerminalExecution {
                 )
                 .is_some()
             {
-                return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                return Err(malformed());
             }
             self.structural_values.insert(
                 destination,
@@ -521,11 +520,10 @@ impl TerminalExecution {
         &mut self,
         operation: &terminal_psi::Operation,
     ) -> Result<OperationFlow, TerminalInterpretError> {
-        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
         let OperationKind::EstablishZeroedStructural {} = operation.kind else {
             unreachable!("dispatched execute_establish_zeroed_structural")
         };
-        let result = operation.result.structural().ok_or_else(invalid)?;
+        let result = operation.result.structural().ok_or_else(malformed)?;
         if !matches!(
             result.multiplicity,
             StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
@@ -540,7 +538,7 @@ impl TerminalExecution {
                 .values()
                 .any(|claim| claim.place == Some(result.place))
         {
-            return Err(invalid());
+            return Err(malformed());
         }
         let leaves = terminal_semantics::zeroed_structural_leaves(
             self.program.structural_types.values(),
@@ -590,7 +588,7 @@ impl TerminalExecution {
                     };
                     let cell = StructuralScalarRuntimeField::member(parent, *field);
                     self.structural_scalar_fields
-                        .insert(cell, zero(*scalar_type).ok_or_else(invalid)?);
+                        .insert(cell, zero(*scalar_type).ok_or_else(malformed)?);
                 }
                 terminal_semantics::ZeroedStructuralLeaf::ByteSequenceField {
                     path, field, ..
@@ -618,7 +616,7 @@ impl TerminalExecution {
                     };
                     self.structural_scalar_fields.insert(
                         StructuralScalarRuntimeField::case_payload(parent, *field),
-                        zero(*scalar_type).ok_or_else(invalid)?,
+                        zero(*scalar_type).ok_or_else(malformed)?,
                     );
                 }
                 terminal_semantics::ZeroedStructuralLeaf::ArrayScalar { path, scalar_type } => {
@@ -638,7 +636,7 @@ impl TerminalExecution {
                                 array_type,
                             )
                     {
-                        let length = usize::try_from(length).map_err(|_| invalid())?;
+                        let length = usize::try_from(length).map_err(|_| malformed())?;
                         self.structural_byte_storage
                             .entry(StructuralRuntimePlace {
                                 opaque_identity: value.opaque_identity,
@@ -652,7 +650,7 @@ impl TerminalExecution {
                             opaque_identity: value.opaque_identity,
                             path: path.clone(),
                         },
-                        zero(*scalar_type).ok_or_else(invalid)?,
+                        zero(*scalar_type).ok_or_else(malformed)?,
                     );
                 }
                 terminal_semantics::ZeroedStructuralLeaf::SumSelection {
@@ -696,11 +694,10 @@ impl TerminalExecution {
         &mut self,
         operation: &terminal_psi::Operation,
     ) -> Result<OperationFlow, TerminalInterpretError> {
-        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
         let OperationKind::EstablishStructuralLocal {} = operation.kind else {
             unreachable!("dispatched execute_establish_structural_local")
         };
-        let result = operation.result.structural().ok_or_else(invalid)?;
+        let result = operation.result.structural().ok_or_else(malformed)?;
         // A descriptor home may declare byte qualifications its stores prove.
         let descriptor_home = matches!(
             self.program.structural_types.get(&result.structural_type),
@@ -720,7 +717,7 @@ impl TerminalExecution {
                 .values()
                 .any(|claim| claim.place == Some(result.place))
         {
-            return Err(invalid());
+            return Err(malformed());
         }
         self.structural_values.insert(
             result.place,
@@ -751,7 +748,7 @@ impl TerminalExecution {
         if !matches!(operation.result, terminal_psi::OperationResult::Unit)
             || self.structural_values.contains_key(&destination)
         {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         }
         let machine = self.program.machines.get(&self.current_machine).ok_or(
             TerminalInterpretError::VerifiedCallTargetMissing(self.current_machine),
@@ -767,7 +764,7 @@ impl TerminalExecution {
             .iter()
             .find(|place| place.id == destination)
         else {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         };
         self.structural_values.insert(
             destination,
@@ -793,13 +790,7 @@ impl TerminalExecution {
         let OperationKind::EstablishRecord { ref fields } = operation.kind else {
             unreachable!("dispatched execute_establish_record")
         };
-        self.establish_record(
-            operation
-                .result
-                .structural()
-                .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?,
-            fields,
-        )?;
+        self.establish_record(operation.result.structural().ok_or(malformed())?, fields)?;
         Ok(OperationFlow::Advance)
     }
 
@@ -818,7 +809,7 @@ impl TerminalExecution {
             unreachable!("dispatched execute_structural_scalar_field_store")
         };
         if !matches!(operation.result, terminal_psi::OperationResult::Unit) {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         }
         let machine = self.program.machines.get(&self.current_machine).ok_or(
             TerminalInterpretError::VerifiedCallTargetMissing(self.current_machine),
@@ -885,7 +876,7 @@ impl TerminalExecution {
                     && result.claims.is_empty())
                 .then_some(StructuralAccess::Owned)
             })
-            .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+            .ok_or(malformed())?;
         let source = self
             .values
             .get(&value)
@@ -901,7 +892,7 @@ impl TerminalExecution {
             }],
         )?
         .pop()
-        .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+        .ok_or(malformed())?;
         if direct_scalar_field_type(
             &self.program.structural_types,
             parent.structural_type,
@@ -909,7 +900,7 @@ impl TerminalExecution {
         ) != Some(source.scalar_type())
             || !terminal_scalar_belongs_to_type(source)
         {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         }
         // The store's path names no `Case` step: it writes a record field or a
         // mixed shape's common field, never a payload cell.
@@ -938,8 +929,7 @@ impl TerminalExecution {
         else {
             unreachable!("dispatched execute_move_structural_field")
         };
-        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
-        let result = operation.result.structural().ok_or_else(invalid)?;
+        let result = operation.result.structural().ok_or_else(malformed)?;
         if !matches!(
             result.multiplicity,
             StructuralMultiplicity::Affine | StructuralMultiplicity::Unrestricted
@@ -948,11 +938,11 @@ impl TerminalExecution {
             || !result.claims.is_empty()
             || self.structural_values.contains_key(&result.place)
         {
-            return Err(invalid());
+            return Err(malformed());
         }
         let (hole, field_type) = self.structural_window_hole(source, path, field)?;
         if field_type != result.structural_type {
-            return Err(invalid());
+            return Err(malformed());
         }
         let moved = TerminalStructuralValue {
             opaque_identity: self.local_structural_identities.allocate()?,
@@ -990,12 +980,11 @@ impl TerminalExecution {
         else {
             unreachable!("dispatched execute_store_structural_field")
         };
-        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
         if !matches!(operation.result, terminal_psi::OperationResult::Unit)
             || value.access != StructuralAccess::Owned
             || !value.path.is_empty()
         {
-            return Err(invalid());
+            return Err(malformed());
         }
         let (hole, field_type) = self.structural_window_hole(destination, path, field)?;
         let affine = self
@@ -1007,7 +996,7 @@ impl TerminalExecution {
         // `EstablishRecord` member of the same case type would.
         if let Some(case) = self.scalar_case_values.get(&value.place).cloned() {
             if case.structural_type != field_type {
-                return Err(invalid());
+                return Err(malformed());
             }
             self.structural_cases.insert(
                 hole.clone(),
@@ -1024,7 +1013,7 @@ impl TerminalExecution {
             }
             self.scalar_case_values.remove(&value.place);
             if affine && !remove_affine_root(&mut self.live_affine_frontier, value.place) {
-                return Err(invalid());
+                return Err(malformed());
             }
             return Ok(OperationFlow::Advance);
         }
@@ -1032,12 +1021,12 @@ impl TerminalExecution {
             TerminalInterpretError::VerifiedStructuralPlaceMissing(value.place),
         )?;
         if child.structural_type != field_type || !child.qualifications.is_empty() {
-            return Err(invalid());
+            return Err(malformed());
         }
         self.relocate_subtree(&StructuralRuntimePlace::from(&child), &hole);
         self.structural_values.remove(&value.place);
         if affine && !remove_affine_root(&mut self.live_affine_frontier, value.place) {
-            return Err(invalid());
+            return Err(malformed());
         }
         Ok(OperationFlow::Advance)
     }
@@ -1054,8 +1043,7 @@ impl TerminalExecution {
         path: &[StructuralPathSegment],
         field: Option<semantic_vocabulary::StructuralFieldId>,
     ) -> Result<(StructuralRuntimePlace, StructuralTypeId), TerminalInterpretError> {
-        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
-        let storage = self.structural_values.get(&root).ok_or_else(invalid)?;
+        let storage = self.structural_values.get(&root).ok_or_else(malformed)?;
         // Resolve a reference crossing against its live runtime referent first;
         // the shared window geometry receives storage, never carrier ownership.
         let prefix_length = usize::from(matches!(
@@ -1071,7 +1059,7 @@ impl TerminalExecution {
                 access: StructuralAccess::MutableBorrow,
             }])?
             .pop()
-            .ok_or_else(invalid)?
+            .ok_or_else(malformed)?
         };
         let projection = terminal_semantics::structural_window_projection(
             self.program.structural_types.values(),
@@ -1079,7 +1067,7 @@ impl TerminalExecution {
             &path[prefix_length..],
             field,
         )
-        .ok_or_else(invalid)?;
+        .ok_or_else(malformed)?;
         let hole = crate::custody::project_structural_value(
             &self.program.structural_types,
             &base,
@@ -1280,8 +1268,7 @@ impl TerminalExecution {
         &mut self,
         operation: &terminal_psi::Operation,
     ) -> Result<OperationFlow, TerminalInterpretError> {
-        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
-        let result = operation.result.structural().ok_or_else(invalid)?;
+        let result = operation.result.structural().ok_or_else(malformed)?;
         if let OperationKind::StructuralLeafCopy { source, path } = &operation.kind
             && path.is_empty()
             && let Some(terminal_psi::StructuralTypeDeclaration {
@@ -1292,11 +1279,11 @@ impl TerminalExecution {
                 ..
             }) = self.program.structural_types.get(&result.structural_type)
         {
-            let source_value = self.structural_values.get(source).ok_or_else(invalid)?;
+            let source_value = self.structural_values.get(source).ok_or_else(malformed)?;
             let bytes = self
                 .byte_sequence_values
                 .get(source)
-                .ok_or_else(invalid)?
+                .ok_or_else(malformed)?
                 .immutable()?;
             if result.multiplicity != StructuralMultiplicity::Unrestricted
                 || result.structural_type != source_value.structural_type
@@ -1316,7 +1303,7 @@ impl TerminalExecution {
                     bytes.bytes(),
                 )
             {
-                return Err(invalid());
+                return Err(malformed());
             }
             // Snapshot the live byte value before publishing its independent
             // identity. Later indexed writes detach the immutable backing.
@@ -1350,7 +1337,7 @@ impl TerminalExecution {
             || !result.claims.is_empty()
             || self.structural_values.contains_key(&result.place)
         {
-            return Err(invalid());
+            return Err(malformed());
         }
         if let OperationKind::StructuralLeafCopy { source, path } = &operation.kind
             && path.is_empty()
@@ -1362,7 +1349,7 @@ impl TerminalExecution {
         }
         let (leaf, source, endpoint_field) = match &operation.kind {
             OperationKind::StructuralLeafCopy { source, path } => {
-                let root = self.structural_values.get(source).ok_or_else(invalid)?;
+                let root = self.structural_values.get(source).ok_or_else(malformed)?;
                 let leaf = crate::custody::project_structural_leaf_copy(
                     &self.program.structural_types,
                     root,
@@ -1389,7 +1376,7 @@ impl TerminalExecution {
                 };
                 (leaf, *source, field)
             }
-            _ => return Err(invalid()),
+            _ => return Err(malformed()),
         };
         if leaf.structural_type != result.structural_type {
             // A record leaf copy out of a byte carrier mints fresh storage:
@@ -1412,17 +1399,17 @@ impl TerminalExecution {
                 matches!(declaration.shape, StructuralTypeShape::ByteSequence(_))
             })
         {
-            let root = self.structural_values.get(&source).ok_or_else(invalid)?;
+            let root = self.structural_values.get(&source).ok_or_else(malformed)?;
             let bytes = if StructuralRuntimePlace::from(root) == StructuralRuntimePlace::from(&leaf)
                 && root.structural_type == leaf.structural_type
             {
                 let bytes = self
                     .byte_sequence_values
                     .get(&source)
-                    .ok_or_else(invalid)?
+                    .ok_or_else(malformed)?
                     .immutable()?;
                 if !bytes.matches_descriptor_home(root) {
-                    return Err(invalid());
+                    return Err(malformed());
                 }
                 bytes.clone()
             } else if let Some(bytes) = self
@@ -1432,21 +1419,21 @@ impl TerminalExecution {
                 bytes.clone()
             } else {
                 let mut parent = StructuralRuntimePlace::from(&leaf);
-                parent.path.pop().ok_or_else(invalid)?;
+                parent.path.pop().ok_or_else(malformed)?;
                 let cell = StructuralByteSequenceRuntimeField {
                     parent,
-                    field: endpoint_field.ok_or_else(invalid)?,
+                    field: endpoint_field.ok_or_else(malformed)?,
                 };
                 self.structural_byte_sequence_fields
                     .get(&cell)
-                    .ok_or_else(invalid)?
+                    .ok_or_else(malformed)?
                     .clone()
             };
             // ByteSequenceView clones its backing handle and exact window.
             // This copies the descriptor, not octets; replacing the source
             // slot cannot retarget this completed value's retained backing.
             if self.byte_sequence_values.contains_key(&result.place) {
-                return Err(invalid());
+                return Err(malformed());
             }
             self.byte_sequence_values.insert(
                 result.place,
@@ -1461,24 +1448,27 @@ impl TerminalExecution {
                 matches!(declaration.shape, StructuralTypeShape::ElementView { .. })
             })
         {
-            let root = self.structural_values.get(&source).ok_or_else(invalid)?;
+            let root = self.structural_values.get(&source).ok_or_else(malformed)?;
             let descriptor = if StructuralRuntimePlace::from(root)
                 == StructuralRuntimePlace::from(&leaf)
                 && root.structural_type == leaf.structural_type
             {
-                let descriptor = self.element_view_values.get(&source).ok_or_else(invalid)?;
+                let descriptor = self
+                    .element_view_values
+                    .get(&source)
+                    .ok_or_else(malformed)?;
                 if !descriptor.matches_descriptor_home(root) {
-                    return Err(invalid());
+                    return Err(malformed());
                 }
                 descriptor
             } else {
                 self.structural_element_view_fields
                     .get(&StructuralRuntimePlace::from(&leaf))
-                    .ok_or_else(invalid)?
+                    .ok_or_else(malformed)?
             };
             let descriptor = descriptor.detached_descriptor();
             if self.element_view_values.contains_key(&result.place) {
-                return Err(invalid());
+                return Err(malformed());
             }
             self.element_view_values.insert(result.place, descriptor);
         }
@@ -1502,15 +1492,14 @@ impl TerminalExecution {
         source: semantic_vocabulary::PlaceId,
         result: &terminal_psi::StructuralOperationResult,
     ) -> Result<OperationFlow, TerminalInterpretError> {
-        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
         if self.scalar_array_values.contains_key(&result.place)
             || self.scalar_case_values.contains_key(&result.place)
         {
-            return Err(invalid());
+            return Err(malformed());
         }
         if let Some(array) = self.scalar_array_values.get(&source) {
             if array.structural_type != result.structural_type {
-                return Err(invalid());
+                return Err(malformed());
             }
             let copied = array.clone();
             self.scalar_array_values.insert(result.place, copied);
@@ -1520,7 +1509,7 @@ impl TerminalExecution {
             TerminalInterpretError::VerifiedStructuralPlaceMissing(source),
         )?;
         if case.structural_type != result.structural_type {
-            return Err(invalid());
+            return Err(malformed());
         }
         let copied = case.clone();
         self.scalar_case_values.insert(result.place, copied);
@@ -1540,10 +1529,9 @@ impl TerminalExecution {
         leaf: &TerminalStructuralValue,
         result: &terminal_psi::StructuralOperationResult,
     ) -> Result<OperationFlow, TerminalInterpretError> {
-        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
         let Some((StructuralPathSegment::FixedIndex(index), parent_path)) = leaf.path.split_last()
         else {
-            return Err(invalid());
+            return Err(malformed());
         };
         let array = StructuralRuntimePlace {
             opaque_identity: leaf.opaque_identity,
@@ -1552,28 +1540,28 @@ impl TerminalExecution {
         let bytes = self
             .structural_byte_storage
             .get(&array)
-            .ok_or_else(invalid)?;
+            .ok_or_else(malformed)?;
         let layout = terminal_semantics::byte_carrier_scalar_layout(
             self.program.structural_types.values(),
             result.structural_type,
         )
-        .ok_or_else(invalid)?;
-        let index = usize::try_from(*index).map_err(|_| invalid())?;
+        .ok_or_else(malformed)?;
+        let index = usize::try_from(*index).map_err(|_| malformed())?;
         let mut leaves = Vec::with_capacity(layout.leaves.len());
         for member in &layout.leaves {
             let offset = index
-                .checked_add(usize::try_from(member.offset).map_err(|_| invalid())?)
-                .ok_or_else(invalid)?;
+                .checked_add(usize::try_from(member.offset).map_err(|_| malformed())?)
+                .ok_or_else(malformed)?;
             let size = usize::try_from(match member.scalar_type {
                 ScalarType::Boolean => 1u16,
                 ScalarType::Integer(integer) => integer.bits() / 8,
-                _ => return Err(invalid()),
+                _ => return Err(malformed()),
             })
-            .map_err(|_| invalid())?;
+            .map_err(|_| malformed())?;
             let bytes = bytes
                 .bytes()
-                .get(offset..offset.checked_add(size).ok_or_else(invalid)?)
-                .ok_or_else(invalid)?;
+                .get(offset..offset.checked_add(size).ok_or_else(malformed)?)
+                .ok_or_else(malformed)?;
             let mut value = 0u128;
             for (position, byte) in bytes.iter().enumerate() {
                 value |= u128::from(*byte) << (8 * position);
@@ -1582,7 +1570,7 @@ impl TerminalExecution {
                 ScalarType::Boolean => match value {
                     0 => TerminalScalarValue::Boolean(false),
                     1 => TerminalScalarValue::Boolean(true),
-                    _ => return Err(invalid()),
+                    _ => return Err(malformed()),
                 },
                 ScalarType::Integer(scalar_type) => {
                     let value = match scalar_type.sign() {
@@ -1599,7 +1587,7 @@ impl TerminalExecution {
                     };
                     TerminalScalarValue::Integer { scalar_type, value }
                 }
-                _ => return Err(invalid()),
+                _ => return Err(malformed()),
             };
             leaves.push((member.field, scalar));
         }
@@ -1661,12 +1649,9 @@ impl TerminalExecution {
             path,
         ) {
             parent.path.extend(carrier.path);
-            let contents = self
-                .structural_cases
-                .get(&parent)
-                .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+            let contents = self.structural_cases.get(&parent).ok_or(malformed())?;
             if contents.structural_type != carrier.sum || contents.case != carrier.case {
-                return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                return Err(malformed());
             }
             return Ok(StructuralScalarRuntimeField::case_payload(parent, field));
         }
@@ -1675,7 +1660,7 @@ impl TerminalExecution {
             structural_value.structural_type,
             path,
         )
-        .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+        .ok_or(malformed())?;
         parent.path.extend(carrier.path);
         Ok(StructuralScalarRuntimeField::member(parent, field))
     }
@@ -1693,7 +1678,7 @@ impl TerminalExecution {
             unreachable!("dispatched execute_boolean_structural_field")
         };
         if operation.result.expect_scalar().scalar_type != ScalarType::Boolean {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         }
         let cell = self.observed_field_cell(source, path, field)?;
         let value = self
@@ -1702,7 +1687,7 @@ impl TerminalExecution {
             .copied()
             .ok_or(TerminalInterpretError::StructuralBooleanFieldMissing { source, field })?;
         let TerminalScalarValue::Boolean(value) = value else {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         };
         self.values.insert(
             operation.result.expect_scalar().id,
@@ -1725,7 +1710,7 @@ impl TerminalExecution {
         };
         let result = operation.result.expect_scalar();
         if !matches!(result.scalar_type, ScalarType::Integer(_)) {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         }
         let structural_value = self.observation_root(source)?;
         if terminal_semantics::observed_field_declaration(
@@ -1737,7 +1722,7 @@ impl TerminalExecution {
         .and_then(|declaration| declaration.field_type.scalar_type())
             != Some(result.scalar_type)
         {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         }
         let cell = self.observed_field_cell(source, path, field)?;
         let value = self
@@ -1746,7 +1731,7 @@ impl TerminalExecution {
             .copied()
             .ok_or(TerminalInterpretError::StructuralScalarFieldMissing { source, field })?;
         if value.scalar_type() != result.scalar_type {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         }
         self.values.insert(result.id, value);
         Ok(OperationFlow::Advance)
@@ -1771,7 +1756,7 @@ impl TerminalExecution {
         let count_type =
             IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64).expect("u64 is valid");
         if result.scalar_type != ScalarType::Integer(byte_type) {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         }
         let count = |operand| -> Result<u64, TerminalInterpretError> {
             let value = self
@@ -1783,20 +1768,19 @@ impl TerminalExecution {
                 value: IntegerValue::Unsigned(value),
             } = value
             else {
-                return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                return Err(malformed());
             };
             if *scalar_type != count_type {
-                return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                return Err(malformed());
             }
-            u64::try_from(*value).map_err(|_| TerminalInterpretError::VerifiedOperationMalformed)
+            u64::try_from(*value).map_err(|_| malformed())
         };
         let byte_index = count(index)?;
         let byte_length = count(length)?;
         if self.byte_sequence_length(source)? != byte_length || byte_index >= byte_length {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         }
-        let byte_index = usize::try_from(byte_index)
-            .map_err(|_| TerminalInterpretError::VerifiedOperationMalformed)?;
+        let byte_index = usize::try_from(byte_index).map_err(|_| malformed())?;
         let byte = self.byte_sequence_read(source, byte_index)?;
         self.values.insert(
             result.id,
@@ -1819,7 +1803,7 @@ impl TerminalExecution {
         let integer_type =
             IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64).expect("u64 is valid");
         if result.scalar_type != ScalarType::Integer(integer_type) {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         }
         let length = self.byte_sequence_length(source)?;
         self.values.insert(

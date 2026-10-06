@@ -1,5 +1,6 @@
 //! Validate every bounded entry field before establishing invocation custody.
 
+use crate::errors::malformed;
 use crate::structural_inputs::scalar_fields::{
     ExecutableMachine, PlaceId, StructuralScalarRuntimeField, StructuralTypeDeclaration,
     StructuralTypeId, TerminalInterpretError, TerminalScalarValue, TerminalStructuralValue,
@@ -25,8 +26,7 @@ pub(crate) fn validate(
             root.structural_type,
             &mut StructuralRuntimePlace::from(root),
             values,
-            u32::try_from(position)
-                .map_err(|_| TerminalInterpretError::VerifiedOperationMalformed)?,
+            u32::try_from(position).map_err(|_| malformed())?,
             &mut Vec::new(),
         )?;
     }
@@ -45,12 +45,10 @@ fn validate_type(
         return Ok(());
     }
     if active.contains(&current) {
-        return Err(TerminalInterpretError::VerifiedOperationMalformed);
+        return Err(malformed());
     }
     active.push(current);
-    let declaration = types
-        .get(&current)
-        .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+    let declaration = types.get(&current).ok_or(malformed())?;
     match &declaration.shape {
         StructuralTypeShape::Record { fields } => {
             for field in fields {
@@ -101,7 +99,7 @@ fn validate_type(
         StructuralTypeShape::Sum { .. }
         | StructuralTypeShape::Mixed { .. }
         | StructuralTypeShape::Reference { .. } => {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         }
         // The already supplied binding identity has no scalar payload. This
         // content walk neither creates the binding nor establishes authority.

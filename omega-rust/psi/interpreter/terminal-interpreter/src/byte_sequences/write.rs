@@ -8,7 +8,7 @@ use terminal_psi::{
 };
 
 use crate::byte_sequences::binding::ByteSequenceBinding;
-use crate::errors::TerminalInterpretError;
+use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
 use crate::values::StructuralByteSequenceRuntimeField;
 use crate::values::TerminalScalarValue;
@@ -27,12 +27,11 @@ impl TerminalExecution {
         &self,
         place: PlaceId,
     ) -> Result<(MutableByteSequenceStorage, u64), TerminalInterpretError> {
-        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
         let machine = self
             .program
             .machines
             .get(&self.current_machine)
-            .ok_or_else(invalid)?;
+            .ok_or_else(malformed)?;
         let result = machine.structural_places.iter().find_map(|declaration| {
             let StructuralPlaceKind::OperationResult {
                 producer,
@@ -65,8 +64,8 @@ impl TerminalExecution {
                     .values()
                     .flat_map(|block| &block.operations)
                     .find(|operation| operation.id == producer)
-                    .ok_or_else(invalid)?;
-                let result = operation.result.structural().ok_or_else(invalid)?;
+                    .ok_or_else(malformed)?;
+                let result = operation.result.structural().ok_or_else(malformed)?;
                 if !matches!(
                     operation.kind,
                     OperationKind::EstablishMutableElementView { .. }
@@ -84,7 +83,7 @@ impl TerminalExecution {
                             structural_type,
                         })
                 {
-                    return Err(invalid());
+                    return Err(malformed());
                 }
                 (
                     structural_type,
@@ -102,11 +101,11 @@ impl TerminalExecution {
                             .flat_map(|block| &block.structural_parameters),
                     )
                     .find(|parameter| parameter.place == place)
-                    .ok_or_else(invalid)?;
+                    .ok_or_else(malformed)?;
                 if parameter.access != StructuralAccess::MutableBorrow
                     || parameter.multiplicity != StructuralMultiplicity::Unrestricted
                 {
-                    return Err(invalid());
+                    return Err(malformed());
                 }
                 (
                     parameter.structural_type,
@@ -133,16 +132,19 @@ impl TerminalExecution {
                 .values()
                 .any(|claim| claim.place == Some(place))
         {
-            return Err(invalid());
+            return Err(malformed());
         }
-        let value = self.structural_values.get(&place).ok_or_else(invalid)?;
+        let value = self.structural_values.get(&place).ok_or_else(malformed)?;
         if value.structural_type != structural_type
             || !matches!(self.program.structural_types.get(&structural_type), Some(declaration)
                             if declaration.shape.is_borrowed_byte_carrier() || bounded_owner)
         {
-            return Err(invalid());
+            return Err(malformed());
         }
-        let binding = self.byte_sequence_values.get(&place).ok_or_else(invalid)?;
+        let binding = self
+            .byte_sequence_values
+            .get(&place)
+            .ok_or_else(malformed)?;
         binding.validate_mutable_referent(&self.program.structural_types, value)?;
         if let ByteSequenceBinding::MutableArray {
             array,
@@ -156,9 +158,9 @@ impl TerminalExecution {
                 &self.program.structural_types,
                 *array_type,
             )
-            .ok_or_else(invalid)?;
+            .ok_or_else(malformed)?;
             if self.stored_byte_array_length(array)? as u128 != u128::from(length) {
-                return Err(invalid());
+                return Err(malformed());
             }
             return Ok((
                 MutableByteSequenceStorage::Array {
@@ -172,15 +174,15 @@ impl TerminalExecution {
             field, capacity, ..
         } = binding
         else {
-            return Err(invalid());
+            return Err(malformed());
         };
         let bytes = self
             .structural_byte_sequence_fields
             .get(field)
-            .ok_or_else(invalid)?;
-        let length = u64::try_from(bytes.len()).map_err(|_| invalid())?;
+            .ok_or_else(malformed)?;
+        let length = u64::try_from(bytes.len()).map_err(|_| malformed())?;
         if length > *capacity {
-            return Err(invalid());
+            return Err(malformed());
         }
         Ok((MutableByteSequenceStorage::Field(field.clone()), length))
     }
@@ -189,32 +191,31 @@ impl TerminalExecution {
         &self,
         place: PlaceId,
     ) -> Result<(MutableByteSequenceStorage, u64), TerminalInterpretError> {
-        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
         let machine = self
             .program
             .machines
             .get(&self.current_machine)
-            .ok_or_else(invalid)?;
+            .ok_or_else(malformed)?;
         let declaration = machine
             .structural_places
             .iter()
             .find(|declaration| declaration.id == place)
-            .ok_or_else(invalid)?;
+            .ok_or_else(malformed)?;
         let StructuralPlaceKind::OperationResult {
             producer,
             structural_type,
         } = declaration.kind
         else {
-            return Err(invalid());
+            return Err(malformed());
         };
         let operation = machine
             .blocks
             .values()
             .flat_map(|block| &block.operations)
             .find(|operation| operation.id == producer)
-            .ok_or_else(invalid)?;
-        let result = operation.result.structural().ok_or_else(invalid)?;
-        let value = self.structural_values.get(&place).ok_or_else(invalid)?;
+            .ok_or_else(malformed)?;
+        let result = operation.result.structural().ok_or_else(malformed)?;
+        let value = self.structural_values.get(&place).ok_or_else(malformed)?;
         if !matches!(
             operation.kind,
             OperationKind::EstablishByteSequenceConcatenation { .. }
@@ -242,7 +243,7 @@ impl TerminalExecution {
             )
             .is_none()
         {
-            return Err(invalid());
+            return Err(malformed());
         }
         let terminal_psi::StructuralTypeShape::ByteSequence(
             terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity },
@@ -250,19 +251,19 @@ impl TerminalExecution {
             .program
             .structural_types
             .get(&structural_type)
-            .ok_or_else(invalid)?
+            .ok_or_else(malformed)?
             .shape
         else {
-            return Err(invalid());
+            return Err(malformed());
         };
         let bytes = self
             .byte_sequence_values
             .get(&place)
-            .ok_or_else(invalid)?
+            .ok_or_else(malformed)?
             .immutable()?;
-        let length = u64::try_from(bytes.len()).map_err(|_| invalid())?;
+        let length = u64::try_from(bytes.len()).map_err(|_| malformed())?;
         if length > capacity {
-            return Err(invalid());
+            return Err(malformed());
         }
         Ok((MutableByteSequenceStorage::Owned(place), length))
     }
@@ -274,8 +275,9 @@ impl TerminalExecution {
         match self.byte_sequence_values.get(&source).ok_or(
             TerminalInterpretError::VerifiedStructuralPlaceMissing(source),
         )? {
-            ByteSequenceBinding::Immutable(view) => u64::try_from(view.len())
-                .map_err(|_| TerminalInterpretError::VerifiedOperationMalformed),
+            ByteSequenceBinding::Immutable(view) => {
+                u64::try_from(view.len()).map_err(|_| malformed())
+            }
             ByteSequenceBinding::MutableField { .. } | ByteSequenceBinding::MutableArray { .. } => {
                 self.mutable_byte_sequence_storage(source)
                     .map(|(_, length)| length)
@@ -288,20 +290,23 @@ impl TerminalExecution {
         source: PlaceId,
         index: usize,
     ) -> Result<u8, TerminalInterpretError> {
-        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
-        match self.byte_sequence_values.get(&source).ok_or_else(invalid)? {
-            ByteSequenceBinding::Immutable(view) => view.get(index).copied().ok_or_else(invalid),
+        match self
+            .byte_sequence_values
+            .get(&source)
+            .ok_or_else(malformed)?
+        {
+            ByteSequenceBinding::Immutable(view) => view.get(index).copied().ok_or_else(malformed),
             ByteSequenceBinding::MutableArray { .. } | ByteSequenceBinding::MutableField { .. } => {
                 let (storage, length) = self.mutable_byte_sequence_storage(source)?;
                 if index as u128 >= u128::from(length) {
-                    return Err(invalid());
+                    return Err(malformed());
                 }
                 match storage {
                     MutableByteSequenceStorage::Array { backing, offset } => {
                         let index = usize::try_from(offset)
                             .ok()
                             .and_then(|offset| offset.checked_add(index))
-                            .ok_or_else(invalid)?;
+                            .ok_or_else(malformed)?;
                         self.stored_byte_array_read(&backing, index)
                     }
                     MutableByteSequenceStorage::Field(field) => self
@@ -309,8 +314,8 @@ impl TerminalExecution {
                         .get(&field)
                         .and_then(|bytes| bytes.get(index))
                         .copied()
-                        .ok_or_else(invalid),
-                    MutableByteSequenceStorage::Owned(_) => Err(invalid()),
+                        .ok_or_else(malformed),
+                    MutableByteSequenceStorage::Owned(_) => Err(malformed()),
                 }
             }
         }
@@ -322,7 +327,6 @@ impl TerminalExecution {
         &mut self,
         operation: &Operation,
     ) -> Result<(), TerminalInterpretError> {
-        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
         let OperationKind::ByteSequenceWrite {
             destination,
             index,
@@ -331,19 +335,19 @@ impl TerminalExecution {
             ..
         } = operation.kind
         else {
-            return Err(invalid());
+            return Err(malformed());
         };
         if operation.result != OperationResult::Unit {
-            return Err(invalid());
+            return Err(malformed());
         }
         let (storage, current_length) = self.mutable_byte_sequence_storage(destination)?;
         let byte_index = self.byte_sequence_unsigned_operand(index, 64)?;
         let claimed_length = self.byte_sequence_unsigned_operand(length, 64)?;
         let byte = self.byte_sequence_unsigned_operand(value, 8)?;
         if claimed_length != current_length || byte_index >= current_length {
-            return Err(invalid());
+            return Err(malformed());
         }
-        let byte = u8::try_from(byte).map_err(|_| invalid())?;
+        let byte = u8::try_from(byte).map_err(|_| malformed())?;
         let (bytes, backing_index) = match storage {
             MutableByteSequenceStorage::Owned(place) => {
                 // The payload may also back earlier field snapshots. Detach via
@@ -351,7 +355,7 @@ impl TerminalExecution {
                 let Some(ByteSequenceBinding::Immutable(bytes)) =
                     self.byte_sequence_values.get_mut(&place)
                 else {
-                    return Err(invalid());
+                    return Err(malformed());
                 };
                 (Some(bytes), byte_index)
             }
@@ -360,15 +364,18 @@ impl TerminalExecution {
                 byte_index,
             ),
             MutableByteSequenceStorage::Array { backing, offset } => {
-                let index = usize::try_from(offset.checked_add(byte_index).ok_or_else(invalid)?)
-                    .map_err(|_| invalid())?;
+                let index = usize::try_from(offset.checked_add(byte_index).ok_or_else(malformed)?)
+                    .map_err(|_| malformed())?;
                 return self.stored_byte_array_write(&backing, index, byte);
             }
         };
         bytes
-            .ok_or_else(invalid)?
-            .replace_byte(usize::try_from(backing_index).map_err(|_| invalid())?, byte)
-            .ok_or_else(invalid)
+            .ok_or_else(malformed)?
+            .replace_byte(
+                usize::try_from(backing_index).map_err(|_| malformed())?,
+                byte,
+            )
+            .ok_or_else(malformed)
     }
 
     fn byte_sequence_unsigned_operand(
@@ -376,7 +383,6 @@ impl TerminalExecution {
         operand: ValueId,
         bits: u16,
     ) -> Result<u64, TerminalInterpretError> {
-        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
         let TerminalScalarValue::Integer {
             scalar_type,
             value: IntegerValue::Unsigned(value),
@@ -385,11 +391,11 @@ impl TerminalExecution {
             .get(&operand)
             .ok_or(TerminalInterpretError::VerifiedValueMissing(operand))?
         else {
-            return Err(invalid());
+            return Err(malformed());
         };
-        if *scalar_type != IntegerType::new(IntegerSign::Unsigned, bits).map_err(|_| invalid())? {
-            return Err(invalid());
+        if *scalar_type != IntegerType::new(IntegerSign::Unsigned, bits).map_err(|_| malformed())? {
+            return Err(malformed());
         }
-        u64::try_from(*value).map_err(|_| invalid())
+        u64::try_from(*value).map_err(|_| malformed())
     }
 }

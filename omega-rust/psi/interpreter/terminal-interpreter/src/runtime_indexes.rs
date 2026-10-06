@@ -11,7 +11,7 @@
 use terminal_psi::{Operation, StructuralPathSegment, StructuralTypeShape};
 
 use crate::custody::resolve_structural_path_type;
-use crate::errors::TerminalInterpretError;
+use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
 use crate::values::TerminalScalarValue;
 
@@ -22,7 +22,6 @@ impl TerminalExecution {
         &self,
         operation: &Operation,
     ) -> Result<Operation, TerminalInterpretError> {
-        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
         let mut selected = operation.clone();
         let roots = operation
             .kind
@@ -44,7 +43,7 @@ impl TerminalExecution {
                         .copied()
                         .ok_or(TerminalInterpretError::VerifiedValueMissing(index))?
                 else {
-                    return Err(invalid());
+                    return Err(malformed());
                 };
                 // Initialized value arrays own a payload instead of an opaque
                 // root. Resolve their selectors here too, before dispatch, so
@@ -76,7 +75,7 @@ impl TerminalExecution {
                     .program
                     .structural_types
                     .get(&array)
-                    .ok_or_else(invalid)?
+                    .ok_or_else(malformed)?
                     .shape
                 {
                     StructuralTypeShape::FixedArray { length, .. } => length,
@@ -92,11 +91,11 @@ impl TerminalExecution {
                             .ok_or(TerminalInterpretError::VerifiedStructuralPlaceMissing(root))?
                             .len(),
                     )
-                    .map_err(|_| invalid())?,
-                    _ => return Err(invalid()),
+                    .map_err(|_| malformed())?,
+                    _ => return Err(malformed()),
                 };
-                let element =
-                    terminal_semantics::runtime_index_selects(value, length).ok_or_else(invalid)?;
+                let element = terminal_semantics::runtime_index_selects(value, length)
+                    .ok_or_else(malformed)?;
                 path[position] = StructuralPathSegment::FixedIndex(element);
             }
         }

@@ -2,7 +2,7 @@
 //! Stage custody before removing any runtime cells so malformed later operands
 //! cannot consume an earlier child or its still-live siblings.
 use crate::custody::{consume_affine_projection, remove_affine_root, resolve_structural_arguments};
-use crate::errors::TerminalInterpretError;
+use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
 use crate::values::StructuralRuntimePlace;
 use std::collections::BTreeSet;
@@ -59,7 +59,7 @@ impl TerminalExecution {
                     std::slice::from_ref(argument),
                 )?
                 .pop()
-                .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+                .ok_or(malformed())?;
                 Ok(Some(StructuralRuntimePlace::from(&child)))
             })
             .collect::<Result<Vec<_>, TerminalInterpretError>>()?;

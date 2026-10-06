@@ -5,7 +5,7 @@ use crate::byte_sequences::binding::StructuralCallArguments;
 use crate::custody::bind_structural_arguments;
 use crate::custody::resolve_structural_arguments;
 use crate::effects::TerminalEffectRejection;
-use crate::errors::TerminalInterpretError;
+use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
 use crate::structural_identities::LocalStructuralIdentities;
 use crate::values::StructuralByteSequenceRuntimeField;
@@ -90,10 +90,9 @@ impl BoundaryArguments {
         self,
         parameters: &[StructuralParameterDeclaration],
     ) -> Result<StructuralCallArguments, TerminalInterpretError> {
-        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
         let values = bind_structural_arguments(parameters, &self.values)?;
         if parameters.len() != self.byte_sequences.len() {
-            return Err(invalid());
+            return Err(malformed());
         }
         let mut byte_sequences = BTreeMap::new();
         let mut element_views = BTreeMap::new();
@@ -107,7 +106,7 @@ impl BoundaryArguments {
                 || !parameter.projected_qualifications.is_empty()
                 || element_views.insert(parameter.place, view).is_some()
             {
-                return Err(invalid());
+                return Err(malformed());
             }
         }
         for (parameter, binding) in parameters.iter().zip(self.byte_sequences) {
@@ -138,7 +137,7 @@ impl BoundaryArguments {
                 }
                 || byte_sequences.insert(parameter.place, binding).is_some()
             {
-                return Err(invalid());
+                return Err(malformed());
             }
         }
         Ok(StructuralCallArguments {
@@ -165,7 +164,7 @@ impl BoundaryArguments {
                         || buffer.bytes.len() as u128 > u128::from(binding.capacity)
                 })
         {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         }
         Ok(())
     }
@@ -193,7 +192,7 @@ impl TerminalExecution {
             match binding {
                 None => resolved.bytes.push(None),
                 Some(ByteSequenceBinding::MutableArray { .. }) => {
-                    return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                    return Err(malformed());
                 }
                 Some(ByteSequenceBinding::Immutable(view)) => {
                     resolved.bytes.push(Some(view.bytes().to_vec()));
@@ -204,7 +203,7 @@ impl TerminalExecution {
                     let bytes = self
                         .structural_byte_sequence_fields
                         .get(field)
-                        .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?
+                        .ok_or(malformed())?
                         .bytes();
                     resolved.bytes.push(Some(bytes.to_vec()));
                     resolved.buffers.push(TerminalBoundaryByteBuffer {
@@ -223,9 +222,8 @@ impl TerminalExecution {
         parameters: &[StructuralParameterDeclaration],
         arguments: &[StructuralArgument],
     ) -> Result<BoundaryArguments, TerminalInterpretError> {
-        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
         if parameters.len() != arguments.len() {
-            return Err(invalid());
+            return Err(malformed());
         }
         let mut resolved = BoundaryArguments {
             local_identity_cursor: self.local_structural_identities.cursor(),
@@ -265,7 +263,7 @@ impl TerminalExecution {
                 .program
                 .structural_types
                 .get(&parameter.structural_type)
-                .ok_or_else(invalid)?;
+                .ok_or_else(malformed)?;
             if matches!(
                 declaration.shape,
                 StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned { .. })
@@ -277,11 +275,11 @@ impl TerminalExecution {
                     || parameter.multiplicity != StructuralMultiplicity::Unrestricted
                     || !parameter.projected_qualifications.is_empty()
                 {
-                    return Err(invalid());
+                    return Err(malformed());
                 }
                 let binding = self.resolve_mutable_boundary_binding(parameter, argument)?;
                 let ByteSequenceBinding::MutableField { referent, .. } = &binding else {
-                    return Err(invalid());
+                    return Err(malformed());
                 };
                 resolved.values.push(referent.clone());
                 resolved.byte_sequences.push(Some(binding));
@@ -296,7 +294,7 @@ impl TerminalExecution {
                     || parameter.multiplicity != StructuralMultiplicity::Unrestricted
                     || !parameter.projected_qualifications.is_empty()
                 {
-                    return Err(invalid());
+                    return Err(malformed());
                 }
                 let (referent, binding) = self.resolve_shared_owner_binding(parameter, argument)?;
                 resolved.values.push(referent);
@@ -311,7 +309,7 @@ impl TerminalExecution {
                     || !parameter.qualifications.is_empty()
                     || !parameter.projected_qualifications.is_empty()
                 {
-                    return Err(invalid());
+                    return Err(malformed());
                 }
                 let (referent, binding) =
                     self.resolve_shared_boundary_binding(parameter, argument)?;
@@ -326,7 +324,7 @@ impl TerminalExecution {
                     || !parameter.qualifications.is_empty()
                     || !parameter.projected_qualifications.is_empty()
                 {
-                    return Err(invalid());
+                    return Err(malformed());
                 }
                 let binding = self.resolve_mutable_boundary_binding(parameter, argument)?;
                 let ByteSequenceBinding::MutableField {
@@ -336,15 +334,15 @@ impl TerminalExecution {
                     ..
                 } = &binding
                 else {
-                    return Err(invalid());
+                    return Err(malformed());
                 };
                 let bytes = self
                     .structural_byte_sequence_fields
                     .get(destination)
-                    .ok_or_else(invalid)?
+                    .ok_or_else(malformed)?
                     .bytes();
                 if bytes.len() as u128 > u128::from(*capacity) {
-                    return Err(invalid());
+                    return Err(malformed());
                 }
                 resolved.values.push(referent.clone());
                 resolved.bindings.push(BoundaryByteBufferBinding {
@@ -385,25 +383,24 @@ impl TerminalExecution {
         parameter: &StructuralParameterDeclaration,
         argument: &StructuralArgument,
     ) -> Result<ByteSequenceBinding, TerminalInterpretError> {
-        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
         if argument.path.is_empty() {
             let value = self
                 .structural_values
                 .get(&argument.place)
-                .ok_or_else(invalid)?;
+                .ok_or_else(malformed)?;
             if value.structural_type != parameter.structural_type {
-                return Err(invalid());
+                return Err(malformed());
             }
             let binding = self
                 .byte_sequence_values
                 .get(&argument.place)
-                .ok_or_else(invalid)?;
+                .ok_or_else(malformed)?;
             binding.validate_mutable_referent(&self.program.structural_types, value)?;
             return Ok(binding.clone());
         }
         let Some((StructuralPathSegment::Field(identity), prefix)) = argument.path.split_last()
         else {
-            return Err(invalid());
+            return Err(malformed());
         };
         let mut parent = resolve_structural_arguments(
             &self.program.structural_types,
@@ -415,23 +412,23 @@ impl TerminalExecution {
             }],
         )?
         .pop()
-        .ok_or_else(invalid)?;
+        .ok_or_else(malformed)?;
         let declaration = self
             .program
             .structural_types
             .get(&parent.structural_type)
-            .ok_or_else(invalid)?;
+            .ok_or_else(malformed)?;
         let StructuralTypeShape::Record { fields } = &declaration.shape else {
-            return Err(invalid());
+            return Err(malformed());
         };
         let field = fields
             .iter()
             .find(|field| field.identity == *identity && !field.relevance.is_erased())
-            .ok_or_else(invalid)?;
+            .ok_or_else(malformed)?;
         let Some(ByteSequenceCarrier::BoundedOwned { capacity }) =
             field.field_type.byte_sequence_carrier()
         else {
-            return Err(invalid());
+            return Err(malformed());
         };
         let destination = StructuralByteSequenceRuntimeField {
             parent: StructuralRuntimePlace::from(&parent),
@@ -458,7 +455,7 @@ impl TerminalExecution {
             match &binding {
                 ByteSequenceBinding::MutableField { referent, .. } => referent,
                 ByteSequenceBinding::Immutable(_) | ByteSequenceBinding::MutableArray { .. } => {
-                    return Err(invalid());
+                    return Err(malformed());
                 }
             },
         )?;
@@ -472,36 +469,37 @@ impl TerminalExecution {
         parameter: &StructuralParameterDeclaration,
         argument: &StructuralArgument,
     ) -> Result<(TerminalStructuralValue, ByteSequenceBinding), TerminalInterpretError> {
-        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
         if !argument.path.is_empty() {
             return self.resolve_shared_boundary_binding(parameter, argument);
         }
         let value = self
             .structural_values
             .get(&argument.place)
-            .ok_or_else(invalid)?;
+            .ok_or_else(malformed)?;
         if value.structural_type != parameter.structural_type
             || parameter
                 .qualifications
                 .iter()
                 .any(|domain| !value.qualifications.contains(domain))
         {
-            return Err(invalid());
+            return Err(malformed());
         }
         let binding = self
             .byte_sequence_values
             .get(&argument.place)
-            .ok_or_else(invalid)?;
+            .ok_or_else(malformed)?;
         let bytes = match binding {
             ByteSequenceBinding::Immutable(bytes) => bytes.clone(),
             ByteSequenceBinding::MutableField { field, .. } => {
                 binding.validate_mutable_referent(&self.program.structural_types, value)?;
                 self.structural_byte_sequence_fields
                     .get(field)
-                    .ok_or_else(invalid)?
+                    .ok_or_else(malformed)?
                     .clone()
             }
-            ByteSequenceBinding::MutableArray { .. } => return Err(invalid()),
+            ByteSequenceBinding::MutableArray { .. } => {
+                return Err(malformed());
+            }
         };
         Ok((
             value.clone(),
@@ -517,10 +515,9 @@ impl TerminalExecution {
         parameter: &StructuralParameterDeclaration,
         argument: &StructuralArgument,
     ) -> Result<(TerminalStructuralValue, ByteSequenceBinding), TerminalInterpretError> {
-        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
         let Some((StructuralPathSegment::Field(identity), prefix)) = argument.path.split_last()
         else {
-            return Err(invalid());
+            return Err(malformed());
         };
         let mut parent = resolve_structural_arguments(
             &self.program.structural_types,
@@ -532,23 +529,23 @@ impl TerminalExecution {
             }],
         )?
         .pop()
-        .ok_or_else(invalid)?;
+        .ok_or_else(malformed)?;
         let declaration = self
             .program
             .structural_types
             .get(&parent.structural_type)
-            .ok_or_else(invalid)?;
+            .ok_or_else(malformed)?;
         let StructuralTypeShape::Record { fields } = &declaration.shape else {
-            return Err(invalid());
+            return Err(malformed());
         };
         let field = fields
             .iter()
             .find(|field| field.identity == *identity && !field.relevance.is_erased())
-            .ok_or_else(invalid)?;
+            .ok_or_else(malformed)?;
         let carrier = field
             .field_type
             .byte_sequence_carrier()
-            .ok_or_else(invalid)?;
+            .ok_or_else(malformed)?;
         if !matches!(
             carrier,
             ByteSequenceCarrier::BoundedOwned { .. }
@@ -556,7 +553,7 @@ impl TerminalExecution {
                     access: None | Some(StructuralAccess::SharedBorrow)
                 }
         ) {
-            return Err(invalid());
+            return Err(malformed());
         }
         let source = StructuralByteSequenceRuntimeField {
             parent: StructuralRuntimePlace::from(&parent),
@@ -565,13 +562,15 @@ impl TerminalExecution {
         let bytes = self
             .structural_byte_sequence_fields
             .get(&source)
-            .ok_or_else(invalid)?;
+            .ok_or_else(malformed)?;
         let bytes = match carrier {
             ByteSequenceCarrier::BorrowedView { .. } => bytes.clone(),
             ByteSequenceCarrier::BoundedOwned { .. } => {
                 ByteSequenceView::new(bytes.bytes().to_vec())
             }
-            ByteSequenceCarrier::BoundedView { .. } => return Err(invalid()),
+            ByteSequenceCarrier::BoundedView { .. } => {
+                return Err(malformed());
+            }
         };
         parent.structural_type = parameter.structural_type;
         parent.qualifications = parameter.qualifications.clone();

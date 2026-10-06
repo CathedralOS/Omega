@@ -13,7 +13,7 @@ use crate::custody::{
     commit_cleanup_action, consume_affine_projection, rebind_structural_result_claims,
     remove_affine_root, resolve_structural_path_type,
 };
-use crate::errors::TerminalInterpretError;
+use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::{
     CleanupContinuation, CompletedReturn, LiveClaim, SuspendedCall, SuspendedCallResult,
     TerminalExecution, TerminatorFlow,
@@ -209,7 +209,7 @@ impl TerminalExecution {
             .copied()
             .ok_or(TerminalInterpretError::VerifiedValueMissing(*condition))?;
         let TerminalScalarValue::Boolean(condition) = condition else {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         };
         let successor = if condition { when_true } else { when_false };
         self.settle_successor(
@@ -254,7 +254,7 @@ impl TerminalExecution {
         let successor = cases
             .iter()
             .find(|successor| successor.case == active_case)
-            .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+            .ok_or(malformed())?;
         let target = self
             .program
             .machines
@@ -264,9 +264,9 @@ impl TerminalExecution {
             ))?
             .blocks
             .get(&successor.target)
-            .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+            .ok_or(malformed())?;
         if target.parameters.len() != successor.payload_fields.len() {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         }
         let mut bindings = Vec::with_capacity(target.parameters.len());
         for (parameter, field) in target.parameters.iter().zip(&successor.payload_fields) {
@@ -285,9 +285,9 @@ impl TerminalExecution {
                     .copied(),
                 (None, None) => None,
             }
-            .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+            .ok_or(malformed())?;
             if scalar.scalar_type() != parameter.scalar_type {
-                return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                return Err(malformed());
             }
             bindings.push((parameter.id, scalar));
         }
@@ -323,7 +323,7 @@ impl TerminalExecution {
             TerminalInterpretError::VerifiedCallTargetMissing(self.current_machine),
         )?;
         if !matches!(machine.result, TerminalMachineResult::Scalar(_)) {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         }
         self.prepare_cleanup_partition(&[], cleanup_actions)?;
         block_bindings::BlockBindings::default().validate_cleanup_actions(self, cleanup_actions)?;
@@ -359,7 +359,7 @@ impl TerminalExecution {
             TerminalInterpretError::VerifiedCallTargetMissing(self.current_machine),
         )?;
         if machine.result != TerminalMachineResult::Unit {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         }
         self.prepare_cleanup_partition(&[], cleanup_actions)?;
         block_bindings::BlockBindings::default().validate_cleanup_actions(self, cleanup_actions)?;
@@ -404,7 +404,7 @@ impl TerminalExecution {
                 )
                 .is_some()
             {
-                return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                return Err(malformed());
             }
         }
         Ok(claims)
@@ -428,7 +428,7 @@ impl TerminalExecution {
                 .program
                 .structural_types
                 .get(&structural_type)
-                .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+                .ok_or(malformed())?;
             if let (StructuralPathSegment::Field(identity), StructuralTypeShape::Sum { cases }) =
                 (segment, &declaration.shape)
             {
@@ -443,7 +443,7 @@ impl TerminalExecution {
                     return Ok(false);
                 };
                 let terminal_psi::StructuralFieldType::Structural(next) = field.field_type else {
-                    return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                    return Err(malformed());
                 };
                 structural_type = next;
             } else {
@@ -474,7 +474,7 @@ impl TerminalExecution {
             unreachable!("dispatched settle_crash")
         };
         if frontier_lower_bound != &self.live_claims.keys().copied().collect::<Vec<_>>() {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         }
         if let Err(error) = meter.charge_terminator(terminator) {
             return meter_status(error).map(TerminatorFlow::Yield);

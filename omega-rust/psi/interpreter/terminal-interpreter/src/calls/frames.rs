@@ -6,7 +6,7 @@ use crate::custody::bind_arguments;
 use crate::custody::bind_structural_arguments;
 use crate::custody::resolve_structural_arguments;
 use crate::custody::transfer_claims;
-use crate::errors::TerminalInterpretError;
+use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::RuntimeDynamicDescriptor;
 use crate::execution::SuspendedCall;
 use crate::execution::SuspendedCallResult;
@@ -73,14 +73,14 @@ impl TerminalExecution {
                         .program
                         .dynamic_selection_templates
                         .get(&(self.current_machine, ordinal))
-                        .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+                        .ok_or(malformed())?;
                     let sources = resolve_structural_arguments(
                         &self.program.structural_types,
                         &self.structural_values,
                         std::slice::from_ref(&template.source),
                     )?;
                     let [source] = sources.as_slice() else {
-                        return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        return Err(malformed());
                     };
                     RuntimeDynamicDescriptor {
                         source: source.clone(),
@@ -92,14 +92,14 @@ impl TerminalExecution {
                         .program
                         .dynamic_descriptor_templates
                         .get(&(self.current_machine, ordinal))
-                        .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+                        .ok_or(malformed())?;
                     let sources = resolve_structural_arguments(
                         &self.program.structural_types,
                         &self.structural_values,
                         std::slice::from_ref(&template.source),
                     )?;
                     let [source] = sources.as_slice() else {
-                        return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        return Err(malformed());
                     };
                     RuntimeDynamicDescriptor {
                         source: source.clone(),
@@ -110,13 +110,13 @@ impl TerminalExecution {
                     .dynamic_parameters
                     .get(&ordinal)
                     .cloned()
-                    .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?,
+                    .ok_or(malformed())?,
             };
             if resolved
                 .insert(argument.parameter_ordinal, descriptor)
                 .is_some()
             {
-                return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                return Err(malformed());
             }
         }
         Ok(resolved)
@@ -130,7 +130,7 @@ impl TerminalExecution {
         resolved_arguments: &[TerminalStructuralValue],
     ) -> Result<BTreeMap<PlaceId, ByteSequenceBinding>, TerminalInterpretError> {
         if parameters.len() != arguments.len() || parameters.len() != resolved_arguments.len() {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         }
         let mut values = BTreeMap::new();
         for ((parameter, argument), resolved) in
@@ -140,7 +140,7 @@ impl TerminalExecution {
                 .program
                 .structural_types
                 .get(&parameter.structural_type)
-                .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+                .ok_or(malformed())?;
             let StructuralTypeShape::ByteSequence(carrier) = &declaration.shape else {
                 continue;
             };
@@ -148,7 +148,7 @@ impl TerminalExecution {
                 self.prepare_shared_descriptor_argument(parameter, argument)?
             {
                 if value != *resolved || values.insert(parameter.place, binding).is_some() {
-                    return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                    return Err(malformed());
                 }
                 continue;
             }
@@ -165,14 +165,14 @@ impl TerminalExecution {
                 || !resolved.qualifications.is_empty()
                 || !argument.path.is_empty()
             {
-                return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                return Err(malformed());
             }
             let bytes = self.byte_sequence_values.get(&argument.place).ok_or(
                 TerminalInterpretError::VerifiedStructuralPlaceMissing(argument.place),
             )?;
             let bytes = self.reborrow_byte_sequence_binding(bytes, resolved, parameter.access)?;
             if values.insert(parameter.place, bytes).is_some() {
-                return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                return Err(malformed());
             }
         }
         Ok(values)
@@ -188,7 +188,7 @@ impl TerminalExecution {
         resolved_arguments: &[TerminalStructuralValue],
     ) -> Result<BTreeMap<PlaceId, crate::element_views::ElementView>, TerminalInterpretError> {
         if parameters.len() != arguments.len() || parameters.len() != resolved_arguments.len() {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         }
         let mut values = BTreeMap::new();
         for ((parameter, argument), resolved) in
@@ -198,7 +198,7 @@ impl TerminalExecution {
                 .program
                 .structural_types
                 .get(&parameter.structural_type)
-                .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+                .ok_or(malformed())?;
             if !matches!(declaration.shape, StructuralTypeShape::ElementView { .. }) {
                 continue;
             }
@@ -213,15 +213,15 @@ impl TerminalExecution {
                 || !parameter.projected_qualifications.is_empty()
                 || !resolved.qualifications.is_empty()
             {
-                return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                return Err(malformed());
             }
             let view = self.element_view_argument(argument, resolved)?;
             let presented = view
                 .subslice(0, view.len(), parameter.access)
-                .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+                .ok_or(malformed())?;
             let presented = presented.with_descriptor_home(resolved.clone());
             if values.insert(parameter.place, presented).is_some() {
-                return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                return Err(malformed());
             }
         }
         Ok(values)
@@ -245,7 +245,7 @@ impl TerminalExecution {
             .get(&callee_id)
             .ok_or(TerminalInterpretError::VerifiedCallTargetMissing(callee_id))?;
         if callee.result != TerminalMachineResult::Unit {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         }
         let values = bind_arguments(&callee.parameters, scalar_arguments)?;
         let mut structural_values = prepared_arguments.values;
@@ -348,7 +348,7 @@ impl TerminalExecution {
             .get(&callee_id)
             .ok_or(TerminalInterpretError::VerifiedCallTargetMissing(callee_id))?;
         if callee.result.scalar().map(|result| result.scalar_type) != Some(result.scalar_type) {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         }
         let values = bind_arguments(&callee.parameters, scalar_arguments)?;
         let mut structural_values = prepared_arguments.values;
@@ -445,7 +445,7 @@ impl TerminalExecution {
             .get(&callee_id)
             .ok_or(TerminalInterpretError::VerifiedCallTargetMissing(callee_id))?;
         let Some(callee_result) = callee.result.structural() else {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         };
         let exact_primitive_structural_call = callee.entry_claims.is_empty()
             && callee.content_entry_claims.is_empty()
@@ -538,7 +538,7 @@ impl TerminalExecution {
             || self.scalar_case_values.contains_key(&result.place)
             || self.scalar_array_values.contains_key(&result.place)
         {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         }
         let values = bind_arguments(&callee.parameters, scalar_arguments)?;
         let mut structural_values = prepared_arguments.values;
@@ -643,7 +643,7 @@ impl TerminalExecution {
             || callee.structural_parameters.len() != 1
             || callee.result.scalar().map(|result| result.scalar_type) != Some(result.scalar_type)
         {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         }
         let structural_values =
             bind_structural_arguments(&callee.structural_parameters, &[source])?;
@@ -690,7 +690,7 @@ impl TerminalExecution {
             || callee.structural_parameters.len() != 1
             || callee.result != TerminalMachineResult::Unit
         {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         }
         let structural_values =
             bind_structural_arguments(&callee.structural_parameters, &[source])?;

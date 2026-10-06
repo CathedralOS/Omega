@@ -17,7 +17,7 @@
 //! filesystem, and creates no global runtime or thread — compilation remains
 //! the separate upstream authority that produced the bytes.
 
-use crate::errors::{TerminalArtifactInterpretError, TerminalInterpretError};
+use crate::errors::{TerminalArtifactInterpretError, TerminalInterpretError, malformed};
 use crate::execution::{ExecutableMachine, RuntimeDynamicDescriptorTemplate};
 use crate::instance::TerminalInstance;
 use crate::structural_inputs::TerminalStructuralInputs;
@@ -71,8 +71,8 @@ impl AdmittedTerminalProgram {
     /// already verified by the caller — admission converts representation,
     /// never re-checks semantics.
     pub(crate) fn admit(mut module: TerminalModule) -> Result<Self, TerminalInterpretError> {
-        let terminal_psi = terminal_codec::terminal_psi_identity(&module)
-            .map_err(|_| TerminalInterpretError::VerifiedOperationMalformed)?;
+        let terminal_psi =
+            terminal_codec::terminal_psi_identity(&module).map_err(|_| malformed())?;
         let machines = std::mem::take(&mut module.machines)
             .into_iter()
             .map(|machine| {

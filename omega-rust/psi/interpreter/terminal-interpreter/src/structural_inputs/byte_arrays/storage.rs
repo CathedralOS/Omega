@@ -4,7 +4,7 @@
 //! remains stable for the lifetime of the loan, including nested forwarding.
 
 use crate::byte_sequences::ByteSequenceView;
-use crate::errors::TerminalInterpretError;
+use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
 use crate::scalar_array::TerminalScalarArrayValue;
 use crate::values::{StructuralRuntimePlace, TerminalScalarValue};
@@ -50,18 +50,17 @@ impl TerminalExecution {
         &self,
         storage: &ArrayStorage,
     ) -> Result<(usize, usize), TerminalInterpretError> {
-        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
         let ArrayStorageHome::Frame {
             depth,
             place,
             structural_type,
         } = storage.home
         else {
-            return Err(invalid());
+            return Err(malformed());
         };
-        let array = self.frame_array(depth, place).ok_or_else(invalid)?;
+        let array = self.frame_array(depth, place).ok_or_else(malformed)?;
         let count = super::byte_array_length(&self.program.structural_types, structural_type)
-            .ok_or_else(invalid)?;
+            .ok_or_else(malformed)?;
         if array.structural_type != structural_type
             || u64::try_from(array.elements.len()).ok() != Some(count)
             || !storage.referent.path.is_empty()
@@ -73,7 +72,7 @@ impl TerminalExecution {
                 Some(terminal_psi::StructuralTypeShape::FixedArray { .. })
             )
         {
-            return Err(invalid());
+            return Err(malformed());
         }
         Ok((0, array.elements.len()))
     }
@@ -87,7 +86,7 @@ impl TerminalExecution {
                 .structural_byte_storage
                 .get(&storage.referent)
                 .map(ByteSequenceView::len)
-                .ok_or(TerminalInterpretError::VerifiedOperationMalformed),
+                .ok_or(malformed()),
             ArrayStorageHome::Frame { .. } => self
                 .frame_byte_array_window(storage)
                 .map(|(start, end)| end - start),
@@ -99,24 +98,23 @@ impl TerminalExecution {
         storage: &ArrayStorage,
         index: usize,
     ) -> Result<u8, TerminalInterpretError> {
-        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
         match storage.home {
             ArrayStorageHome::Runtime => self
                 .structural_byte_storage
                 .get(&storage.referent)
                 .and_then(|bytes| bytes.get(index))
                 .copied()
-                .ok_or_else(invalid),
+                .ok_or_else(malformed),
             ArrayStorageHome::Frame { depth, place, .. } => {
                 let (start, end) = self.frame_byte_array_window(storage)?;
                 let absolute = start
                     .checked_add(index)
                     .filter(|index| *index < end)
-                    .ok_or_else(invalid)?;
+                    .ok_or_else(malformed)?;
                 let value = self
                     .frame_array(depth, place)
                     .and_then(|array| array.elements.get(absolute))
-                    .ok_or_else(invalid)?;
+                    .ok_or_else(malformed)?;
                 scalar_byte(value)
             }
         }
@@ -128,19 +126,18 @@ impl TerminalExecution {
         index: usize,
         byte: u8,
     ) -> Result<(), TerminalInterpretError> {
-        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
         match storage.home {
             ArrayStorageHome::Runtime => self
                 .structural_byte_storage
                 .get_mut(&storage.referent)
                 .and_then(|bytes| bytes.replace_byte(index, byte))
-                .ok_or_else(invalid),
+                .ok_or_else(malformed),
             ArrayStorageHome::Frame { depth, place, .. } => {
                 let (start, end) = self.frame_byte_array_window(storage)?;
                 let absolute = start
                     .checked_add(index)
                     .filter(|index| *index < end)
-                    .ok_or_else(invalid)?;
+                    .ok_or_else(malformed)?;
                 let array = if depth == self.call_stack.len() {
                     self.scalar_array_values.get_mut(&place)
                 } else {
@@ -148,10 +145,10 @@ impl TerminalExecution {
                         .get_mut(depth)
                         .and_then(|frame| frame.scalar_array_values.get_mut(&place))
                 }
-                .ok_or_else(invalid)?;
+                .ok_or_else(malformed)?;
                 let scalar_type =
-                    IntegerType::new(IntegerSign::Unsigned, 8).map_err(|_| invalid())?;
-                *array.elements.get_mut(absolute).ok_or_else(invalid)? =
+                    IntegerType::new(IntegerSign::Unsigned, 8).map_err(|_| malformed())?;
+                *array.elements.get_mut(absolute).ok_or_else(malformed)? =
                     TerminalScalarValue::Integer {
                         scalar_type,
                         value: IntegerValue::Unsigned(u128::from(byte)),
@@ -167,23 +164,22 @@ impl TerminalExecution {
         start: usize,
         end: usize,
     ) -> Result<ByteSequenceView, TerminalInterpretError> {
-        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
         if let ArrayStorageHome::Runtime = storage.home {
             return self
                 .structural_byte_storage
                 .get(&storage.referent)
                 .and_then(|bytes| bytes.subslice(start, end))
-                .ok_or_else(invalid);
+                .ok_or_else(malformed);
         }
         if start > end || end > self.stored_byte_array_length(storage)? {
-            return Err(invalid());
+            return Err(malformed());
         }
         let ArrayStorageHome::Frame { depth, place, .. } = storage.home else {
-            return Err(invalid());
+            return Err(malformed());
         };
         self.frame_array(depth, place)
             .and_then(|array| array.elements.get(start..end))
-            .ok_or_else(invalid)?
+            .ok_or_else(malformed)?
             .iter()
             .map(scalar_byte)
             .collect::<Result<Vec<_>, _>>()
@@ -192,19 +188,18 @@ impl TerminalExecution {
 }
 
 fn scalar_byte(value: &TerminalScalarValue) -> Result<u8, TerminalInterpretError> {
-    let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
     let TerminalScalarValue::Integer {
         scalar_type,
         value: IntegerValue::Unsigned(byte),
     } = value
     else {
-        return Err(invalid());
+        return Err(malformed());
     };
     if scalar_type.sign() != IntegerSign::Unsigned
         || scalar_type.bits() != 8
         || scalar_type.is_address()
     {
-        return Err(invalid());
+        return Err(malformed());
     }
-    u8::try_from(*byte).map_err(|_| invalid())
+    u8::try_from(*byte).map_err(|_| malformed())
 }

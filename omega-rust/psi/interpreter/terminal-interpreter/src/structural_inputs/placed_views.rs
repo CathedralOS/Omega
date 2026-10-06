@@ -11,7 +11,7 @@
 //! rather than answered, and an entry row left without one still fails
 //! custody.
 
-use crate::errors::TerminalInterpretError;
+use crate::errors::{TerminalInterpretError, malformed};
 use crate::values::{StructuralRuntimePlace, TerminalStructuralValue};
 use semantic_vocabulary::{StructuralDomainId, StructuralTypeId};
 use std::collections::BTreeMap;
@@ -169,7 +169,7 @@ pub(crate) fn establish_placed_view_inputs(
             )
             .is_some()
         {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         }
     }
     Ok(occurrences)

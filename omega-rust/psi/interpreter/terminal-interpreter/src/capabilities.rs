@@ -16,7 +16,7 @@
 //! limitations visible regardless of when an external call is encountered.
 
 use crate::effects::AdmittedProviderInstallation;
-use crate::errors::TerminalInterpretError;
+use crate::errors::{TerminalInterpretError, malformed};
 use crate::program::AdmittedTerminalProgram;
 use semantic_vocabulary::{BoundaryMachineId, ExternalCompletionKind, MachineId, OperationId};
 use std::collections::{BTreeMap, BTreeSet};
@@ -116,7 +116,7 @@ pub(crate) fn check(
                         program
                             .dynamic_scalar_calls
                             .get(&(machine_id, *descriptor_ordinal))
-                            .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?
+                            .ok_or(malformed())?
                             .0,
                     ),
                     OperationKind::CallDynamicParameterScalar {
@@ -138,7 +138,7 @@ pub(crate) fn check(
                             .get(*requirement_slot as usize)
                             .copied()
                             .flatten()
-                            .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?,
+                            .ok_or(malformed())?,
                     ),
                     OperationKind::BoundaryCall { boundary, .. } => {
                         let declaration = program.boundary_machines.get(boundary).ok_or(
@@ -250,7 +250,7 @@ fn call_parameters(
                 )?)
             }
         }
-        .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+        .ok_or(malformed())?;
         supplied.insert(argument.parameter_ordinal, table.clone());
     }
     Ok(supplied)

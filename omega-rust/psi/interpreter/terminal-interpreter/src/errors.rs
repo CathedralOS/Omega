@@ -186,6 +186,12 @@ impl std::fmt::Display for TerminalArtifactInterpretError {
 
 impl std::error::Error for TerminalArtifactInterpretError {}
 
+/// A verified artifact proved inconsistent at runtime — execution fails
+/// closed rather than continuing on a malformed operation.
+pub(crate) fn malformed() -> TerminalInterpretError {
+    TerminalInterpretError::VerifiedOperationMalformed
+}
+
 impl From<FuelMeterError> for TerminalInterpretError {
     fn from(error: FuelMeterError) -> Self {
         Self::Fuel(error)

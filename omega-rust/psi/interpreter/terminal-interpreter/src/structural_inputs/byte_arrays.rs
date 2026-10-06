@@ -4,7 +4,7 @@ pub(crate) mod storage;
 use crate::byte_sequences::ByteSequenceView;
 use crate::byte_sequences::binding::ByteSequenceBinding;
 use crate::custody::resolve_structural_arguments;
-use crate::errors::TerminalInterpretError;
+use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
 use crate::values::StructuralByteSequenceRuntimeField;
 use crate::values::StructuralRuntimePlace;
@@ -91,19 +91,18 @@ impl TerminalExecution {
         &mut self,
         arguments: &[TerminalStructuralByteArrayValue],
     ) -> Result<(), TerminalInterpretError> {
-        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
         let machine = self
             .program
             .machines
             .get(&self.current_machine)
-            .ok_or_else(invalid)?;
+            .ok_or_else(malformed)?;
         let mut storage = BTreeMap::new();
         let mut descriptors = BTreeMap::new();
         for argument in arguments {
             let parameter = machine
                 .structural_parameters
                 .get(argument.argument_index as usize)
-                .ok_or_else(invalid)?;
+                .ok_or_else(malformed)?;
             if !matches!(
                 parameter.access,
                 StructuralAccess::Owned
@@ -119,26 +118,26 @@ impl TerminalExecution {
                     .values()
                     .any(|claim| claim.place == Some(parameter.place))
             {
-                return Err(invalid());
+                return Err(malformed());
             }
             let root = self
                 .structural_values
                 .get(&parameter.place)
-                .ok_or_else(invalid)?;
+                .ok_or_else(malformed)?;
             if !root.qualifications.is_empty() || root.structural_type != parameter.structural_type
             {
-                return Err(invalid());
+                return Err(malformed());
             }
             let array_type = array_path_type(
                 &self.program.structural_types,
                 root.structural_type,
                 &argument.path,
             )
-            .ok_or_else(invalid)?;
+            .ok_or_else(malformed)?;
             let length = byte_array_length(&self.program.structural_types, array_type)
-                .ok_or_else(invalid)?;
+                .ok_or_else(malformed)?;
             if argument.bytes.len() as u128 != u128::from(length) {
-                return Err(invalid());
+                return Err(malformed());
             }
             let mut array = StructuralRuntimePlace::from(root);
             array.path.extend_from_slice(&argument.path);
@@ -175,13 +174,13 @@ impl TerminalExecution {
                 if self.byte_sequence_values.contains_key(&parameter.place)
                     || descriptors.insert(parameter.place, binding).is_some()
                 {
-                    return Err(invalid());
+                    return Err(malformed());
                 }
             }
             if self.structural_byte_storage.contains_key(&array)
                 || storage.insert(array, bytes).is_some()
             {
-                return Err(invalid());
+                return Err(malformed());
             }
         }
         self.structural_byte_storage.extend(storage);
@@ -213,12 +212,11 @@ impl TerminalExecution {
         identity_cursor: &mut Option<u64>,
         local_array_roots: &mut BTreeMap<semantic_vocabulary::PlaceId, TerminalStructuralValue>,
     ) -> Result<(TerminalStructuralValue, ArrayStorageHome), TerminalInterpretError> {
-        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
         let root = if let Some(array) = self.scalar_array_values.get(&place) {
             if self.structural_values.contains_key(&place)
                 || self.scalar_case_values.contains_key(&place)
             {
-                return Err(invalid());
+                return Err(malformed());
             }
             // Repeated projections in one argument list share their root
             // identity, so ordinary alias checks still see the same backing.
@@ -247,7 +245,7 @@ impl TerminalExecution {
             (
                 self.structural_values
                     .get(&place)
-                    .ok_or_else(invalid)?
+                    .ok_or_else(malformed)?
                     .clone(),
                 ArrayStorageHome::Runtime,
             )
@@ -262,37 +260,36 @@ impl TerminalExecution {
         collection: &terminal_semantics::CollectionBacking,
         identity_cursor: &mut Option<u64>,
     ) -> Result<(TerminalStructuralValue, ByteSequenceBinding), TerminalInterpretError> {
-        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
         if !matches!(
             source.access,
             StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
         ) {
-            return Err(invalid());
+            return Err(malformed());
         }
         if collection.storage == terminal_semantics::CollectionStorage::Borrowed {
             // A pointer-only bounded collection already carries its original
             // array home. Re-establishment changes descriptor type, never the
             // owner's activation, backing identity, or retained window.
             if !source.path.is_empty() {
-                return Err(invalid());
+                return Err(malformed());
             }
             let value = self
                 .structural_values
                 .get(&source.place)
-                .ok_or_else(invalid)?;
+                .ok_or_else(malformed)?;
             let binding = self
                 .byte_sequence_values
                 .get(&source.place)
-                .ok_or_else(invalid)?;
+                .ok_or_else(malformed)?;
             // A borrowed backing is pointer-carried, so its declared capacity
             // is the descriptor's whole extent.
             let terminal_semantics::CollectionExtent::Fixed(capacity) = collection.extent else {
-                return Err(invalid());
+                return Err(malformed());
             };
             if !value.qualifications.is_empty()
                 || self.byte_sequence_length(source.place)? != capacity
             {
-                return Err(invalid());
+                return Err(malformed());
             }
             let mut binding = self.reborrow_byte_sequence_binding(binding, value, source.access)?;
             let mut value = value.clone();
@@ -305,7 +302,9 @@ impl TerminalExecution {
                 ByteSequenceBinding::Immutable(bytes) => {
                     *bytes = bytes.clone().with_descriptor_home(value.clone());
                 }
-                ByteSequenceBinding::MutableField { .. } => return Err(invalid()),
+                ByteSequenceBinding::MutableField { .. } => {
+                    return Err(malformed());
+                }
             }
             return Ok((value, binding));
         }
@@ -320,7 +319,7 @@ impl TerminalExecution {
                 let Some((StructuralPathSegment::Field(identity), prefix)) =
                     source.path.split_last()
                 else {
-                    return Err(invalid());
+                    return Err(malformed());
                 };
                 let parent = resolve_structural_arguments(
                     &self.program.structural_types,
@@ -332,24 +331,24 @@ impl TerminalExecution {
                     }],
                 )?
                 .pop()
-                .ok_or_else(invalid)?;
+                .ok_or_else(malformed)?;
                 let declaration = self
                     .program
                     .structural_types
                     .get(&parent.structural_type)
-                    .ok_or_else(invalid)?;
+                    .ok_or_else(malformed)?;
                 let StructuralTypeShape::Record { fields } = &declaration.shape else {
-                    return Err(invalid());
+                    return Err(malformed());
                 };
                 let field = fields
                     .iter()
                     .find(|field| field.identity == *identity && !field.relevance.is_erased())
-                    .ok_or_else(invalid)?;
+                    .ok_or_else(malformed)?;
                 if !matches!(
                     field.field_type.byte_sequence_carrier(),
                     Some(terminal_psi::ByteSequenceCarrier::BoundedOwned { .. })
                 ) {
-                    return Err(invalid());
+                    return Err(malformed());
                 }
                 let bytes = self
                     .structural_byte_sequence_fields
@@ -357,7 +356,7 @@ impl TerminalExecution {
                         parent: StructuralRuntimePlace::from(&parent),
                         field: field.id,
                     })
-                    .ok_or_else(invalid)?
+                    .ok_or_else(malformed)?
                     .bytes()
                     .to_vec();
                 return Ok((
@@ -374,15 +373,15 @@ impl TerminalExecution {
             // semantics, including genuinely empty initialized arrays. Host
             // input policy for pointer-only byte arrays remains independent.
             let terminal_semantics::CollectionExtent::Fixed(count) = collection.extent else {
-                return Err(invalid());
+                return Err(malformed());
             };
             let byte_type = semantic_vocabulary::IntegerType::new(
                 semantic_vocabulary::IntegerSign::Unsigned,
                 8,
             )
-            .map_err(|_| invalid())?;
+            .map_err(|_| malformed())?;
             let mut path = source.path.clone();
-            let mut bytes = Vec::with_capacity(usize::try_from(count).map_err(|_| invalid())?);
+            let mut bytes = Vec::with_capacity(usize::try_from(count).map_err(|_| malformed())?);
             for index in 0..count {
                 path.push(StructuralPathSegment::FixedIndex(index));
                 let value =
@@ -393,9 +392,9 @@ impl TerminalExecution {
                     ..
                 } = value
                 else {
-                    return Err(invalid());
+                    return Err(malformed());
                 };
-                bytes.push(u8::try_from(byte).map_err(|_| invalid())?);
+                bytes.push(u8::try_from(byte).map_err(|_| malformed())?);
             }
             return Ok((
                 TerminalStructuralValue {
@@ -414,9 +413,9 @@ impl TerminalExecution {
             root.structural_type,
             &source.path,
         )
-        .ok_or_else(invalid)?;
+        .ok_or_else(malformed)?;
         let length =
-            byte_array_length(&self.program.structural_types, array_type).ok_or_else(invalid)?;
+            byte_array_length(&self.program.structural_types, array_type).ok_or_else(malformed)?;
         let values = BTreeMap::from([(source.place, root)]);
         let mut referent = resolve_structural_arguments(
             &self.program.structural_types,
@@ -424,7 +423,7 @@ impl TerminalExecution {
             std::slice::from_ref(source),
         )?
         .pop()
-        .ok_or_else(invalid)?;
+        .ok_or_else(malformed)?;
         let array = ArrayStorage {
             referent: StructuralRuntimePlace::from(&referent),
             home,
@@ -433,7 +432,7 @@ impl TerminalExecution {
             || collection.extent != terminal_semantics::CollectionExtent::Fixed(length)
             || self.stored_byte_array_length(&array)? as u128 != u128::from(length)
         {
-            return Err(invalid());
+            return Err(malformed());
         }
         referent.structural_type = view_type;
         let binding = ByteSequenceBinding::MutableArray {
@@ -455,7 +454,6 @@ impl TerminalExecution {
         local_array_roots: &mut BTreeMap<semantic_vocabulary::PlaceId, TerminalStructuralValue>,
     ) -> Result<Option<(TerminalStructuralValue, ByteSequenceBinding)>, TerminalInterpretError>
     {
-        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
         if !matches!(
             parameter.access,
             StructuralAccess::MutableBorrow | StructuralAccess::SharedBorrow
@@ -476,7 +474,7 @@ impl TerminalExecution {
                 .values()
                 .any(|claim| claim.place == Some(argument.place))
         {
-            return Err(invalid());
+            return Err(malformed());
         }
         if argument.path.is_empty()
             && let Some(binding @ ByteSequenceBinding::Immutable(_)) =
@@ -485,12 +483,12 @@ impl TerminalExecution {
             let value = self
                 .structural_values
                 .get(&argument.place)
-                .ok_or_else(invalid)?;
+                .ok_or_else(malformed)?;
             if parameter.access != StructuralAccess::SharedBorrow
                 || value.structural_type != parameter.structural_type
                 || !value.qualifications.is_empty()
             {
-                return Err(invalid());
+                return Err(malformed());
             }
             let binding = self.reborrow_byte_sequence_binding(binding, value, parameter.access)?;
             return Ok(Some((value.clone(), binding)));
@@ -502,9 +500,9 @@ impl TerminalExecution {
             let value = self
                 .structural_values
                 .get(&argument.place)
-                .ok_or_else(invalid)?;
+                .ok_or_else(malformed)?;
             if value.structural_type != parameter.structural_type {
-                return Err(invalid());
+                return Err(malformed());
             }
             return Ok(Some((
                 value.clone(),
@@ -536,7 +534,7 @@ impl TerminalExecution {
             .program
             .machines
             .get(&self.current_machine)
-            .ok_or_else(invalid)?;
+            .ok_or_else(malformed)?;
         let source = machine
             .structural_parameters
             .iter()
@@ -591,12 +589,12 @@ impl TerminalExecution {
                     projected_qualifications: Vec::new(),
                 })
             })
-            .ok_or_else(invalid)?;
+            .ok_or_else(malformed)?;
         if source.structural_type != root.structural_type
             || !source.qualifications.is_empty()
             || !source.projected_qualifications.is_empty()
         {
-            return Err(invalid());
+            return Err(malformed());
         }
         let window = terminal_semantics::fixed_byte_array_window(
             self.program.structural_types.values(),
@@ -604,7 +602,7 @@ impl TerminalExecution {
             argument,
             parameter,
         )
-        .ok_or_else(invalid)?;
+        .ok_or_else(malformed)?;
         let backing_argument = StructuralArgument {
             place: argument.place,
             path: window.backing_path.to_vec(),
@@ -623,30 +621,30 @@ impl TerminalExecution {
             std::slice::from_ref(&backing_argument),
         )?
         .pop()
-        .ok_or_else(invalid)?;
+        .ok_or_else(malformed)?;
         if !root.qualifications.is_empty() || !referent.qualifications.is_empty() {
-            return Err(invalid());
+            return Err(malformed());
         }
         let array = ArrayStorage {
             referent: StructuralRuntimePlace::from(&referent),
             home,
         };
         if self.stored_byte_array_length(&array)? as u128 != u128::from(length) {
-            return Err(invalid());
+            return Err(malformed());
         }
         referent.structural_type = parameter.structural_type;
         if let Some(segment @ StructuralPathSegment::FixedByteRange { .. }) = argument.path.last() {
             referent.path.push(segment.clone());
         }
         if parameter.access == StructuralAccess::SharedBorrow {
-            let start = usize::try_from(window.offset).map_err(|_| invalid())?;
+            let start = usize::try_from(window.offset).map_err(|_| malformed())?;
             let end = usize::try_from(
                 window
                     .offset
                     .checked_add(window.length)
-                    .ok_or_else(invalid)?,
+                    .ok_or_else(malformed)?,
             )
-            .map_err(|_| invalid())?;
+            .map_err(|_| malformed())?;
             let descriptor = self
                 .stored_byte_array_snapshot(&array, start, end)?
                 .with_descriptor_home(referent.clone());

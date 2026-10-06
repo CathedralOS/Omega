@@ -15,7 +15,7 @@ use terminal_psi::{
 };
 
 use crate::custody::resolve_structural_arguments;
-use crate::errors::TerminalInterpretError;
+use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
 use crate::scalar_operations::terminal_scalar_belongs_to_type;
 use crate::values::{StructuralRuntimePlace, StructuralScalarRuntimeField, TerminalScalarValue};
@@ -29,7 +29,6 @@ impl TerminalExecution {
         field: StructuralFieldId,
         event: AtomicAccessEvent,
     ) -> Result<(), TerminalInterpretError> {
-        let malformed = || TerminalInterpretError::VerifiedOperationMalformed;
         let machine = self.program.machines.get(&self.current_machine).ok_or(
             TerminalInterpretError::VerifiedCallTargetMissing(self.current_machine),
         )?;

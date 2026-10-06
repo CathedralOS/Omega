@@ -3,7 +3,7 @@
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, ScalarType};
 use terminal_psi::{Operation, OperationKind, OperationResult};
 
-use crate::errors::TerminalInterpretError;
+use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
 use crate::values::TerminalScalarValue;
 
@@ -12,21 +12,20 @@ impl TerminalExecution {
         &mut self,
         operation: &Operation,
     ) -> Result<(), TerminalInterpretError> {
-        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
         let OperationKind::StructuralByteSequenceFieldLength {
             source,
             path,
             field,
         } = &operation.kind
         else {
-            return Err(invalid());
+            return Err(malformed());
         };
         let OperationResult::Scalar(result) = &operation.result else {
-            return Err(invalid());
+            return Err(malformed());
         };
-        let count_type = IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| invalid())?;
+        let count_type = IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| malformed())?;
         if result.scalar_type != ScalarType::Integer(count_type) {
-            return Err(invalid());
+            return Err(malformed());
         }
         let (source_field, capacity) = self.readable_byte_field(*source, path, *field)?;
         let bytes = self
@@ -35,9 +34,9 @@ impl TerminalExecution {
             .ok_or(TerminalInterpretError::VerifiedStructuralPlaceMissing(
                 *source,
             ))?;
-        let length = u64::try_from(bytes.len()).map_err(|_| invalid())?;
+        let length = u64::try_from(bytes.len()).map_err(|_| malformed())?;
         if capacity.is_some_and(|capacity| length > capacity) {
-            return Err(invalid());
+            return Err(malformed());
         }
         self.values.insert(
             result.id,
@@ -55,7 +54,6 @@ impl TerminalExecution {
         &mut self,
         operation: &Operation,
     ) -> Result<(), TerminalInterpretError> {
-        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
         let OperationKind::StructuralByteSequenceFieldByteStore {
             destination,
             path,
@@ -66,15 +64,15 @@ impl TerminalExecution {
             ..
         } = &operation.kind
         else {
-            return Err(invalid());
+            return Err(malformed());
         };
         if operation.result != OperationResult::Unit {
-            return Err(invalid());
+            return Err(malformed());
         }
         let (destination_field, capacity) =
             self.resolve_structural_byte_sequence_field(*destination, path, *field, true)?;
-        let count_type = IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| invalid())?;
-        let byte_type = IntegerType::new(IntegerSign::Unsigned, 8).map_err(|_| invalid())?;
+        let count_type = IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| malformed())?;
+        let byte_type = IntegerType::new(IntegerSign::Unsigned, 8).map_err(|_| malformed())?;
         let count = |operand| {
             let TerminalScalarValue::Integer {
                 scalar_type,
@@ -84,12 +82,12 @@ impl TerminalExecution {
                 .get(&operand)
                 .ok_or(TerminalInterpretError::VerifiedValueMissing(operand))?
             else {
-                return Err(invalid());
+                return Err(malformed());
             };
             if *scalar_type != count_type {
-                return Err(invalid());
+                return Err(malformed());
             }
-            u64::try_from(*value).map_err(|_| invalid())
+            u64::try_from(*value).map_err(|_| malformed())
         };
         let byte_index = count(*index)?;
         let live_length = count(*length)?;
@@ -101,13 +99,13 @@ impl TerminalExecution {
             .get(value)
             .ok_or(TerminalInterpretError::VerifiedValueMissing(*value))?
         else {
-            return Err(invalid());
+            return Err(malformed());
         };
         if *scalar_type != byte_type || live_length > capacity || byte_index >= live_length {
-            return Err(invalid());
+            return Err(malformed());
         }
-        let byte = u8::try_from(*byte).map_err(|_| invalid())?;
-        let byte_index = usize::try_from(byte_index).map_err(|_| invalid())?;
+        let byte = u8::try_from(*byte).map_err(|_| malformed())?;
+        let byte_index = usize::try_from(byte_index).map_err(|_| malformed())?;
         let bytes = self
             .structural_byte_sequence_fields
             .get_mut(&destination_field)
@@ -115,9 +113,9 @@ impl TerminalExecution {
                 *destination,
             ))?;
         if u64::try_from(bytes.len()).ok() != Some(live_length) {
-            return Err(invalid());
+            return Err(malformed());
         }
-        bytes.replace_byte(byte_index, byte).ok_or_else(invalid)
+        bytes.replace_byte(byte_index, byte).ok_or_else(malformed)
     }
 
     /// Read one byte of the field's live extent. Every operand and the
@@ -127,7 +125,6 @@ impl TerminalExecution {
         &mut self,
         operation: &Operation,
     ) -> Result<(), TerminalInterpretError> {
-        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
         let OperationKind::StructuralByteSequenceFieldRead {
             source,
             path,
@@ -137,17 +134,17 @@ impl TerminalExecution {
             ..
         } = &operation.kind
         else {
-            return Err(invalid());
+            return Err(malformed());
         };
         let OperationResult::Scalar(result) = &operation.result else {
-            return Err(invalid());
+            return Err(malformed());
         };
-        let byte_type = IntegerType::new(IntegerSign::Unsigned, 8).map_err(|_| invalid())?;
+        let byte_type = IntegerType::new(IntegerSign::Unsigned, 8).map_err(|_| malformed())?;
         if result.scalar_type != ScalarType::Integer(byte_type) {
-            return Err(invalid());
+            return Err(malformed());
         }
         let (source_field, capacity) = self.readable_byte_field(*source, path, *field)?;
-        let count_type = IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| invalid())?;
+        let count_type = IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| malformed())?;
         let count = |operand| {
             let TerminalScalarValue::Integer {
                 scalar_type,
@@ -157,17 +154,17 @@ impl TerminalExecution {
                 .get(&operand)
                 .ok_or(TerminalInterpretError::VerifiedValueMissing(operand))?
             else {
-                return Err(invalid());
+                return Err(malformed());
             };
             if *scalar_type != count_type {
-                return Err(invalid());
+                return Err(malformed());
             }
-            u64::try_from(*value).map_err(|_| invalid())
+            u64::try_from(*value).map_err(|_| malformed())
         };
         let byte_index = count(*index)?;
         let live_length = count(*length)?;
         if capacity.is_some_and(|capacity| live_length > capacity) || byte_index >= live_length {
-            return Err(invalid());
+            return Err(malformed());
         }
         let bytes = self
             .structural_byte_sequence_fields
@@ -176,10 +173,10 @@ impl TerminalExecution {
                 *source,
             ))?;
         if u64::try_from(bytes.len()).ok() != Some(live_length) {
-            return Err(invalid());
+            return Err(malformed());
         }
-        let byte_index = usize::try_from(byte_index).map_err(|_| invalid())?;
-        let byte = *bytes.get(byte_index).ok_or_else(invalid)?;
+        let byte_index = usize::try_from(byte_index).map_err(|_| malformed())?;
+        let byte = *bytes.get(byte_index).ok_or_else(malformed)?;
         self.values.insert(
             result.id,
             TerminalScalarValue::Integer {
@@ -213,7 +210,7 @@ impl TerminalExecution {
             terminal_psi::ByteSequenceCarrier::BorrowedView {
                 access: Some(terminal_psi::StructuralAccess::SharedBorrow),
             } => Ok((cell, None)),
-            _ => Err(TerminalInterpretError::VerifiedOperationMalformed),
+            _ => Err(malformed()),
         }
     }
 }

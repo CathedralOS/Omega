@@ -1,4 +1,4 @@
-use crate::errors::TerminalInterpretError;
+use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::ExecutableMachine;
 use crate::execution::TerminalExecution;
 use crate::values::TerminalScalarValue;
@@ -30,16 +30,15 @@ impl TerminalExecution {
         parameter: &StructuralParameterDeclaration,
         argument: &StructuralArgument,
     ) -> Result<TerminalScalarArrayValue, TerminalInterpretError> {
-        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
         let value = self
             .scalar_array_values
             .get(&argument.place)
-            .ok_or_else(invalid)?;
+            .ok_or_else(malformed)?;
         let (scalar_type, count) = terminal_semantics::scalar_array_leaf_shape(
             self.program.structural_types.values(),
             parameter.structural_type,
         )
-        .ok_or_else(invalid)?;
+        .ok_or_else(malformed)?;
         // A shared loan binds the same element values read-only: lending the
         // caller's array is observationally a copy, so `&arr` admits alongside
         // the owned hand-off. Mutable views stay owned-only — writes through a
@@ -74,7 +73,7 @@ impl TerminalExecution {
             || self.structural_values.contains_key(&argument.place)
             || self.scalar_case_values.contains_key(&argument.place)
         {
-            return Err(invalid());
+            return Err(malformed());
         }
         Ok(value.clone())
     }
@@ -84,13 +83,12 @@ impl TerminalExecution {
         operation: &terminal_psi::Operation,
         elements: &[ValueId],
     ) -> Result<(), TerminalInterpretError> {
-        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
-        let result = operation.result.structural().ok_or_else(invalid)?;
+        let result = operation.result.structural().ok_or_else(malformed)?;
         let (scalar_type, count) = terminal_semantics::scalar_array_leaf_shape(
             self.program.structural_types.values(),
             result.structural_type,
         )
-        .ok_or_else(invalid)?;
+        .ok_or_else(malformed)?;
         // An unrestricted payload can be re-established by a cyclic
         // traversal: the fresh establishment replaces the stored elements,
         // matching the per-iteration binding the verifier's cyclic
@@ -109,7 +107,7 @@ impl TerminalExecution {
             || self.structural_values.contains_key(&result.place)
             || self.scalar_case_values.contains_key(&result.place)
         {
-            return Err(invalid());
+            return Err(malformed());
         }
         let mut contents = Vec::with_capacity(elements.len());
         for element in elements {
@@ -119,7 +117,7 @@ impl TerminalExecution {
                 .copied()
                 .ok_or(TerminalInterpretError::VerifiedValueMissing(*element))?;
             if value.scalar_type() != scalar_type {
-                return Err(invalid());
+                return Err(malformed());
             }
             contents.push(value);
         }

@@ -1,7 +1,7 @@
 //! Host result carriers and their exact binding to a verified boundary result.
 
 use crate::effects::TerminalEffect;
-use crate::errors::TerminalInterpretError;
+use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
 use crate::results::{TerminalCrash, TerminalCrashSite};
 use crate::values::{TerminalScalarValue, TerminalStructuralValue};
@@ -44,10 +44,10 @@ impl TerminalExecution {
             ..
         } = effect
         else {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         };
         if *boundary != declaration.id {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         }
         // Use the already evaluated invocation snapshot, not caller value IDs
         // that happen to equal the declaration's positional scalar formal IDs.
@@ -60,9 +60,7 @@ impl TerminalExecution {
                 TerminalScalarValue::Integer { scalar_type, value } => {
                     Ok(semantic_vocabulary::ScalarTerm::Integer { scalar_type, value })
                 }
-                TerminalScalarValue::IeeeFloat(_) => {
-                    Err(TerminalInterpretError::VerifiedOperationMalformed)
-                }
+                TerminalScalarValue::IeeeFloat(_) => Err(malformed()),
             })
             .collect::<Result<Vec<_>, _>>()?;
         super::crash_outcome::validate_boundary_crash_outcome(declaration, &arguments, cause)
@@ -103,7 +101,7 @@ impl TerminalExecution {
                     && result.multiplicity != StructuralMultiplicity::Linear)
                 || !result.projected_qualifications.is_empty())
         {
-            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            return Err(malformed());
         }
         Ok(())
     }
@@ -204,7 +202,7 @@ pub(crate) fn commit_boundary_result(
                 });
             }
         }
-        _ => return Err(TerminalInterpretError::VerifiedOperationMalformed),
+        _ => return Err(malformed()),
     }
     Ok(())
 }
