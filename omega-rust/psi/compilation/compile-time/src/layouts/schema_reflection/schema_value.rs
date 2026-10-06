@@ -7,7 +7,7 @@ use super::{
     SCHEMA_FIELD_CAPACITY, SchemaFieldInfo, local_schema_field_discriminator,
     reflected_field_layout,
 };
-use checked_interpreter::BuildTimeValue;
+use build_time_values::BuildTimeValue;
 
 fn optional_identity(identity: Option<u64>) -> BuildTimeValue {
     match identity {

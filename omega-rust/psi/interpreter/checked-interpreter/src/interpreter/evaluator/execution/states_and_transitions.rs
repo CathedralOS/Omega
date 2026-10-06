@@ -385,8 +385,8 @@ impl<'program> Evaluator<'program> {
     pub(in crate::interpreter) fn run_build_time_machine(
         &mut self,
         machine_name: &str,
-        arguments: Vec<crate::build_time::BuildTimeValue>,
-    ) -> EvalResult<crate::build_time::BuildTimeValue> {
+        arguments: Vec<build_time_values::BuildTimeValue>,
+    ) -> EvalResult<build_time_values::BuildTimeValue> {
         let machine = self
             .find_machine_by_name(machine_name)
             .ok_or_else(|| Halt::Trap(format!("no machine named `{machine_name}` exists")))?;
@@ -399,8 +399,8 @@ impl<'program> Evaluator<'program> {
     pub(in crate::interpreter) fn run_build_time_machine_symbol(
         &mut self,
         machine_symbol: SymbolHandle,
-        arguments: Vec<crate::build_time::BuildTimeValue>,
-    ) -> EvalResult<crate::build_time::BuildTimeValue> {
+        arguments: Vec<build_time_values::BuildTimeValue>,
+    ) -> EvalResult<build_time_values::BuildTimeValue> {
         let machine = self.find_machine_by_symbol(machine_symbol).ok_or_else(|| {
             Halt::Trap(format!(
                 "no machine with exact symbol {machine_symbol:?} exists in the evaluated program"
@@ -412,8 +412,8 @@ impl<'program> Evaluator<'program> {
     fn run_resolved_build_time_machine(
         &mut self,
         machine: &'program Machine,
-        arguments: Vec<crate::build_time::BuildTimeValue>,
-    ) -> EvalResult<crate::build_time::BuildTimeValue> {
+        arguments: Vec<build_time_values::BuildTimeValue>,
+    ) -> EvalResult<build_time_values::BuildTimeValue> {
         let machine_name = machine.name.as_str();
         let entry_state = self.machine_entry_state(machine).ok_or_else(|| {
             Halt::Trap(format!(
@@ -432,10 +432,11 @@ impl<'program> Evaluator<'program> {
         let argument_cells = arguments
             .into_iter()
             .map(|argument| {
-                let value = argument
-                    .into_value_with(&|value| self.allocate_cell(value), &|bytes| {
-                        self.allocate_text(bytes)
-                    })?;
+                let value = crate::build_time::materialize_build_time_value(
+                    argument,
+                    &|value| self.allocate_cell(value),
+                    &|bytes| self.allocate_text(bytes),
+                )?;
                 Ok(EvaluatedArgument::plain(self.allocate_cell(value)?))
             })
             .collect::<EvalResult<Vec<_>>>()?;
@@ -454,7 +455,7 @@ impl<'program> Evaluator<'program> {
                  during build-time evaluation"
             )));
         }
-        Ok(crate::build_time::BuildTimeValue::from_value(&value))
+        Ok(crate::build_time::observe_build_time_value(&value))
     }
 
     /// The augmenting-machine variant: run and read back the FINAL argument
@@ -464,8 +465,8 @@ impl<'program> Evaluator<'program> {
     pub(in crate::interpreter) fn run_build_time_machine_arguments(
         &mut self,
         machine_name: &str,
-        arguments: Vec<crate::build_time::BuildTimeValue>,
-    ) -> EvalResult<Vec<crate::build_time::BuildTimeValue>> {
+        arguments: Vec<build_time_values::BuildTimeValue>,
+    ) -> EvalResult<Vec<build_time_values::BuildTimeValue>> {
         self.run_build_machine_arguments_with_policy(machine_name, arguments, false)
     }
 
@@ -475,8 +476,8 @@ impl<'program> Evaluator<'program> {
     pub(in crate::interpreter) fn run_build_time_machine_symbol_arguments(
         &mut self,
         machine_symbol: SymbolHandle,
-        arguments: Vec<crate::build_time::BuildTimeValue>,
-    ) -> EvalResult<Vec<crate::build_time::BuildTimeValue>> {
+        arguments: Vec<build_time_values::BuildTimeValue>,
+    ) -> EvalResult<Vec<build_time_values::BuildTimeValue>> {
         self.run_build_machine_symbol_arguments_with_policy(machine_symbol, arguments, false)
     }
 
@@ -487,9 +488,9 @@ impl<'program> Evaluator<'program> {
     pub(in crate::interpreter) fn run_build_machine_arguments_with_policy(
         &mut self,
         machine_name: &str,
-        arguments: Vec<crate::build_time::BuildTimeValue>,
+        arguments: Vec<build_time_values::BuildTimeValue>,
         allow_filesystem: bool,
-    ) -> EvalResult<Vec<crate::build_time::BuildTimeValue>> {
+    ) -> EvalResult<Vec<build_time_values::BuildTimeValue>> {
         self.enable_rooted_build_paths_from_arguments(&arguments);
         let machine = self
             .find_machine_by_name(machine_name)
@@ -502,9 +503,9 @@ impl<'program> Evaluator<'program> {
     pub(in crate::interpreter) fn run_build_machine_symbol_arguments_with_policy(
         &mut self,
         machine_symbol: SymbolHandle,
-        arguments: Vec<crate::build_time::BuildTimeValue>,
+        arguments: Vec<build_time_values::BuildTimeValue>,
         allow_filesystem: bool,
-    ) -> EvalResult<Vec<crate::build_time::BuildTimeValue>> {
+    ) -> EvalResult<Vec<build_time_values::BuildTimeValue>> {
         self.enable_rooted_build_paths_from_arguments(&arguments);
         let machine = self.find_machine_by_symbol(machine_symbol).ok_or_else(|| {
             Halt::Trap(format!(
@@ -517,9 +518,9 @@ impl<'program> Evaluator<'program> {
     fn run_resolved_build_machine_arguments(
         &mut self,
         machine: &'program Machine,
-        arguments: Vec<crate::build_time::BuildTimeValue>,
+        arguments: Vec<build_time_values::BuildTimeValue>,
         allow_filesystem: bool,
-    ) -> EvalResult<Vec<crate::build_time::BuildTimeValue>> {
+    ) -> EvalResult<Vec<build_time_values::BuildTimeValue>> {
         let machine_name = machine.name.as_str();
         let entry_state = self.machine_entry_state(machine).ok_or_else(|| {
             Halt::Trap(format!(
@@ -537,10 +538,11 @@ impl<'program> Evaluator<'program> {
         let argument_cells: Vec<Cell> = arguments
             .into_iter()
             .map(|argument| {
-                let value = argument
-                    .into_value_with(&|value| self.allocate_cell(value), &|bytes| {
-                        self.allocate_text(bytes)
-                    })?;
+                let value = crate::build_time::materialize_build_time_value(
+                    argument,
+                    &|value| self.allocate_cell(value),
+                    &|bytes| self.allocate_text(bytes),
+                )?;
                 self.allocate_cell(value)
             })
             .collect::<EvalResult<_>>()?;
@@ -588,7 +590,7 @@ impl<'program> Evaluator<'program> {
         }
         Ok(kept
             .iter()
-            .map(|cell| crate::build_time::BuildTimeValue::from_value(&cell.borrow()))
+            .map(|cell| crate::build_time::observe_build_time_value(&cell.borrow()))
             .collect())
     }
 

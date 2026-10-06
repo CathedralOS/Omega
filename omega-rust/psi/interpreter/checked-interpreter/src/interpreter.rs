@@ -8,10 +8,11 @@
 mod evaluator;
 use crate::{
     BuildEvaluationSponsor, BuildMachineEvaluationFailure, BuildMachineEvaluationFailureKind,
-    BuildTimeOperationEvaluation, BuildTimeValue, EvaluationObservations, EvaluationUsage,
-    FilesystemAccess, FilesystemMetadataLayout, FilesystemServiceBinding, InterpretOutcome,
+    BuildTimeOperationEvaluation, EvaluationObservations, EvaluationUsage, FilesystemAccess,
+    FilesystemMetadataLayout, FilesystemServiceBinding, InterpretOutcome,
     MeasuredBuildMachineEvaluation, MeasuredEvaluation, SelectedBuildTimeBinaryOperator,
 };
+use build_time_values::BuildTimeValue;
 use checked_trees::CheckedTrees;
 use evaluator::{CONST_EVAL_STEP_BUDGET, Evaluator, Halt, STEP_BUDGET, ambient_step_budget};
 use symbols::SymbolHandle;
@@ -285,7 +286,7 @@ pub fn materialize_zero_initialized_build_time_value(
                 }
                 Halt::Exit(code) => format!("zero storage initialization exited with code {code}"),
             })?;
-    Ok(BuildTimeValue::from_value(&value))
+    Ok(crate::build_time::observe_build_time_value(&value))
 }
 
 /// Evaluate one build-time machine for its structured return value and the
@@ -367,9 +368,9 @@ fn evaluate_const_on_current_thread(
 fn evaluate_structured_return(
     program: BuildMachineProgram<'_>,
     entry: BuildMachineEntry<'_>,
-    arguments: Vec<crate::build_time::BuildTimeValue>,
+    arguments: Vec<build_time_values::BuildTimeValue>,
     operators: &[crate::SelectedBuildTimeBinaryOperator],
-) -> Result<BuildTimeOperationEvaluation<crate::build_time::BuildTimeValue>, String> {
+) -> Result<BuildTimeOperationEvaluation<build_time_values::BuildTimeValue>, String> {
     let typed = match program {
         BuildMachineProgram::Typed(typed) => typed,
         BuildMachineProgram::Checked(checked) => &checked.typed,
@@ -430,10 +431,10 @@ fn evaluate_structured_return(
 fn evaluate_observed_arguments(
     program: BuildMachineProgram<'_>,
     entry: BuildMachineEntry<'_>,
-    arguments: Vec<crate::build_time::BuildTimeValue>,
+    arguments: Vec<build_time_values::BuildTimeValue>,
     sponsor: Option<BuildEvaluationSponsor>,
     product_entry_compatibility: Option<&dyn ProductEntryCompatibility>,
-) -> Result<MeasuredBuildMachineEvaluation<Vec<crate::build_time::BuildTimeValue>>, String> {
+) -> Result<MeasuredBuildMachineEvaluation<Vec<build_time_values::BuildTimeValue>>, String> {
     std::thread::scope(|scope| {
         std::thread::Builder::new()
             .stack_size(256 * 1024 * 1024)
@@ -499,12 +500,12 @@ fn evaluate_observed_arguments(
 fn evaluate_granted_arguments(
     program: BuildMachineProgram<'_>,
     entry: BuildMachineEntry<'_>,
-    arguments: Vec<crate::build_time::BuildTimeValue>,
+    arguments: Vec<build_time_values::BuildTimeValue>,
     options: InterpretOptions,
     sponsor: Option<BuildEvaluationSponsor>,
     product_entry_compatibility: Option<&dyn ProductEntryCompatibility>,
 ) -> Result<
-    MeasuredBuildMachineEvaluation<Vec<crate::build_time::BuildTimeValue>>,
+    MeasuredBuildMachineEvaluation<Vec<build_time_values::BuildTimeValue>>,
     BuildMachineEvaluationFailure,
 > {
     std::thread::scope(|scope| {
@@ -822,7 +823,7 @@ fn interpret_on_current_thread(
     }
 }
 
-fn build_time_result_custody(values: &[crate::build_time::BuildTimeValue]) -> Option<(u64, u64)> {
+fn build_time_result_custody(values: &[build_time_values::BuildTimeValue]) -> Option<(u64, u64)> {
     values
         .iter()
         .try_fold((0u64, 0u64), |(cells, text_bytes), value| {

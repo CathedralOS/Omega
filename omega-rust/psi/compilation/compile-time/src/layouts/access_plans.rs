@@ -6,8 +6,8 @@
 //! normalized model consumed by admission and lowering.
 
 use access_plans::{AccessPlan, ValidatedAccessPlan};
+use build_time_values::BuildTimeValue;
 use checked_interpreter::BuildTimeOperationEvaluation;
-use checked_interpreter::BuildTimeValue;
 use layout_plans::{LayoutPlanReport, layout_plan_reports_match_for_replay};
 use typed_trees::TypedTrees;
 

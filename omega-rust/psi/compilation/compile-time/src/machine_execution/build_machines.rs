@@ -4,7 +4,8 @@
 //! applies. Psi owns the target-neutral interpreter entry and the distinction
 //! between a pure invocation and an explicitly granted one.
 
-use checked_interpreter::{BuildTimeValue, MeasuredBuildMachineEvaluation};
+use build_time_values::BuildTimeValue;
+use checked_interpreter::MeasuredBuildMachineEvaluation;
 use std::sync::Arc;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;

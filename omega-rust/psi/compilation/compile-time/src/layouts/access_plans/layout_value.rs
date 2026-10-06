@@ -1,4 +1,4 @@
-use checked_interpreter::BuildTimeValue;
+use build_time_values::BuildTimeValue;
 use layout_plans::{IntegerInterpretation, LayoutPlacementReport, LayoutPlanReport};
 
 use crate::layouts::schema_reflection::SchemaFieldInfo;

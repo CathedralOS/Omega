@@ -10,6 +10,7 @@ name = "checked_interpreter"
 path = "src/lib.rs"
 
 [dependencies]
+build-time-values = { path = "../../foundation/build-time-values" }
 semantic-vocabulary = { path = "../../foundation/semantic-vocabulary" }
 arena = { path = "../../foundation/arena" }
 symbols = { path = "../../foundation/symbols" }

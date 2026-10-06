@@ -5,7 +5,7 @@ use access_plans::{
     ExternalRead, FieldAccess, PlacementPlan, ValidatedAccessPlan, ValidatedPlacementPlan,
     validate_access_plan, validate_placement_plan,
 };
-use checked_interpreter::BuildTimeValue;
+use build_time_values::BuildTimeValue;
 use layout_plans::{LayoutPlacementReport, LayoutPlanReport};
 use typed_trees::TypedTrees;
 

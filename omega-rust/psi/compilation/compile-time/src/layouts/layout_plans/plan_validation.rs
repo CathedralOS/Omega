@@ -4,7 +4,7 @@ use layout_plans::{LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanRepo
 use typed_trees::types::PrimitiveType;
 
 use crate::layouts::schema_reflection::SchemaFieldInfo;
-use checked_interpreter::BuildTimeValue;
+use build_time_values::BuildTimeValue;
 
 const PLAN_ENTRY_CAPACITY: usize = 64;
 

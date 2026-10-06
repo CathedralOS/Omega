@@ -4,7 +4,7 @@
 //! admission restrictions. All share the schema reflection and byte encoder;
 //! layout policy evaluation is owned by the sibling `layout_plans` module.
 
-pub use checked_interpreter::BuildTimeValue;
+pub use build_time_values::BuildTimeValue;
 use checked_interpreter::{BuildMachineEvaluationRequest, BuildTimeOperationEvaluation};
 use layout_plans::{
     AggregateFieldSchema, AggregateFieldValue, ByteOrder, LayoutPlanReport,

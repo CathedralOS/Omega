@@ -211,6 +211,7 @@ version = "0.1.0"
 dependencies = [
  "access-plans",
  "arena",
+ "build-time-values",
  "checked-interpreter",
  "checked-trees",
  "diagnostics",
@@ -229,6 +230,13 @@ dependencies = [
  "typed-trees",
  "typed-trees-to-checked-trees",
  "validation",
+]
+
+[[package]]
+name = "build-time-values"
+version = "0.1.0"
+dependencies = [
+ "numerics",
 ]
 
 [[package]]
@@ -302,6 +310,7 @@ name = "checked-interpreter"
 version = "0.1.0"
 dependencies = [
  "arena",
+ "build-time-values",
  "checked-trees",
  "language-core",
  "language-semantics",

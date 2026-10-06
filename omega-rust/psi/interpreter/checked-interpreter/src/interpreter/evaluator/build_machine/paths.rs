@@ -235,16 +235,16 @@ impl<'program> Evaluator<'program> {
 
     pub(in crate::interpreter::evaluator) fn enable_rooted_build_paths_from_arguments(
         &mut self,
-        arguments: &[crate::build_time::BuildTimeValue],
+        arguments: &[build_time_values::BuildTimeValue],
     ) {
         self.rooted_build_paths_required = arguments.iter().any(|argument| {
-            let crate::build_time::BuildTimeValue::Struct { fields, .. } = argument else {
+            let build_time_values::BuildTimeValue::Struct { fields, .. } = argument else {
                 return false;
             };
             fields.iter().any(|(_, value)| {
                 matches!(
                     value,
-                    crate::build_time::BuildTimeValue::Struct { type_name, .. }
+                    build_time_values::BuildTimeValue::Struct { type_name, .. }
                         if matches!(type_name.as_str(), SOURCE_ROOT_FACET_TYPE | OUTPUT_ROOT_FACET_TYPE)
                 )
             })

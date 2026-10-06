@@ -2,6 +2,7 @@
 members = [
     "omega-rust/omega/application/cli",
     "omega-rust/psi/foundation/arena",
+    "omega-rust/psi/foundation/build-time-values",
     "omega-rust/psi/foundation/access-plans",
     "omega-rust/psi/foundation/diagnostics",
     "omega-rust/psi/foundation/extents",

@@ -1,4 +1,4 @@
-use checked_interpreter::BuildTimeValue;
+use build_time_values::BuildTimeValue;
 use typed_trees::TypedTrees;
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};

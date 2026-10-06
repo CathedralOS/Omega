@@ -12,7 +12,8 @@
 //! arguments and their order. Execution and returned-plan validation remain
 //! with the existing interpreter and policy consumers.
 
-use checked_interpreter::{BuildMachineEvaluationRequest, BuildTimeValue};
+use build_time_values::BuildTimeValue;
+use checked_interpreter::BuildMachineEvaluationRequest;
 use typed_trees::{TypedTrees, machine::Machine, types::TypeReferenceNode};
 
 pub(super) fn policy_request<'a>(

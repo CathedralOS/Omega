@@ -113,7 +113,7 @@ pub use build_evaluation_sponsor::{
     BuildEvaluationSponsor, BuildEvaluationSponsorLimits,
 };
 pub use build_evaluation_usage::{BuildEvaluationUsage, BuildEvaluationUsageError};
-pub use build_time::{BuildTimeValue, SelectedBuildTimeBinaryOperator};
+pub use build_time::SelectedBuildTimeBinaryOperator;
 pub use filesystem_sponsor::{
     COMPILER_DEFAULT_STAGING_ENTRY_LIMIT, COMPILER_DEFAULT_STAGING_MAX_OBJECT_EXTENT,
     COMPILER_DEFAULT_STAGING_TOTAL_LOGICAL_BYTES, FilesystemOpenDescriptor, FilesystemSponsor,
