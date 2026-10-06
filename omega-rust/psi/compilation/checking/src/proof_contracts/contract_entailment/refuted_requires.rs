@@ -125,6 +125,14 @@ pub fn instantiated_value_call_requires_proven(
 /// One term per substituted parameter, each read from the call's argument in
 /// the caller's scope. A single untermifiable argument leaves no map to judge
 /// against, so the whole call declines rather than judge a partial picture.
+///
+/// An argument term describes a concrete operand, so it must identify that
+/// operand's value. A call that is not a repeatable value-only normal return
+/// produces a fresh observation per invocation, while its term is built from
+/// the callee and the argument terms alone: two identical spellings would
+/// compare equal and the judge would decide an equality between two distinct
+/// runtime values. Such an argument is not termifiable for instantiation and
+/// declines the whole map, in both the refutation and the proof direction.
 fn argument_term_map(
     program: &TypedTrees,
     caller_machine: &Machine,
@@ -137,8 +145,18 @@ fn argument_term_map(
         return None;
     }
 
+    let plans = crate::machine_calls::calls::operand_call_plans(program, None);
     let mut map = Vec::with_capacity(parameters.len());
     for (parameter, argument) in parameters.iter().zip(arguments) {
+        if !crate::machine_calls::denotational_calls::expression_values_have_call_identity(
+            program,
+            *argument,
+            &plans.0,
+            &plans.1,
+            &|_| false,
+        ) {
+            return None;
+        }
         let scope = Some((caller_machine, caller_state, parameter.type_reference));
         let term = structural_term_in_scope(program, scope, *argument)?;
         map.push((parameter.name.as_str().to_owned(), term));

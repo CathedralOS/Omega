@@ -368,6 +368,29 @@ fn capture_preserves_source(
         // A borrowed child denotes the invocation-live referent.
         return Some(true);
     }
+    // A whole capture rooted in its own expression is a closed temporary: the
+    // children branch above already consumed every projectable capture, so an
+    // empty path here names a value with no caller storage behind it.
+    // Substitution names that expression, not a place the caller still reads,
+    // so no later operand can write what the capture observed and there is no
+    // source to re-observe. `copied_guarantees::observation_survives` states
+    // the same rule for expression-rooted sources. This judgment also holds no
+    // place fact about such a value, so claiming it would refuse every callee
+    // guarantee rather than decide one.
+    if remaining.is_empty()
+        && matches!(
+            crate::flow::canonical_place_from_expression_in_state(
+                program,
+                state.state_symbol,
+                call.statement_index,
+                capture.expression,
+            )
+            .map(|place| place.root),
+            Some(PlaceRoot::Expression(_))
+        )
+    {
+        return Some(true);
+    }
     if !computed_values_have_source_identity(program, facts, capture.expression) {
         return Some(false);
     }
@@ -411,45 +434,24 @@ fn capture_preserves_source(
 
 /// Runtime invocations are distinct observations unless the existing checked
 /// denotation owner establishes value-only normal returns. An empty write
-/// frame alone does not make a call repeatable.
+/// frame alone does not make a call repeatable. This stage already holds
+/// fact-call projections, so those calls need no second identity derivation.
 fn computed_values_have_source_identity(
     program: &TypedTrees,
     facts: &CheckFacts,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> bool {
-    let mut pending = vec![expression];
-    let mut seen = Vec::new();
-    while let Some(expression) = pending.pop() {
-        if !program.expression_table.expression_is_valid(expression) {
-            return false;
-        }
-        if seen.contains(&expression) {
-            continue;
-        }
-        seen.push(expression);
-        let node = program.expression_table.expression(expression);
-        if let typed_trees::expression::ExpressionNode::Call(call) = node {
-            let denotational = facts
+    let plans = validation::operand_call_plans(program, None);
+    validation::expression_values_have_call_identity(
+        program,
+        expression,
+        &plans.0,
+        &plans.1,
+        &|expression| {
+            facts
                 .fact_call_projections
                 .iter()
-                .any(|projection| projection.call_expression == expression);
-            if !denotational {
-                let plans = validation::operand_call_plans(program, None);
-                if validation::normal_return_call_candidate(program, call, &plans.0, &plans.1)
-                    .is_err()
-                    && !validation::has_checked_denotational_call_identity(
-                        program, call, &plans.0, &plans.1,
-                    )
-                {
-                    return false;
-                }
-            }
-        }
-        validation::expression_traversal::children(program, node, |child| {
-            if child.is_valid() {
-                pending.push(child);
-            }
-        });
-    }
-    true
+                .any(|projection| projection.call_expression == expression)
+        },
+    )
 }

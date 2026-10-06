@@ -13,6 +13,56 @@ mod normal_return;
 pub use normal_return::normal_return_call_candidate;
 pub(crate) use normal_return::plain_value_call_target;
 
+/// Whether every call inside this expression denotes one value per spelling,
+/// so two equal terms name one observation. A call that is neither a
+/// repeatable value-only normal return nor an already-admitted denotational
+/// projection produces a fresh observation on each invocation, and two
+/// identical spellings are then two different values. Callers that compare
+/// terms built from concrete operands must decline such an expression:
+/// `an empty write frame alone does not make a call repeatable`.
+///
+/// `admitted` reports calls a consumer already holds a denotational record
+/// for, so a stage with its own projection table does not re-derive identity
+/// here. Pass `&|_| false` with no such table.
+pub fn expression_values_have_call_identity(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    operational: &flow_effects::OperationalPlan,
+    service_reaches: &flow_effects::ServiceReachInferencePlan,
+    admitted: &dyn Fn(ExpressionHandle) -> bool,
+) -> bool {
+    let mut pending = vec![expression];
+    let mut seen = Vec::new();
+    while let Some(expression) = pending.pop() {
+        if !program.expression_table.expression_is_valid(expression) {
+            return false;
+        }
+        if seen.contains(&expression) {
+            continue;
+        }
+        seen.push(expression);
+        let node = program.expression_table.expression(expression);
+        if let ExpressionNode::Call(call) = node
+            && !admitted(expression)
+            && normal_return_call_candidate(program, call, operational, service_reaches).is_err()
+            && !super::fact_call_projections::has_checked_denotational_call_identity(
+                program,
+                call,
+                operational,
+                service_reaches,
+            )
+        {
+            return false;
+        }
+        crate::expression_traversal::children(program, node, |child| {
+            if child.is_valid() {
+                pending.push(child);
+            }
+        });
+    }
+    true
+}
+
 pub(crate) fn has_observation_free_checked_closure(
     program: &TypedTrees,
     machine_symbol: symbols::SymbolHandle,
