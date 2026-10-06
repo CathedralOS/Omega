@@ -1051,16 +1051,7 @@ pub(crate) fn build_checked_partial_affine_unit_cleanup_plans(
     let retained = machines
         .iter()
         .flat_map(|plan| {
-            plan.machine
-                .attachment_type_identity
-                .iter()
-                .map(String::as_str)
-                .chain(
-                    plan.machine
-                        .structural_parameters
-                        .iter()
-                        .map(|parameter| parameter.type_identity.as_str()),
-                )
+            machine_owned_type_identities(&plan.machine)
                 .chain(
                     plan.residual_affine_discards
                         .iter()
@@ -1134,21 +1125,11 @@ pub(crate) fn build_checked_nominal_affine_unit_cleanup_plans(
     let retained = machines
         .iter()
         .flat_map(|plan| {
-            plan.machine
-                .attachment_type_identity
-                .iter()
-                .map(String::as_str)
-                .chain(
-                    plan.machine
-                        .structural_parameters
-                        .iter()
-                        .map(|parameter| parameter.type_identity.as_str()),
-                )
-                .chain(
-                    plan.cleanups
-                        .iter()
-                        .map(|cleanup| cleanup.type_identity.as_str()),
-                )
+            machine_owned_type_identities(&plan.machine).chain(
+                plan.cleanups
+                    .iter()
+                    .map(|cleanup| cleanup.type_identity.as_str()),
+            )
         })
         .collect::<BTreeSet<_>>();
     shapes.retain_transitive(&retained);
@@ -1433,4 +1414,21 @@ fn value_leaf_type_identities(
         }
     }
     identities
+}
+
+/// The machine-owned type identities both affine cleanup plans retain: the
+/// attachment identity plus every structural-parameter identity.
+fn machine_owned_type_identities(
+    machine: &CheckedUnitEffectMachinePlan,
+) -> impl Iterator<Item = &str> + '_ {
+    machine
+        .attachment_type_identity
+        .iter()
+        .map(String::as_str)
+        .chain(
+            machine
+                .structural_parameters
+                .iter()
+                .map(|parameter| parameter.type_identity.as_str()),
+        )
 }
