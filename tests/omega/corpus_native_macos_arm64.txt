@@ -1466,6 +1466,7 @@ pass/text/runtime_view_local_field_store_exit built 1635ms exit:70 @42ea16c25de8
 pass/text/runtime_view_local_first_store_exit built 1549ms exit:70 @42ea16c25de8+wt
 pass/text/runtime_view_local_qualified_argument_exit built 3233ms exit:70 @7adc5f2420e5+wt
 pass/text/runtime_view_local_reassign_exit built 1076ms exit:70 @42ea16c25de8+wt
+pass/text/runtime_view_local_record_local_field_store_exit built 1274ms exit:70 @e2ddcac05fbc+wt
 pass/text/runtime_view_local_state_transfer_exit built 1903ms exit:70 @7adc5f2420e5+wt
 pass/text/state_parameter_byte_replacement_exit built 1031ms exit:70 @63377f7122bb+wt
 pass/text/utf8_boundary_established checked 211ms

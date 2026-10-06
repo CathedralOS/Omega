@@ -3212,6 +3212,7 @@ pass/text/runtime_view_local_field_store_exit checked 1597ms check-target:macos_
 pass/text/runtime_view_local_first_store_exit checked 1570ms check-target:macos_arm64 @42ea16c25de8+wt
 pass/text/runtime_view_local_qualified_argument_exit checked 3891ms check-target:macos_arm64 @7adc5f2420e5+wt
 pass/text/runtime_view_local_reassign_exit checked 1064ms check-target:macos_arm64 @42ea16c25de8+wt
+pass/text/runtime_view_local_record_local_field_store_exit checked 1228ms check-target:macos_arm64 @e2ddcac05fbc+wt
 pass/text/runtime_view_local_state_transfer_exit checked 2392ms check-target:macos_arm64 @7adc5f2420e5+wt
 pass/text/state_parameter_byte_replacement_exit checked 967ms check-target:macos_arm64 @63377f7122bb+wt
 pass/text/utf8_boundary_established checked 302ms @2d8ed253669f

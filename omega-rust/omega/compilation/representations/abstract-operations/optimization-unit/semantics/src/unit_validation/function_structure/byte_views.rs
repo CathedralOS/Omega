@@ -353,10 +353,20 @@ pub(super) fn validate_source(
                 super::super::operation_contracts::structural_source_contract(function, source);
             let contract = contract?;
             let result = contract.operation_result()?;
+            // A result's qualifications replay exactly as a parameter's do: a
+            // primitive byte-predicate roster of its own carrier may be read
+            // (a qualified descriptor home declares one); any other domain,
+            // projection or result evidence is not readable byte content.
             (result.place == source
                 && result.structural_type == *structural_type
                 && permitted_access(contract.access)
-                && contract.is_unqualified()
+                && result.projected_qualifications.is_empty()
+                && terminal_semantics::byte_qualification_predicates_in(
+                    structural_domains.values().copied(),
+                    result.structural_type,
+                    &result.qualifications,
+                )
+                .is_some()
                 && !contract.has_result_evidence()
                 && function
                     .blocks
