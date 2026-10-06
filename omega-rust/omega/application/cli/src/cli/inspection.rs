@@ -4,7 +4,9 @@ use super::arguments::InspectTerminalArguments;
 use omega::inspection::{InspectTerminalRequest, inspect_terminal};
 use semantic_vocabulary::{ServiceId, StructuralTypeId};
 use std::fmt::Write;
-use terminal_psi::{OperationKind, TerminalMachineResult, TerminalModule, Terminator};
+use terminal_psi::{
+    OperationKind, StructuralArgument, TerminalMachineResult, TerminalModule, Terminator,
+};
 
 pub(crate) fn run(arguments: InspectTerminalArguments) {
     let request = InspectTerminalRequest {
@@ -113,17 +115,8 @@ fn terminal_summary(selected_machine: &str, module: &TerminalModule) -> String {
             "boundary id=boundary:{} identity={} attachment={} services={} requirements={}",
             boundary.id.get(),
             boundary.identity,
-            boundary
-                .attachment
-                .and_then(|id| structural_type_identity(module, id))
-                .unwrap_or("none"),
-            format_ids(boundary.published_service_ceiling.iter().map(|service| {
-                format!(
-                    "service:{}:{}",
-                    service.get(),
-                    service_identity(module, *service).unwrap_or("unknown")
-                )
-            })),
+            attachment_identity(module, boundary.attachment),
+            service_ceiling(module, &boundary.published_service_ceiling),
             format_ids(boundary.requires.iter().map(|requirement| format!(
                 "argument:{}:domain:{}",
                 requirement.argument_index,
@@ -137,22 +130,13 @@ fn terminal_summary(selected_machine: &str, module: &TerminalModule) -> String {
             output,
             "machine id=machine:{} attachment={} result={} services={}",
             machine.id.get(),
-            machine
-                .attachment
-                .and_then(|id| structural_type_identity(module, id))
-                .unwrap_or("none"),
+            attachment_identity(module, machine.attachment),
             match machine.result {
                 TerminalMachineResult::Unit => "unit",
                 TerminalMachineResult::Scalar(_) => "scalar",
                 TerminalMachineResult::Structural(_) => "structural",
             },
-            format_ids(machine.published_service_ceiling.iter().map(|service| {
-                format!(
-                    "service:{}:{}",
-                    service.get(),
-                    service_identity(module, *service).unwrap_or("unknown")
-                )
-            }))
+            service_ceiling(module, &machine.published_service_ceiling)
         )
         .expect("writing to a String cannot fail");
         if let Some(terminal_psi::TerminalRankedScc::Natural(components)) = &machine.ranked_scc {
@@ -253,11 +237,7 @@ fn write_operation_summary(
                 operation.id.get(),
                 callee.get(),
                 callee_attachment,
-                format_ids(
-                    structural_arguments
-                        .iter()
-                        .map(|argument| format!("place:{}", argument.place.get()))
-                ),
+                argument_places(structural_arguments),
                 format_ids(claim_transfers.iter().map(|transfer| format!(
                     "claim:{}->argument:{}",
                     transfer.claim.get(),
@@ -284,11 +264,7 @@ fn write_operation_summary(
                 operation.id.get(),
                 boundary.get(),
                 identity,
-                format_ids(
-                    structural_arguments
-                        .iter()
-                        .map(|argument| format!("place:{}", argument.place.get()))
-                ),
+                argument_places(structural_arguments),
                 format_ids(completion_receipts.iter().map(|receipt| format!(
                     "claim:{}->argument:{}",
                     receipt.claim.get(),
@@ -324,6 +300,30 @@ fn write_operation_summary(
 
 fn format_ids(values: impl IntoIterator<Item = String>) -> String {
     format!("[{}]", values.into_iter().collect::<Vec<_>>().join(","))
+}
+
+fn attachment_identity(module: &TerminalModule, attachment: Option<StructuralTypeId>) -> &str {
+    attachment
+        .and_then(|id| structural_type_identity(module, id))
+        .unwrap_or("none")
+}
+
+fn service_ceiling(module: &TerminalModule, ceiling: &[ServiceId]) -> String {
+    format_ids(ceiling.iter().map(|service| {
+        format!(
+            "service:{}:{}",
+            service.get(),
+            service_identity(module, *service).unwrap_or("unknown")
+        )
+    }))
+}
+
+fn argument_places(arguments: &[StructuralArgument]) -> String {
+    format_ids(
+        arguments
+            .iter()
+            .map(|argument| format!("place:{}", argument.place.get())),
+    )
 }
 
 fn structural_type_identity(module: &TerminalModule, id: StructuralTypeId) -> Option<&str> {
