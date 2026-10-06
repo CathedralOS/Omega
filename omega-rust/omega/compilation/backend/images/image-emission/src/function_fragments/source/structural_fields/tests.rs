@@ -462,6 +462,18 @@ fn field_types() -> [ScalarType; 3] {
     ]
 }
 
+fn scalar_field_read_source_mut(
+    graph: &mut TargetControlGraph,
+    operation: usize,
+) -> &mut StructuralArgument {
+    let TargetUnitOperation::StructuralScalarFieldRead { source, .. } =
+        &mut graph.blocks[0].operations[operation]
+    else {
+        unreachable!()
+    };
+    source
+}
+
 #[test]
 fn byte_length_membership_preserves_metadata_kind_and_exact_borrowed_subject() {
     let scalar = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
@@ -1648,11 +1660,7 @@ fn assert_reference_field_read_retains_carrier(
         let mut changed = target.clone();
         match corruption {
             "missing crossing" | "static origin" | "invented attenuation" => {
-                let TargetUnitOperation::StructuralScalarFieldRead { source, .. } =
-                    &mut changed.graph.blocks[0].operations[1]
-                else {
-                    panic!("reference read");
-                };
+                let source = scalar_field_read_source_mut(&mut changed.graph, 1);
                 if corruption == "missing crossing" {
                     source.path.clear();
                 } else if corruption == "invented attenuation" {
@@ -2039,11 +2047,7 @@ fn nested_field_membership_reconstructs_parent_local_carrier_identity() {
                     }],
                 },
             });
-        let TargetUnitOperation::StructuralScalarFieldRead { source, .. } =
-            &mut target.graph.blocks[0].operations[0]
-        else {
-            unreachable!()
-        };
+        let source = scalar_field_read_source_mut(&mut target.graph, 0);
         source
             .path
             .push(StructuralPathSegment::Field("child".into()));
@@ -2053,11 +2057,7 @@ fn nested_field_membership_reconstructs_parent_local_carrier_identity() {
             vec![StructuralPathSegment::Field("other".into())],
         ] {
             let mut changed = target.clone();
-            let TargetUnitOperation::StructuralScalarFieldRead { source, .. } =
-                &mut changed.graph.blocks[0].operations[0]
-            else {
-                unreachable!()
-            };
+            let source = scalar_field_read_source_mut(&mut changed.graph, 0);
             source.path = path;
             assert!(!retained(&function, &function.operations[0], &changed));
         }
@@ -2118,11 +2118,7 @@ fn indexed_field_membership_reconstructs_fixed_array_carrier_identity() {
             },
         ]
         .into();
-        let TargetUnitOperation::StructuralScalarFieldRead { source, .. } =
-            &mut target.graph.blocks[0].operations[0]
-        else {
-            unreachable!()
-        };
+        let source = scalar_field_read_source_mut(&mut target.graph, 0);
         source.path = vec![
             StructuralPathSegment::Field("maps".into()),
             StructuralPathSegment::FixedIndex(1),
@@ -2144,11 +2140,7 @@ fn indexed_field_membership_reconstructs_fixed_array_carrier_identity() {
             vec![StructuralPathSegment::FixedIndex(1)],
         ] {
             let mut changed = target.clone();
-            let TargetUnitOperation::StructuralScalarFieldRead { source, .. } =
-                &mut changed.graph.blocks[0].operations[0]
-            else {
-                unreachable!()
-            };
+            let source = scalar_field_read_source_mut(&mut changed.graph, 0);
             source.path = path;
             assert!(!retained(&function, &function.operations[0], &changed));
         }
@@ -2264,11 +2256,7 @@ fn owned_parameter_field_membership_keeps_exact_value_access_and_graph_replay() 
             owned_field_fixture(scalar_type, StructuralMultiplicity::Affine);
         function.structural_parameters[0].access = StructuralAccess::WriteOnlyBorrow;
         target.graph.parameters[0].access = StructuralAccess::WriteOnlyBorrow;
-        let TargetUnitOperation::StructuralScalarFieldRead { source, .. } =
-            &mut target.graph.blocks[0].operations[0]
-        else {
-            unreachable!()
-        };
+        let source = scalar_field_read_source_mut(&mut target.graph, 0);
         source.access = StructuralAccess::WriteOnlyBorrow;
         assert!(!retained(&function, &function.operations[0], &target));
     }
