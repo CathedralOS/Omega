@@ -1,7 +1,11 @@
+// A provisioned entry context starts as its all-zero image. `launch_count`
+// excludes zero, so that image is not an `Application` and provisioning must
+// refuse it before the body runs. The body only reads the field: it trusts
+// its incoming parameter like any caller-established one.
 data Application {
     launch_count: u8 [1..=255];
 }
 
 machine Application::launch(application: &mut Application) {
-    application.launch_count += 1;
+    let seen: u8 = application.launch_count;
 }

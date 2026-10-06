@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": null, "load1_end": 6.77, "load1_start": 7.18, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": null, "load1_end": 3.27, "load1_start": 3.27, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -434,10 +434,8 @@ fail/build/product_schema_missing_declaration rejected 383ms expected @5d467687f
 	build-time evaluation of `build` failed: product schema `absent` names no data declaration in this build occurrence's package
 fail/build/program_entry_binding_outside_build rejected 738ms expected @2d8ed253669f
 	root binding requires a compiler-issued &mut Build receiver
-fail/build/program_entry_receiver_not_zii rejected 60ms expected @3a2d2f7aa797+wt
-	reading `application.launch_count` crosses an open default-domain invariant window before data `Application` is established: the zeroed representation is not yet a `Application` (ch12's access gate) -- construct it on every path first (the cross-state must-analysis carries establishment)
-	data `Application`'s default domain is still FALSE at state exit: the invariant window opened on `application` must close first -- restore the `where` facts before this consumption point (ch11)
-	exact arithmetic in machine `Application::launch` state `launch` assignment may overflow `u8`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u8 in Wrapping`/`Saturating`/`Trapping`).
+fail/build/program_entry_receiver_not_zii rejected 1490ms expected @fe4d295bf70e+wt
+	entry machine `Application::launch` requests a provisioned `Application` context, but its all-zero image is not a valid value; use a free entry and construct the state explicitly
 fail/build/program_entry_returns_value rejected 1077ms expected @2d8ed253669f
 	entry machine `launch` returns a value, but `ProgramEntry` has no result
 fail/build/representation_selection_fabricated_activation rejected 1578ms expected @9daaa9bd9280+wt
