@@ -817,6 +817,10 @@ fail/drops/authored_cleanup_static_argument_rejected rejected 46ms expected @3a2
 	machine argument `Resource::drop` for `accept` does not refine `Selected`: expected 1 parameter(s), got 0
 fail/drops/drop_ensures_unlocked_predicate rejected 131ms expected @3a2d2f7aa797+wt
 	cannot prove ensures contract for exit from MutexGuard::drop at statement 0: mutex_guard.mutex.unlocked()
+fail/drops/local_cleanup_unmet_prerequisite rejected 1058ms expected @74a22511782
+	cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: missing token.ready == true required by Token::drop clause `token.ready`
+fail/drops/successor_cleanup_unmet_prerequisite rejected 1064ms expected @74a22511782
+	cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: missing token.ready == true required by Token::drop clause `token.ready`
 fail/effects/nominal_callback_console_const_reach rejected 73ms expected @2d8ed253669f
 	fixed-array length `[u8; length()]`: const evaluation of `length` failed: machine `length` is not build-time admissible: service reach [Console]; build-time evaluation requires empty service reach, no possible suspension or blocking, ordinary checked termination, no unadmitted linear runtime carrier, and admitted declaration-selection authority across the complete call closure
 fail/entry/service_foreign_domain_rejected rejected 276ms expected @2d8ed253669f
@@ -1619,8 +1623,10 @@ pass/borrows/local_reference_record_transfer_exit checked 1259ms check-target:ma
 pass/borrows/loop_descriptor_reformation_exit checked 1879ms check-target:macos_arm64 @63377f7122bb+wt
 pass/borrows/mut_loan_local_write_through_exit checked 2616ms check-target:macos_arm64 @944fb1232f17
 pass/borrows/mutable_record_loan_read_in_state_arms_exit checked 1231ms check-target:macos_arm64 @a9f373809a48+wt
-pass/borrows/nested_reference_crossings_exit checked 817ms check-target:macos_arm64 @21b65913386f+wt
-pass/borrows/nested_reference_leaf_projection_exit checked 1385ms check-target:macos_arm64 @51b4aa0b5a70+wt
+pass/borrows/nested_reference_crossings_exit rejected 2815ms check-target:macos_arm64 @74a22511782
+	terminal-artifact production failed: Lowering(InvalidTerminalModule(EdgeAffineDiscardsInvalid { edge: EdgeId(9) }))
+pass/borrows/nested_reference_leaf_projection_exit rejected 2842ms check-target:macos_arm64 @74a22511782
+	terminal-artifact production failed: Lowering(InvalidTerminalModule(EdgeAffineDiscardsInvalid { edge: EdgeId(5) }))
 pass/borrows/owned_byte_value_call_exit checked 3786ms check-target:macos_arm64 @316799d840c3+wt
 pass/borrows/owned_nested_record_copy_exit checked 6433ms check-target:macos_arm64 @cfe60a3a242
 pass/borrows/projected_indexed_member_loan checked 1332ms check-target:macos_arm64 @2d8ed253669f
@@ -1634,7 +1640,9 @@ pass/borrows/projected_reference_record_residual_exit rejected 1208ms check-targ
 pass/borrows/projected_scalar_member_loan checked 1316ms check-target:macos_arm64 @2d8ed253669f
 pass/borrows/qualified_byte_owner_exclusive_call_exit checked 7292ms check-target:macos_arm64 @cfe60a3a242
 pass/borrows/qualified_byte_owner_shared_call_exit checked 24307ms check-target:macos_arm64 @cfe60a3a242
-pass/borrows/qualified_record_view_call_exit checked 5972ms check-target:macos_arm64 @cfe60a3a242
+pass/borrows/qualified_record_view_call_exit rejected 1015ms check-target:macos_arm64 @74a22511782
+	cannot prove default-domain field requirement for call fill from Main::main::main: parameter cell.label requires [u8; N]::Utf8
+	cannot prove default-domain field requirement for call fill from Main::main::main: parameter cell.label requires [u8; N]::Utf8
 pass/borrows/returned_record_byte_field_store_exit checked 1496ms check-target:macos_arm64 @011fd400e8c1+wt
 pass/borrows/returned_record_case_field_store_exit checked 1497ms check-target:macos_arm64 @4e4bfed13aee+wt
 pass/borrows/returned_record_field_read_exit checked 935ms check-target:macos_arm64 @2816825e8941
@@ -1645,7 +1653,8 @@ pass/borrows/runtime_affine_local_scalar_exit checked 1529ms check-target:macos_
 pass/borrows/runtime_array_primitive_reference_capture_exit checked 6920ms check-target:macos_arm64 @99b41199ec38
 pass/borrows/runtime_captured_primitive_reference_exit checked 4568ms check-target:macos_arm64 @3fa817733300+wt
 pass/borrows/runtime_captured_record_nested_field_snapshot_exit checked 1563ms check-target:macos_arm64 @681c48c0cebc+wt
-pass/borrows/runtime_carrier_reference_reselection_exit checked 2946ms check-target:macos_arm64 @056c1343fac1+wt
+pass/borrows/runtime_carrier_reference_reselection_exit rejected 2165ms check-target:macos_arm64 @74a22511782
+	terminal-artifact production failed: Lowering(InvalidTerminalModule(EdgeAffineDiscardsInvalid { edge: EdgeId(6) }))
 pass/borrows/runtime_carrier_reference_store_exit checked 1441ms check-target:macos_arm64 @f41cc6938f06+wt
 pass/borrows/runtime_case_return_parameter_order_exit checked 962ms check-target:macos_arm64 @f935383e1d47+wt
 pass/borrows/runtime_constructed_reference_array_restoration_exit checked 1487ms check-target:macos_arm64 @b5d8c6882a8b+wt
@@ -1654,60 +1663,85 @@ pass/borrows/runtime_discarded_reference_release_exit checked 3696ms check-targe
 pass/borrows/runtime_forwarded_primitive_state_loan_exit checked 1312ms check-target:macos_arm64 @63377f7122bb+wt
 pass/borrows/runtime_forwarded_reference_array_bounded_read_exit checked 3216ms check-target:macos_arm64 @6ba9c43af356+wt
 pass/borrows/runtime_index_mut_loan_write_exit checked 2022ms check-target:macos_arm64 @af9f91f2fb06+wt
-pass/borrows/runtime_indexed_carrier_bounded_reference_read_exit checked 2072ms check-target:macos_arm64 @e477ee0294de+wt
-pass/borrows/runtime_indexed_carrier_reference_read_exit checked 3082ms check-target:macos_arm64 @056c1343fac1+wt
+pass/borrows/runtime_indexed_carrier_bounded_reference_read_exit rejected 2266ms check-target:macos_arm64 @74a22511782
+	terminal-artifact production failed: Lowering(InvalidTerminalModule(EdgeAffineDiscardsInvalid { edge: EdgeId(7) }))
+pass/borrows/runtime_indexed_carrier_reference_read_exit rejected 2453ms check-target:macos_arm64 @74a22511782
+	terminal-artifact production failed: Lowering(InvalidTerminalModule(EdgeAffineDiscardsInvalid { edge: EdgeId(6) }))
 pass/borrows/runtime_indexed_reference_array_bounded_read_exit checked 1731ms check-target:macos_arm64 @15c77983aab0+wt
 pass/borrows/runtime_mutable_primitive_reference_exit checked 3295ms check-target:macos_arm64 @944fb1232f17
 pass/borrows/runtime_mutable_reference_array_bounded_read_exit checked 1520ms check-target:macos_arm64 @15c77983aab0+wt
-pass/borrows/runtime_nested_carrier_bounded_reference_read_exit checked 2200ms check-target:macos_arm64 @e477ee0294de+wt
-pass/borrows/runtime_nested_carrier_reference_read_exit checked 3670ms check-target:macos_arm64 @056c1343fac1+wt
+pass/borrows/runtime_nested_carrier_bounded_reference_read_exit rejected 2313ms check-target:macos_arm64 @74a22511782
+	terminal-artifact production failed: Lowering(InvalidTerminalModule(EdgeAffineDiscardsInvalid { edge: EdgeId(13) }))
+pass/borrows/runtime_nested_carrier_reference_read_exit rejected 2300ms check-target:macos_arm64 @74a22511782
+	terminal-artifact production failed: Lowering(InvalidTerminalModule(EdgeAffineDiscardsInvalid { edge: EdgeId(12) }))
 pass/borrows/runtime_nested_reference_array_bounded_read_exit checked 1736ms check-target:macos_arm64 @15c77983aab0+wt
-pass/borrows/runtime_nested_reference_record_direct_payload_restoration_exit checked 1757ms check-target:macos_arm64 @681c48c0cebc+wt
+pass/borrows/runtime_nested_reference_record_direct_payload_restoration_exit rejected 2119ms check-target:macos_arm64 @74a22511782
+	terminal-artifact production failed: Lowering(InvalidTerminalModule(EdgeAffineDiscardsInvalid { edge: EdgeId(16) }))
 pass/borrows/runtime_qualified_byte_argument_snapshot_exit checked 2197ms check-target:macos_arm64 @cfbb6c8709b4+wt
 pass/borrows/runtime_record_byte_region_loan_exit checked 40006ms check-target:macos_arm64 @cfe60a3a242
-pass/borrows/runtime_record_primitive_reference_capture_exit checked 4511ms check-target:macos_arm64 @99b41199ec38
+pass/borrows/runtime_record_primitive_reference_capture_exit rejected 3085ms check-target:macos_arm64 @74a22511782
+	terminal-artifact production failed: Lowering(InvalidTerminalModule(EdgeAffineDiscardsInvalid { edge: EdgeId(2) }))
 pass/borrows/runtime_reference_array_pressure_exit checked 2021ms check-target:macos_arm64 @a195e6cdf066+wt
-pass/borrows/runtime_reference_local_constructor_leaf_retirement_exit checked 1686ms check-target:macos_arm64 @9660dd146223
-pass/borrows/runtime_reference_record_array_field_read_exit checked 1602ms check-target:macos_arm64 @681c48c0cebc+wt
+pass/borrows/runtime_reference_local_constructor_leaf_retirement_exit rejected 2108ms check-target:macos_arm64 @74a22511782
+	terminal-artifact production failed: Lowering(InvalidTerminalModule(EdgeAffineDiscardsInvalid { edge: EdgeId(11) }))
+pass/borrows/runtime_reference_record_array_field_read_exit rejected 2184ms check-target:macos_arm64 @74a22511782
+	terminal-artifact production failed: Lowering(InvalidTerminalModule(EdgeAffineDiscardsInvalid { edge: EdgeId(8) }))
 pass/borrows/runtime_reference_record_call_completion_exit rejected 3378ms check-target:macos_arm64 @0df0a0c4183
 	terminal-artifact production failed: Lowering(InvalidTerminalModule(UnitReturnAffineDiscardsMismatch { machine: MachineId(2), block: BlockId(20) }))
-pass/borrows/runtime_reference_record_call_payload_restoration_exit checked 1477ms check-target:macos_arm64 @b5d8c6882a8b+wt
-pass/borrows/runtime_reference_record_direct_payload_restoration_exit checked 1277ms check-target:macos_arm64 @681c48c0cebc+wt
+pass/borrows/runtime_reference_record_call_payload_restoration_exit rejected 2132ms check-target:macos_arm64 @74a22511782
+	terminal-artifact production failed: Lowering(InvalidTerminalModule(EdgeAffineDiscardsInvalid { edge: EdgeId(8) }))
+pass/borrows/runtime_reference_record_direct_payload_restoration_exit rejected 2231ms check-target:macos_arm64 @74a22511782
+	terminal-artifact production failed: Lowering(InvalidTerminalModule(EdgeAffineDiscardsInvalid { edge: EdgeId(11) }))
 pass/borrows/runtime_released_loan_with_forwarded_view_exit checked 1627ms check-target:macos_arm64 @921839635ad
 pass/borrows/runtime_returned_mutable_reference_array_bounded_read_exit checked 2600ms check-target:macos_arm64 @6ba9c43af356+wt
 pass/borrows/runtime_returned_nested_reference_array_bounded_read_exit checked 3295ms check-target:macos_arm64 @6ba9c43af356+wt
 pass/borrows/runtime_returned_reference_array_bounded_read_exit checked 2675ms check-target:macos_arm64 @6ba9c43af356+wt
 pass/borrows/runtime_returned_reference_array_restoration_exit checked 1330ms check-target:macos_arm64 @b5d8c6882a8b+wt
-pass/borrows/runtime_returned_reference_constructor_leaf_retirement_exit checked 1684ms check-target:macos_arm64 @9660dd146223
+pass/borrows/runtime_returned_reference_constructor_leaf_retirement_exit rejected 2223ms check-target:macos_arm64 @74a22511782
+	terminal-artifact production failed: Lowering(InvalidTerminalModule(EdgeAffineDiscardsInvalid { edge: EdgeId(11) }))
 pass/borrows/runtime_shared_reference_array_cohort_restoration_exit checked 1541ms check-target:macos_arm64 @b5d8c6882a8b+wt
-pass/borrows/runtime_shared_reference_record_direct_payload_restoration_exit checked 1604ms check-target:macos_arm64 @681c48c0cebc+wt
+pass/borrows/runtime_shared_reference_record_direct_payload_restoration_exit rejected 2522ms check-target:macos_arm64 @74a22511782
+	terminal-artifact production failed: Lowering(InvalidTerminalModule(EdgeAffineDiscardsInvalid { edge: EdgeId(11) }))
 pass/borrows/runtime_shared_scalar_local_capture_exit checked 3689ms check-target:macos_arm64 @3fa817733300+wt
 pass/borrows/runtime_shared_temporary_call_exit checked 1592ms check-target:macos_arm64 @ca8c127c90c5
 pass/borrows/runtime_state_boolean_reference_exit checked 3855ms check-target:macos_arm64 @3fa817733300+wt
 pass/borrows/runtime_state_fixed_element_reference_exit checked 4291ms check-target:macos_arm64 @3fa817733300+wt
-pass/borrows/runtime_stored_reference_array_constructor_transfer_exit checked 1807ms check-target:macos_arm64 @9660dd146223
-pass/borrows/runtime_stored_reference_array_leaf_retirement_exit checked 1155ms check-target:macos_arm64 @9660dd146223
+pass/borrows/runtime_stored_reference_array_constructor_transfer_exit rejected 2865ms check-target:macos_arm64 @74a22511782
+	terminal-artifact production failed: Lowering(InvalidTerminalModule(EdgeAffineDiscardsInvalid { edge: EdgeId(16) }))
+pass/borrows/runtime_stored_reference_array_leaf_retirement_exit rejected 3125ms check-target:macos_arm64 @74a22511782
+	terminal-artifact production failed: Lowering(InvalidTerminalModule(EdgeAffineDiscardsInvalid { edge: EdgeId(8) }))
 pass/borrows/runtime_stored_reference_case_residual_retirement_exit checked 1144ms check-target:macos_arm64 @9660dd146223
-pass/borrows/runtime_stored_reference_child_constructor_retirement_exit checked 1177ms check-target:macos_arm64 @9660dd146223
-pass/borrows/runtime_stored_reference_leaf_call_retirement_exit checked 1000ms check-target:macos_arm64 @9660dd146223
-pass/borrows/runtime_stored_reference_leaf_child_retirement_exit checked 1073ms check-target:macos_arm64 @9660dd146223
-pass/borrows/runtime_stored_reference_leaf_constructor_transfer_exit checked 1124ms check-target:macos_arm64 @9660dd146223
-pass/borrows/runtime_stored_reference_leaf_field_retirement_exit checked 1087ms check-target:macos_arm64 @9660dd146223
-pass/borrows/runtime_stored_reference_leaf_match_join_retirement_exit checked 1335ms check-target:macos_arm64 @9660dd146223
+pass/borrows/runtime_stored_reference_child_constructor_retirement_exit rejected 3228ms check-target:macos_arm64 @74a22511782
+	terminal-artifact production failed: Lowering(InvalidTerminalModule(EdgeAffineDiscardsInvalid { edge: EdgeId(16) }))
+pass/borrows/runtime_stored_reference_leaf_call_retirement_exit rejected 3034ms check-target:macos_arm64 @74a22511782
+	terminal-artifact production failed: Lowering(InvalidTerminalModule(EdgeAffineDiscardsInvalid { edge: EdgeId(8) }))
+pass/borrows/runtime_stored_reference_leaf_child_retirement_exit rejected 3012ms check-target:macos_arm64 @74a22511782
+	terminal-artifact production failed: Lowering(InvalidTerminalModule(EdgeAffineDiscardsInvalid { edge: EdgeId(11) }))
+pass/borrows/runtime_stored_reference_leaf_constructor_transfer_exit rejected 2684ms check-target:macos_arm64 @74a22511782
+	terminal-artifact production failed: Lowering(InvalidTerminalModule(EdgeAffineDiscardsInvalid { edge: EdgeId(15) }))
+pass/borrows/runtime_stored_reference_leaf_field_retirement_exit rejected 2708ms check-target:macos_arm64 @74a22511782
+	terminal-artifact production failed: Lowering(InvalidTerminalModule(EdgeAffineDiscardsInvalid { edge: EdgeId(11) }))
+pass/borrows/runtime_stored_reference_leaf_match_join_retirement_exit rejected 2843ms check-target:macos_arm64 @74a22511782
+	terminal-artifact production failed: Lowering(InvalidTerminalModule(EdgeAffineDiscardsInvalid { edge: EdgeId(20) }))
 pass/borrows/runtime_stored_reference_leaf_residual_retirement_exit checked 1426ms check-target:macos_arm64 @9660dd146223
-pass/borrows/runtime_stored_reference_shared_cohort_retirement_exit checked 1138ms check-target:macos_arm64 @9660dd146223
+pass/borrows/runtime_stored_reference_shared_cohort_retirement_exit rejected 2797ms check-target:macos_arm64 @74a22511782
+	terminal-artifact production failed: Lowering(InvalidTerminalModule(EdgeAffineDiscardsInvalid { edge: EdgeId(15) }))
 pass/borrows/runtime_whole_referent_case_store_exit checked 975ms check-target:macos_arm64 @6ec9ff444c14+wt
 pass/borrows/runtime_whole_referent_payload_case_store_exit checked 1005ms check-target:macos_arm64 @6ec9ff444c14+wt
 pass/borrows/runtime_whole_referent_record_store_exit checked 1034ms check-target:macos_arm64 @6ec9ff444c14+wt
 pass/borrows/runtime_whole_referent_scalar_store_exit checked 980ms check-target:macos_arm64 @6ec9ff444c14+wt
 pass/borrows/same_initializer_disjoint_source_move checked 346ms @e477ee0294de+wt
 pass/borrows/shared_recast_loan_member_read checked 1532ms check-target:macos_arm64 @a3bac00e54bb+wt
-pass/borrows/static_carrier_bounded_reference_read_exit checked 3009ms check-target:macos_arm64 @e477ee0294de+wt
-pass/borrows/static_carrier_reference_read_exit checked 5159ms check-target:macos_arm64 @056c1343fac1+wt
+pass/borrows/static_carrier_bounded_reference_read_exit rejected 2878ms check-target:macos_arm64 @74a22511782
+	terminal-artifact production failed: Lowering(InvalidTerminalModule(EdgeAffineDiscardsInvalid { edge: EdgeId(7) }))
+pass/borrows/static_carrier_reference_read_exit rejected 2842ms check-target:macos_arm64 @74a22511782
+	terminal-artifact production failed: Lowering(InvalidTerminalModule(EdgeAffineDiscardsInvalid { edge: EdgeId(6) }))
 pass/borrows/static_projected_local_reference_exit checked 4618ms check-target:macos_arm64 @cfe60a3a242
 pass/borrows/static_record_reference_return_exit checked 1105ms check-target:macos_arm64 @2816825e8941
-pass/borrows/stored_reference_projection_exit checked 836ms check-target:macos_arm64 @efc0f5f0f7a9+wt
-pass/borrows/transition_shared_borrow_result checked 906ms check-target:macos_arm64 @2067346ef4fa+wt
+pass/borrows/stored_reference_projection_exit rejected 2918ms check-target:macos_arm64 @74a22511782
+	terminal-artifact production failed: Lowering(InvalidTerminalModule(EdgeAffineDiscardsInvalid { edge: EdgeId(6) }))
+pass/borrows/transition_shared_borrow_result rejected 3278ms check-target:macos_arm64 @74a22511782
+	native artifact target lowering failed: UnsupportedControlFlow { machine: MachineId(1), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }
 pass/borrows/view_field_record_exit_disposal checked 320ms @ca8c127c90c5
 pass/borrows/writeonly_record_field_store checked 1245ms check-target:macos_arm64 @ca8c127c90c5
 pass/boundary/later_state_requirement_scalar_result_exit checked 2933ms check-target:macos_arm64 @44d31b02f28e+wt
@@ -1836,12 +1870,15 @@ pass/calls/runtime_guard_call_vs_call_exit checked 1576ms check-target:macos_arm
 pass/calls/runtime_guarded_boundary_tail_call_exit checked 4424ms check-target:macos_arm64 @cfe60a3a242
 pass/calls/runtime_guarded_effectful_transition_argument_exit checked 9012ms check-target:macos_arm64 @2d8ed253669f
 pass/calls/runtime_guarded_reference_return_before_crash_exit checked 565ms check-target:macos_arm64 @73ef9378f1a6
-pass/calls/runtime_guarded_reference_return_crash checked 518ms check-target:macos_arm64 @73ef9378f1a6
+pass/calls/runtime_guarded_reference_return_crash rejected 3246ms check-target:macos_arm64 @74a22511782
+	native artifact target lowering failed: UnsupportedControlFlow { machine: MachineId(1), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }
 pass/calls/runtime_guarded_terminal_array_operands_exit checked 562ms check-target:macos_arm64 @db3378f05a303f15e6de9c2597a21c18e3d9fa78
 pass/calls/runtime_guarded_terminal_guard_order_exit checked 535ms check-target:macos_arm64 @9384bb69f1d480980ed1e7a4d01c0f9327e873ad
-pass/calls/runtime_guarded_terminal_mutable_reference_result_exit checked 953ms check-target:macos_arm64 @23ad5028e896
+pass/calls/runtime_guarded_terminal_mutable_reference_result_exit rejected 3848ms check-target:macos_arm64 @74a22511782
+	native artifact target lowering failed: UnsupportedControlFlow { machine: MachineId(1), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }
 pass/calls/runtime_guarded_terminal_operand_order_exit checked 463ms check-target:macos_arm64 @e2a12bf7c056aa30aa020384afcb304e80173f68
-pass/calls/runtime_guarded_terminal_reference_result_exit checked 2478ms check-target:macos_arm64 @3214ae815320
+pass/calls/runtime_guarded_terminal_reference_result_exit rejected 3794ms check-target:macos_arm64 @74a22511782
+	native artifact target lowering failed: UnsupportedControlFlow { machine: MachineId(1), site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it }
 pass/calls/runtime_guarded_terminal_reference_write_exit checked 766ms check-target:macos_arm64 @23ad5028e896
 pass/calls/runtime_guarded_terminal_structural_result_exit checked 928ms check-target:macos_arm64 @4f20c0c110be
 pass/calls/runtime_indexed_scalar_calls_exit checked 4149ms check-target:macos_arm64 @c773c4ad3c3
@@ -1971,7 +2008,8 @@ pass/collections/runtime_case_array_element_write_exit checked 2347ms check-targ
 pass/collections/runtime_computed_index_direct_exit checked 1505ms check-target:macos_arm64 @2d8ed253669f
 pass/collections/runtime_constant_expression_index_stores_exit checked 830ms check-target:macos_arm64 @c864ec75728c+wt
 pass/collections/runtime_declared_range_index_write_exit checked 1216ms check-target:macos_arm64 @2d8ed253669f
-pass/collections/runtime_double_indexed_rmw_exit checked 980ms check-target:macos_arm64 @adebde5085aa+wt
+pass/collections/runtime_double_indexed_rmw_exit rejected 3208ms check-target:macos_arm64 @74a22511782
+	terminal-artifact production failed: Lowering(InvalidTerminalModule(InvalidStructuralSuccessorArgument { edge: EdgeId(5), place: PlaceId(10) }))
 pass/collections/runtime_dutch_flag_partition_exit checked 3118ms check-target:macos_arm64 @2d8ed253669f
 pass/collections/runtime_fixed_array_projected_write_exit checked 15110ms check-target:macos_arm64 @3ff24ec6504a+wt
 pass/collections/runtime_fixed_vec_round_trip_exit checked 1036ms check-target:macos_arm64 @dab35460b4c5+wt
@@ -2070,13 +2108,17 @@ pass/control_flow/runtime_entry_receiver_loan_with_byte_fields_exit checked 656m
 pass/control_flow/runtime_exclusive_state_loan_shared_handoff_exit checked 868ms check-target:macos_arm64 @5ce122a775ca+wt
 pass/control_flow/runtime_indexed_case_dispatch_exit checked 1341ms check-target:macos_arm64 @2d8ed253669f
 pass/control_flow/runtime_integer_literal_dispatch_exit checked 1215ms check-target:macos_arm64 @2d8ed253669f
-pass/control_flow/runtime_later_state_shared_array_loan checked 1845ms check-target:macos_arm64 @cfe60a3a242
+pass/control_flow/runtime_later_state_shared_array_loan rejected 3659ms check-target:macos_arm64 @74a22511782
+	terminal-artifact production failed: Lowering(InvalidTerminalModule(InvalidStructuralSuccessorArgument { edge: EdgeId(2), place: PlaceId(3) }))
 pass/control_flow/runtime_loop_patterns_exit checked 1480ms check-target:macos_arm64 @2d8ed253669f
 pass/control_flow/runtime_namespace_local_state_loan checked 834ms check-target:macos_arm64 @2ff81f36a14
-pass/control_flow/runtime_nonentry_state_local_loan_forwarded_exit checked 1271ms check-target:macos_arm64 @59d57ace39f0+wt
-pass/control_flow/runtime_nonentry_state_local_loan_held_at_return_exit checked 1176ms check-target:macos_arm64 @59d57ace39f0+wt
+pass/control_flow/runtime_nonentry_state_local_loan_forwarded_exit rejected 2515ms check-target:macos_arm64 @74a22511782
+	terminal-artifact production failed: Lowering(InvalidTerminalModule(InvalidStructuralSuccessorArgument { edge: EdgeId(4), place: PlaceId(3) }))
+pass/control_flow/runtime_nonentry_state_local_loan_held_at_return_exit rejected 2705ms check-target:macos_arm64 @74a22511782
+	terminal-artifact production failed: Lowering(InvalidTerminalModule(InvalidStructuralSuccessorArgument { edge: EdgeId(4), place: PlaceId(3) }))
 pass/control_flow/runtime_nonentry_state_local_loans_shared_successor_exit checked 725ms check-target:macos_arm64 @c260ca98bc09+wt
-pass/control_flow/runtime_nonentry_state_local_record_loan_exit checked 1073ms check-target:macos_arm64 @59d57ace39f0+wt
+pass/control_flow/runtime_nonentry_state_local_record_loan_exit rejected 2645ms check-target:macos_arm64 @74a22511782
+	terminal-artifact production failed: Lowering(InvalidTerminalModule(InvalidStructuralSuccessorArgument { edge: EdgeId(4), place: PlaceId(2) }))
 pass/control_flow/runtime_nonplace_record_pattern_single_evaluation_exit checked 1704ms check-target:macos_arm64 @ca8c127c90c5
 pass/control_flow/runtime_string_literal_dispatch_exit checked 1339ms check-target:macos_arm64 @4e4bfed13aee+wt
 pass/control_flow/runtime_sum_tuple_matrix_exhaustive_exit checked 1457ms check-target:macos_arm64 @84c87cb730d8
@@ -2200,6 +2242,9 @@ pass/drops/core_drop_explicit_consume checked 261ms check-target:macos_arm64 @0a
 pass/drops/core_drop_owner_hook checked 251ms check-target:macos_arm64 @0aa983f6af47+wt
 pass/drops/core_drop_owner_hook_body checked 240ms check-target:macos_arm64 @0aa983f6af47+wt
 pass/drops/erased_record_initializer_exit checked 862ms check-target:macos_arm64 @302faee005ee
+pass/drops/runtime_local_nominal_cleanup_exit checked 3992ms check-target:macos_arm64 @74a22511782
+pass/drops/runtime_local_nominal_return_exit checked 3810ms check-target:macos_arm64 @74a22511782
+pass/drops/runtime_nominal_successor_argument_order_exit checked 3687ms check-target:macos_arm64 @74a22511782
 pass/drops/transfer_cleanup_into_state checked 259ms @0aa983f6af47+wt
 pass/dungeon/runtime_ordered_room_dispatch_exit checked 1484ms check-target:macos_arm64 @2d8ed253669f
 pass/dungeon/runtime_threaded_mut_arg_interrupt_soak_exit checked 1332ms check-target:macos_arm64 @2d8ed253669f
@@ -2218,7 +2263,8 @@ pass/expressions/arithmetic_domain_requires_proven_exact_exit checked 1261ms che
 pass/expressions/arithmetic_domain_saturating_signed_exit checked 1229ms check-target:macos_arm64 @2d8ed253669f
 pass/expressions/arithmetic_domain_trapping_overflow checked 922ms check-target:macos_arm64 @2d8ed253669f
 pass/expressions/arithmetic_domain_wrapping_exit checked 943ms check-target:macos_arm64 @2d8ed253669f
-pass/expressions/borrow_carrying_data_field_exit checked 805ms check-target:macos_arm64 @efc0f5f0f7a9+wt
+pass/expressions/borrow_carrying_data_field_exit rejected 2464ms check-target:macos_arm64 @74a22511782
+	terminal-artifact production failed: Lowering(InvalidTerminalModule(EdgeAffineDiscardsInvalid { edge: EdgeId(4) }))
 pass/expressions/dead_trapping_let_traps checked 739ms check-target:macos_arm64 @4e4bfed13aee+wt
 pass/expressions/declared_operator_match_result checked 310ms check-target:macos_arm64 @2d8ed253669f
 pass/expressions/explicit_scalar_tag_erasure checked 292ms @2d8ed253669f
@@ -2644,7 +2690,8 @@ pass/ranges/subject_guard_compound_index_successor checked 126ms @34bff3b8a5fe
 pass/ranges/subject_unsigned_computed_index_lower_bound checked 145ms @92c4e14e5396+wt
 pass/ranges/sum_payload_range_arith_narrowed_exit checked 618ms check-target:macos_arm64 @ca8c127c90c5
 pass/recast/nested_operand_view_compile checked 373ms @a3bac00e54bb+wt
-pass/recast/runtime_aggregate_slice_representation_recast_exit checked 5206ms check-target:macos_arm64 @9765a474ac87+wt
+pass/recast/runtime_aggregate_slice_representation_recast_exit rejected 2308ms check-target:macos_arm64 @74a22511782
+	terminal-artifact production failed: Lowering(InvalidTerminalModule(OwnedStructuralFrontierJoinMismatch(BlockId(7))))
 pass/recast/runtime_bool_representation_recast_exit checked 1642ms check-target:macos_arm64 @a3bac00e54bb+wt
 pass/recast/runtime_field_precondition_capture_exit checked 10152ms check-target:macos_arm64 @cfe60a3a242
 pass/recast/runtime_float_range_representation_recast_exit checked 4057ms check-target:macos_arm64 @a3bac00e54bb+wt
@@ -2653,7 +2700,8 @@ pass/recast/runtime_inline_shared_slice_record_read_exit checked 2196ms check-ta
 pass/recast/runtime_inline_slice_view_mutable_write_exit checked 1981ms check-target:macos_arm64 @3b624377ec31
 pass/recast/runtime_integer_bit_view_recast_exit checked 1553ms check-target:macos_arm64 @a3bac00e54bb+wt
 pass/recast/runtime_interior_slice_congruent_offset_exit checked 911ms check-target:macos_arm64 @57fc72937714+wt
-pass/recast/runtime_interior_slice_view_mutable_write_exit checked 1199ms check-target:macos_arm64 @c851c47b7cd1
+pass/recast/runtime_interior_slice_view_mutable_write_exit rejected 2301ms check-target:macos_arm64 @74a22511782
+	terminal-artifact production failed: Lowering(InvalidTerminalModule(InvalidNominalAffineCleanup { machine: MachineId(1), block: BlockId(10) }))
 pass/recast/runtime_mutable_equivalent_domain_recast_exit checked 1046ms check-target:macos_arm64 @a3bac00e54bb+wt
 pass/recast/runtime_mutable_equivalent_range_recast_exit checked 1194ms check-target:macos_arm64 @a3bac00e54bb+wt
 pass/recast/runtime_mutable_equivalent_record_recast_exit checked 5307ms check-target:macos_arm64 @a3bac00e54bb+wt
