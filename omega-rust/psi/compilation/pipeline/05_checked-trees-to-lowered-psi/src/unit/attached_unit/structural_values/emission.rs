@@ -1169,6 +1169,7 @@ impl Emission<'_, '_, '_> {
                 )
                 .with_structural_parameters(&self.evaluation.structural_parameters)
                 .with_structural_locals(&self.evaluation.structural_locals)
+                .with_structural_observations(self.structural_types)
                 .shared_structural_argument(
                     &source,
                     authored.0,
@@ -1366,6 +1367,7 @@ impl Emission<'_, '_, '_> {
                     )
                     .with_structural_parameters(&self.evaluation.structural_parameters)
                     .with_structural_locals(&self.evaluation.structural_locals)
+                    .with_structural_observations(self.structural_types)
                     .owned_argument(&argument)
                     .map(|binding| binding.place);
                 }
@@ -1801,7 +1803,8 @@ impl Emission<'_, '_, '_> {
                 self.values.iter().map(|value| value.scalar_type),
             )
             .with_structural_parameters(&self.evaluation.structural_parameters)
-            .with_structural_locals(&self.evaluation.structural_locals);
+            .with_structural_locals(&self.evaluation.structural_locals)
+            .with_structural_observations(self.structural_types);
             let whole = storage
                 .requires_establishment()
                 .then(|| allocate_dense(self.next_place).map(place_id))
@@ -1888,7 +1891,8 @@ impl Emission<'_, '_, '_> {
             self.values.iter().map(|value| value.scalar_type),
         )
         .with_structural_parameters(&self.evaluation.structural_parameters)
-        .with_structural_locals(&self.evaluation.structural_locals);
+        .with_structural_locals(&self.evaluation.structural_locals)
+        .with_structural_observations(self.structural_types);
         let (machine, authored) = crate::declarations::state_declaration(self.checked, self.state)?;
         let parameters = self.checked.state_parameters(authored);
         let argument = match loan {

@@ -105,55 +105,57 @@ impl RangeStorage {
         declarations: &[terminal_psi::StructuralTypeDeclaration],
     ) -> Result<(ViewRangeSource, Option<CollectionView>), LoweringError> {
         let (machine, authored) = crate::declarations::state_declaration(checked, state)?;
-        let (place, establishment) = if let Some(element) = self.collection_element {
-            let destination = destination.ok_or(LoweringError::Unsupported(
-                "collection range has no reserved whole-view descriptor",
-            ))?;
-            let argument = checked_trees::CheckedUnitStructuralArgumentPlan {
-                source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
-                    symbol: self.symbol,
-                },
-                path: self.collection.clone(),
-                access: self.access,
-                type_identity: String::new(),
-            };
-            let source = bindings.borrowed_structural_place(
-                &argument,
-                machine,
-                checked.state_parameters(authored),
-            )?;
-            let root = bindings
-                .structural_place_type(source)
-                .ok_or(LoweringError::Unsupported(
-                    "collection view lost its storage type",
+        let (place, establishment) =
+            if let Some(element) = self.collection_element {
+                let destination = destination.ok_or(LoweringError::Unsupported(
+                    "collection range has no reserved whole-view descriptor",
                 ))?;
-            (
+                let argument = checked_trees::CheckedUnitStructuralArgumentPlan {
+                    source:
+                        checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
+                            symbol: self.symbol,
+                        },
+                    path: self.collection.clone(),
+                    access: self.access,
+                    type_identity: String::new(),
+                };
+                let source = bindings.borrowed_structural_home(
+                    &argument,
+                    machine,
+                    checked.state_parameters(authored),
+                )?;
+                let root = bindings.structural_argument_type(&source).ok_or(
+                    LoweringError::Unsupported("collection view lost its storage type"),
+                )?;
+                (
                 destination,
                 Some(CollectionView {
-                    source,
+                    source: source.place,
                     access:
                         crate::expression_preparation::bindings::structural_paths::terminal_access(
                             self.access,
                         ),
-                    path: collection_path(&self.collection, bindings, root, declarations)?,
+                    path: source.path.into_iter().map(LoweredElementPathSegment::Static)
+                        .chain(collection_path(&self.collection, bindings, root, declarations)?)
+                        .collect(),
                     element,
                     place: destination,
                     structural_type: self.structural_type,
                 }),
             )
-        } else {
-            let (_, place) = bindings.borrowed_view_source(
-                self.root,
-                checked.state_parameters(authored),
-                checked,
-                self.structural_type,
-                self.family == ViewFamily::Bytes,
-                crate::expression_preparation::bindings::structural_paths::terminal_access(
-                    self.access,
-                ),
-            )?;
-            (place, None)
-        };
+            } else {
+                let (_, place) = bindings.borrowed_view_source(
+                    self.root,
+                    checked.state_parameters(authored),
+                    checked,
+                    self.structural_type,
+                    self.family == ViewFamily::Bytes,
+                    crate::expression_preparation::bindings::structural_paths::terminal_access(
+                        self.access,
+                    ),
+                )?;
+                (place, None)
+            };
         Ok((
             ViewRangeSource {
                 place,

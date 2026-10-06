@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 14, "jobs": null, "load1_end": 7.95, "load1_start": 7.95, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "2", "load1_end": 8.33, "load1_start": 7.84, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -2025,6 +2025,7 @@ pass/control_flow/owned_array_local_state_transfer_exit checked 1326ms check-tar
 pass/control_flow/owned_array_state_transfer_exit checked 1257ms check-target:macos_arm64 @cf6e9ae2565b
 pass/control_flow/projected_loan_state_argument_exit checked 2026ms check-target:macos_arm64 @af9f91f2fb06+wt
 pass/control_flow/record_pattern_arm_rename_guard_exit checked 1484ms check-target:macos_arm64 @2d8ed253669f
+pass/control_flow/runtime_boolean_equality_copied_record_instances_exit checked 2994ms check-target:macos_arm64 @36ad3370c97a
 pass/control_flow/runtime_branch_parameter_cleanup_exit checked 603ms check-target:macos_arm64 @70f761d06258
 pass/control_flow/runtime_branching_helper_string checked 635ms check-target:macos_arm64 @58e4f6f8667
 pass/control_flow/runtime_captured_local_remutated_field_exit checked 1582ms check-target:macos_arm64 @2d8ed253669f
@@ -2573,8 +2574,7 @@ pass/providers/checked_boundary_requirement_dispatch_exit checked 2064ms check-t
 pass/providers/checked_fixed_operator_dispatch_exit checked 1244ms check-target:macos_arm64 @2d8ed253669f
 pass/providers/checked_fixed_operator_physical_custody checked 910ms check-target:macos_arm64 @2d8ed253669f
 pass/providers/component_owner_provider_override_compile checked 626ms check-target:macos_arm64 @2d8ed253669f
-pass/providers/direct_boundary_array_snapshot_exit rejected 2484ms check-target:macos_arm64 @8735cafb4cf
-	terminal-artifact production failed: Lowering(Unsupported("copied record lost its established local"))
+pass/providers/direct_boundary_array_snapshot_exit checked 2938ms check-target:macos_arm64 @36ad3370c97a
 pass/providers/external_boundary_requirement_via_exit checked 8941ms check-target:macos_arm64 @5ce9755c44a5+wt
 pass/providers/external_leaf_dllimport_compile checked 808ms check-target:macos_arm64 @2d8ed253669f
 pass/providers/foreign_multiregister_result_exit checked 5866ms check-target:macos_arm64 @cfe60a3a242
@@ -2701,6 +2701,7 @@ pass/slices/runtime_subslice_dynamic_index_exit checked 1154ms check-target:maco
 pass/slices/runtime_subslice_len_exit checked 841ms check-target:macos_arm64 @ca8c127c90c5
 pass/slices/runtime_subslice_range_pointer_exit checked 1379ms check-target:macos_arm64 @2d8ed253669f
 pass/slices/runtime_unit_state_subslice_and_read_call_operands_exit checked 1261ms check-target:macos_arm64 @8a91f26a0b28+wt
+pass/slices/runtime_view_index_copied_argument_exit checked 1705ms check-target:macos_arm64 @36ad3370c97a
 pass/slices/signed_index_and_range_lower_bounds checked 351ms @2d8ed253669f
 pass/slices/state_record_array_mutable_view_exit checked 1276ms check-target:macos_arm64 @4b881daeea00+wt
 pass/slices/state_record_array_shared_child_view_exit checked 542ms check-target:macos_arm64 @4b881daeea00+wt

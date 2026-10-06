@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 14, "jobs": null, "load1_end": 8.11, "load1_start": 7.95, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "2", "load1_end": 6.68, "load1_start": 5.63, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/runtime_exact_dispatch_divisor_exit built 1233ms exit:70 interpreter-exit:70 interpreter:agrees @01974e342562+wt
 pass/arithmetic/runtime_exact_projection_sibling_exit built 1644ms exit:70 stdout:match interpreter-exit:70 interpreter-stdout:match interpreter:agrees @ffe8db2ea9e9
 pass/arithmetic/runtime_exact_signed_divisor_exclusions_exit built 1455ms exit:70 interpreter-exit:70 interpreter:agrees @d9720a4fa49b+wt
@@ -141,6 +141,7 @@ pass/comptime/provider_boundary_range_endpoint_exit built 2853ms exit:70 interpr
 pass/contracts/named_tail_return_contract built 1356ms exit:70 interpreter-exit:70 interpreter:agrees @43a77116e58+wt
 pass/control_flow/case_arm_scalar_payload_arguments_exit built 2830ms exit:70 interpreter-exit:70 interpreter:agrees @6a3a2f5cba58
 pass/control_flow/conditional_unit_completion_exit built 4490ms exit:70 interpreter-exit:70 interpreter:agrees @e477ee0294de+wt
+pass/control_flow/runtime_boolean_equality_copied_record_instances_exit built 4999ms exit:70 interpreter-exit:70 interpreter:agrees @36ad3370c97a
 pass/control_flow/runtime_branch_parameter_cleanup_exit built 813ms exit:0 interpreter-exit:0 interpreter:agrees @70f761d06258
 pass/control_flow/runtime_computed_case_subject_single_evaluation_exit built 1701ms exit:70 interpreter-exit:70 interpreter:agrees @ffe8db2ea9e9
 pass/control_flow/runtime_later_state_shared_array_loan built 857ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @615e23f184a6+wt
@@ -181,7 +182,7 @@ pass/operators/runtime_constructed_operand_result_exit built 12708ms exit:0 inte
 pass/proofs/runtime_byte_predicate_state_contract_exit built 1191ms exit:70 interpreter-exit:70 interpreter:agrees @767b982de12c+wt
 pass/providers/checked_boundary_operator_const_application_alternate_exit built 2780ms exit:70 interpreter-exit:70 interpreter:agrees @c8e8e86a6e1b
 pass/providers/checked_boundary_requirement_dispatch_exit built 2255ms exit:70 interpreter-exit:70 interpreter:agrees @3416dca58e06+wt
-pass/providers/direct_boundary_array_snapshot_exit built 2032ms exit:70 interpreter-exit:70 interpreter:agrees @3416dca58e06+wt
+pass/providers/direct_boundary_array_snapshot_exit built 4962ms exit:70 interpreter-exit:70 interpreter:agrees @36ad3370c97a
 pass/providers/runtime_boundary_array_construction_exit built 4358ms exit:70 interpreter-exit:70 interpreter:agrees @b6846d69ce88+wt
 pass/providers/selected_const_provider_call_identity_exit built 2803ms exit:70 interpreter-exit:70 interpreter:agrees @c8e8e86a6e1b
 pass/recast/runtime_aggregate_slice_representation_recast_exit built 5319ms exit:70 interpreter-exit:70 interpreter:agrees @9765a474ac87+wt
@@ -213,6 +214,7 @@ pass/slices/runtime_mutable_byte_view_loop_write_exit built 7114ms exit:70 inter
 pass/slices/runtime_shared_subslice_return_exit built 1916ms exit:70 interpreter-exit:70 interpreter:agrees @45782ade0cba+wt
 pass/slices/runtime_shared_whole_view_return_exit built 6232ms exit:70 interpreter-exit:70 interpreter:agrees @3fa817733300+wt
 pass/slices/runtime_subslice_len_exit built 4666ms exit:70 interpreter-exit:70 interpreter:agrees @e477ee0294de+wt
+pass/slices/runtime_view_index_copied_argument_exit built 3704ms exit:70 interpreter-exit:70 interpreter:agrees @36ad3370c97a
 pass/storage/runtime_local_slice_forward_exit built 6357ms exit:70 interpreter-exit:70 interpreter:agrees @3fa817733300+wt
 pass/storage/runtime_parameter_slice_forward_exit built 6379ms exit:70 interpreter-exit:70 interpreter:agrees @3fa817733300+wt
 pass/storage/runtime_primitive_local_literal_composition_exit built 5214ms exit:70 interpreter-exit:70 interpreter:agrees @e477ee0294de+wt

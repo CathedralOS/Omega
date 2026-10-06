@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 14, "jobs": null, "load1_end": 7.95, "load1_start": 7.95, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "2", "load1_end": 9.79, "load1_start": 9.42, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 189ms
 pass/arithmetic/anonymous_rational_integer_landing checked 186ms
 pass/arithmetic/bounded_assignment checked 197ms
@@ -428,6 +428,7 @@ pass/control_flow/owned_array_local_state_transfer_exit built 1266ms exit:70 @cf
 pass/control_flow/owned_array_state_transfer_exit built 1366ms exit:70 @cf6e9ae2565b+wt
 pass/control_flow/projected_loan_state_argument_exit built 2223ms exit:11 @af9f91f2fb06+wt
 pass/control_flow/record_pattern_arm_rename_guard_exit built 601ms exit:70
+pass/control_flow/runtime_boolean_equality_copied_record_instances_exit built 2111ms exit:70 @36ad3370c97a
 pass/control_flow/runtime_branching_helper_string built 4587ms @4ffed225fc45+wt
 pass/control_flow/runtime_captured_local_remutated_field_exit built 677ms exit:70
 pass/control_flow/runtime_compare_pair_dispatch_exit built 609ms exit:70
@@ -917,8 +918,7 @@ pass/providers/checked_boundary_requirement_dispatch_exit built 573ms exit:70
 pass/providers/checked_fixed_operator_dispatch_exit built 620ms exit:70
 pass/providers/checked_fixed_operator_physical_custody built 1393ms exit:70 @bed5f45e9185+wt
 pass/providers/component_owner_provider_override_compile built 300ms
-pass/providers/direct_boundary_array_snapshot_exit rejected 1284ms @bf30e2cd0c13+wt
-	terminal-artifact production failed: Lowering(Unsupported("copied record lost its established local"))
+pass/providers/direct_boundary_array_snapshot_exit built 2031ms exit:70 @36ad3370c97a
 pass/providers/external_boundary_requirement_via_exit built 2953ms exit:21 @fb2178def922
 pass/providers/external_leaf_dllimport_compile built 2074ms @fb2178def922
 pass/providers/foreign_multiregister_result_exit built 1320ms exit:70 @7b8965f77903+wt
@@ -1035,6 +1035,7 @@ pass/slices/runtime_subslice_dynamic_index_exit built 1182ms exit:207 @8a91f26a0
 pass/slices/runtime_subslice_len_exit built 1323ms exit:70 @48008365d839
 pass/slices/runtime_subslice_range_pointer_exit built 1595ms exit:205 @fb2178def922
 pass/slices/runtime_unit_state_subslice_and_read_call_operands_exit built 1292ms exit:42 @8a91f26a0b28+wt
+pass/slices/runtime_view_index_copied_argument_exit built 1295ms exit:70 @36ad3370c97a
 pass/slices/signed_index_and_range_lower_bounds checked 205ms
 pass/slices/state_record_array_mutable_view_exit built 1255ms exit:70 @4b881daeea00+wt
 pass/slices/state_record_array_shared_child_view_exit built 708ms exit:70 @4b881daeea00+wt

@@ -369,16 +369,24 @@ impl Preparation<'_> {
             };
         }
         if let CheckedStructuralValueKind::CopiedStructuralPlace { source, .. } = &node.kind {
-            // A whole read of an earlier copyable local snapshots its current
-            // contents: its owned home binds into a fresh unrestricted home,
-            // the same copy an owned unrestricted transfer makes above.
-            let source = self.bindings.copied_local_home(source)?;
-            return self.bind_place(
-                value,
+            let (machine, state) =
+                crate::declarations::state_declaration(self.checked, self.state)?;
+            let source = self.bindings.copied_place_source(
                 source,
-                declaration.id,
-                StructuralMultiplicity::Unrestricted,
-            );
+                machine,
+                self.checked.state_parameters(state),
+                self.types,
+            )?;
+            let place = self.reserved.place(value)?;
+            self.steps.push(Step::Establish {
+                effect: LoweredScalarEffect::CopyStructuralValue {
+                    source,
+                    place,
+                    structural_type: declaration.id,
+                },
+                prefix: self.prefix.clone(),
+            });
+            return Ok(place);
         }
         if matches!(
             &node.kind,

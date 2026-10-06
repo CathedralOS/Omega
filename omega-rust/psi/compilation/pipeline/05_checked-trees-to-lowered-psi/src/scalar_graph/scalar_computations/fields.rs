@@ -1413,7 +1413,15 @@ pub(super) fn completed_observation(
     source: semantic_vocabulary::PlaceId,
 ) -> Result<LoweredDirectExpression, LoweringError> {
     let binding = field_binding(fields, subject, field, primitive)?;
-    observe(binding, bindings, source)
+    observe(
+        binding,
+        bindings,
+        terminal_psi::StructuralArgument {
+            place: source,
+            path: Vec::new(),
+            access: terminal_psi::StructuralAccess::SharedBorrow,
+        },
+    )
 }
 
 fn field_binding<'a>(
@@ -1441,7 +1449,7 @@ fn observation_source(
     machine: &checked_trees::machine::Machine,
     parameters: &[checked_trees::signature::StateParameter],
     subject: &CheckedUnitStructuralArgumentPlan,
-) -> Result<semantic_vocabulary::PlaceId, LoweringError> {
+) -> Result<terminal_psi::StructuralArgument, LoweringError> {
     // The ordinary shared-argument join already resolves an exact live local
     // without transferring it. Field replay admits only StructuralLocal sources;
     // use that same current storage mapping instead of a parallel read map. A
@@ -1449,58 +1457,74 @@ fn observation_source(
     // — so the read resolves the captured parameter's place directly and lets
     // the emitted canonical path name the referee below it.
     Ok(match binding.loan_source {
-        Some(LoanedSource::Parameter(parameter_index)) => {
-            bindings
-                .borrowed_structural_argument(
-                    &CheckedUnitStructuralArgumentPlan {
-                        source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
-                            parameter_index,
-                        },
-                        path: Vec::new(),
-                        type_identity: subject.type_identity.clone(),
-                        access: subject.access,
-                    },
-                    machine,
-                    parameters,
-                )?
-                .place
-        }
-        Some(LoanedSource::Local(symbol)) => bindings
-            .borrowed_structural_argument(
-                &CheckedUnitStructuralArgumentPlan {
-                    source:
-                        checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
-                            symbol,
-                        },
-                    path: Vec::new(),
-                    type_identity: subject.type_identity.clone(),
-                    access: subject.access,
+        Some(LoanedSource::Parameter(parameter_index)) => bindings.borrowed_structural_home(
+            &CheckedUnitStructuralArgumentPlan {
+                source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                    parameter_index,
                 },
-                machine,
-                parameters,
-            )?
-            .place,
-        None => bindings.shared_structural_place(subject, machine, parameters)?,
+                path: Vec::new(),
+                type_identity: subject.type_identity.clone(),
+                access: subject.access,
+            },
+            machine,
+            parameters,
+        )?,
+        Some(LoanedSource::Local(symbol)) => bindings.borrowed_structural_home(
+            &CheckedUnitStructuralArgumentPlan {
+                source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
+                    symbol,
+                },
+                path: Vec::new(),
+                type_identity: subject.type_identity.clone(),
+                access: subject.access,
+            },
+            machine,
+            parameters,
+        )?,
+        None => bindings.borrowed_structural_home(subject, machine, parameters)?,
     })
 }
 
 fn observe(
     binding: &Binding,
     bindings: &storage::ScalarBindings,
-    source: semantic_vocabulary::PlaceId,
+    home: terminal_psi::StructuralArgument,
 ) -> Result<LoweredDirectExpression, LoweringError> {
+    let source = home.place;
     let scalar_type = binding.scalar_type;
     let primitive_path = if binding.loan_source.is_none() && binding.receiver.is_none() {
         bindings.structural_observation_path(
-            source,
+            &home,
             binding.observation_root_type,
             &binding.primitive_path,
         )?
     } else {
-        binding.primitive_path.clone()
+        let mut path = home.path.clone();
+        path.extend_from_slice(&binding.primitive_path);
+        path
     };
+    let mut carrier_path = home.path.clone();
+    carrier_path.extend_from_slice(&binding.carrier_path);
     let crosses_reference = primitive_path.contains(&terminal_psi::StructuralPathSegment::Referent);
-    if !crosses_reference
+    let canonical_prefix = if home.path.is_empty() {
+        Some(Vec::new())
+    } else {
+        bindings.structural_place_type(source).and_then(|root| {
+            terminal_semantics::canonical_static_projection(
+                bindings.structural_declarations().iter(),
+                root,
+                &home.path,
+            )
+            .map(|(path, _)| path)
+        })
+    };
+    let canonical_path = canonical_prefix.map(|mut path| {
+        path.extend_from_slice(&binding.path);
+        path
+    });
+
+    if home.path.is_empty()
+        && !crosses_reference
         && let [semantic_vocabulary::CanonicalStructuralPathSegment::Case(case)] =
             binding.path.as_slice()
         && let Some(payload) =
@@ -1526,7 +1550,7 @@ fn observe(
             }
             return byte_overlay_read(
                 source,
-                &binding.carrier_path,
+                &carrier_path,
                 index,
                 overlay.offset,
                 overlay.stored_type,
@@ -1537,7 +1561,7 @@ fn observe(
         // selector here would silently retarget the reference after a write.
         let scalar_type = binding.scalar_type;
         return Ok(if binding.view_container {
-            if !binding.carrier_path.is_empty() || binding.bounded_leaf {
+            if !carrier_path.is_empty() || binding.bounded_leaf {
                 return unsupported(
                     "record loan's runtime element read needs a scalar leaf at the view root",
                 );
@@ -1552,7 +1576,7 @@ fn observe(
         } else {
             LoweredDirectExpression::IndexedPrimitiveRead {
                 source,
-                path: binding.carrier_path.clone(),
+                path: carrier_path.clone(),
                 index: Box::new(index),
                 inner_indexes: Vec::new(),
                 element_path: binding
@@ -1568,7 +1592,7 @@ fn observe(
     }
     if let Some(overlay) = &binding.byte_overlay {
         let Some((terminal_psi::StructuralPathSegment::FixedIndex(index), prefix)) =
-            binding.carrier_path.split_last()
+            carrier_path.split_last()
         else {
             return unsupported("record byte overlay has no captured byte coordinate");
         };
@@ -1586,21 +1610,27 @@ fn observe(
     }
     let leaf_type = binding.leaf_scalar_type;
     let leaf = match leaf_type {
-        _ if crosses_reference => LoweredDirectExpression::PrimitiveRead {
-            source: PrimitiveReadSource::Place(source),
-            path: primitive_path.clone(),
-            scalar_type: leaf_type,
-        },
+        _ if crosses_reference || canonical_path.is_none() => {
+            LoweredDirectExpression::PrimitiveRead {
+                source: PrimitiveReadSource::Place(source),
+                path: primitive_path.clone(),
+                scalar_type: leaf_type,
+            }
+        }
         ScalarType::Boolean => LoweredDirectExpression::Boolean {
             expression: Box::new(LoweredBooleanReturnExpression::StructuralField {
                 source: source.into(),
-                path: binding.path.clone(),
+                path: canonical_path.clone().ok_or(LoweringError::Unsupported(
+                    "record field observation lost its canonical source path",
+                ))?,
                 field: binding.field,
             }),
         },
         ScalarType::Integer(_) => LoweredDirectExpression::StructuralField {
             source: source.into(),
-            path: binding.path.clone(),
+            path: canonical_path.clone().ok_or(LoweringError::Unsupported(
+                "record field observation lost its canonical source path",
+            ))?,
             field: binding.field,
             scalar_type: leaf_type,
         },

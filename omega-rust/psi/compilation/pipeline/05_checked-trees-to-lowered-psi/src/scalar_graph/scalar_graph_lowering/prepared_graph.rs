@@ -246,7 +246,7 @@ pub(crate) fn scalar_state_emission_order(
 pub(crate) enum LoweredScalarEffect {
     /// Snapshot one unrestricted whole operand at its authored evaluation point.
     CopyStructuralValue {
-        source: PlaceId,
+        source: crate::expression_preparation::bindings::PreparedStructuralCopy,
         place: PlaceId,
         structural_type: StructuralTypeId,
     },

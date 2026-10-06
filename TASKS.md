@@ -2386,31 +2386,30 @@ crash and native exit behavior.
 
 
 - **CONSTRUCTED-ARGUMENT-SCHEDULE-REGRESSED-NINE.** (new-scope)
-  Seven customers still need the shared constructed-argument schedule completed:
+  Six customers still need the shared constructed-argument schedule completed:
   `pass/borrows/{branch_selected_record_composed_receiver_exit,
   owned_byte_value_call_exit, projected_reference_record_argument_exit,
-  projected_reference_record_residual_exit}`,
+  projected_reference_record_residual_exit}` and
   `pass/capabilities/{sysv_small_aggregate_import_compile,
-  win64_pointer_length_vs_descriptor_compile}`, and
-  `pass/providers/direct_boundary_array_snapshot_exit`.
+  win64_pointer_length_vs_descriptor_compile}`. They lose a Unit plan at
+  structural operand preparation, result custody, or boundary argument
+  preparation. Finish the missing source-to-consumer joins without adding
+  constructor-kind or caller-shape admission gates.
 
-  The first six lose a Unit plan at structural operand preparation, result
-  custody, or boundary argument preparation. The snapshot customer reaches
-  lowering but reports `copied record lost its established local`: the scalar
-  copy consumer still assumes a local-only whole-value source, although the
-  checked source can identify a formal or a projected field. Resolve its exact
-  readable home and path, then copy at the authored operand evaluation point;
-  later arguments may mutate the backing and must not change the snapshot.
-
-  The obsolete constructor-kind gate is removed. Exact checked roots now carry
-  scalar arrays through structural operand validation, restoring
-  `pass/calls/runtime_nested_case_argument_exit` and
-  `pass/providers/runtime_boundary_array_construction_exit` to native and
-  interpreted exit 70 on macOS ARM64. Preserve their constructor-domain and
-  live-loan rejection controls. Acceptance: the seven remaining fixtures reach
-  `checked` and their authored native outcomes; remove each recovered
-  `regressed-from:` token through an observed corpus result, never a re-pin of
-  the refusal.
+  Exact checked roots carry scalar arrays through structural operand validation.
+  Readable aggregate copies resolve their actual formal/local storage and typed
+  projection, then snapshot at the authored operand point before later effects.
+  Preserve native/interpreted exit 70 for
+  `pass/calls/runtime_nested_case_argument_exit`,
+  `pass/providers/runtime_boundary_array_construction_exit`, and
+  `pass/providers/direct_boundary_array_snapshot_exit`, plus the repeated
+  continuation control
+  `pass/control_flow/runtime_boolean_equality_copied_record_instances_exit` and
+  `pass/slices/runtime_view_index_copied_argument_exit`.
+  Constructor-domain, affine-transfer and live-loan rejection controls remain
+  required. Acceptance: the six remaining fixtures reach `checked` and their
+  authored native outcomes; remove each recovered `regressed-from:` token
+  through an observed corpus result, never a re-pin of the refusal.
 
 - **TWINS-GOLDEN-RECORDS-A-LOAD-ARTIFACT.** (split-of:OPERATOR-BOUNDARY-CALLS)
   `pass/float/build_runtime_semantics_twins_{x86_baseline,windows_x64}` now

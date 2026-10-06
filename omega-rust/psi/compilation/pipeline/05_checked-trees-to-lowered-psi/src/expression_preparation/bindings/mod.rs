@@ -12,8 +12,10 @@ pub(crate) mod primitive_reads;
 pub(crate) use primitive_reads::primitive_storage_read;
 pub(crate) mod place_observations;
 pub(crate) mod structural_cases;
+mod structural_copy;
 pub(crate) mod structural_fields;
 pub(crate) mod structural_paths;
+pub(crate) use structural_copy::{PreparedCopyPathSegment, PreparedStructuralCopy};
 pub(crate) mod view_locals;
 pub(crate) use structural_fields::{StructuralFieldBindings, StructuralScalarFieldBinding};
 
@@ -55,6 +57,27 @@ fn valid_structural_root(root: facts::PlaceRoot) -> bool {
         facts::PlaceRoot::Expression(expression) => expression.is_valid(),
         _ => false,
     }
+}
+
+fn published_structural_type(
+    parameters: &[(u32, StructuralParameterDeclaration)],
+    locals: &[StructuralLocalBinding],
+    place: PlaceId,
+) -> Option<StructuralTypeId> {
+    let mut types = parameters
+        .iter()
+        .filter(|(_, source)| source.place == place)
+        .map(|(_, source)| source.structural_type)
+        .chain(
+            locals
+                .iter()
+                .filter(|local| local.argument.place == place && local.argument.path.is_empty())
+                .map(|local| local.structural_type),
+        );
+    let structural_type = types.next()?;
+    types
+        .all(|candidate| candidate == structural_type)
+        .then_some(structural_type)
 }
 
 #[derive(Clone)]
@@ -158,31 +181,14 @@ impl ScalarBindings {
         Ok(())
     }
 
-    /// The place half of `shared_structural_argument`: the custody checks and
-    /// source-to-place resolution, without the path lower. Callers whose
-    /// checked path carries a `RuntimeIndex` lower it through
-    /// `structural_paths::lower_argument_path` instead of `lower_structural_path`.
-    pub(crate) fn shared_structural_place(
-        &self,
-        argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
-        machine: &checked_trees::machine::Machine,
-        parameters: &[checked_trees::signature::StateParameter],
-    ) -> Result<PlaceId, LoweringError> {
-        if argument.access != checked_trees::CheckedStructuralAccess::SharedBorrow {
-            return unsupported("computed shared argument changes its access");
-        }
-        self.borrowed_structural_place(argument, machine, parameters)
-    }
-
-    /// Resolve an established home under the requested loan. Source replay owns
-    /// the authored permission; this join independently bounds it by the access
-    /// retained on the emitted storage itself.
-    pub(crate) fn borrowed_structural_place(
+    /// Resolve the source home before lowering the argument's relative path.
+    /// A projected alias retains its physical root and its established prefix.
+    pub(crate) fn borrowed_structural_home(
         &self,
         argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
         _machine: &checked_trees::machine::Machine,
         parameters: &[checked_trees::signature::StateParameter],
-    ) -> Result<PlaceId, LoweringError> {
+    ) -> Result<StructuralArgument, LoweringError> {
         if !matches!(
             argument.access,
             checked_trees::CheckedStructuralAccess::SharedBorrow
@@ -235,13 +241,12 @@ impl ScalarBindings {
                         if !valid_structural_root(root)
                             || locals.next().is_some()
                             || !supports_borrow(source.argument.access)
-                            || !source.argument.path.is_empty()
-                            || self.structural_place_type(source.argument.place)
+                            || self.structural_argument_type(&source.argument)
                                 != Some(source.structural_type)
                         {
                             return unsupported("computed borrow changes its local custody");
                         }
-                        source.argument.place
+                        source.argument.clone()
                     }
                     None => {
                         let facts::PlaceRoot::Symbol(symbol) = root else {
@@ -263,7 +268,11 @@ impl ScalarBindings {
                         if !supports_parameter(source) {
                             return unsupported("computed borrow widens its parameter custody");
                         }
-                        source.place
+                        StructuralArgument {
+                            place: source.place,
+                            path: Vec::new(),
+                            access: source.access,
+                        }
                     }
                 }
             }
@@ -293,11 +302,18 @@ impl ScalarBindings {
                 if !supports_parameter(source) {
                     return unsupported("computed borrow widens its parameter custody");
                 }
-                source.place
+                StructuralArgument {
+                    place: source.place,
+                    path: Vec::new(),
+                    access: source.access,
+                }
             }
             _ => return unsupported("computed borrow has no established source"),
         };
-        Ok(place)
+        Ok(StructuralArgument {
+            access: structural_paths::terminal_access(argument.access),
+            ..place
+        })
     }
 
     /// Join a source observation's declared root to the storage actually
@@ -305,17 +321,19 @@ impl ScalarBindings {
     /// reference instead requires an explicit pointer crossing.
     pub(crate) fn structural_observation_path(
         &self,
-        place: PlaceId,
+        source: &StructuralArgument,
         observed_root: StructuralTypeId,
         path: &[terminal_psi::StructuralPathSegment],
     ) -> Result<Vec<terminal_psi::StructuralPathSegment>, LoweringError> {
         let root = self
-            .structural_place_type(place)
+            .structural_argument_type(source)
             .ok_or(LoweringError::Unsupported(
                 "structural observation has no established root type",
             ))?;
+        let mut selected = source.path.clone();
         if root == observed_root {
-            return Ok(path.to_vec());
+            selected.extend_from_slice(path);
+            return Ok(selected);
         }
         let declaration = self
             .structural_fields
@@ -329,28 +347,35 @@ impl ScalarBindings {
         {
             return unsupported("structural observation changes its established root type");
         }
-        let mut selected = vec![terminal_psi::StructuralPathSegment::Referent];
+        selected.push(terminal_psi::StructuralPathSegment::Referent);
         selected.extend_from_slice(path);
         Ok(selected)
     }
 
+    pub(crate) fn structural_declarations(&self) -> &[StructuralTypeDeclaration] {
+        self.structural_fields.declarations()
+    }
+
     /// Resolve the exact published carrier at a live source place.
     pub(crate) fn structural_place_type(&self, place: PlaceId) -> Option<StructuralTypeId> {
-        let mut types = self
-            .structural_parameters
-            .iter()
-            .filter(|(_, source)| source.place == place)
-            .map(|(_, source)| source.structural_type)
-            .chain(
-                self.structural_locals
-                    .iter()
-                    .filter(|local| local.argument.place == place)
-                    .map(|local| local.structural_type),
-            );
-        let structural_type = types.next()?;
-        types
-            .all(|candidate| candidate == structural_type)
-            .then_some(structural_type)
+        published_structural_type(&self.structural_parameters, &self.structural_locals, place)
+    }
+
+    /// The selected alias type is distinct from the physical root declaration.
+    pub(crate) fn structural_argument_type(
+        &self,
+        source: &StructuralArgument,
+    ) -> Option<StructuralTypeId> {
+        let root = self.structural_place_type(source.place)?;
+        if source.path.is_empty() {
+            return Some(root);
+        }
+        terminal_semantics::runtime_structural_path_tip(
+            self.structural_fields.declarations().iter(),
+            root,
+            &source.path,
+        )
+        .map(|declaration| declaration.id)
     }
 
     /// Borrow the established referent, not a copy of its scalar field values.
@@ -385,98 +410,32 @@ impl ScalarBindings {
             }
             _ => return unsupported("computed argument requires readable borrowed access"),
         };
-        Ok(StructuralArgument {
-            place: self.borrowed_structural_place(argument, machine, parameters)?,
-            path: structural_paths::lower_structural_path(&argument.path)?,
-            access,
-        })
+        let mut source = self.borrowed_structural_home(argument, machine, parameters)?;
+        source
+            .path
+            .extend(structural_paths::lower_structural_path(&argument.path)?);
+        source.access = access;
+        Ok(source)
     }
 
-    /// Rejoin an authored formal symbol only after receiver retention has
-    /// settled the structural roster. Runtime-selected element observations
-    /// require a retained parameter; a local cannot supply that binding.
-    pub(crate) fn case_parameter_argument(
-        &self,
-        argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
-        machine: &checked_trees::machine::Machine,
-        parameters: &[checked_trees::signature::StateParameter],
-    ) -> Result<Option<checked_trees::CheckedUnitStructuralArgumentPlan>, LoweringError> {
-        match argument.source {
-            checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { .. } => {
-                return Ok(Some(argument.clone()));
-            }
-            checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } => {
-                if !symbol.is_valid() {
-                    return unsupported("case observation has an invalid source symbol");
-                }
-                let mut formals = parameters
-                    .iter()
-                    .filter(|parameter| parameter.symbol == symbol);
-                if formals.next().is_none() {
-                    return Ok(None);
-                }
-                if formals.next().is_some()
-                    || self
-                        .structural_locals
-                        .iter()
-                        .any(|local| local.root == facts::PlaceRoot::Symbol(symbol))
-                {
-                    return unsupported("case observation has ambiguous formal custody");
-                }
-            }
-            checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
-                ..
-            } => {
-                return Ok(None);
-            }
-            _ => return unsupported("case observation has no established source"),
-        }
-        let source = self.shared_structural_place(argument, machine, parameters)?;
-        let mut matching = self
-            .structural_parameters
-            .iter()
-            .enumerate()
-            .filter(|(_, (_, parameter))| parameter.place == source);
-        let (position, _) = matching.next().ok_or(LoweringError::Unsupported(
-            "case observation lost its retained formal",
-        ))?;
-        if matching.next().is_some() {
-            return unsupported("case observation has ambiguous retained formals");
-        }
-        let mut resolved = argument.clone();
-        resolved.source = checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
-            parameter_index: u32::try_from(position).map_err(|_| {
-                LoweringError::Unsupported("case observation formal index exceeds its namespace")
-            })?,
-        };
-        Ok(Some(resolved))
-    }
-
-    /// A case observation of a runtime-selected element of a parameter's
-    /// fixed array or element view. The checked path
+    /// Observe a runtime-selected element through its resolved source home.
+    /// The checked path
     /// carries exactly one `RuntimeIndex`; its selector is read first
     /// and becomes the observation's index, and the static halves on either
-    /// side resolve against the parameter's declarations. Static paths use
+    /// side resolve against the selected type's declarations. Static paths use
     /// the same declaration walk without evaluating a selector.
-    pub(crate) fn parameter_element_case_observation(
+    pub(crate) fn element_case_observation(
         &self,
         argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
+        source: &StructuralArgument,
         case: &str,
         scalar_types: &[semantic_vocabulary::QualifiedScalarType],
     ) -> Result<LoweredBooleanReturnExpression, LoweringError> {
-        let checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } =
-            argument.source
-        else {
-            return unsupported("case observation requires an exact parameter source");
-        };
-        let (parameter_position, _) = self
-            .structural_parameters
-            .get(usize::try_from(parameter_index).map_err(|_| {
-                LoweringError::Unsupported("case observation parameter index exceeds the host type")
-            })?)
-            .ok_or(LoweringError::Unsupported(
-                "case observation lost its parameter source",
-            ))?;
+        let structural_type =
+            self.structural_argument_type(source)
+                .ok_or(LoweringError::Unsupported(
+                    "case observation lost its established source type",
+                ))?;
         let mut runtime = argument.path.iter().enumerate().filter(|(_, segment)| {
             matches!(
                 segment,
@@ -509,10 +468,11 @@ impl ScalarBindings {
                 })
                 .collect::<Result<Vec<_>, _>>()
         };
-        let (source, path, element_path, case, observes_element_view_length) =
+        let (place, path, element_path, case, observes_element_view_length) =
             structural_cases::resolve_runtime_element(
-                &self.structural_cases,
-                *parameter_position,
+                self.structural_fields.declarations(),
+                structural_type,
+                source.place,
                 &static_path(&argument.path[..selector_position])?,
                 &static_path(&argument.path[selector_position + 1..])?,
                 case,
@@ -557,10 +517,15 @@ impl ScalarBindings {
         ) {
             return unsupported("runtime case observation selector is not an integer read");
         }
+        if observes_element_view_length && !source.path.is_empty() {
+            return unsupported("nested element view requires its established descriptor home");
+        }
+        let mut selected = source.path.clone();
+        selected.extend(path);
         Ok(LoweredBooleanReturnExpression::IndexedCaseMembership {
-            source,
+            source: place,
             observes_element_view_length,
-            path,
+            path: selected,
             index: Box::new(index),
             element_path,
             case,
@@ -951,37 +916,6 @@ impl ScalarBindings {
             )?,
             access,
         })
-    }
-
-    /// The owned home a whole copyable local's snapshot reads. The copy plan
-    /// is a shared read of the complete local; binding this home into a fresh
-    /// unrestricted home copies its current contents and leaves it live. A
-    /// projected owned alias answers at its root's place under the alias
-    /// path, which the copy reads exactly as it reads a whole home.
-    pub(crate) fn copied_local_home(
-        &self,
-        argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
-    ) -> Result<StructuralArgument, LoweringError> {
-        let root = argument
-            .structural_storage_root()
-            .ok_or(LoweringError::Unsupported(
-                "copied record requires established storage",
-            ))?;
-        let mut locals = self.structural_locals.iter().filter(|row| row.root == root);
-        let StructuralLocalBinding {
-            argument: source, ..
-        } = locals.next().ok_or(LoweringError::Unsupported(
-            "copied record lost its established local",
-        ))?;
-        if !valid_structural_root(root)
-            || locals.next().is_some()
-            || !argument.path.is_empty()
-            || argument.access != checked_trees::CheckedStructuralAccess::SharedBorrow
-            || source.access != StructuralAccess::Owned
-        {
-            return unsupported("copied record changes its source custody");
-        }
-        Ok(source.clone())
     }
 
     /// Argument preparation may add temporary results after the caller's

@@ -435,18 +435,21 @@ impl Expansion<'_> {
                             "computed copy has no reserved operand place",
                         ))?;
                     let actual = &mut structural_arguments[structural_ordinal];
-                    if !actual.path.is_empty() || !actual.selector_positions.is_empty() {
-                        return unsupported("computed whole copy has a projected source");
-                    }
                     // A value argument snapshots readable contents now, before
                     // evaluating the next argument. Passing its original place
                     // would defer this read until the call, after later effects.
                     operands.push(Operand::Effect(LoweredScalarEffect::CopyStructuralValue {
-                        source: actual.place,
+                        source: site.bindings.structural_copy_source(
+                            actual.place,
+                            &actual.path,
+                            self.structural_types,
+                        )?,
                         place: slot.place,
                         structural_type: slot.structural_type,
                     }));
                     actual.place = slot.place;
+                    actual.path.clear();
+                    actual.selector_positions.clear();
                 }
                 for segment in &structural_arguments[structural_ordinal].path {
                     if let crate::expression_preparation::bindings::structural_paths::PreparedStructuralPathSegment::RuntimeIndex(

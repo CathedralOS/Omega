@@ -325,6 +325,11 @@ impl Expansion<'_> {
             CheckedScalarComputationStructuralArgument::Place(argument) => {
                 let (machine, state) =
                     crate::declarations::state_declaration(self.checked, site.state)?;
+                let source = site.bindings.borrowed_structural_home(
+                    argument,
+                    machine,
+                    self.checked.state_parameters(state),
+                )?;
                 if argument.path.iter().any(|segment| {
                     matches!(
                         segment,
@@ -334,18 +339,10 @@ impl Expansion<'_> {
                     // A runtime-selected element observes "some element": its
                     // selector is read before the tag and the observation owns
                     // the element's bound.
-                    let parameter_argument = site.bindings.case_parameter_argument(
-                        argument,
-                        machine,
-                        self.checked.state_parameters(state),
-                    )?;
                     let identity = structural_case_identity(self.checked, observed_case)?;
-                    let expression = site.bindings.parameter_element_case_observation(
-                        parameter_argument
-                            .as_ref()
-                            .ok_or(LoweringError::Unsupported(
-                                "runtime case observation requires an exact parameter source",
-                            ))?,
+                    let expression = site.bindings.element_case_observation(
+                        argument,
+                        &source,
                         &identity,
                         input_types,
                     )?;
@@ -358,12 +355,7 @@ impl Expansion<'_> {
                         }),
                     ));
                 }
-                let source = site.bindings.shared_structural_place(
-                    argument,
-                    machine,
-                    self.checked.state_parameters(state),
-                )?;
-                let structural_type = site.bindings.structural_place_type(source).ok_or(
+                let structural_type = site.bindings.structural_argument_type(&source).ok_or(
                     LoweringError::Unsupported("case observation lost its established carrier"),
                 )?;
                 let identity = structural_case_identity(self.checked, observed_case)?;
@@ -374,6 +366,8 @@ impl Expansion<'_> {
                         &argument.path,
                         &identity,
                     )?;
+                let mut selected = source.path;
+                selected.extend(path);
                 return Ok(self.binding(
                     input_types,
                     input_types.len(),
@@ -381,8 +375,8 @@ impl Expansion<'_> {
                     LoweredScalarBinding::Expression(LoweredDirectExpression::Boolean {
                         expression: Box::new(
                             LoweredBooleanReturnExpression::StructuralCaseMembership {
-                                source,
-                                path,
+                                source: source.place,
+                                path: selected,
                                 case,
                             },
                         ),

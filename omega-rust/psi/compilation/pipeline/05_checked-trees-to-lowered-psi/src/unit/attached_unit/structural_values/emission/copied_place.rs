@@ -19,7 +19,8 @@ impl Emission<'_, '_, '_> {
         let authored = crate::declarations::state_declaration(self.checked, self.state)?;
         let bindings = ScalarBindings::new(self.values.iter().map(|value| value.scalar_type))
             .with_structural_parameters(&self.evaluation.structural_parameters)
-            .with_structural_locals(&self.evaluation.structural_locals);
+            .with_structural_locals(&self.evaluation.structural_locals)
+            .with_structural_observations(self.structural_types);
         let parameters = self.checked.state_parameters(authored.1);
         if !source
             .path
@@ -28,7 +29,7 @@ impl Emission<'_, '_, '_> {
         {
             return bindings.shared_structural_argument(source, authored.0, parameters);
         }
-        let place = bindings.shared_structural_place(source, authored.0, parameters)?;
+        let home = bindings.borrowed_structural_home(source, authored.0, parameters)?;
         let fields = StructuralScalarFieldBinding::collect(
             &self.evaluation.structural_parameters,
             self.structural_types,
@@ -41,14 +42,18 @@ impl Emission<'_, '_, '_> {
             self.operations,
         )?
         .into_iter();
-        Ok(StructuralArgument {
-            place,
-            path: crate::expression_preparation::bindings::structural_paths::lower_argument_path(
+        let mut path = home.path;
+        path.extend(
+            crate::expression_preparation::bindings::structural_paths::lower_argument_path(
                 &source.path,
                 Some(self.values.as_slice()),
                 &mut selector_values,
                 Some(&mut *self.calls),
             )?,
+        );
+        Ok(StructuralArgument {
+            place: home.place,
+            path,
             access: StructuralAccess::SharedBorrow,
         })
     }

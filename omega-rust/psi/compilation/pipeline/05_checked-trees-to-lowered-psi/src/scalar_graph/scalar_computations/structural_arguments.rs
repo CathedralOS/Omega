@@ -132,16 +132,19 @@ pub(super) fn lower(
                         access: StructuralAccess::SharedBorrow,
                     });
                 }
-                let place = bindings.borrowed_structural_place(argument, caller_machine, caller_parameters)?;
-                let root_type = bindings.structural_place_type(place).ok_or(
+                let source = bindings.borrowed_structural_home(argument, caller_machine, caller_parameters)?;
+                let root_type = bindings.structural_argument_type(&source).ok_or(
                     LoweringError::Unsupported("structural argument lost its exact published carrier"),
                 )?;
-                let path = crate::expression_preparation::bindings::structural_paths::prepare_argument_path(
+                let mut path = source.path.into_iter().map(
+                    crate::expression_preparation::bindings::structural_paths::PreparedStructuralPathSegment::Static,
+                ).collect::<Vec<_>>();
+                path.extend(crate::expression_preparation::bindings::structural_paths::prepare_argument_path(
                     &argument.path, root_type, structural_types,
-                )?;
+                )?);
                 return Ok(PreparedStructuralArgument {
                     selector_positions: Vec::new(),
-                    place,
+                    place: source.place,
                     path,
                     access: match argument.access {
                         checked_trees::CheckedStructuralAccess::SharedBorrow => {

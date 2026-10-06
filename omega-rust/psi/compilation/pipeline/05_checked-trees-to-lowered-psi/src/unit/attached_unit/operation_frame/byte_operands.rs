@@ -134,13 +134,13 @@ impl OperationFrame<'_, '_> {
             return Ok(destination);
         }
         let (machine, state) = crate::declarations::state_declaration(self.checked, self.state)?;
-        let place = bindings.shared_structural_place(
+        let home = bindings.borrowed_structural_home(
             source,
             machine,
             self.checked.state_parameters(state),
         )?;
-        let place = self.evaluation.current_structural_place(place);
-        if source.path.is_empty() {
+        let place = self.evaluation.current_structural_place(home.place);
+        if source.path.is_empty() && home.path.is_empty() {
             return Ok(place);
         }
         let fields = crate::expression_preparation::bindings::StructuralScalarFieldBinding::collect(
@@ -155,12 +155,15 @@ impl OperationFrame<'_, '_> {
             self.operations,
         )?
         .into_iter();
-        let path = crate::expression_preparation::bindings::structural_paths::lower_argument_path(
-            &source.path,
-            Some(self.values.as_slice()),
-            &mut selectors,
-            Some(&mut *self.calls),
-        )?;
+        let mut path = home.path;
+        path.extend(
+            crate::expression_preparation::bindings::structural_paths::lower_argument_path(
+                &source.path,
+                Some(self.values.as_slice()),
+                &mut selectors,
+                Some(&mut *self.calls),
+            )?,
+        );
         let destination = place_id(allocate_dense(self.next_place)?);
         let producer = self.operations.allocate();
         self.operations.push(Operation {

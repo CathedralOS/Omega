@@ -113,8 +113,9 @@ pub(crate) fn resolve(
 /// view's dominating live-length observation. A nested view needs a separately
 /// established descriptor root before its length can be observed.
 pub(crate) fn resolve_runtime_element(
-    bindings: &[StructuralCaseBinding],
-    parameter_position: u32,
+    declarations: &[StructuralTypeDeclaration],
+    structural_type: StructuralTypeId,
+    source: PlaceId,
     prefix: &[checked_trees::CheckedStructuralPredicatePathSegment],
     element_path: &[checked_trees::CheckedStructuralPredicatePathSegment],
     identity: &str,
@@ -128,29 +129,18 @@ pub(crate) fn resolve_runtime_element(
     ),
     LoweringError,
 > {
-    let mut matching = bindings
-        .iter()
-        .filter(|binding| binding.source_position == parameter_position);
-    let binding = matching.next().ok_or(LoweringError::Unsupported(
-        "case observation has no exact readable source and case binding",
-    ))?;
-    if matching.next().is_some() {
-        return unsupported("case observation has ambiguous source bindings");
-    }
-    let (array, prefix) = walk(&binding.declarations, binding.structural_type, prefix)?;
-    let (element, observes_element_view_length) = match &declaration(&binding.declarations, array)?
-        .shape
-    {
+    let (array, prefix) = walk(declarations, structural_type, prefix)?;
+    let (element, observes_element_view_length) = match &declaration(declarations, array)?.shape {
         StructuralTypeShape::FixedArray { element, .. } => (*element, false),
         StructuralTypeShape::ElementView { element } if prefix.is_empty() => (*element, true),
         _ => {
             return unsupported("runtime case observation requires an array or whole element view");
         }
     };
-    let (sum, element_path) = walk(&binding.declarations, element, element_path)?;
-    let case = selected_case(&binding.declarations, sum, identity)?;
+    let (sum, element_path) = walk(declarations, element, element_path)?;
+    let case = selected_case(declarations, sum, identity)?;
     Ok((
-        binding.source,
+        source,
         prefix,
         element_path,
         case,
