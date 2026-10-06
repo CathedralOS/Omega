@@ -286,7 +286,8 @@ pass/calls/runtime_nested_receiver_guard_exit built 1030ms exit:42 @ac942fdbba24
 pass/calls/runtime_nested_value_call_guard_exit built 4993ms exit:70
 pass/calls/runtime_option_value_call_exit built 950ms exit:70
 pass/calls/runtime_owned_case_temporaries_exhaustive_dispatch_exit built 741ms exit:70
-pass/calls/runtime_owned_parameter_primitive_borrow_exit built 637ms exit:0 @51b4aa0b5a70+wt
+pass/calls/runtime_owned_parameter_primitive_borrow_exit rejected 1147ms regressed-from:built+exit:0 @2d0afe1bdfe6+wt
+	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "main", reason: "machine has no source-independent checked scalar control plan (terminator)", omission: Some("`main` has no admitted body (local construction stopped at state graph: result custody accounting, state 0)") })
 pass/calls/runtime_param_receiver_second_instance_exit built 1803ms exit:70 @fb2178def922
 pass/calls/runtime_qualified_tail_recursion_exit built 983ms exit:70
 pass/calls/runtime_reference_returned_slice_element_write_exit built 1055ms exit:181 interpreter-exit:181 interpreter:agrees @1ee38ae14295+wt
@@ -431,7 +432,8 @@ pass/contracts/ensures_wrapping_field_arithmetic_exit built 1363ms exit:70 @a5f4
 pass/contracts/proof_fact_indexed_domain_application checked 176ms
 pass/contracts/requires_narrow_ceiling_unproven built 2806ms exit:70 @527c7c316c6f+wt
 pass/contracts/requires_u8_ceiling_below_carrier built 2894ms exit:70 @527c7c316c6f+wt
-pass/control_flow/affine_call_result_state_transfer_exit built 820ms exit:70 @486f93bb3d39+wt
+pass/control_flow/affine_call_result_state_transfer_exit rejected 1081ms regressed-from:built+exit:70 @2d0afe1bdfe6+wt
+	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "main", reason: "attached Unit closure is missing a checked transitive machine plan", omission: Some("`main` has no admitted body (local construction stopped at state graph: result custody accounting, state 0)") })
 pass/control_flow/affine_record_state_cycle_exit built 849ms exit:70 @7f2bd2604102+wt
 pass/control_flow/arm_pattern_rest_optout_exit built 723ms exit:70 @48008365d839
 pass/control_flow/borrowed_state_argument built 3255ms exit:5 @527c7c316c6f+wt
@@ -648,7 +650,8 @@ pass/expressions/owned_match_record_values checked 169ms @1fa864024c44+wt
 pass/expressions/owned_match_values checked 193ms
 pass/expressions/qualified_call_result_argument checked 204ms
 pass/expressions/runtime_flat_boolean_logic_exit built 786ms exit:70
-pass/expressions/runtime_float_record_field_reads_exit built 5802ms exit:70 @48008365d839
+pass/expressions/runtime_float_record_field_reads_exit rejected 1653ms regressed-from:built+exit:70 @2d0afe1bdfe6+wt
+	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: result custody accounting` (state 0)
 pass/expressions/runtime_indexed_float_record_fields_exit built 5290ms exit:70 @48008365d839
 pass/expressions/runtime_numeric_cast_exit built 2496ms exit:70 @1c13b12180bf+wt
 pass/expressions/runtime_widened_comparison_exit built 853ms exit:70
@@ -1245,7 +1248,8 @@ pass/text/runtime_local_struct_string_field_concat_exit rejected 762ms @5676dbe7
 pass/text/runtime_mixed_byte_field_equality_exit built 2672ms exit:70 @11b293f8af86+wt
 pass/text/runtime_mutable_string_parameter_concat_write_line rejected 819ms @48008365d839
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: jump successor: parameter transfer` (state 0, statement 2)
-pass/text/runtime_number_to_decimal_exit built 2188ms exit:70 @9e503d2a760d+wt
+pass/text/runtime_number_to_decimal_exit rejected 499ms regressed-from:built+exit:70 @2d0afe1bdfe6+wt
+	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: call: flow call` (state 7, statement 1)
 pass/text/runtime_owned_string_byte_view_exit built 3811ms exit:70 @4ffed225fc45+wt
 pass/text/runtime_param_domain_forward_exit built 789ms exit:70 @7f80f93fd214+wt
 pass/text/runtime_param_domain_literal_read_exit built 864ms exit:70 @7f80f93fd214+wt
