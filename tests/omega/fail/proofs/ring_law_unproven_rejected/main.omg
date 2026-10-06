@@ -2,13 +2,13 @@
 use omega::language::std::console;
 use omega::language::core::binding;
 data Peano { case Zero; case Succ(pred: Peano); }
-trait RingOps2 {
-    machine add(a: Self, b: Self) -> Self;
-    machine add_assoc(a: Self, b: Self, c: Self)
+trait RingOps2<T> {
+    machine add(a: T, b: T) -> T;
+    machine add_assoc(a: T, b: T, c: T)
     ensures add(add(a, b), c) == add(a, add(b, c));
 }
 machine plus(a: Peano, b: Peano) -> Peano
-satisfies RingOps2::add
+satisfies RingOps2<Peano>::add
 terminates by a;
 {
     transition a {
@@ -17,7 +17,7 @@ terminates by a;
     }
 }
 machine lawless(a: Peano, b: Peano, c: Peano)
-satisfies RingOps2::add_assoc
+satisfies RingOps2<Peano>::add_assoc
 {
 }
 data Main { console: Binding<Console>; }

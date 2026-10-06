@@ -1,8 +1,9 @@
 // The core algebraic-structure surface (rearrange settle 2026-07-18).
 //
-// `CommutativeSemiring` is the conformance a carrier declares to EARN the
-// proof engine's ring canonicalization (rearrange-mode): op requirements in
-// FREE-machine shape (no `Self::` -- they mirror free proof machines), LAW
+// `CommutativeSemiring<T>` is the conformance a carrier's machines declare to
+// EARN the proof engine's ring canonicalization (rearrange-mode): op
+// requirements in FREE-machine shape over the explicit carrier `T` (they
+// mirror free proof machines), LAW
 // requirements carrying `ensures` (the conformance-theorem mechanism: every
 // satisfier PROVES the law it binds, checked forall-to-forall against these
 // declarations). The engine detects the licensing laws by SHAPE, never by
@@ -20,27 +21,27 @@
 //
 // Law requirements are resultless theorem slots. Their parameters state the
 // universally quantified operands; satisfiers prove the `ensures` without
-// manufacturing a dummy `Self` value.
-pub trait CommutativeSemiring {
+// manufacturing a dummy carrier value.
+pub trait CommutativeSemiring<T> {
     // Algebra operations are total mathematical functions. Publishing that
     // promise is what permits a selected implementation to denote a value in
     // Prop; each satisfier still owes the ordinary termination proof.
-    machine zero() -> Self terminates;
-    machine one() -> Self terminates;
-    machine add(a: Self, b: Self) -> Self terminates;
-    machine mul(a: Self, b: Self) -> Self terminates;
-    machine add_comm(a: Self, b: Self)
+    machine zero() -> T terminates;
+    machine one() -> T terminates;
+    machine add(a: T, b: T) -> T terminates;
+    machine mul(a: T, b: T) -> T terminates;
+    machine add_comm(a: T, b: T)
     ensures add(a, b) == add(b, a);
-    machine add_assoc(a: Self, b: Self, c: Self)
+    machine add_assoc(a: T, b: T, c: T)
     ensures add(add(a, b), c) == add(a, add(b, c));
-    machine add_identity(a: Self)
+    machine add_identity(a: T)
     ensures add(a, zero()) == a;
-    machine mul_comm(a: Self, b: Self)
+    machine mul_comm(a: T, b: T)
     ensures mul(a, b) == mul(b, a);
-    machine mul_assoc(a: Self, b: Self, c: Self)
+    machine mul_assoc(a: T, b: T, c: T)
     ensures mul(mul(a, b), c) == mul(a, mul(b, c));
-    machine mul_identity(a: Self)
+    machine mul_identity(a: T)
     ensures mul(a, one()) == a;
-    machine mul_distributes(a: Self, b: Self, c: Self)
+    machine mul_distributes(a: T, b: T, c: T)
     ensures mul(a, add(b, c)) == add(mul(a, b), mul(a, c));
 }

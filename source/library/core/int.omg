@@ -31,20 +31,20 @@ proposition int_pair_equivalent(left: IntPair, right: IntPair) =
 
 // Componentwise addition: (p1 - n1) + (p2 - n2) = (p1 + p2) - (n1 + n2).
 machine add_int(a: IntPair, b: IntPair) -> IntPair
-satisfies CommutativeSemiring::add
+satisfies CommutativeSemiring<IntPair>::add
 {
     transition { _ -> (IntPair { neg: add(a.neg, b.neg), pos: add(a.pos, b.pos) }) }
 }
 
 // The semiring constants: 0 = (0 - 0), 1 = (1 - 0).
 machine zero_int() -> IntPair
-satisfies CommutativeSemiring::zero
+satisfies CommutativeSemiring<IntPair>::zero
 {
     transition { _ -> (IntPair { neg: Nat::Zero {}, pos: Nat::Zero {} }) }
 }
 
 machine one_int() -> IntPair
-satisfies CommutativeSemiring::one
+satisfies CommutativeSemiring<IntPair>::one
 {
     transition { _ -> (IntPair { neg: Nat::Zero {}, pos: Nat::Succ { prev: Nat::Zero {} } }) }
 }
@@ -56,7 +56,7 @@ machine neg_int(a: IntPair) -> IntPair {
 
 // Commutativity: componentwise from Nat's add_comm (two citations).
 machine add_int_comm(a: IntPair, b: IntPair)
-satisfies CommutativeSemiring::add_comm
+satisfies CommutativeSemiring<IntPair>::add_comm
 ensures
     (add_int(a, b)) == (add_int(b, a))
 {
@@ -66,7 +66,7 @@ ensures
 
 // Associativity: componentwise from Nat's add_assoc (two citations).
 machine add_int_assoc(a: IntPair, b: IntPair, c: IntPair)
-satisfies CommutativeSemiring::add_assoc
+satisfies CommutativeSemiring<IntPair>::add_assoc
 ensures
     (add_int(add_int(a, b), c)) == (add_int(a, add_int(b, c)))
 {
@@ -94,7 +94,7 @@ ensures
 
 // Multiplication: (p1 - n1)(p2 - n2) = (p1 p2 + n1 n2) - (p1 n2 + n1 p2).
 machine mul_int(a: IntPair, b: IntPair) -> IntPair
-satisfies CommutativeSemiring::mul
+satisfies CommutativeSemiring<IntPair>::mul
 {
     transition { _ -> (IntPair {
         neg: add(mul(a.pos, b.neg), mul(a.neg, b.pos)),
@@ -106,7 +106,7 @@ satisfies CommutativeSemiring::mul
 // outright, and the neg field's swapped ADDEND order settles under Nat's
 // earned add ring license (multiset flattening).
 machine mul_int_comm(a: IntPair, b: IntPair)
-satisfies CommutativeSemiring::mul_comm
+satisfies CommutativeSemiring<IntPair>::mul_comm
 ensures
     (mul_int(a, b)) == (mul_int(b, a))
 {
@@ -121,7 +121,7 @@ ensures
 // license (Nat's conformed add+mul with distributivity) normalizes
 // citation-free -- the tier-2 monomial multiset settles it.
 machine mul_int_assoc(a: IntPair, b: IntPair, c: IntPair)
-satisfies CommutativeSemiring::mul_assoc
+satisfies CommutativeSemiring<IntPair>::mul_assoc
 ensures
     (mul_int(mul_int(a, b), c)) == (mul_int(a, mul_int(b, c)))
 {
@@ -130,7 +130,7 @@ ensures
 // Distributivity over add_int: componentwise polynomial identity, same
 // citation-free tier-2 discharge.
 machine mul_int_distributes(a: IntPair, b: IntPair, c: IntPair)
-satisfies CommutativeSemiring::mul_distributes
+satisfies CommutativeSemiring<IntPair>::mul_distributes
 ensures
     (mul_int(a, add_int(b, c))) == (add_int(mul_int(a, b), mul_int(a, c)))
 {
@@ -195,7 +195,7 @@ ensures
 // rebuilt record IS the variable). zero folds via add_zero_right /
 // add_zero_left; one folds via mul_one_right / mul_zero_right.
 machine add_int_identity(a: IntPair)
-satisfies CommutativeSemiring::add_identity
+satisfies CommutativeSemiring<IntPair>::add_identity
 ensures
     (add_int(a, zero_int())) == (a)
 {
@@ -204,7 +204,7 @@ ensures
 }
 
 machine mul_int_identity(a: IntPair)
-satisfies CommutativeSemiring::mul_identity
+satisfies CommutativeSemiring<IntPair>::mul_identity
 ensures
     (mul_int(a, one_int())) == (a)
 {

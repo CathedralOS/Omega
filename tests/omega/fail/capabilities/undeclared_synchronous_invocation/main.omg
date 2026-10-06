@@ -8,8 +8,8 @@ pub boundary trait Handler {
     machine handle();
 }
 
-pub boundary trait EventSource {
-    machine fire(source: &mut Self)
+pub boundary trait EventSource<Source> {
+    machine fire(source: &mut Source)
     reaches
         Handler;
 }
@@ -26,7 +26,7 @@ reaches
 }
 
 machine EventProvider::fire_checked(event_provider: &mut EventProvider)
-satisfies EventSource::fire
+satisfies EventSource<EventProvider>::fire
 {
     forward(event_provider);
 }

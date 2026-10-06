@@ -1,14 +1,14 @@
 // RUN CANARY (exit 70): SINGLE-REQUIREMENT trait conformance (rearrange
 // settle 2026-07-18, rung A). The settled CommutativeSemiring surface:
-// FREE-machine-shaped requirements (`machine add(a: Self, b: Self) -> Self;`
-// -- no Self::), a LAW requirement carrying `ensures`, and machine-by-machine
-// conformance: `satisfies Trait::requirement` binds THIS machine to that one
-// slot (Self binds the carrier from the satisfier's signature), and
-// `satisfies Trait::requirement as Alias` names the satisfier (plural
+// FREE-machine-shaped requirements over an explicit carrier
+// (`machine add(a: T, b: T) -> T;`), a LAW requirement carrying `ensures`, and
+// machine-by-machine conformance: `satisfies Trait<Carrier>::requirement`
+// binds THIS machine to that one slot of that carrier's application, and
+// `satisfies Trait<Carrier>::requirement as Alias` names the satisfier (plural
 // algebras -- Nat under (max, add) is the tropical semiring). TWO carriers
 // conform: proof-only Peano (the Nat stratum shape -- compile surface only,
-// no runtime layout) and RUNTIME i32 (Self binds a primitive), whose
-// satisfiers actually run: add32(2, 1) == 3, exit 70.
+// no runtime layout) and RUNTIME `i32 in Wrapping`, whose satisfiers actually
+// run: add32(2, 1) == 3, exit 70.
 // Loud-edge siblings: fail/traits/ring_requirement_unknown_rejected,
 // ring_requirement_signature_rejected, free_machine_bare_satisfies_rejected.
 use omega_language_std::console;
@@ -19,15 +19,15 @@ data Peano {
     case Succ(pred: Peano);
 }
 
-trait RingOps {
-    machine add(a: Self, b: Self) -> Self;
-    machine mul(a: Self, b: Self) -> Self;
-    machine add_comm(a: Self, b: Self)
+trait RingOps<T> {
+    machine add(a: T, b: T) -> T;
+    machine mul(a: T, b: T) -> T;
+    machine add_comm(a: T, b: T)
     ensures add(a, b) == add(b, a);
 }
 
 machine add(a: Peano, b: Peano) -> Peano
-satisfies RingOps::add
+satisfies RingOps<Peano>::add
 terminates by a;
 {
     transition a {
@@ -37,7 +37,7 @@ terminates by a;
 }
 
 machine mul(a: Peano, b: Peano) -> Peano
-satisfies RingOps::mul as Standard
+satisfies RingOps<Peano>::mul as Standard
 terminates by a;
 {
     transition a {
@@ -48,13 +48,13 @@ terminates by a;
 
 // The RUNTIME carrier: i32 conforms the same slots (Self binds a primitive).
 machine add32(a: i32 in Wrapping, b: i32 in Wrapping) -> i32 in Wrapping
-satisfies RingOps::add
+satisfies RingOps<i32 in Wrapping>::add
 {
     a + b
 }
 
 machine mul32(a: i32 in Wrapping, b: i32 in Wrapping) -> i32 in Wrapping
-satisfies RingOps::mul as Standard32
+satisfies RingOps<i32 in Wrapping>::mul as Standard32
 {
     a * b
 }

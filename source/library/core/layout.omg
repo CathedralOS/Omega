@@ -491,28 +491,28 @@ pub trait PlacementCustody<P, T> {
 // helpers can accept one accessor without receiving the whole placed view.
 // The compiler derives conforming accessor types from a normalized placement;
 // source cannot construct the opaque template or use it as placement evidence.
-pub trait Readable<T> {
-    machine read(placed_field: &Self) -> T;
+pub trait Readable<Field, T> {
+    machine read(placed_field: &Field) -> T;
 }
 
-pub trait DestructiveRead<T> {
-    machine take(placed_field: &mut Self) -> T;
+pub trait DestructiveRead<Field, T> {
+    machine take(placed_field: &mut Field) -> T;
 }
 
-pub trait Writable<T> {
-    machine write(placed_field: &mut Self, value: T);
+pub trait Writable<Field, T> {
+    machine write(placed_field: &mut Field, value: T);
 }
 
 pub boundary data PlacedField<T>;
 
 boundary machine PlacedField::read<T>(placed_field: &PlacedField<T>) -> T
-satisfies Readable<T>::read;
+satisfies Readable<PlacedField<T>, T>::read;
 
 boundary machine PlacedField::take<T>(placed_field: &mut PlacedField<T>) -> T
-satisfies DestructiveRead<T>::take;
+satisfies DestructiveRead<PlacedField<T>, T>::take;
 
 boundary machine PlacedField::write<T>(placed_field: &mut PlacedField<T>, value: T)
-satisfies Writable<T>::write;
+satisfies Writable<PlacedField<T>, T>::write;
 
 // The policy interface. plan() declares no effects, so implementations HAVE
 // none -- that absence is what makes them build-time-evaluable.

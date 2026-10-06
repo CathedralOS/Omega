@@ -46,7 +46,6 @@ data Token {
 // value. Build composition picks the concrete provider.
 pub boundary trait WorkerProvider {
     machine execute<T, Arguments, machine Target>(
-        subject: &Self,
         arguments: Arguments
     ) -> T
     where machine Target(arguments: Arguments) -> T suspends; blocks;
@@ -55,7 +54,7 @@ pub boundary trait WorkerProvider {
 
 data CanaryWorkerProvider { }
 
-machine CanaryWorkerProvider::execute<T, Arguments, machine Target>(canary_worker_provider: &CanaryWorkerProvider, arguments: Arguments) -> T
+machine CanaryWorkerProvider::execute<T, Arguments, machine Target>(arguments: Arguments) -> T
 where machine Target(arguments: Arguments) -> T suspends; blocks;
 satisfies WorkerProvider::execute
 via ForeignBinding::CompilerIntrinsic;
