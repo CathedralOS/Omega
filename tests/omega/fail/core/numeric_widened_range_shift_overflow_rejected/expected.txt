@@ -1,0 +1,1 @@
+exact arithmetic in machine `scale` state `entry` terminal expression may overflow `u16`

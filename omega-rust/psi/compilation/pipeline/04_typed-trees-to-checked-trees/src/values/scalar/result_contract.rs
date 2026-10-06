@@ -196,12 +196,13 @@ impl ContractPredicates<'_, '_> {
     }
 
     /// One comparison operand as a typed scalar term: an exact entry/result
-    /// subject, or integer arithmetic (`+`, `-`, `*` with builtin meaning)
-    /// over such subjects and contextual integer literals. The operands'
-    /// arithmetic policies select the operation as they do in a body, so an
-    /// Exact, Wrapping or Saturating carrier keeps its own meaning; Trapping
-    /// arithmetic, which can crash, or any other spelling stays outside the
-    /// closed language and lowers to `None`.
+    /// subject, integer arithmetic (`+`, `-`, `*` with builtin meaning) over
+    /// such subjects and contextual integer literals, or a value-preserving
+    /// Exact widening of a term. The operands' arithmetic policies select the
+    /// operation as they do in a body, so an Exact, Wrapping or Saturating
+    /// carrier keeps its own meaning; Trapping arithmetic, which can crash,
+    /// or any other spelling stays outside the closed language and lowers to
+    /// `None`.
     fn integer_term(
         &self,
         expression: ExpressionHandle,
@@ -348,6 +349,35 @@ impl ContractPredicates<'_, '_> {
                 // Reading a field for comparison preserves its carrier value;
                 // its arithmetic policy constrains operations, not observation.
                 self.structural_observation(expression)
+            }
+            // `value as u64` from a u32 subject names the same integer in a
+            // carrier holding every source value, so it is a total
+            // observation like the subject itself. It takes the
+            // `IntegerWiden` denotation body lowering gives the same spelling
+            // (`construct_integer_cast`), and the comparison's mixed-carrier
+            // equality keeps both sides' carriers. A partial Exact conversion
+            // owes an occurrence proof that a closed contract cannot carry,
+            // and a policy conversion selects its own operation; both stay
+            // outside the closed language.
+            ExpressionNode::Cast(cast)
+                if depth < 64
+                    && !cast.form.is_recast()
+                    && cast.semantic_domain.is_empty()
+                    && cast.domain == ArithmeticDomain::Exact =>
+            {
+                let target_type = program.primitive_type_reference(cast.target_type)?;
+                let (operand, _) = self.integer_term(cast.value, depth + 1)?;
+                let source_type = scalar_expression_type(&operand)?;
+                if !validation::integer_widen_is_total(source_type, target_type) {
+                    return None;
+                }
+                Some((
+                    CheckedScalarExpression::IntegerWiden {
+                        primitive_type: target_type,
+                        operand: Box::new(operand),
+                    },
+                    cast.target_type,
+                ))
             }
             _ => None,
         }

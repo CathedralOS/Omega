@@ -1,0 +1,25 @@
+// The Trapping conversion intrinsic is its own trap site. The library
+// surface stops earlier, in its guard shift, so this calls the intrinsic
+// directly: i16 -1 is below u8's range and must trap at the conversion. The
+// two published routes cover exactly the primitive's predicate.
+data Inputs { source: i16; }
+
+machine narrow(input: i16) -> u8
+crashes Trap
+    input < 0i16
+    input > 255i16
+{
+    (input as u8 in Trapping) as u8
+}
+
+machine main() {
+    let inputs: Inputs = Inputs { source: -1 };
+    let converted: u8 = narrow(inputs.source);
+    transition converted == 255 {
+        true -> wrapped()
+        _ -> other()
+    }
+
+    state wrapped() {}
+    state other() {}
+}

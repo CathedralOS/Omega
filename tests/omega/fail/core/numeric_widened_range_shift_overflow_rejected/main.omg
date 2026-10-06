@@ -1,0 +1,23 @@
+// A widening conversion publishes its source's interval, not the target's:
+// `widen_u8_to_u16(value) << 8` stays within u16 (at most 65280), but `<< 9`
+// can reach 130560. The Exact shift owes a representability proof the
+// published range cannot discharge, so it rejects.
+use omega::language::core::numeric_conversion;
+use omega_language_std::console;
+use omega::language::core::binding;
+
+machine scale(value: u8) -> u16 {
+    widen_u8_to_u16(value) << 9
+}
+
+data Main {
+    console: Binding<Console>;
+    source: u8;
+}
+
+machine Main::main(main: &mut Main) reaches Console {
+    main.source = 70;
+    let scaled: u16 = scale(main.source);
+    let code: i32 = scaled as i32;
+    main.console.exit_process(code);
+}

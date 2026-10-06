@@ -597,7 +597,21 @@ pass/core/interrupt_obligations_surface rejected 1747ms regressed-from:checked @
 	direct call `restore` names public boundary requirement `InterruptMaskGuard::restore`, which has no selected provider; select an admitted provider whose checked machine `satisfies InterruptMaskGuard::restore` before calling it
 	direct call `complete` names public boundary requirement `InterruptAcknowledgement::complete`, which has no selected provider; select an admitted provider whose checked machine `satisfies InterruptAcknowledgement::complete` before calling it
 pass/core/numeric_cross_signed_conversion_surface built 13837ms exit:70
+pass/core/numeric_signed_narrowing_policies built 4173ms exit:0 @5a7ed5b57d00+wt
+pass/core/numeric_signed_to_unsigned_policies built 4529ms exit:0 @5a7ed5b57d00+wt
+pass/core/numeric_signed_wide_to_unsigned_policies built 4437ms exit:0 @5a7ed5b57d00+wt
 pass/core/numeric_trapping_conversion_overflow built 885ms exit:signal signal:5
+pass/core/numeric_trapping_direct_conversion_negative built 1524ms exit:signal signal:5 @5a7ed5b57d00+wt
+pass/core/numeric_trapping_discarded_conversion built 1389ms exit:signal signal:5 @5a7ed5b57d00+wt
+pass/core/numeric_trapping_negative_to_unsigned built 1415ms exit:signal signal:5 @5a7ed5b57d00+wt
+pass/core/numeric_trapping_signed_narrowing_above_maximum built 1413ms exit:signal signal:5 @5a7ed5b57d00+wt
+pass/core/numeric_trapping_signed_narrowing_below_minimum built 1398ms exit:signal signal:5 @5a7ed5b57d00+wt
+pass/core/numeric_trapping_unsigned_above_signed_maximum built 1386ms exit:signal signal:5 @5a7ed5b57d00+wt
+pass/core/numeric_unsigned_64_to_signed_policies built 2142ms exit:0 @5a7ed5b57d00+wt
+pass/core/numeric_unsigned_narrowing_policies built 2087ms exit:0 @5a7ed5b57d00+wt
+pass/core/numeric_unsigned_to_signed_policies built 2892ms exit:0 @5a7ed5b57d00+wt
+pass/core/numeric_widening_preserves_values built 1573ms exit:0 @5a7ed5b57d00+wt
+pass/core/numeric_widening_published_ranges built 1788ms exit:0 @5a7ed5b57d00+wt
 pass/core/runtime_guarded_trapping_conversion_exit built 1516ms exit:70 @48008365d839
 pass/core/runtime_natural_termination_exit built 405ms exit:0
 pass/core/self_read_only_receiver_compile checked 221ms

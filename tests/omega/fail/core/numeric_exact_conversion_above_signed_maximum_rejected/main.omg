@@ -1,0 +1,20 @@
+// u64 9223372036854775808 (2^63) is the first value above i64::MAX, so the
+// Exact conversion's requirement `value <= 9223372036854775807` is false for
+// it. The requirement is about the unsigned value: reading the same bits as
+// a signed integer would see a negative number and wrongly satisfy it.
+use omega::language::core::numeric_conversion;
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Main { console: Binding<Console>; }
+
+machine Main::main(main: &mut Main) reaches Console {
+    let converted: i64 = narrow_u64_to_i64_exact(9223372036854775808);
+    transition converted < 0 {
+        true -> negative(main)
+        _ -> nonnegative(main)
+    }
+
+    state negative(main: &mut Main) { main.console.exit_process(71); }
+    state nonnegative(main: &mut Main) { main.console.exit_process(70); }
+}

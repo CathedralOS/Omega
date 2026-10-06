@@ -696,6 +696,12 @@ fail/core/extent_root_adapter_direct_call_does_not_grant rejected 564ms expected
 	cannot prove requires contract for call consume_granted from direct_adapter_call_does_not_grant: unqualified in Extent::Granted
 fail/core/extent_scope_loss rejected 865ms expected @2d8ed253669f
 	linear value `extent` reaches scope exit without being consumed or transferred
+fail/core/guarded_trap_ceiling_altered_carrier_rejected rejected 12818ms expected @5a7ed5b57d00+wt
+	terminal-artifact production failed: Lowering(UndischargedCrashObligations([OperationSite { machine: MachineId(2), block: BlockId(4294967297), operation: OperationId(4294967297) }]))
+fail/core/guarded_trap_ceiling_misses_signed_minimum_rejected rejected 12543ms expected @5a7ed5b57d00+wt
+	terminal-artifact production failed: Lowering(UndischargedCrashObligations([OperationSite { machine: MachineId(2), block: BlockId(4294967297), operation: OperationId(4294967297) }]))
+fail/core/guarded_trap_ceiling_other_site_rejected rejected 12145ms expected @5a7ed5b57d00+wt
+	terminal-artifact production failed: Lowering(UndischargedCrashObligations([OperationSite { machine: MachineId(2), block: BlockId(4294967297), operation: OperationId(4294967298) }]))
 fail/core/guarded_trap_ceiling_wider_than_primitive_rejected rejected 1448ms expected @c08960bee2b1+wt
 	terminal-artifact production failed: Lowering(UndischargedCrashObligations([OperationSite { machine: MachineId(2), block: BlockId(4294967297), operation: OperationId(4294967297) }]))
 fail/core/interrupt_obligation_construction_rejected rejected 464ms expected @c5d32a00863
@@ -706,6 +712,20 @@ fail/core/interrupt_obligation_construction_rejected rejected 464ms expected @c5
 	construction of `InterruptAcknowledgement` field `acknowledgement` lost its exact declared owner
 	opaque boundary data `InterruptAcknowledgement` has no public constructor; a boundary provider must establish its values
 	state `complete` expects 1 argument(s), got 0
+fail/core/numeric_exact_conversion_above_signed_maximum_rejected rejected 1869ms expected @5a7ed5b57d00+wt
+	machine `Main::main` state `main` value call to `narrow_u64_to_i64_exact` violates required fact `value <= 9223372036854775807`: the instantiated fact is structurally false
+fail/core/numeric_exact_conversion_unproven_argument_rejected rejected 3807ms expected @5a7ed5b57d00+wt
+	cannot prove requires contract for call narrow_u32_to_u16_exact from narrow: value <= 65535 (needs fact `value <= 65535` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/core/numeric_exact_conversion_upper_bound_only_rejected rejected 2286ms expected @5a7ed5b57d00+wt
+	cannot prove requires contract for call narrow_i32_to_u8_exact from narrow: value >= 0 && value <= 255 (needs fact `value >= 0 && value <= 255` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/core/numeric_trapping_conversion_altered_cause_rejected rejected 707ms expected @5a7ed5b57d00+wt
+	call from `narrow` to `narrow_u16_to_u8_trapping` at statement 0 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+fail/core/numeric_trapping_conversion_published_without_crash_rejected rejected 708ms expected @5a7ed5b57d00+wt
+	call from `narrow` to `narrow_u16_to_u8_trapping` at statement 0 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+fail/core/numeric_widened_range_shift_overflow_rejected rejected 409ms expected @5a7ed5b57d00+wt
+	exact arithmetic in machine `scale` state `entry` terminal expression may overflow `u16`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u16 in Wrapping`/`Saturating`/`Trapping`). Here the operand `widen_u8_to_u16(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u16 in Wrapping`).
+fail/core/numeric_widened_result_narrow_carrier_rejected rejected 394ms expected @5a7ed5b57d00+wt
+	store in machine `Main::main` state `main` local `widened` implicitly converts `u16` to `u8`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u8`)
 fail/core/placed_construction_rejected rejected 16ms expected @2d8ed253669f
 	`Placed<Native, Packet>` must select one exact `Native::plan` machine
 fail/core/resident_index_identity_mismatch_rejected rejected 800ms expected @2d8ed253669f
@@ -2242,7 +2262,21 @@ pass/core/interrupt_obligations_surface rejected 264ms @e68154c271d8+wt
 	direct call `restore` names public boundary requirement `InterruptMaskGuard::restore`, which has no selected provider; select an admitted provider whose checked machine `satisfies InterruptMaskGuard::restore` before calling it
 	direct call `complete` names public boundary requirement `InterruptAcknowledgement::complete`, which has no selected provider; select an admitted provider whose checked machine `satisfies InterruptAcknowledgement::complete` before calling it
 pass/core/numeric_cross_signed_conversion_surface checked 23922ms check-target:macos_arm64 @2d8ed253669f
+pass/core/numeric_signed_narrowing_policies checked 24471ms check-target:macos_arm64 @5a7ed5b57d00+wt
+pass/core/numeric_signed_to_unsigned_policies checked 21009ms check-target:macos_arm64 @5a7ed5b57d00+wt
+pass/core/numeric_signed_wide_to_unsigned_policies checked 20515ms check-target:macos_arm64 @5a7ed5b57d00+wt
 pass/core/numeric_trapping_conversion_overflow checked 1701ms check-target:macos_arm64 @2d8ed253669f
+pass/core/numeric_trapping_direct_conversion_negative checked 10608ms check-target:macos_arm64 @5a7ed5b57d00+wt
+pass/core/numeric_trapping_discarded_conversion checked 7842ms check-target:macos_arm64 @5a7ed5b57d00+wt
+pass/core/numeric_trapping_negative_to_unsigned checked 7223ms check-target:macos_arm64 @5a7ed5b57d00+wt
+pass/core/numeric_trapping_signed_narrowing_above_maximum checked 6580ms check-target:macos_arm64 @5a7ed5b57d00+wt
+pass/core/numeric_trapping_signed_narrowing_below_minimum checked 6331ms check-target:macos_arm64 @5a7ed5b57d00+wt
+pass/core/numeric_trapping_unsigned_above_signed_maximum checked 6145ms check-target:macos_arm64 @5a7ed5b57d00+wt
+pass/core/numeric_unsigned_64_to_signed_policies checked 8768ms check-target:macos_arm64 @5a7ed5b57d00+wt
+pass/core/numeric_unsigned_narrowing_policies checked 9671ms check-target:macos_arm64 @5a7ed5b57d00+wt
+pass/core/numeric_unsigned_to_signed_policies checked 10728ms check-target:macos_arm64 @5a7ed5b57d00+wt
+pass/core/numeric_widening_preserves_values checked 6823ms check-target:macos_arm64 @5a7ed5b57d00+wt
+pass/core/numeric_widening_published_ranges checked 8095ms check-target:macos_arm64 @5a7ed5b57d00+wt
 pass/core/runtime_guarded_trapping_conversion_exit checked 1359ms check-target:macos_arm64 @2d8ed253669f
 pass/core/runtime_natural_termination_exit checked 417ms check-target:macos_arm64 @2d8ed253669f
 pass/core/self_read_only_receiver_compile checked 293ms @2d8ed253669f

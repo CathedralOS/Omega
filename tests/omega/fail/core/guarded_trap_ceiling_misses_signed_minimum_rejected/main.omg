@@ -1,0 +1,22 @@
+// `i16 -> i8` in Trapping traps above 127 and below -128. This ceiling names
+// only the upper side, so input -129 would trap without a declared route and
+// checking rejects the machine. The caller's argument disproves the route, so
+// the conversion site inside `narrow` is the only undischarged obligation.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+machine narrow(input: i16) -> i8
+crashes Trap input > 127i16 {
+    (input as i8 in Trapping) as i8
+}
+
+data Main { console: Binding<Console>; }
+machine Main::main(main: &mut Main) reaches Console {
+    let result: i8 = narrow(70i16);
+    transition result == 70i8 {
+        true -> good(main)
+        false -> bad(main)
+    }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main) { main.console.exit_process(71); }
+}

@@ -1,0 +1,26 @@
+// `value <= 255` bounds a signed source only from above: every negative i32
+// satisfies it too. `narrow_i32_to_u8_exact` also requires `value >= 0`, so
+// this call rejects; an upper bound alone does not make a signed value fit
+// an unsigned carrier.
+use omega::language::core::numeric_conversion;
+use omega_language_std::console;
+use omega::language::core::binding;
+
+machine narrow(value: i32) -> u8
+requires
+    value <= 255;
+{
+    narrow_i32_to_u8_exact(value)
+}
+
+data Main {
+    console: Binding<Console>;
+    source: i32;
+}
+
+machine Main::main(main: &mut Main) reaches Console {
+    main.source = 70;
+    let converted: u8 = narrow(main.source);
+    let code: i32 = converted as i32;
+    main.console.exit_process(code);
+}

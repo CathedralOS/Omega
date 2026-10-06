@@ -1464,12 +1464,17 @@ defines the complete product bar.
   Preserve operation site, operands, carrier, cause and normal-only result
   equation; coordinate **CRASH-CONTRACT** and never invent a Crash edge.
 
-  Remaining: hosted acceptance for the public
-  `source/library/core/numeric_conversion.omg` surface — same-sign narrowing,
-  sign changes, widening and all four policies for every sign/width pair —
-  by adding corpus fixtures (only two `core/numeric_*` fixtures exist), with
-  exact-site and altered-cause/carrier/ceiling fail controls, dead results and
-  overflowing shifts. Float policy/conversion customers belong to
+  Remaining: `pass/core/numeric_*` reach all 170 public machines of
+  `source/library/core/numeric_conversion.omg` but run natively and
+  interpreted on macOS ARM64 only; run them on Linux x86-64 and Windows x86-64
+  and record those goldens. The comparison canaries above end through
+  `ProcessExit`, which the interpreter refuses before entry
+  ([process exit](#process-exit-contract)), so interpreter agreement for the
+  six relations and mixed-width orientations has no running witness. Direct
+  signed and mixed-sign `in Saturating` casts (`value as i8 in Saturating`
+  from `i16`) now pass checking, but no fixture executes them and the
+  [numeric values status](wiki/spec/language/numeric_values.md#status) still
+  says they refuse. Float policy/conversion customers belong to
   **OPERATOR-BOUNDARY-CALLS** / **FLOAT-PROVIDERS**.
 
   Acceptance: comparisons and conversions agree between the interpreter and
