@@ -3518,31 +3518,35 @@ of a check the same flow already performed, not the check itself.
   the three functions (stage 05 source-scanning guard); check and native
   corpus unchanged.
 
-- **BACKEND-SELF-REPLAY-DELETED.** (new-scope) Stages 02 through 09 seal
-  their fresh output with its receipt instead of replaying it; the remaining
-  producers still re-derive or re-validate output the same compile just
-  produced, which AGENTS.md's verification-placement rule forbids:
-  - stage 01 `omega-rust/omega/compilation/pipeline/01_abstract-operations-to-abstract-operations/src/publication/mod.rs`
-    (`replay::validate`, `validate_optimized_abstract_plan_projection`) and
-    `src/pass_manager/execution.rs` (`validate_candidate_contract`,
-    `validate_psi_rewrite_candidate` over
-    `omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/candidates/`);
-  - stage 04 `src/analyses/machine_effects/` and
-    `src/rewrites/selected_lowering/literal_fold/` (both re-validate their own
-    plans), and `src/rewrites/allocation_recovery/pressure_rematerialization/`,
-    whose validator applies the plan, so producing and checking are not yet
-    separate;
-  - stage 00 `omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/`
-    (`lower_decoded_module` -> `validate_structural_block_bindings`,
-    `build_verified_psi_optimization_unit` ->
-    `reconstruct_psi_optimization_unit_seed`, the retained-terminal proposal
-    settlement checks);
-  - stage 02 `src/lowering/coordination.rs` installed-call, settlement-roster
-    and native-callback joins: decide whether each joins external input or
-    re-checks lowering's own rows;
-  - `omega-rust/omega/compilation/backend/artifacts/native-artifact/src/`
-    `stage_validated_*` entries (`callable_entry.rs`,
-    `optimized_semantic_wrapper_object/`).
+- **BACKEND-SELF-REPLAY-DELETED.** (new-scope) Stages 01 through 09 and the
+  native-artifact staging entries consume their fresh output with its
+  receipt instead of replaying it. Stage 01 publication seals the projection
+  receipt; stage 04's machine effects, literal fold and pressure
+  rematerialization admit what they computed; stage 03's uncalled
+  legalization replay is deleted. Judged and kept: stage 00
+  `validate_structural_block_bindings` (a capability fence on structural
+  shapes the backend cannot lower), `reconstruct_psi_optimization_unit_seed`
+  (construction, not replay), stage 01's commit-time candidate validation
+  (it decides whether a rewrite applies), stage 02's installed-provider and
+  settlement-roster joins (separate inputs; a missing settlement is a
+  capability refusal), and the ProgramStorage wrapper's
+  `validate_entry_shape` (the zero-valid receiver rule). Remaining:
+  - the retained-terminal proposal settlement checks in
+    `omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/retained_terminal/`
+    on the fresh-compile route;
+  - `bind_semantic_contract` in the ProgramStorage wrapper stage
+    (`native-artifact/src/optimized_semantic_wrapper_object/validation/entry_contract.rs`)
+    replays the semantic calling application to recover its validated plan;
+    the settlement should carry that plan;
+  - stage 01's pass manager obtains cycle components through
+    `validate_verified_psi_cycle_components` and
+    `validate_transformed_psi_cycle_components`, which re-validate the whole
+    unit to compute them; split the computation from the validation.
+
+  A verifier stays only where a retained-artifact reader calls it; one with no
+  caller is deleted with the replay. Acceptance: no producer calls a replay or
+  validator of its own fresh output, and the check and native corpus are
+  unchanged.
 
   A verifier stays only where a retained-artifact reader calls it; one with no
   caller is deleted with the replay. Acceptance: no producer calls a replay or
