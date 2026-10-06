@@ -121,10 +121,11 @@ pub fn validate_literal_indexed_recast_footprint(
         )?)?
     };
 
+    let footprint = i64::try_from(end.checked_sub(start)?).ok()?;
     let InteriorByteRegion::Bounded {
         offset,
         region_length,
-    } = interior_byte_region_source(program, machine, state, statement_index, source)
+    } = interior_byte_region_source(program, machine, state, statement_index, source, footprint)
     else {
         return None;
     };
@@ -227,7 +228,14 @@ pub fn validate_runtime_indexed_recast_source(
     let InteriorByteRegion::Bounded {
         offset,
         region_length,
-    } = interior_byte_region_source(program, machine, state, statement_index, source)
+    } = interior_byte_region_source(
+        program,
+        machine,
+        state,
+        statement_index,
+        source,
+        target_size,
+    )
     else {
         return None;
     };

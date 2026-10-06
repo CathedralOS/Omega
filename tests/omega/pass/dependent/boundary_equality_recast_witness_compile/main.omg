@@ -1,7 +1,10 @@
 use omega::language::core::binding;
-// R1/R4: a boundary contract may transport a symbolic bound through equality
-// between out-parameters. `size == cap && cap <= 8` proves the four-byte view
-// beginning at `size` fits in the twelve-byte region.
+// A boundary `ensures` may relate two out-parameters: `size == cap &&
+// cap <= 8` bounds `size` through `cap`, so the four-byte view beginning at
+// `size` fits in the twelve-byte region. The equality stays a relation between
+// the two argument places; the fail sibling
+// `fail/recast/boundary_equality_retired_by_out_argument_write` shows a later
+// write to one of them retiring it.
 pub boundary trait Firmware {
     machine get_map(size: &mut u32, cap: &mut u32)
     ensures size == cap && cap <= 8;

@@ -6,35 +6,23 @@
 //! subject for everything that arm evaluates: dispatch proved the case, so its
 //! facts are premises at that program point. Facts are projected onto the
 //! subject's place (`lo` inside `where lo <= hi` reads `subject.lo`) and
-//! contributed through the same environment carriers an authored comparison would
-//! produce: ordered relations, place intervals, `known_u64` values, and
-//! joint-subtract bounds. A negated membership contributes nothing (exclusion
+//! contributed by `projected_facts` through the same environment carriers an
+//! authored comparison would produce: ordered relations, place intervals,
+//! `known_u64` values, and joint-subtract bounds. A negated membership contributes nothing (exclusion
 //! is coverage's business); a fact shape these carriers cannot hold
 //! contributes nothing either -- a missed premise is sound, a wrong one is
 //! not. Ordinary write invalidation retires the projected paths exactly like
 //! guard-derived facts, so a payload write inside the arm cannot leave a
 //! stale `where` fact believed.
-use super::super::TypeReferenceHandle;
+use super::projected_facts::{
+    ProjectedOperand, contribute_projected_comparison, has_fixed_integer_meaning,
+};
 use super::{
-    ArithmeticDomain, BinaryOperator, ExpressionHandle, ExpressionNode, Interval, Machine,
-    PrimitiveType, ProofFact, State, TypedTrees, ValueEnvironment, comparison_interval,
-    literal_i64, meaning, ordered_values, primitive_range, range_constraint_interval,
+    BinaryOperator, ExpressionHandle, ExpressionNode, Machine, ProofFact, State, TypedTrees,
+    ValueEnvironment, meaning, ordered_values,
 };
 use symbols::SymbolHandle;
 use typed_trees::data::{DataDefinition, DataMember, DataVariant};
-
-/// A fact operand projected onto the dispatched subject: the ordered-values
-/// identity (symbol-exact field symbols, so a payload `x` and a common `x`
-/// never collide in a relation), plus the spelled path and declared field
-/// type the spelling-keyed environment carriers need. `spelled` is `None` when the
-/// field name is not unique across the whole data -- `subject.x` would then
-/// key the same spelling onto a different field's reads, so only the
-/// symbol-exact relation may be contributed.
-struct FactOperand {
-    operand: ordered_values::Operand,
-    spelled: Option<String>,
-    field_type: Option<TypeReferenceHandle>,
-}
 
 /// Establish `classifier`'s case `where` facts on `subject` inside `environment`.
 /// `classifier` must rejoin its complete retained case reference (the same
@@ -152,120 +140,13 @@ fn contribute_fact_expression(
     ) else {
         return;
     };
-    match comparison.operator {
-        BinaryOperator::Less
-        | BinaryOperator::LessOrEqual
-        | BinaryOperator::Greater
-        | BinaryOperator::GreaterOrEqual => {
-            // `record`'s normalization: `high - low >= floor`, floor 1 for
-            // the strict forms.
-            let (high, low, strict) = match comparison.operator {
-                BinaryOperator::LessOrEqual => (&right, &left, false),
-                BinaryOperator::Less => (&right, &left, true),
-                BinaryOperator::GreaterOrEqual => (&left, &right, false),
-                _ => (&left, &right, true),
-            };
-            let relation = ordered_values::Relation {
-                left: high.operand.clone(),
-                right: low.operand.clone(),
-                constraint: ordered_values::RelationConstraint::MinimumDifference(i64::from(
-                    strict,
-                )),
-            };
-            if !environment.ordered_values.contains(&relation) {
-                environment.ordered_values.push(relation);
-            }
-            // The unsigned `low <= high` premise is exactly the totality
-            // condition for `high - low` -- `joint_subtract_guard`'s carrier.
-            if !strict
-                && let (Some(high_path), Some(low_path)) =
-                    (high.spelled.as_ref(), low.spelled.as_ref())
-                && let (Some(high_type), Some(low_type)) = (high.field_type, low.field_type)
-                && program
-                    .primitive_type_reference(high_type)
-                    .is_some_and(|primitive| {
-                        matches!(
-                            primitive,
-                            PrimitiveType::U8
-                                | PrimitiveType::U16
-                                | PrimitiveType::U32
-                                | PrimitiveType::U64
-                        ) && program.primitive_type_reference(low_type) == Some(primitive)
-                            && program.arithmetic_domain_for_type_reference(high_type)
-                                == ArithmeticDomain::Exact
-                            && program.arithmetic_domain_for_type_reference(low_type)
-                                == ArithmeticDomain::Exact
-                    })
-            {
-                environment.mark_joint_subtract_bound(high_path.clone(), low_path.clone());
-            }
-            // A literal side narrows the place side's interval, intersected
-            // with the field's declared ranges exactly like a guard leaf.
-            for (place, literal_expression, place_on_left) in [
-                (&left, comparison.right, true),
-                (&right, comparison.left, false),
-            ] {
-                let (Some(path), Some(field_type), Some(literal)) = (
-                    place.spelled.as_ref(),
-                    place.field_type,
-                    literal_i64(program, literal_expression),
-                ) else {
-                    continue;
-                };
-                let mut interval = comparison_interval(
-                    comparison.operator,
-                    Interval {
-                        low: Some(literal),
-                        high: Some(literal),
-                    },
-                    place_on_left,
-                );
-                if let Some(type_interval) = program
-                    .primitive_type_reference(field_type)
-                    .and_then(primitive_range)
-                {
-                    interval = interval.intersect(type_interval);
-                }
-                if let Some(declared) = range_constraint_interval(program, field_type) {
-                    interval = interval.intersect(declared);
-                }
-                environment.narrow(path.clone(), interval);
-            }
-        }
-        BinaryOperator::Equal => {
-            for (place, literal_expression) in
-                [(&left, comparison.right), (&right, comparison.left)]
-            {
-                let (Some(path), Some(field_type), Some(literal)) = (
-                    place.spelled.as_ref(),
-                    place.field_type,
-                    literal_i64(program, literal_expression),
-                ) else {
-                    continue;
-                };
-                let mut interval = Interval {
-                    low: Some(literal),
-                    high: Some(literal),
-                };
-                if let Some(type_interval) = program
-                    .primitive_type_reference(field_type)
-                    .and_then(primitive_range)
-                {
-                    interval = interval.intersect(type_interval);
-                }
-                if let Some(declared) = range_constraint_interval(program, field_type) {
-                    interval = interval.intersect(declared);
-                }
-                environment.narrow(path.clone(), interval);
-                if program.primitive_type_reference(field_type) == Some(PrimitiveType::U64)
-                    && let Ok(value) = u64::try_from(literal)
-                {
-                    environment.mark_known_u64(path.clone(), value);
-                }
-            }
-        }
-        _ => {}
-    }
+    contribute_projected_comparison(
+        program,
+        environment,
+        comparison.operator,
+        (&left, comparison.left),
+        (&right, comparison.right),
+    );
 }
 
 /// Project one side of a case `where` fact onto the dispatched subject.
@@ -282,18 +163,14 @@ fn fact_side(
     subject_fields: &[SymbolHandle],
     subject_path: &str,
     expression: ExpressionHandle,
-) -> Option<FactOperand> {
+) -> Option<ProjectedOperand> {
     match program.expression_table.expression(expression) {
         ExpressionNode::Integer(literal)
             if literal.landing().is_none_or(|landing| {
                 landing.landed_type != numerics::literals::LandedIntegerType::Addr
             }) =>
         {
-            Some(FactOperand {
-                operand: ordered_values::Operand::Integer(literal.clone(), literal.landing()),
-                spelled: None,
-                field_type: None,
-            })
+            Some(ProjectedOperand::literal(literal))
         }
         ExpressionNode::Name(path) => {
             let name = program
@@ -318,36 +195,20 @@ fn fact_side(
             // This environment records integer differences (a strict order
             // contributes a distance of at least one). A case's IEEE or
             // nominal facts cannot supply those relations or integer intervals.
-            let reference = crate::value_custody::places::unwrapped_type_reference(
-                program,
-                field.type_reference,
-            )?;
-            let primitive =
-                crate::value_custody::recasts::exact_primitive_type(program, reference)?;
-            if !matches!(
-                primitive,
-                PrimitiveType::I8
-                    | PrimitiveType::I16
-                    | PrimitiveType::I32
-                    | PrimitiveType::I64
-                    | PrimitiveType::U8
-                    | PrimitiveType::U16
-                    | PrimitiveType::U32
-                    | PrimitiveType::U64
-            ) {
+            if !has_fixed_integer_meaning(program, field.type_reference) {
                 return None;
             }
             let mut fields = subject_fields.to_vec();
             fields.push(field.symbol);
             let path = format!("{subject_path}.{}", field.name.as_str());
-            Some(FactOperand {
-                operand: ordered_values::Operand::Place {
+            Some(ProjectedOperand {
+                operand: Some(ordered_values::Operand::Place {
                     root: *subject_root,
                     fields,
                     path: path.clone(),
-                },
+                }),
                 spelled: field_name_unique(program, owner, field.name.as_str()).then_some(path),
-                field_type: Some(field.type_reference),
+                declared_type: Some(field.type_reference),
             })
         }
         _ => None,

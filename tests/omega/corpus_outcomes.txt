@@ -1444,6 +1444,8 @@ fail/recast/boolean_view_requires_byte_region_representation rejected 187ms expe
 	machine `read` state `entry`: a shared recast may weaken established facts but cannot strengthen them; a raw byte region cannot establish the target's representation facts
 fail/recast/boolean_view_requires_source_representation rejected 187ms expected @6e7bf42e4877
 	machine `read` state `entry`: a shared recast may weaken established facts but cannot strengthen them; source facts do not establish the target representation
+fail/recast/boundary_equality_retired_by_out_argument_write rejected 667ms expected @be8e4cb5674c+wt
+	machine `Main::main` state `read`: cannot bound the recast offset `size` -- the region holds 12 bytes, but no declared range, dominating incoming guard, or boundary-ensures witness bounds the offset below the footprint. Bound it: declare a range on the offset param, guard the transition arm (`transition size <= K { true -> ... }`), or `ensures`-bound the boundary out-param that feeds it
 fail/recast/field_precondition_call_invalidated_before_capture rejected 171ms expected @ef3f9f2b015a
 	machine `capture` state `entry`: cannot bound the recast offset `cursor.offset` -- the region holds 32 bytes, but no declared range, dominating incoming guard, or boundary-ensures witness bounds the offset below the footprint. Bound it: declare a range on the offset param, guard the transition arm (`transition cursor.offset <= K { true -> ... }`), or `ensures`-bound the boundary out-param that feeds it
 fail/recast/field_precondition_invalidated_before_capture rejected 123ms expected @d9720a4fa49b+wt
@@ -2359,11 +2361,11 @@ pass/data/runtime_mixed_case_payload_dispatch_exit checked 1537ms check-target:m
 pass/data/runtime_mixed_shape_exit checked 2078ms check-target:macos_arm64 @ca8c127c90c5
 pass/data/runtime_proof_only_data_declared_exit checked 1252ms check-target:macos_arm64 @2d8ed253669f
 pass/data/runtime_record_field_value_pattern_exit checked 1016ms check-target:macos_arm64 @3f4da4527c2d+wt
-pass/dependent/boundary_equality_recast_witness_compile rejected 176ms @ef3f9f2b015a
-	machine `Main::main` state `read`: cannot bound the recast offset `size` -- the region holds 12 bytes, but no declared range, dominating incoming guard, or boundary-ensures witness bounds the offset below the footprint. Bound it: declare a range on the offset param, guard the transition arm (`transition size <= K { true -> ... }`), or `ensures`-bound the boundary out-param that feeds it
+pass/dependent/boundary_equality_recast_witness_compile checked 1282ms @be8e4cb5674c+wt
 pass/dependent/boundary_requires_caller_field_extent_compile checked 298ms @2d8ed253669f
 pass/dependent/call_requires_saved_local_arithmetic_bound_compile checked 292ms @2d8ed253669f
 pass/dependent/case_where_common_field_window checked 288ms @2d8ed253669f
+pass/dependent/case_where_equality_bounds_subtraction checked 1436ms @be8e4cb5674c+wt
 pass/dependent/case_where_generic_type_bound_coverage checked 292ms @2d8ed253669f
 pass/dependent/case_where_match_contributes checked 288ms @2d8ed253669f
 pass/dependent/case_where_zero_decided_first_case checked 302ms @2d8ed253669f

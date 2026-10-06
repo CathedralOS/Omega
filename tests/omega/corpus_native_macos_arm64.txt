@@ -642,11 +642,11 @@ pass/data/runtime_mixed_case_payload_dispatch_exit built 1710ms exit:70 @4800836
 pass/data/runtime_mixed_shape_exit built 2406ms exit:70 @fb2178def922
 pass/data/runtime_proof_only_data_declared_exit built 534ms exit:70
 pass/data/runtime_record_field_value_pattern_exit built 923ms exit:70 @3f4da4527c2d+wt
-pass/dependent/boundary_equality_recast_witness_compile rejected 666ms regressed-from:checked @835baa6033eb+wt
-	machine `Main::main` state `read`: the recast target `u32` needs 4 bytes at offset 4294967295, but the region holds 12 -- the view would read past the buffer (§5b rule 1 is byte-granular)
+pass/dependent/boundary_equality_recast_witness_compile checked 1571ms @be8e4cb5674c+wt
 pass/dependent/boundary_requires_caller_field_extent_compile checked 190ms
 pass/dependent/call_requires_saved_local_arithmetic_bound_compile checked 209ms
 pass/dependent/case_where_common_field_window checked 183ms
+pass/dependent/case_where_equality_bounds_subtraction checked 1575ms @be8e4cb5674c+wt
 pass/dependent/case_where_generic_type_bound_coverage checked 207ms
 pass/dependent/case_where_match_contributes checked 199ms
 pass/dependent/case_where_zero_decided_first_case checked 220ms

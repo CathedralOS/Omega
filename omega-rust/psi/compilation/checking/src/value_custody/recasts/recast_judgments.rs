@@ -154,8 +154,14 @@ pub(crate) fn judge_scalar_recast(
                 );
                 return;
             }
-            let interior =
-                interior_byte_region_source(program, machine, state, statement_index, source);
+            let interior = interior_byte_region_source(
+                program,
+                machine,
+                state,
+                statement_index,
+                source,
+                target_representation.size as i64,
+            );
             if let InteriorByteRegion::OffsetUnproven {
                 offset_display,
                 region_length,
@@ -299,7 +305,9 @@ pub(crate) fn judge_scalar_recast(
     // addresses on normal memory. The stated-type-restated check above
     // already ran; the same-width rule below does NOT apply (the source
     // region is byte-granular).
-    let interior = interior_byte_region_source(program, machine, state, statement_index, source);
+    let footprint = target.scalar_byte_size().map_or(0, |size| size as i64);
+    let interior =
+        interior_byte_region_source(program, machine, state, statement_index, source, footprint);
     if let InteriorByteRegion::OffsetUnproven {
         offset_display,
         region_length,
@@ -511,7 +519,7 @@ fn judge_slice_recast(
     // consumes every remaining byte. This is the dynamically-sized companion
     // to the fixed aggregate/scalar interior rungs: raw bytes may establish
     // only recursively fact-free, exactly tiled element representations.
-    let interior = interior_byte_region_source(program, machine, state, statement_index, source);
+    let interior = interior_byte_region_source(program, machine, state, statement_index, source, 0);
     if let InteriorByteRegion::OffsetUnproven {
         offset_display,
         region_length,

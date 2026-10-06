@@ -111,13 +111,15 @@ pub(super) enum InteriorByteRegion {
 /// Rungs B/C1's interior source: `<[u8; N] place>[k]`. Shape is recognized
 /// FIRST (byte-element fixed array, literal length); the offset bound then
 /// comes from a literal, the declared range, the dominating incoming
-/// guard, or the boundary-ensures witness.
+/// guard, or the boundary-ensures witness. `footprint` is the number of bytes
+/// the view occupies at the offset (zero for a slice over the remainder).
 pub(super) fn interior_byte_region_source(
     program: &TypedTrees,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     statement_index: usize,
     source: ExpressionHandle,
+    footprint: i64,
 ) -> InteriorByteRegion {
     let ExpressionNode::Indexed(indexed) = program.expression_table.expression(source) else {
         return InteriorByteRegion::NotInteriorShape;
@@ -156,7 +158,14 @@ pub(super) fn interior_byte_region_source(
     // before formation retires them while a later write cannot retarget it.
     let offset = match program.expression_table.expression(indexed.index) {
         ExpressionNode::Integer(literal) => literal.value_i64().filter(|offset| *offset >= 0),
-        _ => proved_offset_upper_bound(program, machine, state, statement_index, indexed.index),
+        _ => proved_offset_upper_bound(
+            program,
+            machine,
+            state,
+            statement_index,
+            indexed.index,
+            region_length - footprint,
+        ),
     };
     match offset {
         Some(offset) => InteriorByteRegion::Bounded {
@@ -176,6 +185,13 @@ pub(super) fn interior_byte_region_source(
 /// data's `where` facts), the structural walk over a composite offset's own
 /// operands (`k * 2`), and the facts standing at this exact occurrence.
 ///
+/// Those routes read interval endpoints, which lose relations between
+/// places: `size == cap && cap <= 8` bounds `size` only through `cap`. When
+/// no endpoint reaches `needed_bound` (the largest offset the view fits at),
+/// the live relational judgment at the same occurrence is asked for exactly
+/// that bound. It sees the relations the effect walk retained, so a write
+/// that retires the equality also retires the bound.
+///
 /// Each answer is an UPPER bound, so only one narrower than the offset
 /// place's own integer carrier states anything about the program: the
 /// carrier maximum is what the type already says, and because the tightest
@@ -188,6 +204,7 @@ fn proved_offset_upper_bound(
     state: &typed_trees::state::State,
     statement_index: usize,
     index: ExpressionHandle,
+    needed_bound: i64,
 ) -> Option<i64> {
     let declared_high = crate::proof_contracts::arithmetic_domains::standing_integer_interval(
         program, machine, state, index,
@@ -207,7 +224,7 @@ fn proved_offset_upper_bound(
             index,
         )
         .and_then(|(low, high)| (low >= 0).then_some(high));
-    [declared_high, composite_high, occurrence_high]
+    let interval_high = [declared_high, composite_high, occurrence_high]
         .into_iter()
         .flatten()
         .filter_map(|high| {
@@ -215,7 +232,22 @@ fn proved_offset_upper_bound(
                 program, machine, state, index, high,
             )
         })
-        .min()
+        .min();
+    if interval_high.is_some_and(|high| high <= needed_bound) || needed_bound < 0 {
+        return interval_high;
+    }
+    let relational_high =
+        crate::proof_contracts::arithmetic_domains::occurrence_integer_expression_fits_range(
+            program,
+            machine.symbol,
+            state.symbol,
+            statement_index,
+            index,
+            &numerics::bignum::BigInt::from_i64(0),
+            &numerics::bignum::BigInt::from_i64(needed_bound),
+        )
+        .then_some(needed_bound);
+    relational_high.or(interval_high)
 }
 
 pub(super) fn push_offset_unproven(

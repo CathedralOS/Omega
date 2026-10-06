@@ -2467,32 +2467,6 @@ crash and native exit behavior.
   either and it would stop pinning its authored reason -- closing this needs the
   rule plus a real entry selection for that fail fixture.
 
-- **RECAST-OFFSET-EQUALITY-TRANSPORT.** (split-of:MACOS-NATIVE-LOST-SUCCESSES)
-  Restore `pass/dependent/boundary_equality_recast_witness_compile`:
-  `ensures size == cap && cap <= 8` must establish that reading a four-byte
-  value at `size` fits a twelve-byte backing. The recast is
-  `&main.buf[size] as &u32`.
-
-  In `checking/src/value_custody/recasts/raw_byte_region.rs`, the
-  `standing_integer_interval`, `composite_offset_upper_bound` and
-  `occurrence_integer_expression_bounds` candidates do not transport the
-  proved equation. Reuse ordinary equality/bounds reasoning, retaining exact
-  subjects and invalidation; do not build a recast-only solver. The applicable
-  `ValueEqualityTransport` rule is in
-  [fact validity](wiki/spec/terminal-psi/verification.md), not the fixture's
-  undocumented “R1/R4” label.
-
-  Carrier-bound diagnostic filtering already uses `place_carrier_interval`
-  and `upper_bound_beyond_place_carrier` through `proved_offset_upper_bound`,
-  including reference/qualification shells. Preserve
-  `pass/recast/runtime_guarded_offset_recast_exit`,
-  `fail/recast/unbounded_offset_names_the_bound` and the call/direct-write
-  invalidation controls; do not repeat that repair. A non-place offset needs
-  its expression's type/bounds, not a primitive lookup on a nonexistent place.
-
-  Acceptance: `python tools/corpus_gate.py --filter dependent/boundary_equality_recast_witness_compile`
-  reaches `checked`; substituted or invalidated equalities cannot justify access.
-
 - **MACOS-NATIVE-LOST-SUCCESSES.** (new-scope)
   Restore the remaining `regressed-from:` rows in
   `tests/omega/corpus_native_macos_arm64.txt`. Read the live roster with
@@ -2505,7 +2479,6 @@ crash and native exit behavior.
     selection decision. `interrupt_table_canary` and
     `secondary_processor_canary` now select providers but lack an executable
     intrinsic: **STATIC-BOUNDARY-REQUIREMENT-CALL-FORM** owns that dependency.
-  - **RECAST-OFFSET-EQUALITY-TRANSPORT** owns the dependent recast witness.
   - Cross-host control: Linux records still reject
     `pass/text/local_bounded_text_case_result_loan_exit` and mark
     `local_bounded_text_scalar_loan_exit` incomplete, while macOS recorded
