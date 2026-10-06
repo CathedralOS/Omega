@@ -5,7 +5,7 @@ data ByteUnit {}
 data Region [linear] { length: u64; }
 domain Region::Owned;
 machine Owned::content(region: &Region) -> CountedQuantity<ByteUnit>
-satisfies Content<CountedQuantity<ByteUnit>>::project
+satisfies Content<Region, CountedQuantity<ByteUnit>>::project
 { CountedQuantity { magnitude: embed(region.length) as Nat } }
 
 trait RegionForward {

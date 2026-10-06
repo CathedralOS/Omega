@@ -81,8 +81,8 @@ data CountedQuantity<Unit> {
     magnitude: u64;
 }
 
-trait Content<A> {
-    machine project(subject: &Self) -> A;
+trait Content<Owner, A> {
+    machine project(subject: &Owner) -> A;
 }
 
 data Registration [linear] {
@@ -93,7 +93,7 @@ domain Registration::Live
 established by User32::register_class, User32::unregister_class;
 
 machine Live::content(registration: &Registration) -> CountedQuantity<RegistrationSlot>
-satisfies Content<CountedQuantity<RegistrationSlot>>::project
+satisfies Content<Registration, CountedQuantity<RegistrationSlot>>::project
 {
     CountedQuantity { magnitude: 1 }
 }

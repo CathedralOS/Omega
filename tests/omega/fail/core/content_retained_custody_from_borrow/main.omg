@@ -7,7 +7,7 @@ data Buffer [linear] {}
 domain Buffer::Owned;
 
 machine Owned::content(buffer: &Buffer) -> CountedQuantity<ByteUnit>
-satisfies Content<CountedQuantity<ByteUnit>>::project
+satisfies Content<Buffer, CountedQuantity<ByteUnit>>::project
 {
     CountedQuantity { magnitude: Nat::Succ { prev: Nat::Zero } }
 }
@@ -18,7 +18,7 @@ domain PendingWrite::Retained
 established by Writer::submit;
 
 machine Retained::content(pending: &PendingWrite) -> CountedQuantity<ByteUnit>
-satisfies Content<CountedQuantity<ByteUnit>>::project
+satisfies Content<PendingWrite, CountedQuantity<ByteUnit>>::project
 {
     CountedQuantity { magnitude: Nat::Succ { prev: Nat::Zero } }
 }

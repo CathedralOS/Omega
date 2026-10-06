@@ -1,4 +1,4 @@
-//! Validation for the compiler-owned `Content<A>` qualification projection.
+//! Validation for the compiler-owned `Content<Owner, A>` qualification projection.
 //!
 //! A projection is selected by an exact domain owner, not by linearity, field
 //! names, or operation names. This module establishes the ownership/uniqueness
@@ -133,7 +133,7 @@ pub(crate) fn validate_content_projection_conformances(
                     program
                         .type_reference_table
                         .type_reference_handles(conformance.arguments)
-                        .first()
+                        .get(1)
                         .map(|argument| program.display_type_reference(*argument))
                         .unwrap_or_else(|| "<missing>".to_owned())
                 )));
@@ -154,7 +154,7 @@ pub(crate) fn validate_content_projection_conformances(
                     || (!candidate.semantic_domain.is_valid() && *symbol == domain.symbol)
             }) {
                 diagnostics.push(Diagnostic::error(format!(
-                    "exact qualification `{}` publishes more than one `Content<A>` projection (`{first}` and `{}`); one qualification has one owner-unique projection identity",
+                    "exact qualification `{}` publishes more than one `Content<Owner, A>` projection (`{first}` and `{}`); one qualification has one owner-unique projection identity",
                     domain.name, machine.name
                 )));
                 continue;
@@ -253,7 +253,10 @@ fn selected_content_algebra(
     program: &TypedTrees,
     conformance: &typed_trees::machine::TraitConformance,
 ) -> Option<ContentAlgebraIdentity> {
-    let [argument] = program
+    // `Content<Owner, A>`: the owner is the projected subject's carrier,
+    // which signature matching already ties to the projection's parameter;
+    // the algebra is the second argument.
+    let [_owner, argument] = program
         .type_reference_table
         .type_reference_handles(conformance.arguments)
     else {
@@ -555,7 +558,7 @@ fn is_content_projection_trait(program: &TypedTrees, candidate: &TraitDefinition
             .next()
             .is_some_and(|name| name == "Content")
         && !candidate.is_boundary
-        && program.trait_type_parameters(candidate).len() == 1
+        && program.trait_type_parameters(candidate).len() == 2
         && matches!(program.trait_machine_signatures(candidate), [requirement] if requirement.name.as_str() == "project")
 }
 

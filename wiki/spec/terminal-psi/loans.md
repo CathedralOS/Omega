@@ -39,7 +39,7 @@ comparisons and replay them inside the same compile. Under
 the borrow checker judges the producer's facts once. Proof-carrying artifact
 verification is removed; authored mathematics and refinement reasoning remain.
 
-Logical place footprints, semantic `Content<A>` projections, and physical effect
+Logical place footprints, semantic `Content<Owner, A>` projections, and physical effect
 footprints are different subjects. Relating them requires an explicit checked
 bridge, not structural resemblance.
 

@@ -28,7 +28,8 @@ a matching compact identifier proves a content theorem.
 ## Projection and algebra
 
 A content-bearing exact qualification publishes at most one owner-unique
-conformance to core `Content<A>`. The selected machine projects its qualified
+conformance to core `Content<Owner, A>`, where `Owner` is the qualified
+carrier and `A` the algebra. The selected machine projects its qualified
 subject into compiler-owned algebra `A`. Only the qualification owner may
 publish this conformance; other packages cannot reinterpret its resource
 denominator by selecting another projection.

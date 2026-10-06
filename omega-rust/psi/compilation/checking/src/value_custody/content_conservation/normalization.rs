@@ -97,7 +97,7 @@ fn normalize_term(
     let projection = projection_plan_for_call(context.program, context.projections, call)
         .ok_or_else(|| {
             format!(
-                "call `{}` is not the exact owner-unique `Content<A>::project` conformance machine; there is no generic `content(...)` intrinsic",
+                "call `{}` is not the exact owner-unique `Content<Owner, A>::project` conformance machine; there is no generic `content(...)` intrinsic",
                 context.program.expression_table.display_name(expression),
             )
         })?;

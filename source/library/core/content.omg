@@ -2,7 +2,7 @@
 //
 // Ordinary linear claims remain whole claims. An exact semantic
 // qualification becomes content-bearing only when its owner publishes one
-// checked machine satisfying `Content<A>::project`; `A` is one of the closed
+// checked machine satisfying `Content<Owner, A>::project`; `A` is one of the closed
 // compiler-normalized content algebras below. The conformance body is proof
 // material and adds no runtime metadata to the qualified carrier.
 use omega::language::core::nat;
@@ -19,8 +19,8 @@ pub data CountedQuantity<Unit> {
     magnitude: Nat;
 }
 
-pub trait Content<A> {
-    machine project(subject: &Self) -> A;
+pub trait Content<Owner, A> {
+    machine project(subject: &Owner) -> A;
 }
 
 // Conservation contracts call the exact owner projection above around the

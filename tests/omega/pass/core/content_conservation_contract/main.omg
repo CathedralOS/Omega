@@ -33,7 +33,7 @@ pub data Region [linear] {
 pub domain Region::Owned;
 
 pub machine Owned::content(region: &Region) -> CountedQuantity<ByteUnit>
-satisfies Content<CountedQuantity<ByteUnit>>::project
+satisfies Content<Region, CountedQuantity<ByteUnit>>::project
 {
     CountedQuantity { magnitude: embed(region.remaining) as Nat }
 }

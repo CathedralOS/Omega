@@ -44,7 +44,7 @@ return. Consuming `Buffer` into `PendingWrite` can transfer its content;
 `PendingWrite<'a>` may instead retain a compatible checked loan for `'a`.
 Infer unambiguous consumed-input-to-result mappings; an ambiguous mapping needs
 an ordinary postcondition establishing the exact correspondence. Unsupported
-mappings reject. Qualified content uses its owner-unique `Content<A>` projection,
+mappings reject. Qualified content uses its owner-unique `Content<Owner, A>` projection,
 not a foreign-only extent algebra or annotation.
 
 Every retained native pointer slot needs exact stable-root, range, access,

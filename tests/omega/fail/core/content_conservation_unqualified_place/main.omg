@@ -9,7 +9,7 @@ data Region [linear] {
 domain Region::Owned;
 
 machine Owned::content(region: &Region) -> CountedQuantity<ByteUnit>
-satisfies Content<CountedQuantity<ByteUnit>>::project
+satisfies Content<Region, CountedQuantity<ByteUnit>>::project
 {
     CountedQuantity { magnitude: embed(region.remaining) as Nat }
 }

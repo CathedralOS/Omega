@@ -281,7 +281,7 @@ an already committed transfer.
 ## Content and carry
 
 Whole-claim conservation does not require dependent types or imply divisibility.
-Only an exact qualification's owner-unique `Content<A>` projection adds
+Only an exact qualification's owner-unique `Content<Owner, A>` projection adds
 [content conservation](../resources/content_custody.md). Its n-ary theorem is
 additional to accounting for each whole claim; per-child containment or equal
 scalar totals cannot rule out overlapping children. Retired content means

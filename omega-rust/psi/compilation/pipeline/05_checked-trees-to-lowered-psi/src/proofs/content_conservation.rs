@@ -224,7 +224,7 @@ pub(crate) fn lower_structural_content_projection(
 /// Publish the exact content carried by claims below whole structural entries.
 ///
 /// Structural claim identity remains authoritative. A qualification contributes
-/// content only when the checker retained its owner-unique `Content<A>` plan,
+/// content only when the checker retained its owner-unique `Content<Owner, A>` plan,
 /// and the projection must describe the carrier at that exact claim path.
 /// Projected qualifications never qualify a sibling or the whole owner. This
 /// binds entry content, not a partition theorem or boundary admission.

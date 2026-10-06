@@ -135,7 +135,7 @@ fn collect_content_conservation_plans(
             || projection_plan_for_call(program, projections, call).is_some()
         {
             diagnostics.push(Diagnostic::error(format!(
-                "proof-only content operation `{}` is used in executable expression position; `old`, `separate`, and exact `Content<A>::project` machines are contract-only",
+                "proof-only content operation `{}` is used in executable expression position; `old`, `separate`, and exact `Content<Owner, A>::project` machines are contract-only",
                 call.target.as_str(),
             )));
         }

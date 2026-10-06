@@ -16,8 +16,8 @@ data CountedQuantity<Unit> {
     magnitude: u64;
 }
 
-trait Content<A> {
-    machine project(subject: &Self) -> A;
+trait Content<Owner, A> {
+    machine project(subject: &Owner) -> A;
 }
 
 pub data Region [linear] {
@@ -27,7 +27,7 @@ pub data Region [linear] {
 domain Region::Owned;
 
 machine Owned::content(region: &Region) -> CountedQuantity<ByteUnit>
-satisfies Content<CountedQuantity<ByteUnit>>::project
+satisfies Content<Region, CountedQuantity<ByteUnit>>::project
 {
     CountedQuantity { magnitude: region.length }
 }

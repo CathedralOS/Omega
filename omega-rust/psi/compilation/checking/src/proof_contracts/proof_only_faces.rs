@@ -62,7 +62,7 @@ pub(crate) fn validate_proof_only_consumption(
     }
 
     for machine in program.machines() {
-        // `Content<A>::project` is compiler-normalized proof material. It may
+        // `Content<Owner, A>::project` is compiler-normalized proof material. It may
         // symbolically embed runtime carrier fields into a proof-only algebra,
         // but the machine is never emitted or called at runtime.
         if crate::value_custody::content_projections::is_content_projection_machine(

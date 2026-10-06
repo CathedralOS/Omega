@@ -10,8 +10,8 @@ data CountedQuantity<Unit> {
     magnitude: u64;
 }
 
-trait Content<A> {
-    machine project(subject: &Self) -> A;
+trait Content<Owner, A> {
+    machine project(subject: &Owner) -> A;
 }
 
 data Region [linear] {
@@ -33,13 +33,13 @@ domain Region::Owned;
 domain WideRegion::WideOwned;
 
 machine Owned::content(region: &Region) -> CountedQuantity<ByteUnit>
-satisfies Content<CountedQuantity<ByteUnit>>::project
+satisfies Content<Region, CountedQuantity<ByteUnit>>::project
 {
     CountedQuantity { magnitude: region.length }
 }
 
 machine WideOwned::content(region: &WideRegion) -> CountedQuantity<ByteUnit>
-satisfies Content<CountedQuantity<ByteUnit>>::project
+satisfies Content<WideRegion, CountedQuantity<ByteUnit>>::project
 {
     CountedQuantity { magnitude: region.length }
 }

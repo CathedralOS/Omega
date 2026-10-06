@@ -14,7 +14,7 @@ pub struct StructuralDomainDeclaration {
     /// Exact carrier accepted by this domain. Qualification never changes the
     /// runtime carrier and never authorizes its own establishment.
     pub carrier: StructuralTypeId,
-    /// Owner-unique normalized `Content<A>` definition, when this
+    /// Owner-unique normalized `Content<Owner, A>` definition, when this
     /// qualification is content-bearing. This row is independent of any
     /// boundary route that may introduce a program-local occurrence; those
     /// routes must replay this exact definition rather than restating one.
