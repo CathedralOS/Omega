@@ -114,41 +114,13 @@ pub(crate) fn reconstruct_linear_thread_accounting(
             fuel: empty_edge.fuel.clone(),
         },
     ];
-    let mut expected_effect = 0u64;
-    for block in &function.blocks {
-        if block.id == empty.block {
-            continue;
-        }
-        for (node_index, node) in block.nodes.iter().enumerate() {
-            let location = NodeLocation {
-                machine: function.machine,
-                block: block.id,
-                node: u32::try_from(node_index).ok()?,
-            };
-            let effect_changes = node.effect.input != expected_effect
-                || node.effect.output != expected_effect.checked_add(1)?;
-            if effect_changes && location != predecessor {
-                affected.insert(block.id);
-                if !node.provenance.is_empty() {
-                    let site = PsiRealizationSite::Node(location);
-                    realized.push(optimization_unit::ProvenanceRewrite {
-                        input: site,
-                        disposition: ProvenanceDisposition::RealizedAt(site),
-                        sources: node.provenance.clone(),
-                        fuel: node.fuel.clone(),
-                    });
-                }
-            }
-            expected_effect = expected_effect.checked_add(1)?;
-        }
-    }
-    realized.sort_by_key(|row| {
-        (
-            row.input,
-            row.disposition.canonical_tag(),
-            row.disposition.site(),
-        )
-    });
+    effect_audit(
+        function,
+        empty,
+        Some(predecessor),
+        &mut affected,
+        &mut realized,
+    )?;
     Some((affected.into_iter().collect(), realized))
 }
 
@@ -203,6 +175,22 @@ pub(crate) fn reconstruct_path_thread_accounting(
     if realized.len() != incoming_edges.len().checked_mul(2)? {
         return None;
     }
+    effect_audit(function, empty, None, &mut affected, &mut realized)?;
+    Some((affected.into_iter().collect(), realized))
+}
+
+/// The effect-counter audit both thread reconstructions share: expected
+/// input/output walk one count per node outside `empty`'s block, and a node
+/// whose recorded effects break that chain — other than an optionally
+/// excused location — marks its block affected and, when it carries
+/// provenance, realizes its own site. Rows leave sorted in canonical order.
+fn effect_audit(
+    function: &PsiOptimizationFunction,
+    empty: NodeLocation,
+    except: Option<NodeLocation>,
+    affected: &mut BTreeSet<BlockId>,
+    realized: &mut Vec<optimization_unit::ProvenanceRewrite>,
+) -> Option<()> {
     let mut expected_effect = 0u64;
     for block in &function.blocks {
         if block.id == empty.block {
@@ -216,7 +204,7 @@ pub(crate) fn reconstruct_path_thread_accounting(
             };
             let effect_changes = node.effect.input != expected_effect
                 || node.effect.output != expected_effect.checked_add(1)?;
-            if effect_changes {
+            if effect_changes && except != Some(location) {
                 affected.insert(block.id);
                 if !node.provenance.is_empty() {
                     let site = PsiRealizationSite::Node(location);
@@ -238,5 +226,5 @@ pub(crate) fn reconstruct_path_thread_accounting(
             row.disposition.site(),
         )
     });
-    Some((affected.into_iter().collect(), realized))
+    Some(())
 }
