@@ -7,14 +7,14 @@
 
 use super::isolation::type_is_caller_isolated_local;
 use super::local_aliases::expression_may_rebind_mutable_alias;
-use super::place_paths::{FramePlaceOrigin, split_place_root};
+use super::place_paths::{FramePlaceOrigin, coarse_place_path, split_place_root};
 use super::type_capabilities::{type_may_carry_write, type_reference_is_reference};
 use language_core::is_self_receiver;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
-use typed_trees::statement::TableAssignment;
+use typed_trees::statement::{StatementNode, TableAssignment};
 use typed_trees::types::TypeReferenceNode;
 
 /// A primitive parameter assignment observes the RHS referent as a value;
@@ -251,4 +251,35 @@ where
     aliases.iter().any(|(alias, _)| alias == target)
         && expression_may_rebind_mutable_alias(program, machine, state, value)
         && resolve_origin(aliases).is_some()
+}
+
+/// Whether `statement` is an assignment whose target a stable local mutable
+/// alias may rebind to; `resolve_origin` supplies the alias's initializer
+/// origin from the established alias table.
+pub(super) fn representable_assignment_alias_rebinding<ResolveOrigin>(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    statement: &StatementNode,
+    aliases: &[(String, FramePlaceOrigin)],
+    resolve_origin: ResolveOrigin,
+) -> bool
+where
+    ResolveOrigin: FnOnce(&[(String, FramePlaceOrigin)], ExpressionHandle) -> Option<FramePlaceOrigin>,
+{
+    match statement {
+        StatementNode::Assignment(assignment) => coarse_place_path(program, assignment.target)
+            .is_some_and(|target| {
+                stable_local_mutable_alias_rebinding_is_representable(
+                    program,
+                    machine,
+                    state,
+                    &target,
+                    assignment.value,
+                    aliases,
+                    |aliases| resolve_origin(aliases, assignment.value),
+                )
+            }),
+        _ => false,
+    }
 }

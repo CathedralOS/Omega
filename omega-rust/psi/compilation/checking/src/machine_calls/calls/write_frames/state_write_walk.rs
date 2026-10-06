@@ -8,7 +8,7 @@
 
 use crate::declarations::symbols::{MachineSymbols, TopLevelSymbols};
 use crate::machine_calls::calls::write_frames::alias_bindings::{
-    rebind_stable_local_mutable_alias_origin, stable_local_mutable_alias_rebinding_is_representable,
+    rebind_stable_local_mutable_alias_origin, representable_assignment_alias_rebinding,
 };
 use crate::machine_calls::calls::write_frames::alias_origins::{
     stable_alias_initializer_origin, stable_alias_initializer_origins,
@@ -485,47 +485,34 @@ fn walk_state_write_prefix_inner(
             }
             _ => None,
         };
-        let representable_alias_rebinding = match statement {
-            StatementNode::Assignment(assignment) => coarse_place_path(program, assignment.target)
-                .is_some_and(|target| {
-                    stable_local_mutable_alias_rebinding_is_representable(
-                        program,
-                        machine,
-                        state,
-                        &target,
-                        assignment.value,
-                        &local_alias_origins,
-                        |aliases| {
-                            if include_shared {
-                                return reference_subjects::backing_origin(
-                                    program,
-                                    machine,
-                                    assignment.value,
-                                    symbols,
-                                    inference,
-                                    aliases,
-                                    &stored,
-                                );
-                            }
-                            stable_alias_initializer_origin(
-                                program,
-                                machine,
-                                &machine_symbols,
-                                inference,
-                                assignment.value,
-                                parameters,
-                                &isolated_local_roots,
-                                aliases,
-                                &divergent_alias_origins,
-                                symbols,
-                                true,
-                                &stored,
-                            )
-                        },
-                    )
-                }),
-            _ => false,
-        };
+        let representable_alias_rebinding = representable_assignment_alias_rebinding(
+            program,
+            machine,
+            state,
+            statement,
+            &local_alias_origins,
+            |aliases, value| {
+                if include_shared {
+                    return reference_subjects::backing_origin(
+                        program, machine, value, symbols, inference, aliases, &stored,
+                    );
+                }
+                stable_alias_initializer_origin(
+                    program,
+                    machine,
+                    &machine_symbols,
+                    inference,
+                    value,
+                    parameters,
+                    &isolated_local_roots,
+                    aliases,
+                    &divergent_alias_origins,
+                    symbols,
+                    true,
+                    &stored,
+                )
+            },
+        );
         let declared_stored_origins = match statement {
             StatementNode::LocalData(local)
                 if ((type_may_carry_write(program, local.type_reference)

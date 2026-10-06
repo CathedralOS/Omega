@@ -2,7 +2,7 @@
 
 use crate::declarations::symbols::{MachineSymbols, TopLevelSymbols};
 use crate::machine_calls::calls::write_frames::alias_bindings::{
-    rebind_stable_local_mutable_alias_origin, stable_local_mutable_alias_rebinding_is_representable,
+    rebind_stable_local_mutable_alias_origin, representable_assignment_alias_rebinding,
 };
 use crate::machine_calls::calls::write_frames::alias_origins::{
     stable_alias_initializer_origin, stable_alias_initializer_origins,
@@ -245,36 +245,29 @@ fn build_cycle_frame_equation<'program>(
             }
             _ => None,
         };
-        let representable_alias_rebinding = match statement {
-            StatementNode::Assignment(assignment) => coarse_place_path(program, assignment.target)
-                .is_some_and(|target| {
-                    stable_local_mutable_alias_rebinding_is_representable(
-                        program,
-                        machine,
-                        state,
-                        &target,
-                        assignment.value,
-                        &local_alias_origins,
-                        |aliases| {
-                            stable_alias_initializer_origin(
-                                program,
-                                machine,
-                                machine_symbols,
-                                &mut inference,
-                                assignment.value,
-                                parameters,
-                                &isolated_local_roots,
-                                aliases,
-                                &[],
-                                symbols,
-                                true,
-                                &stored,
-                            )
-                        },
-                    )
-                }),
-            _ => false,
-        };
+        let representable_alias_rebinding = representable_assignment_alias_rebinding(
+            program,
+            machine,
+            state,
+            statement,
+            &local_alias_origins,
+            |aliases, value| {
+                stable_alias_initializer_origin(
+                    program,
+                    machine,
+                    machine_symbols,
+                    &mut inference,
+                    value,
+                    parameters,
+                    &isolated_local_roots,
+                    aliases,
+                    &[],
+                    symbols,
+                    true,
+                    &stored,
+                )
+            },
+        );
         if stored_origins::statement_exposes_frozen_binding(
             program,
             machine,
