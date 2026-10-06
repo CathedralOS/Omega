@@ -418,25 +418,6 @@ impl CheckedOperatorCandidateFact {
     }
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub struct CheckedOperatorResolutionSummary {
-    pub resolved: usize,
-    pub missing: usize,
-    pub ambiguous: usize,
-    pub builtin_fallback: usize,
-    pub inadmissible: usize,
-    pub domain_pending: usize,
-}
-
-impl CheckedOperatorResolutionSummary {
-    pub const fn all_resolved(self) -> bool {
-        self.missing == 0
-            && self.ambiguous == 0
-            && self.inadmissible == 0
-            && self.domain_pending == 0
-    }
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CheckedOperatorResolutionIssue<'facts> {
     pub operator_use: &'facts CheckedOperatorUseFact,
@@ -996,25 +977,6 @@ impl CheckedOperatorFacts {
             })
     }
 
-    /// Compatibility query for callers that only need the adapter value and
-    /// deliberately treat missing operator evidence as no adapter.
-    pub fn policy_adapter_for_expression_in_origin(
-        &self,
-        expression: ExpressionHandle,
-        origin: CheckedValueOrigin,
-    ) -> CheckedArithmeticPolicyAdapter {
-        self.policy_adapter_evidence_for_expression_in_origin(expression, origin)
-            .unwrap_or_default()
-    }
-
-    pub fn missing_uses(&self) -> impl Iterator<Item = &CheckedOperatorUseFact> {
-        self.uses_with_status(CheckedOperatorResolutionStatus::Missing)
-    }
-
-    pub fn ambiguous_uses(&self) -> impl Iterator<Item = &CheckedOperatorUseFact> {
-        self.uses_with_status(CheckedOperatorResolutionStatus::Ambiguous)
-    }
-
     pub fn resolution_issues(&self) -> impl Iterator<Item = CheckedOperatorResolutionIssue<'_>> {
         self.uses
             .iter()
@@ -1083,42 +1045,6 @@ impl CheckedOperatorFacts {
         operator_use: &CheckedOperatorUseFact,
     ) -> &[CheckedOperatorCandidateFact] {
         self.candidates.span_or_empty(operator_use.candidates)
-    }
-
-    pub fn candidate_symbols(
-        &self,
-        operator_use: &CheckedOperatorUseFact,
-    ) -> impl Iterator<Item = SymbolHandle> + '_ {
-        self.candidates(operator_use)
-            .iter()
-            .map(|candidate| candidate.operator_symbol)
-    }
-
-    pub fn resolution_summary(&self) -> CheckedOperatorResolutionSummary {
-        let mut summary = CheckedOperatorResolutionSummary::default();
-        for (_, operator_use) in self.uses.iter() {
-            match operator_use.status {
-                CheckedOperatorResolutionStatus::Resolved => {
-                    summary.resolved = summary.resolved.saturating_add(1);
-                }
-                CheckedOperatorResolutionStatus::Missing => {
-                    summary.missing = summary.missing.saturating_add(1);
-                }
-                CheckedOperatorResolutionStatus::Ambiguous => {
-                    summary.ambiguous = summary.ambiguous.saturating_add(1);
-                }
-                CheckedOperatorResolutionStatus::BuiltinFallback => {
-                    summary.builtin_fallback = summary.builtin_fallback.saturating_add(1);
-                }
-                CheckedOperatorResolutionStatus::Inadmissible => {
-                    summary.inadmissible = summary.inadmissible.saturating_add(1);
-                }
-                CheckedOperatorResolutionStatus::DomainPending => {
-                    summary.domain_pending = summary.domain_pending.saturating_add(1);
-                }
-            }
-        }
-        summary
     }
 }
 

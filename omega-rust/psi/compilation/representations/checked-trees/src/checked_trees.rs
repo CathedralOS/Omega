@@ -178,10 +178,9 @@ pub use operators::{
     CheckedNamedOperatorUseFact, CheckedNamedRequirementUseFact, CheckedOperatorCandidateFact,
     CheckedOperatorContractUse, CheckedOperatorCrashBucket, CheckedOperatorCrashContract,
     CheckedOperatorFacts, CheckedOperatorOccurrence, CheckedOperatorRealizationContract,
-    CheckedOperatorResolutionIssue, CheckedOperatorResolutionStatus,
-    CheckedOperatorResolutionSummary, CheckedOperatorUseFact, CheckedOperatorUseHandle,
-    CheckedProviderPlanCommitment, CheckedSelectedFloatComparisonExecution,
-    CheckedSymbolicBoundaryOperatorApplicationArgument,
+    CheckedOperatorResolutionIssue, CheckedOperatorResolutionStatus, CheckedOperatorUseFact,
+    CheckedOperatorUseHandle, CheckedProviderPlanCommitment,
+    CheckedSelectedFloatComparisonExecution, CheckedSymbolicBoundaryOperatorApplicationArgument,
     CheckedSymbolicBoundaryOperatorApplicationDemand,
 };
 pub use proof::{
