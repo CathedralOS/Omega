@@ -1,0 +1,4 @@
+owner: Devin referee reduce-loc statement folds
+provenance: reduce-loc statement folds x4 + dead import fix: multiplicity helper, float projection format, scalar/structural result declaration helpers; certificate-fold commit dropped in rebase (upstream PCC deletion removed nonzero_divisor_certificate)
+ticket: 3e1e1360d62840be913481f5bfd47cf5
+published_utc: 2026-10-06T23:40:59.899528+00:00
