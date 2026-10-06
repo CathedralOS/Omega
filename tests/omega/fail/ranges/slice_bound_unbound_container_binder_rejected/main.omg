@@ -1,0 +1,15 @@
+// `Buffer::window` binds its receiver's extent as `M`. The `N` it spells is
+// the data declaration's binder, which this machine never declares, so it
+// is not the extent of `buffer.items` and `..N` is not the whole window.
+data Buffer<const N: u64> {
+    items: [u8; N];
+}
+
+machine Buffer::window<const M: u64>(buffer: &Buffer<M>) -> u8
+requires N >= 0;
+{
+    let view: &[u8] = &buffer.items[..N];
+    transition { _ -> (0) }
+}
+
+machine main() {}

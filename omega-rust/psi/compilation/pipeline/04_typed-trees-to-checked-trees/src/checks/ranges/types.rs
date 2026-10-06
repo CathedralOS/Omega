@@ -672,13 +672,16 @@ fn constrained_minimum_of_type_reference(
 /// constraint whose maximum names the const binder `extent` — the
 /// `u64[0..N]`/`u64[0..=N]` binder-bounded shape. `end_inclusive == false`
 /// asserts `value < N` (a strict index bound); `true` only `value <= N`.
+/// The binder is matched by symbol. A maximum stage 02 left unbound is not
+/// that binder even when spelled like it; checking refuses such a maximum in
+/// an integer range of every declared type and requires a binder's carrier
+/// range to close.
 pub(in crate::checks::ranges) fn declared_bound_names_symbolic_extent(
     program: &typed_trees::TypedTrees,
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
     extent_symbol: SymbolHandle,
-    extent_name: &typed_trees::name::Identifier,
 ) -> Option<bool> {
     let mut handle = expression_type_reference(program, machine, state, expression)?;
     loop {
@@ -713,18 +716,9 @@ pub(in crate::checks::ranges) fn declared_bound_names_symbolic_extent(
                     else {
                         continue;
                     };
-                    // Symbol match is authoritative — a same-spelled binder in
-                    // another scope cannot borrow this discharge. Fall back to
-                    // the terminal name only when the endpoint never resolved
-                    // to a symbol.
-                    let names_extent = path.symbol == extent_symbol
-                        || (!path.symbol.is_valid()
-                            && program
-                                .expression_table
-                                .name_path_members(path.members)
-                                .last()
-                                .is_some_and(|member| *member == *extent_name));
-                    if names_extent {
+                    // A same-spelled binder in another scope cannot borrow
+                    // this discharge.
+                    if extent_symbol.is_valid() && path.symbol == extent_symbol {
                         return Some(*end_inclusive);
                     }
                 }

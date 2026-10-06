@@ -436,7 +436,7 @@ fn validate_layout_domain_constraint(
 /// stays false for a bound that merely has integer leaves without a mark --
 /// whole-expression folding, not leaf shape, decides those bounds, so
 /// `0..=5 / 2` still reaches the non-constant arm below.
-fn range_bound_pending_evaluation_shape(
+pub(super) fn range_bound_pending_evaluation_shape(
     program: &TypedTrees,
     expression: ExpressionHandle,
 ) -> (bool, bool) {

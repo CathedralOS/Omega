@@ -35,6 +35,12 @@ pub(crate) fn validate_data_field_types(
         }
         let data_members = program.data_members(data_definition);
         let type_parameters = program.data_type_parameters(data_definition);
+        crate::value_custody::type_references::validate_const_binder_carriers(
+            program,
+            &format!("data `{}`", data_definition.name),
+            type_parameters,
+            diagnostics,
+        );
         validate_generic_instance_argument_bounds(program, data_definition, symbols, diagnostics);
         validate_data_member_names(data_definition, data_members, diagnostics);
         validate_data_shape(program, data_definition, data_members, diagnostics);

@@ -148,8 +148,11 @@ pub(super) fn unknown_length_range_is_proven(
 // floor, and the index's own `u64[..N]`/`u64[..=N]` declared range — the
 // language's spelling of "this value is bounded by `N`".
 
-/// `bound` is textually the extent binder itself (`items[..N]`) or the place's
-/// builtin length (`items[..items.len]`) — both spell `end <= N` trivially.
+/// `bound` is the extent binder itself (`items[..N]`) or the place's builtin
+/// length (`items[..items.len]`) — both spell `end <= N` trivially. The binder
+/// is matched by symbol: a name stage 02 left unbound is not the binder, even
+/// when it is spelled like one (a container's binder its machine never
+/// declares).
 fn symbolic_extent_is_named(
     program: &typed_trees::TypedTrees,
     machine: &typed_trees::machine::Machine,
@@ -164,13 +167,7 @@ fn symbolic_extent_is_named(
     let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
         return false;
     };
-    path.symbol == extent.0
-        || (!path.symbol.is_valid()
-            && program
-                .expression_table
-                .name_path_members(path.members)
-                .last()
-                .is_some_and(|member| *member == extent.1))
+    extent.0.is_valid() && path.symbol == extent.0
 }
 
 /// Proves `index < N` for a symbolic extent `N`. The strict form is owed:
@@ -196,7 +193,7 @@ fn symbolic_extent_index_is_proven(
             .is_some_and(|(value, floor)| value < floor)
         // `index`'s declared `u64[..N]` is the assertion `index < N` itself.
         || super::types::declared_bound_names_symbolic_extent(
-            program, machine, state, index, extent.0, &extent.1,
+            program, machine, state, index, extent.0,
         )
         .is_some_and(|end_inclusive| !end_inclusive)
         // A closed declared high or a guard-seeded literal bound below the
@@ -235,7 +232,7 @@ fn symbolic_extent_range_bound_is_proven(
         // A declared `u64[..N]` or `u64[..=N]` bound asserts `bound <= N`
         // under either inclusivity.
         || super::types::declared_bound_names_symbolic_extent(
-            program, machine, state, bound, extent.0, &extent.1,
+            program, machine, state, bound, extent.0,
         )
         .is_some()
         || expression_integer_value(program, facts, bound)

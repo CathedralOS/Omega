@@ -903,6 +903,78 @@ fn validate_const_integer_range(
     }
 }
 
+/// The declaration twin of `validate_const_integer_range`. An integer const
+/// or value binder's carrier range is established by each argument from
+/// closed integer bounds, so a range that does not close (`const N: u64
+/// [0..K]`, naming a sibling binder) admits no argument. Stage 02 also leaves
+/// such an endpoint unbound; refusing the declaration keeps every carrier
+/// range a closed interval that index proofs read without a spelling.
+/// Preliminary checking tolerates an endpoint whose evaluation is pending.
+pub(crate) fn validate_const_binder_carriers(
+    program: &TypedTrees,
+    owner: &str,
+    parameters: &[TypeParameter],
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    for parameter in parameters {
+        let (TypeParameterKind::Const {
+            type_reference: mut carrier,
+        }
+        | TypeParameterKind::Value {
+            type_reference: mut carrier,
+        }) = parameter.kind
+        else {
+            continue;
+        };
+        if !program
+            .type_reference_table
+            .primitive_type(carrier)
+            .is_some_and(PrimitiveType::accepts_integer_literal)
+        {
+            continue;
+        }
+        while let TypeReferenceNode::Constrained {
+            base_type,
+            constraints,
+        } = program.type_reference_table.type_reference(carrier)
+        {
+            for constraint in program.type_reference_table.constraints(*constraints) {
+                let typed_trees::types::TypeConstraintNode::Range {
+                    minimum,
+                    maximum,
+                    end_inclusive,
+                } = constraint
+                else {
+                    continue;
+                };
+                let closes = crate::closed_integer_range_bound(program, *minimum).is_some()
+                    && crate::closed_integer_range_maximum(program, *maximum, *end_inclusive)
+                        .is_some();
+                // The same pending admission formation applies to a declared
+                // range: every leaf closes or is a marked endpoint call.
+                let mut found_pending = false;
+                let pending = [*minimum, *maximum].into_iter().all(|endpoint| {
+                    let (closed, marked) =
+                        super::constraint_validation::range_bound_pending_evaluation_shape(
+                            program, endpoint,
+                        );
+                    found_pending |= marked;
+                    closed
+                }) && found_pending;
+                if !closes && !pending {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "{owner} parameter `{}` declares a range that does not close over \
+                         integers; an argument establishes its declared range from closed \
+                         integer bounds",
+                        parameter.name,
+                    )));
+                }
+            }
+            carrier = *base_type;
+        }
+    }
+}
+
 pub(crate) fn const_integer_value_fits_primitive(primitive: PrimitiveType, value: i128) -> bool {
     let (minimum, maximum) = match primitive {
         PrimitiveType::I8 => (i128::from(i8::MIN), i128::from(i8::MAX)),

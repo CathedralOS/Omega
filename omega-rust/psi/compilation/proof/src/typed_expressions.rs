@@ -10,7 +10,6 @@ use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::name::Identifier;
 use typed_trees::state::State;
-use typed_trees::statement::{StatementNode, TableLocalData};
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 pub(crate) fn expression_type_reference(
@@ -214,8 +213,10 @@ pub(crate) fn dehoisted_condition(
     dehoisted_initializer(program, state, condition).unwrap_or(condition)
 }
 
-/// A bare single-segment name's call-free LocalData initializer in `state`
-/// (peeling `Mutable`), or None.
+/// The call-free LocalData initializer (peeling `Mutable`) of the local in
+/// `state` a name is bound to, or None. Binding is by symbol: a read before a
+/// later same-spelled local (a const binder `N` read ahead of `let N = ...`)
+/// is not that local, and its initializer says nothing about the read.
 fn dehoisted_initializer(
     program: &TypedTrees,
     state: &State,
@@ -224,10 +225,10 @@ fn dehoisted_initializer(
     let ExpressionNode::Name(path) = program.expression_table.expression(operand) else {
         return None;
     };
-    let [name] = program.expression_table.name_path_members(path.members) else {
+    if !path.symbol.is_valid() {
         return None;
-    };
-    let local = local_data_by_name(program, state, name)?;
+    }
+    let (_, local) = program.state_local_declaration(state, path.symbol)?;
     if !local.initial_value.is_valid()
         || expression_contains_call_node(program, local.initial_value)
     {
@@ -238,24 +239,6 @@ fn dehoisted_initializer(
         initializer = inner.target;
     }
     Some(initializer)
-}
-
-fn local_data_by_name<'program>(
-    program: &'program TypedTrees,
-    state: &State,
-    name: &Identifier,
-) -> Option<&'program TableLocalData> {
-    program
-        .statement_table
-        .statements(state.statement_nodes)
-        .iter()
-        .find_map(|statement| {
-            let StatementNode::LocalData(local_data) = statement else {
-                return None;
-            };
-
-            (local_data.name == *name).then_some(local_data)
-        })
 }
 
 fn type_reference_for_symbol(
