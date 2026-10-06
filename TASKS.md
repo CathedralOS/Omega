@@ -1912,6 +1912,17 @@ crash and native exit behavior.
     Psi/Build chain, then an explicit per-target Omega loop. Prefix consumers
     call the same stage entrances and stop at a typed checkpoint; they do not
     create alternate compiler modes or replay an earlier stage.
+  - Make the route trivial to drive. Expose one Psi compilation operation over
+    prepared source/package custody and explicit Build authority. It returns a
+    canonical Terminal product or one typed pending-Build-effects continuation;
+    executing admitted effects and resuming that continuation is the only
+    interruption of the source-to-Terminal chain. Generated sources re-enter
+    through that same continuation, with no callback into a private frontend,
+    mode flag or second coordinator. Package review, accepted compilation,
+    compile-time jobs and tests supply policy, authority and their stop point;
+    they do not assemble stages 00-07, provider settlement or sidecars. Review
+    and accepted compilation may run in separate process invocations and need
+    not share an in-memory artifact, but both drive exactly this operation.
 
   Acceptance: a two-target integration fixture proves with invocation counters
   that source/Psi 00-07, Build and Terminal publication each execute once, then
@@ -1923,8 +1934,15 @@ crash and native exit behavior.
   plus the selected target's Build rows after the checked frontend and lowered
   sidecars are dropped. The dependency/source-access gate fails on seeded
   forbidden edges and passes the workspace; target-family positive/negative
-  corpus controls and matching-host native results remain unchanged. Delete the
-  transitional dependency exceptions and pipeline debt text when this passes.
+  corpus controls and matching-host native results remain unchanged. A minimal
+  package caller checks a valid source, rejects an invalid source and resumes an
+  admitted generated-source Build through the public Psi operation without
+  importing a numbered stage crate, checked-driver carrier, provider planner or
+  compiler-internal sidecar; denied effects occur zero times and pause/resume
+  does not repeat an effect. A source/dependency guard permits direct numbered
+  stage entrance calls only inside the Psi coordinator and explicit stage tests.
+  Delete the transitional dependency exceptions and pipeline debt text when
+  this passes.
 
 - **REFERENCE-LOCAL-BINDING-ROUTES.** (new-scope) Reference-valued locals from
   every admitted producer keep their loan identity, backing and access through
