@@ -14,7 +14,9 @@ pub(super) fn is_reference(
 ) -> bool {
     matches!(
         parameter.access,
-        StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+        StructuralAccess::SharedBorrow
+            | StructuralAccess::MutableBorrow
+            | StructuralAccess::WriteOnlyBorrow
     ) && parameter.multiplicity == StructuralMultiplicity::Unrestricted
         && parameter.qualifications.is_empty()
         && parameter.projected_qualifications.is_empty()
@@ -77,14 +79,17 @@ pub(super) fn argument(
             },
         )
     } else if let Some(home) = live.structural_homes.get(&argument.place) {
-        if home.has_claims()
+        if home.access() != StructuralAccess::Owned
+            || home.has_claims()
             || home.multiplicity() == StructuralMultiplicity::Linear
             || !home.qualifications().is_empty()
             || !home.projected_qualifications().is_empty()
         {
             return Err(invalid());
         }
-        // A join owns its destination storage, not any incoming producer's home.
+        // A join owns its destination storage, not any incoming producer's
+        // home. Every admitted loan access addresses that same owned backing;
+        // the block origin does not attenuate its exclusive permission.
         let source = match &home.origin {
             target_operations::TargetStructuralHomeOrigin::OperationResult {
                 operation, ..
@@ -94,15 +99,10 @@ pub(super) fn argument(
             target_operations::TargetStructuralHomeOrigin::BlockParameter {
                 block,
                 declaration,
-            } => {
-                if argument.access != StructuralAccess::SharedBorrow {
-                    return Err(invalid());
-                }
-                target_operations::TargetStructuralArgumentSource::BlockParameter {
-                    block: *block,
-                    place: declaration.place,
-                }
-            }
+            } => target_operations::TargetStructuralArgumentSource::BlockParameter {
+                block: *block,
+                place: declaration.place,
+            },
         };
         (home.structural_type(), source)
     } else {

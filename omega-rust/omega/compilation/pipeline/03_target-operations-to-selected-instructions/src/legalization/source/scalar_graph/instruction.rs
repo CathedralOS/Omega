@@ -237,7 +237,9 @@ pub(super) fn project(
             )?
             .is_some() =>
         {
-            call_instructions::project_normalized_foreign_call(node, optimized, native, operation)?
+            call_instructions::project_normalized_foreign_call(
+                node, optimized, native, plan, unit, operation,
+            )?
         }
         // Inline float arithmetic carries only the replayed operation,
         // format and SSA operands; its row was rejoined by input validation.

@@ -364,12 +364,14 @@ pub(super) fn emit(
         structural_types,
         &mut next_place,
     )?;
-    evaluation.structural_parameters = plan
-        .structural_parameters
-        .iter()
-        .zip(parameters)
-        .map(|(source, parameter)| (source.position, parameter.clone()))
-        .collect();
+    evaluation.bind_structural_parameters(
+        plan.structural_parameters
+            .iter()
+            .zip(parameters)
+            .map(|(source, parameter)| (source.position, parameter.clone()))
+            .collect(),
+        structural_types,
+    );
     evaluation.primitive_storage =
         crate::expression_preparation::source_custody::primitive_references::bindings(
             checked,
@@ -377,21 +379,6 @@ pub(super) fn emit(
             &evaluation.structural_parameters,
         )?;
     let staged_arguments = vec![Vec::<usize>::new(); plan.operations.len()];
-    evaluation.structural_types = structural_types.as_slice().into();
-    evaluation.structural_fields =
-        crate::expression_preparation::bindings::StructuralScalarFieldBinding::collect(
-            &evaluation.structural_parameters,
-            structural_types,
-        );
-    evaluation.structural_cases =
-        crate::expression_preparation::bindings::structural_cases::StructuralCaseBinding::collect(
-            &evaluation.structural_parameters,
-            structural_types,
-        );
-    evaluation.element_views = crate::expression_preparation::bindings::element_views(
-        &evaluation.structural_parameters,
-        structural_types,
-    );
     let staged_subslices = vec![Vec::<(usize, PlaceId)>::new(); plan.operations.len()];
     let subslice_places = Vec::new();
     let retained_scalar_prefix = None;

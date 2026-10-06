@@ -102,7 +102,7 @@ impl ScalarBindings {
                     Segment::RuntimeIndex(checked_trees::CheckedRuntimeIndex::StructuralField(
                         field,
                     )) => self.runtime_index_field(field)?,
-                    Segment::RuntimeIndex(_) => {
+                    Segment::ComputedIndex(_) | Segment::RuntimeIndex(_) => {
                         return unsupported("copy selector belongs to a store destination");
                     }
                     Segment::Static(StructuralPathSegment::FixedIndex(index))

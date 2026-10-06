@@ -20,15 +20,55 @@ macos_arm64 machine absolute_binding() -> ForeignBinding<26, 4, 0> {
 macos_arm64 machine external_absolute(value: i32) -> i32
     satisfies Magnitude::absolute via absolute_binding();
 
+pub boundary trait CText {
+    machine length(text: &u8) -> u64;
+}
+macos_arm64 machine text_binding() -> ForeignBinding<26, 7, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib",
+            symbol: "_strlen",
+        },
+    }
+}
+macos_arm64 machine external_length(text: &u8) -> u64
+    satisfies CText::length via text_binding();
+
 machine identity(value: i32) -> i32 { value }
 
-machine main() reaches Console + Magnitude {
+// A scalar-only foreign return still reads its caller's structural namespace.
+// The borrowed record remains live after the helper returns.
+data Input { amount: i32; }
+machine input_magnitude(input: &Input) -> i32 reaches Magnitude {
+    external_absolute(input.amount)
+}
+
+
+// The same element loan may originate in an owned array parameter. The
+// immutable result keeps the statement-call route covered alongside storage.
+machine parameter_length(bytes: [u8; 6]) -> u64 reaches CText {
+    let length: u64 = external_length(&bytes[0]);
+    length
+}
+
+machine main() reaches Console + Magnitude + CText {
+    let input: Input = Input { amount: 0 - 7 };
+    let input_result: i32 = input_magnitude(&input);
     let seed: i32 = 0 - 40;
     let mut current: i32 = external_absolute(identity(seed));
     let first: i32 = current;
     let replacement: i32 = external_absolute(0 - 2);
     current = external_absolute(replacement);
-    transition first == 40 && replacement == 2 && current == 2 {
+    // A mixed boundary call observes a real element loan; its scalar result
+    // initializes and later replaces the same mutable local storage.
+    let bytes: [u8; 6] = "hello\0";
+    let mut length: u64 = external_length(&bytes[0]);
+    let first_length: u64 = length;
+    let forwarded_length: u64 = parameter_length(bytes);
+    length = external_length(&bytes[3]);
+    transition first == 40 && replacement == 2 && current == 2
+        && input_result == 7 && input.amount == 0 - 7
+        && first_length == 5 && forwarded_length == 5 && length == 2 {
         true -> done(70)
         _ -> done(71)
     }

@@ -14,6 +14,7 @@ use typed_trees::{TypedTrees, state::State};
 pub(super) fn validate(
     program: &TypedTrees,
     ownership: &FlowOwnershipFacts,
+    control: &checked_trees::FlowControlFacts,
     computations: &CheckedScalarComputationPlans,
     structural_values: &checked_trees::CheckedStructuralValuePlans,
     machine: SymbolHandle,
@@ -95,18 +96,45 @@ pub(super) fn validate(
                 } => {
                     pending.extend([*condition, *when_true, *when_false]);
                 }
-                CheckedScalarComputationKind::Apply { operands, .. }
-                | CheckedScalarComputationKind::BoundaryCall {
-                    arguments: operands,
-                    ..
-                } => pending.extend_from_slice(computations.operands.span(*operands)?),
+                CheckedScalarComputationKind::Apply { operands, .. } => {
+                    pending.extend_from_slice(computations.operands.span(*operands)?)
+                }
                 CheckedScalarComputationKind::Call {
+                    source_call,
+                    arguments,
+                    structural_arguments,
+                    call_ordinal,
+                    target_state,
+                    ..
+                }
+                | CheckedScalarComputationKind::BoundaryCall {
+                    source_call,
                     arguments,
                     structural_arguments,
                     call_ordinal,
                     target_state,
                     ..
                 } => {
+                    if !control.calls.is_valid(*source_call) {
+                        return None;
+                    }
+                    let call = control.calls.get(*source_call);
+                    let retained = control.call_at(
+                        state.symbol,
+                        usize::try_from(root.statement_ordinal).ok()?,
+                        usize::try_from(*call_ordinal).ok()?,
+                    )?;
+                    if !std::ptr::eq(call, retained)
+                        || control.is_retired(state.symbol, call)
+                        || validation::exact_external_leaf_boundary_requirement(
+                            program,
+                            call.target_symbol,
+                        )
+                        .map_or(call.target_symbol, |(requirement, _)| requirement)
+                            != *target_state
+                    {
+                        return None;
+                    }
                     pending.extend_from_slice(computations.operands.span(*arguments)?);
                     for argument in computations
                         .structural_arguments
@@ -129,6 +157,9 @@ pub(super) fn validate(
                                 argument,
                             ) => argument,
                         };
+                        // Selectors and range endpoints evaluate before the receiving
+                        // call regardless of whether this actual borrows or transfers.
+                        pending.extend(argument.computation_operands());
                         if argument.access != CheckedStructuralAccess::Owned {
                             continue;
                         }
@@ -176,7 +207,7 @@ pub(super) fn validate(
                             PermissionEventSource::Call {
                                 statement_index: usize::try_from(root.statement_ordinal).ok()?,
                                 call_ordinal: usize::try_from(*call_ordinal).ok()?,
-                                target_symbol: *target_state,
+                                target_symbol: call.target_symbol,
                             },
                             facts::PlaceRoot::Symbol(source.symbol),
                         );

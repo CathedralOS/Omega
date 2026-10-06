@@ -49,7 +49,7 @@ impl PreparedStructuralArgument {
         })
     }
 
-    fn emit(
+    pub(super) fn emit(
         &self,
         values: &[ValueDeclaration],
         calls: &mut CallEmissionContext<'_>,

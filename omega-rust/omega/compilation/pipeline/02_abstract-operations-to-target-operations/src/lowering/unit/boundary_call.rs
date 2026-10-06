@@ -95,7 +95,14 @@ pub(in crate::lowering) fn lower_boundary_call(
                 let structural_arguments =
                     normalized_foreign::lower_normalized_foreign_structural_arguments(
                         *boundary,
-                        function.machine,
+                        function,
+                        &ScalarSources {
+                            integers: scalar_values,
+                            scalar_homes: &*scalar_homes,
+                            booleans,
+                            ieee_float_constants,
+                            scalar_block_parameters,
+                        },
                         target,
                         declaration,
                         structural_arguments,

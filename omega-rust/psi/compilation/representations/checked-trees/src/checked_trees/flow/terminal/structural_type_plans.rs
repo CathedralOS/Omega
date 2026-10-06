@@ -325,7 +325,7 @@ pub struct CheckedUnitStructuralParameterPlan {
 /// evaluates that value into the segment's `RuntimeIndex { index, obligation }`
 /// spelling, whose `index < extent` bound the verifier re-proves at the
 /// operation that carries the path.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum CheckedUnitStructuralPathSegment {
     Field(String),
     Case(String),
@@ -338,7 +338,56 @@ pub enum CheckedUnitStructuralPathSegment {
     /// A runtime-selected element of a fixed array. Fields and further
     /// indexes may follow it.
     RuntimeIndex(CheckedRuntimeIndex),
+    /// This operand owns evaluation of the selector before its next sibling.
+    /// The result becomes an ordinary runtime index with a bounds obligation;
+    /// the computation handle supplies execution, never a proof of the bound.
+    ComputedIndex(crate::CheckedScalarComputationHandle),
     Referent,
+}
+
+// Path ordering canonicalizes static claim/reference rosters and keys the
+// checked open-window set. A computed selector has no numeric order: its full
+// arena identity only distinguishes keys within this checked product. It is
+// never serialized as a static claim path or used to prove selector ordering.
+impl Ord for CheckedUnitStructuralPathSegment {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        use CheckedUnitStructuralPathSegment::*;
+        fn kind(segment: &CheckedUnitStructuralPathSegment) -> u8 {
+            match segment {
+                Field(_) => 0,
+                Case(_) => 1,
+                FixedIndex(_) => 2,
+                FixedByteRange { .. } => 3,
+                RuntimeIndex(_) => 4,
+                Referent => 5,
+                ComputedIndex(_) => 6,
+            }
+        }
+        match (self, other) {
+            (Field(left), Field(right)) | (Case(left), Case(right)) => left.cmp(right),
+            (FixedIndex(left), FixedIndex(right)) => left.cmp(right),
+            (
+                FixedByteRange {
+                    start: left_start,
+                    end: left_end,
+                },
+                FixedByteRange {
+                    start: right_start,
+                    end: right_end,
+                },
+            ) => (left_start, left_end).cmp(&(right_start, right_end)),
+            (RuntimeIndex(left), RuntimeIndex(right)) => left.cmp(right),
+            (ComputedIndex(left), ComputedIndex(right)) => (left.arena_index(), left.generation())
+                .cmp(&(right.arena_index(), right.generation())),
+            _ => kind(self).cmp(&kind(other)),
+        }
+    }
+}
+
+impl PartialOrd for CheckedUnitStructuralPathSegment {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
 }
 
 pub use facts::CheckedRuntimeIndex;

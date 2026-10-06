@@ -50,7 +50,7 @@ pub(crate) enum RuntimeIndexExtent {
 }
 
 /// Operations whose validation resolves their projections through a runtime
-/// projection resolver: calls through their structural arguments, leaf copies
+/// projection resolver: ordinary and boundary calls through their structural arguments, leaf copies
 /// through their source path, collection-view establishment through its backing
 /// projection, primitive-leaf reads and stores through
 /// `terminal_semantics::primitive_projection_type`, scalar field stores
@@ -62,7 +62,8 @@ pub(crate) enum RuntimeIndexExtent {
 fn admits_runtime_indexes(kind: &OperationKind) -> bool {
     matches!(
         kind,
-        OperationKind::CallUnit { .. }
+        OperationKind::BoundaryCall { .. }
+            | OperationKind::CallUnit { .. }
             | OperationKind::CallStructuralScalar { .. }
             | OperationKind::CallStructural { .. }
             | OperationKind::CallStructuralWithScalarArguments { .. }

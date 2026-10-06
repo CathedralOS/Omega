@@ -144,6 +144,24 @@ impl CheckedUnitStructuralArgumentPlan {
         endpoints.into_iter().flatten()
     }
 
+    /// Executable children of this argument, in its retained source order.
+    /// Range endpoints and projected selectors share the same call-occurrence
+    /// and dependency traversal instead of replaying their source expressions.
+    pub fn computation_operands(
+        &self,
+    ) -> impl Iterator<Item = crate::CheckedScalarComputationHandle> + '_ {
+        self.path
+            .iter()
+            .filter_map(|segment| match segment {
+                super::CheckedUnitStructuralPathSegment::ComputedIndex(root) => Some(*root),
+                _ => None,
+            })
+            .chain(self.scalar_operands().filter_map(|operand| match operand {
+                CheckedCallScalarArgument::Computation(root) => Some(*root),
+                CheckedCallScalarArgument::Pure(_) => None,
+            }))
+    }
+
     /// Source identity for the common established structural storage roster.
     /// Result ordinals remain the operation sequence's independent namespace.
     pub fn structural_storage_root(&self) -> Option<facts::PlaceRoot> {

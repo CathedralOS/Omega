@@ -22,23 +22,17 @@ pub(super) fn lower(
     if arguments.is_empty() {
         return Ok(Vec::new());
     }
-    let target =
-        crate::scalar_graph::scalar_call_closure::callee::CheckedScalarCallee::find_for_unit_call(
-            checked,
-            target_machine,
-        )?;
+    let parameters =
+        super::call_signature::structural_parameters(checked, target_machine, target_state)?;
     let (caller_machine, caller_authored) =
         crate::declarations::state_declaration(checked, caller_state)?;
     let caller_parameters = checked.state_parameters(caller_authored);
-    if target.entry_state()? != target_state
-        || target.structural_parameters().len() != arguments.len()
-        || !target.entry_claims().is_empty()
-    {
+    if parameters.len() != arguments.len() {
         return unsupported("computed borrow disagrees with its selected callee signature");
     }
     arguments
         .iter()
-        .zip(target.structural_parameters())
+        .zip(parameters)
         .enumerate()
         .map(|(argument_ordinal, (argument, parameter))| {
             let checked_trees::CheckedScalarComputationStructuralArgument::Place(argument) = argument else {
@@ -162,8 +156,7 @@ pub(super) fn lower(
                 });
             };
             bindings
-                .primitive_borrow(argument, terminal_scalar_type(primitive)?, structural_types)
-                .and_then(PreparedStructuralArgument::from_static)
+                .prepared_primitive_borrow(argument, terminal_scalar_type(primitive)?, structural_types)
         })
         .collect()
 }

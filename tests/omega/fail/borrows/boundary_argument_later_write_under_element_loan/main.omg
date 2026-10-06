@@ -1,0 +1,24 @@
+// The first boundary actual lends the local element before the later scalar
+// actual executes. The latter cannot mutate the lent array before the call.
+use omega::language::core::external_binding;
+pub boundary trait CText { machine length(text: &u8, limit: u64) -> u64; }
+macos_arm64 machine binding() -> ForeignBinding<26, 8, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib",
+            symbol: "_strnlen",
+        },
+    }
+}
+macos_arm64 machine c_strnlen(text: &u8, limit: u64) -> u64
+satisfies CText::length via binding();
+machine overwrite(bytes: &mut [u8;2]) -> u64 {
+    bytes[0] = 66;
+    2
+}
+machine main() reaches CText {
+    let mut bytes: [u8;2];
+    bytes[0] = 65;
+    bytes[1] = 0;
+    let mut result: u64 = c_strnlen(&bytes[0], overwrite(&mut bytes));
+}

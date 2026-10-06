@@ -1,0 +1,42 @@
+use omega::language::core::binding;
+use omega_language_std::console;
+use omega::language::core::external_binding;
+pub boundary trait CText { machine length(text: &u8, limit: u64) -> u64; }
+macos_arm64 machine binding() -> ForeignBinding<26, 8, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib",
+            symbol: "_strnlen",
+        },
+    }
+}
+macos_arm64 machine c_strnlen(text: &u8, limit: u64) -> u64
+satisfies CText::length via binding();
+data Cursor { position: u64[0..4]; calls: u64 in Wrapping; }
+machine choose(cursor: &mut Cursor) -> u64[0..4] {
+    cursor.calls = cursor.calls + 1;
+    cursor.position
+}
+machine advance(cursor: &mut Cursor) -> u64 {
+    cursor.position = 2;
+    cursor.calls = cursor.calls + 10;
+    4
+}
+data Main { console: Binding<Console>; }
+machine Main::main(main: &mut Main) reaches Console + CText {
+    let mut bytes: [u8;4];
+    bytes[0] = 65;
+    bytes[1] = 66;
+    bytes[2] = 67;
+    bytes[3] = 0;
+    let mut cursor: Cursor;
+    cursor.position = 0;
+    cursor.calls = 0;
+    let mut result: u64 = c_strnlen(&bytes[choose(&mut cursor)], advance(&mut cursor));
+    transition result == 3 && cursor.calls == 11 && cursor.position == 2 {
+        true -> done(main)
+        _ -> bad(main)
+    }
+    state done(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main) { main.console.exit_process(71); }
+}

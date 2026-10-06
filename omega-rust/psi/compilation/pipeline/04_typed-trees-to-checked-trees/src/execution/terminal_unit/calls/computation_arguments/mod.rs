@@ -21,7 +21,7 @@ use crate::execution::terminal_unit::TypeReferenceHandle;
 use crate::execution::terminal_unit::TypeReferenceNode;
 use crate::execution::terminal_unit::TypedTrees;
 
-use crate::execution::terminal_unit::calls::projected_borrowed_path;
+use crate::execution::terminal_unit::calls::argument_paths::projected_evaluated_path;
 use crate::execution::terminal_unit::calls::structural_arguments::exact_structural_borrow_access;
 use crate::execution::terminal_unit::calls::view_subslice::{ViewKind, view_identity};
 
@@ -33,6 +33,11 @@ pub(crate) fn structural_computation_argument(
     call: &checked_trees::FlowCallFact,
     expression: typed_trees::expression::ExpressionHandle,
     target: &StateParameter,
+    selectors: Option<
+        &dyn Fn(
+            typed_trees::expression::ExpressionHandle,
+        ) -> Option<checked_trees::CheckedUnitStructuralPathSegment>,
+    >,
 ) -> Option<CheckedUnitStructuralArgumentPlan> {
     if target.is_const {
         return None;
@@ -84,14 +89,14 @@ pub(crate) fn structural_computation_argument(
     if matches!(
         target_access,
         CheckedStructuralAccess::SharedBorrow | CheckedStructuralAccess::MutableBorrow
-    ) && let Some(argument) =
-        borrowed_storage_argument(program, borrow, machine, state, call, &place, target)
-    {
+    ) && let Some(argument) = borrowed_storage_argument(
+        program, borrow, machine, state, call, &place, target, selectors,
+    ) {
         return Some(argument);
     }
-    if let Some(argument) =
-        borrowed_view_argument(program, borrow, machine, state, call, &place, target)
-    {
+    if let Some(argument) = borrowed_view_argument(
+        program, borrow, machine, state, call, &place, target, selectors,
+    ) {
         return Some(argument);
     }
     let ExpressionNode::Name(name) = program.expression_table.expression(named) else {
@@ -260,11 +265,10 @@ fn exact_actual(
     expression: typed_trees::expression::ExpressionHandle,
     target: &StateParameter,
 ) -> Option<()> {
-    let target_state = crate::semantic::calls::find_state(program, call.target_symbol)?;
-    let target_position = program
-        .state_parameters(target_state)
-        .iter()
-        .position(|parameter| parameter == target)?;
+    let target_position =
+        crate::semantic::calls::call_target_parameters(program, call.target_symbol)?
+            .iter()
+            .position(|parameter| parameter == target)?;
     let ExpressionNode::Call(authored) = program
         .expression_table
         .expression(call.authored_expression)
@@ -293,6 +297,11 @@ pub(crate) fn borrowed_storage_argument(
     call: &checked_trees::FlowCallFact,
     place: &crate::flow::CanonicalPlace,
     target: &StateParameter,
+    selectors: Option<
+        &dyn Fn(
+            typed_trees::expression::ExpressionHandle,
+        ) -> Option<checked_trees::CheckedUnitStructuralPathSegment>,
+    >,
 ) -> Option<CheckedUnitStructuralArgumentPlan> {
     let facts::PlaceRoot::Symbol(symbol) = place.root else {
         return None;
@@ -365,11 +374,10 @@ pub(crate) fn borrowed_storage_argument(
         let (_, local) = program
             .state_local_declaration(state, symbol)
             .filter(|&(ordinal, _)| ordinal < call.statement_index)?;
-        // A mutable loan needs authority from the source binding. Filling an
-        // owned local field does not by itself authorize lending the whole local.
-        if !local.initial_value.is_valid() {
-            return None;
-        }
+        // Zero-initialized storage and later field writes use the same local
+        // home as an authored initializer. Source default-domain checks own
+        // establishment; the exact borrow event below owns access. Lowering
+        // separately requires this local's dominating published storage.
         // An established shared-borrow local already loans the referent it was
         // bound to; forwarding it hands that referent carrier to the callee,
         // exactly as a shared-borrow parameter would. The retained symbol and
@@ -429,7 +437,14 @@ pub(crate) fn borrowed_storage_argument(
     let (mut reference, mut path) = if place.segments.is_empty() {
         (reference, Vec::new())
     } else {
-        projected_borrowed_path(program, machine, state.symbol, call.statement_index, place)?
+        projected_evaluated_path(
+            program,
+            machine,
+            state.symbol,
+            call.statement_index,
+            place,
+            selectors,
+        )?
     };
     // The selected storage and the callee's referent are different endpoints
     // when the storage contains a reference. Normalize type and address in
@@ -556,6 +571,11 @@ pub(in crate::execution) fn borrowed_view_argument(
     call: &checked_trees::FlowCallFact,
     place: &crate::flow::CanonicalPlace,
     target: &StateParameter,
+    selectors: Option<
+        &dyn Fn(
+            typed_trees::expression::ExpressionHandle,
+        ) -> Option<checked_trees::CheckedUnitStructuralPathSegment>,
+    >,
 ) -> Option<CheckedUnitStructuralArgumentPlan> {
     let facts::PlaceRoot::Symbol(symbol) = place.root else {
         return None;
@@ -619,7 +639,14 @@ pub(in crate::execution) fn borrowed_view_argument(
     let (source_type, path) = if place.segments.is_empty() {
         (source_type, Vec::new())
     } else {
-        projected_borrowed_path(program, machine, state.symbol, call.statement_index, place)?
+        projected_evaluated_path(
+            program,
+            machine,
+            state.symbol,
+            call.statement_index,
+            place,
+            selectors,
+        )?
     };
     let source_access = structural_access_for_type_reference(program, source_type)?;
     if !is_view(source_type)

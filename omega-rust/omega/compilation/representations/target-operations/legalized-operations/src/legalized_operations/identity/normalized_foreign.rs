@@ -27,6 +27,10 @@ pub(super) fn encode(bytes: &mut Vec<u8>, call: &LegalizedNormalizedForeignCall)
     for argument in &call.structural_arguments {
         encode_target_structural_argument(bytes, argument);
     }
+    encode_len(bytes, call.structural_indices.len());
+    for indices in &call.structural_indices {
+        super::scalar_graph::encode_runtime_indices(bytes, indices);
+    }
     match &call.result {
         target_operations::TargetBoundaryResult::Scalar(home) => {
             bytes.push(1);

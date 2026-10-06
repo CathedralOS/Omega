@@ -11,7 +11,7 @@
 pub(crate) mod result_policy;
 
 use super::buffer::{OperationBuffer, SourceCallCoordinate};
-use super::calls::CallEmissionContext;
+use super::calls::{CallEmissionContext, PreparedStructuralArgument};
 use super::expressions::{LoweredDirectExpression, emit_direct_expression};
 use crate::lowering_error::{LoweringError, unsupported};
 use crate::terminal_identities::value_id;
@@ -30,6 +30,7 @@ pub(crate) struct LoweredBoundaryCallBinding {
     pub(crate) result_type: QualifiedScalarType,
     pub(crate) result_policy: BoundaryResultPolicy,
     pub(crate) arguments: Vec<LoweredDirectExpression>,
+    pub(crate) structural_arguments: Vec<PreparedStructuralArgument>,
 }
 
 pub(super) fn emit_boundary_call_binding(
@@ -46,14 +47,19 @@ pub(super) fn emit_boundary_call_binding(
     let (Some(target), None) = (targets.next(), targets.next()) else {
         return unsupported("nested boundary application has no unique lowered declaration");
     };
-    // Admission only builds scalar-only, receiver-free nodes. A declaration
-    // that owes structural operands or scalar `requires` obligations needs the
-    // statement route's transfer and obligation custody instead.
-    if !target.structural.is_empty() || target.requirement_count != 0 {
-        return unsupported(
-            "nested boundary application target needs structural or obligation custody",
-        );
+    // Mixed computation operands use the shared non-linear call custody lane.
+    // Linear claims require their checked completion-receipt namespace and are
+    // not manufactured from a boundary's formal declaration at emission.
+    if call.structural_arguments.len() != target.structural.len()
+        || target
+            .structural
+            .iter()
+            .any(|parameter| parameter.multiplicity == terminal_psi::StructuralMultiplicity::Linear)
+    {
+        return unsupported("computed boundary arguments disagree with non-linear call custody");
     }
+    let boundary = target.id;
+    let requirement_count = target.requirement_count;
     if !call.result_type.qualifications.is_empty() {
         return unsupported("nested boundary application result carries qualifications");
     }
@@ -80,6 +86,16 @@ pub(super) fn emit_boundary_call_binding(
             operations,
         ));
     }
+    let structural_arguments = call
+        .structural_arguments
+        .iter()
+        .map(|argument| argument.emit(parameters, call_emission))
+        .collect::<Result<Vec<_>, _>>()?;
+    // Match the statement call's declared requirement rows. Proof finalization
+    // discharges these obligations at this exact operation and completed actuals.
+    let requirement_obligations = (0..requirement_count)
+        .map(|_| call_emission.allocate_requirement())
+        .collect::<Result<Vec<_>, _>>()?;
     let result = value_id(*next_value_identity);
     *next_value_identity = next_value_identity
         .checked_add(1)
@@ -107,11 +123,11 @@ pub(super) fn emit_boundary_call_binding(
         id: operation,
         result: OperationResult::Scalar(raw),
         kind: OperationKind::BoundaryCall {
-            boundary: target.id,
+            boundary,
             arguments,
-            structural_arguments: Vec::new(),
+            structural_arguments,
             completion_receipts: Vec::new(),
-            requirement_obligations: Vec::new(),
+            requirement_obligations,
         },
     });
     Ok(result_policy::emit(policy, raw, next_value_identity, operations)?.id)

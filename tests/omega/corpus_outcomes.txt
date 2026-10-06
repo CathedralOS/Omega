@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 14, "jobs": "4", "load1_end": 15.59, "load1_start": 12.69, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "2", "load1_end": 5.22, "load1_start": 5.24, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -191,6 +191,8 @@ fail/borrows/array_carried_reference_live_source_write rejected 1043ms expected 
 	statement 8 mutates `main.second.value` while local borrow `messages` is still active (borrowed at statement 7; its last use is at statement 10)
 fail/borrows/array_carried_reference_range_narrowing rejected 150ms expected @e477ee0294de+wt
 	machine `Main::main` state `main` local `observed` stores a value not provably within its declared range: the range is a store-enforced invariant every read trusts (indexes, exact arithmetic), so the stored value must be proven to honor it. Narrow the value with a dominating guard, a dependent bound, or a requires coupling -- or widen/remove the range
+fail/borrows/array_element_loan_before_establishment rejected 718ms expected @cba4afbf6f2f+wt
+	cannot prove default-domain field requirement for call inspect from main::entry: parameter value.value requires i32::Positive
 fail/borrows/bare_self_mut_operand_beside_self_view rejected 374ms expected @cbe9ad8ebf41+wt
 	state `take` receives `main` as both mutable and read-only
 fail/borrows/borrow_duplicate_mut rejected 277ms expected @c08960bee2b1+wt
@@ -206,6 +208,8 @@ fail/borrows/borrow_unknown_index_pair_mut rejected 1575ms expected @c5d32a00863
 	statement 2 creates local borrow `right` while local borrow `left` is still active (borrowed at statement 1; its last use is at statement 3)
 	cannot prove index `left_index` is within length 2 in Main::main::main
 	cannot prove index `right_index` is within length 2 in Main::main::main
+fail/borrows/boundary_argument_later_write_under_element_loan rejected 706ms expected @cba4afbf6f2f+wt
+	state `c_strnlen` receives `bytes` as both mutable and read-only
 fail/borrows/case_payload_shared_clone_mutation rejected 238ms expected @69d297ae3ee5
 	mutable argument `source` for state `clone` is not writable in this state; the source cannot lend the requested exclusive access
 fail/borrows/case_reference_from_immutable_bytes rejected 296ms expected @69d297ae3ee5
@@ -238,13 +242,13 @@ fail/borrows/generic_reference_forwarding_shared_to_mutable rejected 1575ms expe
 	argument `subject` for state `entry` is declared `&mut` (`&mut T`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
 fail/borrows/local_array_borrow_operand_read rejected 191ms expected @a0af6064e4c8+wt
 	state `stamp` receives `samples` as both mutable and read-only
-fail/borrows/local_projected_field_mut_and_shared_argument rejected 898ms expected @2d8ed253669f
+fail/borrows/local_projected_field_mut_and_shared_argument rejected 634ms expected @cba4afbf6f2f+wt
 	state `copy` receives `screen.banner` as both mutable and read-only
 fail/borrows/local_record_duplicate_mut_argument rejected 811ms expected @2d8ed253669f
 	state `join` receives `score` as mutable more than once
 fail/borrows/local_record_loan_outlives_local rejected 613ms expected @2d8ed253669f
 	machine `leak` returns a view borrowing the local `score`, which does not outlive the call; return a borrow of an input parameter or `self` instead
-fail/borrows/local_record_move_under_shared_loan rejected 633ms expected @2d8ed253669f
+fail/borrows/local_record_move_under_shared_loan rejected 692ms expected @cba4afbf6f2f+wt
 	state `take` receives an owned value while local borrow `alias` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
 fail/borrows/local_record_result_call_mut_and_shared_argument rejected 686ms expected @2d8ed253669f
 	state `absorb` receives `tally` as both mutable and read-only
@@ -252,10 +256,12 @@ fail/borrows/local_record_view_result_holds_loan rejected 663ms expected @2d8ed2
 	statement 2 mutates `tally.hits` while local borrow `cell` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
 fail/borrows/mutable_primitive_reference_live_owner_read rejected 740ms expected @944fb1232f17
 	state `observe` receives `value` while local borrow `borrowed` is still active (borrowed at statement 1; its last use is at statement 3)
-fail/borrows/mutable_record_state_alias rejected 661ms expected @2d8ed253669f
+fail/borrows/mutable_record_state_alias rejected 546ms expected @cba4afbf6f2f+wt
 	state `finish` receives `cell` as mutable more than once
 fail/borrows/mutable_reference_borrow_through_shared_container rejected 292ms expected @69d297ae3ee5
 	construction of `MutableChoice` field `bytes` requires mutable source access; shared or immutable storage cannot supply it
+fail/borrows/mutable_view_binding_does_not_own_backing rejected 287ms expected @cba4afbf6f2f+wt
+	argument `values` for state `entry` is declared `&mut` (`&mut [u8]`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
 fail/borrows/named_jump_receiver_under_argument_loan rejected 176ms expected @17d6ccc60253+wt
 	state `observe` receives `main.count` as both mutable and read-only
 	state `read_after` receives `main.count` as mutable while its mutable receiver reads `main.count`
@@ -461,6 +467,8 @@ fail/build/wire_compatibility_unknown_fact rejected 561ms expected @8899cb25e748
 	unknown wire compatibility fact `Imaginary`
 fail/calls/affine_constructor_result_reuse rejected 635ms expected @2d8ed253669f
 	affine value `item` was already transferred or consumed; it cannot be moved here
+fail/calls/boundary_computed_selector_out_of_bounds rejected 430ms expected @cba4afbf6f2f+wt
+	cannot prove index `choose()` is within length 4 in main::entry
 fail/calls/boundary_nested_argument_conflicting_loan rejected 1030ms expected @cfe60a3a242
 	state `Math::inspect` receives `buffer` as both mutable and read-only
 fail/calls/computed_zero_requires_argument_rejected rejected 333ms expected @2d8ed253669f
@@ -1113,6 +1121,8 @@ fail/ownership/borrowed_storage_missing_repair_on_branch rejected 244ms expected
 	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `Main::apply`, state `apply` (statement 0): `main.inventory` must hold a value again before this state's exits consume the borrow
 fail/ownership/borrowed_storage_stale_read_in_hole rejected 280ms expected @c08960bee2b1+wt
 	cannot use `main.inventory.slots` while `main.inventory` is absent from borrowed storage: the value moved out at statement 0 must be restored first
+fail/ownership/boundary_cycle_reuses_consumed_owner rejected 333ms expected @cba4afbf6f2f+wt
+	affine value `token` was already transferred or consumed; it cannot be moved here
 fail/ownership/copy_linear_conflict rejected 2ms expected @2d8ed253669f
 	tests/omega/fail/ownership/copy_linear_conflict/main.omg:3:30: type properties `[copy]` and `[linear]` are mutually exclusive; `copy` was already declared
 fail/ownership/linear_live_overwrite rejected 572ms expected @2d8ed253669f
@@ -1350,7 +1360,7 @@ fail/recast/reference_let_pun_requires_recast rejected 155ms expected @a3bac00e5
 	machine `Bits::implicit_pun` state `implicit_pun`: reference initializer type `i64` must match the stated `&f32`; re-viewing a place's bytes under another shape is spelled `&x as &f32` (§5b recast)
 fail/recast/scalar_parameter_view_footprint_rejected rejected 311ms expected @9782e38b64ab+wt
 	machine `inspect` state `entry`: a recast re-views the SAME bytes, so the shapes must agree on size (§5b rule 1) -- source `f32` is 4 bytes, target `u64` is 8 bytes
-fail/recast/shared_parameter_view_mutable_call_rejected rejected 131ms expected @cd7399e98041+wt
+fail/recast/shared_parameter_view_mutable_call_rejected rejected 181ms expected @cba4afbf6f2f+wt
 	argument `value` for state `entry` is declared `&mut` (`&mut i32`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
 fail/recast/slice_view_non_tiling_rejected rejected 161ms expected @a3bac00e54bb+wt
 	machine `Main::main` state `main`: slice target `[u16]` does not exactly tile the source's 7 bytes with 2-byte elements
@@ -1375,7 +1385,7 @@ fail/relevance/static_proof_borrow_requires_storage rejected 351ms expected @0c9
 	machine `Natural::inspect` state `inspect` parameter `value` mentions proof-only `Natural`, which has no runtime layout
 fail/relevance/static_proof_result_cannot_materialize rejected 338ms expected @0c9d1b8dd763+wt
 	call to proof machine `answer` has no runtime result; use it only in a proof or erased context, or as a statement citation
-fail/slices/call_endpoint_view_backing_write rejected 303ms expected @637668355701+wt
+fail/slices/call_endpoint_view_backing_write rejected 366ms expected @cba4afbf6f2f+wt
 	statement 2 mutates `values[0]` while local borrow `view` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
 fail/slices/call_requires_different_view_extent rejected 265ms expected @0991904fed3b+wt
 	cannot prove requires contract for call read from wrong: position < values.len (needs fact `position < values.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
@@ -1852,6 +1862,7 @@ pass/calls/retained_receiver_argument_order_exit checked 886ms check-target:maco
 pass/calls/runtime_alias_write_through_guarded_transition_exit checked 1355ms check-target:macos_arm64 @2d8ed253669f
 pass/calls/runtime_assignment_call_post_mutation_value_exit checked 1734ms check-target:macos_arm64 @2d8ed253669f
 pass/calls/runtime_borrowed_binding_field_state_loan_exit checked 1050ms check-target:macos_arm64 @bea382792161+wt
+pass/calls/runtime_boundary_computed_selector_order_exit checked 1177ms check-target:macos_arm64 @cba4afbf6f2f+wt
 pass/calls/runtime_call_statement_before_state_return_exit checked 1322ms check-target:macos_arm64 @63377f7122bb+wt
 pass/calls/runtime_case_payload_indexed_calls_exit checked 2987ms check-target:macos_arm64 @faab7e6c1b7d+wt
 pass/calls/runtime_case_record_return_exit checked 1636ms check-target:macos_arm64 @2d8ed253669f
@@ -1907,6 +1918,7 @@ pass/calls/runtime_loop_rotation_exit checked 1398ms check-target:macos_arm64 @2
 pass/calls/runtime_measured_tail_recursion_exit checked 1346ms check-target:macos_arm64 @2d8ed253669f
 pass/calls/runtime_mut_ref_forward_exit checked 1509ms check-target:macos_arm64 @8778c440081
 pass/calls/runtime_mutable_call_before_transition_args_exit checked 8001ms check-target:macos_arm64 @dac9585f443
+pass/calls/runtime_mutable_local_external_scalar_call_exit checked 1998ms check-target:macos_arm64 @cba4afbf6f2f+wt
 pass/calls/runtime_mutable_local_parameter_write_exit checked 632ms check-target:macos_arm64 @6c1f965d49de+wt
 pass/calls/runtime_nested_case_argument_exit checked 2176ms check-target:macos_arm64 @b6846d69ce88+wt
 pass/calls/runtime_nested_case_subject_operand_order_exit checked 695ms check-target:macos_arm64 @3daca3fd87c2
@@ -1916,6 +1928,7 @@ pass/calls/runtime_nested_receiver_guard_exit checked 803ms check-target:macos_a
 pass/calls/runtime_nested_value_call_guard_exit checked 7580ms check-target:macos_arm64 @2b2f058c0e38+wt
 pass/calls/runtime_option_value_call_exit checked 1531ms check-target:macos_arm64 @2d8ed253669f
 pass/calls/runtime_owned_case_temporaries_exhaustive_dispatch_exit checked 1299ms check-target:macos_arm64 @2d8ed253669f
+pass/calls/runtime_owned_mutable_state_parameter_exit checked 829ms check-target:macos_arm64 @cba4afbf6f2f+wt
 pass/calls/runtime_owned_parameter_primitive_borrow_exit checked 1143ms check-target:macos_arm64 @67eeeb9797e0+wt
 pass/calls/runtime_param_receiver_second_instance_exit checked 1272ms check-target:macos_arm64 @2d8ed253669f
 pass/calls/runtime_qualified_tail_recursion_exit checked 1273ms check-target:macos_arm64 @2d8ed253669f
@@ -2683,8 +2696,10 @@ pass/providers/runtime_adapter_dispatch_exit checked 1254ms check-target:macos_a
 pass/providers/runtime_boundary_array_construction_exit checked 2148ms check-target:macos_arm64 @b6846d69ce88+wt
 pass/providers/runtime_boundary_array_forwarding_exit checked 5758ms check-target:macos_arm64 @72a43a5bee12+wt
 pass/providers/runtime_boundary_array_result_exit checked 713ms check-target:macos_arm64 @c5756d3f7761+wt
+pass/providers/runtime_boundary_owned_array_cycle_exit checked 828ms check-target:macos_arm64 @cba4afbf6f2f+wt
 pass/providers/runtime_boundary_primitive_array_argument_exit checked 1198ms check-target:macos_arm64 @474542aa7f86
 pass/providers/runtime_foreign_leaf_borrowed_byte_argument_exit checked 1431ms check-target:macos_arm64 @474542aa7f86
+pass/providers/runtime_named_provider_explicit_state_exit checked 821ms check-target:macos_arm64 @cba4afbf6f2f+wt
 pass/providers/runtime_result_domain_requirement_overload_exit checked 1345ms check-target:macos_arm64 @2d8ed253669f
 pass/providers/same_name_requirement_dispatch_exit checked 670ms check-target:macos_arm64 @b14cbb25f486+wt
 pass/providers/same_name_requirement_right_dispatch_exit checked 670ms check-target:macos_arm64 @b14cbb25f486+wt

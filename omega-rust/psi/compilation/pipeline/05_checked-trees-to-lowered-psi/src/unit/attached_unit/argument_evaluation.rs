@@ -123,6 +123,31 @@ pub(crate) struct StructuralValueOwner {
 }
 
 impl Evaluation {
+    /// Bind the emitted structural signature before evaluating any operands.
+    /// Field, case and extent observations share this exact source-position
+    /// roster; a boundary-return body has the same namespace as an ordinary
+    /// body even when its foreign invocation accepts only scalar operands.
+    pub(crate) fn bind_structural_parameters(
+        &mut self,
+        parameters: Vec<(u32, StructuralParameterDeclaration)>,
+        structural_types: &[StructuralTypeDeclaration],
+    ) {
+        self.structural_types = structural_types.into();
+        self.structural_fields =
+            crate::expression_preparation::bindings::StructuralScalarFieldBinding::collect(
+                &parameters,
+                structural_types,
+            );
+        self.structural_cases =
+            crate::expression_preparation::bindings::structural_cases::StructuralCaseBinding::collect(
+                &parameters,
+                structural_types,
+            );
+        self.element_views =
+            crate::expression_preparation::bindings::element_views(&parameters, structural_types);
+        self.structural_parameters = parameters;
+    }
+
     /// Start a mutually exclusive branch with the current source namespace.
     /// Completed blocks and their operations remain with the parent; only the
     /// incoming frontier is shared. Each branch can then move or rebind owners

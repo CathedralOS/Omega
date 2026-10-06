@@ -111,16 +111,14 @@ pub(super) fn emit(
         )?;
         operands.push((argument.parameter_index, output));
     }
-    for (argument_index, argument) in
+    for ((argument_index, argument), indices) in
         crate::selection::scalar_call_abi::normalized_foreign::structural_parameter_positions(call)
             .zip(&call.structural_arguments)
+            .zip(&call.structural_indices)
     {
         // The retained target argument has already rejoined its source type,
         // access and projection. Reuse ordinary value/reference transport,
         // without manufacturing an internal call or changing its ownership.
-        if !argument.indices.is_empty() {
-            return Err(SelectedInstructionError::custody());
-        }
         let semantic = terminal_psi::StructuralArgument {
             place: argument.place,
             path: argument.path.clone(),
@@ -133,7 +131,7 @@ pub(super) fn emit(
                 argument_index,
                 &semantic,
                 argument,
-                &[],
+                indices,
                 builder,
             )?
             .into_iter()

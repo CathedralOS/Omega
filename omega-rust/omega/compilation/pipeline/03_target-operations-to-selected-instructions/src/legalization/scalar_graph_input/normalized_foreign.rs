@@ -279,6 +279,7 @@ pub(in crate::legalization) fn structural_argument_at(
     policy: calling_conventions::CallingPolicy,
     plan: &AbstractOperationPlan,
     call_operation: OperationId,
+    target_plan: &TargetOperationPlan,
 ) -> Result<TargetStructuralArgument, LegalizationError> {
     use terminal_psi::{StructuralAccess, StructuralPathSegment};
     let declarations = plan.structural_types.as_slice();
@@ -377,8 +378,8 @@ pub(in crate::legalization) fn structural_argument_at(
         u16::try_from(native.pointer_size).map_err(|_| LegalizationError::custody())?;
     let pointer_alignment =
         u16::try_from(native.pointer_alignment).map_err(|_| LegalizationError::custody())?;
-    let (projected_type, source_byte_offset) =
-        crate::structural_inputs::structural_reference_input::project(
+    let (projected_type, source_byte_offset, elements) =
+        crate::structural_inputs::structural_reference_input::runtime_projection(
             root_type,
             &semantic.path,
             declarations,
@@ -443,14 +444,18 @@ pub(in crate::legalization) fn structural_argument_at(
             )
         }
     };
-    // Record fields and fixed array elements are static offsets inside the
-    // caller's referent; an empty path forwards the whole parameter's loan.
-    if semantic.path.iter().any(|segment| {
-        !matches!(
-            segment,
-            StructuralPathSegment::Field(_) | StructuralPathSegment::FixedIndex(_)
-        )
-    }) || usize::try_from(declaration_parameter.position).ok() != Some(position)
+    // Runtime array elements use the retained scalar stride transport. A
+    // dynamic view needs a descriptor-to-backing projection before that
+    // transport and remains outside this normalized foreign lane.
+    if elements.iter().any(|element| element.extent.is_none())
+        || semantic.path.iter().any(|segment| match segment {
+            StructuralPathSegment::Field(_) | StructuralPathSegment::FixedIndex(_) => false,
+            StructuralPathSegment::RuntimeIndex { .. } => {
+                semantic.access == StructuralAccess::Owned
+            }
+            _ => true,
+        })
+        || usize::try_from(declaration_parameter.position).ok() != Some(position)
         || projected_type != declaration_parameter.structural_type
         || semantic.access != declaration_parameter.access
         || declaration_parameter.multiplicity != multiplicity
@@ -474,7 +479,12 @@ pub(in crate::legalization) fn structural_argument_at(
         source_byte_offset,
         fixed_array_length: None,
         element_stride: None,
-        indices: Vec::new(),
+        indices: super::target::control_flow::sources::call_indices(
+            target_plan,
+            optimized,
+            call_operation,
+            &elements,
+        )?,
         source,
         destination: destination.clone(),
     })

@@ -216,6 +216,7 @@ pub(crate) fn build_checked_scalar_graph_plans_with_call_frames(
 pub(crate) fn finalize_checked_scalar_graph_plans(
     program: &TypedTrees,
     ownership: &checked_trees::FlowOwnershipFacts,
+    control: &checked_trees::FlowControlFacts,
     computations: &checked_trees::CheckedScalarComputationPlans,
     structural_values: &checked_trees::CheckedStructuralValuePlans,
     plans: &mut CheckedScalarGraphPlans,
@@ -247,6 +248,7 @@ pub(crate) fn finalize_checked_scalar_graph_plans(
             owned_parameters::validate(
                 program,
                 ownership,
+                control,
                 computations,
                 structural_values,
                 owner.symbol,

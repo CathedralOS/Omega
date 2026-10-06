@@ -44,18 +44,7 @@ pub(super) fn encode_call(bytes: &mut Vec<u8>, row: &SelectedCallContract) {
                 bytes.push(1);
                 encode_semantic_argument(bytes, semantic);
                 encode_target_argument(bytes, target);
-                length(bytes, indices.len());
-                for index in indices {
-                    bytes.extend_from_slice(&index.operand.value.get().to_le_bytes());
-                    crate::register_homes::recovery::fixed_view_copy::codec::values::encode_scalar(
-                        bytes,
-                        index.operand.scalar_type,
-                    );
-                    bytes.extend_from_slice(&index.stride.to_le_bytes());
-                    encode_option_u64(bytes, index.extent);
-                    bytes.extend_from_slice(&index.obligation.get().to_le_bytes());
-                    bytes.extend_from_slice(&index.accepted_fact.bytes());
-                }
+                encode_runtime_indices(bytes, indices);
             }
         }
     }
@@ -136,25 +125,7 @@ pub(super) fn decode_call(
             1 => {
                 let semantic = decode_semantic_argument(cursor)?;
                 let target = decode_target_argument(cursor)?;
-                let count = cursor.length()?;
-                let mut indices = Vec::new();
-                for _ in 0..count {
-                    indices.push(
-                        legalized_operations::LegalizedRuntimeIndexOperand {
-                            operand: abstract_operations::AbstractResult {
-                                value: decode_id(cursor, ValueId::new)?,
-                                scalar_type: crate::register_homes::recovery::fixed_view_copy::codec::values::decode_scalar(cursor)?,
-                            },
-                            stride: cursor.u32()?,
-                            extent: decode_option_u64(cursor)?,
-                            obligation: decode_id(cursor, ObligationId::new)?,
-                            accepted_fact:
-                                optimization_core::AcceptedObligationFactIdentity::from_bytes(
-                                    cursor.array()?,
-                                ),
-                        },
-                    );
-                }
+                let indices = decode_runtime_indices(cursor)?;
                 LegalizedScalarArgument::Structural {
                     semantic,
                     target,
@@ -234,4 +205,49 @@ pub(super) fn decode_call(
         effect: decode_effect(cursor)?,
         ownership: decode_ownership(cursor)?,
     })
+}
+
+/// Ordinary and normalized foreign calls retain the same evaluated selector
+/// custody. The extent and accepted fact are part of each operand's bytes.
+pub(super) fn encode_runtime_indices(
+    bytes: &mut Vec<u8>,
+    indices: &[legalized_operations::LegalizedRuntimeIndexOperand],
+) {
+    length(bytes, indices.len());
+    for index in indices {
+        bytes.extend_from_slice(&index.operand.value.get().to_le_bytes());
+        crate::register_homes::recovery::fixed_view_copy::codec::values::encode_scalar(
+            bytes,
+            index.operand.scalar_type,
+        );
+        bytes.extend_from_slice(&index.stride.to_le_bytes());
+        encode_option_u64(bytes, index.extent);
+        bytes.extend_from_slice(&index.obligation.get().to_le_bytes());
+        bytes.extend_from_slice(&index.accepted_fact.bytes());
+    }
+}
+
+pub(super) fn decode_runtime_indices(
+    cursor: &mut Cursor<'_>,
+) -> Result<Vec<legalized_operations::LegalizedRuntimeIndexOperand>, FixedViewCopyDecodeError> {
+    let count = cursor.length()?;
+    let mut indices = Vec::with_capacity(count.min(cursor.remaining()));
+    for _ in 0..count {
+        indices.push(legalized_operations::LegalizedRuntimeIndexOperand {
+            operand: abstract_operations::AbstractResult {
+                value: decode_id(cursor, ValueId::new)?,
+                scalar_type:
+                    crate::register_homes::recovery::fixed_view_copy::codec::values::decode_scalar(
+                        cursor,
+                    )?,
+            },
+            stride: cursor.u32()?,
+            extent: decode_option_u64(cursor)?,
+            obligation: decode_id(cursor, ObligationId::new)?,
+            accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_bytes(
+                cursor.array()?,
+            ),
+        });
+    }
+    Ok(indices)
 }

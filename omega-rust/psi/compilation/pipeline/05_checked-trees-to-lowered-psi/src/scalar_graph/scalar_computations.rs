@@ -4,10 +4,10 @@
 //! prefix; structural producers establish separate places at their authored formal
 //! positions. Selection converges with one scalar result, without hoisting the
 //! selected path's structural effects. The calls and structural value modules own that
-//! mixed schedule and its real structural results. A boundary application
-//! nested under another operand (`a * b + c`) runs through `boundary_calls`:
-//! its operands complete first, then its one exact `BoundaryCall` binds the
-//! enclosing operand.
+//! mixed schedule and its real structural results. Ordinary and boundary calls
+//! share the `calls` scheduler: each scalar operand and structural selector
+//! completes in authored order before the exact invocation binds its result.
+//! Boundary entry plans retain their own contract and foreign ABI custody.
 use super::{
     CheckedScalarExpressionRole, CheckedScalarSuccessor, CheckedTrees, IntegerValue, LoweringError,
     PreparedScalarQualifications, QualifiedScalarType, ScalarType, StructuralArgument,
@@ -28,8 +28,8 @@ use checked_trees::{CheckedScalarComputation, CheckedScalarComputationKind};
 use numerics::arithmetic::ArithmeticDomain;
 
 pub(crate) mod arrays;
-mod boundary_calls;
 mod byte_comparisons;
+mod call_signature;
 mod calls;
 pub(crate) use calls::lower_inline_call;
 pub(crate) mod cases;
@@ -974,6 +974,15 @@ impl<'a> Expansion<'a> {
                 arguments,
                 structural_arguments,
                 temporary_discards,
+            }
+            | CheckedScalarComputationKind::BoundaryCall {
+                source_call,
+                target_machine,
+                target_state,
+                call_ordinal,
+                arguments,
+                structural_arguments,
+                temporary_discards,
             } => self.call(
                 source_call,
                 target_machine,
@@ -982,24 +991,6 @@ impl<'a> Expansion<'a> {
                 arguments,
                 structural_arguments,
                 temporary_discards,
-                result_type,
-                input_types,
-                target,
-                site,
-                active,
-            )?,
-            CheckedScalarComputationKind::BoundaryCall {
-                source_call,
-                target_machine,
-                target_state,
-                call_ordinal,
-                arguments,
-            } => self.boundary_call(
-                source_call,
-                target_state,
-                target_machine,
-                call_ordinal,
-                arguments,
                 result_type,
                 input_types,
                 target,

@@ -4,7 +4,6 @@
 //! Source custody still independently validates the exact owned argument.
 
 use super::{CheckedTrees, LoweringError, unsupported};
-use crate::scalar_graph::scalar_call_closure::callee::CheckedScalarCallee;
 use checked_trees::{
     CheckedScalarComputationKind, CheckedScalarComputationStructuralArgument,
     CheckedStructuralAccess,
@@ -35,13 +34,20 @@ pub(crate) fn prepare(
         .collect::<Vec<_>>();
     let mut slots: Vec<Slot> = Vec::new();
     for handle in super::reachable_nodes(checked, &roots)? {
-        let CheckedScalarComputationKind::Call {
+        let (CheckedScalarComputationKind::Call {
             source_call,
             target_machine,
             target_state,
             structural_arguments,
             ..
-        } = plans.nodes.get(handle).kind
+        }
+        | CheckedScalarComputationKind::BoundaryCall {
+            source_call,
+            target_machine,
+            target_state,
+            structural_arguments,
+            ..
+        }) = plans.nodes.get(handle).kind
         else {
             continue;
         };
@@ -58,16 +64,13 @@ pub(crate) fn prepare(
         }) {
             continue;
         }
-        let callee = CheckedScalarCallee::find_for_unit_call(checked, target_machine)?;
-        if callee.entry_state()? != target_state
-            || callee.structural_parameters().len() != arguments.len()
-        {
+        let parameters =
+            super::call_signature::structural_parameters(checked, target_machine, target_state)?;
+        if parameters.len() != arguments.len() {
             return unsupported("computed copy disagrees with its selected callee signature");
         }
-        for (argument_ordinal, (argument, parameter)) in arguments
-            .iter()
-            .zip(callee.structural_parameters())
-            .enumerate()
+        for (argument_ordinal, (argument, parameter)) in
+            arguments.iter().zip(parameters).enumerate()
         {
             let CheckedScalarComputationStructuralArgument::Place(argument) = argument else {
                 continue;

@@ -35,6 +35,7 @@ use task_plans::{
 use crate::FixedViewCopyDecodeError;
 
 use super::{
+    call::{decode_runtime_indices, encode_runtime_indices},
     calling::{
         decode_call_plan, decode_native_place, decode_placement, decode_shape, encode_call_plan,
         encode_native_place, encode_placement, encode_shape,
@@ -73,6 +74,10 @@ pub(super) fn encode_normalized_foreign_call(
     length(bytes, call.structural_arguments.len());
     for argument in &call.structural_arguments {
         encode_target_argument(bytes, argument);
+    }
+    length(bytes, call.structural_indices.len());
+    for indices in &call.structural_indices {
+        encode_runtime_indices(bytes, indices);
     }
     match &call.result {
         target_operations::TargetBoundaryResult::Unit => bytes.push(0),
@@ -142,6 +147,11 @@ pub(super) fn decode_normalized_foreign_call(
     for _ in 0..structural_count {
         structural_arguments.push(decode_target_argument(cursor)?);
     }
+    let indices_count = cursor.length()?;
+    let mut structural_indices = Vec::with_capacity(indices_count.min(cursor.remaining()));
+    for _ in 0..indices_count {
+        structural_indices.push(decode_runtime_indices(cursor)?);
+    }
     let result = match cursor.byte()? {
         0 => target_operations::TargetBoundaryResult::Unit,
         1 => target_operations::TargetBoundaryResult::Scalar(decode_scalar_home(cursor)?),
@@ -186,6 +196,7 @@ pub(super) fn decode_normalized_foreign_call(
             binding,
             scalar_arguments,
             structural_arguments,
+            structural_indices,
             result,
             callbacks,
         },
@@ -836,6 +847,7 @@ mod tests {
                     placement: binding.boundary_entry_plan.call.parameters[0].clone(),
                 }],
                 structural_arguments: Vec::new(),
+                structural_indices: Vec::new(),
                 callbacks: Vec::new(),
                 result: target_operations::TargetBoundaryResult::Scalar(
                     TargetUnitScalarHomeRequirement {
@@ -953,7 +965,76 @@ mod tests {
 
     #[test]
     fn normalized_foreign_call_roundtrip_preserves_complete_evaluated_custody() {
-        let source = row();
+        let mut source = row();
+        let borrowed_shape = ValueShape::borrowed_reference(4, 4);
+        source.call.binding.boundary_entry_plan =
+            calling_conventions::evaluate_ordinary_boundary_entry_plan(
+                CallingPolicy::native_for_target(target::NativeTarget::linux_x64()),
+                &CallSignature {
+                    parameters: vec![ValueShape::integer(4, 4), borrowed_shape],
+                    result: Some(ValueShape::integer(4, 4)),
+                },
+            )
+            .unwrap()
+            .plan()
+            .clone();
+        source.call.scalar_arguments[0].placement =
+            source.call.binding.boundary_entry_plan.call.parameters[0].clone();
+        let indices = [(21, 64, 20, 4, 31), (22, 32, 4, 5, 32)]
+            .into_iter()
+            .map(|(value, width, stride, extent, obligation)| {
+                legalized_operations::LegalizedRuntimeIndexOperand {
+                    operand: abstract_operations::AbstractResult {
+                        value: ValueId::new(value).unwrap(),
+                        scalar_type: ScalarType::Integer(
+                            IntegerType::new(IntegerSign::Unsigned, width).unwrap(),
+                        ),
+                    },
+                    stride,
+                    extent: Some(extent),
+                    obligation: semantic_vocabulary::ObligationId::new(obligation).unwrap(),
+                    accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_bytes(
+                        [u8::try_from(obligation).unwrap(); 32],
+                    ),
+                }
+            })
+            .collect::<Vec<_>>();
+        source.call.structural_arguments = vec![target_operations::TargetStructuralArgument {
+            place: semantic_vocabulary::PlaceId::new(11).unwrap(),
+            access: terminal_psi::StructuralAccess::SharedBorrow,
+            path: indices
+                .iter()
+                .map(|index| terminal_psi::StructuralPathSegment::RuntimeIndex {
+                    index: index.operand.value,
+                    obligation: index.obligation,
+                })
+                .collect(),
+            root_structural_type: semantic_vocabulary::StructuralTypeId::new(12).unwrap(),
+            structural_type: semantic_vocabulary::StructuralTypeId::new(13).unwrap(),
+            shape: borrowed_shape,
+            source_byte_offset: 0,
+            fixed_array_length: Some(4),
+            element_stride: Some(20),
+            indices: indices
+                .iter()
+                .enumerate()
+                .map(
+                    |(position, index)| target_operations::TargetStructuralRuntimeIndex {
+                        operand: TargetUnitScalarArgumentSource::Parameter {
+                            parameter_index: u32::try_from(position).unwrap(),
+                            source_value: index.operand.value,
+                            scalar_type: index.operand.scalar_type,
+                        },
+                        stride: index.stride,
+                    },
+                )
+                .collect(),
+            source: target_operations::TargetStructuralArgumentSource::StructuralHome {
+                psi_operation: OperationId::new(20).unwrap(),
+            },
+            destination: source.call.binding.boundary_entry_plan.call.parameters[1].clone(),
+        }];
+        source.call.structural_indices = vec![indices];
         let mut bytes = Vec::new();
         encode_normalized_foreign_call(&mut bytes, &source);
         let mut cursor = Cursor::new(&bytes);
@@ -966,6 +1047,17 @@ mod tests {
                 "truncated prefix {length} decoded"
             );
         }
+        // Selector path order is retained independently from the target
+        // placement: swapping evaluated operands must change the wire row.
+        let mut changed = source.clone();
+        changed.call.structural_indices[0].swap(0, 1);
+        let mut changed_bytes = Vec::new();
+        encode_normalized_foreign_call(&mut changed_bytes, &changed);
+        assert_ne!(bytes, changed_bytes);
+        assert_eq!(
+            decode_normalized_foreign_call(&mut Cursor::new(&changed_bytes)).unwrap(),
+            changed,
+        );
         // Every retained field participates in the encoding; substituted
         // custody produces different bytes rather than an equal decoding.
         let mut changed = source.clone();

@@ -1454,6 +1454,7 @@ impl Replay<'_> {
                         )
                     )
             });
+            let mut runtime_elements = Vec::new();
             let (projected_type, projected_shape, byte_offset) = match declaration_parameter.access
             {
                 StructuralAccess::Owned => {
@@ -1516,6 +1517,22 @@ impl Replay<'_> {
                             structural_shapes::reconstruct(root.structural_type, self.declarations)
                                 .map_err(|_| psi_operation)?,
                             0,
+                        )
+                    } else if semantic.path.iter().any(|segment| {
+                        matches!(segment, StructuralPathSegment::RuntimeIndex { .. })
+                    }) {
+                        let (ty, offset, elements) = structural_shapes::project_runtime_path(
+                            root.structural_type,
+                            &semantic.path,
+                            self.declarations,
+                        )
+                        .map_err(|_| psi_operation)?;
+                        runtime_elements = elements;
+                        (
+                            ty,
+                            structural_shapes::reconstruct(ty, self.declarations)
+                                .map_err(|_| psi_operation)?,
+                            offset,
                         )
                     } else if semantic
                         .path
@@ -1641,6 +1658,14 @@ impl Replay<'_> {
             if !destination_ok {
                 return Err(psi_operation);
             }
+            for index in &actual.indices {
+                self.scalar_argument_source(
+                    psi_operation,
+                    index.operand.source_value(),
+                    index.operand.scalar_type(),
+                    &index.operand,
+                )?;
+            }
             let expected_shape =
                 structural_shapes::parameter_shape(projected_shape, declaration_parameter.access);
             if actual.place != semantic.place
@@ -1652,6 +1677,12 @@ impl Replay<'_> {
                 || actual.source_byte_offset != byte_offset
                 || actual.fixed_array_length.is_some()
                 || actual.element_stride.is_some()
+                || actual.indices.len() != runtime_elements.len()
+                || actual.indices.iter().zip(&runtime_elements).any(
+                    |(actual, (selector, _, stride))| {
+                        actual.operand.source_value() != *selector || actual.stride != *stride
+                    },
+                )
                 || actual.destination != *destination
             {
                 return Err(psi_operation);

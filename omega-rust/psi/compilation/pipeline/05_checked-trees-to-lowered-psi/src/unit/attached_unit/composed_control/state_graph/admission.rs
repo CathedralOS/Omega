@@ -306,8 +306,10 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                 // State parameters receive established values. The complete
                 // type below retains nested byte predicates; this storage
                 // classifier grants neither construction nor copy permission.
+                // Binding mutability permits writes to this received owner; it
+                // does not change the edge's owned transfer into the state.
+                // Each write or reborrow retains its checked place access.
                 if source.is_const
-                    || source.is_mutable
                     || parameter.fused_service_erasure.is_some()
                     || validation::structural_result_qualifications(
                         &checked.typed,

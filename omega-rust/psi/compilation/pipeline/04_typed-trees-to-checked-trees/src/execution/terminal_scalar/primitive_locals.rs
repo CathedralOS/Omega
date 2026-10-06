@@ -87,6 +87,11 @@ pub(in crate::execution) fn collect(
                     arguments,
                     structural_arguments,
                     ..
+                }
+                | CheckedScalarComputationKind::BoundaryCall {
+                    arguments,
+                    structural_arguments,
+                    ..
                 } => {
                     pending.extend_from_slice(computations.operands.span(*arguments)?);
                     for argument in computations
@@ -110,6 +115,9 @@ pub(in crate::execution) fn collect(
                                 argument,
                             ) => argument,
                         };
+                        // Selectors and range endpoints evaluate before the receiving
+                        // call regardless of whether this actual borrows or transfers.
+                        pending.extend(argument.computation_operands());
                         let CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { symbol } =
                             argument.source
                         else {
@@ -146,11 +154,7 @@ pub(in crate::execution) fn collect(
                 } => {
                     pending.extend([*condition, *when_true, *when_false]);
                 }
-                CheckedScalarComputationKind::Apply { operands, .. }
-                | CheckedScalarComputationKind::BoundaryCall {
-                    arguments: operands,
-                    ..
-                } => {
+                CheckedScalarComputationKind::Apply { operands, .. } => {
                     pending.extend_from_slice(computations.operands.span(*operands)?);
                 }
             }

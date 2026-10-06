@@ -1334,14 +1334,14 @@ pub(crate) fn validate_consumer(
                 .ok_or(LoweringError::Unsupported(
                     "structural argument source position is absent",
                 ))?;
-            // Whole array parameters retain the same owned payload at ordinary
-            // and boundary calls. The boundary's authored-position partition
-            // above omits only its service receiver; it does not change which
-            // caller parameter supplies this value. Rejoin that exact source
-            // and custody here, then use shared structural argument emission.
-            if crate::content_classes::closed_primitive_array(checked, source_parameter.type_reference)
+            // Whole owned array transport must rejoin the exact source and
+            // target payload. A loan's endpoint type and access intentionally
+            // differ from its enclosing array: the ordinary borrow and typed
+            // projection checks own that custody instead. The authored-position
+            // partition above identifies the caller's source in either case.
+            if argument.access == checked_trees::CheckedStructuralAccess::Owned
+                && crate::content_classes::closed_primitive_array(checked, source_parameter.type_reference)
                 && (!argument.path.is_empty()
-                    || argument.access != checked_trees::CheckedStructuralAccess::Owned
                     || source.access != argument.access
                     || parameter.access != argument.access
                     || source.multiplicity != Multiplicity::Unrestricted

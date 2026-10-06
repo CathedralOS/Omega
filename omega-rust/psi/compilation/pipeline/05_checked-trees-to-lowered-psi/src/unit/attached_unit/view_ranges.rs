@@ -191,6 +191,9 @@ fn collection_path(
             PreparedStructuralPathSegment::Static(segment) => {
                 Ok(LoweredElementPathSegment::Static(segment))
             }
+            PreparedStructuralPathSegment::ComputedIndex(_) => {
+                unsupported("computed view selector requires its owning operand evaluation")
+            }
             PreparedStructuralPathSegment::RuntimeIndex(index) => {
                 runtime_indices += 1;
                 if runtime_indices > TERMINAL_NESTED_SELECTOR_LIMIT {

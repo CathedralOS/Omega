@@ -215,6 +215,12 @@ fn collect_reachable_nodes(
                 arguments,
                 structural_arguments,
                 ..
+            }
+            | CheckedScalarComputationKind::BoundaryCall {
+                source_call,
+                arguments,
+                structural_arguments,
+                ..
             } => {
                 let structural_arguments = plans
                     .structural_arguments
@@ -244,13 +250,14 @@ fn collect_reachable_nodes(
                     LoweringError::Unsupported("scalar computation closure has invalid arguments"),
                 )?);
             }
-            CheckedScalarComputationKind::Apply { operands, .. }
-            | CheckedScalarComputationKind::BoundaryCall {
-                arguments: operands,
-                ..
-            } => pending.extend(plans.operands.span(*operands).ok_or(
-                LoweringError::Unsupported("scalar computation closure has invalid operands"),
-            )?),
+            CheckedScalarComputationKind::Apply { operands, .. } => pending.extend(
+                plans
+                    .operands
+                    .span(*operands)
+                    .ok_or(LoweringError::Unsupported(
+                        "scalar computation closure has invalid operands",
+                    ))?,
+            ),
         }
     }
     Ok(visited)
@@ -439,9 +446,5 @@ fn extend_range(
     argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
     pending: &mut Vec<Computation>,
 ) {
-    use checked_trees::CheckedCallScalarArgument;
-    pending.extend(argument.scalar_operands().filter_map(|value| match value {
-        CheckedCallScalarArgument::Computation(handle) => Some(*handle),
-        CheckedCallScalarArgument::Pure(_) => None,
-    }));
+    pending.extend(argument.computation_operands());
 }

@@ -43,11 +43,16 @@ pub(crate) fn prepare(
         .collect::<Vec<_>>();
     let mut slots: Vec<Slot> = Vec::new();
     for handle in super::reachable_nodes(checked, &roots)? {
-        let CheckedScalarComputationKind::Call {
+        let (CheckedScalarComputationKind::Call {
             source_call,
             structural_arguments,
             ..
-        } = plans.nodes.get(handle).kind
+        }
+        | CheckedScalarComputationKind::BoundaryCall {
+            source_call,
+            structural_arguments,
+            ..
+        }) = plans.nodes.get(handle).kind
         else {
             continue;
         };

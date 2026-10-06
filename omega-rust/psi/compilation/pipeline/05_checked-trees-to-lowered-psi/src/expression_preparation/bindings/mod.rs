@@ -823,6 +823,26 @@ impl ScalarBindings {
         scalar_type: ScalarType,
         structural_types: &[StructuralTypeDeclaration],
     ) -> Result<StructuralArgument, LoweringError> {
+        let source = self.prepared_primitive_borrow(argument, scalar_type, structural_types)?;
+        Ok(StructuralArgument {
+            place: source.place,
+            access: source.access,
+            path: structural_paths::emit_argument_path(
+                &source.path,
+                None,
+                &mut std::iter::empty(),
+                None,
+            )?,
+        })
+    }
+
+    pub(crate) fn prepared_primitive_borrow(
+        &self,
+        argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
+        scalar_type: ScalarType,
+        structural_types: &[StructuralTypeDeclaration],
+    ) -> Result<crate::emission::operation_emission::calls::PreparedStructuralArgument, LoweringError>
+    {
         let access = structural_paths::terminal_access(argument.access);
         let permits = |granted, requested| {
             matches!(
@@ -851,7 +871,7 @@ impl ScalarBindings {
                         "computed primitive storage argument is not a whole referent",
                     );
                 }
-                return Ok(StructuralArgument {
+                return crate::emission::operation_emission::calls::PreparedStructuralArgument::from_static(StructuralArgument {
                     place: primitive_storage_place(&self.primitive_storage, symbol, scalar_type)?,
                     path: Vec::new(),
                     access,
@@ -897,18 +917,18 @@ impl ScalarBindings {
             }
             _ => return unsupported("computed primitive borrow has no supported source place"),
         };
-        Ok(StructuralArgument {
-            place,
-            path: structural_paths::lower_typed_argument_path(
-                &argument.path,
-                root_type,
-                structural_types,
-                None,
-                &mut std::iter::empty(),
-                None,
-            )?,
-            access,
-        })
+        Ok(
+            crate::emission::operation_emission::calls::PreparedStructuralArgument {
+                place,
+                path: structural_paths::prepare_argument_path(
+                    &argument.path,
+                    root_type,
+                    structural_types,
+                )?,
+                selector_positions: Vec::new(),
+                access,
+            },
+        )
     }
 
     /// Argument preparation may add temporary results after the caller's

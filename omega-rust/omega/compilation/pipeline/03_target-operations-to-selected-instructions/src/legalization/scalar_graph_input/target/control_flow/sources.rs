@@ -28,6 +28,7 @@ pub(in crate::legalization::scalar_graph_input) fn call_indices(
                 .iter()
                 .position(|operation| {
                     matches!(operation, TargetUnitOperation::Call { psi_operation, .. }
+                        | TargetUnitOperation::NormalizedForeignCall { psi_operation, .. }
                     if *psi_operation == call_operation)
                 })
                 .map(|position| (block, position))

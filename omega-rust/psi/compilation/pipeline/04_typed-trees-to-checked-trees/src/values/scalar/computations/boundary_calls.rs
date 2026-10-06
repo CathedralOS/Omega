@@ -15,12 +15,10 @@
 //! the boundary application as a computation even when it is the entire RHS.
 //! Reads of the old storage complete before the same ordinary store replaces it.
 //!
-//! Only receiver-free signatures whose every formal is an owned scalar
-//! qualify: such an application carries no structural argument, claim or
-//! completion receipt, so Terminal lowering can emit it as one `BoundaryCall`
-//! operation between its operands and its consumer. Structural, mutable or
-//! receiver-bearing boundaries keep their statement-level route and still
-//! reject when nested.
+//! Receiver-free applications share the ordinary computation operand evaluator:
+//! structural places, selector snapshots, and scalar computations retain their
+//! formal order. Their published boundary signature still owns access, claims,
+//! completion and contract requirements independently of evaluation.
 use super::{
     Builder, CheckedScalarComputationHandle, CheckedScalarComputationKind,
     CheckedScalarExpressionRole, ExpressionHandle, ExpressionNode, PrimitiveType,
@@ -196,7 +194,9 @@ impl Builder<'_, '_> {
             expression,
             call.target_symbol,
             (requirement, requirement),
-            self.program.state_signature_parameters(signature),
+            // The external realization already proves signature correspondence.
+            // Borrow occurrences still name the authored leaf's formal symbols.
+            crate::semantic::calls::call_target_parameters(self.program, call.target_symbol)?,
             signature.return_type,
             &operands,
             expected_type,
@@ -242,7 +242,7 @@ impl Builder<'_, '_> {
     }
 
     /// Build the node once the declaration is known: every formal must be an
-    /// owned scalar and the result must be the expected scalar, else decline.
+    /// supported call operand and the result must be the expected scalar.
     #[allow(clippy::too_many_arguments)]
     fn boundary_application(
         &mut self,
@@ -261,27 +261,9 @@ impl Builder<'_, '_> {
         {
             return None;
         }
-        let mut operand_types = Vec::with_capacity(parameters.len());
-        for parameter in parameters {
-            if (parameter.is_const)
-                || parameter.is_mutable
-                || crate::execution::terminal_unit::strips_erased_parameter(parameter)?
-            {
-                return None;
-            }
-            operand_types.push(
-                self.program
-                    .primitive_type_reference(parameter.type_reference)?,
-            );
-        }
         let (source_call, call_ordinal) = self.call_ordinal(expression, call_target)?;
-        let mut computed = Vec::with_capacity(operands.len());
-        for (operand, primitive_type) in operands.iter().zip(operand_types) {
-            let node = self.expression(*operand, primitive_type)?;
-            self.plans.nodes.get_mut(node).authored_root = *operand;
-            computed.push(node);
-        }
-        let arguments = self.plans.operands.insert_many(computed);
+        let (arguments, structural_arguments, temporary_discards) =
+            self.call_operands(source_call, operands, parameters)?;
         Some(self.insert(
             expected_type,
             CheckedScalarComputationKind::BoundaryCall {
@@ -290,6 +272,8 @@ impl Builder<'_, '_> {
                 target_state,
                 call_ordinal,
                 arguments,
+                structural_arguments,
+                temporary_discards,
             },
         ))
     }

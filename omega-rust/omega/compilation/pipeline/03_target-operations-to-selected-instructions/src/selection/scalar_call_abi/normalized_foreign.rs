@@ -223,8 +223,14 @@ pub(crate) fn validate(
     // Storage geometry and foreign classification are different contracts.
     // Reconstruct both from source declarations; an owned indirect placement
     // still transfers bytes, whereas a borrow transports a referent pointer.
+    if call.structural_arguments.len() != call.structural_indices.len() {
+        return Err(invalid());
+    }
     let mut structural_shapes = Vec::new();
-    for (index, argument) in structural_parameter_positions(call).zip(&call.structural_arguments) {
+    for ((index, argument), indices) in structural_parameter_positions(call)
+        .zip(&call.structural_arguments)
+        .zip(&call.structural_indices)
+    {
         let signature = source.structural.as_ref().ok_or_else(invalid)?;
         let parameter = signature
             .parameters
@@ -260,8 +266,8 @@ pub(crate) fn validate(
         } else {
             return Err(invalid());
         };
-        let (projected_type, source_byte_offset) =
-            crate::structural_inputs::structural_reference_input::project(
+        let (projected_type, source_byte_offset, elements) =
+            crate::structural_inputs::structural_reference_input::runtime_projection(
                 argument.root_structural_type,
                 &argument.path,
                 &signature.structural_types,
@@ -318,19 +324,34 @@ pub(crate) fn validate(
                 )
             }
         };
-        if argument.path.iter().any(|segment| {
-            !matches!(
-                segment,
+        if elements.iter().any(|element| element.extent.is_none())
+            || argument.path.iter().any(|segment| match segment {
                 terminal_psi::StructuralPathSegment::Field(_)
-                    | terminal_psi::StructuralPathSegment::FixedIndex(_)
-            )
-        }) || argument.root_structural_type != root_type
+                | terminal_psi::StructuralPathSegment::FixedIndex(_) => false,
+                terminal_psi::StructuralPathSegment::RuntimeIndex { .. } => {
+                    argument.access == terminal_psi::StructuralAccess::Owned
+                }
+                _ => true,
+            })
+            || argument.root_structural_type != root_type
             || argument.structural_type != projected_type
             || argument.source_byte_offset != source_byte_offset
             || argument.shape != storage_shape
             || argument.fixed_array_length.is_some()
             || argument.element_stride.is_some()
-            || !argument.indices.is_empty()
+            || !crate::structural_inputs::structural_reference_input::runtime_indices_match(
+                indices, &elements,
+            )
+            || argument.indices.len() != indices.len()
+            || argument
+                .indices
+                .iter()
+                .zip(indices)
+                .any(|(target, selected)| {
+                    target.operand.source_value() != selected.operand.value
+                        || target.operand.scalar_type() != selected.operand.scalar_type
+                        || target.stride != selected.stride
+                })
             || argument.source != expected_source
             || plan.call.parameters.get(index) != Some(&argument.destination)
             || argument.destination.shape != abi_shape

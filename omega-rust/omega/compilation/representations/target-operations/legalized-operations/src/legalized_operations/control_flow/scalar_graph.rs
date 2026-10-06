@@ -221,10 +221,15 @@ impl LegalizedScalarInstruction {
             LegalizedScalarInstructionKind::AtomicAccess { event, .. } => {
                 event.operands().into_iter().for_each(visit);
             }
-            LegalizedScalarInstructionKind::NormalizedForeignCall(call) => call
-                .scalar_arguments
-                .iter()
-                .for_each(|argument| visit(argument.source.source_value())),
+            LegalizedScalarInstructionKind::NormalizedForeignCall(call) => {
+                call.scalar_arguments
+                    .iter()
+                    .for_each(|argument| visit(argument.source.source_value()));
+                call.structural_indices
+                    .iter()
+                    .flatten()
+                    .for_each(|index| visit(index.operand.value));
+            }
             LegalizedScalarInstructionKind::BooleanNot { operand }
             | LegalizedScalarInstructionKind::IntegerWiden { operand, .. }
             | LegalizedScalarInstructionKind::BitwiseNot { operand }
@@ -1274,6 +1279,8 @@ pub struct LegalizedNormalizedForeignCall {
     pub binding: target_operations::NormalizedForeignCallBinding,
     pub scalar_arguments: Vec<target_operations::NormalizedForeignScalarArgument>,
     pub structural_arguments: Vec<target_operations::NormalizedForeignStructuralArgument>,
+    /// Exact bound operands, in structural argument order and then path order.
+    pub structural_indices: Vec<Vec<LegalizedRuntimeIndexOperand>>,
     pub result: target_operations::TargetBoundaryResult,
     pub callbacks: Vec<target_operations::TargetNativeCallbackArgument>,
 }

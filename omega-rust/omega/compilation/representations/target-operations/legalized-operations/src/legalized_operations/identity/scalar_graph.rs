@@ -1300,7 +1300,7 @@ fn encode_store_destination(
     }
 }
 
-fn encode_runtime_indices(
+pub(super) fn encode_runtime_indices(
     bytes: &mut Vec<u8>,
     indices: &[crate::legalized_operations::LegalizedRuntimeIndexOperand],
 ) {

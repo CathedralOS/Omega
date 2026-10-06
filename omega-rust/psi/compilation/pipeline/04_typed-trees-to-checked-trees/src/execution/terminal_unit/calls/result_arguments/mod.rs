@@ -331,6 +331,7 @@ pub(super) fn argument(
             call,
             place,
             parameter,
+            None,
         )?;
         if argument.source
             != (CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {

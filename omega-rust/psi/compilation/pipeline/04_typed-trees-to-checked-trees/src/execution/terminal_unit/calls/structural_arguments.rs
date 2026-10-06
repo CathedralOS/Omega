@@ -347,6 +347,7 @@ pub(crate) fn structural_call_arguments(
             call,
             &place,
             target,
+            None,
         ) {
             output.push(plan);
             continue;
@@ -366,6 +367,7 @@ pub(crate) fn structural_call_arguments(
                 call,
                 &place,
                 target,
+                None,
             )
         {
             output.push(plan);

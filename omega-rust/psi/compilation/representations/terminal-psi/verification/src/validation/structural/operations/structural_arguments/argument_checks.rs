@@ -602,15 +602,28 @@ pub(in crate::validation) fn validate_structural_argument(
         is_unrestricted_shared_subloan(module, caller, expected, argument);
     let unrestricted_mutable_field_subloan =
         is_unrestricted_mutable_subloan(module, caller, expected, argument);
-    // Borrowing a whole affine owner does not transfer its custody. This is
-    // independent of how that owner was established; source identity and
-    // authority were resolved above, and the frontier checks availability.
-    let shared_affine_loan = argument.path.is_empty()
-        && argument.access == StructuralAccess::SharedBorrow
+    // A whole-owner loan carries its own access, not the owner's affine
+    // disposal duty. Source authority, exact type, and access were checked
+    // above; the frontier retains the owner and checks its availability and
+    // overlapping loans. This also applies to exclusive and write-only loans.
+    // A descriptor can retain the existing shared observation of its backing,
+    // but owning that descriptor grants no exclusive backing access. Exclusive
+    // view presentations retain their separate established-access checks.
+    let whole_affine_loan = argument.path.is_empty()
+        && argument.access != StructuralAccess::Owned
         && expected.multiplicity == StructuralMultiplicity::Unrestricted
         && actual_access == StructuralAccess::Owned
-        && actual_multiplicity == StructuralMultiplicity::Affine;
-    let actual_multiplicity = if shared_affine_loan
+        && actual_multiplicity == StructuralMultiplicity::Affine
+        && (argument.access == StructuralAccess::SharedBorrow
+            || module.structural_types.iter().any(|declaration| {
+                declaration.id == root_type
+                    && !declaration.shape.is_borrowed_byte_carrier()
+                    && !matches!(
+                        declaration.shape,
+                        terminal_psi::StructuralTypeShape::ElementView { .. }
+                    )
+            }));
+    let actual_multiplicity = if whole_affine_loan
         || fixed_array_presentation
         || is_record_loan(module, caller, expected, argument)
     {

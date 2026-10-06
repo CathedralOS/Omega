@@ -743,6 +743,23 @@ fn cycle_operation_eligible(
                 OperationResult::Unit | OperationResult::Scalar(_)
             ) && claim_transfers.is_empty()
         }
+        // A boundary returning no structural custody has the same call-scoped
+        // argument transaction as an ordinary call. Argument validation checks
+        // exact access; reference replay closes loans at return; frontier replay
+        // consumes owned actuals and compares custody on every backedge. A
+        // producer/access roster here incorrectly rejected copied arrays and
+        // exclusive loans of owned state inputs. Completion claims and retained
+        // structural results still require their separate cyclic treatment.
+        OperationKind::BoundaryCall {
+            completion_receipts,
+            ..
+        } if matches!(
+            operation.result,
+            OperationResult::Unit | OperationResult::Scalar(_)
+        ) =>
+        {
+            completion_receipts.is_empty()
+        }
         OperationKind::BoundaryCall {
             boundary,
             structural_arguments,
@@ -755,11 +772,7 @@ fn cycle_operation_eligible(
                 .find(|candidate| candidate.id == *boundary)
                 .map(|boundary| boundary.structural_parameters.as_slice())
                 .unwrap_or(&[]);
-            // A scalar result is an ordinary value, as an in-module call's
-            // is: it carries no custody across the cycle.
-            (operation.result == OperationResult::Unit
-                || operation.result.scalar().is_some()
-                || operation.result.structural().is_some_and(|result| {
+            operation.result.structural().is_some_and(|result| {
                     case_source == Some(result.place)
                                     // An affine boundary result confined the
                                     // same way an in-module call's is never
@@ -770,7 +783,7 @@ fn cycle_operation_eligible(
                                             cyclic_blocks,
                                             result.place,
                                         ))
-                }))
+                })
                 && completion_receipts.is_empty()
                 && structural_arguments.len() == boundary_parameters.len()
                 && structural_arguments.iter().zip(boundary_parameters).all(

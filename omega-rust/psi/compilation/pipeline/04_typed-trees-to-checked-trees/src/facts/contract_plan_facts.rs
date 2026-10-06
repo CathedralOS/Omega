@@ -715,14 +715,12 @@ fn computation_contains_trapping_operation(
         place: &checked_trees::CheckedUnitStructuralArgumentPlan,
         pending: &mut Vec<checked_trees::CheckedScalarComputationHandle>,
     ) -> bool {
+        pending.extend(place.computation_operands());
         place.scalar_operands().any(|operand| match operand {
             checked_trees::CheckedCallScalarArgument::Pure(value) => {
                 value.contains_trapping_operation()
             }
-            checked_trees::CheckedCallScalarArgument::Computation(root) => {
-                pending.push(*root);
-                false
-            }
+            checked_trees::CheckedCallScalarArgument::Computation(_) => false,
         })
     }
     let mut pending = vec![root];

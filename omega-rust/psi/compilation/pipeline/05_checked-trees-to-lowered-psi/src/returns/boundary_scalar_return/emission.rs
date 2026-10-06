@@ -155,6 +155,14 @@ pub(crate) fn emit_boundary_scalar_return(
     let mut next_edge = first_identity;
     let mut evaluation = argument_evaluation::Evaluation::new(&mut next_block)?;
     evaluation.erased_scalar_formals = erased_scalar_formals.clone();
+    evaluation.bind_structural_parameters(
+        plan.structural_parameters
+            .iter()
+            .zip(&parameters)
+            .map(|(source, parameter)| (source.position, parameter.clone()))
+            .collect(),
+        structural_types,
+    );
     let mut scalar_values = scalar_parameters.clone();
     let arguments = evaluation.arguments(
         checked,
@@ -218,19 +226,9 @@ pub(crate) fn emit_boundary_scalar_return(
         operation_id,
         *target_machine,
     )?;
-    let structural_field_bindings =
-        crate::expression_preparation::bindings::StructuralScalarFieldBinding::collect(
-            &plan
-                .structural_parameters
-                .iter()
-                .zip(&parameters)
-                .map(|(source, parameter)| (source.position, parameter.clone()))
-                .collect::<Vec<_>>(),
-            structural_types,
-        );
     let mut selector_values = mint_runtime_index_selectors(
         structural_arguments,
-        &structural_field_bindings,
+        &evaluation.structural_fields,
         &scalar_values,
         &mut next_value_identity,
         &mut operations,
@@ -358,20 +356,10 @@ pub(crate) fn emit_boundary_scalar_return(
         entry: evaluation.entry,
         blocks: evaluation.blocks,
         contract: {
-            let view_roster: Vec<(u32, StructuralParameterDeclaration)> = plan
-                .structural_parameters
-                .iter()
-                .zip(parameters.iter())
-                .map(|(source, parameter)| (source.position, parameter.clone()))
-                .collect();
-            let element_views = crate::expression_preparation::bindings::element_views(
-                &view_roster,
-                structural_types,
-            );
             let views = crate::scalar_graph::scalar_contracts::ContractViewNamespace {
-                parameters: &view_roster,
+                parameters: &evaluation.structural_parameters,
                 structural_types,
-                element_views: &element_views,
+                element_views: &evaluation.element_views,
             };
             MachineContract {
                 id: identities.contract,

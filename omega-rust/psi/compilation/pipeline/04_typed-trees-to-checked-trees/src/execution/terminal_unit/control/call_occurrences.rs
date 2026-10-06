@@ -1421,20 +1421,18 @@ fn collect_structural_argument_calls(
         // collect_constructor_calls. Following them again here would count
         // one authored invocation twice; this edge only rejoins its value.
     }
-    for operand in argument.scalar_operands() {
-        if let checked_trees::CheckedCallScalarArgument::Computation(handle) = operand {
-            collect(
-                program,
-                facts,
-                state,
-                statement,
-                *handle,
-                calls,
-                minimum_call_ordinal,
-                active,
-                consumed,
-            )?;
-        }
+    for handle in argument.computation_operands() {
+        collect(
+            program,
+            facts,
+            state,
+            statement,
+            handle,
+            calls,
+            minimum_call_ordinal,
+            active,
+            consumed,
+        )?;
     }
     Some(())
 }
@@ -1626,6 +1624,14 @@ fn collect(
             arguments,
             structural_arguments,
             ..
+        }
+        | CheckedScalarComputationKind::BoundaryCall {
+            source_call,
+            call_ordinal,
+            target_state,
+            arguments,
+            structural_arguments,
+            ..
         } => {
             if !facts.flow.control.calls.is_valid(*source_call) || consumed.contains(source_call) {
                 return None;
@@ -1636,7 +1642,9 @@ fn collect(
             if *call_ordinal < minimum_call_ordinal
                 || call.call_ordinal != *call_ordinal as usize
                 || call.statement_index != statement
-                || call.target_symbol != *target_state
+                || validation::exact_external_leaf_boundary_requirement(program, call.target_symbol)
+                    .map_or(call.target_symbol, |(requirement, _)| requirement)
+                    != *target_state
                 || !call.authored_expression.is_valid()
                 || !calls.iter().any(|candidate| std::ptr::eq(candidate, call))
                 || facts.flow.control.is_retired(state, call)
@@ -1690,47 +1698,6 @@ fn collect(
                         )?;
                     }
                 }
-            }
-        }
-        CheckedScalarComputationKind::BoundaryCall {
-            source_call,
-            call_ordinal,
-            target_state,
-            arguments,
-            ..
-        } => {
-            // A nested boundary application consumes its own authored
-            // occurrence exactly once, like an embedded checked-body call; the
-            // statement's result operation never sequences it again.
-            if !facts.flow.control.calls.is_valid(*source_call) || consumed.contains(source_call) {
-                return None;
-            }
-            let call = facts.flow.control.calls.get(*source_call);
-            if *call_ordinal < minimum_call_ordinal
-                || call.call_ordinal != *call_ordinal as usize
-                || call.statement_index != statement
-                || validation::exact_external_leaf_boundary_requirement(program, call.target_symbol)
-                    .map_or(call.target_symbol, |(requirement, _)| requirement)
-                    != *target_state
-                || !call.authored_expression.is_valid()
-                || !calls.iter().any(|candidate| std::ptr::eq(candidate, call))
-                || facts.flow.control.is_retired(state, call)
-            {
-                return None;
-            }
-            consumed.push(*source_call);
-            for operand in plans.operands.span(*arguments)? {
-                collect(
-                    program,
-                    facts,
-                    state,
-                    statement,
-                    *operand,
-                    calls,
-                    minimum_call_ordinal,
-                    active,
-                    consumed,
-                )?;
             }
         }
         CheckedScalarComputationKind::Apply { operands, .. } => {

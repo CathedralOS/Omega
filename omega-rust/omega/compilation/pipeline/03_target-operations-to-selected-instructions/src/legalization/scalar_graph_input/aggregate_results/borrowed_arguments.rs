@@ -108,25 +108,12 @@ pub(in crate::legalization::scalar_graph_input) fn reconstruct_at_owner(
             .ok_or(LegalizationError::custody())?;
         (parameter.structural_type, retained.placement.clone().into())
     } else {
+        // Source ownership already identifies the exact establishing operation.
+        // Locate that identity independently of whether an ordinary call, a
+        // provider boundary, or a local construction produced the storage.
         let site = |operation| {
-            caller.blocks.iter().find_map(|block| {
-                block
-                    .nodes
-                    .iter()
-                    .position(|node| {
-                        matches!(&node.operation,
-                AbstractOperation::EstablishRecord { psi_operation, .. }
-                | AbstractOperation::EstablishStructuralArray { psi_operation, .. }
-                | AbstractOperation::EstablishScalarArray { psi_operation, .. }
-                | AbstractOperation::EstablishZeroedStructural { psi_operation, .. }
-                | AbstractOperation::EstablishStructuralLocal { psi_operation, .. }
-                | AbstractOperation::EstablishCase { psi_operation, .. }
-                | AbstractOperation::CallStructural {
-                    psi_operation,
-                    ..
-                } if *psi_operation == operation)
-                    })
-                    .map(|position| (block.id, position))
+            super::node_site(caller, |candidate| {
+                candidate.psi_operation() == Some(operation)
             })
         };
         let after = if let Some(operation) = owner.operation() {

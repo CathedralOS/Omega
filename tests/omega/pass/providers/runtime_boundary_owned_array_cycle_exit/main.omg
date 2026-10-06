@@ -1,0 +1,34 @@
+use omega::language::core::binding;
+use omega_language_std::console;
+
+pub boundary trait ArrayValue {
+    machine read(values: [i32; 2]) -> i32;
+}
+ArrayProvider satisfies ArrayValue {
+    ArrayValue::read = first;
+}
+machine first(values: [i32; 2]) -> i32 { values[0] }
+
+data Main {
+    provider: Binding<ArrayValue>;
+    count: u64 in Wrapping;
+    total: i32 in Wrapping;
+}
+machine Main::main(main: &mut Main) reaches ArrayValue + Console {
+    main.count = 0;
+    main.total = 0;
+    transition { _ -> step(main) }
+    state step(main: &mut Main) {
+        let values: [i32; 2] = [35, 7];
+        let observed: i32 = main.provider.read(values);
+        main.total += observed as i32 in Wrapping;
+        main.count += 1;
+        transition main.count < 2 {
+            true -> step(main)
+            _ -> done(main)
+        }
+    }
+    state done(main: &mut Main) {
+        Console::exit_process(main.total as i32);
+    }
+}

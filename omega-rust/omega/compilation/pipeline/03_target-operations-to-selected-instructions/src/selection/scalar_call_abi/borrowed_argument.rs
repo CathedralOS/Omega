@@ -538,11 +538,11 @@ pub(super) fn validate_borrowed_argument(
         target_operations::TargetStructuralArgumentSource::BlockParameter { block, place }
             if aggregate.is_some() =>
         {
+            // The exact block home retains owned backing. Shared, mutable,
+            // and write-only calls borrow that same storage; their access and
+            // outgoing ABI were checked above independently of its origin.
             let (owner, declaration) = aggregate_block_home?;
-            if semantic.access != StructuralAccess::SharedBorrow
-                || *block != owner
-                || *place != declaration.place
-            {
+            if *block != owner || *place != declaration.place {
                 return None;
             }
         }

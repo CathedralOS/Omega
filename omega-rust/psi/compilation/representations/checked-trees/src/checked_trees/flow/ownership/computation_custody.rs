@@ -83,8 +83,8 @@ impl CallTransfers<'_> {
 
     fn argument_evaluation(&self, argument: &CheckedUnitStructuralArgumentPlan) -> usize {
         argument
-            .scalar_operands()
-            .map(|operand| self.scalar(operand))
+            .computation_operands()
+            .map(|operand| self.computation(operand))
             .sum()
     }
 
@@ -126,6 +126,11 @@ impl CallTransfers<'_> {
                 arguments,
                 structural_arguments,
                 ..
+            }
+            | CheckedScalarComputationKind::BoundaryCall {
+                arguments,
+                structural_arguments,
+                ..
             } => {
                 plans
                     .operands
@@ -147,11 +152,7 @@ impl CallTransfers<'_> {
                         })
                         .sum::<usize>()
             }
-            CheckedScalarComputationKind::Apply { operands, .. }
-            | CheckedScalarComputationKind::BoundaryCall {
-                arguments: operands,
-                ..
-            } => plans
+            CheckedScalarComputationKind::Apply { operands, .. } => plans
                 .operands
                 .span_or_empty(*operands)
                 .iter()

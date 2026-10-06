@@ -233,14 +233,9 @@ pub enum CheckedScalarComputationKind {
         /// Borrowed access alone does not authorize an owned temporary's drop.
         temporary_discards: HandleSpan<CheckedScalarComputationTemporaryDiscard>,
     },
-    /// One bodyless boundary application nested under an enclosing operand,
-    /// such as the product in `a * b + c`. Its dense scalar operands complete
-    /// left to right, then the exact source call runs once and its scalar
-    /// result becomes the enclosing operand. A boundary call that is itself a
-    /// statement's value stays that statement's result operation; this node
-    /// exists only where no statement can own the invocation. Only
-    /// receiver-free, scalar-only signatures qualify, so the application
-    /// carries no structural arguments, claims or completion receipts.
+    /// A boundary invocation owns the same ordered mixed operands and normal
+    /// temporary retirement as a checked-body call. The target retains its
+    /// separate boundary contract and provider identity.
     BoundaryCall {
         source_call: Handle<crate::FlowCallFact>,
         target_machine: SymbolHandle,
@@ -249,6 +244,8 @@ pub enum CheckedScalarComputationKind {
         call_ordinal: u32,
         /// Dense scalar operands in authored formal-position order.
         arguments: HandleSpan<CheckedScalarComputationHandle>,
+        structural_arguments: HandleSpan<CheckedScalarComputationStructuralArgument>,
+        temporary_discards: HandleSpan<CheckedScalarComputationTemporaryDiscard>,
     },
     Select {
         /// Exact conditional occurrence, retained when an enclosing constant

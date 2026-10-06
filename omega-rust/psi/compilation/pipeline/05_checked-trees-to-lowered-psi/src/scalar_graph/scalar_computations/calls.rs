@@ -305,9 +305,22 @@ impl Expansion<'_> {
             .any(|call| std::ptr::eq(call, source))
             || source.statement_index != site.statement as usize
             || source.call_ordinal != call_ordinal as usize
-            || source.target_symbol != target_state
+            || validation::exact_external_leaf_boundary_requirement(
+                &self.checked.typed,
+                source.target_symbol,
+            )
+            .map_or(source.target_symbol, |(requirement, _)| requirement)
+                != target_state
         {
             return unsupported("scalar computation invocation coordinate disagrees");
+        }
+        let signature = crate::declarations::target_signature(
+            self.checked,
+            self.machine,
+            source.target_symbol,
+        )?;
+        if signature.machine != target_machine || signature.state != target_state {
+            return unsupported("computed call target differs from its retained signature");
         }
         let plans = &self.checked.facts.values.scalar_computations;
         let structural =
@@ -336,21 +349,15 @@ impl Expansion<'_> {
             .ok_or(LoweringError::Unsupported(
                 "scalar computation call has an invalid argument span",
             ))?;
-        let callee = crate::scalar_graph::scalar_call_closure::callee::CheckedScalarCallee::find_for_unit_call(
+        let parameters = super::call_signature::structural_parameters(
             self.checked,
             target_machine,
+            target_state,
         )?;
-        let (_, source_state) = crate::declarations::state_declaration(self.checked, target_state)?;
-        let parameters = callee.structural_parameters();
         let mut scalar_ordinal = 0usize;
         let mut structural_ordinal = 0usize;
         let mut operands = Vec::new();
-        for (position, source_parameter) in self
-            .checked
-            .state_parameters(source_state)
-            .iter()
-            .enumerate()
-        {
+        for (position, source_parameter) in signature.parameters.iter().enumerate() {
             // An `[erased]` formal position has no operand of either kind
             // (contracts.md#explicit-erased-bindings); the typed relevance
             // decides that, not the operand roster being validated.
@@ -452,13 +459,20 @@ impl Expansion<'_> {
                     actual.selector_positions.clear();
                 }
                 for segment in &structural_arguments[structural_ordinal].path {
-                    if let crate::expression_preparation::bindings::structural_paths::PreparedStructuralPathSegment::RuntimeIndex(
-                        checked_trees::CheckedRuntimeIndex::StructuralField(field),
-                    ) = segment
-                    {
+                    use crate::expression_preparation::bindings::structural_paths::PreparedStructuralPathSegment;
+                    let value = match segment {
+                        PreparedStructuralPathSegment::RuntimeIndex(
+                            checked_trees::CheckedRuntimeIndex::StructuralField(field),
+                        ) => Some(Argument::Value(site.bindings.runtime_index_field(field)?)),
+                        PreparedStructuralPathSegment::ComputedIndex(root) => {
+                            Some(Argument::Computation(*root))
+                        }
+                        _ => None,
+                    };
+                    if let Some(value) = value {
                         operands.push(Operand::Selector {
                             structural_ordinal,
-                            value: Argument::Value(site.bindings.runtime_index_field(field)?),
+                            value,
                         });
                     }
                 }
@@ -507,31 +521,51 @@ impl Expansion<'_> {
         let call_types = prefixes.last().ok_or(LoweringError::Unsupported(
             "computed call lost its completed prefix",
         ))?;
-        let call = lower_scalar_call(
-            self.checked,
-            self.qualifications,
-            self.machine,
-            site.state,
-            site.statement,
-            target_machine,
-            target_state,
-            call_ordinal,
-            result_type,
-            call_types,
-            site.bindings,
-            scalar_actuals,
-            structural_arguments,
-            ScalarCallCrashScope::Arguments,
-            crate::scalar_graph::scalar_contracts::caller_erased_proof_roster(
+        let coordinate = crate::emission::operation_emission::buffer::SourceCallCoordinate {
+            state: site.state,
+            statement_index: source.statement_index,
+            call_ordinal: source.call_ordinal,
+        };
+        let call = if signature.boundary {
+            LoweredScalarBinding::BoundaryCall(crate::emission::operation_emission::boundary_calls::LoweredBoundaryCallBinding {
+                source_coordinate: coordinate,
+                source_expression: source.authored_expression,
+                target_machine,
+                result_type,
+                result_policy: crate::emission::operation_emission::boundary_calls::result_policy::BoundaryResultPolicy::prepare(
+                    self.checked, self.machine, coordinate,
+                    Some(checked_trees::NominalMachineUseSite::Expression(source.authored_expression)), target_machine,
+                )?,
+                arguments: scalar_actuals,
+                structural_arguments,
+            })
+        } else {
+            LoweredScalarBinding::DirectCall(lower_scalar_call(
                 self.checked,
+                self.qualifications,
                 self.machine,
                 site.state,
-            )?,
-        )?;
-        if self.calls.contains(&call.source_coordinate) {
+                site.statement,
+                target_machine,
+                target_state,
+                call_ordinal,
+                result_type,
+                call_types,
+                site.bindings,
+                scalar_actuals,
+                structural_arguments,
+                ScalarCallCrashScope::Arguments,
+                crate::scalar_graph::scalar_contracts::caller_erased_proof_roster(
+                    self.checked,
+                    self.machine,
+                    site.state,
+                )?,
+            )?)
+        };
+        if self.calls.contains(&coordinate) {
             return unsupported("scalar computation repeats a call occurrence");
         }
-        self.calls.push(call.source_coordinate);
+        self.calls.push(coordinate);
         // The checked call owns retirement, not the producer's source family
         // or its borrowed access. Keep the scalar result and caller prefix live
         // across the exact normal continuation; a crashing call never reaches it.
@@ -562,12 +596,7 @@ impl Expansion<'_> {
                 parameter_types,
             })
         };
-        let mut continuation = self.binding(
-            call_types,
-            input_types.len(),
-            target,
-            LoweredScalarBinding::DirectCall(call),
-        );
+        let mut continuation = self.binding(call_types, input_types.len(), target, call);
         for (ordinal, operand) in operands.iter().enumerate().rev() {
             let prefix = &prefixes[ordinal];
             continuation = match operand {

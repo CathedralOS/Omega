@@ -142,6 +142,7 @@ pub(super) fn validate(
                     binding.boundary_entry_plan.call.policy,
                     plan,
                     *expected_operation,
+                    native,
                 )
             },
         )

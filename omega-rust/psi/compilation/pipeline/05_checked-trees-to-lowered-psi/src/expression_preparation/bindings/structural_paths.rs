@@ -37,7 +37,8 @@ pub(crate) fn lower_structural_path(
             CheckedUnitStructuralPathSegment::FixedIndex(index) => {
                 Ok(StructuralPathSegment::FixedIndex(*index))
             }
-            CheckedUnitStructuralPathSegment::RuntimeIndex { .. } => {
+            CheckedUnitStructuralPathSegment::RuntimeIndex { .. }
+            | CheckedUnitStructuralPathSegment::ComputedIndex(_) => {
                 Err(LoweringError::Unsupported(
                     "a runtime-index projection is lowered by the emitter that evaluates its index",
                 ))
@@ -59,6 +60,7 @@ pub(crate) fn lower_structural_path(
 pub(crate) enum PreparedStructuralPathSegment {
     Static(StructuralPathSegment),
     RuntimeIndex(checked_trees::CheckedRuntimeIndex),
+    ComputedIndex(checked_trees::CheckedScalarComputationHandle),
 }
 
 /// The actual endpoint of a prepared projection, including inline carriers
@@ -198,7 +200,8 @@ pub(crate) fn prepare_argument_path(
                 };
                 PreparedStructuralPathSegment::Static(StructuralPathSegment::FixedIndex(*index))
             }
-            CheckedUnitStructuralPathSegment::RuntimeIndex(index) => {
+            CheckedUnitStructuralPathSegment::RuntimeIndex(_)
+            | CheckedUnitStructuralPathSegment::ComputedIndex(_) => {
                 tip = match shape {
                     Some(
                         StructuralTypeShape::FixedArray { element, .. }
@@ -211,7 +214,15 @@ pub(crate) fn prepare_argument_path(
                         ));
                     }
                 };
-                PreparedStructuralPathSegment::RuntimeIndex(index.clone())
+                match step {
+                    CheckedUnitStructuralPathSegment::RuntimeIndex(index) => {
+                        PreparedStructuralPathSegment::RuntimeIndex(index.clone())
+                    }
+                    CheckedUnitStructuralPathSegment::ComputedIndex(root) => {
+                        PreparedStructuralPathSegment::ComputedIndex(*root)
+                    }
+                    _ => unreachable!("matched evaluated structural selector"),
+                }
             }
             CheckedUnitStructuralPathSegment::Referent => {
                 let Some(StructuralTypeShape::Reference { referent, .. }) = shape else {
@@ -280,6 +291,9 @@ pub(crate) fn prepare_unscoped_path(
         .map(|segment| match segment {
             CheckedUnitStructuralPathSegment::RuntimeIndex(index) => {
                 Ok(PreparedStructuralPathSegment::RuntimeIndex(index.clone()))
+            }
+            CheckedUnitStructuralPathSegment::ComputedIndex(root) => {
+                Ok(PreparedStructuralPathSegment::ComputedIndex(*root))
             }
             segment => Ok(PreparedStructuralPathSegment::Static(
                 lower_structural_path(std::slice::from_ref(segment))?.remove(0),
@@ -372,7 +386,8 @@ pub(crate) fn emit_argument_path(
             }
             PreparedStructuralPathSegment::RuntimeIndex(
                 checked_trees::CheckedRuntimeIndex::StructuralField(_),
-            ) => {
+            )
+            | PreparedStructuralPathSegment::ComputedIndex(_) => {
                 let Some(calls) = calls.as_deref_mut() else {
                     return Err(LoweringError::Unsupported(
                         "runtime index argument path has no caller scalar frame",

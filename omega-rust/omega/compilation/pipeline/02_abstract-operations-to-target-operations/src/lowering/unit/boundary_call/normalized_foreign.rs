@@ -1,10 +1,12 @@
 //! Normalized foreign scalar and structural argument and result projection.
 
-use super::super::super::control_flow::scalar_sources::{ScalarSources, resolved_source};
+use super::super::super::control_flow::scalar_sources::{
+    ScalarSources, resolved_source, runtime_indices,
+};
 use super::super::super::scalar_abi::fixed_native_scalar_shape;
 use super::super::super::structural_layout::{
     borrowed_view_field_offset, byte_sequence_shape, resolve_structural_projection_path,
-    structural_parameter_shape, structural_shape,
+    runtime_projection, structural_parameter_shape, structural_shape,
 };
 use super::{
     AbstractFunction, BTreeMap, BTreeSet, BoundaryMachineId, CallSignature, LoweringError,
@@ -13,7 +15,6 @@ use super::{
     ValueLocation, ValueShape,
 };
 use calling_conventions::ValueClass;
-use semantic_vocabulary::MachineId;
 use target_operations::{TargetStructuralArgument, TargetUnitScalarArgumentSource};
 use terminal_psi::{StructuralAccess, StructuralPathSegment};
 
@@ -27,9 +28,9 @@ use terminal_psi::{StructuralAccess, StructuralPathSegment};
 /// from lane-local proof and custody coordinates. Private callback slots are
 /// inserted by the evaluated calling plan, not by the semantic declaration.
 ///
-/// Each admitted borrowed argument must resolve to one static projection
+/// Each admitted borrowed argument must resolve to one bounded projection
 /// rooted at caller storage: a structural parameter or a dominating home.
-/// Record fields and fixed array
+/// Record fields and fixed or runtime-selected array
 /// elements (`&record.field`, `&text[0]`), or the whole parameter when the
 /// caller forwards a loan it received. The projected type equals the declared
 /// parameter type, and the evaluated plan places the referent pointer as one
@@ -45,7 +46,8 @@ use terminal_psi::{StructuralAccess, StructuralPathSegment};
 #[allow(clippy::too_many_arguments)]
 pub(super) fn lower_normalized_foreign_structural_arguments(
     boundary: BoundaryMachineId,
-    machine: MachineId,
+    function: &AbstractFunction,
+    scalar_sources: &ScalarSources<'_>,
     target: NativeTarget,
     declaration: &terminal_psi::BoundaryMachineDeclaration,
     structural_arguments: &[terminal_psi::StructuralArgument],
@@ -140,13 +142,14 @@ pub(super) fn lower_normalized_foreign_structural_arguments(
                     )
                 } else {
                     return Err(LoweringError::UnknownStructuralArgumentPlace {
-                        machine,
+                        machine: function.machine,
                         place: argument.place,
                     });
                 };
             if usize::try_from(parameter.position).ok() != Some(index) {
                 return Err(LoweringError::BoundaryRealizationMismatch(boundary));
             }
+            let mut index_runs = Vec::new();
             let (projected_type, projected_shape, source_byte_offset) = if parameter.access
                 == StructuralAccess::Owned
             {
@@ -232,15 +235,15 @@ pub(super) fn lower_normalized_foreign_structural_arguments(
                         )
                     }
                 } else {
-                    // Record fields and fixed array elements both resolve to
-                    // one static byte offset inside the caller's referent, so
-                    // `&text[0]` lends the element's address exactly as
-                    // `&record.field` lends the field's. Runtime indices and
-                    // byte ranges stay outside this pointer-word transport.
+                    // Borrowed projections share the ordinary address model:
+                    // static fields fold into the offset, and each bounded
+                    // selector contributes its exact SSA operand and stride.
                     if argument.path.iter().any(|segment| {
                         !matches!(
                             segment,
-                            StructuralPathSegment::Field(_) | StructuralPathSegment::FixedIndex(_)
+                            StructuralPathSegment::Field(_)
+                                | StructuralPathSegment::FixedIndex(_)
+                                | StructuralPathSegment::RuntimeIndex { .. }
                         )
                     }) {
                         return Err(LoweringError::BoundaryRealizationMismatch(boundary));
@@ -249,14 +252,17 @@ pub(super) fn lower_normalized_foreign_structural_arguments(
                         .path
                         .iter()
                         .all(|segment| matches!(segment, StructuralPathSegment::Field(_)));
-                    match resolve_structural_projection_path(
+                    match runtime_projection(
                         source_structural_type,
                         &argument.path,
                         structural_types,
                         shape_cache,
                         active,
                     ) {
-                        Ok(projection) => projection,
+                        Ok((ty, shape, offset, runs)) => {
+                            index_runs = runs;
+                            (ty, shape, offset)
+                        }
                         Err(_) if !field_only => {
                             return Err(LoweringError::BoundaryRealizationMismatch(boundary));
                         }
@@ -404,7 +410,7 @@ pub(super) fn lower_normalized_foreign_structural_arguments(
                 source_byte_offset,
                 fixed_array_length: None,
                 element_stride: None,
-                indices: Vec::new(),
+                indices: runtime_indices(index_runs, function, scalar_sources)?,
                 source: argument_source,
                 destination: destination.clone(),
             })

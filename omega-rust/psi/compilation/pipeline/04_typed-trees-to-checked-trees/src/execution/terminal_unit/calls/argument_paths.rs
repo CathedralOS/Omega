@@ -245,8 +245,27 @@ pub(crate) fn projected_observed_path(
         statement_index,
         place,
         Some(machine),
-        Some(local_selector),
+        Some(&|expression| {
+            local_selector(expression).map(CheckedUnitStructuralPathSegment::RuntimeIndex)
+        }),
     )
+}
+
+/// A computation owner supplies executable selectors at the same projected
+/// storage join. Other callers pass no evaluator and cannot invent a value.
+pub(crate) fn projected_evaluated_path(
+    program: &TypedTrees,
+    machine: SymbolHandle,
+    state: SymbolHandle,
+    statement: usize,
+    place: &crate::flow::CanonicalPlace,
+    selector: Option<
+        &dyn Fn(
+            typed_trees::expression::ExpressionHandle,
+        ) -> Option<CheckedUnitStructuralPathSegment>,
+    >,
+) -> Option<(TypeReferenceHandle, Vec<CheckedUnitStructuralPathSegment>)> {
+    projected_argument_path_impl(program, state, statement, place, Some(machine), selector)
 }
 
 fn projected_argument_path_impl(
@@ -258,7 +277,7 @@ fn projected_argument_path_impl(
     local_selector: Option<
         &dyn Fn(
             typed_trees::expression::ExpressionHandle,
-        ) -> Option<checked_trees::CheckedRuntimeIndex>,
+        ) -> Option<CheckedUnitStructuralPathSegment>,
     >,
 ) -> Option<(
     typed_trees::types::TypeReferenceHandle,
@@ -389,10 +408,9 @@ fn projected_argument_path_impl(
                                 *expression,
                             )
                         })
+                        .map(CheckedUnitStructuralPathSegment::RuntimeIndex)
                         .or_else(|| local_selector.and_then(|resolve| resolve(*expression)))?;
-                path.push(CheckedUnitStructuralPathSegment::RuntimeIndex(
-                    runtime_index,
-                ));
+                path.push(runtime_index);
             }
             facts::PlaceSegment::FixedRange { start, end } => {
                 // A borrowed byte view's window is itself part of the place:

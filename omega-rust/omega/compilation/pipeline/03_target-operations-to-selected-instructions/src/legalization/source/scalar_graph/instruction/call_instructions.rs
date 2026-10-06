@@ -131,6 +131,8 @@ pub(super) fn project_normalized_foreign_call(
     node: &optimization_unit::OptimizationNode,
     optimized: &optimization_unit::PsiOptimizationFunction,
     native: &TargetOperationPlan,
+    plan: &AbstractOperationPlan,
+    unit: &PsiOptimizationUnit,
     operation: OperationId,
 ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
     let AbstractOperation::BoundaryCall { boundary, .. } = &node.operation else {
@@ -168,6 +170,19 @@ pub(super) fn project_normalized_foreign_call(
             provider_execution: *provider_execution,
             binding: binding.clone(),
             scalar_arguments: scalar_arguments.clone(),
+            structural_indices: structural_arguments
+                .iter()
+                .map(|argument| {
+                    crate::legalization::runtime_indices::structural_argument(
+                        optimized,
+                        unit,
+                        operation,
+                        argument.root_structural_type,
+                        &argument.path,
+                        &plan.structural_types,
+                    )
+                })
+                .collect::<Result<Vec<_>, _>>()?,
             structural_arguments: structural_arguments.clone(),
             result: result.clone(),
             callbacks,

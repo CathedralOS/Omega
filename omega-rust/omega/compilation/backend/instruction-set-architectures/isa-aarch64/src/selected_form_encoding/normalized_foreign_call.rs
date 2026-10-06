@@ -627,6 +627,7 @@ mod tests {
                 },
                 scalar_arguments,
                 structural_arguments: Vec::new(),
+                structural_indices: Vec::new(),
                 result: completion,
                 callbacks: Vec::new(),
             },

@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 14, "jobs": "4", "load1_end": 12.69, "load1_start": 12.69, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "2", "load1_end": 4.31, "load1_start": 3.3, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 189ms
 pass/arithmetic/anonymous_rational_integer_landing checked 186ms
 pass/arithmetic/bounded_assignment checked 197ms
@@ -279,6 +279,7 @@ pass/calls/retained_receiver_argument_order_exit built 915ms exit:70 @bd26d3a01a
 pass/calls/runtime_alias_write_through_guarded_transition_exit built 568ms exit:70 @76bba5577e21+wt
 pass/calls/runtime_assignment_call_post_mutation_value_exit built 824ms exit:70
 pass/calls/runtime_borrowed_binding_field_state_loan_exit built 966ms exit:70 stdout:match @bea382792161+wt
+pass/calls/runtime_boundary_computed_selector_order_exit built 2770ms exit:70 @cba4afbf6f2f+wt
 pass/calls/runtime_call_statement_before_state_return_exit built 1440ms exit:42 @63377f7122bb+wt
 pass/calls/runtime_case_payload_indexed_calls_exit built 2820ms exit:70 @9beb2be72f2d+wt
 pass/calls/runtime_case_record_return_exit built 1202ms exit:70
@@ -334,6 +335,7 @@ pass/calls/runtime_loop_rotation_exit built 643ms exit:1
 pass/calls/runtime_measured_tail_recursion_exit built 660ms exit:70
 pass/calls/runtime_mut_ref_forward_exit built 1147ms exit:70 @48008365d839
 pass/calls/runtime_mutable_call_before_transition_args_exit built 5538ms exit:70 @fb2178def922
+pass/calls/runtime_mutable_local_external_scalar_call_exit built 4526ms exit:70 @cba4afbf6f2f+wt
 pass/calls/runtime_mutable_local_parameter_write_exit built 756ms exit:171 @6c1f965d49de+wt
 pass/calls/runtime_nested_case_argument_exit built 2633ms exit:70 @b6846d69ce88+wt
 pass/calls/runtime_nested_case_subject_operand_order_exit built 4439ms exit:0 @9beb2be72f2d+wt
@@ -343,6 +345,7 @@ pass/calls/runtime_nested_receiver_guard_exit built 1030ms exit:42 @ac942fdbba24
 pass/calls/runtime_nested_value_call_guard_exit built 4993ms exit:70
 pass/calls/runtime_option_value_call_exit built 950ms exit:70
 pass/calls/runtime_owned_case_temporaries_exhaustive_dispatch_exit built 741ms exit:70
+pass/calls/runtime_owned_mutable_state_parameter_exit built 1849ms exit:70 @cba4afbf6f2f+wt
 pass/calls/runtime_owned_parameter_primitive_borrow_exit built 1164ms exit:0 @67eeeb9797e0+wt
 pass/calls/runtime_param_receiver_second_instance_exit built 1803ms exit:70 @fb2178def922
 pass/calls/runtime_qualified_tail_recursion_exit built 983ms exit:70
@@ -1094,8 +1097,10 @@ pass/providers/runtime_adapter_dispatch_exit built 576ms exit:70
 pass/providers/runtime_boundary_array_construction_exit built 2510ms exit:70 @b6846d69ce88+wt
 pass/providers/runtime_boundary_array_forwarding_exit built 6861ms exit:70 @72a43a5bee12+wt
 pass/providers/runtime_boundary_array_result_exit built 1437ms exit:70 @c5756d3f7761+wt
+pass/providers/runtime_boundary_owned_array_cycle_exit built 1029ms exit:70 @cba4afbf6f2f+wt
 pass/providers/runtime_boundary_primitive_array_argument_exit built 901ms exit:70
 pass/providers/runtime_foreign_leaf_borrowed_byte_argument_exit built 1199ms exit:70 @a9f373809a48+wt
+pass/providers/runtime_named_provider_explicit_state_exit built 1013ms exit:70 @cba4afbf6f2f+wt
 pass/providers/runtime_result_domain_requirement_overload_exit built 613ms exit:70
 pass/providers/same_name_requirement_dispatch_exit built 1026ms exit:70 @b14cbb25f486
 pass/providers/same_name_requirement_right_dispatch_exit built 934ms exit:70 @b14cbb25f486

@@ -1888,7 +1888,8 @@ fn verify_source(
                 })
             }
             CheckedUnitStructuralPathSegment::Case(_)
-            | CheckedUnitStructuralPathSegment::RuntimeIndex { .. } => None,
+            | CheckedUnitStructuralPathSegment::RuntimeIndex { .. }
+            | CheckedUnitStructuralPathSegment::ComputedIndex(_) => None,
             CheckedUnitStructuralPathSegment::Referent => Some(StructuralPathSegment::Referent),
         })
         .collect::<Option<Vec<_>>>()

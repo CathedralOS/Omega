@@ -16,6 +16,7 @@ pub(crate) fn finalize_execution(
     crate::execution::terminal_scalar::finalize_checked_scalar_graph_plans(
         program,
         &facts.flow.ownership,
+        &facts.flow.control,
         &facts.values.scalar_computations,
         &facts.values.structural_values,
         &mut facts.flow.terminal_scalar_graphs,

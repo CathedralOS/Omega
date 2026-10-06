@@ -269,9 +269,17 @@ pub(super) fn retain_shapes(
                 arguments,
                 structural_arguments,
                 ..
+            }
+            | CheckedScalarComputationKind::BoundaryCall {
+                arguments,
+                structural_arguments,
+                ..
             } => {
                 pending.extend(plans.operands.span(*arguments)?);
                 for argument in plans.structural_arguments.span(*structural_arguments)? {
+                    if let Some(place) = argument.as_place() {
+                        pending.extend(place.computation_operands());
+                    }
                     if let checked_trees::CheckedScalarComputationStructuralArgument::Place(
                         argument,
                     ) = argument
@@ -336,11 +344,9 @@ pub(super) fn retain_shapes(
                 when_false,
                 ..
             } => pending.extend([*condition, *when_true, *when_false]),
-            CheckedScalarComputationKind::Apply { operands, .. }
-            | CheckedScalarComputationKind::BoundaryCall {
-                arguments: operands,
-                ..
-            } => pending.extend(plans.operands.span(*operands)?),
+            CheckedScalarComputationKind::Apply { operands, .. } => {
+                pending.extend(plans.operands.span(*operands)?)
+            }
         }
     }
     Some(())

@@ -11,7 +11,7 @@ use checked_trees::types::{
     DomainConstraintSubject, PrimitiveType, TypeConstraintNode, TypeReferenceHandle,
     TypeReferenceNode,
 };
-use checked_trees::{CheckedScalarComputationKind, CheckedScalarDispatchPattern, CheckedTrees};
+use checked_trees::{CheckedScalarComputationKind, CheckedTrees};
 use language_semantics::{DomainEstablishmentRoute, SemanticDomainId};
 use semantic_vocabulary::{
     DomainSemanticId, QualifiedScalarType, ScalarDomainId, ScalarQualificationSetId,
@@ -59,96 +59,20 @@ impl PreparedScalarQualifications {
             }
         }
         let plans = &checked.facts.values.scalar_computations;
-        let mut pending = plans
+        let roots = plans
             .roots
             .iter()
             .filter_map(|(_, root)| machines.contains(&root.machine).then_some(root.root))
             .collect::<Vec<_>>();
-        let mut visited = Vec::new();
-        while let Some(handle) = pending.pop() {
-            if visited.contains(&handle) {
-                continue;
-            }
-            if !plans.nodes.is_valid(handle) {
-                return unsupported("scalar qualification closure has a stale computation");
-            }
-            visited.push(handle);
+        // Structural operands can themselves contain qualified computations.
+        // Consume the same retained dependency graph as operand preparation.
+        for handle in super::computation_graph::reachable_nodes(checked, &roots)? {
             match &plans.nodes.get(handle).kind {
-                CheckedScalarComputationKind::CaseMembership { subject, .. } => {
-                    pending.extend(
-                        crate::expression_preparation::computation_graph::operand_fields(
-                            checked, subject,
-                        )?
-                        .iter()
-                        .map(|field| field.value),
-                    );
+                CheckedScalarComputationKind::Qualification { result_type, .. }
+                | CheckedScalarComputationKind::AuthoredCast { result_type, .. } => {
+                    references.push(*result_type)
                 }
-                CheckedScalarComputationKind::SelectedComparison { left, right, .. } => {
-                    pending.extend([*left, *right])
-                }
-                CheckedScalarComputationKind::Qualification {
-                    operand,
-                    result_type,
-                    ..
-                } => {
-                    references.push(*result_type);
-                    pending.push(*operand);
-                }
-                CheckedScalarComputationKind::AuthoredCast {
-                    operand,
-                    result_type,
-                    ..
-                } => {
-                    references.push(*result_type);
-                    pending.push(*operand);
-                }
-                CheckedScalarComputationKind::BooleanToInteger { operand, .. } => {
-                    pending.push(*operand);
-                }
-                CheckedScalarComputationKind::Value(_)
-                | CheckedScalarComputationKind::StructuralField { .. }
-                | CheckedScalarComputationKind::ByteSequenceLiteralComparison { .. }
-                | CheckedScalarComputationKind::ByteSequencePredicate { .. } => {}
-                CheckedScalarComputationKind::Dispatch { subject, arms, .. } => {
-                    pending.push(*subject);
-                    for arm in plans
-                        .dispatch_arms
-                        .span(*arms)
-                        .ok_or(LoweringError::Unsupported(
-                            "scalar qualification closure has stale dispatch arms",
-                        ))?
-                    {
-                        pending.push(arm.value);
-                        if let CheckedScalarDispatchPattern::Value(value) = arm.pattern {
-                            pending.push(value);
-                        }
-                    }
-                }
-                CheckedScalarComputationKind::Select {
-                    condition,
-                    when_true,
-                    when_false,
-                    ..
-                } => {
-                    pending.extend([*condition, *when_true, *when_false]);
-                }
-                CheckedScalarComputationKind::Call { arguments, .. }
-                | CheckedScalarComputationKind::Apply {
-                    operands: arguments,
-                    ..
-                }
-                | CheckedScalarComputationKind::BoundaryCall { arguments, .. } => {
-                    pending.extend(
-                        plans
-                            .operands
-                            .span(*arguments)
-                            .ok_or(LoweringError::Unsupported(
-                                "scalar qualification closure has stale operands",
-                            ))?
-                            .iter()
-                            .copied(),
-                    );
-                }
+                _ => {}
             }
         }
         let mut catalog = ScalarQualificationCatalog::default();

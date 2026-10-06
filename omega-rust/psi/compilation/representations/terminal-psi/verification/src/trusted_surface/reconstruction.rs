@@ -507,7 +507,7 @@ static FACT_RUNTIME_INDEX_BOUND: TrustedSurfaceEntry = TrustedSurfaceEntry {
     id: "fact:runtime-index-bound",
     family: LedgerFamily::ReconstructedFactKind,
     binding: PROCEDURAL,
-    premises: "an operation that resolves runtime projections, whose projection carries a RuntimeIndex segment over a defined integer selector and whose segment prefix resolves to a fixed array",
+    premises: "an operation that resolves runtime projections, including a boundary call structural actual, whose projection carries a RuntimeIndex segment over a defined integer selector and whose segment prefix resolves to a fixed array",
     conclusion: "one derivable obligation per segment, identified by the segment's own obligation, whose proposition is `runtime_index_bound(selector, extent)` over the facts that hold before the operation; no bound is read from the segment",
     dependencies: &[
         "fact:semantic-axiom-roster",
