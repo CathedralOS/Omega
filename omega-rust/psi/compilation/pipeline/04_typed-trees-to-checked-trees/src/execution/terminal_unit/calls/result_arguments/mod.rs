@@ -410,9 +410,10 @@ pub(super) fn argument(
         && access == CheckedStructuralAccess::Owned
         && (projected
             || !(validation::is_closed_primitive_array_type(program, formal_type)
-                || validation::has_plain_owned_contents_with_represented_constraints(
+                || validation::has_contents(
                     program,
                     formal_type,
+                    validation::ContentsRequirement::RepresentedOwned,
                 )))
     {
         return None;
@@ -544,16 +545,16 @@ pub(super) fn argument(
             && !unrestricted
             && !linear
             && !owned_reference_record
-            && !validation::has_plain_owned_contents(program, referent)
+            && !validation::has_contents(program, referent, validation::ContentsRequirement::PlainOwned)
             // A nominal-cleanup result is discharged by the consuming call's
             // own transfer edge, replayed below through its exact permission
             // event, so cleanup-owned contents admit the same whole move.
-            && !validation::has_cleanup_owned_contents(program, referent)
+            && !validation::has_contents(program, referent, validation::ContentsRequirement::CleanupOwned)
             // Moving a record that carries shared view descriptors preserves
             // those views' independently retained referent loans.
-            && !validation::has_owned_or_shared_view_contents(program, referent)
+            && !validation::has_contents(program, referent, validation::ContentsRequirement::OwnedOrSharedView)
             && !(constructed_literal
-                && validation::has_structural_construction_contents(program, referent)))
+                && validation::has_contents(program, referent, validation::ContentsRequirement::StructuralConstruction)))
         || usize::try_from(result.statement_index).ok()? > call.statement_index
     {
         return None;
@@ -593,8 +594,11 @@ pub(super) fn argument(
                 // is checked against the same field constraints. An owned
                 // move still needs the plain-contents fence, because moving
                 // a constrained value owes its own value correspondence.
-                let owned_contents =
-                    validation::has_plain_owned_contents(program, local.type_reference);
+                let owned_contents = validation::has_contents(
+                    program,
+                    local.type_reference,
+                    validation::ContentsRequirement::PlainOwned,
+                );
                 // Lending established storage does not transfer its contents.
                 // The exact captured access above and declaration identity
                 // below authorize the carrier, while retained reference leaves
@@ -636,11 +640,11 @@ pub(super) fn argument(
                             && !(validation::is_closed_primitive_array_type(
                                 program,
                                 local.type_reference,
-                            )
-                                || validation::has_plain_owned_contents_with_represented_constraints(
-                                    program,
-                                    local.type_reference,
-                                )))
+                            ) || validation::has_contents(
+                                program,
+                                local.type_reference,
+                                validation::ContentsRequirement::RepresentedOwned,
+                            )))
                         || base_type_identity(program, local.type_reference, &[])?
                             != result.type_identity)
                 {

@@ -130,7 +130,13 @@ impl<'a> BorrowAccessCollection<'a> {
         // whether it retains the loans of this completed invocation.
         if !self
             .expression_type_reference(expression)
-            .is_some_and(|reference| validation::has_borrow_free_contents(self.program, reference))
+            .is_some_and(|reference| {
+                validation::has_contents(
+                    self.program,
+                    reference,
+                    validation::ContentsRequirement::BorrowFree,
+                )
+            })
         {
             return;
         }
@@ -153,9 +159,10 @@ impl<'a> BorrowAccessCollection<'a> {
             expression,
         )
         .is_some_and(|reference| {
-            validation::has_plain_owned_contents_with_represented_constraints(
+            validation::has_contents(
                 self.program,
                 reference,
+                validation::ContentsRequirement::RepresentedOwned,
             ) && self.program.type_multiplicity(reference)
                 == language_semantics::Multiplicity::Unrestricted
         })

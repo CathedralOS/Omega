@@ -120,12 +120,14 @@ impl Builder<'_, '_> {
                 .state_local_declaration(state, root)
                 .filter(|(ordinal, _)| *ordinal < statement_index)?;
             if validation::reference_shell(self.program, local.type_reference).is_some()
-                || !(validation::has_plain_owned_contents_with_numeric_constraints(
+                || !(validation::has_contents(
                     self.program,
                     local.type_reference,
-                ) || validation::has_owned_or_shared_view_contents(
+                    validation::ContentsRequirement::NumericOwned,
+                ) || validation::has_contents(
                     self.program,
                     local.type_reference,
+                    validation::ContentsRequirement::OwnedOrSharedView,
                 ))
             {
                 return None;

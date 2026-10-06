@@ -500,7 +500,11 @@ pub(crate) fn borrowed_storage_argument(
             program.type_multiplicity(reference),
             Multiplicity::Affine | Multiplicity::Unrestricted
         )
-        && validation::has_borrowed_storage_contents(program, reference);
+        && validation::has_contents(
+            program,
+            reference,
+            validation::ContentsRequirement::BorrowedStorage,
+        );
     // Primitive and aggregate endpoints borrow their established home using
     // the same exact root/path/access join. No scalar snapshot is constructed.
     let primitive_scalar = shapes.types.len() == 1
@@ -517,8 +521,10 @@ pub(crate) fn borrowed_storage_argument(
     // source field or parameter. No predicate is minted by this carrier join.
     if identity != target_identity
         || (!parameter_qualifications(program, &mut shapes, reference, &[])?.is_empty()
-            && !validation::has_plain_owned_contents_with_represented_constraints(
-                program, reference,
+            && !validation::has_contents(
+                program,
+                reference,
+                validation::ContentsRequirement::RepresentedOwned,
             ))
         || (!structural_referent && !primitive_scalar)
     {
@@ -756,7 +762,11 @@ fn owned_argument(
                 Multiplicity::Unrestricted | Multiplicity::Affine
             )
             || !(validation::is_closed_primitive_array_type(program, reference)
-                || validation::has_cleanup_owned_contents(program, reference))
+                || validation::has_contents(
+                    program,
+                    reference,
+                    validation::ContentsRequirement::CleanupOwned,
+                ))
             || structural_access_for_type_reference(program, reference)?
                 != CheckedStructuralAccess::Owned
             || !parameter_qualifications(program, &mut shapes, reference, &[])?.is_empty()

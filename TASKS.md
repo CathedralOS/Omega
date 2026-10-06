@@ -2936,18 +2936,13 @@ the validation `src/` (written `omega-rust/psi/compilation/checking/src/`) unles
   - 16 `*_supported` functions (for example
     `result_initializer_call_is_supported`, which matches
     `if let [state] = … && matches!(…last(), Some(StatementNode::Expression(e)) …)`);
-  - 12 `has_*_contents` variants in
-    `omega-rust/psi/compilation/checking/src/value_custody/storage_contents.rs` (such as
-    `has_plain_owned_contents_with_numeric_constraints` and
-    `…_with_represented_constraints`);
   - about 50 `…_with_…` function variants (for example
     `land_anonymous_integer_expression{,_with_selected_match_arms,_with_warning}`).
 
   Delete the `*_supported` gates: the checker decides legality and lowering
   reports its own gaps (**UNIT-PLAN-GAPS-REPORTED-AT-SOURCE**). Replace each
   variant family with one parameterized query. Acceptance: no `*_supported`
-  function remains in `omega-rust/psi/compilation/checking/src/` or `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/`; one `has_contents` query takes
-  the constraint kind as a parameter; corpus unchanged.
+  function remains in `omega-rust/psi/compilation/checking/src/` or `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/`; corpus unchanged.
 
 - **VALUES-SCALAR-PLANS-MERGED.** (new-scope) `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/values/scalar` (about 17k
   lines) builds scalar and computation plans for lowering and checks nothing

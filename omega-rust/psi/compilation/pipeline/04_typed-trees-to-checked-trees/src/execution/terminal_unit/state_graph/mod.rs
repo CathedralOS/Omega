@@ -735,18 +735,21 @@ pub(super) fn build_traced(
                         parameter.multiplicity == Multiplicity::Unrestricted
                             && validation::has_owned_or_shared_view_fields(program, reference())
                     } else {
-                        validation::has_owned_or_shared_view_contents(program, reference())
+                        validation::has_contents(
+                            program,
+                            reference(),
+                            validation::ContentsRequirement::OwnedOrSharedView,
+                        )
                     };
                     // A whole arrival carries its owner's eventual cleanup
                     // obligation. Its hook does not make the storage invalid;
                     // exact selected normal-edge actions dispose only what
                     // remains after transfers and returned-value custody.
                     if parameter.multiplicity != Multiplicity::Linear
-                        && !validation::has_cleanup_owned_contents(program, reference())
-                        && !validation::has_plain_owned_contents_with_represented_constraints(
+                        && !validation::has_contents(program, reference(), validation::ContentsRequirement::CleanupOwned)
+                        && !validation::has_contents(
                             program,
-                            reference(),
-                        )
+                            reference(), validation::ContentsRequirement::RepresentedOwned)
                         && !view_carrier
                         // Stored-reference carriers use the ordinary call
                         // contract. State edges move their descriptors and
@@ -798,9 +801,8 @@ pub(super) fn build_traced(
                             if matches!(
                                 program.type_reference_table.type_reference(*referee),
                                 TypeReferenceNode::FixedArray { .. }
-                            ) && validation::has_plain_owned_contents_with_numeric_constraints(
-                                program, *referee,
-                            )
+                            ) && validation::has_contents(
+                                program, *referee, validation::ContentsRequirement::NumericOwned)
                     ) && matches!(
                         shapes
                             .types
@@ -2170,10 +2172,9 @@ fn successor_bindings(
                                     result.multiplicity,
                                     Multiplicity::Affine | Multiplicity::Unrestricted
                                 )
-                                && validation::has_plain_owned_contents_with_numeric_constraints(
+                                && validation::has_contents(
                                     program,
-                                    local.type_reference,
-                                )
+                                    local.type_reference, validation::ContentsRequirement::NumericOwned)
                                 && !super::types::type_graph_requires_nominal_drop(
                                     program,
                                     local.type_reference,
@@ -2593,12 +2594,16 @@ fn case_payload_transfer(
         // dispatch itself admits for the subject: a view descriptor inside
         // the carrier travels as a descriptor copy whose loan stays with
         // the view's owner, not with the dispatched place.
-        (validation::has_plain_owned_contents_with_numeric_constraints(
+        (validation::has_contents(
             program,
             field.type_reference,
-        ) || validation::has_owned_or_shared_view_contents(program, field.type_reference))
-            && normalized(field.type_reference)
-                .is_some_and(|identity| identity == target.type_identity)
+            validation::ContentsRequirement::NumericOwned,
+        ) || validation::has_contents(
+            program,
+            field.type_reference,
+            validation::ContentsRequirement::OwnedOrSharedView,
+        )) && normalized(field.type_reference)
+            .is_some_and(|identity| identity == target.type_identity)
     } else {
         target.access == CheckedStructuralAccess::SharedBorrow
             && super::types::structural_access_for_type_reference(program, field.type_reference)

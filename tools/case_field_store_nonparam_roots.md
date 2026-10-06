@@ -32,7 +32,7 @@ cell.value = 7;                    // same wall
    Call results (`as_mut_slice()`, `pick()`) leave the local as root.
 3. Param roster match fails (it is a local).
 4. `owned_local_root` (destination.rs:249) requires
-   `has_plain_owned_contents_with_numeric_constraints` — a reference type
+   `has_contents(.., ContentsRequirement::NumericOwned)` — a reference type
    never satisfies it → `None` → trace phase `destination parameter`.
 
 Contrast that pins it as a field-store-lane gap, not a general view-local

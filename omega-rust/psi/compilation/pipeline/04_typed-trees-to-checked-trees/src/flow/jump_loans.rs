@@ -49,9 +49,10 @@ fn loan_parameters<'program>(
         .state_parameters(state)
         .iter()
         .filter_map(|parameter| {
-            (!validation::has_plain_owned_contents_with_numeric_constraints(
+            (!validation::has_contents(
                 program,
                 parameter.type_reference,
+                validation::ContentsRequirement::NumericOwned,
             ))
             .then_some(parameter.symbol)
         })

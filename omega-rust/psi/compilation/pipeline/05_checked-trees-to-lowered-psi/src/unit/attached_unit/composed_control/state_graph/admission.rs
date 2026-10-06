@@ -329,10 +329,9 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                         .as_str()
                         != parameter.type_identity
                     || (parameter.multiplicity != Multiplicity::Linear
-                        && !validation::has_cleanup_owned_contents(
+                        && !validation::has_contents(
                             &checked.typed,
-                            source.type_reference,
-                        )
+                            source.type_reference, validation::ContentsRequirement::CleanupOwned)
                         && !crate::content_classes::plain_owned_with_represented_constraints(checked,
                             crate::unit::attached_unit::parameters::structural_carrier_type(
                                 checked,
@@ -342,13 +341,12 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                         // whole — a move under the edge's own transfer for an
                         // affine descriptor, a copy for an unrestricted one —
                         // and its views keep their source loans' lineage.
-                        && !validation::has_owned_or_shared_view_contents(
+                        && !validation::has_contents(
                             &checked.typed,
                             crate::unit::attached_unit::parameters::structural_carrier_type(
                                 checked,
                                 source.type_reference,
-                            )?,
-                        )
+                            )?, validation::ContentsRequirement::OwnedOrSharedView)
                         && !validation::reference_result_custody::is_reference_record(
                             &checked.typed,
                             source.type_reference,

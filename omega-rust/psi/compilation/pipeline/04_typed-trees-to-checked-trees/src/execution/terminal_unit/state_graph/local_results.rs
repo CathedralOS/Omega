@@ -92,13 +92,11 @@ fn validate(
         // only bound results that hold storage. A borrowed
         // view's death is the end of the loan, not a disposal.
         || (source_multiplicity != Multiplicity::Unrestricted
-            && !(validation::has_structural_construction_contents(
+            && !(validation::has_contents(
                 program,
-                local.type_reference,
-            ) || validation::has_owned_or_shared_view_contents(
+                local.type_reference, validation::ContentsRequirement::StructuralConstruction) || validation::has_contents(
                 program,
-                local.type_reference,
-            ) || validation::reference_result_custody::is_reference_record(
+                local.type_reference, validation::ContentsRequirement::OwnedOrSharedView) || validation::reference_result_custody::is_reference_record(
                 program, local.type_reference,
             )))
     {

@@ -407,7 +407,11 @@ fn boundary_structural_initializer(
     // and this caller's nominal machine parameters. This is not a new receiver,
     // qualification, reference, or linear-result realization route.
     program.type_multiplicity(local.type_reference) != language_semantics::Multiplicity::Linear
-        && crate::has_plain_owned_contents(program, local.type_reference)
+        && crate::has_contents(
+            program,
+            local.type_reference,
+            crate::value_custody::storage_contents::ContentsRequirement::PlainOwned,
+        )
         && initializer_target_is_supported(
             program,
             machine,
@@ -456,9 +460,11 @@ fn ordinary_structural_result_type(
         language_semantics::Multiplicity::Linear => {
             crate::structural_result_qualifications(program, reference).is_ok()
         }
-        language_semantics::Multiplicity::Affine => {
-            crate::has_plain_owned_contents(program, reference)
-        }
+        language_semantics::Multiplicity::Affine => crate::has_contents(
+            program,
+            reference,
+            crate::value_custody::storage_contents::ContentsRequirement::PlainOwned,
+        ),
         language_semantics::Multiplicity::Unrestricted => {
             crate::is_closed_primitive_array_type(program, reference)
         }

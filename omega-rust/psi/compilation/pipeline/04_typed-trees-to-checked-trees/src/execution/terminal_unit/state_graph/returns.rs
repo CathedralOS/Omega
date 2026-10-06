@@ -86,18 +86,34 @@ pub(in crate::execution::terminal_unit) fn signature(
     // the declaration has a hook. Exact normal-edge plans account separately
     // for owners that remain behind; result custody authenticates the transfer.
     let represented_copy = multiplicity == Multiplicity::Unrestricted
-        && validation::has_plain_owned_contents_with_represented_constraints(program, reference);
+        && validation::has_contents(
+            program,
+            reference,
+            validation::ContentsRequirement::RepresentedOwned,
+        );
     let owned_bytes = multiplicity == Multiplicity::Unrestricted
         && validation::bounded_byte_buffer_capacity(program, reference).is_some()
-        && validation::has_plain_owned_contents_with_represented_constraints(program, reference);
+        && validation::has_contents(
+            program,
+            reference,
+            validation::ContentsRequirement::RepresentedOwned,
+        );
     if (is_reference(program, reference) && !view_result)
         || (multiplicity != Multiplicity::Linear
             && !owned_bytes
             && ((!view_result && !qualifications.is_empty())
                 || (!view_result
                     && !represented_copy
-                    && !validation::has_cleanup_owned_contents(program, reference)
-                    && !validation::has_owned_or_shared_view_contents(program, reference))))
+                    && !validation::has_contents(
+                        program,
+                        reference,
+                        validation::ContentsRequirement::CleanupOwned,
+                    )
+                    && !validation::has_contents(
+                        program,
+                        reference,
+                        validation::ContentsRequirement::OwnedOrSharedView,
+                    ))))
     {
         return None;
     }

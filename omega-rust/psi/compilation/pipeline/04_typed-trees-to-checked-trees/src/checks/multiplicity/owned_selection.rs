@@ -114,10 +114,18 @@ pub(super) fn record_statement(
     // owned walls as a plain record — no loans, slices, nominal cleanup, or
     // recursive storage.
     let destination_ok = if linear_result {
-        validation::has_linear_owned_contents(program, type_reference)
+        validation::has_contents(
+            program,
+            type_reference,
+            validation::ContentsRequirement::LinearOwned,
+        )
     } else {
         program.type_multiplicity(type_reference) == Multiplicity::Affine
-            && validation::has_linear_owned_contents(program, type_reference)
+            && validation::has_contents(
+                program,
+                type_reference,
+                validation::ContentsRequirement::LinearOwned,
+            )
     };
     if !selected.contains(&expression) || !destination_ok {
         return Err(unsupported());
@@ -344,7 +352,11 @@ pub(super) fn record_statement(
             root_place.is_some_and(|place| place.multiplicity == Multiplicity::Affine)
         } else {
             true
-        } && validation::has_linear_owned_contents(program, source_reference);
+        } && validation::has_contents(
+            program,
+            source_reference,
+            validation::ContentsRequirement::LinearOwned,
+        );
         if !source_ok {
             return Err(Diagnostic::error(
                 "owned match source must be an available immutable owned local or parameter claim of the exact result type",
@@ -962,9 +974,17 @@ fn projected_leaf_source(
     }
     let contents_ok = |type_reference| {
         if linear_leaf {
-            validation::has_linear_owned_contents(program, type_reference)
+            validation::has_contents(
+                program,
+                type_reference,
+                validation::ContentsRequirement::LinearOwned,
+            )
         } else {
-            validation::has_plain_owned_contents(program, type_reference)
+            validation::has_contents(
+                program,
+                type_reference,
+                validation::ContentsRequirement::PlainOwned,
+            )
         }
     };
     let place_type_ok = |segments: &[facts::PlaceSegment], expected: Multiplicity| {
@@ -1310,9 +1330,17 @@ fn fresh_leaf_shape(
             return Err(unsupported());
         };
     let contents_ok = if program.type_multiplicity(type_reference) == Multiplicity::Linear {
-        validation::has_linear_owned_contents(program, reference)
+        validation::has_contents(
+            program,
+            reference,
+            validation::ContentsRequirement::LinearOwned,
+        )
     } else {
-        validation::has_plain_owned_contents(program, reference)
+        validation::has_contents(
+            program,
+            reference,
+            validation::ContentsRequirement::PlainOwned,
+        )
     };
     if !contents_ok
         || program.normalized_type_identity(reference)

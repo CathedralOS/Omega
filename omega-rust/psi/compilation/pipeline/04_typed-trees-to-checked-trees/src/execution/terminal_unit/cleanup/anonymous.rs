@@ -167,7 +167,11 @@ pub(crate) fn projected_temporary_residuals(
     if argument.access != CheckedStructuralAccess::Owned
         || argument.path.is_empty()
         || program.type_multiplicity(owner_type) != Multiplicity::Affine
-        || !validation::has_borrow_free_contents(program, owner_type)
+        || !validation::has_contents(
+            program,
+            owner_type,
+            validation::ContentsRequirement::BorrowFree,
+        )
         || crate::checks::type_carries_linear_obligation(program, owner_type)
     {
         return None;

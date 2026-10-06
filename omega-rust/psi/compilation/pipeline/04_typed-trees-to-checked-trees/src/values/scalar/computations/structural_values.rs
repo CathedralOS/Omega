@@ -160,11 +160,17 @@ pub(super) fn is_record_value(
                 };
                 if program.normalized_type_identity(returned)
                     != program.normalized_type_identity(expected)
-                    || !(validation::has_structural_construction_contents(program, returned)
-                        || validation::has_linear_owned_contents(program, returned)
-                        || validation::reference_result_custody::is_reference_record(
-                            program, returned,
-                        ))
+                    || !(validation::has_contents(
+                        program,
+                        returned,
+                        validation::ContentsRequirement::StructuralConstruction,
+                    ) || validation::has_contents(
+                        program,
+                        returned,
+                        validation::ContentsRequirement::LinearOwned,
+                    ) || validation::reference_result_custody::is_reference_record(
+                        program, returned,
+                    ))
                 {
                     return false;
                 }
@@ -1062,12 +1068,18 @@ impl Builder<'_, '_> {
             let returned = crate::flow::call_target_return_type(self.program, call_target)?;
             if self.program.normalized_type_identity(returned)
                 != self.program.normalized_type_identity(expected)
-                || !(validation::has_structural_construction_contents(self.program, returned)
-                    || validation::has_linear_owned_contents(self.program, returned)
-                    || validation::reference_result_custody::is_reference_record(
-                        self.program,
-                        returned,
-                    ))
+                || !(validation::has_contents(
+                    self.program,
+                    returned,
+                    validation::ContentsRequirement::StructuralConstruction,
+                ) || validation::has_contents(
+                    self.program,
+                    returned,
+                    validation::ContentsRequirement::LinearOwned,
+                ) || validation::reference_result_custody::is_reference_record(
+                    self.program,
+                    returned,
+                ))
             {
                 return None;
             }
@@ -1636,9 +1648,9 @@ impl Builder<'_, '_> {
             // establish those domains anew. Whole transfer preserves cleanup.
             // Shared descriptor leaves keep their loans without owning the backing;
             // neither transport grants no-code disposal of the moved value.
-            || !(validation::has_structural_construction_contents(self.program, expected)
-                    || validation::has_linear_owned_contents(self.program, expected)
-                || validation::has_owned_or_shared_view_contents(self.program, expected)
+            || !(validation::has_contents(self.program, expected, validation::ContentsRequirement::StructuralConstruction)
+                    || validation::has_contents(self.program, expected, validation::ContentsRequirement::LinearOwned)
+                || validation::has_contents(self.program, expected, validation::ContentsRequirement::OwnedOrSharedView)
                 || validation::reference_result_custody::is_reference_record(self.program, expected)
                 || validation::reference_result_custody::stored_loan_parts(self.program, expected).is_some())
         {
@@ -1675,15 +1687,26 @@ impl Builder<'_, '_> {
         };
         if self.program.normalized_type_identity(reference)
             != self.program.normalized_type_identity(expected)
-            || !(validation::has_structural_construction_contents(self.program, reference)
-                || validation::has_linear_owned_contents(self.program, reference)
-                || validation::has_owned_or_shared_view_contents(self.program, reference)
-                || validation::reference_result_custody::is_reference_record(
-                    self.program,
-                    reference,
-                )
-                || validation::reference_result_custody::stored_loan_parts(self.program, reference)
-                    .is_some())
+            || !(validation::has_contents(
+                self.program,
+                reference,
+                validation::ContentsRequirement::StructuralConstruction,
+            ) || validation::has_contents(
+                self.program,
+                reference,
+                validation::ContentsRequirement::LinearOwned,
+            ) || validation::has_contents(
+                self.program,
+                reference,
+                validation::ContentsRequirement::OwnedOrSharedView,
+            ) || validation::reference_result_custody::is_reference_record(
+                self.program,
+                reference,
+            ) || validation::reference_result_custody::stored_loan_parts(
+                self.program,
+                reference,
+            )
+            .is_some())
         {
             return None;
         }
@@ -1803,18 +1826,28 @@ impl Builder<'_, '_> {
             return None;
         };
         let plain_contents = |reference| {
-            validation::has_plain_owned_contents_with_numeric_constraints(self.program, reference)
-                || validation::has_structural_construction_contents(self.program, reference)
-                || validation::has_linear_owned_contents(self.program, reference)
-                || validation::reference_result_custody::is_reference_record(
-                    self.program,
-                    reference,
-                )
+            validation::has_contents(
+                self.program,
+                reference,
+                validation::ContentsRequirement::NumericOwned,
+            ) || validation::has_contents(
+                self.program,
+                reference,
+                validation::ContentsRequirement::StructuralConstruction,
+            ) || validation::has_contents(
+                self.program,
+                reference,
+                validation::ContentsRequirement::LinearOwned,
+            ) || validation::reference_result_custody::is_reference_record(self.program, reference)
                 || crate::execution::terminal_unit::types::record_with_owned_or_shared_view_fields(
                     self.program,
                     reference,
                 )
-                || validation::has_owned_or_shared_view_contents(self.program, reference)
+                || validation::has_contents(
+                    self.program,
+                    reference,
+                    validation::ContentsRequirement::OwnedOrSharedView,
+                )
         };
         // A custody domain on the declared type (`Region in Owned`) qualifies
         // the binding, not the record's storage: the shape question is about

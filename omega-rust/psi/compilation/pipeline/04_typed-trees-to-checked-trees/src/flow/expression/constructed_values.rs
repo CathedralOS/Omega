@@ -28,7 +28,11 @@ impl Execution<'_, '_, '_> {
         // Nominal cleanup is a later disposition and does not change the
         // scalar storage already established by this child evaluation.
         if !type_reference.is_valid()
-            || !validation::has_borrow_free_contents(self.program, type_reference)
+            || !validation::has_contents(
+                self.program,
+                type_reference,
+                validation::ContentsRequirement::BorrowFree,
+            )
         {
             return;
         }

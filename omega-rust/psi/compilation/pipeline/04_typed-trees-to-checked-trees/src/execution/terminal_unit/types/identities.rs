@@ -49,7 +49,11 @@ pub(in crate::execution::terminal_unit) fn shared_plain_affine_referent(
         return None;
     };
     (program.type_multiplicity(*referee) == Multiplicity::Affine
-        && has_plain_owned_contents(program, *referee))
+        && has_contents(
+            program,
+            *referee,
+            validation::ContentsRequirement::PlainOwned,
+        ))
     .then_some(*referee)
 }
 
@@ -74,7 +78,11 @@ pub(in crate::execution::terminal_unit) fn shared_plain_unrestricted_referent(
         return None;
     };
     (program.type_multiplicity(*referee) == Multiplicity::Unrestricted
-        && has_plain_owned_contents(program, *referee))
+        && has_contents(
+            program,
+            *referee,
+            validation::ContentsRequirement::PlainOwned,
+        ))
     .then_some(*referee)
 }
 
@@ -95,7 +103,11 @@ pub(in crate::execution::terminal_unit) fn mutable_plain_nonlinear_referent(
         return None;
     };
     (program.type_multiplicity(*referee) != Multiplicity::Linear
-        && has_plain_owned_contents(program, *referee))
+        && has_contents(
+            program,
+            *referee,
+            validation::ContentsRequirement::PlainOwned,
+        ))
     .then_some(*referee)
 }
 

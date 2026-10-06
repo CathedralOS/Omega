@@ -334,9 +334,10 @@ fn authored_execution(
                     && (!direct_argument
                         || checked.type_multiplicity(signature.return_type)
                             != language_semantics::Multiplicity::Affine
-                        || !validation::has_plain_owned_contents(
+                        || !validation::has_contents(
                             &checked.typed,
                             signature.return_type,
+                            validation::ContentsRequirement::PlainOwned,
                         ))
                 {
                     return unsupported(

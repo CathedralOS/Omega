@@ -268,9 +268,10 @@ pub(super) fn field_store(
             let source_domains =
                 crate::facts::field_domain::domain_constraint_symbols(program, result_type);
             if program.type_multiplicity(result_type) != Multiplicity::Unrestricted
-                || !validation::has_plain_owned_contents_with_represented_constraints(
+                || !validation::has_contents(
                     program,
                     result_type,
+                    validation::ContentsRequirement::RepresentedOwned,
                 )
                 || !matches!(
                     program.expression_table.expression(assignment.value),
@@ -491,9 +492,10 @@ pub(in crate::execution::terminal_unit) fn byte_value_plan(
                     .filter(|&(ordinal, _)| ordinal < statement_index as usize)?;
                 if structural_access_for_type_reference(program, local.type_reference)
                     != Some(CheckedStructuralAccess::Owned)
-                    || !validation::has_plain_owned_contents_with_represented_constraints(
+                    || !validation::has_contents(
                         program,
                         local.type_reference,
+                        validation::ContentsRequirement::RepresentedOwned,
                     )
                 {
                     return None;

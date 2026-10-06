@@ -53,7 +53,11 @@ fn is_case_value(
     // This value route has no numeric field-establishment obligations yet.
     // Keep constrained constructors with the proof-bearing return producer;
     // selecting this plan must not displace a supported bounded-field return.
-    if !crate::has_plain_owned_contents(program, reference) {
+    if !crate::has_contents(
+        program,
+        reference,
+        crate::value_custody::storage_contents::ContentsRequirement::PlainOwned,
+    ) {
         return false;
     }
     let expected = program.normalized_type_identity(reference);
@@ -225,9 +229,17 @@ fn case_constructor_parts(
     // `[erased]` -- cleanup-owned contents admit them because they never
     // produce runtime storage (storage_contents.rs).
     let contents = if erased_member_owner {
-        crate::has_structural_construction_contents(program, reference)
+        crate::has_contents(
+            program,
+            reference,
+            crate::value_custody::storage_contents::ContentsRequirement::StructuralConstruction,
+        )
     } else {
-        crate::has_plain_owned_contents_with_numeric_constraints(program, reference)
+        crate::has_contents(
+            program,
+            reference,
+            crate::value_custody::storage_contents::ContentsRequirement::NumericOwned,
+        )
     };
     // The structural route also stands a mixed shape whose runtime common
     // fields are scalar primitives, the only common fields

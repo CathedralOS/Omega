@@ -163,17 +163,20 @@ fn projected_entry_value(
                 .iter()
                 .map(|segment| super::mutable::canonical_place_segment(program, segment))
                 .collect();
-            if !validation::has_stable_observable_contents(program, local.type_reference)
-                || (local.is_mutable
-                    && !super::storage_holds_bound_value(
-                        program,
-                        machine.symbol,
-                        state,
-                        ordinal + 1,
-                        before_statement.saturating_add(1),
-                        local.symbol,
-                        &read_path,
-                    ))
+            if !validation::has_contents(
+                program,
+                local.type_reference,
+                validation::ContentsRequirement::StableObservation,
+            ) || (local.is_mutable
+                && !super::storage_holds_bound_value(
+                    program,
+                    machine.symbol,
+                    state,
+                    ordinal + 1,
+                    before_statement.saturating_add(1),
+                    local.symbol,
+                    &read_path,
+                ))
             {
                 return None;
             }

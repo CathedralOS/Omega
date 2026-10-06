@@ -44,7 +44,11 @@ pub fn record_local_disposition(
         || program
             .state_local_declaration(source, local.symbol)
             .is_none()
-        || !crate::has_plain_owned_contents_with_numeric_constraints(program, local.type_reference)
+        || !crate::has_contents(
+            program,
+            local.type_reference,
+            crate::value_custody::storage_contents::ContentsRequirement::NumericOwned,
+        )
     {
         return None;
     }

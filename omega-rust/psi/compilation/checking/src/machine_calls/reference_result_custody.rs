@@ -103,7 +103,11 @@ pub fn is_reference_record(program: &TypedTrees, reference: TypeReferenceHandle)
         if stored_loan_parts(program, reference).is_some() {
             return Some(true);
         }
-        if crate::has_plain_owned_contents_with_numeric_constraints(program, reference) {
+        if crate::has_contents(
+            program,
+            reference,
+            crate::value_custody::storage_contents::ContentsRequirement::NumericOwned,
+        ) {
             return Some(false);
         }
         if let TypeReferenceNode::FixedArray { element_type, .. } =
@@ -550,7 +554,11 @@ fn construction_sources_with_calls(
             holder_path: Vec::new(),
         }]);
     }
-    if crate::has_plain_owned_contents_with_numeric_constraints(program, reference) {
+    if crate::has_contents(
+        program,
+        reference,
+        crate::value_custody::storage_contents::ContentsRequirement::NumericOwned,
+    ) {
         return Some(Vec::new());
     }
     if matches!(
@@ -1248,7 +1256,11 @@ fn formal_record_sources(
             });
             return Some(());
         }
-        if crate::has_plain_owned_contents_with_numeric_constraints(program, reference) {
+        if crate::has_contents(
+            program,
+            reference,
+            crate::value_custody::storage_contents::ContentsRequirement::NumericOwned,
+        ) {
             return Some(());
         }
         let symbol = match program.type_reference_table.type_reference(reference) {

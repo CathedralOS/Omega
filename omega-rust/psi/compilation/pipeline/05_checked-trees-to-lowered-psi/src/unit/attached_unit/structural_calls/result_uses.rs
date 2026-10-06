@@ -51,9 +51,12 @@ fn loan_free_call(checked: &CheckedTrees, operation: &CheckedUnitEffectOperation
                 && ((matches!(
                     binding.multiplicity,
                     Multiplicity::Affine | Multiplicity::Unrestricted
-                ) && validation::has_cleanup_owned_contents(&checked.typed, returned))
-                    || (binding.multiplicity == Multiplicity::Unrestricted
-                        && crate::content_classes::closed_primitive_array(checked, returned)))
+                ) && validation::has_contents(
+                    &checked.typed,
+                    returned,
+                    validation::ContentsRequirement::CleanupOwned,
+                )) || (binding.multiplicity == Multiplicity::Unrestricted
+                    && crate::content_classes::closed_primitive_array(checked, returned)))
         },
     )
 }
@@ -1949,10 +1952,9 @@ fn validate_operand_producers(
                 && crate::content_classes::closed_primitive_array(checked, construction_type);
             let whole_owned_contents = copied_array
                 || result.multiplicity != Multiplicity::Linear
-                    && validation::has_structural_construction_contents(
+                    && validation::has_contents(
                         &checked.typed,
-                        construction_type,
-                    )
+                        construction_type, validation::ContentsRequirement::StructuralConstruction)
                 // Represented predicates belong to the declared value, not
                 // to a particular producer kind. Establishment remains with
                 // that producer; whole transfer does not mint memberships.

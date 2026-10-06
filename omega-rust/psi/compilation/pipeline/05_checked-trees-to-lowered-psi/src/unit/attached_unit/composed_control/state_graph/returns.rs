@@ -163,10 +163,9 @@ pub(super) fn signature_matches(
                     || crate::reference_custody::is_reference_record(checked, source.return_type)
                     || (result.multiplicity == Multiplicity::Unrestricted
                         && crate::content_classes::plain_owned_with_represented_constraints(checked, source.return_type))
-                    || validation::has_cleanup_owned_contents(
+                    || validation::has_contents(
                     &checked.typed,
-                    carrier,
-                ) || validation::has_owned_or_shared_view_contents(&checked.typed, carrier))
+                    carrier, validation::ContentsRequirement::CleanupOwned) || validation::has_contents(&checked.typed, carrier, validation::ContentsRequirement::OwnedOrSharedView))
         }
     }
 }

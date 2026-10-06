@@ -1178,9 +1178,10 @@ pub(crate) fn structural_scalar_graph_parameter_admission(
             .primitive_type_reference(parameter.type_reference)
             .is_some()
         {
-            return !validation::has_plain_owned_contents_with_numeric_constraints(
+            return !validation::has_contents(
                 program,
                 parameter.type_reference,
+                validation::ContentsRequirement::NumericOwned,
             );
         }
         // Whole array payloads include empty dimensions. Their exact recursive
@@ -1258,9 +1259,10 @@ pub(crate) fn structural_scalar_graph_parameter_admission(
                 // owned-carrier lane: the edge transfers the whole value, so
                 // each captured loan keeps its checked ingress instead of
                 // minting fresh borrow authority.
-                if !validation::has_plain_owned_contents_with_numeric_constraints(
+                if !validation::has_contents(
                     program,
                     parameter.type_reference,
+                    validation::ContentsRequirement::NumericOwned,
                 ) && !validation::reference_result_custody::is_reference_record(
                     program,
                     parameter.type_reference,
@@ -1342,16 +1344,17 @@ pub(super) fn scalar_graph_record_shapes(
     program: &TypedTrees,
     reference: TypeReferenceHandle,
 ) -> Option<Vec<CheckedUnitStructuralTypePlan>> {
-    if !validation::has_plain_owned_contents_with_numeric_constraints(program, reference)
-        || !matches!(
-            program.type_multiplicity(reference),
-            Multiplicity::Affine | Multiplicity::Unrestricted
-        )
-        || !matches!(
-            program.type_reference_table.type_reference(reference),
-            TypeReferenceNode::Named { .. }
-        )
-    {
+    if !validation::has_contents(
+        program,
+        reference,
+        validation::ContentsRequirement::NumericOwned,
+    ) || !matches!(
+        program.type_multiplicity(reference),
+        Multiplicity::Affine | Multiplicity::Unrestricted
+    ) || !matches!(
+        program.type_reference_table.type_reference(reference),
+        TypeReferenceNode::Named { .. }
+    ) {
         return None;
     }
     let mut shapes = ShapeCollector::new(program);

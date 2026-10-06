@@ -36,7 +36,7 @@ use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableNamePath};
 use typed_trees::statement::{StatementNode, TransitionTargetNode};
 use typed_trees::types::TypeReferenceNode;
-use validation::has_stable_observable_contents;
+use validation::has_contents;
 
 mod checked_projection;
 mod literal_projection;
@@ -981,8 +981,18 @@ fn observation_requires_write_scan(
             access: language_core::ReferenceAccess::Mutable,
             referee,
             ..
-        } => has_stable_observable_contents(program, *referee).then_some(true),
-        _ => has_stable_observable_contents(program, type_reference).then_some(false),
+        } => has_contents(
+            program,
+            *referee,
+            validation::ContentsRequirement::StableObservation,
+        )
+        .then_some(true),
+        _ => has_contents(
+            program,
+            type_reference,
+            validation::ContentsRequirement::StableObservation,
+        )
+        .then_some(false),
     };
     if stable.is_some() || field_path.is_empty() {
         return stable;

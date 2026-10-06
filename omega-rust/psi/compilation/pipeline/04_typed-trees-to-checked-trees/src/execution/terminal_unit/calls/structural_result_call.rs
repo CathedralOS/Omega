@@ -93,16 +93,21 @@ pub(super) fn build(
     // argument stays in the lender's storage. A nominal cleanup obligation
     // travels with the owned result without retaining an operand loan.
     let represented_copy_result = result.multiplicity == Multiplicity::Unrestricted
-        && validation::has_plain_owned_contents_with_represented_constraints(
+        && validation::has_contents(
             program,
             target_state.return_type,
+            validation::ContentsRequirement::RepresentedOwned,
         );
     let result_retains_no_loan = !reference_loan.is_valid()
         && (represented_copy_result
             || (matches!(
                 result.multiplicity,
                 Multiplicity::Affine | Multiplicity::Unrestricted
-            ) && validation::has_cleanup_owned_contents(program, target_state.return_type))
+            ) && validation::has_contents(
+                program,
+                target_state.return_type,
+                validation::ContentsRequirement::CleanupOwned,
+            ))
             || (result.multiplicity == Multiplicity::Unrestricted
                 && validation::is_closed_primitive_array_type(program, target_state.return_type)));
     // A result signature is available before its ordinary or graph body plan.
@@ -138,10 +143,9 @@ pub(super) fn build(
                         (validation::is_closed_primitive_array_type(
                                 program,
                                 carrier,
-                            ) || validation::has_cleanup_owned_contents(
+                            ) || validation::has_contents(
                                 program,
-                                carrier,
-                            ) || validation::reference_result_custody::is_reference_record(
+                                carrier, validation::ContentsRequirement::CleanupOwned) || validation::reference_result_custody::is_reference_record(
                                 program,
                                 carrier,
                             )
@@ -250,10 +254,9 @@ pub(super) fn build(
             || (matches!(
                 result.multiplicity,
                 Multiplicity::Affine | Multiplicity::Unrestricted
-            ) && validation::has_structural_construction_contents(
+            ) && validation::has_contents(
                 program,
-                target_state.return_type,
-            ))
+                target_state.return_type, validation::ContentsRequirement::StructuralConstruction))
             || (result.multiplicity == Multiplicity::Unrestricted
                 && validation::is_closed_primitive_array_type(
                     program,
@@ -267,10 +270,9 @@ pub(super) fn build(
             || (matches!(
                 result.multiplicity,
                 Multiplicity::Affine | Multiplicity::Unrestricted
-            ) && validation::has_owned_or_shared_view_contents(
+            ) && validation::has_contents(
                 program,
-                target_state.return_type,
-            ))
+                target_state.return_type, validation::ContentsRequirement::OwnedOrSharedView))
             // Shared descriptors and materialized reference carriers borrow
             // storage but retain their distinct result-custody obligations.
             || (result.multiplicity

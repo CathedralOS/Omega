@@ -50,19 +50,30 @@ impl ContentType {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum ContentsRequirement {
+/// The storage question a caller asks of a type's contents. Each answer is a
+/// storage-shape judgment only; the caller keeps every custody, cleanup and
+/// qualification obligation the variant names.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ContentsRequirement {
     PlainOwned,
     /// Runtime scalar/record storage; erased members retain their resolved
     /// semantic type without imposing runtime contents on this classification.
+    /// Primitive numeric restrictions are allowed; callers still owe exact
+    /// source type and value-constraint correspondence, and this does not
+    /// extend structural-return or construction routes that erase them.
     NumericOwned,
     /// An already established owned value whose exact constrained type survives
     /// the transfer. Bounded byte predicates describe live contents as well as
     /// storage; accepting their shape does not prove a fresh initializer.
+    /// This grants neither construction authority nor loans: the caller must
+    /// independently rejoin the established value, complete type, and
+    /// copy/transfer custody, including live byte lengths.
     RepresentedOwned,
     /// Finite storage with no retained reference descriptors. Nominal cleanup,
     /// linear custody and represented predicates are independent obligations;
-    /// none prolongs the loans used to produce this value.
+    /// none prolongs the loans used to produce this value. This proves neither
+    /// copy permission nor cleanup eligibility. Erased fields are classified
+    /// too: unresolved or reference-bearing subjects stay opaque.
     BorrowFree,
     /// Finite owned storage whose linear claims and nominal cleanup remain
     /// explicit custody obligations of the consuming operation. Classifying
@@ -99,8 +110,15 @@ enum ContentsRequirement {
     /// Established storage lent in place, with shared descriptors and provider
     /// handles classified per member. This is neither a copy nor a stable
     /// observation judgment. Exact access, lifetime, qualifications and provider
-    /// custody remain with the borrowing operation.
+    /// custody remain with the borrowing operation. Authored reference access
+    /// is inspected before lowering erases it from slice shapes.
     BorrowedStorage,
+    /// Value contents that an immutable binding can retain as an entry
+    /// observation while its loans remain valid. This proves neither binding
+    /// immutability nor loan validity; those remain the caller's obligations.
+    /// Shared contents are not necessarily owned, and synchronized/interior
+    /// mutation or unclassified qualifications cannot supply a stable
+    /// observation.
     StableObservation,
     /// Contents an opaque `Binding<R>`/boundary-trait call seam may marshal as
     /// a caller-owned ABI copy while the observed place keeps custody of the
@@ -111,160 +129,13 @@ enum ContentsRequirement {
     SeamMarshal,
 }
 
-/// Classify an existing aggregate's supported contents for an in-place loan.
-/// Shared descriptors keep their backing loans; providers keep their installation
-/// custody; nominal cleanup stays with the owner. Inspect authored reference
-/// access before lowering erases it from slice shapes. This grants no copy,
-/// construction, stable-observation or lifetime-extension authority.
-pub fn has_borrowed_storage_contents(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {
-    check_contents_requirement(
-        program,
-        reference,
-        &[],
-        ContentsRequirement::BorrowedStorage,
-    )
-}
-
-pub fn has_plain_owned_contents(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {
-    has_plain_owned_contents_with_substitutions(program, reference, &[])
-}
-
-/// Finite owned storage a linear selection or call can carry whole, including
-/// nominal-cleanup owners. Linear claims and cleanup obligations travel with
-/// custody; this storage judgment cannot discharge either or authorize a
-/// partial move. References, slices and recursive data remain excluded, with
-/// the existing numeric-constraint tolerance of linear storage.
-pub fn has_linear_owned_contents(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {
-    check_contents_requirement(program, reference, &[], ContentsRequirement::LinearOwned)
-}
-
-pub fn has_plain_owned_contents_with_substitutions(
+/// Whether `reference`'s contents answer `requirement`.
+pub fn has_contents(
     program: &TypedTrees,
     reference: TypeReferenceHandle,
-    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+    requirement: ContentsRequirement,
 ) -> bool {
-    check_contents_requirement(
-        program,
-        reference,
-        substitutions,
-        ContentsRequirement::PlainOwned,
-    )
-}
-
-/// Classify no-code owned storage while allowing primitive numeric restrictions.
-/// Callers still owe exact source type and value-constraint correspondence. This
-/// does not extend structural-return or construction routes that erase them.
-pub fn has_plain_owned_contents_with_numeric_constraints(
-    program: &TypedTrees,
-    reference: TypeReferenceHandle,
-) -> bool {
-    check_contents_requirement(program, reference, &[], ContentsRequirement::NumericOwned)
-}
-
-/// Classify an owned snapshot whose consumers retain its exact represented
-/// constraints. In addition to numeric restrictions, finite byte owners may
-/// retain primitive byte predicates. This grants neither construction authority
-/// nor loans: the caller must independently rejoin the established value,
-/// complete type, and copy/transfer custody, including live byte lengths.
-pub fn has_plain_owned_contents_with_represented_constraints(
-    program: &TypedTrees,
-    reference: TypeReferenceHandle,
-) -> bool {
-    check_contents_requirement(
-        program,
-        reference,
-        &[],
-        ContentsRequirement::RepresentedOwned,
-    )
-}
-
-/// Whether a completed value cannot retain any of its producer's operand loans.
-/// This proves neither copy permission nor cleanup eligibility. Erased fields
-/// are classified too: unresolved or reference-bearing subjects stay opaque.
-pub fn has_borrow_free_contents(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {
-    check_contents_requirement(program, reference, &[], ContentsRequirement::BorrowFree)
-}
-
-/// Classify owned storage an affine caller may carry toward a consuming
-/// machine: plain numeric-owned contents plus declarations owning an attached
-/// `::drop` hook and `[erased]` members. The hook is admitted because cleanup
-/// attaches at the consuming edge, and erased members are admitted because
-/// they never produce runtime contents. This answers storage shape only —
-/// it does not prove the caller's transfer or the hook's invocation.
-pub fn has_cleanup_owned_contents(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {
-    check_contents_requirement(program, reference, &[], ContentsRequirement::CleanupOwned)
-}
-
-/// Classify the contents a record or case literal establishes: exactly
-/// [`has_cleanup_owned_contents`], plus scalar members under a plain domain
-/// whose complete scalar predicate is represented. This is the same storage judgment for both
-/// forms; bounded byte members may retain primitive byte predicates too. Each
-/// construction still proves its members' scalar or byte-predicate obligations;
-/// admitting storage never establishes a member's declared qualification.
-pub fn has_structural_construction_contents(
-    program: &TypedTrees,
-    reference: TypeReferenceHandle,
-) -> bool {
-    check_contents_requirement(
-        program,
-        reference,
-        &[],
-        ContentsRequirement::StructuralConstruction,
-    )
-}
-
-/// Classify value contents that an immutable binding can retain as an entry
-/// observation while its loans remain valid. This proves neither binding
-/// immutability nor loan validity; those remain the caller's obligations.
-/// Shared contents are not necessarily owned, and synchronized/interior mutation
-/// or unclassified qualifications cannot supply a stable observation.
-pub fn has_stable_observable_contents(
-    program: &TypedTrees,
-    reference: TypeReferenceHandle,
-) -> bool {
-    check_contents_requirement(
-        program,
-        reference,
-        &[],
-        ContentsRequirement::StableObservation,
-    )
-}
-
-/// Classify value contents an opaque `Binding<R>`/boundary-trait call seam may
-/// marshal as a caller-owned ABI copy while the observed borrowed place keeps
-/// custody of the whole value. Runtime (non-erased) contents must be stable
-/// under observation exactly as for [`has_stable_observable_contents`]. An
-/// `[erased]` member contributes no runtime contents, so it never crosses the
-/// seam — it stays with the observed place — and needs only to resolve to its
-/// declared storage. This answers marshal shape only; the caller's custody and
-/// the provider's own establishment of the erased member remain their own
-/// obligations.
-pub fn has_service_seam_contents(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {
-    check_contents_requirement(program, reference, &[], ContentsRequirement::SeamMarshal)
-}
-
-/// Classify value contents that may nest shared-view members anywhere inside
-/// them — the whole-contents form of [`has_owned_or_shared_view_fields`]. A
-/// `&[T]` or `&'a V` member is a terminal view descriptor at any depth:
-/// copying its enclosing carrier copies the descriptor, while the referent's
-/// loan stays with the view's owner. Declared domains on the view's referee
-/// (`&[u8] in Utf8`) classify identically — the constraint shells ride the
-/// declared type and change neither the descriptor shape nor the loan.
-/// Sums whose payloads are plain records or view-carrying records therefore
-/// classify beside plain records. Exclusive borrows, erased members, linear
-/// declarations, drop carriers, and genuinely generic members keep the type
-/// unclassified, as does a member with no shared view of the `&[T]`/`&'a V`
-/// shape.
-pub fn has_owned_or_shared_view_contents(
-    program: &TypedTrees,
-    reference: TypeReferenceHandle,
-) -> bool {
-    check_contents_requirement(
-        program,
-        reference,
-        &[],
-        ContentsRequirement::OwnedOrSharedView,
-    )
+    check_contents_requirement(program, reference, &[], requirement)
 }
 
 /// Classify a record whose fields are each either plain owned contents or a
@@ -342,8 +213,11 @@ fn owned_or_shared_view_fields(program: &TypedTrees, reference: TypeReferenceHan
         };
         has_view |= shared_view(field);
         !field.relevance.is_erased()
-            && (has_plain_owned_contents_with_numeric_constraints(program, field.type_reference)
-                || shared_view(field))
+            && (has_contents(
+                program,
+                field.type_reference,
+                ContentsRequirement::NumericOwned,
+            ) || shared_view(field))
     }) && has_view
 }
 

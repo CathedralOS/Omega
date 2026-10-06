@@ -81,7 +81,7 @@ pub(crate) fn build_checked_machine_residual_parts(
                 state.return_type,
             ),
             Some(checked_trees::CheckedStructuralAccess::Owned)
-        ) && validation::has_owned_or_shared_view_contents(program, state.return_type))
+        ) && validation::has_contents(program, state.return_type, validation::ContentsRequirement::OwnedOrSharedView))
         && !validation::is_closed_primitive_array_type(program, state.return_type)
         // One storage judgment for an owned result: the contents a structural
         // literal establishes. A body that returns a record whose scalar
@@ -91,7 +91,7 @@ pub(crate) fn build_checked_machine_residual_parts(
         // nominal-cleanup contents or, only for an unrestricted carrier, the
         // represented-constraint snapshot — which left every ordinary affine
         // record with a declared member domain unreturnable.
-        && !validation::has_structural_construction_contents(program, state.return_type)
+        && !validation::has_contents(program, state.return_type, validation::ContentsRequirement::StructuralConstruction)
         && program
             .primitive_type_reference(state.return_type)
             .is_none()

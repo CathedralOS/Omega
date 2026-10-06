@@ -894,7 +894,11 @@ fn zero_valid_byte_field(
     // routed and unknown refinements. Stability alone is not membership: the
     // same resolved predicate denotation used by source checking must accept
     // the empty value for every domain, not merely one named Utf8.
-    if !validation::has_stable_observable_contents(&checked.typed, reference) {
+    if !validation::has_contents(
+        &checked.typed,
+        reference,
+        validation::ContentsRequirement::StableObservation,
+    ) {
         return false;
     }
     let predicates =

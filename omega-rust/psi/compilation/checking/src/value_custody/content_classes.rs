@@ -45,11 +45,21 @@ pub fn classify_program_content_classes(program: &TypedTrees) -> ContentClassFac
 /// One type reference's content classification.
 fn content_classes(program: &TypedTrees, reference: TypeReferenceHandle) -> ContentClassRow {
     ContentClassRow {
-        plain_owned_with_numeric_constraints:
-            crate::has_plain_owned_contents_with_numeric_constraints(program, reference),
-        plain_owned_with_represented_constraints:
-            crate::has_plain_owned_contents_with_represented_constraints(program, reference),
-        linear_owned_contents: crate::has_linear_owned_contents(program, reference),
+        plain_owned_with_numeric_constraints: crate::has_contents(
+            program,
+            reference,
+            crate::value_custody::storage_contents::ContentsRequirement::NumericOwned,
+        ),
+        plain_owned_with_represented_constraints: crate::has_contents(
+            program,
+            reference,
+            crate::value_custody::storage_contents::ContentsRequirement::RepresentedOwned,
+        ),
+        linear_owned_contents: crate::has_contents(
+            program,
+            reference,
+            crate::value_custody::storage_contents::ContentsRequirement::LinearOwned,
+        ),
         owned_or_shared_view_fields: crate::has_owned_or_shared_view_fields(program, reference),
         closed_primitive_array: crate::is_closed_primitive_array_type(program, reference),
         bounded_byte_capacity: crate::bounded_byte_buffer_capacity(program, reference),

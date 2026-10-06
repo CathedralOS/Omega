@@ -355,19 +355,18 @@ pub(crate) fn nested_structural_call_return_type(
                     .into_iter()
                     .flat_map(|state| program.state_parameters(state).iter())
                     .any(|_parameter| false)
-                && program
-                    .state_parameters(target)
-                    .iter()
-                    .any(|parameter| {
-                        false
-                            && (!parameter.is_mutable
-                                || (owner.supply_mode
-                                    == language_semantics::MachineSupplyMode::CheckedBody
-                                    && target.return_type.is_valid()
-                                    && validation::has_plain_owned_contents_with_represented_constraints(
-                                        program, target.return_type,
-                                    )))
-                    }))
+                && program.state_parameters(target).iter().any(|parameter| {
+                    false
+                        && (!parameter.is_mutable
+                            || (owner.supply_mode
+                                == language_semantics::MachineSupplyMode::CheckedBody
+                                && target.return_type.is_valid()
+                                && validation::has_contents(
+                                    program,
+                                    target.return_type,
+                                    validation::ContentsRequirement::RepresentedOwned,
+                                )))
+                }))
             .then_some(())
         };
         if targets.next().is_some()
@@ -421,7 +420,11 @@ pub(crate) fn nested_structural_call_return_type(
     let represented_byte_owner = return_type.is_valid()
         && ordinary
         && validation::bounded_byte_buffer_capacity(program, return_type).is_some()
-        && validation::has_plain_owned_contents_with_represented_constraints(program, return_type);
+        && validation::has_contents(
+            program,
+            return_type,
+            validation::ContentsRequirement::RepresentedOwned,
+        );
     (return_type.is_valid()
         && program.primitive_type_reference(return_type).is_none()
         && !matches!(
@@ -429,7 +432,7 @@ pub(crate) fn nested_structural_call_return_type(
             TypeReferenceNode::Unit
         )
         && ((program.type_multiplicity(return_type) == language_semantics::Multiplicity::Affine
-            && (validation::has_borrow_free_contents(program, return_type)
+            && (validation::has_contents(program, return_type, validation::ContentsRequirement::BorrowFree)
                 // A checked-body record carrying borrowed referents is affine
                 // through its captured leaf loans; the caller's own operand
                 // scheduling still has to replay that custody exactly.
@@ -441,7 +444,7 @@ pub(crate) fn nested_structural_call_return_type(
             || (ordinary
                 && program.type_multiplicity(return_type)
                     == language_semantics::Multiplicity::Unrestricted
-                && (validation::has_plain_owned_contents(program, return_type)
+                && (validation::has_contents(program, return_type, validation::ContentsRequirement::PlainOwned)
                     || represented_byte_owner
                     // A checked-body `&[u8]`/`&'a V` borrowed-view result
                     // lends caller-frame storage through a shared loan;

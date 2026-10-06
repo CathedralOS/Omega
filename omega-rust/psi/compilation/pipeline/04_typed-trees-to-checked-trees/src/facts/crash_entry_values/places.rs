@@ -304,7 +304,12 @@ pub(super) fn projection_requires_write_scan(
     }
     let endpoint =
         crate::flow::project_type_reference_from_segments(program, root_type, &segments)?;
-    validation::has_stable_observable_contents(program, endpoint).then_some(mutable)
+    validation::has_contents(
+        program,
+        endpoint,
+        validation::ContentsRequirement::StableObservation,
+    )
+    .then_some(mutable)
 }
 
 fn traversed_storage_requires_write_scan(
@@ -318,8 +323,15 @@ fn traversed_storage_requires_write_scan(
             let nested = traversed_storage_requires_write_scan(program, *referee)?;
             Some(nested || *access == language_core::ReferenceAccess::Mutable)
         }
-        _ => (validation::has_borrowed_storage_contents(program, reference)
-            || validation::has_stable_observable_contents(program, reference))
+        _ => (validation::has_contents(
+            program,
+            reference,
+            validation::ContentsRequirement::BorrowedStorage,
+        ) || validation::has_contents(
+            program,
+            reference,
+            validation::ContentsRequirement::StableObservation,
+        ))
         .then_some(false),
     }
 }

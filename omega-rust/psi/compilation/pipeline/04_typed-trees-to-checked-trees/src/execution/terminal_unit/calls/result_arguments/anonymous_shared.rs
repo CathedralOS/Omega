@@ -73,7 +73,11 @@ pub(crate) fn validate(
         consumer.statement_index,
         &owner,
     )?;
-    if !validation::has_borrow_free_contents(program, owner_type) {
+    if !validation::has_contents(
+        program,
+        owner_type,
+        validation::ContentsRequirement::BorrowFree,
+    ) {
         return None;
     }
     let multiplicity = crate::checks::type_multiplicity(program, owner_type);

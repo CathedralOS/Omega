@@ -220,14 +220,14 @@ fn plain_local_owner_selection(
             let Some(reference) = declared_value_type(program, machine, state, expression) else {
                 return false;
             };
-            if crate::has_plain_owned_contents(program, reference) {
+            if crate::has_contents(program, reference, crate::value_custody::storage_contents::ContentsRequirement::PlainOwned) {
                 return !result_needs_custody_join(program, machine, state, expression);
             }
             // A fresh linear construction establishes its own claim at the
             // destination on that edge only; its fields must carry no custody
             // join of their own.
             program.type_multiplicity(reference) == language_semantics::Multiplicity::Linear
-                && crate::has_linear_owned_contents(program, reference)
+                && crate::has_contents(program, reference, crate::value_custody::storage_contents::ContentsRequirement::LinearOwned)
                 && program
                     .expression_table
                     .struct_fields(literal.fields)
@@ -288,10 +288,10 @@ fn plain_local_owner_selection(
         ExpressionNode::Call(_) => declared_value_type(program, machine, state, expression)
             .is_some_and(|reference| {
                 (program.type_multiplicity(reference) == language_semantics::Multiplicity::Affine
-                    && crate::has_plain_owned_contents_with_numeric_constraints(program, reference))
+                    && crate::has_contents(program, reference, crate::value_custody::storage_contents::ContentsRequirement::NumericOwned))
                     || (program.type_multiplicity(reference)
                         == language_semantics::Multiplicity::Linear
-                        && crate::has_linear_owned_contents(program, reference))
+                        && crate::has_contents(program, reference, crate::value_custody::storage_contents::ContentsRequirement::LinearOwned))
             }),
         _ => false,
     }
@@ -333,7 +333,11 @@ fn projected_linear_owned_source(
         return false;
     };
     if program.type_multiplicity(reference) != language_semantics::Multiplicity::Linear
-        || !crate::has_linear_owned_contents(program, reference)
+        || !crate::has_contents(
+            program,
+            reference,
+            crate::value_custody::storage_contents::ContentsRequirement::LinearOwned,
+        )
     {
         return false;
     }
@@ -354,7 +358,11 @@ fn projected_linear_owned_source(
                 };
                 return program.type_multiplicity(root_reference)
                     == language_semantics::Multiplicity::Affine
-                    && crate::has_linear_owned_contents(program, root_reference)
+                    && crate::has_contents(
+                        program,
+                        root_reference,
+                        crate::value_custody::storage_contents::ContentsRequirement::LinearOwned,
+                    )
                     && crate::value_custody::owned_value_source::whole_owned_value_source(
                         program,
                         cursor,
@@ -393,7 +401,11 @@ fn projected_plain_owned_source(
         return false;
     };
     if program.type_multiplicity(reference) != language_semantics::Multiplicity::Affine
-        || !crate::has_plain_owned_contents_with_numeric_constraints(program, reference)
+        || !crate::has_contents(
+            program,
+            reference,
+            crate::value_custody::storage_contents::ContentsRequirement::NumericOwned,
+        )
     {
         return false;
     }
@@ -416,9 +428,10 @@ fn projected_plain_owned_source(
                     == language_semantics::Multiplicity::Affine
                     && crate::plain_owned_value_source(program, cursor, root_reference)
                         == Some(path.symbol)
-                    && crate::has_plain_owned_contents_with_numeric_constraints(
+                    && crate::has_contents(
                         program,
                         root_reference,
+                        crate::value_custody::storage_contents::ContentsRequirement::NumericOwned,
                     )
                     && (program
                         .state_local_declaration(state, path.symbol)
@@ -447,9 +460,10 @@ fn projected_plain_owned_source(
                 };
                 return program.type_multiplicity(root_reference)
                     == language_semantics::Multiplicity::Affine
-                    && crate::has_plain_owned_contents_with_numeric_constraints(
+                    && crate::has_contents(
                         program,
                         root_reference,
+                        crate::value_custody::storage_contents::ContentsRequirement::NumericOwned,
                     );
             }
             _ => return false,
@@ -504,7 +518,11 @@ fn selected_shared_borrow_place(
     let Some(referent) = declared_value_type(program, machine, state, borrow.target) else {
         return false;
     };
-    if !crate::has_linear_owned_contents(program, referent) {
+    if !crate::has_contents(
+        program,
+        referent,
+        crate::value_custody::storage_contents::ContentsRequirement::LinearOwned,
+    ) {
         return false;
     }
     // A primitive referent carries no declaration to resolve. The structural
@@ -611,8 +629,11 @@ fn result_needs_custody_join(
     }
     let reference = declared_value_type(program, machine, state, value);
     if reference.is_some_and(|reference| {
-        !crate::has_plain_owned_contents_with_numeric_constraints(program, reference)
-            && !has_unrouted_scalar_contents(program, reference)
+        !crate::has_contents(
+            program,
+            reference,
+            crate::value_custody::storage_contents::ContentsRequirement::NumericOwned,
+        ) && !has_unrouted_scalar_contents(program, reference)
     }) {
         return true;
     }
@@ -667,7 +688,11 @@ pub(super) fn fresh_payloadless_case(
 ) -> Option<(symbols::SymbolHandle, symbols::SymbolHandle)> {
     use typed_trees::data::DataMember;
     use typed_trees::types::TypeReferenceNode;
-    if !crate::has_plain_owned_contents_with_numeric_constraints(program, reference) {
+    if !crate::has_contents(
+        program,
+        reference,
+        crate::value_custody::storage_contents::ContentsRequirement::NumericOwned,
+    ) {
         return None;
     }
     let TypeReferenceNode::Named { symbol, .. } =
@@ -1016,7 +1041,11 @@ fn case_pattern(
         .type_reference_table
         .find_named_type_reference(owner.symbol)?;
     if !owner.type_parameters.is_empty()
-        || !crate::has_plain_owned_contents_with_numeric_constraints(program, reference)
+        || !crate::has_contents(
+            program,
+            reference,
+            crate::value_custody::storage_contents::ContentsRequirement::NumericOwned,
+        )
         || program
             .data_members(owner)
             .iter()
@@ -1059,7 +1088,11 @@ fn case_dispatch_subject(
         && let Some((_, local)) = program.state_local_declaration(state, path.symbol)
         && !local.is_mutable
         && local.type_reference.is_valid()
-        && crate::has_plain_owned_contents_with_numeric_constraints(program, local.type_reference)
+        && crate::has_contents(
+            program,
+            local.type_reference,
+            crate::value_custody::storage_contents::ContentsRequirement::NumericOwned,
+        )
     {
         return Some(MatchCaseSubject::ImmutableLocal {
             symbol: local.symbol,

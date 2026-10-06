@@ -75,12 +75,14 @@ pub(crate) fn bind_local(
     // A returned nominal owner binds the same local home as any other owned
     // result. Its eventual cleanup is an edge obligation, not a reason to
     // omit the live source binding needed by later stores and transfers.
-    let owned_contents =
-        validation::has_cleanup_owned_contents(&checked.typed, local.type_reference)
-            || crate::content_classes::plain_owned_with_represented_constraints(
-                checked,
-                local.type_reference,
-            );
+    let owned_contents = validation::has_contents(
+        &checked.typed,
+        local.type_reference,
+        validation::ContentsRequirement::CleanupOwned,
+    ) || crate::content_classes::plain_owned_with_represented_constraints(
+        checked,
+        local.type_reference,
+    );
     if expression.is_some_and(|expression| expression != local.initial_value)
         || !(borrowed_access.is_some() || owned_contents)
     {

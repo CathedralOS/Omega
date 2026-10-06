@@ -7,8 +7,8 @@ use crate::execution::terminal_unit::cleanup::{
     machine_has_content_evidence, service_reach_is_empty,
 };
 use crate::execution::terminal_unit::types::{
-    ShapeCollector, has_plain_owned_contents, machine_binders, parameter_qualifications,
-    state_flow, type_graph_requires_nominal_drop,
+    ShapeCollector, has_contents, machine_binders, parameter_qualifications, state_flow,
+    type_graph_requires_nominal_drop,
 };
 use crate::execution::terminal_unit::{
     CheckFacts, CheckedClaimFreeAffineStructuralReturnMachinePlan, CheckedStructuralAccess,
@@ -37,7 +37,11 @@ pub(crate) fn build_claim_free_affine_structural_return_machine(
         return None;
     }
     let binders = machine_binders(program, machine);
-    if !has_plain_owned_contents(program, state.return_type) {
+    if !has_contents(
+        program,
+        state.return_type,
+        validation::ContentsRequirement::PlainOwned,
+    ) {
         return None;
     }
     let (attachment_type_identity, structural_parameters, scalar_parameters) =

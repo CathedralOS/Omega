@@ -476,7 +476,11 @@ impl<'a> Admission<'a> {
                     .map(|(_, local)| local.type_reference)
             })?;
         if is_reference(self.program, reference)
-            || !validation::has_cleanup_owned_contents(self.program, reference)
+            || !validation::has_contents(
+                self.program,
+                reference,
+                validation::ContentsRequirement::CleanupOwned,
+            )
         {
             return None;
         }

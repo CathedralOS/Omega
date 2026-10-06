@@ -116,10 +116,18 @@ pub(crate) fn operand_binds_stable_copy(
             TypeReferenceNode::Constrained { base_type, .. } => reference = *base_type,
             TypeReferenceNode::Named { .. } => {
                 return program.primitive_type_reference(reference).is_some()
-                    || validation::has_stable_observable_contents(program, reference);
+                    || validation::has_contents(
+                        program,
+                        reference,
+                        validation::ContentsRequirement::StableObservation,
+                    );
             }
             TypeReferenceNode::Generic { .. } | TypeReferenceNode::FixedArray { .. } => {
-                return validation::has_stable_observable_contents(program, reference);
+                return validation::has_contents(
+                    program,
+                    reference,
+                    validation::ContentsRequirement::StableObservation,
+                );
             }
             _ => return false,
         }

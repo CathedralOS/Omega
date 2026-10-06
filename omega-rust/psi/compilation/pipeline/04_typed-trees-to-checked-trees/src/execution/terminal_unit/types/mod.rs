@@ -19,7 +19,7 @@ use typed_trees::type_identity::TypeIdentityRequest;
 mod scalar_fields;
 pub(super) use scalar_fields::retain_scalar_field;
 
-pub(super) use validation::has_plain_owned_contents;
+pub(super) use validation::has_contents;
 
 mod affine_discards;
 mod identities;

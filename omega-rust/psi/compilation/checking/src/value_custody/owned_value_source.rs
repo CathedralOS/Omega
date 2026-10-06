@@ -14,14 +14,19 @@ pub fn plain_owned_value_source(
     expression: ExpressionHandle,
     reference: TypeReferenceHandle,
 ) -> Option<SymbolHandle> {
-    whole_owned_value_source(program, expression, reference)
-        .filter(|_| crate::has_plain_owned_contents(program, reference))
+    whole_owned_value_source(program, expression, reference).filter(|_| {
+        crate::has_contents(
+            program,
+            reference,
+            crate::value_custody::storage_contents::ContentsRequirement::PlainOwned,
+        )
+    })
 }
 
 /// The same whole-place resolution for an affine root, plain or carrying
 /// linear claims: the named storage is the whole value, and the caller's
 /// claim accounting (not this predicate) decides which consumed claims the
-/// transfer names. `has_linear_owned_contents` keeps the same finite owned
+/// transfer names. `has_contents` keeps the same finite owned
 /// walls as the plain rule — no loans, slices, nominal cleanup, or recursive
 /// storage — while letting a `[linear]` member remain a tracked claim.
 pub fn affine_owned_value_source(
@@ -31,7 +36,11 @@ pub fn affine_owned_value_source(
 ) -> Option<SymbolHandle> {
     whole_owned_value_source(program, expression, reference).filter(|_| {
         program.type_multiplicity(reference) == language_semantics::Multiplicity::Affine
-            && crate::has_linear_owned_contents(program, reference)
+            && crate::has_contents(
+                program,
+                reference,
+                crate::value_custody::storage_contents::ContentsRequirement::LinearOwned,
+            )
     })
 }
 
@@ -45,7 +54,11 @@ pub fn linear_owned_value_source(
 ) -> Option<SymbolHandle> {
     whole_owned_value_source(program, expression, reference).filter(|_| {
         program.type_multiplicity(reference) == language_semantics::Multiplicity::Linear
-            && crate::has_linear_owned_contents(program, reference)
+            && crate::has_contents(
+                program,
+                reference,
+                crate::value_custody::storage_contents::ContentsRequirement::LinearOwned,
+            )
     })
 }
 
