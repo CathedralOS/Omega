@@ -189,8 +189,7 @@ pub(super) fn runtime_index(
 }
 
 /// The `u8` a byte store writes: the same scalar source selection as every
-/// other store. Byte leaves lower only a pure value or the statement's own
-/// call result, so a selected computation refuses the byte store explicitly.
+/// other store, including a computation that owns the value's calls.
 pub(super) fn byte_value(
     program: &TypedTrees,
     facts: &CheckFacts,
@@ -202,7 +201,7 @@ pub(super) fn byte_value(
     source: AssignmentSource,
     trace: &LocalConstructionTrace,
 ) -> Option<checked_trees::CheckedStoreValue> {
-    let value = assignment_value(
+    assignment_value(
         program,
         facts,
         machine,
@@ -213,10 +212,5 @@ pub(super) fn byte_value(
         source,
         PrimitiveType::U8,
         trace,
-    )?;
-    match value {
-        checked_trees::CheckedStoreValue::Computation(_) => None,
-        checked_trees::CheckedStoreValue::Pure(_)
-        | checked_trees::CheckedStoreValue::ScalarResult { .. } => Some(value),
-    }
+    )
 }

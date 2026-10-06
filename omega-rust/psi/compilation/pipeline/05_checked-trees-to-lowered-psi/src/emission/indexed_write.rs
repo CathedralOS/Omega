@@ -80,8 +80,6 @@ struct Wording {
     lost_operand: &'static str,
     result_position: &'static str,
     result_not_established: &'static str,
-    /// Lowering's refusal of the same computation value.
-    keeps_computation: &'static str,
     /// Emission's operand rejection. The byte leaves' destination custody
     /// checks report it too.
     operands: &'static str,
@@ -92,7 +90,6 @@ const BYTE_VIEW: Wording = Wording {
     lost_operand: "byte-view write lost its operand source",
     result_position: "byte store call-result position exceeds usize",
     result_not_established: "byte store call result is not this statement's established scalar result",
-    keeps_computation: "byte-view write keeps a computation value",
     operands: "byte-view write requires exact mutable byte custody and scalar operands",
 };
 
@@ -101,7 +98,6 @@ const BYTE_FIELD: Wording = Wording {
     lost_operand: "byte replacement lost a scalar source binding",
     result_position: "byte store call-result position exceeds usize",
     result_not_established: "byte store call result is not this statement's established scalar result",
-    keeps_computation: "byte replacement keeps a computation value",
     operands: "byte replacement requires bounded bytes and exact branch-free operands",
 };
 
@@ -110,7 +106,6 @@ const ELEMENT_VIEW: Wording = Wording {
     lost_operand: "element-view write lost its operand source",
     result_position: "element-view store result position exceeds usize",
     result_not_established: "element-view store call result is not this statement's established scalar result",
-    keeps_computation: "element-view write keeps a computation value",
     operands: "element-view write requires scalar operands",
 };
 
@@ -191,7 +186,7 @@ impl<'a> IndexedWriteLeaf<'a> {
     }
 
     /// Every leaf's value is the one shared store vocabulary.
-    fn value(self) -> &'a CheckedStoreValue {
+    pub(crate) fn value(self) -> &'a CheckedStoreValue {
         match self {
             Self::ByteView(write) => &write.value,
             Self::ByteField(store) => &store.value,
@@ -200,7 +195,7 @@ impl<'a> IndexedWriteLeaf<'a> {
     }
 
     /// The stored value's type as the plan records it.
-    fn value_type(self) -> PrimitiveType {
+    pub(crate) fn value_type(self) -> PrimitiveType {
         match self {
             Self::ByteView(_) | Self::ByteField(_) => PrimitiveType::U8,
             Self::ElementView(write) => write.element,
@@ -219,7 +214,10 @@ impl<'a> IndexedWriteLeaf<'a> {
     /// expression rejoined at `AssignmentValue`, or the scalar result of the
     /// call this same statement performs. That result binds no local and
     /// carries no `AssignmentValue` row, so it is read back where the ordered
-    /// call operation established it as the most recent scalar value.
+    /// call operation established it as the most recent scalar value. A
+    /// computation is not a direct expression: the operation frame evaluates
+    /// it through the shared scalar evaluator and supplies the established
+    /// value to [`emit`] instead.
     pub(crate) fn lower_value(
         self,
         bindings: &ScalarBindings,
@@ -247,7 +245,9 @@ impl<'a> IndexedWriteLeaf<'a> {
                     scalar_type,
                 })
             }
-            CheckedStoreValue::Computation(_) => unsupported(wording.keeps_computation),
+            CheckedStoreValue::Computation(_) => {
+                unsupported("an indexed write's computed value is evaluated by its operation frame")
+            }
         }
     }
 }
@@ -590,6 +590,17 @@ impl Destination {
     }
 }
 
+/// The value one indexed write stores: a direct expression emitted beside
+/// the selector, or a value the operation frame already established by
+/// evaluating a computation. A computation completes in a fresh block whose
+/// parameters rebind the dense namespace by position, so the selector lowered
+/// against that namespace is emitted after it, as it is after a value call.
+#[derive(Clone, Copy)]
+pub(crate) enum IndexedWriteValue<'a> {
+    Expression(&'a LoweredDirectExpression),
+    Established(ValueDeclaration),
+}
+
 /// Emit one indexed write after the frame lowered its index and value: the
 /// leaf's destination check, the shared operand check, the index coordinate,
 /// the value, the destination's length, and the write with its obligation.
@@ -601,7 +612,7 @@ pub(crate) fn emit(
     parameters: &[(u32, StructuralParameterDeclaration)],
     structural_types: &[StructuralTypeDeclaration],
     index: &LoweredDirectExpression,
-    value: &LoweredDirectExpression,
+    value: IndexedWriteValue<'_>,
     values: &[ValueDeclaration],
     next_value: &mut u64,
     next_obligation: &mut u64,
@@ -609,10 +620,15 @@ pub(crate) fn emit(
 ) -> Result<OperationKind, LoweringError> {
     let operands = target.leaf().wording().operands;
     let destination = target.destination(parameters, structural_types, operands)?;
+    let value_type = match value {
+        IndexedWriteValue::Expression(expression) => expression.scalar_type(),
+        IndexedWriteValue::Established(value) => value.scalar_type,
+    };
     if !matches!(index.scalar_type(), ScalarType::Integer(_))
-        || value.scalar_type() != destination.value_type
+        || value_type != destination.value_type
         || direct_expression_contains_short_circuit(index)
-        || direct_expression_contains_short_circuit(value)
+        || matches!(value, IndexedWriteValue::Expression(expression)
+            if direct_expression_contains_short_circuit(expression))
     {
         return unsupported(operands);
     }
@@ -621,9 +637,16 @@ pub(crate) fn emit(
         .map(|value| value.scalar_type)
         .collect::<Vec<_>>();
     validate_direct_parameter_types(index, &types)?;
-    validate_direct_parameter_types(value, &types)?;
+    if let IndexedWriteValue::Expression(expression) = value {
+        validate_direct_parameter_types(expression, &types)?;
+    }
     let index = emit_index_coordinate(index, values, next_value, next_obligation, operations)?;
-    let value = emit_direct_expression(value, values, next_value, operations);
+    let value = match value {
+        IndexedWriteValue::Expression(expression) => {
+            emit_direct_expression(expression, values, next_value, operations)
+        }
+        IndexedWriteValue::Established(value) => value.id,
+    };
     let length = destination.length(next_value, operations)?;
     let obligation = obligation_id(allocate_dense(next_obligation)?);
     if formation_decided {

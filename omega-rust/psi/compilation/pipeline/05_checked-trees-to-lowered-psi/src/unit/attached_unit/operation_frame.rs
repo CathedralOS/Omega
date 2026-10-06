@@ -1290,14 +1290,41 @@ impl OperationFrame<'_, '_> {
             // already checked against its establishment: it lowers directly.
             None => bindings.expression(leaf.index())?,
         };
-        let value = leaf.lower_value(bindings, self.checked, self.state, self.values)?;
+        let lowered;
+        let value = if matches!(leaf.value(), checked_trees::CheckedStoreValue::Computation(_)) {
+            // A computed value runs the shared scalar evaluator. It completes
+            // in a fresh block whose parameters rebind this namespace by
+            // position, so the selector lowered above still names its values
+            // and is emitted after the computation, the order a value call
+            // already had.
+            crate::emission::indexed_write::IndexedWriteValue::Established(
+                self.evaluation.field_assignment_value(
+                    self.checked,
+                    self.machine,
+                    self.state,
+                    leaf.statement_index(),
+                    leaf.value(),
+                    leaf.value_type(),
+                    None,
+                    self.values,
+                    self.next_value,
+                    self.next_block,
+                    self.next_edge,
+                    self.operations,
+                    self.calls,
+                )?,
+            )
+        } else {
+            lowered = leaf.lower_value(bindings, self.checked, self.state, self.values)?;
+            crate::emission::indexed_write::IndexedWriteValue::Expression(&lowered)
+        };
         let kind = crate::emission::indexed_write::emit(
             target,
             leaf.formation_is_proven(self.checked, self.state)?,
             &self.evaluation.structural_parameters,
             self.structural_types.declarations(),
             &index,
-            &value,
+            value,
             self.values,
             self.next_value,
             &mut self.calls.next_obligation_identity,

@@ -2126,6 +2126,7 @@ pass/collections/runtime_indexed_float_field_compare_exit checked 6745ms check-t
 pass/collections/runtime_indexed_record_field_read_exit checked 1347ms check-target:macos_arm64 @2d8ed253669f
 pass/collections/runtime_indexed_struct_field_rmw_exit checked 1315ms check-target:macos_arm64 @a3bac00e54bb+wt
 pass/collections/runtime_indexed_successor_argument_exit checked 1468ms check-target:macos_arm64 @2d8ed253669f
+pass/collections/runtime_indexed_write_call_value_exit checked 1927ms check-target:macos_arm64 @d6b32df9b098
 pass/collections/runtime_initialized_array_state_loan_exit checked 1135ms check-target:macos_arm64 @89d265022a73+wt
 pass/collections/runtime_maze_pathfind_exit checked 4147ms check-target:macos_arm64 @2d8ed253669f
 pass/collections/runtime_member_decrement_index_bound_exit checked 3012ms check-target:macos_arm64 @6d05c993ca61
@@ -3081,8 +3082,7 @@ pass/text/runtime_local_struct_string_field_concat_exit rejected 1325ms check-ta
 pass/text/runtime_mixed_byte_field_equality_exit checked 2124ms check-target:macos_arm64 @11b293f8af86+wt
 pass/text/runtime_mutable_string_parameter_concat_write_line rejected 3696ms check-target:macos_arm64 @c773c4ad3c3
 	terminal-artifact production failed: Lowering(InvalidTerminalModule(InvalidReferenceCustody { machine: MachineId(1), reason: "borrowed reference source changes its incoming type" }))
-pass/text/runtime_number_to_decimal_exit rejected 1437ms check-target:macos_arm64 @faca6c5c7f5
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: call: flow call` (state 7, statement 1)
+pass/text/runtime_number_to_decimal_exit checked 2326ms check-target:macos_arm64 @d6b32df9b098
 pass/text/runtime_owned_string_byte_view_exit checked 1422ms check-target:macos_arm64 @73da00dde06d+wt
 pass/text/runtime_param_domain_forward_exit checked 671ms check-target:macos_arm64 @7f80f93fd214+wt
 pass/text/runtime_param_domain_literal_read_exit checked 679ms check-target:macos_arm64 @7f80f93fd214+wt
