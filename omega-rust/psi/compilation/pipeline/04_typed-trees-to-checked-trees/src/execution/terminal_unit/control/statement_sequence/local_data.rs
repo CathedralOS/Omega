@@ -786,6 +786,60 @@ fn is_exclusive_place_loan(
     .is_some()
 }
 
+/// The named-custody gate both borrowed-local referent checks share after
+/// peeling their access kind: the target's canonical place must root at a
+/// state parameter or an earlier local of this state, a recast stops there,
+/// and a plain loan rejoins only when the referent's normalized identity
+/// matches the declared one.
+#[allow(clippy::too_many_arguments)]
+fn borrowed_local_named_root(
+    program: &TypedTrees,
+    machine: SymbolHandle,
+    state: &typed_trees::state::State,
+    statement_index: u32,
+    target: typed_trees::expression::ExpressionHandle,
+    recast: bool,
+    referee: typed_trees::types::TypeReferenceHandle,
+    parameter_root: impl Fn(SymbolHandle) -> bool,
+) -> Option<()> {
+    let statement = usize::try_from(statement_index).ok()?;
+    let place = crate::flow::canonical_place_from_expression_in_state(
+        program,
+        state.symbol,
+        statement,
+        target,
+    )?;
+    let facts::PlaceRoot::Symbol(symbol) = place.root else {
+        return None;
+    };
+    // The loaned storage must root at a structural parameter this state
+    // already writes through, or at an earlier local of this state — the
+    // same named-custody family in both spellings. A computed expression
+    // root has no rejoin the ledger can name.
+    let local_root = program
+        .state_local_declaration(state, symbol)
+        .is_some_and(|(ordinal, _)| ordinal < statement);
+    if !parameter_root(symbol) && !local_root {
+        return None;
+    }
+    if recast {
+        // The §5b judgment already proved operand and referent compatible,
+        // and the local plans no operation: the checked segment walk only
+        // serves the non-recast referent comparison below, so a selector it
+        // cannot resolve no longer fences the loan.
+        return Some(());
+    }
+    let (storage, _) = crate::execution::terminal_unit::calls::projected_borrowed_path(
+        program,
+        machine,
+        state.symbol,
+        statement,
+        &place,
+    )?;
+    (program.normalized_type_identity(storage) == program.normalized_type_identity(referee))
+        .then_some(())
+}
+
 fn exclusive_place_loan_referent(
     program: &TypedTrees,
     machine: SymbolHandle,
@@ -822,51 +876,26 @@ fn exclusive_place_loan_referent(
     if access != CheckedStructuralAccess::MutableBorrow || local.is_mutable {
         return None;
     }
-    let statement = usize::try_from(statement_index).ok()?;
-    let place = crate::flow::canonical_place_from_expression_in_state(
-        program,
-        state.symbol,
-        statement,
-        target,
-    )?;
-    let facts::PlaceRoot::Symbol(symbol) = place.root else {
-        return None;
-    };
-    // The loaned storage must root at a structural parameter this state
-    // already writes through, or at an earlier local of this state — the
-    // same named-custody family in both spellings. A computed expression
-    // root has no rejoin the ledger can name.
-    let parameter_root = program
-        .state_parameters(state)
-        .iter()
-        .position(|parameter| parameter.symbol == symbol)
-        .is_some_and(|position| {
-            structural_parameters
-                .iter()
-                .any(|parameter| parameter.position as usize == position)
-        });
-    let local_root = program
-        .state_local_declaration(state, symbol)
-        .is_some_and(|(ordinal, _)| ordinal < statement);
-    if !parameter_root && !local_root {
-        return None;
-    }
-    if recast {
-        // The §5b judgment already proved operand and referent compatible,
-        // and the local plans no operation: the checked segment walk only
-        // serves the non-recast referent comparison below, so a selector it
-        // cannot resolve no longer fences the loan.
-        return Some(());
-    }
-    let (storage, _) = crate::execution::terminal_unit::calls::projected_borrowed_path(
+    borrowed_local_named_root(
         program,
         machine,
-        state.symbol,
-        statement,
-        &place,
-    )?;
-    (program.normalized_type_identity(storage) == program.normalized_type_identity(referee))
-        .then_some(())
+        state,
+        statement_index,
+        target,
+        recast,
+        referee,
+        |symbol| {
+            program
+                .state_parameters(state)
+                .iter()
+                .position(|parameter| parameter.symbol == symbol)
+                .is_some_and(|position| {
+                    structural_parameters
+                        .iter()
+                        .any(|parameter| parameter.position as usize == position)
+                })
+        },
+    )
 }
 
 /// A `let` binding a shared loan of a place: `let borrowed: &u32 =
@@ -930,22 +959,21 @@ fn shared_place_loan_referent(
     if access != CheckedStructuralAccess::SharedBorrow || local.is_mutable {
         return None;
     }
-    let statement = usize::try_from(statement_index).ok()?;
-    let place = crate::flow::canonical_place_from_expression_in_state(
+    borrowed_local_named_root(
         program,
-        state.symbol,
-        statement,
+        machine,
+        state,
+        statement_index,
         target,
-    )?;
-    let facts::PlaceRoot::Symbol(symbol) = place.root else {
-        return None;
-    };
-    let parameter_root = program
-        .state_parameters(state)
-        .iter()
-        .position(|parameter| parameter.symbol == symbol)
-        .is_some_and(|position| {
-            structural_parameters
+        recast,
+        referee,
+        |symbol| {
+            program
+                .state_parameters(state)
+                .iter()
+                .position(|parameter| parameter.symbol == symbol)
+                .is_some_and(|position| {
+                    structural_parameters
                 .iter()
                 .any(|parameter| parameter.position as usize == position)
                 // Scalar parameters own storage too. The shared local retains
@@ -961,29 +989,9 @@ fn shared_place_loan_referent(
                             .primitive_type_reference(parameter.type_reference)
                             .is_some()
                 }
-        });
-    let local_root = program
-        .state_local_declaration(state, symbol)
-        .is_some_and(|(ordinal, _)| ordinal < statement);
-    if !parameter_root && !local_root {
-        return None;
-    }
-    if recast {
-        // The §5b judgment already proved operand and referent compatible,
-        // and the local plans no operation: the checked segment walk only
-        // serves the non-recast referent comparison below, so a selector it
-        // cannot resolve no longer fences the loan.
-        return Some(());
-    }
-    let (storage, _) = crate::execution::terminal_unit::calls::projected_borrowed_path(
-        program,
-        machine,
-        state.symbol,
-        statement,
-        &place,
-    )?;
-    (program.normalized_type_identity(storage) == program.normalized_type_identity(referee))
-        .then_some(())
+                })
+        },
+    )
 }
 
 /// A retained borrow root names this initializer and its exact reference type.
