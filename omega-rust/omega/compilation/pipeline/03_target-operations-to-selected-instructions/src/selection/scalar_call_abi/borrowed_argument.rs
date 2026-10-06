@@ -290,6 +290,17 @@ pub(super) fn validate_borrowed_argument(
         destination_carrier.byte_size,
         destination_carrier.alignment,
     );
+    // A loan arriving as a block parameter and forwarded whole as its own
+    // declared type keeps its carrier. The source arm below rejoins that block
+    // parameter's declared access, type and position.
+    let block_forward = semantic.path.is_empty()
+        && target.root_structural_type == target.structural_type
+        && target.source_byte_offset == 0
+        && indices.is_empty()
+        && matches!(
+            target.source,
+            target_operations::TargetStructuralArgumentSource::BlockParameter { .. }
+        );
     let shape = if byte_field.is_some() {
         destination_shape
     } else if let Some((_, joined)) = address_join {
@@ -330,6 +341,8 @@ pub(super) fn validate_borrowed_argument(
         }
     } else if let Some(shape) = aggregate {
         shape
+    } else if block_forward && aggregate_block_home.is_none() {
+        destination_shape
     } else if let Some(shape) = owner_home {
         shape
     } else if let Some((offset, _)) = byte_view {

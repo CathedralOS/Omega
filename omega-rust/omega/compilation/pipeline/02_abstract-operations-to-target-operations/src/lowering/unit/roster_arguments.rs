@@ -644,6 +644,18 @@ pub(in crate::lowering) fn fixed_array_view_argument(
         callee,
         place: argument.place,
     };
+    // A received view loan forwarded whole, as the same declared view, is
+    // already a presentation: its carrier is the pointer cell (and extent)
+    // the callee expects, not the backing it addresses. The ordinary
+    // unprojected forward passes that carrier through.
+    if argument.path.is_empty()
+        && root.structural_type == callee_parameter.structural_type
+        && structural_types
+            .get(&root.structural_type)
+            .is_some_and(|declaration| declaration.shape.is_borrowed_byte_carrier())
+    {
+        return Ok(None);
+    }
     let too_large = || LoweringError::StructuralTypeTooLarge(root.structural_type);
     let (source_byte_offset, length, stride, backing_end) = if let Some(window) =
         terminal_semantics::fixed_byte_array_window(

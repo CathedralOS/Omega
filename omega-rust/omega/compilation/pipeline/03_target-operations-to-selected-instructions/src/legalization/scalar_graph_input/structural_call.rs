@@ -184,7 +184,7 @@ pub(in crate::legalization) fn argument_at(
     if semantic.path.is_empty()
         && plan.structural_types.iter().any(|declaration| {
             declaration.id == destination_parameter.structural_type
-                && (declaration.shape.is_borrowed_byte_view()
+                && (declaration.shape.is_borrowed_byte_carrier()
                     || matches!(
                         declaration.shape,
                         terminal_psi::StructuralTypeShape::ElementView { .. }
@@ -309,6 +309,18 @@ fn view_argument(
     use target_operations::TargetStructuralArgumentSource;
     let access = optimization_unit_semantics::structural_place_access(caller, semantic.place)
         .ok_or(LegalizationError::custody())?;
+    // A descriptor view carries pointer and extent; a bounded view over a
+    // fixed array (`&[u8; N]`) carries only the pointer, its extent static.
+    let carrier = structural_types
+        .iter()
+        .find(|declaration| declaration.id == destination_parameter.structural_type)
+        .map(|declaration| match declaration.shape {
+            terminal_psi::StructuralTypeShape::ByteSequence(
+                terminal_psi::ByteSequenceCarrier::BoundedView { .. },
+            ) => ValueShape::borrowed_reference(8, 8),
+            _ => ValueShape::borrowed_reference(16, 8),
+        })
+        .ok_or(LegalizationError::custody())?;
     if !matches!(
         semantic.access,
         StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
@@ -390,7 +402,7 @@ fn view_argument(
             || parameter.structural_type != source.structural_type
             || parameter.access != source.access
             || parameter.multiplicity != source.multiplicity
-            || parameter.shape != ValueShape::borrowed_reference(16, 8)
+            || parameter.shape != carrier
             || !parameter.projected_qualifications.is_empty()
         {
             return Err(LegalizationError::custody());
@@ -401,7 +413,7 @@ fn view_argument(
         || call
             .parameters
             .get(parameter_ordinal)
-            .is_none_or(|parameter| parameter.shape != ValueShape::borrowed_reference(16, 8))
+            .is_none_or(|parameter| parameter.shape != carrier)
     {
         return Err(LegalizationError::custody());
     }
@@ -411,7 +423,7 @@ fn view_argument(
         path: Vec::new(),
         root_structural_type: structural_type,
         structural_type,
-        shape: ValueShape::borrowed_reference(16, 8),
+        shape: carrier,
         source_byte_offset: 0,
         fixed_array_length: None,
         element_stride: None,

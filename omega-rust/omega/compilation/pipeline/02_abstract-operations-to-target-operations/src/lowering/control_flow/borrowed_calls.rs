@@ -453,13 +453,24 @@ pub(super) fn byte_argument(
         )?
         .ok_or_else(unsupported);
     }
+    // A descriptor view carries pointer and extent; a bounded view over a
+    // fixed array (`&[u8; N]`) carries only the pointer, its extent static.
+    let carrier_size = match types
+        .get(&declaration.structural_type)
+        .map(|row| &row.shape)
+    {
+        Some(terminal_psi::StructuralTypeShape::ByteSequence(
+            terminal_psi::ByteSequenceCarrier::BoundedView { .. },
+        )) => 8,
+        _ => 16,
+    };
     if argument.access != declaration.access
         || (!crate::lowering::scalar::byte_views::is_byte_parameter(declaration, types)
             && !crate::lowering::scalar::element_views::is_element_view_parameter(
                 declaration,
                 types,
             ))
-        || destination.shape != ValueShape::borrowed_reference(16, 8)
+        || destination.shape != ValueShape::borrowed_reference(carrier_size, 8)
     {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
