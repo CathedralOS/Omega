@@ -793,12 +793,13 @@ pub enum StructuralEffectObservation {
         length: ValueId,
         obligation: ObligationId,
     },
-    /// Replace one shared view field's descriptor with the source view. The
-    /// field's extent becomes the source's; no bytes move and no goal arises.
+    /// Replace one shared view descriptor slot with the source view: a
+    /// record's field, or the whole destination when `field` is absent. The
+    /// slot's extent becomes the source's; no bytes move and no goal arises.
     ByteViewFieldStored {
         destination: PlaceId,
         path: Vec<terminal_psi::StructuralPathSegment>,
-        field: StructuralFieldId,
+        field: Option<StructuralFieldId>,
         source: PlaceId,
     },
     /// Store one primitive leaf. A runtime-selected element in `path` names

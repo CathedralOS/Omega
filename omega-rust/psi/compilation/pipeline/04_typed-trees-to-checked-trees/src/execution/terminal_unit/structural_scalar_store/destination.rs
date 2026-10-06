@@ -330,20 +330,23 @@ fn owned_local_root<'a>(
     );
     let primitive_local =
         super::primitive::primitive_local_before(program, state, ordinal, root_symbol).is_some();
+    // A declared shared byte-view local is a descriptor home: the whole local
+    // is the slot the ordinary descriptor store replaces, exactly as a record's
+    // view field is. Its reference shell names the referent's shared access,
+    // not the home's own write authority.
+    let descriptor_home = place.segments.is_empty()
+        && dynamic_index.is_none()
+        && super::is_shared_view_field(program, local.type_reference);
     // Root establishment and projected-leaf validity are independent. A stored
     // reference does not make its carrier's own home unavailable for borrowing
     // or mutation; crossing it must retain explicit permission and geometry.
     if local_ordinal >= ordinal
         || (dynamic_index.is_some() && selectors.is_none() && !bounded_byte_local)
-        || !(program
-            .expression_table
-            .expression_is_valid(local.initial_value)
-            || declared_home
-            || primitive_local)
-        || !(bounded_byte_local || primitive_local || declared_home)
+        || !(bounded_byte_local || primitive_local || declared_home || descriptor_home)
         // Cleanup policy does not change the authority to establish fields.
         // A borrowed root must instead rejoin its exact loan.
-        || validation::reference_shell(program, local.type_reference).is_some()
+        || (validation::reference_shell(program, local.type_reference).is_some()
+            && !descriptor_home)
     {
         return None;
     }

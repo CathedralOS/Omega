@@ -179,21 +179,51 @@ pub(super) fn replace_view_descriptor(
     else {
         return Err(unsupported());
     };
-    let destination_argument = writable_byte_field(
-        function,
-        structural_types,
-        prepared,
-        live,
-        *destination,
-        path,
-        *field,
-        |carrier| {
-            carrier
-                == terminal_psi::ByteSequenceCarrier::BorrowedView {
-                    access: Some(StructuralAccess::SharedBorrow),
-                }
-        },
-    )?;
+    let shared_view = terminal_psi::ByteSequenceCarrier::BorrowedView {
+        access: Some(StructuralAccess::SharedBorrow),
+    };
+    let destination_argument = match field {
+        Some(field) => writable_byte_field(
+            function,
+            structural_types,
+            prepared,
+            live,
+            *destination,
+            path,
+            *field,
+            |carrier| carrier == shared_view,
+        )?,
+        // The whole slot is a declared local's descriptor home: the home's
+        // own establishment is the write authority, not the shared access to
+        // the bytes its descriptor denotes.
+        None => {
+            let home = live
+                .structural_homes
+                .get(destination)
+                .ok_or_else(unsupported)?;
+            if !path.is_empty()
+                || !home.qualifications().is_empty()
+                || !home.projected_qualifications().is_empty()
+                || !matches!(
+                    structural_types
+                        .get(&home.structural_type())
+                        .map(|declaration| &declaration.shape),
+                    Some(StructuralTypeShape::ByteSequence(
+                        terminal_psi::ByteSequenceCarrier::BorrowedView {
+                            access: None | Some(StructuralAccess::SharedBorrow),
+                        }
+                    ))
+                )
+            {
+                return Err(unsupported());
+            }
+            terminal_psi::StructuralArgument {
+                place: *destination,
+                access: StructuralAccess::Owned,
+                path: Vec::new(),
+            }
+        }
+    };
     // The source is an already available two-word descriptor. Its backing
     // lifetime is independently replayed on the current optimization graph;
     // native lowering must not infer that lifetime from a producer family.

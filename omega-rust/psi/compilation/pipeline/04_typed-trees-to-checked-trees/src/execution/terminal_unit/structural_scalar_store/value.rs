@@ -16,7 +16,7 @@ use crate::execution::terminal_unit::control::LocalConstructionTrace;
 
 /// Where the assignment's right-hand side was evaluated.
 #[derive(Clone, Copy)]
-pub(super) enum AssignmentSource {
+pub(in crate::execution::terminal_unit) enum AssignmentSource {
     /// An authored expression with its own checked value facts.
     Authored,
     /// The completed structural byte value of this assignment's call.

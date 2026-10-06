@@ -9,7 +9,7 @@ mod freshness;
 pub(crate) use freshness::field_content_length_is_current;
 pub(crate) use freshness::literal_field_read_bounds;
 pub(crate) use freshness::replacement_length_equation;
-pub(crate) use freshness::view_length_is_current;
+pub(crate) use freshness::{descriptor_home_is_established, view_length_is_current};
 pub(crate) use freshness::{owned_content_is_ascii, owned_content_is_current};
 
 pub(in crate::validation) fn validate(

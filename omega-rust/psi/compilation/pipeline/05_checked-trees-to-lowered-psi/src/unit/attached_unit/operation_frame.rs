@@ -1139,6 +1139,27 @@ impl OperationFrame<'_, '_> {
                     ))?;
                 StoreRoot::Parameter(parameter)
             }
+            // A whole descriptor slot is the declared home itself; the home,
+            // not the referenced bytes' shared access, supplies the authority.
+            checked_trees::CheckedStoreRoot::Local { symbol }
+                if matches!(
+                    &store.destination,
+                    checked_trees::CheckedByteSequenceStoreDestination::Descriptor {
+                        field_identity: None,
+                        ..
+                    }
+                ) =>
+            {
+                let (place, structural_type) = crate::emission::store_destination::descriptor_home(
+                    symbol,
+                    &self.evaluation.structural_locals,
+                    self.operations,
+                )?;
+                StoreRoot::Owned {
+                    place,
+                    structural_type,
+                }
+            }
             checked_trees::CheckedStoreRoot::Local { symbol } => {
                 let (place, structural_type) = self.local_store_root(symbol)?;
                 if self
@@ -1170,17 +1191,17 @@ impl OperationFrame<'_, '_> {
         if let StructuralTypeRoster::Owned(types) = &mut self.structural_types {
             crate::emission::structural_byte_sequence_store::prepare_types(&store.value, types)?;
         }
-        if let checked_trees::CheckedByteSequenceStoreDestination::ViewField {
-            carrier_path,
+        if let checked_trees::CheckedByteSequenceStoreDestination::Descriptor {
+            path,
             field_identity,
         } = &store.destination
         {
             let mut destination =
-                crate::emission::structural_byte_sequence_store::prepare_view_field_store(
+                crate::emission::structural_byte_sequence_store::prepare_descriptor_store(
                     store,
                     &root,
-                    carrier_path,
-                    field_identity,
+                    path,
+                    field_identity.as_deref(),
                     self.structural_types.declarations(),
                 )?;
             let indexes = crate::emission::runtime_elements::evaluate_selectors(
@@ -1210,7 +1231,7 @@ impl OperationFrame<'_, '_> {
                 self.operations,
             )?;
             let source = self.byte_descriptor_operand(store)?;
-            let kind = crate::emission::structural_byte_sequence_store::emit_view_field_store(
+            let kind = crate::emission::structural_byte_sequence_store::emit_descriptor_store(
                 destination,
                 path,
                 source,

@@ -356,7 +356,7 @@ pub(super) fn project(
             )
             .ok_or(LegalizationError::custody())?;
             LegalizedScalarInstructionKind::StructuralByteViewFieldStore {
-                indices: scalar_graph_input::structural_fields::byte_index_operands(
+                indices: scalar_graph_input::structural_fields::view_slot_index_operands(
                     optimized,
                     unit,
                     operation,

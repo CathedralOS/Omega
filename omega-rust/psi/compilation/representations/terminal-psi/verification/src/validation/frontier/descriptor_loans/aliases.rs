@@ -55,7 +55,7 @@ pub(super) fn reconstruct_in(
                 ..
             } = &operation.kind
                 && let Some(destination) =
-                    flow::location(module, machine, *destination, path, Some(*field))
+                    flow::location(module, machine, *destination, path, *field)
                         .and_then(|location| analysis.location(machine.id, position, &location))
             {
                 for origin in analysis

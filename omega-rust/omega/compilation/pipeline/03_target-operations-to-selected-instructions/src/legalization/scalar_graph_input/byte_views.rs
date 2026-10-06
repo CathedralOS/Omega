@@ -338,6 +338,9 @@ pub(in crate::legalization) fn descriptor_result(
         && terminal_semantics::descriptor_results::is_shared_descriptor(types.iter(), result.structural_type)
         && function.blocks.iter().flat_map(|block| &block.nodes).any(|node| matches!(&node.operation,
             AbstractOperation::CallStructural { psi_operation, result: abstract_operations::AbstractStructuralCallResult::Structural { result: actual, .. }, .. }
+            // A declared descriptor local's home holds the descriptor its
+            // whole-slot stores install.
+            | AbstractOperation::EstablishStructuralLocal { psi_operation, result: actual }
                 if *psi_operation == producer && actual == result)))
         .then_some((producer, result.structural_type))
 }

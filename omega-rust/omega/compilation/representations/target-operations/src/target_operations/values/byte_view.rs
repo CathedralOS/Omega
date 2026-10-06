@@ -5,8 +5,10 @@ use semantic_vocabulary::{BlockId, ObligationId, OperationId, PlaceId, Structura
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TargetByteView {
-    /// Payload captured from this exact completed structural call. The home
-    /// contains backing and extent; it is not a fresh owner of the payload.
+    /// Payload captured from this exact completed structural call, or the
+    /// descriptor a declared descriptor local's whole-slot stores installed
+    /// in its home. The home contains backing and extent; it is not a fresh
+    /// owner of the payload.
     Result {
         psi_operation: OperationId,
         place: PlaceId,

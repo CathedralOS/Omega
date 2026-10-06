@@ -130,33 +130,77 @@ pub(super) fn plan(
                 .is_none()
         {
             local_phase("statement sequence: local data: deferred structural binding");
-            let result = CheckedUnitStructuralResultBindingPlan {
+            establish_declared_home(
+                program,
+                shapes,
+                binders,
+                operations,
+                structural_count,
+                structural_local_symbols,
+                structural_results,
+                index,
                 statement_index,
-                binding_ordinal: u32::try_from(*structural_count).ok()?,
-                type_identity: shapes.add_type(local.type_reference, binders, &[])?,
-                multiplicity: validation::reference_result_custody::binding_multiplicity(
-                    program,
-                    local.type_reference,
-                ),
-            };
-            *structural_count = structural_count.checked_add(1)?;
-            // The declaration supplies the home each member operation
-            // establishes into; publishing its binding here lets borrows and
-            // writers rejoin by ordinal the same way established values do.
-            operations.push(CheckedUnitEffectOperationPlan::EstablishStructuralLocal {
-                statement_index,
-                declaration_ordinal: u32::try_from(index).ok()?,
-                symbol: local.symbol,
-                result: result.clone(),
-                discard_result_on_return: result.multiplicity == Multiplicity::Affine,
-            });
-            structural_results.push((result, facts::PlaceRoot::Symbol(local.symbol)));
-            structural_local_symbols.push(local.symbol);
+                local,
+            )?;
             return Some(LocalPlan::Planned);
         }
         return None;
     }
     if erased_locals.contains(&local.symbol) || is_record_pattern_marker(local) {
+        return Some(LocalPlan::Planned);
+    }
+    // A mutable shared view local owns a descriptor home that its stores
+    // replace, as `EstablishPrimitiveLocal` homes a mutable primitive. The
+    // initializer is the first of those stores: initialization and every
+    // later reassignment are the one descriptor store a record's view field
+    // takes. A call initializer's result is planned by the call sequence.
+    if local.is_mutable
+        && crate::execution::terminal_unit::structural_scalar_store::is_shared_view_field(
+            program,
+            local.type_reference,
+        )
+        && !matches!(
+            program.expression_table.expression(local.initial_value),
+            ExpressionNode::Call(_)
+        )
+    {
+        local_phase("statement sequence: local data: descriptor local initializer");
+        let store = crate::execution::terminal_unit::structural_scalar_store::descriptor_store(
+            program,
+            facts,
+            machine,
+            state,
+            &|position| {
+                structural_parameters
+                    .iter()
+                    .position(|parameter| parameter.position as usize == position)
+                    .and_then(|dense| u32::try_from(dense).ok())
+            },
+            checked_trees::CheckedStoreRoot::Local {
+                symbol: local.symbol,
+            },
+            crate::execution::terminal_unit::structural_scalar_store::DescriptorSlot {
+                path: Vec::new(),
+                type_reference: local.type_reference,
+                field: None,
+            },
+            statement_index,
+            local.initial_value,
+            crate::execution::terminal_unit::structural_scalar_store::AssignmentSource::Authored,
+        )?;
+        establish_declared_home(
+            program,
+            shapes,
+            binders,
+            operations,
+            structural_count,
+            structural_local_symbols,
+            structural_results,
+            index,
+            statement_index,
+            local,
+        )?;
+        operations.push(store);
         return Some(LocalPlan::Planned);
     }
     if !local.is_mutable
@@ -1045,4 +1089,42 @@ fn is_call_view_loan_binding(
             && facts.borrow.loan_owner_path(loan).is_empty()
     });
     loans.next().is_some() && loans.next().is_none()
+}
+
+/// Publish a declared local's home before any member or whole-slot store
+/// establishes its contents. Borrows and writers rejoin the binding by
+/// ordinal the same way established values do.
+#[allow(clippy::too_many_arguments)]
+fn establish_declared_home(
+    program: &TypedTrees,
+    shapes: &mut ShapeCollector<'_>,
+    binders: &[(SymbolHandle, String)],
+    operations: &mut Vec<CheckedUnitEffectOperationPlan>,
+    structural_count: &mut usize,
+    structural_local_symbols: &mut Vec<SymbolHandle>,
+    structural_results: &mut Vec<(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)>,
+    declaration_ordinal: usize,
+    statement_index: u32,
+    local: &typed_trees::statement::TableLocalData,
+) -> Option<()> {
+    let result = CheckedUnitStructuralResultBindingPlan {
+        statement_index,
+        binding_ordinal: u32::try_from(*structural_count).ok()?,
+        type_identity: shapes.add_type(local.type_reference, binders, &[])?,
+        multiplicity: validation::reference_result_custody::binding_multiplicity(
+            program,
+            local.type_reference,
+        ),
+    };
+    *structural_count = structural_count.checked_add(1)?;
+    operations.push(CheckedUnitEffectOperationPlan::EstablishStructuralLocal {
+        statement_index,
+        declaration_ordinal: u32::try_from(declaration_ordinal).ok()?,
+        symbol: local.symbol,
+        result: result.clone(),
+        discard_result_on_return: result.multiplicity == Multiplicity::Affine,
+    });
+    structural_results.push((result, facts::PlaceRoot::Symbol(local.symbol)));
+    structural_local_symbols.push(local.symbol);
+    Some(())
 }

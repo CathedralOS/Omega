@@ -382,8 +382,8 @@ pub(crate) fn emit_content_store(
             }
             Some((path, field.id))
         }
-        Destination::ViewField { .. } => {
-            return unsupported("view-field store reached the owned byte emitter");
+        Destination::Descriptor { .. } => {
+            return unsupported("descriptor store reached the owned byte emitter");
         }
     };
     let mut emitter = ValueEmitter {
@@ -449,22 +449,65 @@ pub(crate) fn emit_content_store(
 
 /// The destination of a descriptor replacement, before the ordered frame
 /// evaluates its selectors. Runtime elements retain the same bounds as any
-/// other structural field store.
-pub(crate) struct ViewFieldStore {
+/// other structural field store. A record field slot names its field; the
+/// whole slot of a declared descriptor local names none.
+pub(crate) struct DescriptorStore {
     pub(crate) destination: semantic_vocabulary::PlaceId,
     pub(crate) structural_type: StructuralTypeId,
     pub(crate) steps: Vec<crate::emission::runtime_elements::ProjectionStep>,
-    field: semantic_vocabulary::StructuralFieldId,
+    field: Option<semantic_vocabulary::StructuralFieldId>,
     requires_predicate_obligation: bool,
 }
 
-pub(crate) fn prepare_view_field_store(
+pub(crate) fn prepare_descriptor_store(
     store: &checked_trees::CheckedByteSequenceStorePlan,
     root: &StoreRoot<'_>,
-    carrier_path: &[CheckedUnitStructuralPathSegment],
-    field_identity: &str,
+    path: &[CheckedUnitStructuralPathSegment],
+    field_identity: Option<&str>,
     structural_types: &[StructuralTypeDeclaration],
-) -> Result<ViewFieldStore, LoweringError> {
+) -> Result<DescriptorStore, LoweringError> {
+    let shared_view = Some(terminal_psi::ByteSequenceCarrier::BorrowedView {
+        access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+    });
+    let Some(field_identity) = field_identity else {
+        // The whole slot is the root itself: a declared descriptor home. Its
+        // write authority is the home's own; the shared access of the view
+        // belongs to the referenced bytes. A standalone view type binds no
+        // access: the home holds a shared descriptor because every store
+        // installs a readable shared source.
+        let StoreRoot::Owned {
+            place,
+            structural_type,
+        } = root
+        else {
+            return unsupported("whole descriptor store requires a declared descriptor home");
+        };
+        let declaration = structural_types
+            .iter()
+            .find(|declaration| declaration.id == *structural_type)
+            .ok_or(LoweringError::Unsupported(
+                "whole descriptor store home type was not declared",
+            ))?;
+        if !path.is_empty()
+            || !matches!(
+                declaration.shape,
+                StructuralTypeShape::ByteSequence(
+                    terminal_psi::ByteSequenceCarrier::BorrowedView {
+                        access: None | Some(terminal_psi::StructuralAccess::SharedBorrow),
+                    }
+                )
+            )
+        {
+            return unsupported("whole descriptor store destination is not a shared view home");
+        }
+        return Ok(DescriptorStore {
+            destination: *place,
+            structural_type: *structural_type,
+            steps: Vec::new(),
+            field: None,
+            requires_predicate_obligation: false,
+        });
+    };
     let (destination, structural_type, (steps, field)) = match root {
         StoreRoot::Parameter(parameter) => (
             parameter.place,
@@ -473,7 +516,7 @@ pub(crate) fn prepare_view_field_store(
                 store.statement_index,
                 store.statement_index,
                 parameter.position,
-                carrier_path,
+                path,
                 field_identity,
                 parameter,
                 structural_types,
@@ -492,32 +535,28 @@ pub(crate) fn prepare_view_field_store(
             *structural_type,
             crate::emission::structural_scalar_store::lower_structural_field_steps(
                 *structural_type,
-                carrier_path,
+                path,
                 field_identity,
                 structural_types,
             )?,
         ),
     };
-    if field.field_type.byte_sequence_carrier()
-        != Some(terminal_psi::ByteSequenceCarrier::BorrowedView {
-            access: Some(terminal_psi::StructuralAccess::SharedBorrow),
-        })
-    {
+    if field.field_type.byte_sequence_carrier() != shared_view {
         return unsupported("view-field store destination is not a shared view field");
     }
-    Ok(ViewFieldStore {
+    Ok(DescriptorStore {
         destination,
         structural_type,
         steps,
-        field: field.id,
+        field: Some(field.id),
         requires_predicate_obligation: !field.field_type.byte_predicates().is_empty(),
     })
 }
 
 /// Commit the already completed source descriptor after destination selectors
 /// and RHS evaluation. Predicate and lifetime evidence remain independent.
-pub(crate) fn emit_view_field_store(
-    destination: ViewFieldStore,
+pub(crate) fn emit_descriptor_store(
+    destination: DescriptorStore,
     path: Vec<terminal_psi::StructuralPathSegment>,
     source: semantic_vocabulary::PlaceId,
     next_obligation: &mut u64,
@@ -529,6 +568,12 @@ pub(crate) fn emit_view_field_store(
         None
     };
     operations.invalidate_field_lengths_under(destination.destination, &path);
+    if destination.field.is_none() {
+        // A whole replacement changes the home's own extent as well.
+        operations
+            .byte_lengths
+            .retain(|(place, _)| *place != destination.destination);
+    }
     Ok(OperationKind::StructuralByteViewFieldStore {
         destination: destination.destination,
         path,

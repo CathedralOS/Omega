@@ -462,7 +462,7 @@ fn adapt(
                     source,
                     ..
                 } => {
-                    if let Some(destination) = location(*destination, path, Some(*field)) {
+                    if let Some(destination) = location(*destination, path, *field) {
                         step.definitions.push(destination.clone());
                         step.derivations
                             .push((DescriptorLocation::whole(*source), destination));

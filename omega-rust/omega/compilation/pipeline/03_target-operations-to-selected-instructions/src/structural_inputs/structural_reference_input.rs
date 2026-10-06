@@ -2151,6 +2151,39 @@ pub(crate) fn projected_byte_field(
     })
 }
 
+/// The two-word descriptor slot one shared-view store replaces. A field names
+/// that view member of the record at `path`; no field with an empty path names
+/// the whole root, a descriptor home whose pointer word sits at offset zero
+/// and whose extent word follows it.
+pub(crate) fn projected_view_slot(
+    root: StructuralTypeId,
+    path: &[StructuralPathSegment],
+    field: Option<StructuralFieldId>,
+    declarations: &[StructuralTypeDeclaration],
+) -> Option<ProjectedByteField> {
+    let Some(field) = field else {
+        let declaration = declarations
+            .iter()
+            .find(|declaration| declaration.id == root)?;
+        return (path.is_empty()
+            && matches!(
+                declaration.shape,
+                StructuralTypeShape::ByteSequence(
+                    terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
+                )
+            ))
+        .then_some(ProjectedByteField {
+            length_offset: 8,
+            descriptor_offset: Some(0),
+            capacity: None,
+            elements: Vec::new(),
+        });
+    };
+    let geometry = projected_byte_field(root, path, field, declarations)?;
+    geometry.descriptor_offset?;
+    Some(geometry)
+}
+
 /// Bounded inline byte storage starts with an aligned u64 live length, followed
 /// by capacity bytes. The enclosing record rounds the capacity+8 footprint for
 /// its next field; a borrowed view's pointer/length descriptor is a different

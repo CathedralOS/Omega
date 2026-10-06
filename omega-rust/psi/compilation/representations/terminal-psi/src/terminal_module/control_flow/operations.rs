@@ -301,16 +301,22 @@ pub enum OperationKind {
         length: ValueId,
         obligation: ObligationId,
     },
-    /// Replace one shared borrowed-view field's descriptor with a whole
-    /// immutable view: afterwards the field denotes the source's exact
+    /// Replace one shared borrowed-view descriptor slot with a whole
+    /// immutable view: afterwards the slot denotes the source's exact
     /// backing and extent. No byte is copied, and the displaced descriptor's
     /// backing is neither read nor released. A stored view must not outlive
-    /// its backing, so the source's backing must outlive the destination
-    /// root; source predicates must imply the field's declared predicates.
+    /// its backing, so the source's backing must outlive every later
+    /// observation of the slot; source predicates must imply the slot's
+    /// declared predicates.
+    ///
+    /// `Some(field)` names that shared view member of the record at `path`.
+    /// `field: None` with an empty `path` names the whole destination: a
+    /// declared descriptor local's home, which this store establishes on its
+    /// first execution and replaces on every later one.
     StructuralByteViewFieldStore {
         destination: PlaceId,
         path: Vec<StructuralPathSegment>,
-        field: StructuralFieldId,
+        field: Option<StructuralFieldId>,
         source: PlaceId,
         /// Proves the destination's predicates from the exact current source.
         /// Absent only when independent static source replay implies them.

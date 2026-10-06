@@ -109,6 +109,28 @@ pub(crate) fn byte_view_field_store_is_valid(
     else {
         return false;
     };
+    let shared_view = ByteSequenceCarrier::BorrowedView {
+        access: Some(StructuralAccess::SharedBorrow),
+    };
+    let slot_carrier = match field {
+        Some(field) => {
+            writable_byte_field_carrier(function, *destination, path, *field, structural_types)
+        }
+        // A standalone view type binds no access; the home's descriptor is
+        // shared because every store installs a readable shared source.
+        None if path.is_empty() => {
+            declared_descriptor_home(function, *destination).and_then(|home| match structural_types
+                .get(&home)?
+                .shape
+            {
+                StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                    access: None | Some(StructuralAccess::SharedBorrow),
+                }) => Some(shared_view),
+                _ => None,
+            })
+        }
+        None => None,
+    };
     matches!(
         contract.access,
         StructuralAccess::SharedBorrow | StructuralAccess::Owned
@@ -116,10 +138,32 @@ pub(crate) fn byte_view_field_store_is_valid(
         && structural_types
             .get(&contract.structural_type)
             .is_some_and(|declaration| declaration.shape.is_borrowed_byte_view())
-        && writable_byte_field_carrier(function, *destination, path, *field, structural_types)
-            == Some(ByteSequenceCarrier::BorrowedView {
-                access: Some(StructuralAccess::SharedBorrow),
-            })
+        && slot_carrier == Some(shared_view)
+}
+
+/// The type of a declared local's home, when `place` is one: the result of
+/// its unqualified, claim-free `EstablishStructuralLocal`. A whole descriptor
+/// store's authority is that home's own; a literal, subslice or call result
+/// is producer storage, not a replaceable slot.
+pub(crate) fn declared_descriptor_home(
+    function: &PsiOptimizationFunction,
+    place: semantic_vocabulary::PlaceId,
+) -> Option<StructuralTypeId> {
+    function
+        .blocks
+        .iter()
+        .flat_map(|block| &block.nodes)
+        .find_map(|node| match &node.operation {
+            AbstractOperation::EstablishStructuralLocal { result, .. }
+                if result.place == place
+                    && result.qualifications.is_empty()
+                    && result.projected_qualifications.is_empty()
+                    && result.claims.is_empty() =>
+            {
+                Some(result.structural_type)
+            }
+            _ => None,
+        })
 }
 
 /// The declared carrier of one byte field below an exclusive, unqualified,

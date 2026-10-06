@@ -1,0 +1,26 @@
+// Reassigning an initialized borrowed-view local replaces its whole
+// descriptor through the ordinary view store with an empty path. A read
+// before the replacement observes the first descriptor, a read after it the
+// second.
+domain [u8]::Utf8(bytes)
+requires
+    valid_utf8(bytes);
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Main {
+    console: Binding<Console>;
+}
+
+machine Main::main(main: &mut Main) reaches Console {
+    let mut out_line: &[u8] in Utf8 = "Gate";
+    let first: bool = out_line == "Gate";
+    out_line = "Door";
+    transition first && out_line == "Door" {
+        true -> good(main)
+        false -> bad(main)
+    }
+
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main) { main.console.exit_process(71); }
+}

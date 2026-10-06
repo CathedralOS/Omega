@@ -71,7 +71,7 @@ impl DescriptorLoans {
                         types,
                         *destination,
                         path,
-                        Some(*field),
+                        *field,
                     )
                     .path;
                     if let Some(slot) =

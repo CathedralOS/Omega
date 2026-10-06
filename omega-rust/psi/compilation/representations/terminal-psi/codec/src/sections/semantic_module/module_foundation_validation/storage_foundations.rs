@@ -265,9 +265,12 @@ fn field_store_parent(
     validate_structural_path(module, destination_type, carrier_path)
 }
 
-/// Canonical shape only: a Unit store of a shared borrowed-view field below a
-/// current declared storage carrier, sourced from a declared literal place. Lifetime authority, the literal's single
-/// establishment and predicate implication remain verifier judgments.
+/// Canonical shape only: a Unit store of a shared borrowed-view slot -- a
+/// field below a current declared storage carrier, or, without a field and
+/// with an empty path, a whole declared place of shared view type -- sourced
+/// from a declared descriptor place. Destination authority, lifetime
+/// authority, the source's establishment and predicate implication remain
+/// verifier judgments.
 pub(super) fn validate_structural_byte_view_field_store(
     module: &TerminalModule,
     machine: &TerminalMachine,
@@ -286,24 +289,45 @@ pub(super) fn validate_structural_byte_view_field_store(
     if operation.result != OperationResult::Unit || destination == source {
         return malformed("byte view field store requires Unit and a distinct source");
     }
-    let parent_type = field_store_parent(module, machine, *destination, path)?;
-    let view_field = module
-        .structural_types
-        .iter()
-        .find(|declaration| declaration.id == parent_type)
-        .is_some_and(|declaration| match &declaration.shape {
-            StructuralTypeShape::Record { fields } => fields.iter().any(|candidate| {
-                candidate.id == *field
-                    && !candidate.relevance.is_erased()
-                    && candidate.field_type.byte_sequence_carrier()
-                        == Some(terminal_psi::ByteSequenceCarrier::BorrowedView {
-                            access: Some(terminal_psi::StructuralAccess::SharedBorrow),
-                        })
-            }),
-            _ => false,
-        });
-    if !view_field {
-        return malformed("byte view field store does not select a shared view field");
+    let shared_view = terminal_psi::ByteSequenceCarrier::BorrowedView {
+        access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+    };
+    let view_slot = match field {
+        Some(field) => {
+            let parent_type = field_store_parent(module, machine, *destination, path)?;
+            module
+                .structural_types
+                .iter()
+                .find(|declaration| declaration.id == parent_type)
+                .is_some_and(|declaration| match &declaration.shape {
+                    StructuralTypeShape::Record { fields } => fields.iter().any(|candidate| {
+                        candidate.id == *field
+                            && !candidate.relevance.is_erased()
+                            && candidate.field_type.byte_sequence_carrier() == Some(shared_view)
+                    }),
+                    _ => false,
+                })
+        }
+        None => {
+            path.is_empty()
+                && structural_place_type(machine, *destination).is_some_and(|home_type| {
+                    module.structural_types.iter().any(|declaration| {
+                        declaration.id == home_type
+                            && matches!(
+                                declaration.shape,
+                                StructuralTypeShape::ByteSequence(
+                                    terminal_psi::ByteSequenceCarrier::BorrowedView {
+                                        access: None
+                                            | Some(terminal_psi::StructuralAccess::SharedBorrow),
+                                    }
+                                )
+                            )
+                    })
+                })
+        }
+    };
+    if !view_slot {
+        return malformed("byte view field store does not select a shared view slot");
     }
     // Encoding authenticates the descriptor carrier only. The independent
     // verifier reconstructs availability, readable access and backing lifetime.

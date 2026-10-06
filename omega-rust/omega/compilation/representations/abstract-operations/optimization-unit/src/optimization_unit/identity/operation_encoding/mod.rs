@@ -97,3 +97,12 @@ pub(super) fn encode_operation(bytes: &mut CanonicalBytes, operation: &AbstractO
         | O::Crash { .. } => control::encode(bytes, operation),
     }
 }
+
+/// An optional field identity: the field's nonzero identity, or zero (which
+/// no field takes) when the operation names its whole projected place.
+fn encode_optional_field(
+    bytes: &mut CanonicalBytes,
+    field: Option<semantic_vocabulary::StructuralFieldId>,
+) {
+    bytes.u64(field.map_or(0, semantic_vocabulary::StructuralFieldId::get));
+}

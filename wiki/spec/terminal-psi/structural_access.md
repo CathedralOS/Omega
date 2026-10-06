@@ -380,16 +380,21 @@ record field identities for array positions.
 
 ## Store vocabulary
 
-The `borrowed-view-whole-slot-store` question is implementation work under
-[Psi ownership](../../../omega-rust/pipeline.md#psi-implementation-and-deferred-human-audit).
 Ordinary initialization and replacement of a local borrowed-view descriptor
 obey the same establishment, access, qualification and backing-lifetime rules
-as a stored view field. Use a destination root plus a path; an empty path names
-the whole local. An unestablished local cannot be read, and assigning its
-descriptor does not grant storage for the referenced bytes. Generalize the
-existing descriptor store rather than preserving a field-only path alongside
-a new local-only operation. The field-specific operation names below describe
-the implementation awaiting `REFERENCE-BEARING-RECORD-LOCAL-FILL`.
+as a stored view field. `StructuralByteViewFieldStore` takes a destination root
+plus a path and an optional field: a field names a record's shared view member,
+while no field with an empty path names the whole destination. A declared
+shared view local is an `EstablishStructuralLocal` home of standalone view
+type; its initializer and every later assignment are that one store, as
+`EstablishPrimitiveLocal` homes a mutable primitive. The home's own
+establishment is its write authority: the shared access of the view belongs
+to the referenced bytes, and every store installs a readable shared source.
+An unestablished local cannot be read: a whole read of the home requires a
+whole store into it on every path reaching the read. Assigning the descriptor
+does not grant storage for the referenced bytes. The home currently carries
+no qualifications, so a qualified local's declared predicates are checked at
+the source but are not available to Terminal consumers of the home.
 
 An initialized primitive local uses an unrestricted, unqualified, claim-free
 `OperationResult` place. `EstablishPrimitiveLocal` consumes an exactly typed SSA
@@ -485,7 +490,7 @@ unit, charged before execution.
 | `WriteOnlyPrimitiveStore` | Original destination root, path to a primitive structural leaf (empty for a whole primitive), and already-defined, exactly typed SSA value. Path elements may be `RuntimeIndex` segments, each with the obligation the store owns. The referent is not represented as a synthetic record. |
 | `StructuralScalarFieldStore` | Destination structural home, ordered path to the carrier record, final relevant scalar field identity, and already-defined, exactly typed SSA value. The carrier composes record fields and fixed-array elements, literal or `RuntimeIndex`, in any order; each runtime element's bound is an obligation the store owns. A whole, unqualified, claim-free owned record home (entry, block parameter, or completed establishment/call result) supplies write authority directly; mutable and write-only borrowed parameters retain their existing authority. An empty carrier path denotes a field directly on the root record. |
 | `StructuralByteSequenceFieldStore` | Destination parameter, carrier path, final bounded-owned byte field, whole immutable source (borrowed view or established owned concatenation), exact dominating source-length observation, and capacity obligation. |
-| `StructuralByteViewFieldStore` | Destination parameter, carrier path, final shared borrowed-view field, established readable descriptor source, and optional exact byte-predicate obligation. No length, capacity or bytes are retained: the field takes the source's backing and extent. |
+| `StructuralByteViewFieldStore` | Destination root, path, optional final shared borrowed-view field (absent with an empty path: the whole declared descriptor home), established readable descriptor source, and optional exact byte-predicate obligation. No length, capacity or bytes are retained: the slot takes the source's backing and extent. |
 | `ByteSequenceStore` | Whole bounded-owned destination parameter, whole immutable source, exact dominating source-length observation, and capacity obligation. The destination's primitive byte qualifications remain required after replacement. |
 | `StructuralByteSequenceFieldByteStore` | Destination parameter, carrier path, bounded-owned field, exact runtime `u64` index, `u8` value, current field-length observation, and index obligation. |
 | `ByteSequenceWrite` | Whole mutable borrowed view or established bounded-owned byte local, exact runtime `u64` index, `u8` value, current same-place length observation, and index/predicate obligation. It needs no synthetic record or field identity. |

@@ -208,18 +208,18 @@ pub(crate) fn structural_field_store_write_path(
             field,
             ..
         }
-        | OperationKind::StructuralByteViewFieldStore {
-            destination,
-            path,
-            field,
-            ..
-        }
         | OperationKind::StructuralByteSequenceFieldByteStore {
             destination,
             path,
             field,
             ..
         } => (*destination, path, Some(*field), false),
+        OperationKind::StructuralByteViewFieldStore {
+            destination,
+            path,
+            field,
+            ..
+        } => (*destination, path, *field, false),
         OperationKind::StoreStructuralField {
             destination,
             path,
@@ -257,8 +257,11 @@ pub(crate) fn structural_field_store_write_path(
             canonical_field_path_from_type(module, geometry_type, &projection.path[..length])?;
         return Some((root, written));
     }
-    let field = field?;
     let mut written = canonical_field_path_from_type(module, root_type, path)?;
+    // A whole descriptor slot writes the complete projected place.
+    let Some(field) = field else {
+        return Some((root, written));
+    };
     let structural_type =
         crate::validation::foundation::resolve_structural_path(module, root_type, path)?;
     let carrier = module

@@ -260,13 +260,12 @@ pub(in crate::legalization) fn view_replacement(
     {
         return None;
     }
-    crate::structural_inputs::structural_reference_input::projected_byte_field(
+    crate::structural_inputs::structural_reference_input::projected_view_slot(
         root_type,
         &projected_path,
         *field,
         types,
-    )?
-    .descriptor_offset?;
+    )?;
     Some(terminal_psi::StructuralArgument {
         place: *destination,
         access,
@@ -284,6 +283,43 @@ pub(in crate::legalization) fn byte_index_operands(
     let geometry = byte_geometry(function, source, field, &unit.structural_types)
         .ok_or(crate::LegalizationError::custody())?;
     crate::legalization::runtime_indices::operands(function, unit, operation, &geometry.elements)
+}
+
+/// The selector operands of one descriptor slot store, rejoined against the
+/// slot geometry its destination argument resolves to.
+pub(in crate::legalization) fn view_slot_index_operands(
+    function: &PsiOptimizationFunction,
+    unit: &optimization_unit::PsiOptimizationUnit,
+    operation: semantic_vocabulary::OperationId,
+    destination: &terminal_psi::StructuralArgument,
+    field: Option<semantic_vocabulary::StructuralFieldId>,
+) -> Result<Vec<legalized_operations::LegalizedRuntimeIndexOperand>, crate::LegalizationError> {
+    let geometry = view_slot_geometry(function, destination, field, &unit.structural_types)
+        .ok_or(crate::LegalizationError::custody())?;
+    crate::legalization::runtime_indices::operands(function, unit, operation, &geometry.elements)
+}
+
+/// The descriptor slot below one store destination's current root.
+pub(in crate::legalization) fn view_slot_geometry(
+    function: &PsiOptimizationFunction,
+    destination: &terminal_psi::StructuralArgument,
+    field: Option<semantic_vocabulary::StructuralFieldId>,
+    types: &[terminal_psi::StructuralTypeDeclaration],
+) -> Option<crate::structural_inputs::structural_reference_input::ProjectedByteField> {
+    let Some(field) = field else {
+        let (root, access) = byte_field_root(function, destination.place)?;
+        return (access == destination.access)
+            .then(|| {
+                crate::structural_inputs::structural_reference_input::projected_view_slot(
+                    root,
+                    &destination.path,
+                    None,
+                    types,
+                )
+            })
+            .flatten();
+    };
+    byte_geometry(function, destination, field, types)
 }
 
 pub(in crate::legalization) fn byte_geometry(

@@ -6,6 +6,7 @@ use terminal_psi::{
     StructuralArgument, StructuralMultiplicity, StructuralPathSegment, StructuralTypeShape,
 };
 
+use crate::byte_sequences::binding::ByteSequenceBinding;
 use crate::custody::{project_structural_value, resolve_structural_arguments};
 use crate::errors::TerminalInterpretError;
 use crate::execution::TerminalExecution;
@@ -114,9 +115,11 @@ impl TerminalExecution {
         Ok((cell, capacity))
     }
 
-    /// Dispatch charges fuel first. The verifier admitted only a literal
-    /// source, whose immutable bytes the field now shares: the descriptor is
-    /// replaced whole and the displaced view's backing is left untouched.
+    /// Dispatch charges fuel first. The verifier admitted a readable shared
+    /// descriptor source, whose immutable bytes the slot now shares: the
+    /// descriptor is replaced whole and the displaced view's backing is left
+    /// untouched. A field slot lives below its record's current home; the
+    /// whole slot of a declared descriptor local is that home's own binding.
     pub(crate) fn execute_structural_byte_view_field_store(
         &mut self,
         operation: &Operation,
@@ -135,15 +138,37 @@ impl TerminalExecution {
         if operation.result != OperationResult::Unit || destination == source {
             return Err(invalid());
         }
-        let (destination_field, carrier) =
-            self.resolve_structural_byte_field_carrier(*destination, path, *field, true)?;
-        if carrier
-            != (ByteSequenceCarrier::BorrowedView {
-                access: Some(StructuralAccess::SharedBorrow),
-            })
-        {
-            return Err(invalid());
-        }
+        let shared_view = ByteSequenceCarrier::BorrowedView {
+            access: Some(StructuralAccess::SharedBorrow),
+        };
+        let destination_field = match field {
+            Some(field) => {
+                let (destination_field, carrier) =
+                    self.resolve_structural_byte_field_carrier(*destination, path, *field, true)?;
+                if carrier != shared_view {
+                    return Err(invalid());
+                }
+                Some(destination_field)
+            }
+            None => {
+                let home = self
+                    .structural_values
+                    .get(destination)
+                    .ok_or_else(invalid)?;
+                if !path.is_empty()
+                    || !home.path.is_empty()
+                    || !home.qualifications.is_empty()
+                    || !matches!(self.program.structural_types.get(&home.structural_type),
+                    Some(declaration) if matches!(declaration.shape,
+                        StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                            access: None | Some(StructuralAccess::SharedBorrow),
+                        })))
+                {
+                    return Err(invalid());
+                }
+                None
+            }
+        };
         let source_value = self.structural_values.get(source).ok_or_else(invalid)?;
         if !source_value.path.is_empty()
             || !matches!(self.program.structural_types.get(&source_value.structural_type),
@@ -157,8 +182,16 @@ impl TerminalExecution {
             .ok_or_else(invalid)?
             .immutable()?
             .clone();
-        self.structural_byte_sequence_fields
-            .insert(destination_field, view);
+        match destination_field {
+            Some(destination_field) => {
+                self.structural_byte_sequence_fields
+                    .insert(destination_field, view);
+            }
+            None => {
+                self.byte_sequence_values
+                    .insert(*destination, ByteSequenceBinding::Immutable(view));
+            }
+        }
         Ok(())
     }
 

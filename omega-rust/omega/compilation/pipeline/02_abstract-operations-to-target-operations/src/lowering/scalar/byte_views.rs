@@ -705,9 +705,12 @@ fn observes_length(
     }
 }
 
-/// Authenticate the completed descriptor's storage identity. Backing provenance
-/// is retained separately by call custody; a result home never becomes a new
-/// independent allocation merely because it has a descriptor layout.
+/// Authenticate the completed descriptor's storage identity: a structural
+/// call's shared descriptor result, or a declared descriptor local's home,
+/// whose descriptor its whole-slot stores install. Backing provenance is
+/// retained separately by call and descriptor custody; a result home never
+/// becomes a new independent allocation merely because it has a descriptor
+/// layout.
 pub(in crate::lowering) fn descriptor_result<'a>(
     function: &'a AbstractFunction,
     place: PlaceId,
@@ -721,6 +724,10 @@ pub(in crate::lowering) fn descriptor_result<'a>(
                 psi_operation,
                 result: AbstractStructuralCallResult::Structural { result, .. },
                 ..
+            }
+            | AbstractOperation::EstablishStructuralLocal {
+                psi_operation,
+                result,
             } if result.place == place => Some((*psi_operation, result)),
             _ => None,
         });

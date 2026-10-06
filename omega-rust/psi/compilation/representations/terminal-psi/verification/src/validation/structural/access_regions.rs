@@ -143,15 +143,22 @@ pub(in crate::validation) fn operation_regions(
             field,
             source,
             ..
-        }
-        | OperationKind::StructuralByteViewFieldStore {
+        } => vec![
+            field_region(destination, path, *field),
+            (*source, Vec::new()),
+        ],
+        // Without a field the descriptor slot is the whole projected place.
+        OperationKind::StructuralByteViewFieldStore {
             destination,
             path,
             field,
             source,
             ..
         } => vec![
-            field_region(destination, path, *field),
+            match field {
+                Some(field) => field_region(destination, path, *field),
+                None => primitive_region(destination, path),
+            },
             (*source, Vec::new()),
         ],
         OperationKind::WriteOnlyPrimitiveStore {

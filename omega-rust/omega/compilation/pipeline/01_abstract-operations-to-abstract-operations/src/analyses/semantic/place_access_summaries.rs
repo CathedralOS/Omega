@@ -744,8 +744,14 @@ fn scan_operation(
             field,
             source,
             ..
+        } => {
+            let mut view = runtime_prefix(path);
+            with_field(&mut view, *field);
+            pending.attribute(context, *destination, view, AccessKind::Write);
+            pending.attribute(context, *source, Vec::new(), AccessKind::Read);
         }
-        | O::StructuralByteViewFieldStore {
+        // A descriptor store without a field writes the whole slot.
+        O::StructuralByteViewFieldStore {
             destination,
             path,
             field,
@@ -753,7 +759,9 @@ fn scan_operation(
             ..
         } => {
             let mut view = runtime_prefix(path);
-            with_field(&mut view, *field);
+            if let Some(field) = field {
+                with_field(&mut view, *field);
+            }
             pending.attribute(context, *destination, view, AccessKind::Write);
             pending.attribute(context, *source, Vec::new(), AccessKind::Read);
         }

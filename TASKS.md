@@ -484,38 +484,37 @@ additional evidence without an exercising program. The
 defines the complete product bar.
 
 - **REFERENCE-BEARING-RECORD-LOCAL-FILL.** (split-of:STATE-LOCAL-VALUE-FRONTIER)
-  Generalize borrowed-view descriptor stores to an ordinary root plus path,
-  including an empty path selecting a whole local. This is delegated Psi
-  representation work under [the implementation policy](omega-rust/pipeline.md#psi-implementation-and-deferred-human-audit),
-  not an open `borrowed-view-whole-slot-store` language decision.
+  Borrowed-view locals take the one descriptor store a record's view field
+  takes: `StructuralByteViewFieldStore` carries a root, a path and an optional
+  field, and no field with an empty path names a declared descriptor home
+  ([store vocabulary](wiki/spec/terminal-psi/structural_access.md#store-vocabulary)).
+  `pass/text/runtime_view_local_{first_store,reassign,field_store}_exit` exit
+  70 natively; `fail/borrows/view_local_read_before_store` and
+  `fail/borrows/view_local_backing_write_while_stored` reject.
   - Customers: `pass/text/runtime_string_stored_suffix_exit` (exit 193) and
-    `pass/text/runtime_local_struct_string_field_concat_exit` (exit 188).
-    The recorded first failure assigns into the uninitialized borrowed-view
-    local `out_line`; an assignment of a literal alone exposed the same gap.
-    Reproduce that first, rather than conflating it with concatenation backing.
-  - Stage 04's `structural_scalar_store/destination.rs::owned_local_root`
-    still limits declared structural homes to named/generic/fixed-array forms;
-    the downstream descriptor path also requires a final field. Replace the
-    root/field split through checked plans, stage 05, Terminal encoding,
-    interpretation and Omega lowering. Reuse the ordinary store path instead
-    of adding a view-local recognizer. Follow
-    [store vocabulary](wiki/spec/terminal-psi/structural_access.md#store-vocabulary).
-  - Then resolve concatenation backing and lifetime under ordinary bounded
-    storage rules. The current operation materializes an owned result while
-    these customers declare only a borrowed view. `Utf8` grants no storage;
-    neither an arbitrary maximum nor a literal-flow exception supplies it.
-    The recorded initialized-view variant instead reached Omega's control-flow
-    observations refusal; reproduce it against the current compiler before
-    treating that historical diagnostic as the frontier.
+    `pass/text/runtime_local_struct_string_field_concat_exit` (exit 188) now
+    stop at stage 04 `structural field store: borrowed view field: descriptor
+    source`: `byte_operands::plan` has no descriptor source for
+    `"== " + room.label`. Resolve concatenation backing and lifetime under
+    ordinary bounded storage rules. The operation materializes an owned result
+    while these customers declare only a borrowed view. `Utf8` grants no
+    storage; neither an arbitrary maximum nor a literal-flow exception
+    supplies it.
+  - The home's `EstablishStructuralLocal` carries no qualifications, so a
+    qualified local's predicates are not available to Terminal consumers that
+    require them (a call to a `&[u8] in Utf8` formal). A call-initialized
+    mutable view local keeps its call-result binding and cannot be reassigned.
+    A home lent to a call rejects in Terminal validation
+    (`UnknownStructuralArgument`) and one forwarded on a state edge in stage
+    05 (`Unit graph view local has no establishment`).
   - Retain descriptor lifetimes, overlapping-write rejection and the controls
     `pass/text/declared_record_view_field_fill_exit`,
     `pass/wire/runtime_wire_utf8_edge_verdicts_exit`, and
     `pass/domains/runtime_qualified_view_field_parameter_store_exit` (exit 70).
     Do not revive Terminal verification scheduled for deletion by the PCC work.
-  Acceptance: `python tools/corpus_gate.py --filter text/runtime_string_stored_suffix_exit,text/runtime_local_struct_string_field_concat_exit,text/declared_record_view_field_fill_exit,domains/runtime_qualified_view_field_parameter_store_exit`
-  covers first initialization, reassignment and the two authored exits in native
-  and Terminal interpretation, with invalid lifetime/read-before-establishment
-  controls. The closure must preserve backing through surviving copies.
+  Acceptance: `python tools/corpus_gate.py --both --filter text/runtime_string_stored_suffix_exit,text/runtime_local_struct_string_field_concat_exit,text/runtime_view_local_,text/declared_record_view_field_fill_exit,domains/runtime_qualified_view_field_parameter_store_exit`
+  shows the two authored exits in native and Terminal interpretation. The
+  closure must preserve backing through surviving copies.
 
 - **STATE-LOCAL-VALUE-FRONTIER.** Complete ordinary expression, call and
   storage composition through checked plans and native execution, preserving

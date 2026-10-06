@@ -477,6 +477,19 @@ pub(super) fn establish_structural_local(
     {
         return Err(invalid());
     }
+    // A declared descriptor local's home is read as a shared view once its
+    // whole-slot store installs a descriptor; verification proved that store
+    // reaches every read.
+    if terminal_semantics::descriptor_results::is_shared_descriptor(
+        types.values().copied(),
+        result.structural_type,
+    ) && live
+        .views
+        .insert(result.place, (*psi_operation, result.structural_type))
+        .is_some()
+    {
+        return Err(invalid());
+    }
     operations.push(TargetUnitOperation::EstablishStructuralLocal {
         psi_operation: *psi_operation,
         result_home,

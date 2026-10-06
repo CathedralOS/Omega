@@ -68,6 +68,55 @@ pub(crate) fn unqualified_local_store_root(
     Ok((argument.place, produced.structural_type))
 }
 
+/// The declared descriptor home a whole shared-view store replaces. The
+/// home's write authority is its own establishment: the binding's access
+/// describes the referenced bytes, which a descriptor store never writes.
+/// Only a declared local's home qualifies; a literal, subslice or call result
+/// names immutable producer storage, not a replaceable slot.
+pub(crate) fn descriptor_home(
+    symbol: symbols::SymbolHandle,
+    locals: &[crate::expression_preparation::bindings::StructuralLocalBinding],
+    operations: &crate::emission::operation_emission::buffer::OperationBuffer,
+) -> Result<(PlaceId, StructuralTypeId), LoweringError> {
+    let crate::expression_preparation::bindings::StructuralLocalBinding { argument, .. } = locals
+        .iter()
+        .find(|local| local.root == facts::PlaceRoot::Symbol(symbol))
+        .ok_or(LoweringError::Unsupported(
+            "descriptor store names an unknown structural local",
+        ))?;
+    if !argument.path.is_empty() {
+        return unsupported("descriptor store local is not a whole home");
+    }
+    let producer = operations
+        .operations
+        .iter()
+        .find(|operation| {
+            operation
+                .result
+                .structural()
+                .is_some_and(|result| result.place == argument.place)
+        })
+        .ok_or(LoweringError::Unsupported(
+            "descriptor store local has no produced home",
+        ))?;
+    let Some(produced) = producer.result.structural() else {
+        return unsupported("descriptor store local has no produced home");
+    };
+    if !matches!(
+        producer.kind,
+        terminal_psi::OperationKind::EstablishStructuralLocal {}
+    ) || !matches!(
+        produced.multiplicity,
+        StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+    ) || !produced.qualifications.is_empty()
+        || !produced.projected_qualifications.is_empty()
+        || !produced.claims.is_empty()
+    {
+        return unsupported("descriptor store local is not a declared descriptor home");
+    }
+    Ok((argument.place, produced.structural_type))
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum StoreDestination {
     Initialize {

@@ -1,7 +1,8 @@
-//! Replace one shared view field's two-word descriptor with an established
+//! Replace one shared view slot's two-word descriptor with an established
 //! source's: its backing pointer, then its extent. The source's addressable
-//! descriptor is read word by word and stored at the field's descriptor
-//! offset in the original root; no backing byte is read or copied.
+//! descriptor is read word by word and stored at the slot's descriptor
+//! offset in the original root -- a record field's, or offset zero for a
+//! whole descriptor home; no backing byte is read or copied.
 use super::{
     Builder, LegalizedScalarFunction, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
     SelectedInstructionKind, SelectedInstructionProvenance, SelectedMemoryAccessRole,
@@ -29,7 +30,7 @@ pub(super) fn replace(
     let signature = function.structural.as_ref().ok_or_else(invalid)?;
     let root_type =
         crate::selection::field_bytes::root_type(function, destination).ok_or_else(|| invalid())?;
-    let geometry = crate::structural_inputs::structural_reference_input::projected_byte_field(
+    let geometry = crate::structural_inputs::structural_reference_input::projected_view_slot(
         root_type,
         &destination.path,
         *field,
@@ -68,14 +69,26 @@ pub(super) fn replace(
         .find(|(place, _)| place == source)
         .map(|(_, pointer)| *pointer)
         .ok_or_else(invalid)?;
-    let root = super::runtime_address::projection_base(
-        function,
-        builder,
-        row,
-        destination.place,
-        descriptor_offset,
-    )?
-    .ok_or_else(|| invalid())?;
+    let root = match field {
+        Some(_) => super::runtime_address::projection_base(
+            function,
+            builder,
+            row,
+            destination.place,
+            descriptor_offset,
+        )?
+        .ok_or_else(|| invalid())?,
+        // The whole slot is the home's own descriptor storage. Projecting
+        // through the home as a view would address the bytes its current
+        // descriptor denotes, which this store neither reads nor writes.
+        None => builder
+            .transport
+            .pointers
+            .iter()
+            .find(|(place, _)| *place == destination.place)
+            .map(|(_, pointer)| *pointer)
+            .ok_or_else(|| invalid())?,
+    };
     let root = super::runtime_address::scale(
         builder,
         row,

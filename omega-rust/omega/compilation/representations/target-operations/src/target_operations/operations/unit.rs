@@ -268,14 +268,14 @@ pub enum TargetUnitOperation {
         length: TargetUnitScalarArgumentSource,
         obligation: semantic_vocabulary::ObligationId,
     },
-    /// Replace one shared borrowed-view field's two-word descriptor with an
-    /// established literal view's. No bytes move; the field then denotes the
-    /// literal's backing, which lowering keeps in a frame that outlives the
-    /// destination root.
+    /// Replace one shared borrowed-view slot's two-word descriptor with an
+    /// established view's: a record's view `field`, or with no field the
+    /// whole destination home. No bytes move; the slot then denotes the
+    /// source's backing, whose lifetime Terminal replay already proved.
     StructuralByteViewFieldStore {
         psi_operation: OperationId,
         destination: StructuralArgument,
-        field: StructuralFieldId,
+        field: Option<StructuralFieldId>,
         source: PlaceId,
         indices: Vec<TargetStructuralRuntimeIndex>,
     },

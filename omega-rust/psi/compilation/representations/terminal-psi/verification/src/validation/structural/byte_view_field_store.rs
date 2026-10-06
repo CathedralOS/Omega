@@ -1,4 +1,5 @@
-//! Descriptor replacement of one shared borrowed-view field.
+//! Descriptor replacement of one shared borrowed-view slot: a record's view
+//! field, or the whole home of a declared descriptor local.
 //!
 //! The descriptor's exact source is reconstructed at this operation, and all
 //! normal exits replay borrowed-output writes. A local backing cannot escape
@@ -11,8 +12,66 @@ use crate::validation::{
     ModuleError, OperationKind, OperationResult, StructuralAccess, StructuralTypeShape,
     TerminalMachine, TerminalModule,
 };
+use terminal_psi::ByteSequencePredicateSet;
 
-/// Validate destination authority, the field carrier, the source's lifetime
+/// Only an immutable shared view slot holds a relocatable descriptor: an
+/// exclusive view would duplicate a loan, and a bounded view or owner stores
+/// bytes or a bare pointer rather than a descriptor.
+const SHARED_VIEW: terminal_psi::ByteSequenceCarrier =
+    terminal_psi::ByteSequenceCarrier::BorrowedView {
+        access: Some(StructuralAccess::SharedBorrow),
+    };
+
+/// The descriptor slot a store replaces and the predicates it declares. A
+/// field names one shared view member of the record at `path` below a root
+/// with field-store authority. No field names the whole destination, which
+/// must be a declared local's home of byte view type: the home's own
+/// establishment is its write authority, and an unqualified home declares
+/// no predicates. A standalone view type binds no access; the home's
+/// descriptor is shared because every store installs a readable shared
+/// source, and the home is admitted only as a readable view source.
+fn descriptor_slot(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    destination: semantic_vocabulary::PlaceId,
+    path: &[terminal_psi::StructuralPathSegment],
+    field: Option<semantic_vocabulary::StructuralFieldId>,
+) -> Option<ByteSequencePredicateSet> {
+    let Some(field) = field else {
+        let home =
+            crate::validation::record::established_local_source(module, machine, destination)?;
+        let declaration = module
+            .structural_types
+            .iter()
+            .find(|declaration| declaration.id == home.structural_type)?;
+        return (path.is_empty()
+            && matches!(
+                declaration.shape,
+                StructuralTypeShape::ByteSequence(
+                    terminal_psi::ByteSequenceCarrier::BorrowedView {
+                        access: None | Some(StructuralAccess::SharedBorrow),
+                    }
+                )
+            ))
+        .then_some(ByteSequencePredicateSet::EMPTY);
+    };
+    let parent_type = super::field_stores::parent_type(module, machine, destination, path)?;
+    let StructuralTypeShape::Record { fields } = &module
+        .structural_types
+        .iter()
+        .find(|declaration| declaration.id == parent_type)?
+        .shape
+    else {
+        return None;
+    };
+    let field = fields
+        .iter()
+        .find(|candidate| candidate.id == field && !candidate.relevance.is_erased())?;
+    (field.field_type.byte_sequence_carrier() == Some(SHARED_VIEW))
+        .then(|| field.field_type.byte_predicates())
+}
+
+/// Validate destination authority, the slot carrier, the source's lifetime
 /// authority and predicate implication. Availability of the destination home
 /// and the source is the ordinary dominance replay, checked separately.
 pub(crate) fn validate(
@@ -34,31 +93,8 @@ pub(crate) fn validate(
     if operation.result != OperationResult::Unit || *destination == *source {
         return Err(invalid());
     }
-    let parent_type = super::field_stores::parent_type(module, machine, *destination, path)
-        .ok_or_else(invalid)?;
-    let StructuralTypeShape::Record { fields } = &module
-        .structural_types
-        .iter()
-        .find(|declaration| declaration.id == parent_type)
-        .ok_or_else(invalid)?
-        .shape
-    else {
-        return Err(invalid());
-    };
-    let field = fields
-        .iter()
-        .find(|candidate| candidate.id == *field && !candidate.relevance.is_erased())
-        .ok_or_else(invalid)?;
-    // Only an immutable shared view field holds a relocatable descriptor:
-    // an exclusive view field would duplicate a loan, and a bounded view or
-    // owner stores bytes or a bare pointer rather than a descriptor.
-    if field.field_type.byte_sequence_carrier()
-        != Some(terminal_psi::ByteSequenceCarrier::BorrowedView {
-            access: Some(StructuralAccess::SharedBorrow),
-        })
-    {
-        return Err(invalid());
-    }
+    let declared =
+        descriptor_slot(module, machine, *destination, path, *field).ok_or_else(invalid)?;
     crate::validation::byte_sequence::length::validate_source(
         module, machine, operation, *source, invalid,
     )?;
@@ -81,7 +117,6 @@ pub(crate) fn validate(
     {
         return Err(invalid());
     }
-    let declared = field.field_type.byte_predicates();
     if predicate_obligation.is_some() {
         if declared.is_empty() || predicate_goal(module, machine, operation).is_none() {
             return Err(invalid());
@@ -112,29 +147,11 @@ pub(crate) fn predicate_goal(
     else {
         return None;
     };
-    let parent = super::field_stores::parent_type(module, machine, *destination, path)?;
-    let StructuralTypeShape::Record { fields } = &module
-        .structural_types
-        .iter()
-        .find(|row| row.id == parent)?
-        .shape
-    else {
-        return None;
-    };
-    let field = fields
-        .iter()
-        .find(|row| row.id == *field && !row.relevance.is_erased())?;
-    if field.field_type.byte_sequence_carrier()
-        != Some(terminal_psi::ByteSequenceCarrier::BorrowedView {
-            access: Some(StructuralAccess::SharedBorrow),
-        })
-    {
-        return None;
-    }
+    let declared = descriptor_slot(module, machine, *destination, path, *field)?;
     let established =
         terminal_semantics::byte_sequence_source_predicates(module, machine, *source)?;
     Some(terminal_semantics::byte_predicate_requirement(
-        field.field_type.byte_predicates(),
+        declared,
         established,
         *source,
         &[],

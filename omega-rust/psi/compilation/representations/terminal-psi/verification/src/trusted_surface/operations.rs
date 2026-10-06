@@ -449,8 +449,8 @@ static OP_STRUCTURAL_BYTE_SEQUENCE_FIELD_STORE: TrustedSurfaceEntry = entry(
 );
 static OP_STRUCTURAL_BYTE_VIEW_FIELD_STORE: TrustedSurfaceEntry = entry(
     "operation:structural-byte-view-field-store",
-    "a validated descriptor replacement of a shared borrowed-view field through writable storage, with the exact current runtime descriptor or literal source, independent source availability, and body-derived backing origins",
-    "propositions observing the replaced field are invalidated; the exact slot acquires the source descriptor and its live backing obligations while siblings and detached copies retain theirs; source predicates imply the field restrictions directly or a separately reconstructed operation obligation proves the exact source pre-store content, never the old field invariant or backing alias equality; literal image residence is one source lifetime, and ordinary call writeback and normal-return escape are independently checked by the descriptor frontier",
+    "a validated descriptor replacement of a shared borrowed-view slot -- a field through writable storage, or the whole home of a declared descriptor local whose own unqualified establishment is its write authority -- with the exact current runtime descriptor or literal source, independent source availability, and body-derived backing origins",
+    "propositions observing the replaced slot are invalidated; the exact slot acquires the source descriptor and its live backing obligations while siblings and detached copies retain theirs; source predicates imply the field restrictions directly or a separately reconstructed operation obligation proves the exact source pre-store content, never the old field invariant or backing alias equality; literal image residence is one source lifetime, and ordinary call writeback and normal-return escape are independently checked by the descriptor frontier",
     &[
         "fact:structural-effect-observation",
         "invalidation:structural-field-store",

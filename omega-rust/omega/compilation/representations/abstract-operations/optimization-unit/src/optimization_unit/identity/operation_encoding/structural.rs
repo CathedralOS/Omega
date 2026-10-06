@@ -349,7 +349,7 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             encode_structural_operation_result(bytes, result);
             encode_window_root(bytes, source);
             bytes.slice(path, encode_structural_path_segment);
-            encode_window_field(bytes, *field);
+            super::encode_optional_field(bytes, *field);
         }
         O::StoreStructuralField {
             psi_operation,
@@ -362,7 +362,7 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             bytes.id(*psi_operation);
             encode_window_root(bytes, destination);
             bytes.slice(path, encode_structural_path_segment);
-            encode_window_field(bytes, *field);
+            super::encode_optional_field(bytes, *field);
             encode_structural_argument(bytes, value);
         }
         O::StructuralLeafCopy {
@@ -419,11 +419,4 @@ fn encode_store_destination(
             encode_structural_parameter(bytes, parameter);
         }
     }
-}
-
-fn encode_window_field(
-    bytes: &mut CanonicalBytes,
-    field: Option<semantic_vocabulary::StructuralFieldId>,
-) {
-    bytes.u64(field.map_or(0, semantic_vocabulary::StructuralFieldId::get));
 }

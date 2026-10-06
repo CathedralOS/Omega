@@ -14,7 +14,10 @@
 //!   store per element (`primitive.rs`);
 //! - a payload-free sum field takes a whole owned parameter of its type;
 //! - a bounded-owned byte field or a whole borrowed byte view takes the byte
-//!   store operations of `byte_stores.rs`.
+//!   store operations of `byte_stores.rs`;
+//! - a shared view descriptor slot, whether a record's field or a whole
+//!   declared view local (an empty path), takes the one descriptor store of
+//!   `descriptor_store.rs`.
 //!
 //! Whole record assignments stay with ordinary structural construction and
 //! replacement in `control::statement_sequence`: operands complete before
@@ -34,7 +37,7 @@ use super::{
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
 use crate::execution::terminal_unit::types::{byte_sequence_carrier, terminal_field_identity};
 use destination::{Destination, Root, StoreRoots, exact_relevant_field, plain_record};
-use value::AssignmentSource;
+pub(in crate::execution::terminal_unit) use value::AssignmentSource;
 
 pub(in crate::execution::terminal_unit) use primitive::{
     checked_unit_path, primitive_local_before, scalar_custody_is_exact,
@@ -43,12 +46,13 @@ pub(in crate::execution::terminal_unit) use selectors::TargetSelectors;
 
 mod byte_stores;
 pub(in crate::execution::terminal_unit) use byte_stores::byte_value_plan;
+mod descriptor_store;
 mod destination;
 mod frame;
 mod primitive;
 mod selectors;
 mod value;
-mod view_field_store;
+pub(in crate::execution::terminal_unit) use descriptor_store::{DescriptorSlot, descriptor_store};
 mod view_stores;
 
 /// The scalar-graph lane's field store into one of its own record locals.
@@ -441,8 +445,30 @@ fn plan_assignment(
     }
     trace.phase("structural field store: carrier path");
     let Some((leaf, carriers)) = destination.place.segments.split_last() else {
-        // Whole structural replacement is owned by the statement sequencer.
-        return None;
+        // An empty path names the whole root. A whole descriptor local takes
+        // the same descriptor store its record-field slots do; any other
+        // whole structural replacement is owned by the statement sequencer.
+        if !is_shared_view_field(program, destination.root_type) {
+            return None;
+        }
+        return descriptor_store::store(
+            program,
+            facts,
+            machine,
+            state,
+            roots,
+            &destination,
+            descriptor_store::DescriptorSlot {
+                path: Vec::new(),
+                type_reference: destination.root_type,
+                field: None,
+            },
+            statement_index,
+            assignment,
+            source,
+            trace,
+        )
+        .map(|store| vec![store]);
     };
     let facts::PlaceSegment::Field { symbol } = leaf else {
         return None;
@@ -508,15 +534,18 @@ fn plan_assignment(
     // Descriptor replacement borrows its actual backing. The operation plan
     // retains that operand; source and receiving loan replay enforce lifetime.
     if is_shared_view_field(program, field.type_reference) {
-        return view_field_store::store(
+        return descriptor_store::store(
             program,
             facts,
             machine,
             state,
             roots,
             &destination,
-            carrier.path,
-            field,
+            descriptor_store::DescriptorSlot {
+                path: carrier.path,
+                type_reference: field.type_reference,
+                field: Some(field),
+            },
             statement_index,
             assignment,
             source,
@@ -985,9 +1014,9 @@ fn bound_structural_parameter(
     })
 }
 
-/// Whether a declared field type is a shared `&[u8]` view, through any domain
-/// constraint shells: the field stores a relocatable descriptor.
-fn is_shared_view_field(
+/// Whether a declared slot type is a shared `&[u8]` view, through any domain
+/// constraint shells: the slot stores a relocatable descriptor.
+pub(in crate::execution::terminal_unit) fn is_shared_view_field(
     program: &TypedTrees,
     type_reference: typed_trees::types::TypeReferenceHandle,
 ) -> bool {

@@ -338,13 +338,16 @@ fn changes(
             ..
         } => {
             *destination == root
-                && stored_field_identity(module, machine, root, written, field).is_none_or(
-                    |identity| {
-                        let mut written = written.clone();
-                        written.push(StructuralPathSegment::Field(identity));
-                        overlaps(path, &written)
-                    },
-                )
+                && match field {
+                    Some(field) => stored_field_identity(module, machine, root, written, field)
+                        .is_none_or(|identity| {
+                            let mut written = written.clone();
+                            written.push(StructuralPathSegment::Field(identity));
+                            overlaps(path, &written)
+                        }),
+                    // A whole slot replaces everything observed beneath it.
+                    None => overlaps(path, written),
+                }
         }
         // A whole-field move or reseat replaces the stored view descriptor an
         // element-view extent observation measured, so the observation is not
@@ -884,6 +887,33 @@ pub(crate) fn replacement_length_equation(
 
 /// Whole mutable-view writes retain their exact observation across every path.
 /// Calls that may change the original referent invalidate an earlier extent.
+/// A declared descriptor local's home holds no descriptor until a whole
+/// descriptor store installs one: every execution reaching `use_site` must
+/// pass such a store into `home`. A later store replaces the descriptor
+/// without unestablishing it, so nothing invalidates the fact.
+pub(crate) fn descriptor_home_is_established(
+    machine: &TerminalMachine,
+    use_site: OperationId,
+    home: PlaceId,
+) -> bool {
+    established_on_every_path(
+        machine,
+        use_site,
+        home,
+        |candidate, root| {
+            matches!(
+                candidate.kind,
+                OperationKind::StructuralByteViewFieldStore {
+                    destination,
+                    field: None,
+                    ..
+                } if destination == root
+            )
+        },
+        |_, _| false,
+    )
+}
+
 pub(crate) fn view_length_is_current(
     module: &TerminalModule,
     machine: &TerminalMachine,

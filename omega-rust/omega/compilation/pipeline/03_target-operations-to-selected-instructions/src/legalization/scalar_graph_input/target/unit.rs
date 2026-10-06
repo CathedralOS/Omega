@@ -106,20 +106,20 @@ pub(super) fn validate_operation(
             field,
             indices,
             ..
-        } => Some((source, field, indices)),
+        } => Some((source, Some(*field), indices)),
         TargetUnitOperation::StructuralByteViewFieldStore {
             destination,
             field,
             indices,
             ..
-        } => Some((destination, field, indices)),
+        } => Some((destination, *field, indices)),
         _ => None,
     };
     if let Some((source, field, indices)) = projected_bytes {
-        let geometry = super::super::structural_fields::byte_geometry(
+        let geometry = super::super::structural_fields::view_slot_geometry(
             optimized,
             source,
-            *field,
+            field,
             &plan.structural_types,
         )
         .ok_or(LegalizationError::custody())?;

@@ -74,13 +74,13 @@ impl AbstractOperation {
                 path,
                 field,
                 ..
-            }
-            | Self::StructuralByteViewFieldStore {
+            } => region(*destination, path, Some(*field)),
+            Self::StructuralByteViewFieldStore {
                 destination,
                 path,
                 field,
                 ..
-            } => region(*destination, path, Some(*field)),
+            } => region(*destination, path, *field),
             Self::WriteOnlyPrimitiveStore {
                 destination, path, ..
             } => region(destination.place(), path, None),

@@ -415,15 +415,19 @@ pub(super) fn operation(
             field,
             source,
             ..
-        }
-        | OperationKind::StructuralByteViewFieldStore {
+        } => vec![
+            projected(*destination, path, Some(*field), true),
+            whole(*source, false),
+        ],
+        // A descriptor slot is a record's view field or the whole home.
+        OperationKind::StructuralByteViewFieldStore {
             destination,
             path,
             field,
             source,
             ..
         } => vec![
-            projected(*destination, path, Some(*field), true),
+            projected(*destination, path, *field, true),
             whole(*source, false),
         ],
         OperationKind::MoveStructuralField {

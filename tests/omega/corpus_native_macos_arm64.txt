@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 14, "jobs": null, "load1_end": 3.6, "load1_start": 3.6, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "4", "load1_end": 8.12, "load1_start": 8.39, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 189ms
 pass/arithmetic/anonymous_rational_integer_landing checked 186ms
 pass/arithmetic/bounded_assignment checked 197ms
@@ -1430,8 +1430,8 @@ pass/text/runtime_carrier_indexed_read_exit built 681ms exit:70
 pass/text/runtime_chained_string_append_exit built 1941ms exit:70 @fb2178def922
 pass/text/runtime_element_guard_bounds_parse_exit built 1706ms exit:70 @954364ed064e
 pass/text/runtime_later_arm_guard_reads_exit built 1892ms exit:70 @954364ed064e
-pass/text/runtime_local_struct_string_field_concat_exit rejected 762ms @5676dbe78a95+wt
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: destination parameter` (state 1, statement 2)
+pass/text/runtime_local_struct_string_field_concat_exit rejected 932ms @42ea16c25de8+wt
+	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: borrowed view field: descriptor source` (state 1, statement 3)
 pass/text/runtime_mixed_byte_field_equality_exit built 2672ms exit:70 @11b293f8af86+wt
 pass/text/runtime_mutable_string_parameter_concat_write_line rejected 819ms @48008365d839
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: jump successor: parameter transfer` (state 0, statement 2)
@@ -1443,11 +1443,14 @@ pass/text/runtime_slice_indexed_string_guard_exit built 2657ms exit:70 @1df89900
 pass/text/runtime_stdin_command_branch_exit built 6815ms exit:0 stdout:match @4ffed225fc45+wt
 pass/text/runtime_stdin_line_buffering_exit built 1407ms exit:0 stdout:match @2a68bc887d99+wt
 pass/text/runtime_string_concat_two_fields_exit built 1859ms exit:70 @fb2178def922
-pass/text/runtime_string_stored_suffix_exit rejected 752ms @5676dbe78a95+wt
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: destination parameter` (state 1, statement 2)
+pass/text/runtime_string_stored_suffix_exit rejected 910ms @42ea16c25de8+wt
+	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: borrowed view field: descriptor source` (state 1, statement 3)
 pass/text/runtime_text_builder built 1781ms exit:0 @bed5f45e9185+wt
 pass/text/runtime_text_not_equals_exit built 2123ms exit:70 @d0c1840f255b
 pass/text/runtime_utf16_literal_exit built 705ms exit:70
+pass/text/runtime_view_local_field_store_exit built 1635ms exit:70 @42ea16c25de8+wt
+pass/text/runtime_view_local_first_store_exit built 1549ms exit:70 @42ea16c25de8+wt
+pass/text/runtime_view_local_reassign_exit built 1076ms exit:70 @42ea16c25de8+wt
 pass/text/state_parameter_byte_replacement_exit built 1031ms exit:70 @63377f7122bb+wt
 pass/text/utf8_boundary_established checked 211ms
 pass/text/view_field_literal_store_outlives_helper_exit built 1073ms exit:70 @2c44d70118d1+wt

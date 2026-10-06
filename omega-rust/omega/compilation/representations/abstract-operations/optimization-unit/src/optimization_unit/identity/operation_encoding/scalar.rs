@@ -84,7 +84,7 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             bytes.id(*psi_operation);
             bytes.id(*destination);
             bytes.slice(path, encode_structural_path_segment);
-            bytes.id(*field);
+            super::encode_optional_field(bytes, *field);
             bytes.id(*source);
             match predicate_obligation {
                 Some(obligation) => {

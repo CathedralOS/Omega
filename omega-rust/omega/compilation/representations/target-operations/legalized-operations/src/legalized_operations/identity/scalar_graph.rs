@@ -487,7 +487,8 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                     bytes.push(92);
                     encode_runtime_indices(bytes, indices);
                     super::structural_types::encode_structural_argument(bytes, destination);
-                    bytes.extend_from_slice(&field.get().to_le_bytes());
+                    // Zero, which no field identity takes, names the whole slot.
+                    bytes.extend_from_slice(&field.map_or(0, |field| field.get()).to_le_bytes());
                     bytes.extend_from_slice(&source.get().to_le_bytes());
                 }
                 LegalizedScalarInstructionKind::HostedReadByte {

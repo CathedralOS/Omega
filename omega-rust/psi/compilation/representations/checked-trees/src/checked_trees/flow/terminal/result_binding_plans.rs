@@ -28,9 +28,10 @@ pub struct CheckedUnitStructuralResultBindingPlan {
     pub multiplicity: Multiplicity,
 }
 
-/// Exact source occurrence of bounded byte-owner replacement. The root is
-/// always an exclusive borrowed parameter: a local-rooted whole owner or byte
-/// field has no lowering and is refused.
+/// Exact source occurrence of one byte-sequence replacement: bounded owned
+/// contents or a shared view's descriptor. The root is an exclusive borrowed
+/// parameter or an established local home; the destination names the
+/// replaced place below it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedByteSequenceStorePlan {
     pub statement_index: u32,
@@ -47,12 +48,15 @@ pub enum CheckedByteSequenceStoreDestination {
         carrier_path: Vec<CheckedUnitStructuralPathSegment>,
         field_identity: String,
     },
-    /// One shared borrowed-view field whose descriptor the value replaces;
-    /// no bytes are copied. A descriptor value retains its actual source;
-    /// independent loan replay proves that source outlives every later use.
-    ViewField {
-        carrier_path: Vec<CheckedUnitStructuralPathSegment>,
-        field_identity: String,
+    /// One shared borrowed-view descriptor slot the value replaces; no bytes
+    /// are copied. With a field, `path` resolves from the root to the record
+    /// carrying it; without one, an empty `path` names the whole root, a
+    /// declared descriptor local. A descriptor value retains its actual
+    /// source; independent loan replay proves that source outlives every
+    /// later use of the slot.
+    Descriptor {
+        path: Vec<CheckedUnitStructuralPathSegment>,
+        field_identity: Option<String>,
     },
 }
 

@@ -699,7 +699,7 @@ pub(super) fn validate_unit_operation_sequence(
             ) || matches!(operation, CheckedUnitEffectOperationPlan::ByteSequenceStore(store)
             if matches!(
                 store.destination,
-                checked_trees::CheckedByteSequenceStoreDestination::ViewField { .. }
+                checked_trees::CheckedByteSequenceStoreDestination::Descriptor { .. }
             ))
         };
         let repeated_literal_store = previous == Some(key)

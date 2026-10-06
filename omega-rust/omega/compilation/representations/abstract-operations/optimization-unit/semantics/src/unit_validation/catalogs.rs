@@ -463,13 +463,18 @@ fn validate_structural_field_range_authority(
                 // operation. Reconstruct after rewriting: neither a sibling
                 // field's qualification nor an old source's proof transfers.
                 let invalid = OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch;
-                let required = function_structure::byte_field_predicates(
-                    unit,
-                    function,
-                    *destination,
-                    path,
-                    *field,
-                )
+                let required = match field {
+                    Some(field) => function_structure::byte_field_predicates(
+                        unit,
+                        function,
+                        *destination,
+                        path,
+                        *field,
+                    ),
+                    // An unqualified declared home declares no predicates.
+                    None => function_structure::declared_descriptor_home(function, *destination)
+                        .map(|_| terminal_psi::ByteSequencePredicateSet::EMPTY),
+                }
                 .ok_or_else(|| invalid.clone())?;
                 let established = function_structure::whole_source_predicates(
                     unit.structural_types.iter(),

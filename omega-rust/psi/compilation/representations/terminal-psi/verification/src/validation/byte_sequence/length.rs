@@ -72,11 +72,37 @@ pub(in crate::validation) fn validate(
     })
 }
 
-/// Whole immutable views retain one exact source for every observation.
+/// The home of a declared descriptor local: an unqualified, claim-free
+/// `EstablishStructuralLocal` result of standalone byte-view type. Whole
+/// descriptor stores replace it; reads observe it as a shared view.
+pub(in crate::validation) fn descriptor_home<'a>(
+    module: &TerminalModule,
+    machine: &'a TerminalMachine,
+    place: PlaceId,
+) -> Option<&'a terminal_psi::StructuralOperationResult> {
+    crate::validation::record::established_local_source(module, machine, place).filter(|home| {
+        module.structural_types.iter().any(|row| {
+            row.id == home.structural_type
+                && matches!(
+                    row.shape,
+                    StructuralTypeShape::ByteSequence(
+                        terminal_psi::ByteSequenceCarrier::BorrowedView {
+                            access: None | Some(StructuralAccess::SharedBorrow),
+                        }
+                    )
+                )
+        })
+    })
+}
+
+/// Whole immutable views retain one exact source for every observation. A
+/// declared descriptor home is such a view only where a whole descriptor
+/// store reaches the observation on every path: an unestablished local
+/// cannot be read.
 pub(in crate::validation) fn validate_source(
     module: &TerminalModule,
     machine: &TerminalMachine,
-    _operation: &terminal_psi::Operation,
+    operation: &terminal_psi::Operation,
     source: PlaceId,
     invalid: impl Fn() -> ModuleError,
 ) -> Result<(), ModuleError> {
@@ -119,6 +145,20 @@ pub(in crate::validation) fn validate_source(
             structural_type
         }
         StructuralPlaceKind::OperationResult { .. } => {
+            if descriptor_home(module, machine, source).is_some() {
+                if !crate::validation::structural::byte_sequence_fields::descriptor_home_is_established(
+                    machine,
+                    operation.id,
+                    source,
+                ) {
+                    return Err(ModuleError::ByteSequenceViewNotEstablished {
+                        operation: operation.id,
+                        place: source,
+                    });
+                }
+                // `descriptor_home` already authenticated its view carrier.
+                return Ok(());
+            }
             crate::validation::byte_sequence::subslice::borrowed_result_in_module(
                 module, machine, source,
             )
