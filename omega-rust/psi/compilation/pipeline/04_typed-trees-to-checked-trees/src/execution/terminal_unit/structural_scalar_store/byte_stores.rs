@@ -32,40 +32,10 @@ pub(super) fn view_write(
     source: AssignmentSource,
     trace: &LocalConstructionTrace,
 ) -> Option<CheckedUnitEffectOperationPlan> {
-    trace.phase("indexed store: byte or element backing");
+    trace.phase("indexed store: byte backing");
     let index = destination.dynamic_index?;
     if !destination.place.segments.is_empty() {
         return None;
-    }
-    // `view[index] = element` through a mutable `&mut [T]` view: the same
-    // runtime-indexed write shape as the byte view above, but the carrier
-    // observes an element, so the plan names the element's primitive rather
-    // than hardcoding `u8`. A parameter destination is the signature's
-    // borrowed slice; a local destination is an immutable `&mut` binding
-    // whose single Mutable loan the destination root already re-read as the
-    // write authority.
-    if let Some(element) = element_view_element(program, state, destination) {
-        return Some(CheckedUnitEffectOperationPlan::ElementViewWrite(
-            checked_trees::CheckedElementViewWritePlan {
-                statement_index,
-                destination: destination.root.destination(),
-                index: value::runtime_index(facts, state, statement_index, index)?,
-                path: Vec::new(),
-                element,
-                value: value::assignment_value(
-                    program,
-                    facts,
-                    machine,
-                    state,
-                    &destination.root,
-                    statement_index,
-                    assignment,
-                    source,
-                    element,
-                    trace,
-                )?,
-            },
-        ));
     }
     match destination.root {
         Root::Parameter { plan, parameter } => {
@@ -127,66 +97,6 @@ pub(super) fn view_write(
             )?,
         },
     ))
-}
-
-/// The scalar element a `&mut [T]` view destination stores, or `None` when
-/// the root names no mutable slice view or its element is not a primitive.
-/// A parameter root re-checks the signature's admitted borrow; a local root
-/// re-reads the declared `&mut` type of the binding its root resolved.
-fn element_view_element(
-    program: &TypedTrees,
-    state: &typed_trees::state::State,
-    destination: &Destination<'_>,
-) -> Option<typed_trees::types::PrimitiveType> {
-    program.primitive_type_reference(element_view_element_reference(program, state, destination)?)
-}
-
-/// Exact mutable element-view root, independent of its selected scalar leaf.
-/// Byte slices retain their separate byte-sequence storage contract.
-pub(super) fn element_view_element_reference(
-    program: &TypedTrees,
-    state: &typed_trees::state::State,
-    destination: &Destination<'_>,
-) -> Option<typed_trees::types::TypeReferenceHandle> {
-    let type_reference = match &destination.root {
-        Root::Parameter { plan, parameter } => {
-            if plan.access != CheckedStructuralAccess::MutableBorrow
-                || plan.multiplicity != Multiplicity::Unrestricted
-                || !plan.qualifications.is_empty()
-                || plan.fused_service_erasure.is_some()
-            {
-                return None;
-            }
-            parameter.type_reference
-        }
-        Root::Local { symbol } => program
-            .statement_table
-            .statements(state.statement_nodes)
-            .iter()
-            .find_map(|statement| match statement {
-                typed_trees::statement::StatementNode::LocalData(local)
-                    if local.symbol == *symbol =>
-                {
-                    Some(local.type_reference)
-                }
-                _ => None,
-            })?,
-    };
-    let (referee, access) =
-        super::super::reference_results::mutable_borrowed_parts(program, type_reference)?;
-    if access != CheckedStructuralAccess::MutableBorrow {
-        return None;
-    }
-    let TypeReferenceNode::Slice { element_type } =
-        program.type_reference_table.type_reference(referee)
-    else {
-        return None;
-    };
-    // The byte element keeps its established `ByteSequence` carrier and
-    // `ByteSequenceWrite` vocabulary; the element arm covers only the
-    // non-byte view family.
-    (program.primitive_type_reference(*element_type) != Some(typed_trees::types::PrimitiveType::U8))
-        .then_some(*element_type)
 }
 
 /// A whole borrowed owner retains its caller's capacity and qualifications.

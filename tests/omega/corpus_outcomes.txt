@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 14, "jobs": "2", "load1_end": 2.47, "load1_start": 2.17, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": "1", "load1_end": 4.47, "load1_start": 4.6, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -282,6 +282,8 @@ fail/borrows/named_jump_receiver_under_argument_loan rejected 176ms expected @17
 	state `observe` receives `main.count` as both mutable and read-only
 	state `read_after` receives `main.count` as mutable while its mutable receiver reads `main.count`
 	state `write_through_subject` receives `main.count` as mutable while its mutable receiver writes `main.count`
+fail/borrows/nested_array_shared_view_write rejected 189ms expected @65c3b89f46f4+wt
+	machine `store` state `entry` assignment cannot write `slots` because it is not mutable in this state (if `slots` is undeclared -- a typo -- no such field or local exists)
 fail/borrows/nested_reference_live_source_write rejected 145ms expected @21b65913386f+wt
 	statement 2 mutates `cell.value` while local borrow `message` is still active (borrowed at statement 0; its last use is at statement 3)
 fail/borrows/nested_result_retains_operand_loan rejected 326ms expected @f0ed096e2456+wt
@@ -1422,6 +1424,8 @@ fail/range/indexed_field_window_inherited_debt rejected 174ms expected @4bc316e7
 fail/range/indexed_field_window_overlapping_concrete_debt rejected 172ms expected @4bc316e7b1ca+wt
 	data `Cell`'s default domain is still FALSE at state exit: the invariant window opened on `grid.cells[0]` must close first -- restore the `where` facts before this consumption point (ch11)
 	data `Cell`'s default domain is still FALSE at state exit: the invariant window opened on `grid.cells[*]` must close first -- restore the `where` facts before this consumption point (ch11)
+fail/range/nested_array_element_view_out_of_bounds rejected 366ms expected @65c3b89f46f4+wt
+	cannot prove index `2` is within length 2
 fail/range/refined_element_view_outside_field_domain rejected 169ms expected @4bc316e7b1ca+wt
 	machine `store` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
 fail/ranges/case_payload_domain_literal_out_of_range rejected 149ms expected @c08960bee2b1+wt
@@ -2197,8 +2201,10 @@ pass/collections/runtime_indexed_write_call_value_exit checked 1927ms check-targ
 pass/collections/runtime_initialized_array_state_loan_exit checked 1135ms check-target:macos_arm64 @89d265022a73+wt
 pass/collections/runtime_maze_pathfind_exit checked 4147ms check-target:macos_arm64 @2d8ed253669f
 pass/collections/runtime_member_decrement_index_bound_exit checked 3012ms check-target:macos_arm64 @6d05c993ca61
+pass/collections/runtime_nested_array_view_call_write_exit checked 1749ms check-target:macos_arm64 @65c3b89f46f4+wt
 pass/collections/runtime_nested_const_row_indexed_read_exit checked 1481ms check-target:macos_arm64 @2d8ed253669f
 pass/collections/runtime_nested_fixed_array_projected_write_exit checked 1900ms check-target:macos_arm64 @3ff24ec6504a+wt
+pass/collections/runtime_nested_record_element_window_store_exit checked 1751ms check-target:macos_arm64 @65c3b89f46f4+wt
 pass/collections/runtime_parameter_nested_literal_index_read_exit checked 731ms check-target:macos_arm64 @5f978f80e84b+wt
 pass/collections/runtime_record_element_window_write_read_exit checked 1613ms check-target:macos_arm64 @4bc316e7b1ca+wt
 pass/collections/runtime_refined_element_view_call_write_exit checked 1622ms check-target:macos_arm64 @4bc316e7b1ca+wt

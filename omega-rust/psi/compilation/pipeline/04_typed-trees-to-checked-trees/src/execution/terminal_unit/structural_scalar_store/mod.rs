@@ -6,10 +6,12 @@
 //! path ends at. The value (`value.rs`) is resolved from the right-hand side
 //! alone: the already-checked scalar source at the value's own coordinate --
 //! a computation root, a bound pure expression, or the result of the call the
-//! statement performs. The leaf's declared type then picks the Terminal store
-//! operation that joins them:
+//! statement performs. The backing representation and the leaf's declared
+//! type then pick the Terminal store operation that joins them:
 //!
 //! - a primitive field takes one `StructuralScalarFieldStore`;
+//! - a scalar leaf below an element-view root takes `ElementViewWrite`,
+//!   independent of whether that leaf is a field, array element, or whole element;
 //! - a primitive-array place takes a closed array literal as one element
 //!   store per element (`primitive.rs`);
 //! - a payload-free sum field takes a whole owned parameter of its type;
@@ -48,6 +50,7 @@ mod byte_stores;
 pub(in crate::execution::terminal_unit) use byte_stores::byte_value_plan;
 mod descriptor_store;
 mod destination;
+mod element_stores;
 mod frame;
 mod primitive;
 mod selectors;
@@ -355,8 +358,29 @@ fn plan_assignment(
         assignment,
         trace,
     )?;
-    // A runtime selector directly on the root indexes a whole borrowed view;
-    // that operation carries its own (read-capable) authority.
+    // A view descriptor is not inline primitive storage. Classify the backing
+    // before the scalar leaf: every projection below this root observes the
+    // same live view extent and uses the same captured outer selector.
+    if (!destination.place.segments.is_empty() || destination.dynamic_index.is_some())
+        && element_stores::element_reference(program, state, &destination).is_some()
+    {
+        destination.exclusive_authority(program, state, roots, trace)?;
+        return element_stores::store(
+            program,
+            facts,
+            machine,
+            state,
+            &destination,
+            statement_index,
+            assignment,
+            source,
+            trace,
+        )
+        .map(|store| vec![store]);
+    }
+    // A byte replacement directly on the root carries its own read-capable
+    // authority and byte-domain preservation contract. Replacing the whole
+    // descriptor instead remains the ordinary descriptor-store operation.
     if destination.place.segments.is_empty()
         && destination.dynamic_index.is_some()
         && (matches!(
@@ -584,44 +608,6 @@ fn plan_assignment(
             primitive_type,
             trace,
         )?;
-        if byte_stores::element_view_element_reference(program, state, &destination).is_some() {
-            // The existing carrier walk and leaf admission own the field's
-            // identity and scalar value. A descriptor contributes its live
-            // outer index/length pair; the remaining projection stays within
-            // that element, with the same field and index semantics.
-            let (outer, projected) = carrier.path.split_first()?;
-            let index = match outer {
-                CheckedUnitStructuralPathSegment::FixedIndex(index) => {
-                    checked_trees::CheckedScalarExpression::IntegerLiteral {
-                        literal: numerics::literals::IntegerLiteral::from_value(
-                            i64::try_from(*index).ok()?,
-                        )
-                        .with_landing(numerics::literals::IntegerLanding {
-                            landed_type: numerics::literals::LandedIntegerType::U64,
-                            domain: numerics::arithmetic::ArithmeticDomain::Exact,
-                        }),
-                    }
-                }
-                CheckedUnitStructuralPathSegment::RuntimeIndex(index) => {
-                    runtime_index_expression(program, facts, state, statement_index, index)?
-                }
-                _ => return None,
-            };
-            let mut path = projected.to_vec();
-            path.push(CheckedUnitStructuralPathSegment::Field(
-                terminal_field_identity(program, field.symbol)?,
-            ));
-            return Some(vec![CheckedUnitEffectOperationPlan::ElementViewWrite(
-                checked_trees::CheckedElementViewWritePlan {
-                    statement_index,
-                    destination: destination.root.destination(),
-                    index,
-                    path,
-                    element: primitive_type,
-                    value,
-                },
-            )]);
-        }
         return Some(vec![
             CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(
                 CheckedStructuralScalarFieldStorePlan {
