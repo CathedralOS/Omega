@@ -284,27 +284,11 @@ pub fn borrowed_initializer_source(
     if authored_access != access {
         return None;
     }
-    let mut projections = Vec::new();
-    let mut cursor = borrow.target;
-    loop {
-        if !program.expression_table.expression_is_valid(cursor)
-            || projections.contains(&cursor)
-            || projections.len() >= MAX_REFERENCE_ORIGIN_DEPTH
-        {
-            return None;
-        }
-        cursor = match program.expression_table.expression(cursor) {
-            ExpressionNode::Member(member) if member.case_variant.is_none() => {
-                projections.push(cursor);
-                member.receiver
-            }
-            ExpressionNode::Indexed(indexed) => {
-                projections.push(cursor);
-                indexed.collection
-            }
-            _ => break,
-        };
-    }
+    let (projections, cursor) = crate::expression_traversal::projection_climb(
+        program,
+        borrow.target,
+        MAX_REFERENCE_ORIGIN_DEPTH,
+    )?;
     let ExpressionNode::Name(path) = program.expression_table.expression(cursor) else {
         return None;
     };

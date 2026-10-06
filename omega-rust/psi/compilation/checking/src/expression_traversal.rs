@@ -98,6 +98,38 @@ pub fn visit_post_order(
     inner(program, root, visited, &mut arm);
 }
 
+/// Climb `Member` (non-variant) and `Indexed` projections to the root
+/// expression, returning each projected node outermost-first plus the root.
+/// `None` on a cycle, an invalid cursor, or more than `max_depth` edges.
+pub fn projection_climb(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    max_depth: usize,
+) -> Option<(Vec<ExpressionHandle>, ExpressionHandle)> {
+    let mut projections = Vec::new();
+    let mut cursor = expression;
+    loop {
+        if !program.expression_table.expression_is_valid(cursor)
+            || projections.contains(&cursor)
+            || projections.len() >= max_depth
+        {
+            return None;
+        }
+        cursor = match program.expression_table.expression(cursor) {
+            ExpressionNode::Member(member) if member.case_variant.is_none() => {
+                projections.push(cursor);
+                member.receiver
+            }
+            ExpressionNode::Indexed(indexed) => {
+                projections.push(cursor);
+                indexed.collection
+            }
+            _ => break,
+        };
+    }
+    Some((projections, cursor))
+}
+
 /// The symbol a single-member `Name` argument resolves, through a shared
 /// borrow: `&field` and `field` name the same symbol.
 pub fn single_member_argument_symbol(

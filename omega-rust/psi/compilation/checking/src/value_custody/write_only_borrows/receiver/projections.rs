@@ -41,24 +41,8 @@ pub(in crate::value_custody::write_only_borrows) fn projected<'roots>(
     roots: &'roots [WriteOnlyRoot],
     admission: ProjectionAdmission,
 ) -> Option<(&'roots WriteOnlyRoot, TypeReferenceHandle, bool)> {
-    let mut cursor = expression;
-    let mut projections = Vec::new();
-    loop {
-        if projections.contains(&cursor) || !program.expression_table.expression_is_valid(cursor) {
-            return None;
-        }
-        cursor = match program.expression_table.expression(cursor) {
-            ExpressionNode::Member(member) if member.case_variant.is_none() => {
-                projections.push(cursor);
-                member.receiver
-            }
-            ExpressionNode::Indexed(indexed) => {
-                projections.push(cursor);
-                indexed.collection
-            }
-            _ => break,
-        };
-    }
+    let (projections, cursor) =
+        crate::expression_traversal::projection_climb(program, expression, usize::MAX)?;
     let (root, mut referee, mut attached_root) =
         if let Some(root) = direct_write_only_root(program, cursor, roots) {
             (root, root.referee, root.receiver_machine.is_valid())
