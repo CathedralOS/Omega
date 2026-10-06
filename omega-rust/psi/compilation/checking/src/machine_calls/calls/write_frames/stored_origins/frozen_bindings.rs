@@ -197,40 +197,10 @@ fn expression_exposes_with_writes(
             }
             children.push(borrow.target);
         }
-        ExpressionNode::Match(dispatch) => {
-            children.push(dispatch.subject);
-            for arm in program.expression_table.match_arms(dispatch.arms) {
-                if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
-                    children.push(pattern);
-                }
-                children.push(arm.value);
-            }
-        }
-        ExpressionNode::Atomic(atomic) => children.extend([atomic.value, atomic.result]),
-        ExpressionNode::Binary(binary) => children.extend([binary.left, binary.right]),
-        ExpressionNode::Unary(unary) => children.push(unary.operand),
-        ExpressionNode::Cast(cast) => children.push(cast.value),
-        ExpressionNode::Indexed(indexed) => children.extend([indexed.collection, indexed.index]),
-        ExpressionNode::Member(member) => children.push(member.receiver),
-        ExpressionNode::ArrayLiteral(elements) => {
-            children.extend(program.expression_table.expression_handles(*elements));
-        }
-        ExpressionNode::StructLiteral(literal) => children.extend(
-            program
-                .expression_table
-                .struct_fields(literal.fields)
-                .iter()
-                .map(|field| field.value),
-        ),
-        ExpressionNode::Range(range) => children.extend([range.start, range.end]),
-        ExpressionNode::Call(_)
-        | ExpressionNode::Boolean(_)
-        | ExpressionNode::Float(_)
-        | ExpressionNode::UndeterminedNaN(_)
-        | ExpressionNode::Integer(_)
-        | ExpressionNode::Name(_)
-        | ExpressionNode::String(_)
-        | ExpressionNode::ZeroValue(_) => {}
+        ExpressionNode::Call(_) => {}
+        other => crate::expression_traversal::children(program, other, |child| {
+            children.push(child);
+        }),
     }
     children.into_iter().any(|child| {
         expression_exposes_with_writes(
