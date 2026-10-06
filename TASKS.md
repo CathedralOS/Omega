@@ -113,18 +113,13 @@ helper that passes does not close an item.
     Physical requirements follow resolved schema composition; semantic arrival
     keeps core's exact requirement identity. Unrelated same-leaf declarations
     neither shadow the selection nor create another candidate.
-  - On macOS ARM64, `omega run tests/omega/pass/build/entry_schema_same_leaf_exit/main.omg`
-    now exits 0; base `199028b84b4` rejected the same program for two loaded
-    `MacosApplication` declarations. Rebased onto `4939829df0e`, this repair on macOS ARM64:
-    `python3 tools/corpus_gate.py --native --filter build/uefi_entry_schema_same_leaf,control_flow/nonreturning_callee_exit`
-    produces the UEFI artifact with its authored image/storage roots and runs
-    the hosted non-returning-callee witness with exit 0. Aggregate legalization
-    retains admitted content claims; machine-emission accepts an empty exit
-    roster without inventing a return or frame epilogue. UEFI execution was
-    not exercised on this host. The remaining acceptance here is the alternate
-    accepted-contract customer below, not another source-shape lowering path.
-    `pass/build/uefi_os_handoff_invocation` retains its separate omitted
-    `UefiOsHandoffCycle::acquire` lowering dependency.
+  - Regression controls: `pass/build/entry_schema_same_leaf_exit` (native
+    exit 0), `pass/build/uefi_entry_schema_same_leaf` (UEFI artifact with
+    authored image/storage roots), and `pass/control_flow/nonreturning_callee_exit`
+    (exit 0, no invented return or frame epilogue). UEFI publication is not
+    UEFI execution. The separate `pass/build/uefi_os_handoff_invocation`
+    customer now reaches native-catalog rejection for `firmware_return` and
+    `transfer`; **UEFI-OS-HANDOFF** owns that gap, not this selection repair.
   - `fail/build/uefi_entry_schema_wrong_owner` rejects an unaccepted supplier
     despite matching the contract's path/name. The old local-shadowing
     construction in `fail/build/uefi_program_entry_wrong_calling_policy` is
@@ -138,29 +133,21 @@ helper that passes does not close an item.
   their actual contract rather than an accidental name collision.
 
 - **STATIC-DUNGEON-NATIVE-BUILD-COST.** (split-of:STATIC-MACHINE-MIGRATION)
-  The native build of `samples/cli/games/dungeon_crawler_cli` works but takes
-  about 40 minutes; the gate's default `--timeout` is 300 s per CLI call.
-  - Current state: on macOS ARM64,
-    `python3 tools/sample_native_gate.py --cli <debug omega> --jobs 1 --timeout 6600 --filter games/dungeon_crawler_cli`
-    meets the README oracle. Elapsed time, including about 6 minutes of
-    package review, was 6771 s at 1e1e71dd791, 4091 s at 38f145e1fda and
-    2554 s at 8c2a6e8da58.
-  - Profile at 8c2a6e8da58: 5-second stack samples every 5 minutes of
-    `omega run`.
-    - Stage 00 `verify_module` holds minutes 0-12: the module validation's
-      structural frontier walk, obligation reconstruction, then certificate
-      admission. It leaves with **OMEGA-READS-TERMINAL-UNVERIFIED** after
-      **PCC-CERTIFICATES-DELETED**.
-    - Runtime-spill recovery holds minutes 13-36, about 396 steps. Each step
-      still hashes the whole liveness and live-range plans
-      (`liveness_identity`, `live_range_identity`). The legality identity
-      already reuses carried functions' digests (e76eaf259a8); doing the same
-      for these two is the next step. Each step also clones the plans' carried
-      rows.
-    - Stage 03 legalization (derive, then the `validate_legalized_operations`
-      replay) no longer shows in the samples. The replay is the stage's own
-      checker; taking checkers off the default compile path needs a way for
-      the corpus runner to exercise them first.
+  Bring `samples/cli/games/dungeon_crawler_cli` within the sample gate's normal
+  300 s per-call timeout, preserving its runtime oracle. First remeasure on
+  one host and compiler profile:
+  `python3 tools/sample_native_gate.py --cli <debug omega> --jobs 1 --timeout 6600 --filter games/dungeon_crawler_cli`.
+  - Historical macOS ARM64 baseline at `8c2a6e8da58`: 2554 s including package
+    review; 5-second stack samples every 5 minutes placed stage 00 verification
+    in minutes 0–12 and spill recovery in minutes 13–36. This is a profiling
+    lead, not a current timing claim. Separate review and compilation time.
+  - Liveness/live-range per-function digest reuse already exists in stage 04
+    `analyses/{liveness,live_ranges}/validate/receipt.rs`; do not implement it
+    again. Profile remaining carried-row copying and recovery work before
+    choosing the next repair.
+  - Verification removal belongs to **OMEGA-READS-TERMINAL-UNVERIFIED** and
+    **PCC-CERTIFICATES-DELETED**. The old stage 03 legalization replay is gone;
+    do not restore it or create a new replay harness as a prerequisite.
   Acceptance: the sample native gate builds the app within its normal timeout
   and the app meets the oracle in
   [its README](samples/cli/games/dungeon_crawler_cli/README.md#runtime-acceptance).
