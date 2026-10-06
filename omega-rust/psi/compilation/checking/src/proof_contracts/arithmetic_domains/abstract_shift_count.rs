@@ -50,100 +50,59 @@ pub(super) fn validate(
     environment: &ValueEnvironment,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    fn walk(
-        program: &TypedTrees,
-        expression: ExpressionHandle,
-        owner: &str,
-        bindings: AbstractSpecificationBindings<'_>,
-        environment: &ValueEnvironment,
-        diagnostics: &mut Vec<Diagnostic>,
-        visited: &mut Vec<ExpressionHandle>,
-    ) {
-        if !expression.is_valid() || visited.contains(&expression) {
+    let mut check = |node: &ExpressionNode| {
+        let ExpressionNode::Binary(binary) = node else {
+            return;
+        };
+        if !matches!(
+            binary.operator,
+            BinaryOperator::ShiftLeft | BinaryOperator::ShiftRight
+        ) {
             return;
         }
-        visited.push(expression);
-
-        let recurse = |child, diagnostics: &mut Vec<Diagnostic>, visited: &mut Vec<_>| {
-            walk(
-                program,
-                child,
-                owner,
-                bindings,
-                environment,
-                diagnostics,
-                visited,
-            );
+        let Some((primitive, domain)) = direct_shifted_operand(program, bindings, binary.left)
+        else {
+            return;
         };
-        match program.expression_table.expression(expression) {
-            ExpressionNode::Binary(binary) => {
-                recurse(binary.left, diagnostics, visited);
-                recurse(binary.right, diagnostics, visited);
-                if !matches!(
-                    binary.operator,
-                    BinaryOperator::ShiftLeft | BinaryOperator::ShiftRight
-                ) {
-                    return;
-                }
-                let Some((primitive, domain)) =
-                    direct_shifted_operand(program, bindings, binary.left)
-                else {
-                    return;
-                };
-                let shift_primitive_kind = match binary.operator {
-                    BinaryOperator::ShiftLeft => IntegerPolicyPrimitive::ShiftLeft,
-                    BinaryOperator::ShiftRight => IntegerPolicyPrimitive::ShiftRight,
-                    _ => unreachable!("non-shift operator returned above"),
-                };
-                if integer_policy_bridge(shift_primitive_kind, domain).shift_count_law
-                    != ShiftCountLaw::MustBeWithinWidth
-                {
-                    return;
-                }
-                let Some(width) = integer_bit_width(primitive) else {
-                    return;
-                };
-                let count =
-                    abstract_specification_interval(program, bindings, environment, binary.right);
-                let provably_in_range = count.is_some_and(|count| {
-                    matches!(count.low(), Some(low) if low >= 0)
-                        && matches!(count.high(), Some(high) if high < width)
-                });
-                if provably_in_range {
-                    return;
-                }
-                let always_out = count.is_some_and(|count| {
-                    matches!(count.low(), Some(low) if low >= width)
-                        || matches!(count.high(), Some(high) if high < 0)
-                });
-                let verdict = if always_out {
-                    "is provably out of range and can never execute"
-                } else {
-                    "is not provably below the operand width"
-                };
-                let saturating_hint = if domain == ArithmeticDomain::Saturating {
-                    " (`Saturating` governs value overflow, not count validity -- its count obligation is Exact's)"
-                } else {
-                    ""
-                };
-                diagnostics.push(Diagnostic::error(format!(
-                    "shift count in {owner} {verdict} for `{prim}`{saturating_hint}: exact shifts prove `count < {width}` before the term forms; discharge the count with an independently accepted prior fact, or use `{prim} in Wrapping` for a modulo-{width} count",
-                    prim = primitive_name(primitive),
-                )));
-            }
-            other => crate::expression_traversal::children(program, other, |child| {
-                recurse(child, diagnostics, visited);
-            }),
+        let shift_primitive_kind = match binary.operator {
+            BinaryOperator::ShiftLeft => IntegerPolicyPrimitive::ShiftLeft,
+            BinaryOperator::ShiftRight => IntegerPolicyPrimitive::ShiftRight,
+            _ => unreachable!("non-shift operator returned above"),
+        };
+        if integer_policy_bridge(shift_primitive_kind, domain).shift_count_law
+            != ShiftCountLaw::MustBeWithinWidth
+        {
+            return;
         }
-    }
-
-    walk(
-        program,
-        expression,
-        owner,
-        bindings,
-        environment,
-        diagnostics,
-        &mut Vec::new(),
-    );
+        let Some(width) = integer_bit_width(primitive) else {
+            return;
+        };
+        let count = abstract_specification_interval(program, bindings, environment, binary.right);
+        let provably_in_range = count.is_some_and(|count| {
+            matches!(count.low(), Some(low) if low >= 0)
+                && matches!(count.high(), Some(high) if high < width)
+        });
+        if provably_in_range {
+            return;
+        }
+        let always_out = count.is_some_and(|count| {
+            matches!(count.low(), Some(low) if low >= width)
+                || matches!(count.high(), Some(high) if high < 0)
+        });
+        let verdict = if always_out {
+            "is provably out of range and can never execute"
+        } else {
+            "is not provably below the operand width"
+        };
+        let saturating_hint = if domain == ArithmeticDomain::Saturating {
+            " (`Saturating` governs value overflow, not count validity -- its count obligation is Exact's)"
+        } else {
+            ""
+        };
+        diagnostics.push(Diagnostic::error(format!(
+            "shift count in {owner} {verdict} for `{prim}`{saturating_hint}: exact shifts prove `count < {width}` before the term forms; discharge the count with an independently accepted prior fact, or use `{prim} in Wrapping` for a modulo-{width} count",
+            prim = primitive_name(primitive),
+        )));
+    };
+    crate::expression_traversal::visit_post_order(program, expression, &mut Vec::new(), &mut check);
 }

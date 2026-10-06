@@ -73,6 +73,31 @@ pub fn children(
     }
 }
 
+/// Visit every reachable expression node after its value edges, each once.
+/// `arm` observes a node only after the node's children already walked.
+pub fn visit_post_order(
+    program: &TypedTrees,
+    root: ExpressionHandle,
+    visited: &mut Vec<ExpressionHandle>,
+    mut arm: impl FnMut(&ExpressionNode),
+) {
+    fn inner(
+        program: &TypedTrees,
+        expression: ExpressionHandle,
+        visited: &mut Vec<ExpressionHandle>,
+        arm: &mut dyn FnMut(&ExpressionNode),
+    ) {
+        if !expression.is_valid() || visited.contains(&expression) {
+            return;
+        }
+        visited.push(expression);
+        let node = program.expression_table.expression(expression);
+        children(program, node, |child| inner(program, child, visited, arm));
+        arm(node);
+    }
+    inner(program, root, visited, &mut arm);
+}
+
 /// The last member of the `Name` path `value` names, when it names one.
 pub fn name_path_last_member<'a>(
     program: &'a TypedTrees,
