@@ -454,11 +454,14 @@ fn state_parameter_domain_is_resource_claim(
             })
 }
 
-fn append_state_parameter_carry_origin(
+/// The `Place(parameter_symbol)` + `State` point + `StateParameterDomain`
+/// origin + `Propagated` evidence scaffolding both carry facts share.
+fn append_state_parameter_carry(
     facts: &mut FactPlan,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     parameter_symbol: SymbolHandle,
+    payload: FactPayload,
     refs: &mut arena::HandleSpan<facts::FactRef>,
 ) {
     let place = facts.append_symbol_place(parameter_symbol);
@@ -476,11 +479,28 @@ fn append_state_parameter_carry_origin(
             language_semantics::QualificationEvidenceOrigin::Propagated,
             state_symbol,
         ),
-        payload: FactPayload::CarryOrigin {
-            value: typed_trees::expression::ExpressionHandle::invalid(),
-        },
+        payload,
     });
     facts.append_ref(refs, fact);
+}
+
+fn append_state_parameter_carry_origin(
+    facts: &mut FactPlan,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    parameter_symbol: SymbolHandle,
+    refs: &mut arena::HandleSpan<facts::FactRef>,
+) {
+    append_state_parameter_carry(
+        facts,
+        machine_symbol,
+        state_symbol,
+        parameter_symbol,
+        FactPayload::CarryOrigin {
+            value: typed_trees::expression::ExpressionHandle::invalid(),
+        },
+        refs,
+    );
 }
 
 fn carry_constraint_permissions(
@@ -514,27 +534,17 @@ fn append_state_parameter_carry_fact(
     permission: language_semantics::CarryPermission,
     refs: &mut arena::HandleSpan<facts::FactRef>,
 ) {
-    let place = facts.append_symbol_place(parameter_symbol);
-    let fact = facts.append_fact(Fact {
-        place: FactPlace::Place(place),
-        point: ProgramPoint::State {
-            machine_symbol,
-            state_symbol,
-        },
-        origin: FactOrigin::StateParameterDomain {
-            machine_symbol,
-            state_symbol,
-        },
-        evidence: QualificationEvidence::from_origin(
-            language_semantics::QualificationEvidenceOrigin::Propagated,
-            state_symbol,
-        ),
-        payload: FactPayload::CarryPermission {
+    append_state_parameter_carry(
+        facts,
+        machine_symbol,
+        state_symbol,
+        parameter_symbol,
+        FactPayload::CarryPermission {
             value: typed_trees::expression::ExpressionHandle::invalid(),
             permission,
         },
-    });
-    facts.append_ref(refs, fact);
+        refs,
+    );
 }
 
 fn data_field_domain_rows(
