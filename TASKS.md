@@ -2199,24 +2199,99 @@ crash and native exit behavior.
   a failed measurement.
 
 
-- **TERMINAL-EDGE-VALIDATION-REGRESSED-FORTY.** (new-scope)
-  Recover the check regressions recorded by `cfc85e2c592`: its corpus diff
-  identifies the forty former successes. Reproduce the still-red members on
-  current main before assigning fixes. The recorded diagnostic families are
-  `EdgeAffineDiscardsInvalid` and `InvalidStructuralSuccessorArgument`,
-  mostly in `pass/borrows`, with control-flow, recast, collection and
-  expression customers.
+- **TERMINAL-SUCCESSOR-CLEANUP-REGRESSED-TWELVE.** (split-of:TERMINAL-EDGE-VALIDATION-REGRESSED-FORTY)
+  Twelve of `cfc85e2c592`'s forty regressions remain. **Twenty-eight were one
+  defect, attributed by bisect and not by the stamp:** `6c0fd10e915` compiles
+  `pass/borrows/nested_reference_crossings_exit` to `checked`, and its child
+  `93ef77dfc41` ("compiler: preserve ordered cleanup on selected successors")
+  refuses it with `EdgeAffineDiscardsInvalid { edge: EdgeId(9) }`. The
+  `@74a22511782` stamp was only where the loss got measured, three commits
+  later.
 
-  Bisect a representative of each family only if the current failure remains
-  unexplained; a golden's measurement revision is not causal attribution.
-  Keep exact argument/loan and edge-cleanup obligations in their producing
-  stages. Coordinate **CML4**, **REFERENCE-LOCAL-BINDING-ROUTES** and the
-  PCC-removal owners; do not restore redundant verification or expand the
-  retiring verifier to make a row green.
+  **The mechanism is the inverse of the usual lens, and that matters for the
+  next lane.** The refusing predicate was **not** narrower than its rule -- the
+  *producer* was **wider** than the spec rule. `ownership.md` requires every
+  incoming owned obligation to occur *exactly once* across an edge's transfer
+  map, terminal consumption, eligible cleanup or validated discard, and the
+  module genuinely emitted a second `DiscardRoot` for a root a
+  `ContinuationCleanup` had already disposed in a dominating block. Patching the
+  validator would have been the "make a validator tolerate what it cannot
+  describe" mistake. **Read the spec rule and decide which side violates it
+  before assuming the predicate is at fault.**
 
-  Acceptance: every affected program again reaches its authored check and,
-  where supplied, native exit/output oracle. Update `regressed-from:` records
-  only from observed recovery. Already recovered members need no new repair.
+  `8ed612f5cc6` repaired it in one filter in the shared `cleanup::for_exit`:
+  stage 04 records a state's whole dying complement on every normal exit and
+  separately records each body boundary's cleanup, and `for_exit` lowered the
+  exit roster verbatim after `93ef77dfc41` dropped the subtraction the previous
+  successor route performed. Placed in `for_exit` rather than at one call site
+  because all six callers consume the same roster -- and one of them also
+  repeated a body disposition, which is where a twenty-ninth recovered row came
+  from. The Omega-side twin validator needed no change: **repairing the producer
+  is what makes a duplicated firewall harmless.**
+
+  Twenty-nine rows reach `checked` and all twenty-nine build and run on macOS
+  ARM64 (28 at `exit:70`, one at `0`); ten native `regressed-from` tokens
+  dropped through the observed run rather than by hand.
+
+  The twelve remaining split by what actually refuses, none of it edge-affine
+  cleanup:
+  - `InvalidStructuralSuccessorArgument` (5):
+    `pass/collections/runtime_double_indexed_rmw_exit`,
+    `pass/control_flow/{runtime_later_state_shared_array_loan,
+    runtime_nonentry_state_local_loan_forwarded_exit,
+    runtime_nonentry_state_local_loan_held_at_return_exit,
+    runtime_nonentry_state_local_record_loan_exit}`. A long-known wall; these
+    may predate the batch and need their own representative bisect.
+  - native `UnsupportedControlFlow` during artifact target lowering (4):
+    `pass/borrows/transition_shared_borrow_result`,
+    `pass/calls/{runtime_guarded_reference_return_crash,
+    runtime_guarded_terminal_mutable_reference_result_exit,
+    runtime_guarded_terminal_reference_result_exit}`.
+  - one each: `pass/borrows/qualified_record_view_call_exit` (cannot prove a
+    default-domain field requirement for a call fill),
+    `pass/recast/runtime_aggregate_slice_representation_recast_exit`
+    (`OwnedStructuralFrontierJoinMismatch`),
+    `pass/recast/runtime_interior_slice_view_mutable_write_exit`
+    (`InvalidNominalAffineCleanup`).
+
+  Three rows the re-pin touched -- `pass/drops/{runtime_local_nominal_cleanup_exit,
+  runtime_local_nominal_return_exit, runtime_nominal_successor_argument_order_exit}`
+  -- were already `checked` and are not losses. 28 recovered + 12 still red + 3
+  never lost accounts for all 43 rows the re-pin added.
+  Acceptance: the twelve reach `checked` and their authored native outcomes,
+  each cleared by an observed corpus result rather than a re-pin.
+
+  Division-of-labour follow-up, flagged and deliberately not taken: stage 04
+  publishes the exit roster as the union of all roots dying at the exit and
+  three lowering consumers now subtract the body-discharged ones. Publishing the
+  already-net roster and deleting all three subtractions is the alternative; it
+  is a much larger change than the red programs needed, and two of the
+  subtractions document the current division in their own comments.
+
+- **GUARDED-TRANSITION-ARGUMENT-PROOF-REGRESSED.** (new-scope)
+  `pass/calls/runtime_guarded_effectful_transition_argument_exit` moved
+  `checked` to `rejected` somewhere in `5fc8d6f1ec2..62b1b0cb656`. It refuses
+  with `cannot prove requires contract for call bump_and_value from Main::main:
+  Main.bump_and_value(seed, main) <= 20 (needs fact `value <= 20` here;
+  establish it before the call via a prior contract guarantee, domain
+  membership, or guard)`. Reproduced on an unmodified checkout at
+  `62b1b0cb656` and `checked` at `5fc8d6f1ec2`, so it is a real loss in that
+  eight-commit window and **not** the edge-cleanup repair, which was measured
+  with and without its one file. The golden row is stamped `@2d8ed253669f`,
+  about 2058 commits behind, so the golden cannot date the loss -- bisect the
+  window. Acceptance: the row reaches `checked` again.
+
+- **OPTIMIZER-ROLLBACK-DIGESTS-STALE-SIXTEEN.** (new-scope)
+  Sixteen `pass/optimizer/{join_invariant_*,rollback_*}` rows pin
+  `unrolled-semantic`/`rolled-back-semantic` digests that no longer match, and
+  `fail/capabilities/native_slice_external_leaf_rejected` pins
+  `expected_satisfied False` where the fixture now satisfies its fragment. All
+  seventeen are **identical with and without** `8ed612f5cc6`, measured as an A/B
+  of two runners at one base, so they are earlier drift rather than a move.
+  `module:same`/`module:differs` is unchanged on every row -- only the digests.
+  Re-record them from an observed run rather than carrying them as permanent
+  gate noise: a digest-only row that never matches hides the next real semantic
+  move behind it.
 
 - **CONSTRUCTED-ARGUMENT-SCHEDULE-REGRESSED-NINE.** (new-scope)
   Five customers still need the shared constructed-argument schedule completed:
