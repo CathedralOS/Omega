@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": "2", "load1_end": 3.05, "load1_start": 3.05, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "3", "load1_end": 12.38, "load1_start": 12.38, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 189ms
 pass/arithmetic/anonymous_rational_integer_landing checked 186ms
 pass/arithmetic/bounded_assignment checked 197ms
@@ -381,8 +381,7 @@ pass/collections/runtime_case_array_element_write_exit built 3798ms exit:36 @fb2
 pass/collections/runtime_computed_index_direct_exit built 953ms exit:1
 pass/collections/runtime_constant_expression_index_stores_exit built 1621ms exit:70 @c864ec75728c+wt
 pass/collections/runtime_declared_range_index_write_exit built 597ms exit:30
-pass/collections/runtime_double_indexed_rmw_exit rejected 813ms regressed-from:built+exit:1 @0604ece757cd+wt
-	terminal-artifact production failed: Lowering(InvalidTerminalModule(InvalidStructuralSuccessorArgument { edge: EdgeId(5), place: PlaceId(10) }))
+pass/collections/runtime_double_indexed_rmw_exit built 1477ms exit:1 @3f6c649ef545
 pass/collections/runtime_dutch_flag_partition_exit built 9802ms exit:70 @fb2178def922
 pass/collections/runtime_fixed_array_captured_selector_store_exit built 1243ms exit:70 @87238e4afb83+wt
 pass/collections/runtime_fixed_array_projected_write_exit built 8532ms exit:45 @8093eb34a6ed+wt
@@ -477,14 +476,12 @@ pass/control_flow/runtime_entry_receiver_loan_with_byte_fields_exit built 782ms 
 pass/control_flow/runtime_exclusive_state_loan_shared_handoff_exit built 833ms exit:70 @5ce122a775ca+wt
 pass/control_flow/runtime_indexed_case_dispatch_exit built 1009ms exit:2 @48008365d839
 pass/control_flow/runtime_integer_literal_dispatch_exit built 591ms exit:22
+pass/control_flow/runtime_later_state_shared_array_loan built 1478ms exit:0 stdout:match @3f6c649ef545
 pass/control_flow/runtime_loop_patterns_exit built 729ms exit:70
-pass/control_flow/runtime_nonentry_state_local_loan_forwarded_exit rejected 808ms regressed-from:built+exit:70 @0604ece757cd+wt
-	terminal-artifact production failed: Lowering(InvalidTerminalModule(InvalidStructuralSuccessorArgument { edge: EdgeId(4), place: PlaceId(3) }))
-pass/control_flow/runtime_nonentry_state_local_loan_held_at_return_exit rejected 805ms regressed-from:built+exit:70 @0604ece757cd+wt
-	terminal-artifact production failed: Lowering(InvalidTerminalModule(InvalidStructuralSuccessorArgument { edge: EdgeId(4), place: PlaceId(3) }))
+pass/control_flow/runtime_nonentry_state_local_loan_forwarded_exit built 1476ms exit:70 @3f6c649ef545
+pass/control_flow/runtime_nonentry_state_local_loan_held_at_return_exit built 946ms exit:70 @3f6c649ef545
 pass/control_flow/runtime_nonentry_state_local_loans_shared_successor_exit built 1601ms exit:70 @c260ca98bc09+wt
-pass/control_flow/runtime_nonentry_state_local_record_loan_exit rejected 807ms regressed-from:built+exit:70 @0604ece757cd+wt
-	terminal-artifact production failed: Lowering(InvalidTerminalModule(InvalidStructuralSuccessorArgument { edge: EdgeId(4), place: PlaceId(2) }))
+pass/control_flow/runtime_nonentry_state_local_record_loan_exit built 942ms exit:70 @3f6c649ef545
 pass/control_flow/runtime_nonplace_record_pattern_single_evaluation_exit built 1032ms exit:70 @48008365d839
 pass/control_flow/runtime_string_literal_dispatch_exit built 1008ms exit:11 @1c0bb7bc95d0
 pass/control_flow/runtime_sum_tuple_matrix_exhaustive_exit built 1023ms exit:70 @48008365d839
