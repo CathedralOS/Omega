@@ -379,7 +379,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_results/boundary_calls.rs",
-        sha256: Some("71d8e5f1acbab8c2ca552370b14ad52f4a46c86204cd149066dfb9125ddf8da4"),
+        sha256: Some("70da71fb45e6d43dcaefe99b3ccd8d947291fc995d3fc737dd42b4ab5fbe3e06"),
         inventory_machinery: false,
     },
     ImplementationSite {

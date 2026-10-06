@@ -3,9 +3,13 @@
 //! Borrowed bytes and elements expose backing, not the descriptor slot. When
 //! every writable input has descriptor-free backing and the invocation returns
 //! no custody, no output channel can retain or replace an input descriptor.
-//! Structural results, owned inputs, retained guarantees and unknown writable
-//! storage keep the conservative escape treatment. This storage summary grants
-//! no access: ordinary argument, bounds, completion and loan checks still apply.
+//! A structural result counts as no custody exactly when its declared type is
+//! descriptor-free (`plain_owned_shape`: no borrowed view, element view or
+//! reference anywhere in its fields or cases), like `LineReadResult`'s counts.
+//! Results that can carry a descriptor, owned inputs, retained guarantees and
+//! unknown writable storage keep the conservative escape treatment. This
+//! storage summary grants no access: ordinary argument, bounds, completion and
+//! loan checks still apply.
 use super::{
     Operation, OperationKind, StructuralAccess, StructuralTypeShape, TerminalMachine,
     TerminalModule,
@@ -44,6 +48,13 @@ pub fn boundary_call_preserves_descriptor_storage(
             (BoundaryMachineResult::Unit, OperationResult::Unit) => true,
             (BoundaryMachineResult::Scalar(expected), OperationResult::Scalar(result)) => {
                 *expected == result.scalar_type
+            }
+            (BoundaryMachineResult::Structural(expected), OperationResult::Structural(result)) => {
+                expected.structural_type == result.structural_type
+                    && super::plain_owned_shape(
+                        module.structural_types.iter(),
+                        result.structural_type,
+                    )
             }
             _ => false,
         }
