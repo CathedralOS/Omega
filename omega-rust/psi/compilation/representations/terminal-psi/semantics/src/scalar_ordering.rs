@@ -421,14 +421,6 @@ impl ScalarOrdering {
         result
     }
 
-    pub fn proves_less_than(&self, position: Position, left: ValueId, right: ValueId) -> bool {
-        self.proves(position, Term::Value(left), Term::Value(right), true)
-    }
-
-    pub fn proves_less_or_equal(&self, position: Position, left: ValueId, right: ValueId) -> bool {
-        self.proves(position, Term::Value(left), Term::Value(right), false)
-    }
-
     pub(crate) fn proves(&self, position: Position, left: Term, right: Term, strict: bool) -> bool {
         let Some(state) = self
             .steps

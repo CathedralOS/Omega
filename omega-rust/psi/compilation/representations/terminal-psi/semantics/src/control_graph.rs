@@ -111,23 +111,6 @@ pub fn control_cycle_members(
     Ok(cyclic_components(machine))
 }
 
-/// Canonical iteration entries dominating a member: the feedback-edge targets
-/// above it in the dominance tree.
-pub fn dominating_control_cycle_entries(
-    machine: &TerminalMachine,
-    member: BlockId,
-) -> Result<Vec<BlockId>, ControlGraphError> {
-    validate_control_graph(machine)?;
-    let dominators = dominators(machine);
-    let mut entries = feedback_edges(machine)
-        .values()
-        .copied()
-        .filter(|entry| dominators.dominates(*entry, member))
-        .collect::<Vec<_>>();
-    entries.sort();
-    Ok(entries)
-}
-
 pub fn validate_control_graph(machine: &TerminalMachine) -> Result<(), ControlGraphError> {
     let mut blocks = BTreeSet::new();
     for block in &machine.blocks {

@@ -90,14 +90,6 @@ impl DescriptorFlowEdge {
     }
 }
 
-pub fn descriptor_live_positions(
-    steps: &BTreeMap<DescriptorPosition, DescriptorFlowStep>,
-    birth: DescriptorPosition,
-    descriptor: PlaceId,
-) -> BTreeSet<DescriptorPosition> {
-    descriptor_location_live_positions(steps, birth, &DescriptorLocation::whole(descriptor))
-}
-
 pub fn descriptor_location_live_positions(
     steps: &BTreeMap<DescriptorPosition, DescriptorFlowStep>,
     birth: DescriptorPosition,
@@ -187,29 +179,6 @@ pub fn descriptor_location_live_positions(
         }
     }
     live
-}
-
-/// Exact descendant names at each input position, established on every incoming
-/// path. May-alias/lifetime capture is insufficient for this exemption. Repeated
-/// formation lends authority only after every older instance has ceased to be live.
-pub fn descriptor_authorized_places(
-    steps: &BTreeMap<DescriptorPosition, DescriptorFlowStep>,
-    birth: DescriptorPosition,
-    descriptor: PlaceId,
-) -> BTreeMap<DescriptorPosition, BTreeSet<PlaceId>> {
-    descriptor_location_authorized_locations(steps, birth, &DescriptorLocation::whole(descriptor))
-        .into_iter()
-        .map(|(position, locations)| {
-            (
-                position,
-                locations
-                    .into_iter()
-                    .filter(|location| location.path.is_empty())
-                    .map(|location| location.root)
-                    .collect(),
-            )
-        })
-        .collect()
 }
 
 pub struct DescriptorLifetime {
