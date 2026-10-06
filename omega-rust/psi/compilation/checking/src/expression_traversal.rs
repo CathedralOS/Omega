@@ -121,7 +121,7 @@ pub fn single_member_argument_symbol(
             .name_path_members(path.members)
             .len()
             == 1)
-    .then_some(path.symbol)
+        .then_some(path.symbol)
 }
 
 /// The last member of the `Name` path `value` names, when it names one.

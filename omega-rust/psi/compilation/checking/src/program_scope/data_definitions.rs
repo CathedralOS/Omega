@@ -249,3 +249,20 @@ pub(crate) fn memoized_type_parameter_multiplicities(
     }
     map
 }
+
+/// The named field of `definition`, when it declares one.
+pub(crate) fn data_field_named<'a>(
+    program: &'a typed_trees::TypedTrees,
+    definition: &typed_trees::data::DataDefinition,
+    name: typed_trees::name::Identifier,
+) -> Option<&'a typed_trees::data::DataField> {
+    program
+        .data_members(definition)
+        .iter()
+        .find_map(|member| match member {
+            typed_trees::data::DataMember::Field(data_field) if data_field.name == name => {
+                Some(data_field)
+            }
+            _ => None,
+        })
+}

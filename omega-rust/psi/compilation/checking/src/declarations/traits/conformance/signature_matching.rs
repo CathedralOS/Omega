@@ -381,9 +381,7 @@ pub(crate) fn validate_machine_state_satisfies_trait_signature_with_arguments(
     {
         match (&required.kind, &actual.kind) {
             (TypeParameterKind::Type, TypeParameterKind::Type) => {
-                if typed_trees::data::type_parameter_demands_stronger_properties(
-                    required, actual,
-                ) {
+                if typed_trees::data::type_parameter_demands_stronger_properties(required, actual) {
                     diagnostics.push(Diagnostic::error(format!(
                         "machine `{}` does not satisfy trait `{}` machine `{}`: callable generic parameter {} demands stronger type properties",
                         machine.name, trait_definition.name, requirement.name, index

@@ -145,7 +145,6 @@ impl CallFrameCaches {
     }
 }
 
-
 fn compute_call_plans(
     program: &TypedTrees,
 ) -> (

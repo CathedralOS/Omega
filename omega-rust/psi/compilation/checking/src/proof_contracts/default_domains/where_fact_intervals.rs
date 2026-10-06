@@ -414,18 +414,12 @@ fn bound_source_interval(
                 .expression_table
                 .name_path_members(path.members)
                 .last()?;
-            let handle =
-                program
-                    .data_members(definition)
-                    .iter()
-                    .find_map(|member| match member {
-                        typed_trees::data::DataMember::Field(data_field)
-                            if data_field.name == *name =>
-                        {
-                            Some(data_field.type_reference)
-                        }
-                        _ => None,
-                    })?;
+            let handle = crate::program_scope::data_definitions::data_field_named(
+                program,
+                definition,
+                name.clone(),
+            )
+            .map(|field| field.type_reference)?;
             crate::proof_contracts::arithmetic_domains::range_constraint_interval(program, handle)
                 .or_else(|| field_fact_interval(program, definition, name.as_str(), depth + 1))
         }

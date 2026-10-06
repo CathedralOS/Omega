@@ -499,7 +499,8 @@ fn fold_literal_facts(
                 }
             }
             typed_trees::domain::ProofFact::Membership(membership) => {
-                let field_name = crate::expression_traversal::name_path_last_member(program, membership.value);
+                let field_name =
+                    crate::expression_traversal::name_path_last_member(program, membership.value);
                 let authored_value = field_name.and_then(|wanted| {
                     program
                         .expression_table

@@ -17,19 +17,11 @@ pub(super) fn validate_nested_value_field(
     child: &WireSchema,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let Some(value_field) =
-        program
-            .data_members(value_data)
-            .iter()
-            .find_map(|member| match member {
-                typed_trees::data::DataMember::Field(data_field)
-                    if data_field.name == field.name =>
-                {
-                    Some(data_field)
-                }
-                _ => None,
-            })
-    else {
+    let Some(value_field) = crate::program_scope::data_definitions::data_field_named(
+        program,
+        value_data,
+        field.name.clone(),
+    ) else {
         diagnostics.push(Diagnostic::error(format!(
             "`{}::{machine_name}` value type `{}` has no field `{}` (schema field {} nests wire schema `{}`)",
             schema.name, value_data.name, field.name, field.number, child.name
@@ -71,19 +63,11 @@ pub(super) fn validate_nested_value_field(
         if child_field.relevance.is_erased() {
             continue;
         }
-        let Some(child_value_field) =
-            program
-                .data_members(child_value_data)
-                .iter()
-                .find_map(|member| match member {
-                    typed_trees::data::DataMember::Field(data_field)
-                        if data_field.name == child_field.name =>
-                    {
-                        Some(data_field)
-                    }
-                    _ => None,
-                })
-        else {
+        let Some(child_value_field) = crate::program_scope::data_definitions::data_field_named(
+            program,
+            child_value_data,
+            child_field.name.clone(),
+        ) else {
             diagnostics.push(Diagnostic::error(format!(
                 "`{}::{machine_name}` nested value type `{}` has no field `{}` (wire schema `{}` field {})",
                 schema.name, child_value_data.name, child_field.name, child.name, child_field.number

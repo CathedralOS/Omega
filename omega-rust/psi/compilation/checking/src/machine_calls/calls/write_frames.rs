@@ -72,10 +72,10 @@ pub(crate) use transition_topology::named_state_transition_subgraph_is_acyclic;
 
 use super::receiver_member_chain;
 use crate::declarations::symbols::{MachineSymbols, TopLevelSymbols};
-use std::sync::Mutex;
-use symbols::SymbolKeyMap as HashMap;
 use language_core::is_self_receiver;
+use std::sync::Mutex;
 use symbols::SymbolHandle;
+use symbols::SymbolKeyMap as HashMap;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
 use typed_trees::machine::Machine;

@@ -154,19 +154,11 @@ pub(super) fn validate_wire_decode_call(
             return;
         }
         for (field, schema_primitive) in &current_fields {
-            let Some(value_field) =
-                program
-                    .data_members(value_data)
-                    .iter()
-                    .find_map(|member| match member {
-                        typed_trees::data::DataMember::Field(data_field)
-                            if data_field.name == field.name =>
-                        {
-                            Some(data_field)
-                        }
-                        _ => None,
-                    })
-            else {
+            let Some(value_field) = crate::program_scope::data_definitions::data_field_named(
+                program,
+                value_data,
+                field.name.clone(),
+            ) else {
                 diagnostics.push(Diagnostic::error(format!(
                     "`{}::decode` value type `{}` has no field `{}` to decode into (schema field {})",
                     schema.name, value_data.name, field.name, field.number
@@ -208,19 +200,11 @@ pub(super) fn validate_wire_decode_call(
         // A `&[u8]` schema field decodes into a `&[u8]` value field (a zero-copy
         // view of the buffer); the value's data field must match.
         for field in &byte_slice_fields {
-            let Some(value_field) =
-                program
-                    .data_members(value_data)
-                    .iter()
-                    .find_map(|member| match member {
-                        typed_trees::data::DataMember::Field(data_field)
-                            if data_field.name == field.name =>
-                        {
-                            Some(data_field)
-                        }
-                        _ => None,
-                    })
-            else {
+            let Some(value_field) = crate::program_scope::data_definitions::data_field_named(
+                program,
+                value_data,
+                field.name.clone(),
+            ) else {
                 diagnostics.push(Diagnostic::error(format!(
                     "`{}::decode` value type `{}` has no field `{}` to decode into (schema field {})",
                     schema.name, value_data.name, field.name, field.number
