@@ -109,7 +109,6 @@ struct MachinePositionIndex {
 #[derive(Clone, Default)]
 struct StatePositionIndex {
     in_machine: HashMap<(SymbolHandle, SymbolHandle), usize>,
-    location: HashMap<SymbolHandle, (usize, usize)>,
 }
 
 /// Data-definition roster: every position carrying a symbol, and every
@@ -330,26 +329,9 @@ impl super::TypedTrees {
         )
     }
 
-    /// `(machine position, state position)` of `state` regardless of which
-    /// machine owns it.
-    pub fn state_location_by_symbol(&self, state: SymbolHandle) -> Option<(usize, usize)> {
-        if !state.is_valid() {
-            return None;
-        }
-        self.declaration_indexes.states.with(
-            self.tables
-                .machines
-                .revision()
-                .wrapping_add(self.tables.machine_states.revision())
-                .wrapping_add(roster_marker(self.roots.machines)),
-            || self.build_state_positions(),
-            |index| index.location.get(&state).copied(),
-        )
-    }
-
     fn build_state_positions(&self) -> StatePositionIndex {
         let mut index = StatePositionIndex::default();
-        for (machine_index, machine) in self.machines().iter().enumerate() {
+        for machine in self.machines().iter() {
             for (state_index, state) in self.machine_states(machine).iter().enumerate() {
                 // First match wins, like the roster `position` scans the
                 // indexes replace: malformed duplicate rows cannot
@@ -358,10 +340,6 @@ impl super::TypedTrees {
                     .in_machine
                     .entry((machine.symbol, state.symbol))
                     .or_insert(state_index);
-                index
-                    .location
-                    .entry(state.symbol)
-                    .or_insert((machine_index, state_index));
             }
         }
         index

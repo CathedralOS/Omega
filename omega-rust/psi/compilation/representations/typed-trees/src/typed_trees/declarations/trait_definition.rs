@@ -184,15 +184,6 @@ pub struct TraitRequirement {
     pub source_span: source::SourceSpan,
 }
 
-/// The semantic role of a trait-composition edge. It is derived from the
-/// referenced trait, never authored: boundary parents extend service reach;
-/// ordinary parents contribute policy/requirement identity only.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TraitCompositionKind {
-    Policy,
-    ServiceReach,
-}
-
 /// Why a requirement is absent from the signature-derived portion of a local
 /// dynamic trait surface. Later contract/lifetime/envelope judgments remain
 /// independent and may exclude an otherwise signature-eligible requirement.

@@ -259,22 +259,6 @@ impl TypedTrees {
             .span_or_empty(trait_definition.requires)
     }
 
-    pub fn trait_composition_kind(
-        &self,
-        requirement: &trait_definition::TraitRequirement,
-    ) -> Option<trait_definition::TraitCompositionKind> {
-        self.traits()
-            .iter()
-            .find(|candidate| candidate.symbol == requirement.symbol)
-            .map(|candidate| {
-                if candidate.is_boundary {
-                    trait_definition::TraitCompositionKind::ServiceReach
-                } else {
-                    trait_definition::TraitCompositionKind::Policy
-                }
-            })
-    }
-
     pub fn record_boundary_calling_plan(&mut self, identity: BoundaryCallingPlanIdentity) {
         if let Some(existing) = self.boundary_calling_plans.iter_mut().find(|candidate| {
             candidate.boundary_trait == identity.boundary_trait
@@ -408,15 +392,6 @@ impl TypedTrees {
     #[inline]
     pub fn machines_mut(&mut self) -> &mut [machine::Machine] {
         self.tables.machines.span_mut_or_empty(self.roots.machines)
-    }
-
-    pub fn push_machine_type_parameter(
-        &mut self,
-        machine: &mut machine::Machine,
-        type_parameter: data::TypeParameter,
-    ) {
-        self.data_type_parameters
-            .append_to_span(&mut machine.type_parameters, type_parameter);
     }
 
     #[inline]
