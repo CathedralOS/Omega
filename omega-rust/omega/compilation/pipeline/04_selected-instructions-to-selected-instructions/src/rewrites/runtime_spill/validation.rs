@@ -1100,18 +1100,11 @@ fn reconstruct<'source>(
                                 dedicated.push(instruction_index);
                             }
                         }
-                        if operand.fixed_view.is_none() {
-                            flexible_uses[current_block_index] = true;
-                            let positions = &mut use_positions[current_block_index].unpinned;
-                            if positions.last() != Some(&instruction_index) {
-                                positions.push(instruction_index);
-                            }
-                        } else {
-                            let positions = &mut use_positions[current_block_index].pinned;
-                            if positions.last() != Some(&instruction_index) {
-                                positions.push(instruction_index);
-                            }
-                        }
+                        use_positions[current_block_index].record_use(
+                            instruction_index,
+                            operand.fixed_view.is_some(),
+                            &mut flexible_uses[current_block_index],
+                        );
                         uses = uses
                             .checked_add(1)
                             .ok_or(RuntimeSpillError::IdentityOverflow)?;
@@ -1157,18 +1150,11 @@ fn reconstruct<'source>(
                             },
                             register,
                         });
-                        if operand.fixed_view.is_none() {
-                            flexible_uses[current_block_index] = true;
-                            let positions = &mut use_positions[current_block_index].unpinned;
-                            if positions.last() != Some(&instruction_index) {
-                                positions.push(instruction_index);
-                            }
-                        } else {
-                            let positions = &mut use_positions[current_block_index].pinned;
-                            if positions.last() != Some(&instruction_index) {
-                                positions.push(instruction_index);
-                            }
-                        }
+                        use_positions[current_block_index].record_use(
+                            instruction_index,
+                            operand.fixed_view.is_some(),
+                            &mut flexible_uses[current_block_index],
+                        );
                         uses = uses
                             .checked_add(1)
                             .ok_or(RuntimeSpillError::IdentityOverflow)?;
@@ -2069,7 +2055,12 @@ pub fn validate_runtime_spill_with_span_policy(
                 &mut next_instruction,
                 &mut next_register,
             )?;
-            consume_emitted(&mut values, &mut stream, store.into_streams(), &mut consumed)?;
+            consume_emitted(
+                &mut values,
+                &mut stream,
+                store.into_streams(),
+                &mut consumed,
+            )?;
         }
         for (instruction_index, original) in source_block.instructions.iter().enumerate() {
             boundaries.push(consumed);
@@ -2110,7 +2101,12 @@ pub fn validate_runtime_spill_with_span_policy(
                             &mut next_register,
                         )?;
                         let reloaded = reload.reload_register.id;
-                        consume_emitted(&mut values, &mut stream, reload.into_streams(), &mut consumed)?;
+                        consume_emitted(
+                            &mut values,
+                            &mut stream,
+                            reload.into_streams(),
+                            &mut consumed,
+                        )?;
                         if share {
                             open_reload = Some(reloaded);
                         }
@@ -2170,7 +2166,12 @@ pub fn validate_runtime_spill_with_span_policy(
                     &mut next_instruction,
                     &mut next_register,
                 )?;
-                consume_emitted(&mut values, &mut stream, store.into_streams(), &mut consumed)?;
+                consume_emitted(
+                    &mut values,
+                    &mut stream,
+                    store.into_streams(),
+                    &mut consumed,
+                )?;
             }
         }
         // The rewrite appends terminator-operand reloads after the last body
@@ -2191,7 +2192,12 @@ pub fn validate_runtime_spill_with_span_policy(
                 &mut next_register,
             )?;
             let reloaded = reload.reload_register.id;
-            consume_emitted(&mut values, &mut stream, reload.into_streams(), &mut consumed)?;
+            consume_emitted(
+                &mut values,
+                &mut stream,
+                reload.into_streams(),
+                &mut consumed,
+            )?;
             operand.virtual_register = reloaded;
         }
         // Binding-argument reloads follow the terminator-operand pairs in
@@ -2217,7 +2223,12 @@ pub fn validate_runtime_spill_with_span_policy(
                     &mut next_register,
                 )?;
                 let reloaded = reload.reload_register.id;
-                consume_emitted(&mut values, &mut stream, reload.into_streams(), &mut consumed)?;
+                consume_emitted(
+                    &mut values,
+                    &mut stream,
+                    reload.into_streams(),
+                    &mut consumed,
+                )?;
                 let SelectedValueTransport::Registers { argument, .. } = &mut binding.transport
                 else {
                     unreachable!()
@@ -2263,7 +2274,12 @@ pub fn validate_runtime_spill_with_span_policy(
                         &mut next_register,
                     )?;
                     let reloaded = reload.reload_register.id;
-                    consume_emitted(&mut values, &mut stream, reload.into_streams(), &mut consumed)?;
+                    consume_emitted(
+                        &mut values,
+                        &mut stream,
+                        reload.into_streams(),
+                        &mut consumed,
+                    )?;
                     reloaded
                 } else {
                     pending
@@ -2301,7 +2317,12 @@ pub fn validate_runtime_spill_with_span_policy(
                         &mut next_register,
                     )?;
                     let reloaded = reload.reload_register.id;
-                    consume_emitted(&mut values, &mut stream, reload.into_streams(), &mut consumed)?;
+                    consume_emitted(
+                        &mut values,
+                        &mut stream,
+                        reload.into_streams(),
+                        &mut consumed,
+                    )?;
                     let SelectedCasePayloadTransport::Registers { argument, .. } =
                         &mut payload.transport
                     else {

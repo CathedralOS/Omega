@@ -758,18 +758,11 @@ pub(super) fn admit<'source>(
                                 dedicated.push(instruction_index);
                             }
                         }
-                        if operand.fixed_view.is_none() {
-                            flexible_uses[current_block_index] = true;
-                            let positions = &mut use_positions[current_block_index].unpinned;
-                            if positions.last() != Some(&instruction_index) {
-                                positions.push(instruction_index);
-                            }
-                        } else {
-                            let positions = &mut use_positions[current_block_index].pinned;
-                            if positions.last() != Some(&instruction_index) {
-                                positions.push(instruction_index);
-                            }
-                        }
+                        use_positions[current_block_index].record_use(
+                            instruction_index,
+                            operand.fixed_view.is_some(),
+                            &mut flexible_uses[current_block_index],
+                        );
                         uses = uses
                             .checked_add(1)
                             .ok_or(RuntimeSpillError::IdentityOverflow)?;
@@ -815,18 +808,11 @@ pub(super) fn admit<'source>(
                             },
                             register,
                         });
-                        if operand.fixed_view.is_none() {
-                            flexible_uses[current_block_index] = true;
-                            let positions = &mut use_positions[current_block_index].unpinned;
-                            if positions.last() != Some(&instruction_index) {
-                                positions.push(instruction_index);
-                            }
-                        } else {
-                            let positions = &mut use_positions[current_block_index].pinned;
-                            if positions.last() != Some(&instruction_index) {
-                                positions.push(instruction_index);
-                            }
-                        }
+                        use_positions[current_block_index].record_use(
+                            instruction_index,
+                            operand.fixed_view.is_some(),
+                            &mut flexible_uses[current_block_index],
+                        );
                         uses = uses
                             .checked_add(1)
                             .ok_or(RuntimeSpillError::IdentityOverflow)?;

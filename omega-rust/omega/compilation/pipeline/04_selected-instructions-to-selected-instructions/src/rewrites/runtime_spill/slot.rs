@@ -67,6 +67,24 @@ pub(super) struct BlockUsePositions {
     pub end_of_block: bool,
 }
 
+impl BlockUsePositions {
+    /// Record one admitted operand use in the audited ordering: a fixed-view
+    /// use lands in the pinned list, any other use flags `flexible` and lands
+    /// in the unpinned list, and a consecutive duplicate position is recorded
+    /// once.
+    pub fn record_use(&mut self, instruction_index: usize, fixed_view: bool, flexible: &mut bool) {
+        let recorded = if fixed_view {
+            &mut self.pinned
+        } else {
+            *flexible = true;
+            &mut self.unpinned
+        };
+        if recorded.last() != Some(&instruction_index) {
+            recorded.push(instruction_index);
+        }
+    }
+}
+
 /// The slot resolution the rewrite commits to: every emitted store and every
 /// emitted reload pair names its own window's slot. `stores` runs parallel to
 /// the caller's `definitions`; `loads` covers every admitted use position —
