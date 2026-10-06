@@ -17,6 +17,7 @@ use super::{
 };
 use crate::proof_contracts::arithmetic_domains::expression_analysis::analyze;
 use crate::proof_contracts::arithmetic_domains::integer_ranges::{primitive_name, primitive_range};
+use crate::machine_calls::machine_parameters::contract_facts::contract_kind_name;
 use crate::proof_contracts::arithmetic_domains::operand_reports::arithmetic_operator_spelling;
 use language_core::is_self_receiver;
 
@@ -276,15 +277,6 @@ pub(crate) fn validate_machine_total_specification_arithmetic(
     machine: &Machine,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    fn kind_label(kind: &SignatureContractKind) -> &'static str {
-        match kind {
-            SignatureContractKind::Requires => "requires",
-            SignatureContractKind::Ensures => "ensures",
-            SignatureContractKind::EnsuresForResultCase { .. } => "outcome-specific ensures",
-            SignatureContractKind::Crashes { .. } => "crashes",
-        }
-    }
-
     let entry_state = program.machine_states(machine).first();
     let mut machine_environment = ValueEnvironment::new();
     let mut machine_prior_facts = Vec::new();
@@ -292,7 +284,7 @@ pub(crate) fn validate_machine_total_specification_arithmetic(
         let owner = format!(
             "machine `{}` {} contract",
             machine.name,
-            kind_label(&contract.kind),
+            contract_kind_name(&contract.kind),
         );
         for fact in program.proof_facts.span_or_empty(contract.facts) {
             let diagnostics_before = diagnostics.len();
@@ -347,7 +339,7 @@ pub(crate) fn validate_machine_total_specification_arithmetic(
                 "machine `{}` state `{}` {} contract",
                 machine.name,
                 state.name,
-                kind_label(&contract.kind),
+                contract_kind_name(&contract.kind),
             );
             for fact in program.proof_facts.span_or_empty(contract.facts) {
                 let diagnostics_before = diagnostics.len();
@@ -754,15 +746,6 @@ pub(crate) fn validate_abstract_total_specification_arithmetic(
     program: &TypedTrees,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    fn kind_label(kind: &SignatureContractKind) -> &'static str {
-        match kind {
-            SignatureContractKind::Requires => "requires",
-            SignatureContractKind::Ensures => "ensures",
-            SignatureContractKind::EnsuresForResultCase { .. } => "outcome-specific ensures",
-            SignatureContractKind::Crashes { .. } => "crashes",
-        }
-    }
-
     fn validate_facts(
         program: &TypedTrees,
         facts: &[ProofFact],
@@ -853,7 +836,7 @@ pub(crate) fn validate_abstract_total_specification_arithmetic(
         let mut environment = ValueEnvironment::new();
         let mut prior_facts = Vec::new();
         for contract in contracts {
-            let contract_owner = format!("{owner} {} contract", kind_label(&contract.kind));
+            let contract_owner = format!("{owner} {} contract", contract_kind_name(&contract.kind));
             validate_facts(
                 program,
                 program.proof_facts.span_or_empty(contract.facts),

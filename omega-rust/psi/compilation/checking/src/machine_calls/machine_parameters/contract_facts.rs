@@ -299,7 +299,7 @@ fn alpha_normalize(text: &str, parameters: &[StateParameter]) -> String {
     output
 }
 
-fn contract_kind_name(kind: &SignatureContractKind) -> &'static str {
+pub(crate) fn contract_kind_name(kind: &SignatureContractKind) -> &'static str {
     match kind {
         SignatureContractKind::Requires => "requires",
         SignatureContractKind::Ensures => "ensures",
