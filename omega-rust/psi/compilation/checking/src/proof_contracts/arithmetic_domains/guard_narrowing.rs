@@ -729,7 +729,11 @@ pub(super) fn narrow_environment_by_comparison(
         };
         negated
     };
-    let Some(name) = place_path(program, place_expr) else {
+    // A stable element read narrows under its element key, so a later read
+    // of the same element sees the guard's facts.
+    let Some(name) = place_path(program, place_expr)
+        .or_else(|| super::stable_element_place_path(program, machine, state, place_expr))
+    else {
         return;
     };
     if negated_equality {

@@ -1572,6 +1572,8 @@ fail/text/bounded_carrier_growth_overflow_rejected rejected 216ms expected @c089
 	the value assigned to `main.line` in Main::main can be up to 18 byte(s), exceeding the 16-byte capacity of its `[u8; 16]` carrier; a bounded text carrier requires every write to provably fit
 fail/text/carrier_length_cross_carrier_store rejected 322ms expected @2d8ed253669f
 	store in machine `Main::main` state `main` assignment implicitly converts `u64` to `i32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as i32`)
+fail/text/element_guard_other_index_unbounded rejected 250ms expected @954364ed064e
+	exact arithmetic in machine `digit` state `entry` return value may overflow `u8`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u8 in Wrapping`/`Saturating`/`Trapping`).
 fail/text/later_arm_guard_read_unbounded rejected 423ms expected @954364ed064e
 	cannot prove index `index` is within unknown slice length of `text` in at_space::entry
 fail/traits/conformance_item_missing_member rejected 253ms expected @2d8ed253669f
@@ -3042,6 +3044,7 @@ pass/text/runtime_bounded_carrier_normal_status_exit checked 1839ms check-target
 pass/text/runtime_bounded_carrier_write_read_exit checked 1568ms check-target:macos_arm64 @4e4bfed13aee+wt
 pass/text/runtime_carrier_indexed_read_exit checked 878ms check-target:macos_arm64 @4e4bfed13aee+wt
 pass/text/runtime_chained_string_append_exit checked 1690ms check-target:macos_arm64 @2d8ed253669f
+pass/text/runtime_element_guard_bounds_parse_exit checked 1678ms check-target:macos_arm64 @954364ed064e
 pass/text/runtime_later_arm_guard_reads_exit checked 1807ms check-target:macos_arm64 @954364ed064e
 pass/text/runtime_local_struct_string_field_concat_exit rejected 1325ms check-target:macos_arm64 @c47f8652484
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: destination parameter` (state 1, statement 3)

@@ -20,7 +20,9 @@ pub(super) fn analyze(walk: &ExpressionWalk, expression: ExpressionHandle) -> An
     let program = walk.program;
     // A literal-index element read (`self.cells[3]`) can carry a flow fact of
     // its own, such as a cited helper theorem's element bound.
-    let element_path = element_place_path(program, expression);
+    let element_path = element_place_path(program, expression).or_else(|| {
+        super::super::stable_element_place_path(program, walk.machine, walk.state, expression)
+    });
     let element_fact = element_path
         .as_deref()
         .and_then(|path| walk.environment.get(path));

@@ -43,6 +43,67 @@ pub(crate) fn element_place_path(
     ))
 }
 
+/// `collection[index]` whose value cannot change during the activation, keyed
+/// as `element_place_path` keys a literal index: the collection is a shared
+/// loan the state never reseats (the loan freezes its bytes), and the index
+/// is a literal or an immutable scalar parameter. Every read of that spelling
+/// is then the same value, so a guard's facts about one read bound the others
+/// (`text[index] < 48 || text[index] > 57 -> ..` refuted gives the later
+/// `text[index] - 48` its range).
+pub(crate) fn stable_element_place_path(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: Option<&State>,
+    expression: ExpressionHandle,
+) -> Option<String> {
+    if let Some(path) = element_place_path(program, expression) {
+        return Some(path);
+    }
+    let state = state?;
+    let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    let parameter = |operand: ExpressionHandle| {
+        let ExpressionNode::Name(name) = program.expression_table.expression(operand) else {
+            return None;
+        };
+        if !name.symbol.is_valid() || name.symbol != name.head_symbol {
+            return None;
+        }
+        program
+            .state_parameters(state)
+            .iter()
+            .find(|parameter| parameter.symbol == name.symbol)
+    };
+    let collection = parameter(indexed.collection)?;
+    let index = parameter(indexed.index)?;
+    let frozen = matches!(
+        program
+            .type_reference_table
+            .type_reference(collection.type_reference),
+        typed_trees::types::TypeReferenceNode::Reference {
+            access: language_core::ReferenceAccess::Shared,
+            ..
+        }
+    ) && crate::state_reference_parameter_binding_is_stable(
+        program,
+        machine,
+        state,
+        collection.symbol,
+    );
+    let fixed_index = !index.is_mutable
+        && program
+            .primitive_type_reference(index.type_reference)
+            .is_some_and(|primitive| primitive.accepts_integer_literal());
+    (frozen && fixed_index).then(|| {
+        Some(format!(
+            "{}[{}]",
+            place_path(program, indexed.collection)?,
+            place_path(program, indexed.index)?
+        ))
+    })?
+}
+
 /// Import the element bounds of a checked callee's `ensures` after a
 /// statement call returns.
 pub(crate) fn seed_cited_element_bounds(
