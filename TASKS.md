@@ -1778,6 +1778,19 @@ then independent claimed restoration slices -> final closure.
   production separately lacks a closed native intrinsic catalog identity; a
   Linux-selected FTHN effect control executes portably through the core on Windows.
 
+  **One both-leg golden row overstates interpreter agreement, measured
+  2026-10-06.** `tests/omega/corpus_both_macos_arm64.txt` records
+  `pass/borrows/transition_shared_borrow_result` as
+  `built ... exit:181 interpreter-exit:181 interpreter:agrees`, stamped
+  `@3fa817733300+wt`. Its native leg does deliver `exit:181` (restored at
+  `6405e62ce4a`), but its **interpreter** leg now reports
+  `unimplemented: capability=external-completion-invocation` for
+  `Console::exit_process` demanding `External(ProcessExit)`. The row was left
+  unrecorded on purpose: re-recording it would pin a fresh interpreter loss
+  against the lane that repaired the native leg, and the loss belongs here.
+  Note `--cross-golden` compares only the check and native goldens, so it
+  cannot see a stale both-leg row at all -- this class has no detector.
+
 - **TERMINAL-BUILD-QUERIES.** (split-of:TERMINAL-BUILD-SEED) Restore Build
   query/selection families beyond the development seed after
   **CHECKED-INTERPRETER-DELETED**. Guest computation always runs in the core;
