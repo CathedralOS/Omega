@@ -50,6 +50,7 @@ mod domains;
 mod evaluator;
 pub(in crate::checks) mod prover;
 pub(crate) use prover::boolean_value_at_place;
+pub(crate) use prover::call_guarantees::current_predicates as current_call_guarantee_predicates;
 
 // Provers the call requirement and exit checks consult directly.
 mod call_bounds;

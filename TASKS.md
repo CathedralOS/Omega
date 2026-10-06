@@ -741,6 +741,9 @@ defines the complete product bar.
     `pass/drops/runtime_projected_nominal_cleanup_exit` (`XDCBEA`) and
     `pass/drops/runtime_indexed_nominal_cleanup_exit` (`XGFDCBEA`) as
     value-transfer and recursive cleanup-order controls.
+    Keep `pass/drops/runtime_cleanup_helper_normal_guarantee_exit` as the
+    pre-cleanup scalar-capture and surviving call-contract control when
+    extending these edges.
   - Abstract optimization validation still requires whole owned successor
     arguments in
     `omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/unit_validation/function_structure/structural_transfers.rs`.

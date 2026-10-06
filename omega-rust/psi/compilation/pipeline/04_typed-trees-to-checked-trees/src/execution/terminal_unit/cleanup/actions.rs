@@ -101,7 +101,7 @@ pub(super) fn disposition_actions(
         else {
             return None;
         };
-        for segments in concrete_paths(&selected_path)? {
+        for segments in crate::flow::concrete_cleanup_paths(&selected_path)? {
             let selected_place = crate::flow::CanonicalPlace {
                 root: disposition.root,
                 segments,
@@ -179,32 +179,6 @@ pub(super) fn disposition_actions(
         return None;
     }
     Some(actions)
-}
-
-/// Effect discovery retains array windows once; executable cleanup needs every
-/// concrete selected receiver. Reserve the complete expansion before writing it.
-fn concrete_paths(path: &[facts::PlaceSegment]) -> Option<Vec<Vec<facts::PlaceSegment>>> {
-    let mut paths = vec![Vec::new()];
-    for segment in path {
-        if let facts::PlaceSegment::FixedRange { start, end } = *segment {
-            let count = paths.len().checked_mul(end.checked_sub(start)?)?;
-            let mut expanded = Vec::new();
-            expanded.try_reserve_exact(count).ok()?;
-            for prefix in paths {
-                for index in start..end {
-                    let mut selected = prefix.clone();
-                    selected.push(facts::PlaceSegment::FixedIndex { index });
-                    expanded.push(selected);
-                }
-            }
-            paths = expanded;
-        } else {
-            for prefix in &mut paths {
-                prefix.push(*segment);
-            }
-        }
-    }
-    Some(paths)
 }
 
 fn selected_nominal(

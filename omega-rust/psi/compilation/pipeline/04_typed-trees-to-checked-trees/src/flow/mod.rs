@@ -89,8 +89,8 @@ mod reference_spans;
 mod carried_semantic_dependencies;
 mod cleanup_effect_dependencies;
 pub(crate) use cleanup_effect_dependencies::{
-    CleanupLeaf, derive_cleanup_effect_dependencies, selected_cleanup_leaves,
-    whole_cleanup_is_eligible,
+    CleanupLeaf, concrete_cleanup_paths, derive_cleanup_effect_dependencies,
+    selected_cleanup_leaves, whole_cleanup_is_eligible,
 };
 
 pub(crate) use reference_places::{
@@ -122,6 +122,7 @@ use constraints::{
 };
 use context::FlowBuildContext;
 pub(crate) use domain::build_domain_facts;
+pub(crate) use domain::context_survives_place_mutations;
 pub(crate) use domain::filter_contexts_after_place_mutations;
 pub(crate) use domain::relative_place_segments_from_expression;
 use exits::append_state_exit_facts;
@@ -133,8 +134,8 @@ pub(crate) use mutation::rebase_exact_local_place;
 pub(crate) use mutation::{
     StateMutationSummaryCache, call_mutated_places, call_receiver_write_accesses,
     call_write_accesses, canonical_receiver_place_for_call_site, frame_storage_writes,
-    place_from_origin_path, signature_ceiling_places, statement_mutated_place,
-    statement_storage_writes,
+    place_from_origin_path, signature_ceiling_places, state_storage_writes,
+    statement_mutated_place, statement_storage_writes,
 };
 use operator_calls::{
     append_operator_statement_ensures, operator_statement_call_mutated_places,

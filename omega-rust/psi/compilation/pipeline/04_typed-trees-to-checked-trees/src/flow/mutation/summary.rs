@@ -34,6 +34,25 @@ pub(crate) struct StateMutationSummaryCache {
     states: std::sync::OnceLock<Vec<StateMutationSummary>>,
 }
 
+/// Complete transitive writes in a state's own incoming storage namespace.
+/// Cleanup uses the same summary as authored calls, without fabricating a
+/// source call coordinate or interpreting the frame's rendered report paths.
+pub(crate) fn state_storage_writes(
+    program: &typed_trees::TypedTrees,
+    borrow: &BorrowFacts,
+    cache: &StateMutationSummaryCache,
+    state: &typed_trees::state::State,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
+) -> Option<Vec<CanonicalPlace>> {
+    Some(
+        state_mutation_summary(program, borrow, cache, state, call_frames)?
+            .writes
+            .iter()
+            .map(|write| write.place.clone())
+            .collect(),
+    )
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct StateMutationSummary {
     state_symbol: SymbolHandle,

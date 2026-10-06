@@ -25,6 +25,7 @@ use crate::execution::terminal_unit::cleanup::{
 use crate::flow::{CanonicalPlace, CleanupLeaf, selected_cleanup_leaves};
 
 use super::super::boolean_predicates::{self, BoundPredicate, conjunction, entry_path_condition};
+use super::sequence::{CurrentCleanupFacts, bound_clause, ordered_hooks};
 
 struct Pending {
     machine: SymbolHandle,
@@ -73,9 +74,14 @@ pub(crate) fn infer_entry_requirements(
         if obligation.proven(program, facts) {
             continue;
         }
-        let Some(antecedent) =
-            entry_path_condition(&facts.semantic, &obligation.contexts, instance.machine)
-        else {
+        if !obligation.entry_stable {
+            continue;
+        }
+        let Some(antecedent) = entry_path_condition(
+            &facts.semantic,
+            &obligation.current.contexts,
+            instance.machine,
+        ) else {
             continue;
         };
         if let Some(row) = transport(
@@ -169,7 +175,8 @@ pub(crate) fn infer_entry_requirements(
 struct SelectedRequirement {
     disposition: arena::Handle<checked_trees::ContextualCleanupDisposition>,
     statement: usize,
-    contexts: Vec<FactContextHandle>,
+    current: CurrentCleanupFacts,
+    entry_stable: bool,
     place: CanonicalPlace,
     hook: SymbolHandle,
     clause: ExpressionHandle,
@@ -178,19 +185,26 @@ struct SelectedRequirement {
 
 impl SelectedRequirement {
     fn proven(&self, program: &TypedTrees, facts: &CheckFacts) -> bool {
-        let retained = boolean_predicates::retained(program, &facts.semantic, &self.contexts);
+        let mut retained =
+            boolean_predicates::retained(program, &facts.semantic, &self.current.contexts);
+        retained.extend(self.current.guarantees.iter().cloned());
         boolean_predicates::proves(&retained, &self.predicate, |place| {
-            boolean_value_at_place(program, &facts.semantic, &self.contexts, place)
-                .map(facts::ScalarValue::Boolean)
+            self.current
+                .value_at_place(program, facts, place)
                 .or_else(|| {
-                    crate::values::scalar_value_at_place(
-                        program,
-                        &facts.semantic,
-                        self.contexts
-                            .iter()
-                            .map(|context| facts.semantic.contexts.get(*context)),
-                        place,
-                    )
+                    boolean_value_at_place(program, &facts.semantic, &self.current.contexts, place)
+                        .map(facts::ScalarValue::Boolean)
+                        .or_else(|| {
+                            crate::values::scalar_value_at_place(
+                                program,
+                                &facts.semantic,
+                                self.current
+                                    .contexts
+                                    .iter()
+                                    .map(|context| facts.semantic.contexts.get(*context)),
+                                place,
+                            )
+                        })
                 })
         })
     }
@@ -224,6 +238,18 @@ fn selected_requirements(
 ) -> Result<Vec<SelectedRequirement>, Vec<Diagnostic>> {
     let mut result = Vec::new();
     let proof_only = validation::proof_only_classification(program);
+    let summaries = crate::flow::StateMutationSummaryCache::default();
+    let call_frames = validation::CallFrameResolver::new(program);
+    struct Occurrence {
+        machine: SymbolHandle,
+        state: SymbolHandle,
+        source: PermissionEventSource,
+        exit: checked_trees::FlowClaimJoinExit,
+        statement: usize,
+        entry: Vec<FactContextHandle>,
+        current: CurrentCleanupFacts,
+    }
+    let mut occurrences = Vec::<Occurrence>::new();
     for (handle, disposition) in facts.contextual_cleanup.dispositions.iter() {
         let Some(machine) = program.machine_by_symbol(disposition.machine) else {
             continue;
@@ -236,87 +262,96 @@ fn selected_requirements(
         }) else {
             continue;
         };
-        let points = occurrence_contexts(program, facts, state, disposition);
         let Some(leaves) = selected_cleanup_leaves(program, facts, disposition) else {
             continue;
         };
-        for leaf in leaves {
-            let CleanupLeaf::Nominal {
-                machine: hook,
-                path,
-            } = leaf
-            else {
-                continue;
-            };
-            let Some(hook_machine) = program.machine_by_symbol(hook) else {
-                continue;
-            };
-            let Some(hook_state) = program.machine_states(hook_machine).first() else {
-                continue;
-            };
-            let parameters = program.state_parameters(hook_state);
-            let Some(receiver) = parameters.first() else {
-                continue;
-            };
-            let Some(clauses) =
-                checked_requires_expressions(program, facts, hook, hook_state.symbol)
-            else {
-                return Err(vec![Diagnostic::error(format!(
+        let hooks = ordered_hooks(program, &leaves).ok_or_else(|| {
+            vec![Diagnostic::error(
+                "cannot prove automatic cleanup requires: selected receiver order is unresolved",
+            )]
+        })?;
+        if hooks.is_empty() {
+            continue;
+        }
+        let points = occurrence_contexts(program, facts, state, disposition).ok_or_else(|| {
+            vec![Diagnostic::error(format!(
+                "cleanup prerequisite has no exact outgoing edge context in {}",
+                crate::labels::machine_name(program, disposition.machine),
+            ))]
+        })?;
+        for (statement, contexts) in points {
+            let position = occurrences
+                .iter()
+                .position(|row| {
+                    row.machine == disposition.machine
+                        && row.state == disposition.state
+                        && row.source == disposition.source
+                        && row.exit == disposition.exit
+                        && row.statement == statement
+                        && row.entry == contexts
+                })
+                .unwrap_or_else(|| {
+                    let position = occurrences.len();
+                    occurrences.push(Occurrence {
+                        machine: disposition.machine,
+                        state: disposition.state,
+                        source: disposition.source,
+                        exit: disposition.exit,
+                        statement,
+                        entry: contexts.clone(),
+                        current: CurrentCleanupFacts::new(
+                            contexts.clone(),
+                            call_frames
+                                .as_ref()
+                                .map(|frames| {
+                                    crate::checks::contracts::current_call_guarantee_predicates(
+                                        program, facts, state, statement, &contexts, frames,
+                                    )
+                                })
+                                .unwrap_or_default(),
+                        ),
+                    });
+                    position
+                });
+            let current = &mut occurrences[position].current;
+            for selected in &hooks {
+                let hook = selected.machine;
+                let place = CanonicalPlace {
+                    root: disposition.root,
+                    segments: selected.path.clone(),
+                };
+                let hook_machine = program
+                    .machine_by_symbol(hook)
+                    .ok_or_else(|| vec![Diagnostic::error("selected cleanup hook is absent")])?;
+                let hook_state = program
+                    .machine_states(hook_machine)
+                    .first()
+                    .ok_or_else(|| {
+                        vec![Diagnostic::error("selected cleanup hook entry is absent")]
+                    })?;
+                let clauses = checked_requires_expressions(program, facts, hook, hook_state.symbol).ok_or_else(|| vec![Diagnostic::error(format!(
                     "cannot prove automatic cleanup requires: {} has no complete callable clause roster",
                     crate::labels::machine_name(program, hook),
-                ))]);
-            };
-            for clause in clauses {
-                let predicate = crate::values::lower_state_scalar_contract_predicate(
-                    program, &facts.operators, hook_machine, hook_state, clause, &mut 4096,
-                ).and_then(|predicate| boolean_predicates::bind_parameters(
-                    program, hook, hook_state.symbol, parameters, predicate,
-                )).ok_or_else(|| vec![Diagnostic::error(format!(
-                    "cannot prove automatic cleanup requires: {} clause `{}` has no complete callable predicate",
-                    crate::labels::machine_name(program, hook),
-                    program.expression_table.display_name(clause),
                 ))])?;
-                if predicate
-                    .bindings
-                    .iter()
-                    .any(|observation| observation.place.root != PlaceRoot::Symbol(receiver.symbol))
-                {
-                    return Err(vec![Diagnostic::error(
-                        "automatic cleanup prerequisite requires an argument other than its receiver",
-                    )]);
+                for clause in clauses {
+                    let predicate = bound_clause(program, facts, hook, clause, checked_trees::ContractProofFactKind::Requires, &place).ok_or_else(|| vec![Diagnostic::error(format!(
+                        "cannot prove automatic cleanup requires: {} clause `{}` has no complete callable predicate",
+                        crate::labels::machine_name(program, hook), program.expression_table.display_name(clause),
+                    ))])?;
+                    result.push(SelectedRequirement {
+                        disposition: handle,
+                        statement,
+                        entry_stable: current.entry_stable(program, &predicate),
+                        current: current.clone(),
+                        place: place.clone(),
+                        hook,
+                        clause,
+                        predicate,
+                    });
                 }
-                let points = points.as_ref().ok_or_else(|| {
-                    vec![Diagnostic::error(format!(
-                        "cleanup prerequisite has no exact outgoing edge context in {}",
-                        crate::labels::machine_name(program, disposition.machine),
-                    ))]
-                })?;
-                for_each_place(&path, &mut Vec::new(), &mut |segments| {
-                    for (statement, contexts) in points {
-                        let place = CanonicalPlace {
-                            root: disposition.root,
-                            segments: segments.to_vec(),
-                        };
-                        let mut substituted = predicate.clone();
-                        for observation in &mut substituted.bindings {
-                            let mut selected = place.segments.clone();
-                            selected.append(&mut observation.place.segments);
-                            observation.place = CanonicalPlace {
-                                root: place.root,
-                                segments: selected,
-                            };
-                        }
-                        result.push(SelectedRequirement {
-                            disposition: handle,
-                            statement: *statement,
-                            contexts: contexts.clone(),
-                            place,
-                            hook,
-                            clause,
-                            predicate: substituted,
-                        });
-                    }
-                });
+                current.advance(program, facts, &summaries, call_frames.as_ref(), hook, &place).ok_or_else(|| vec![Diagnostic::error(
+                    "cannot prove automatic cleanup requires: selected hook completion is unresolved",
+                )])?;
             }
         }
     }
@@ -427,28 +462,6 @@ fn covers(symbolic: &[PlaceSegment], concrete: &[PlaceSegment]) -> bool {
                 ) => start <= right_start && right_end <= end,
                 _ => left == right,
             })
-}
-
-fn for_each_place(
-    path: &[PlaceSegment],
-    prefix: &mut Vec<PlaceSegment>,
-    visit: &mut impl FnMut(&[PlaceSegment]),
-) {
-    let Some((first, remaining)) = path.split_first() else {
-        visit(prefix);
-        return;
-    };
-    if let PlaceSegment::FixedRange { start, end } = *first {
-        for index in start..end {
-            prefix.push(PlaceSegment::FixedIndex { index });
-            for_each_place(remaining, prefix, visit);
-            prefix.pop();
-        }
-    } else {
-        prefix.push(*first);
-        for_each_place(remaining, prefix, visit);
-        prefix.pop();
-    }
 }
 
 fn has_symbolic_origin(

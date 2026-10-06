@@ -37,15 +37,18 @@ pub(crate) fn lower_scalar_contract_predicate(
     allow_result: bool,
     remaining: &mut usize,
 ) -> Option<CheckedBooleanExpression> {
-    ContractPredicates {
+    let parameters = contract_entry::authored_entry_parameters(program, machine)?;
+    let result_type = program.machine_states(machine).first()?.return_type;
+    lower_callable_scalar_contract_predicate(
         program,
         operators,
-        machine,
-        parameters: contract_entry::authored_entry_parameters(program, machine)?,
+        machine.symbol,
+        parameters,
+        result_type,
+        expression,
         allow_result,
         remaining,
-    }
-    .boolean(expression, 0)
+    )
 }
 
 /// One authored `requires` predicate on a non-entry state, lowered into the
@@ -63,9 +66,35 @@ pub(crate) fn lower_state_scalar_contract_predicate(
     ContractPredicates {
         program,
         operators,
-        machine,
+        owner: machine.symbol,
+        result_type: TypeReferenceHandle::invalid(),
         parameters: program.state_parameters(state),
         allow_result: false,
+        remaining,
+    }
+    .boolean(expression, 0)
+}
+
+/// Executable and bodyless declarations use the same formal observation
+/// algebra. A result belongs to the supplied declaration, never a synthetic
+/// machine created to lower a requirement signature.
+pub(crate) fn lower_callable_scalar_contract_predicate(
+    program: &TypedTrees,
+    operators: &CheckedOperatorFacts,
+    owner: symbols::SymbolHandle,
+    parameters: &[StateParameter],
+    result_type: TypeReferenceHandle,
+    expression: ExpressionHandle,
+    allow_result: bool,
+    remaining: &mut usize,
+) -> Option<CheckedBooleanExpression> {
+    ContractPredicates {
+        program,
+        operators,
+        owner,
+        result_type,
+        parameters,
+        allow_result,
         remaining,
     }
     .boolean(expression, 0)
@@ -74,7 +103,8 @@ pub(crate) fn lower_state_scalar_contract_predicate(
 struct ContractPredicates<'program, 'budget> {
     program: &'program TypedTrees,
     operators: &'program CheckedOperatorFacts,
-    machine: &'program typed_trees::machine::Machine,
+    owner: symbols::SymbolHandle,
+    result_type: TypeReferenceHandle,
     parameters: &'program [StateParameter],
     allow_result: bool,
     remaining: &'budget mut usize,
@@ -147,11 +177,10 @@ impl ContractPredicates<'_, '_> {
             return Some((scalar_position, parameter.type_reference, false));
         }
         // Equal spelling or carrier does not establish result ownership. This
-        // occurrence must belong to this machine's exact authored ensures.
-        let entry = program.machine_states(self.machine).first()?;
+        // occurrence must belong to this declaration's exact authored ensures.
         (self.allow_result
             && validation::reserved_result_owner(program, expression)
-                == Some((self.machine.symbol, entry.return_type)))
+                == Some((self.owner, self.result_type)))
         .then(|| {
             (
                 self.parameters
@@ -160,7 +189,7 @@ impl ContractPredicates<'_, '_> {
                         crate::values::scalar::occupies_scalar_position(program, parameter)
                     })
                     .count(),
-                entry.return_type,
+                self.result_type,
                 false,
             )
         })
@@ -221,7 +250,7 @@ impl ContractPredicates<'_, '_> {
                 let operand_types = [Some(carrier_reference), Some(carrier_reference)];
                 if !typed_trees::operator::has_builtin_spelled_expression_meaning(
                     program,
-                    self.machine.symbol,
+                    self.owner,
                     expression,
                     spelling,
                     &operand_types,
@@ -530,7 +559,7 @@ impl ContractPredicates<'_, '_> {
                 if let Some(comparison) = lower_integer_contract_comparison(
                     program,
                     self.operators,
-                    self.machine.symbol,
+                    self.owner,
                     expression,
                     subjects,
                 ) {
@@ -564,11 +593,7 @@ impl ContractPredicates<'_, '_> {
                             Some(self.boolean_type(binary.right)?),
                         ];
                         if !typed_trees::operator::has_builtin_spelled_expression_meaning(
-                            program,
-                            self.machine.symbol,
-                            expression,
-                            spelling,
-                            &types,
+                            program, self.owner, expression, spelling, &types,
                         ) {
                             return None;
                         }

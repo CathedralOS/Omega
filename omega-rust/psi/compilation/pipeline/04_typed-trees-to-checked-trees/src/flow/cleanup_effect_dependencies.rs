@@ -18,6 +18,32 @@ use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 type Substitutions = Vec<(SymbolHandle, TypeReferenceHandle)>;
 
+/// Effect discovery retains array windows once; proof sequencing and executable
+/// cleanup share their exact selected receivers. Reserve before writing them.
+pub(crate) fn concrete_cleanup_paths(path: &[PlaceSegment]) -> Option<Vec<Vec<PlaceSegment>>> {
+    let mut paths = vec![Vec::new()];
+    for segment in path {
+        if let PlaceSegment::FixedRange { start, end } = *segment {
+            let count = paths.len().checked_mul(end.checked_sub(start)?)?;
+            let mut expanded = Vec::new();
+            expanded.try_reserve_exact(count).ok()?;
+            for prefix in paths {
+                for index in start..end {
+                    let mut selected = prefix.clone();
+                    selected.push(PlaceSegment::FixedIndex { index });
+                    expanded.push(selected);
+                }
+            }
+            paths = expanded;
+        } else {
+            for prefix in &mut paths {
+                prefix.push(*segment);
+            }
+        }
+    }
+    Some(paths)
+}
+
 /// A selected owned cleanup leaf, relative to `disposition.root` and including
 /// its selected path. A FixedRange denotes every element of that half-open
 /// interval; it is never authority for just one representative element.

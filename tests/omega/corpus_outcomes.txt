@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": null, "load1_end": 3.27, "load1_start": 3.27, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": "2", "load1_end": 13.74, "load1_start": 13.74, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -875,6 +875,10 @@ fail/domains/view_field_store_literal_outside_domain rejected 256ms expected @c0
 	cannot prove the value assigned to `main.name` in Main::main is in domain `[u8]::Utf8`; a place declared `in [u8]::Utf8` requires every write to be established in that domain (pass a value already proven in the domain, or a literal its byte-predicate fact accepts)
 fail/drops/authored_cleanup_static_argument_rejected rejected 72ms expected @9beb2be72f2d+wt
 	machine argument `Resource::drop` for `accept` does not refine `Selected`: expected 1 parameter(s), got 0
+fail/drops/cleanup_helper_guarantee_after_parent_hook rejected 351ms expected @e830e1bb7013+wt
+	cannot prove automatic cleanup requires at selected edge from main state entry after statement 2: owner.token does not establish Token::drop clause `token.value == 9 && token.ready`
+fail/drops/cleanup_helper_guarantee_after_write rejected 348ms expected @e830e1bb7013+wt
+	cannot prove automatic cleanup requires at selected edge from main state entry after statement 3: token does not establish Token::drop clause `token.value == 9 && token.ready`
 fail/drops/cleanup_mutated_integer_contract rejected 371ms expected @4cc11cbadf31+wt
 	cannot prove automatic cleanup requires at selected edge from main state entry after statement 2: token does not establish Token::drop clause `token.value == 7`
 fail/drops/composed_cleanup_authored_hook_call rejected 197ms expected @47ad8bb72cea
@@ -2338,6 +2342,7 @@ pass/drops/core_drop_explicit_consume checked 2579ms check-target:macos_arm64 @9
 pass/drops/core_drop_owner_hook checked 2599ms check-target:macos_arm64 @9beb2be72f2d+wt
 pass/drops/core_drop_owner_hook_body checked 2629ms check-target:macos_arm64 @9beb2be72f2d+wt
 pass/drops/erased_record_initializer_exit checked 2276ms check-target:macos_arm64 @9beb2be72f2d+wt
+pass/drops/runtime_cleanup_helper_normal_guarantee_exit checked 1636ms check-target:macos_arm64 @e830e1bb7013+wt
 pass/drops/runtime_composed_nominal_output_hook_exit checked 1668ms check-target:macos_arm64 @47ad8bb72cea
 pass/drops/runtime_composed_nominal_return_hook_exit checked 1666ms check-target:macos_arm64 @47ad8bb72cea
 pass/drops/runtime_computed_call_owner_retirement_exit checked 2434ms check-target:macos_arm64 @9beb2be72f2d+wt

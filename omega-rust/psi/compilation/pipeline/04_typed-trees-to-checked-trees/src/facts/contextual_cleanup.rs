@@ -6,6 +6,7 @@
 //! its excluded subtrees still come from the one custody producer.
 pub(crate) mod entry_flow;
 mod requirements;
+mod sequence;
 pub(crate) use requirements::{check_cleanup_requirements, infer_entry_requirements};
 
 use arena::Arena;

@@ -9,6 +9,63 @@ mod matching;
 
 use self::matching::matching_mutation_for_fact_place;
 
+/// Query the same storage/dependent-domain invalidation law without publishing
+/// a second flow trace. Cleanup selections carry existing context identities.
+pub(crate) fn context_survives_place_mutations(
+    program: &typed_trees::TypedTrees,
+    semantic: &FactPlan,
+    domain_dependencies: &DomainFacts,
+    context: facts::FactContextHandle,
+    mutated_places: &[CanonicalPlace],
+) -> bool {
+    visit_context_invalidations(
+        program,
+        semantic,
+        domain_dependencies,
+        context,
+        mutated_places,
+        &mut |_, _, _| {},
+    )
+}
+
+fn visit_context_invalidations(
+    program: &typed_trees::TypedTrees,
+    semantic: &FactPlan,
+    domain_dependencies: &DomainFacts,
+    context: facts::FactContextHandle,
+    mutated_places: &[CanonicalPlace],
+    invalidated: &mut impl FnMut(facts::FactHandle, &CanonicalPlace, &[facts::PlaceSegment]),
+) -> bool {
+    if mutated_places.is_empty() {
+        return true;
+    }
+    let mut invalidated_any = false;
+    for fact_ref in semantic
+        .refs
+        .span_or_empty(semantic.contexts.get(context).facts)
+    {
+        let fact = semantic.facts.get(fact_ref.fact);
+        let FactPlace::Place(place) = fact.place else {
+            if matches!(fact.payload, FactPayload::StorageDependency { .. }) {
+                invalidated_any = true;
+            }
+            continue;
+        };
+        if let Some((mutation, dependencies)) = matching_mutation_for_fact_place(
+            program,
+            semantic,
+            domain_dependencies,
+            fact,
+            place,
+            mutated_places,
+        ) {
+            invalidated_any = true;
+            invalidated(fact_ref.fact, mutation, dependencies);
+        }
+    }
+    !invalidated_any
+}
+
 pub(crate) fn filter_contexts_after_place_mutations(
     program: &typed_trees::TypedTrees,
     semantic: &FactPlan,
@@ -25,47 +82,28 @@ pub(crate) fn filter_contexts_after_place_mutations(
     }
 
     reference_spans::filter_flow_references(semantic_context_refs, source, |context_ref| {
-        let context = semantic.contexts.get(context_ref.context);
-        let mut invalidated_any = false;
-        for fact_ref in semantic.refs.span_or_empty(context.facts) {
-            let fact = semantic.facts.get(fact_ref.fact);
-            let FactPlace::Place(place) = fact.place else {
-                // An instantiated Boolean promise with an unresolved operand
-                // dependency cannot survive a storage revision. Its producer
-                // retains Unknown explicitly rather than inventing a place.
-                if matches!(fact.payload, FactPayload::StorageDependency { .. }) {
-                    invalidated_any = true;
-                }
-                continue;
-            };
-            let Some((mutated_place, dependency_segments)) = matching_mutation_for_fact_place(
-                program,
-                semantic,
-                domain_dependencies,
-                fact,
-                place,
-                mutated_places,
-            ) else {
-                continue;
-            };
-
-            invalidated_any = true;
-            invalidations.append(FlowInvalidationFact {
-                source: invalidation_source,
-                context: context_ref.context,
-                fact: fact_ref.fact,
-                mutated_root: mutated_place.root,
-                mutated_segments: append_place_segments(
-                    invalidation_segments,
-                    &mutated_place.segments,
-                ),
-                dependency_segments: append_place_segments(
-                    invalidation_segments,
-                    dependency_segments,
-                ),
-            });
-        }
-
-        !invalidated_any
+        visit_context_invalidations(
+            program,
+            semantic,
+            domain_dependencies,
+            context_ref.context,
+            mutated_places,
+            &mut |fact, mutated_place, dependency_segments| {
+                invalidations.append(FlowInvalidationFact {
+                    source: invalidation_source,
+                    context: context_ref.context,
+                    fact,
+                    mutated_root: mutated_place.root,
+                    mutated_segments: append_place_segments(
+                        invalidation_segments,
+                        &mutated_place.segments,
+                    ),
+                    dependency_segments: append_place_segments(
+                        invalidation_segments,
+                        dependency_segments,
+                    ),
+                });
+            },
+        )
     })
 }

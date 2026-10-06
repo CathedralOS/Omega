@@ -74,6 +74,13 @@ impl<'program> Callable<'program> {
         }
     }
 
+    pub(super) fn result_type(self) -> TypeReferenceHandle {
+        match self {
+            Self::Machine { state, .. } => state.return_type,
+            Self::Requirement { signature } => signature.return_type,
+        }
+    }
+
     pub(in crate::checks) fn contracts(
         self,
         program: &'program TypedTrees,

@@ -39,6 +39,69 @@ struct Invocation<'program> {
     ordinal: usize,
 }
 
+/// Read surviving normal guarantees as formulas over the caller's current
+/// storage. Availability owns declaration identity, actual capture and write
+/// preservation; this join only changes the formula's observation namespace.
+/// Cleanup can then retire those observations after each selected hook using
+/// the same mutation law as the rest of source flow.
+pub(crate) fn current_predicates(
+    program: &TypedTrees,
+    facts: &checked_trees::CheckFacts,
+    caller: &FlowStateFact,
+    statement: usize,
+    contexts: &[facts::FactContextHandle],
+    frames: &validation::CallFrameResolver<'_>,
+) -> Vec<crate::facts::boolean_predicates::BoundPredicate> {
+    available(program, facts, caller, statement, contexts, frames)
+        .into_iter()
+        .filter_map(|guarantee| {
+            let invocation = &guarantee.invocation;
+            let parameters = invocation.callable.parameters(program);
+            let expression = crate::values::lower_callable_scalar_contract_predicate(
+                program,
+                &facts.operators,
+                invocation.callable.owner_symbol(),
+                parameters,
+                invocation.callable.result_type(),
+                guarantee.expression,
+                true,
+                &mut 4096,
+            )?;
+            let mut predicate = crate::facts::boolean_predicates::bind_parameters(
+                program,
+                invocation.callable.owner_symbol(),
+                invocation.callable.target_symbol(),
+                parameters,
+                expression,
+            )?;
+            let arguments =
+                crate::semantic::calls::call_site_argument_expressions(program, &invocation.site);
+            for binding in &mut predicate.bindings {
+                let position = parameters.iter().position(|parameter| {
+                    binding.place.root == PlaceRoot::Symbol(parameter.symbol)
+                })?;
+                let actual = *arguments.get(position)?;
+                let place = crate::semantic::facts::projected_argument_place(
+                    program,
+                    caller.state_symbol,
+                    invocation.statement,
+                    actual,
+                    parameters[position].type_reference,
+                    &binding.place.segments,
+                )?;
+                binding.place = crate::flow::rebase_exact_local_place(
+                    program,
+                    caller.state_symbol,
+                    invocation.statement,
+                    place,
+                    Some(frames),
+                )?;
+            }
+            Some(predicate)
+        })
+        .collect()
+}
+
 pub(super) fn proves(
     program: &TypedTrees,
     facts: &checked_trees::CheckFacts,
@@ -260,7 +323,7 @@ fn ordinary_arguments(program: &TypedTrees, invocation: &Invocation<'_>) -> bool
         } => evidence_arguments.is_empty(),
     };
     ordinary
-        && parameters.iter().count() == arguments.len()
+        && parameters.len() == arguments.len()
         && parameters.iter().all(|parameter| !parameter.is_const)
 }
 

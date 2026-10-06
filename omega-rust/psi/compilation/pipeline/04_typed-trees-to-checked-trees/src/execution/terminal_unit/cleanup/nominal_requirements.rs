@@ -486,12 +486,28 @@ pub(crate) fn checked_requires_expressions(
     machine: SymbolHandle,
     state: SymbolHandle,
 ) -> Option<Vec<typed_trees::expression::ExpressionHandle>> {
+    checked_contract_expressions(
+        program,
+        facts,
+        machine,
+        state,
+        ContractProofFactKind::Requires,
+    )
+}
+
+pub(crate) fn checked_contract_expressions(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    machine: SymbolHandle,
+    state: SymbolHandle,
+    kind: ContractProofFactKind,
+) -> Option<Vec<typed_trees::expression::ExpressionHandle>> {
     let mut expressions = Vec::new();
     for (_, checked) in facts.proof.contract_facts.iter().filter(|(_, checked)| {
         matches!(checked.owner, ContractProofFactOwner::Machine { machine_symbol } if machine_symbol == machine)
             || matches!(checked.owner, ContractProofFactOwner::MachineState { machine_symbol, state_symbol } if machine_symbol == machine && state_symbol == state)
     }) {
-        if checked.kind != ContractProofFactKind::Requires {
+        if checked.kind != kind {
             continue;
         }
         let ProofFact::Expression(expression) = program.proof_facts.get(checked.fact) else {
