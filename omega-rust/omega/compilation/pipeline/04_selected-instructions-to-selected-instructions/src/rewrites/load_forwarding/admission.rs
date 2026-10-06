@@ -348,16 +348,8 @@ pub(super) fn admit<'source>(
         for candidate_index in (0..cursor_end).rev() {
             let candidate = &current.instructions[candidate_index];
             reject_barrier(candidate)?;
-            let mut has_row = false;
-            let mut interfered = false;
-            for access in function
-                .memory_accesses
-                .iter()
-                .filter(|access| access.instruction == candidate.id)
-            {
-                has_row = true;
-                interfered |= interferes(&forwarded, access, structural_places, function);
-            }
+            let (has_row, interfered) =
+                candidate_accesses(function, &forwarded, candidate, structural_places);
             if interfered {
                 found = Some(forwarding_source(
                     candidate,
@@ -587,16 +579,8 @@ pub(super) fn admit<'source>(
         let tail = &function.blocks[block_index].instructions[load_index + 1..];
         for candidate in tail {
             reject_barrier(candidate)?;
-            let mut has_row = false;
-            let mut interfered = false;
-            for access in function
-                .memory_accesses
-                .iter()
-                .filter(|access| access.instruction == candidate.id)
-            {
-                has_row = true;
-                interfered |= interferes(&forwarded, access, structural_places, function);
-            }
+            let (has_row, interfered) =
+                candidate_accesses(function, &forwarded, candidate, structural_places);
             if interfered {
                 // The interfering instruction is the last writer on the
                 // looping path: the read still observes the carried register
@@ -1172,6 +1156,28 @@ fn merged_parameter(
 /// Calls, hosted effects, and terminator kinds are always barriers: they can
 /// write or expose reachable storage regardless of their roster rows, and a
 /// terminator kind never belongs in a block body.
+/// The two facts the walk needs about an intervening instruction's memory
+/// rows: whether the roster names it at all, and whether one of its rows
+/// interferes with the forwarded pair.
+fn candidate_accesses(
+    function: &SelectedFunction,
+    forwarded: &Forwarded,
+    candidate: &SelectedInstruction,
+    structural_places: &[StructuralPlaceDeclaration],
+) -> (bool, bool) {
+    let mut has_row = false;
+    let mut interfered = false;
+    for access in function
+        .memory_accesses
+        .iter()
+        .filter(|access| access.instruction == candidate.id)
+    {
+        has_row = true;
+        interfered |= interferes(forwarded, access, structural_places, function);
+    }
+    (has_row, interfered)
+}
+
 fn reject_barrier(instruction: &SelectedInstruction) -> Result<(), StoredLoadForwardingError> {
     use SelectedInstructionKind::*;
     match instruction.kind {
