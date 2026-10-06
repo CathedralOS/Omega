@@ -3759,15 +3759,14 @@ deletions, which its commit lists.
     row. Invocation-entry and scalar-graph arrivals, local refinement rows and
     inferred rows stay certificate-proved. `IndexedPrimitiveRead` row roots
     (fixed arrays) take the read mark as well.
-    `samples/cli/collections/heat_grid` (reproducible as a corpus fixture copy
-    with the same `build.omg` shape) now stops on obligation 19, `index < 12`
-    at `let cur: u8 = grid.cells[y * 4 + x]`. That read of a `&mut Grid`
-    field lowers through primitive storage
-    (`expression_preparation/bindings/primitive_reads.rs`), not through a
-    marked row boundary, so it needs a provenance handle (the source `[]`
-    occurrence) on the checked read before stage 05 can join the range
-    check's verdict. The store to the same cell is the byte-write decision
-    another lane added as `CheckFacts.proven_byte_writes`.
+    Reads lowered as operation arguments (`Evaluation::source_value`) take
+    the mark too. `samples/cli/collections/heat_grid` (reproducible as a
+    corpus fixture copy with the same `build.omg` shape) now stops at
+    obligation 2^63+2, `index < 12` for the store
+    `grid.cells[y * 4 + x] = next` into a fixed `[u8; 12]` field of a
+    `&mut Grid`: an indexed write, which the byte-write decisions
+    (`CheckFacts.proven_byte_writes`, `emission/indexed_write.rs`) do not
+    yet reach for this fixed-array shape.
     Exact add, subtract and multiply representability and
     Exact casts now also travel as `SourceChecked` (only the cast stage 04
     builds from a checker fact; synthesized index widenings and scalar-graph

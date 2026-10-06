@@ -238,7 +238,26 @@ impl Evaluation {
             .map(|value| value.value_type())
             .collect::<Vec<_>>();
         if let CheckedCallScalarArgument::Pure(value) = value {
-            let expression = bindings.expression(value)?;
+            let lowered = bindings.expression(value)?;
+            // A pure argument is its row's checked expression; the row's
+            // authored root joins the range checker's verdict exactly as a
+            // row lowered at its boundary does.
+            let expression = match checked
+                .facts
+                .values
+                .scalar_expressions
+                .bound_expression_at(state, statement, role)
+            {
+                Some((binding, bound)) if bound == value => {
+                    crate::expression_preparation::prepare_expression::mark_checked_index_read(
+                        checked,
+                        binding.expression,
+                        value,
+                        lowered,
+                    )
+                }
+                _ => lowered,
+            };
             if !direct_expression_contains_short_circuit(&expression) {
                 validate_direct_parameter_types(&expression, &scalar_carriers(&source_types))?;
                 return Ok(ValueDeclaration {
