@@ -765,16 +765,6 @@ defines the complete product bar.
     `runtime_owned_{record_replacement,nominal_replacement,replacement_composition}_exit`
     and `fail/drops/owned_replacement_{old_hook_prerequisite,transferred_source_read}`
     as value-home, occurrence and invalid-custody controls.
-  - Two element replacements still fail since `b891e70838b`.
-    `pass/structural/element_store` produces Terminal Psi, but Omega
-    selection refuses the runtime-indexed move-out of the old element
-    (`SourceCustodyMismatch`, raised in
-    `omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/selection/construction/scalar_graph/structural/runtime_address.rs`
-    while resolving the selector). `pass/collections/element_view_whole_write`
-    stores through a view local (`nodes[pick] = fresh`) and is omitted at
-    normal-exit cleanup planning: the old element's death is rooted at the
-    view local, while the store's destination names the view's backing
-    (`bag.nodes`), so `cleanup/replacements.rs` never matches the death.
   - Abstract optimization validation still requires whole owned successor
     arguments in
     `omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/unit_validation/function_structure/structural_transfers.rs`.

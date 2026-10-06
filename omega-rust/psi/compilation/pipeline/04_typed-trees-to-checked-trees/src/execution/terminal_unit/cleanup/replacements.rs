@@ -114,7 +114,10 @@ pub(super) fn actions(
         .filter(|(_, row)| {
             row.machine == machine
                 && row.state == state
-                && row.root == root
+                && (row.root == root
+                    || replaced_place
+                        .as_ref()
+                        .is_some_and(|replaced| replaced.root == row.root))
                 && row.source
                     == PermissionEventSource::Statement {
                         statement_index: *statement_index as usize,
@@ -122,7 +125,7 @@ pub(super) fn actions(
         })
     {
         let place = crate::flow::CanonicalPlace {
-            root,
+            root: disposition.root,
             segments: facts
                 .flow
                 .ownership
@@ -133,16 +136,23 @@ pub(super) fn actions(
         // The death of exactly the assigned place is the old value this store
         // displaces, whose path the store already names, including a
         // runtime-selected element that has no static argument path.
+        // A store through a view writes the view's backing, while the old
+        // element dies at the view's own place; only that exact death crosses
+        // namespaces, as the store's destination.
         let replaced = replaced_place.as_ref() == Some(&place);
-        let path = match crate::execution::terminal_unit::calls::projected_argument_path(
-            program,
-            state,
-            *statement_index as usize,
-            &place,
-        ) {
-            Some((_, path)) => path,
-            None if replaced => destination.path.clone(),
-            None => return None,
+        if disposition.root != root && !replaced {
+            continue;
+        }
+        let path = if replaced {
+            destination.path.clone()
+        } else {
+            crate::execution::terminal_unit::calls::projected_argument_path(
+                program,
+                state,
+                *statement_index as usize,
+                &place,
+            )?
+            .1
         };
         // A death can cover the replaced place or an enclosing value: a
         // whole-array store composes one displacing store per element, while
