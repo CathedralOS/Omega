@@ -148,7 +148,7 @@ pub use crate::declarations::symbols::TopLevelSymbols;
 pub use crate::value_custody::cleanup::{
     data_requires_nominal_drop, type_graph_requires_nominal_drop,
 };
-pub use crate::value_custody::data::data_requires_establishment;
+pub use crate::value_custody::data::{data_requires_establishment, type_requires_establishment};
 pub use crate::value_custody::type_references::{
     StaticTypeArgumentOwner, scalar_type_refinement_predicates, scalar_value_domain_predicate,
     validate_closed_const_argument, validate_exact_const_value_encoding,

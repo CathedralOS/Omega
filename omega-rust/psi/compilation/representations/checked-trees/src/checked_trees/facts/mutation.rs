@@ -51,4 +51,3 @@ pub struct StateWriteFramePlan {
     pub state: SymbolHandle,
     pub frame: facts::NormalizedWriteFrame,
 }
-

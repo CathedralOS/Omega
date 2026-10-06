@@ -256,7 +256,8 @@ fn retired_in_body(
                     _ => None,
                 })
                 .collect(),
-            CheckedUnitEffectOperationPlan::StoreStructuralField { value, .. } => value
+            CheckedUnitEffectOperationPlan::StoreStructuralField { value, .. }
+            | CheckedUnitEffectOperationPlan::RebindStructuralLocal { value, .. } => value
                 .source_structural_result_binding_ordinal()
                 .into_iter()
                 .collect(),
@@ -311,7 +312,13 @@ fn retired_in_body(
                 StatementNode::LocalData(local) => Some(local),
                 _ => None,
             });
-        let call_transfers = state.operations[producer_index + 1..]
+        let consumers = &state.operations[producer_index + 1..];
+        let local_symbol = local.map(|local| local.symbol).unwrap_or_default();
+        let occurrence_end = consumers
+            .iter()
+            .position(|consumer| consumer.ends_local_occurrence(local_symbol))
+            .map_or(consumers.len(), |position| position + 1);
+        let call_transfers = consumers[..occurrence_end]
             .iter()
             .map(|consumer| {
                 consumer.definite_call_transfers(

@@ -916,6 +916,7 @@ pub(crate) fn validate_usage(
             if matches!(
                 boundary,
                 checked_trees::CheckedUnitCleanupBoundary::StatementEntry { .. }
+                    | checked_trees::CheckedUnitCleanupBoundary::Replacement { .. }
             ) {
                 let source =
                     checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
@@ -994,7 +995,8 @@ pub(crate) fn validate_usage(
         // A field replacement's store moves the whole produced value into the
         // hole its move-out opened: the value's one consuming use. A copy
         // value is copied there and keeps owing nothing.
-        if let CheckedUnitEffectOperationPlan::StoreStructuralField { value, .. } = operation
+        if let CheckedUnitEffectOperationPlan::StoreStructuralField { value, .. }
+        | CheckedUnitEffectOperationPlan::RebindStructuralLocal { value, .. } = operation
             && value.source_structural_result_binding_ordinal() == Some(result.binding_ordinal)
         {
             if consumed

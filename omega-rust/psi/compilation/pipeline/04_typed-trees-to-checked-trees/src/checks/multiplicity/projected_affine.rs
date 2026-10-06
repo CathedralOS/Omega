@@ -23,6 +23,7 @@ pub(super) fn append_transfer(
     event: &crate::flow::DiscoveredMoveEvent,
     path: &[facts::PlaceSegment],
     places: &[LinearPlace],
+    remaining: &super::cleanup_dispositions::RemainingCustody,
     permissions: &mut Vec<FlowPermissionEventFact>,
 ) {
     let facts::PlaceRoot::Symbol(symbol) = event.root else {
@@ -49,7 +50,8 @@ pub(super) fn append_transfer(
     if owners.next().is_some()
         || !owner.path.is_empty()
         || owner.multiplicity != Multiplicity::Affine
-        || !owner.live
+        || (!owner.live && !remaining.is_reserved(event.root))
+        || !remaining.is_present(event.root, path)
         || owner
             .claim_identity
             .is_some_and(|claim| claim != PermissionClaimIdentity::Unknown)
@@ -170,6 +172,7 @@ pub(super) fn append_replacement(
     statement_index: usize,
     statement: &typed_trees::statement::StatementNode,
     places: &[LinearPlace],
+    remaining: &super::cleanup_dispositions::RemainingCustody,
     permissions: &mut Vec<FlowPermissionEventFact>,
 ) {
     let typed_trees::statement::StatementNode::Assignment(assignment) = statement else {
@@ -200,7 +203,7 @@ pub(super) fn append_replacement(
     let Some(owner) = places.iter().find(|owner| {
         owner.symbol == symbol
             && owner.path.is_empty()
-            && owner.live
+            && (owner.live || remaining.is_reserved(place.root))
             && owner.multiplicity == Multiplicity::Affine
     }) else {
         return;
@@ -221,22 +224,46 @@ pub(super) fn append_replacement(
             return;
         }
         if length == place.segments.len()
-            && type_multiplicity(program, reference) != Multiplicity::Affine
+            && type_multiplicity(program, reference) == Multiplicity::Linear
         {
             return;
         }
     }
-    let already_absent = super::cleanup_dispositions::RemainingCustody::removed_after(
-        permissions
-            .iter()
-            .filter(|event| event.machine_symbol == machine && event.state_symbol == state),
-        &facts.flow.ownership.segments,
-        place.root,
-        &place.segments,
-    );
+    let endpoint =
+        crate::flow::canonical_place_type_reference(program, state, statement_index, &place);
+    let affine = endpoint
+        .is_some_and(|reference| type_multiplicity(program, reference) == Multiplicity::Affine);
+    if !affine && !remaining.is_reserved(place.root) {
+        // Copy-field stores carry no disposal event in a complete value.
+        // They matter here only as establishment of reserved construction
+        // storage; ordinary scalar write semantics stay with their owner.
+        return;
+    }
+    let discarded = if affine {
+        remaining.disposal_paths(place.root, &place.segments)
+    } else {
+        Vec::new()
+    };
     let source = language_semantics::PermissionEventSource::Statement { statement_index };
     let segments = facts.flow.ownership.segments.insert_many(place.segments);
-    if !already_absent {
+    for path in discarded {
+        // Reserved storage may contain zero-valid copy fields alongside its
+        // established owners. Completion needs both; disposal owes only the
+        // selected value's actual multiplicity, never its parent's.
+        let discarded = crate::flow::CanonicalPlace {
+            root: place.root,
+            segments: path,
+        };
+        if crate::flow::canonical_place_type_reference(program, state, statement_index, &discarded)
+            .is_none_or(|reference| type_multiplicity(program, reference) != Multiplicity::Affine)
+        {
+            continue;
+        }
+        let discarded_segments = facts
+            .flow
+            .ownership
+            .segments
+            .insert_many(discarded.segments);
         permissions.push(FlowPermissionEventFact {
             evaluation: checked_trees::FlowPermissionEvaluation::Statement,
             machine_symbol: machine,
@@ -248,7 +275,7 @@ pub(super) fn append_replacement(
             claim_identity: PermissionClaimIdentity::Unknown,
             provenance: owner.provenance.unwrap_or(PermissionProvenance::Unknown),
             root: place.root,
-            segments,
+            segments: discarded_segments,
             obligation_live: false,
         });
     }
@@ -258,7 +285,11 @@ pub(super) fn append_replacement(
         state_symbol: state,
         source,
         kind: PermissionEventKind::Establish,
-        multiplicity: Multiplicity::Affine,
+        multiplicity: if affine {
+            Multiplicity::Affine
+        } else {
+            Multiplicity::Unrestricted
+        },
         access: PermissionAccess::Owned,
         claim_identity: PermissionClaimIdentity::Unknown,
         provenance: PermissionProvenance::Established {

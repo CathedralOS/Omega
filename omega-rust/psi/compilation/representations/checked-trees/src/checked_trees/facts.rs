@@ -69,7 +69,7 @@ pub use content::{
 pub use content_classes::{ContentClassFacts, ContentClassRow};
 pub use contextual_cleanup::{
     ContextualCleanupApplication, ContextualCleanupDisposition, ContextualCleanupEntryRequirement,
-    ContextualCleanupEntryRequirements, ContextualCleanupFacts,
+    ContextualCleanupEntryRequirements, ContextualCleanupFacts, StorageWindowInvocation,
 };
 pub use contract_plans::{
     CheckedCrashCallSite, CheckedCrashSite, CheckedEntryResourceEnvelope,

@@ -67,6 +67,7 @@ pub(super) fn transfers(
         }
         match operation {
             CheckedUnitEffectOperationPlan::StoreStructuralField { value, .. }
+            | CheckedUnitEffectOperationPlan::RebindStructuralLocal { value, .. }
                 if query.belongs(value) =>
             {
                 output.append(query.leaf(value.path.clone(), None))

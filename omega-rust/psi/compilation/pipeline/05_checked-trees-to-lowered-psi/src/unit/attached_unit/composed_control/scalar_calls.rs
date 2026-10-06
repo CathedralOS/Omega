@@ -171,6 +171,7 @@ fn selected_roots(
                     // Whole structural moves and stores evaluate no scalar.
                     | CheckedUnitEffectOperationPlan::MoveStructuralField { .. }
                     | CheckedUnitEffectOperationPlan::StoreStructuralField { .. }
+                    | CheckedUnitEffectOperationPlan::RebindStructuralLocal { .. }
                     // A view-subslice local replays its own endpoints at emission.
                     | CheckedUnitEffectOperationPlan::EstablishByteSequence { .. }
                     | CheckedUnitEffectOperationPlan::EstablishViewSubslice { .. } => {

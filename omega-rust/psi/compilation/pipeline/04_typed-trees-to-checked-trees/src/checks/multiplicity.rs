@@ -11,6 +11,7 @@
 mod borrowed_windows;
 mod claim_outcomes;
 mod cleanup_dispositions;
+mod construction_frontier;
 mod consumed_owners;
 mod linear_obligations;
 mod linear_validation;

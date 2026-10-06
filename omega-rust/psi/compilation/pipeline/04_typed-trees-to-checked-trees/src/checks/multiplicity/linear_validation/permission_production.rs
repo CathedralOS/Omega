@@ -24,6 +24,7 @@ pub(crate) fn apply_statement_permission_production(
     statement: &StatementNode,
     evaluation: checked_trees::FlowPermissionEvaluation,
     places: &mut [LinearPlace],
+    remaining: &super::super::cleanup_dispositions::RemainingCustody,
     permission_events: &mut Vec<FlowPermissionEventFact>,
     claim_identities: &mut ClaimIdentityAllocator,
     conditional_carrier_transfers: &mut Vec<usize>,
@@ -136,6 +137,7 @@ pub(crate) fn apply_statement_permission_production(
                 event,
                 &event_path,
                 places,
+                remaining,
                 permission_events,
             );
             continue;
@@ -201,6 +203,14 @@ pub(crate) fn apply_statement_permission_production(
         permission_events,
     );
 
+    // Project only the prefix this evaluation just produced. Replaying the
+    // global event vector here would import custody from a sibling edge.
+    let mut replacement_custody = remaining.clone();
+    replacement_custody.advance(
+        program,
+        &permission_events[event_start..],
+        &facts.flow.ownership.segments,
+    );
     if written_targets.is_empty() {
         projected_affine::append_replacement(
             program,
@@ -210,6 +220,7 @@ pub(crate) fn apply_statement_permission_production(
             statement_index,
             statement,
             places,
+            &replacement_custody,
             permission_events,
         );
     }
@@ -241,23 +252,49 @@ pub(crate) fn apply_statement_permission_production(
         // Replacement settles the old affine value before establishing the
         // new one. A source transferred into the replacement call is already
         // dead here and must not also receive a caller-side drop.
-        if place.live && place.multiplicity == Multiplicity::Affine {
-            permission_events.push(FlowPermissionEventFact {
-                evaluation: checked_trees::FlowPermissionEvaluation::Statement,
-                machine_symbol,
-                state_symbol,
-                source: PermissionEventSource::Statement { statement_index },
-                kind: PermissionEventKind::AffineDrop,
-                multiplicity: Multiplicity::Affine,
-                access: PermissionAccess::Owned,
-                claim_identity: place
-                    .claim_identity
-                    .unwrap_or(PermissionClaimIdentity::Unknown),
-                provenance: place.provenance.unwrap_or(PermissionProvenance::Unknown),
-                root: facts::PlaceRoot::Symbol(symbol),
-                segments,
-                obligation_live: false,
-            });
+        if place.multiplicity == Multiplicity::Affine
+            && (place.live || replacement_custody.is_reserved(facts::PlaceRoot::Symbol(symbol)))
+        {
+            for path in
+                replacement_custody.disposal_paths(facts::PlaceRoot::Symbol(symbol), &place.path)
+            {
+                let discarded = crate::flow::CanonicalPlace {
+                    root: facts::PlaceRoot::Symbol(symbol),
+                    segments: path,
+                };
+                if crate::flow::canonical_place_type_reference(
+                    program,
+                    state_symbol,
+                    statement_index,
+                    &discarded,
+                )
+                .is_none_or(|reference| {
+                    crate::checks::type_multiplicity(program, reference) != Multiplicity::Affine
+                }) {
+                    continue;
+                }
+                let discarded_segments = facts
+                    .flow
+                    .ownership
+                    .segments
+                    .insert_many(discarded.segments);
+                permission_events.push(FlowPermissionEventFact {
+                    evaluation: checked_trees::FlowPermissionEvaluation::Statement,
+                    machine_symbol,
+                    state_symbol,
+                    source: PermissionEventSource::Statement { statement_index },
+                    kind: PermissionEventKind::AffineDrop,
+                    multiplicity: Multiplicity::Affine,
+                    access: PermissionAccess::Owned,
+                    claim_identity: place
+                        .claim_identity
+                        .unwrap_or(PermissionClaimIdentity::Unknown),
+                    provenance: place.provenance.unwrap_or(PermissionProvenance::Unknown),
+                    root: facts::PlaceRoot::Symbol(symbol),
+                    segments: discarded_segments,
+                    obligation_live: false,
+                });
+            }
         }
         place.live = obligation_live || place.multiplicity == Multiplicity::Affine;
         place.case_excluded = place.conditional && !obligation_live;

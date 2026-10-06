@@ -129,7 +129,15 @@ fn owner_source(
             parameter_index: u32::try_from(index).ok()?,
         });
     }
-    for operation in &plan.operations {
+    for operation in plan.operations.iter().rev() {
+        if let CheckedUnitEffectOperationPlan::RebindStructuralLocal { destination, .. } = operation
+            && destination.source
+                == (CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol })
+        {
+            // Rebinding publishes the local's new home; the initial producer
+            // remains the identity of its already retired occurrence.
+            return Some(destination.source.clone());
+        }
         if matches!(operation, CheckedUnitEffectOperationPlan::EstablishStructuralLocal { symbol: local, .. } if *local == symbol)
         {
             return Some(CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol });

@@ -720,9 +720,9 @@ defines the complete product bar.
   construction prefixes in
   [reverse establishment order](wiki/spec/language/ownership.md#construction-and-disposal-order).
   Crash/abort/process exit has no cleanup successor. Remaining work:
-  - Extend the ordinary normal-edge cleanup plans in
+  - Carry the ordinary normal-edge cleanup plans in
     `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/execution/terminal_unit/cleanup/normal_edges.rs`
-    to abandoned construction prefixes. Preserve establishment order in the
+    for abandoned construction prefixes through executable consumers. Preserve establishment order in the
     existing ordered action stream through Terminal, Abstract, interpreter and
     native consumers;
     do not regroup residuals behind whole roots. Keep machine parameter custody
@@ -734,6 +734,38 @@ defines the complete product bar.
     Keep `pass/drops/runtime_cleanup_helper_normal_guarantee_exit` as the
     pre-cleanup scalar-capture and surviving call-contract control when
     extending these edges.
+    The construction-order witness
+    `pass/drops/runtime_record_construction_cleanup_order_exit` still fails
+    `omega run --both` with `BorrowedStorageRepairMismatch` on macOS ARM64.
+    `runtime_abandoned_record_construction_prefix_exit` and
+    `runtime_generic_reserved_construction_exit` reach the same retiring
+    replay; `runtime_empty_array_owner_cleanup_exit` reaches
+    `ZeroedStructuralResultMismatch`. **OMEGA-READS-TERMINAL-UNVERIFIED** and
+    **TERMINAL-VERIFIER-DELETED** own removal of those consumer fences.
+    The nested-guarantee witness
+    `pass/drops/runtime_nested_cleanup_postcondition_exit` passes source
+    checking but reaches retiring `InvalidNominalAffineCleanup` during native
+    production. Preserve ordinary hook guarantees and surviving captured
+    sibling values as runtime consumers acquire the same parent-first sequence.
+    Borrowed whole-root and field replacement still reaches
+    `OperationProofUnavailable` in
+    `pass/drops/runtime_borrowed_nominal_replacement_exit` on macOS ARM64.
+    The undischarged site is `ContractEnsures`, not a primitive operation;
+    **PCC-CERTIFICATES-DELETED** owns that retiring reconstruction. Keep
+    `fail/drops/borrowed_replacement_old_hook_prerequisite` as the old-value
+    prerequisite control. Preserve exact source-window call occurrences until
+    cleanup effects finish; an incomplete effect table cannot decide whether
+    a call may cross an open window. While one is open, preserve the exact
+    vacant-place repair authority from the ownership contract.
+    Re-establishment after an owned transfer still reaches
+    `EdgeAffineDiscardsInvalid` at edge 10 in
+    `pass/drops/runtime_owned_replacement_reestablishment_exit` on macOS ARM64:
+    the retiring verifier sorts homes by producer order rather than the
+    source-declaration-order action stream. **OMEGA-READS-TERMINAL-UNVERIFIED**
+    and **TERMINAL-VERIFIER-DELETED** own removal of that replay. Keep
+    `runtime_owned_{record_replacement,nominal_replacement,replacement_composition}_exit`
+    and `fail/drops/owned_replacement_{old_hook_prerequisite,transferred_source_read}`
+    as value-home, occurrence and invalid-custody controls.
   - Abstract optimization validation still requires whole owned successor
     arguments in
     `omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/unit_validation/function_structure/structural_transfers.rs`.

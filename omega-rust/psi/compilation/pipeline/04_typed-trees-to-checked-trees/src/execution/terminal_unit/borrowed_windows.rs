@@ -448,23 +448,92 @@ impl OpenWindows {
                 index: usize::try_from(*element).ok()?,
             });
         }
-        let (position, path) = window_place_admitting(
+        let (resolved_root, resolved_segments) = resolve_storage_place(
             program,
-            facts,
-            machine,
             state,
             program.statement_table.statements(state.statement_nodes),
             index,
-            structural_parameters,
-            &destination_place,
-            assignment.target,
-            true,
-        )?;
-        let needs_displacement = !self.open.remove(&(position, path.clone()));
-        let place = CheckedUnitStructuralArgumentPlan {
-            source: CheckedUnitStructuralArgumentSourcePlan::Parameter {
-                parameter_index: position,
+            match destination_place.root {
+                PlaceRoot::Symbol(symbol) => symbol,
+                _ => return None,
             },
+            &destination_place.segments,
+        );
+        let destination_place = CanonicalPlace {
+            root: resolved_root,
+            segments: resolved_segments,
+        };
+        let owned_local = match destination_place.root {
+            PlaceRoot::Symbol(symbol) => program
+                .state_local_declaration(state, symbol)
+                .filter(|(ordinal, local)| {
+                    *ordinal < index
+                        && local.is_mutable
+                        && !type_reference_is_reference(program, local.type_reference)
+                })
+                .map(|_| symbol),
+            _ => None,
+        };
+        let (source, path, needs_displacement, needs_cleanup) = if let Some(symbol) = owned_local {
+            let (_, path) = super::calls::projected_argument_path(
+                program,
+                state.symbol,
+                index,
+                &destination_place,
+            )?;
+            // The permission producer has already selected old-value death.
+            // An absent construction slot creates no displaced value. This
+            // query follows checked custody, not the initializer's spelling.
+            let occupied = facts
+                .contextual_cleanup
+                .dispositions
+                .iter()
+                .any(|(_, disposition)| {
+                    disposition.machine == machine.symbol
+                        && disposition.state == state.symbol
+                        && disposition.source
+                            == language_semantics::PermissionEventSource::Statement {
+                                statement_index: index,
+                            }
+                        && disposition.root == destination_place.root
+                        && facts
+                            .flow
+                            .ownership
+                            .segments
+                            .span_or_empty(disposition.path)
+                            .starts_with(&destination_place.segments)
+                });
+            (
+                CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol },
+                path,
+                false,
+                occupied,
+            )
+        } else {
+            let (position, path) = window_place_admitting(
+                program,
+                facts,
+                machine,
+                state,
+                program.statement_table.statements(state.statement_nodes),
+                index,
+                structural_parameters,
+                &destination_place,
+                assignment.target,
+                true,
+            )?;
+            let needs_displacement = !self.open.remove(&(position, path.clone()));
+            (
+                CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                    parameter_index: position,
+                },
+                path,
+                needs_displacement,
+                needs_displacement && produced.multiplicity == Multiplicity::Affine,
+            )
+        };
+        let place = CheckedUnitStructuralArgumentPlan {
+            source,
             path,
             type_identity: produced.type_identity.clone(),
             access: CheckedStructuralAccess::Owned,
@@ -481,20 +550,47 @@ impl OpenWindows {
                     source: place.clone(),
                 }
             }),
-            store: CheckedUnitEffectOperationPlan::StoreStructuralField {
-                statement_index,
-                destination: place,
-                value,
-            },
-            displaced_discard: (needs_displacement
-                && produced.multiplicity == Multiplicity::Affine)
-                .then(|| CheckedUnitPartialAffineDiscardPlan {
-                    source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-                        binding_ordinal: displaced_ordinal,
+            cleanup: needs_cleanup.then(|| {
+                CheckedUnitEffectOperationPlan::ContinuationCleanup {
+                    boundary: checked_trees::CheckedUnitCleanupBoundary::Replacement {
+                        statement_index,
                     },
-                    path: Vec::new(),
-                    type_identity: produced.type_identity.clone(),
-                }),
+                    // This storage marker is completed from the authoritative
+                    // death disposition once the hook catalog exists. Owned
+                    // children retire in place; a borrowed replacement has a
+                    // separately displaced value and restoration debt.
+                    cleanup_actions: vec![checked_trees::CheckedNormalCleanupAction::Discard(
+                        CheckedUnitPartialAffineDiscardPlan {
+                            source: if needs_displacement {
+                                CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                                    binding_ordinal: displaced_ordinal,
+                                }
+                            } else {
+                                place.source.clone()
+                            },
+                            path: if needs_displacement {
+                                Vec::new()
+                            } else {
+                                place.path.clone()
+                            },
+                            type_identity: produced.type_identity.clone(),
+                        },
+                    )],
+                }
+            }),
+            store: if owned_local.is_some() && place.path.is_empty() {
+                CheckedUnitEffectOperationPlan::RebindStructuralLocal {
+                    statement_index,
+                    destination: place,
+                    value,
+                }
+            } else {
+                CheckedUnitEffectOperationPlan::StoreStructuralField {
+                    statement_index,
+                    destination: place,
+                    value,
+                }
+            },
         })
     }
 
@@ -511,5 +607,16 @@ impl OpenWindows {
 pub(super) struct FieldReplacement {
     pub(super) move_out: Option<CheckedUnitEffectOperationPlan>,
     pub(super) store: CheckedUnitEffectOperationPlan,
-    pub(super) displaced_discard: Option<CheckedUnitPartialAffineDiscardPlan>,
+    pub(super) cleanup: Option<CheckedUnitEffectOperationPlan>,
+}
+
+impl FieldReplacement {
+    /// Preserve the authored replacement lifecycle independently of the RHS's
+    /// producer: displacement if borrowed, selected old-value death, then store.
+    pub(super) fn into_operations(self) -> impl Iterator<Item = CheckedUnitEffectOperationPlan> {
+        self.move_out
+            .into_iter()
+            .chain(self.cleanup)
+            .chain(std::iter::once(self.store))
+    }
 }

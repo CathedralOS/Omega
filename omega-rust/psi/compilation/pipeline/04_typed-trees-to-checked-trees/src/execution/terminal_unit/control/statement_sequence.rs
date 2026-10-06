@@ -15,8 +15,8 @@
 //! the structural or scalar result, and call-count agreement.
 use super::super::{
     CheckedTrivialAffineStructuralLocalPlan, CheckedUnitEntryClaimPlan,
-    CheckedUnitPartialAffineDiscardPlan, CheckedUnitStructuralArgumentPlan,
-    CheckedUnitStructuralArgumentSourcePlan, PermissionProvenance,
+    CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralArgumentSourcePlan,
+    PermissionProvenance,
 };
 use super::{
     CheckFacts, CheckedScalarExpression, CheckedScalarExpressionRole, CheckedStructuralAccess,
@@ -919,7 +919,6 @@ pub(in crate::execution::terminal_unit) fn build(
         let mut structural_store_bindings = 0_usize;
         // An affine field value displaced by the overwrite needs an explicit
         // discard on the call's continuation; unrestricted drops for free.
-        let mut displaced_discard = None;
         if atomic_result.is_some()
             && !matches!(statement, StatementNode::Assignment(assignment)
                 if validation::atomic_assignment_carrier(program, assignment).is_some())
@@ -981,9 +980,7 @@ pub(in crate::execution::terminal_unit) fn build(
                     replacement,
                 } => {
                     structural_store_bindings = usize::from(replacement.move_out.is_some());
-                    call_result_stores.extend(replacement.move_out);
-                    call_result_stores.push(replacement.store);
-                    displaced_discard = replacement.displaced_discard;
+                    call_result_stores.extend(replacement.into_operations());
                     // The store consumes this call's whole result, so the
                     // binding stays anonymous: no local claims it, and the
                     // discard gate below must not retire it before the store
@@ -1146,7 +1143,6 @@ pub(in crate::execution::terminal_unit) fn build(
                 structural_result,
                 result_stores: call_result_stores,
                 structural_store_bindings,
-                displaced_discard,
             },
         )?;
     }
@@ -1813,7 +1809,8 @@ pub(in crate::execution::terminal_unit) fn consume_results(
     }
     // A whole-result field store consumes the minted binding the same way a
     // call argument does: Owned access retires the producer's disposal debt.
-    if let CheckedUnitEffectOperationPlan::StoreStructuralField { value, .. } = consumer
+    if let CheckedUnitEffectOperationPlan::StoreStructuralField { value, .. }
+    | CheckedUnitEffectOperationPlan::RebindStructuralLocal { value, .. } = consumer
         && let Some(binding_ordinal) = value.source_structural_result_binding_ordinal()
     {
         consume_result(

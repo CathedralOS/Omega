@@ -1,7 +1,7 @@
 //! Type-directed maximal residual complement for finite records and arrays.
 //!
 //! Only the complement is validated: a partially touched node must be a
-//! record or nonempty array whose fields are partial-affine leaves, and each
+//! record or array whose contained fields are partial-affine leaves, and each
 //! untouched subtree must be a finite tree of them. A moved subtree transfers
 //! whole with its own custody, so its shape (references included) is the
 //! consumer's concern, not this discard roster's.
@@ -48,8 +48,13 @@ fn validate_type(
         CheckedUnitStructuralTypeShape::FixedArray {
             element_type_identity,
             length,
-        } if *length > 0 => {
-            validate_type(types, element_type_identity, active, complete)?;
+        } => {
+            // Empty arrays contain no values whose cleanup eligibility can
+            // constrain this complement. They retain their own exact shape,
+            // just as an empty record does, without visiting an absent element.
+            if *length > 0 {
+                validate_type(types, element_type_identity, active, complete)?;
+            }
         }
         _ => return None,
     }
@@ -70,15 +75,7 @@ fn visit(
     residuals: &mut Vec<CheckedUnitPartialAffineDiscardPlan>,
     emit: bool,
 ) -> Option<usize> {
-    if moved_paths.is_empty()
-        && (boundaries.is_empty() || boundaries.iter().any(|(path, _)| path.is_empty()))
-    {
-        if boundaries
-            .iter()
-            .any(|(path, identity)| path.is_empty() && *identity != current_type)
-        {
-            return None;
-        }
+    if moved_paths.is_empty() && boundaries.is_empty() {
         // Only the complement is discarded here, so only the complement must
         // be a finite record/array tree of cleanup-free leaves. A moved
         // subtree leaves whole with its own custody and is never inspected.
@@ -95,11 +92,29 @@ fn visit(
     if moved_paths.iter().any(|(path, _)| path.is_empty()) {
         return (moved_paths.len() == 1 && moved_paths[0].1 == current_type).then_some(0);
     }
-    if boundaries.iter().any(|(path, _)| path.is_empty()) {
+    let nominal_boundary = boundaries.iter().any(|(path, _)| path.is_empty());
+    if nominal_boundary
+        && (!moved_paths.is_empty()
+            || boundaries
+                .iter()
+                .any(|(path, identity)| path.is_empty() && *identity != current_type))
+    {
         return None;
     }
+    // A nominal boundary is the owner's hook, not a cut that suppresses its
+    // structural children. The hook receives the intact owner first; only its
+    // normal return permits recursive reverse-declaration cleanup. Keep that
+    // ordering in this same traversal rather than flattening hooks into a set
+    // of disjoint leaves or disposing the whole receiver twice.
+    if nominal_boundary && emit {
+        residuals.push(CheckedUnitPartialAffineDiscardPlan {
+            source: source.clone(),
+            path: prefix.clone(),
+            type_identity: current_type.to_owned(),
+        });
+    }
     let declaration = types.get(current_type)?;
-    let mut count = 0_usize;
+    let mut count = usize::from(nominal_boundary);
     match &declaration.shape {
         CheckedUnitStructuralTypeShape::Record { fields } => {
             if fields.iter().enumerate().any(|(index, field)| {
@@ -113,15 +128,16 @@ fn visit(
                 return None;
             }
             let mut matched = 0_usize;
-            let mut matched_boundaries = 0_usize;
+            let mut matched_boundaries = usize::from(nominal_boundary);
             for field in fields.iter().rev() {
                 let matching = moved_paths.iter().filter_map(|(path, moved_type)| {
                     matches!(&path[0], CheckedUnitStructuralPathSegment::Field(identity) if identity == &field.identity)
                         .then_some((&path[1..], *moved_type))
                 }).collect::<Vec<_>>();
                 let child_boundaries = boundaries.iter().filter_map(|(path, boundary_type)| {
-                    matches!(path.first(), Some(CheckedUnitStructuralPathSegment::Field(identity)) if identity == &field.identity)
-                        .then_some((&path[1..], *boundary_type))
+                    let (segment, remaining) = path.split_first()?;
+                    matches!(segment, CheckedUnitStructuralPathSegment::Field(identity) if identity == &field.identity)
+                        .then_some((remaining, *boundary_type))
                 }).collect::<Vec<_>>();
                 matched = matched.checked_add(matching.len())?;
                 matched_boundaries = matched_boundaries.checked_add(child_boundaries.len())?;
@@ -155,7 +171,7 @@ fn visit(
         CheckedUnitStructuralTypeShape::FixedArray {
             element_type_identity,
             length,
-        } if *length > 0 => {
+        } => {
             let mut touched = Vec::new();
             for (path, _) in moved_paths {
                 let CheckedUnitStructuralPathSegment::FixedIndex(index) = path[0] else {
@@ -179,7 +195,7 @@ fn visit(
             touched.dedup();
             let untouched = usize::try_from(*length).ok()?.checked_sub(touched.len())?;
             if !emit {
-                count = untouched;
+                count = count.checked_add(untouched)?;
             }
             // Enumeration is needed only when writing the already-sized output.
             let indexes = (0..if emit { *length } else { 0 })
@@ -191,8 +207,9 @@ fn visit(
                         .then_some((&path[1..], *moved_type))
                 }).collect::<Vec<_>>();
                 let child_boundaries = boundaries.iter().filter_map(|(path, boundary_type)| {
-                    matches!(path.first(), Some(CheckedUnitStructuralPathSegment::FixedIndex(candidate)) if *candidate == index)
-                        .then_some((&path[1..], *boundary_type))
+                    let (segment, remaining) = path.split_first()?;
+                    matches!(segment, CheckedUnitStructuralPathSegment::FixedIndex(candidate) if *candidate == index)
+                        .then_some((remaining, *boundary_type))
                 }).collect::<Vec<_>>();
                 prefix.push(CheckedUnitStructuralPathSegment::FixedIndex(index));
                 count = count.checked_add(visit(
@@ -224,8 +241,9 @@ pub(super) fn reconstruct(
 }
 
 /// Preserve cleanup operation boundaries inside the maximal live complement.
-/// A boundary selects an intact subtree with its own disposition; it is not a
-/// move and does not grant permission to discard that subtree without its hook.
+/// A boundary selects an intact receiver with its own hook; it is not a move.
+/// Nested boundaries are legal and run parent-first, then in recursive reverse
+/// declaration order. Duplicate hooks and hooks overlapping a move are not.
 /// The same count-before-enumeration walk serves ordinary no-code residuals.
 pub(super) fn reconstruct_with_boundaries(
     types: &BTreeMap<String, CheckedUnitStructuralTypePlan>,
@@ -238,7 +256,7 @@ pub(super) fn reconstruct_with_boundaries(
     if boundaries.iter().enumerate().any(|(position, (path, _))| {
         boundaries[..position]
             .iter()
-            .any(|(earlier, _)| path.starts_with(earlier) || earlier.starts_with(path))
+            .any(|(earlier, _)| path == earlier)
             || moved_paths
                 .iter()
                 .any(|(moved, _)| path.starts_with(moved) || moved.starts_with(path))

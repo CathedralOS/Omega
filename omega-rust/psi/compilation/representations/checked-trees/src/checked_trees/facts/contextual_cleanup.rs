@@ -18,9 +18,25 @@ pub struct ContextualCleanupFacts {
     pub applications: Arena<ContextualCleanupApplication>,
     pub exclusions: Arena<Place>,
     pub segments: Arena<PlaceSegment>,
+    /// Open source windows at exact evaluated invocations. Their storage is
+    /// selected with deaths; invocation effects are checked only after the
+    /// selected cleanup dependencies complete those effects.
+    pub window_invocations: Arena<StorageWindowInvocation>,
     /// Bound generic obligations are entry inputs to source flow. Their
     /// storage survives refreshing the selected death occurrences.
     pub entry_requirements: ContextualCleanupEntryRequirements,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct StorageWindowInvocation {
+    pub machine: SymbolHandle,
+    pub state: SymbolHandle,
+    pub statement: usize,
+    pub expression: typed_trees::expression::ExpressionHandle,
+    /// Canonical absent storage; segments belong to this family's arena.
+    pub absent: Place,
+    /// Match-arm windows have no statement-level extraction occurrence.
+    pub opened_statement: Option<usize>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -36,6 +52,10 @@ pub struct ContextualCleanupDisposition {
     /// it never authorizes borrowing facts from every exit of the state.
     pub exit: crate::FlowClaimJoinExit,
     pub root: facts::PlaceRoot,
+    /// A displaced borrowed referent owns the stored value's type, not its
+    /// access route's reference carrier. Zero retains the ordinary owned-place
+    /// type query. The source window producer supplies this only at replacement.
+    pub disposed_type: typed_trees::types::TypeReferenceHandle,
     /// The selected path uses the flow ownership segment arena. Excluded
     /// subtrees below use this family's segment arena instead.
     pub path: HandleSpan<PlaceSegment>,

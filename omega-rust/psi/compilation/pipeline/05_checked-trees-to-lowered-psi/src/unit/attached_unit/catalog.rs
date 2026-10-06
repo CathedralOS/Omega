@@ -1288,6 +1288,7 @@ pub(super) fn lower_unit_services_including(
                 | CheckedUnitEffectOperationPlan::StructuralCaseLiteralFieldStore(_)
                 | CheckedUnitEffectOperationPlan::MoveStructuralField { .. }
                 | CheckedUnitEffectOperationPlan::StoreStructuralField { .. }
+                | CheckedUnitEffectOperationPlan::RebindStructuralLocal { .. }
                 | CheckedUnitEffectOperationPlan::ContinuationCleanup { .. }
                 | CheckedUnitEffectOperationPlan::Complete { .. } => {}
             }

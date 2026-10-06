@@ -45,6 +45,14 @@
 //!
 //! Partial and nominal cleanup retain separate plan owners because their
 //! residual fields and destructor obligations cannot become trivial root discards.
+//! Replacement joins those same selected dispositions into the statement's
+//! operation stream: evaluate the RHS, dispose the old occurrence, then store
+//! or rebind. `cleanup/replacements.rs` completes the death marker from source
+//! custody once the hook catalog exists; the lowerer never recognizes an
+//! initializer/call/store pattern to manufacture replacement semantics.
+//! An owned local changes its current value home. Borrowed storage instead
+//! retains its lender's home and exact restoration obligation. Treating these
+//! as one extraction-and-repair operation invents debt for ordinary locals.
 //!
 //! # Executable companions
 //!
@@ -327,6 +335,7 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
                 &mut shapes,
                 plan.machine,
                 plan.state,
+                &plan.structural_parameters,
                 &plan.operations,
             )
         })
@@ -345,6 +354,7 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
                         &mut shapes,
                         plan.machine,
                         state.state,
+                        &state.structural_parameters,
                         &state.operations,
                     )?;
                     let normal = cleanup::normal_edges::state_cleanups(

@@ -1,1 +1,1 @@
-already transferred or consumed
+after `settings` was transferred or consumed

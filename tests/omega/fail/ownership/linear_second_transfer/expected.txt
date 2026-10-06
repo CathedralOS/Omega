@@ -1,1 +1,1 @@
-linear value `receipt` was already transferred or consumed
+after `receipt` was transferred or consumed

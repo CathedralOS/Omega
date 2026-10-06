@@ -150,6 +150,7 @@ pub(crate) fn prepare_permission_events(
                         }
                     }
                     let event_start = permission_events.len();
+                    remaining.reserve(program, &statements[statement_index]);
                     apply_statement_permission_production(
                         program,
                         facts,
@@ -161,11 +162,13 @@ pub(crate) fn prepare_permission_events(
                         &statements[statement_index],
                         evaluation,
                         places,
+                        remaining,
                         &mut permission_events,
                         &mut claim_identities,
                         &mut conditional_carrier_transfers,
                     );
                     remaining.observe(
+                        program,
                         &permission_events[event_start..],
                         &facts.flow.ownership.segments,
                         &mut cleanup_dispositions,
@@ -183,9 +186,12 @@ pub(crate) fn prepare_permission_events(
                         state_flow.machine_symbol,
                         coordinate,
                         places,
+                        remaining,
+                        &mut facts.flow.ownership.segments,
                         &mut permission_events,
                     );
                     remaining.observe(
+                        program,
                         &permission_events[event_start..],
                         &facts.flow.ownership.segments,
                         &mut cleanup_dispositions,
@@ -208,6 +214,7 @@ pub(crate) fn prepare_permission_events(
         // These are expression-rooted temporaries with their own complete
         // establishment/drop sequence, independent of state-exit roots.
         RemainingCustody::default().observe(
+            program,
             &permission_events[temporary_start..],
             &facts.flow.ownership.segments,
             &mut cleanup_dispositions,
@@ -260,13 +267,20 @@ pub(crate) fn prepare_permission_events(
         derive_checked_claim_outcome_maps(program, &facts.flow.ownership, &joined_events);
     publish_claim_outcome_maps(facts, joined_maps);
     if selection_diagnostics.is_empty() {
+        cleanup_dispositions.entry_requirements =
+            std::mem::take(&mut facts.contextual_cleanup.entry_requirements);
+        facts.contextual_cleanup = cleanup_dispositions;
+        // A replacement kills the old referent, not the borrowed access
+        // carrier. Select that death while source windows still distinguish
+        // a live old value from an already extracted hole, before deriving
+        // hook prerequisites and effects from the complete death roster.
+        super::linear_obligations::prepare_storage_deaths(program, facts)?;
+        let mut cleanup_dispositions = std::mem::take(&mut facts.contextual_cleanup);
         crate::facts::contextual_cleanup::bind_applications(
             program,
             &facts.flow,
             &mut cleanup_dispositions,
         );
-        cleanup_dispositions.entry_requirements =
-            std::mem::take(&mut facts.contextual_cleanup.entry_requirements);
         facts.contextual_cleanup = cleanup_dispositions;
         Ok(())
     } else {

@@ -20,6 +20,16 @@ use crate::{
 use symbols::SymbolHandle;
 
 impl CheckedUnitEffectOperationPlan {
+    /// Rebinding starts a new occurrence at the same named local. Consumers
+    /// through this operation can use its prior occurrence; later consumers
+    /// must not be charged to the local's initial producer.
+    pub fn ends_local_occurrence(&self, local: SymbolHandle) -> bool {
+        local.is_valid()
+            && matches!(self,
+            Self::RebindStructuralLocal { destination, .. }
+                if destination.source == (CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol: local }))
+    }
+
     /// Whole transfers guaranteed before this operation's normal continuation.
     /// `local` is zero for an anonymous result; callers obtain named identity
     /// only from `statement_structural_result_binding`, never from the enclosing
@@ -345,7 +355,20 @@ impl CallTransfers<'_> {
             }
             CheckedUnitEffectOperationPlan::StoreStructuralField {
                 destination, value, ..
-            } => self.argument_evaluation(destination) + self.argument_evaluation(value),
+            }
+            | CheckedUnitEffectOperationPlan::RebindStructuralLocal {
+                destination, value, ..
+            } => {
+                self.argument_evaluation(destination)
+                    + if matches!(
+                        value.source,
+                        CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { .. }
+                    ) {
+                        self.argument(value)
+                    } else {
+                        self.argument_evaluation(value)
+                    }
+            }
             CheckedUnitEffectOperationPlan::StructuralCaseFieldStore(store) => {
                 self.argument_evaluation(&store.value)
             }

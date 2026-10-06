@@ -13,6 +13,14 @@
 //! the scalar machines those bodies call, and `providers` checks each provider
 //! candidate against the boundary it satisfies.
 //!
+//! Replacement has no separate source-shape recognizer. The checked operation
+//! stream already orders production, old-value cleanup and establishment.
+//! `OperationFrame` resolves the completed value in the same storage namespace
+//! for stores and owned rebinding. Rebinding updates that local's current home;
+//! it does not rewrite scalar values captured from the prior home. Cleanup
+//! receipts settle an occurrence, so a later establishment at the same source
+//! path withdraws its old receipt rather than suppressing the new value's death.
+//!
 //! The module list below groups the rest by that route: the closure's own
 //! steps, body emission, the operations a body lowers with their source
 //! custody, and the scalar or structural completion that ends a body.
@@ -78,7 +86,6 @@ mod provider_attachments;
 // The operations a body lowers, each with its exact source custody.
 pub(crate) mod byte_locals;
 mod byte_subslices;
-mod field_replacement;
 mod ordinary_calls;
 mod parameters;
 pub(crate) mod primitive_locals;

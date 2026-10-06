@@ -77,6 +77,31 @@ impl StructuralFieldBindings {
         self.locals.push((symbol, place, structural_type));
     }
 
+    /// Replace the observation home when an owned binding receives a new
+    /// occurrence. Captured earlier observations retain their old value IDs;
+    /// subsequent reads resolve the binding's current home.
+    pub(crate) fn rebind_local(
+        &mut self,
+        symbol: symbols::SymbolHandle,
+        place: PlaceId,
+        structural_type: StructuralTypeId,
+    ) -> Result<(), LoweringError> {
+        let mut bindings = self
+            .locals
+            .iter_mut()
+            .filter(|(root, _, _)| *root == symbol);
+        let binding = bindings.next().ok_or(LoweringError::Unsupported(
+            "replaced local has no field observation home",
+        ))?;
+        if bindings.next().is_some() || binding.2 != structural_type {
+            return Err(LoweringError::Unsupported(
+                "replaced local has ambiguous or incompatible field storage",
+            ));
+        }
+        binding.1 = place;
+        Ok(())
+    }
+
     pub(crate) fn observation_source(
         &self,
         root: checked_trees::CheckedStorageRoot,

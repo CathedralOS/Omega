@@ -52,6 +52,9 @@ pub(in crate::unit::attached_unit) fn collect_operation_type_roots(
         }
         CheckedUnitEffectOperationPlan::StoreStructuralField {
             destination, value, ..
+        }
+        | CheckedUnitEffectOperationPlan::RebindStructuralLocal {
+            destination, value, ..
         } => {
             roots.push(destination.type_identity.clone());
             roots.push(value.type_identity.clone());

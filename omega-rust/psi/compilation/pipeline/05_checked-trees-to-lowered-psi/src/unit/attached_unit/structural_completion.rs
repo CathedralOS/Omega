@@ -6,7 +6,6 @@ use super::{
     CheckedTrees, CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan,
     CheckedUnitStructuralArgumentSourcePlan, LoweringError, Multiplicity, unsupported,
 };
-use checked_trees::expression::ExpressionNode;
 use checked_trees::statement::StatementNode;
 use checked_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 use checked_trees::{CheckedArrayConstructionSource, CheckedStructuralAccess};

@@ -92,6 +92,7 @@ pub(super) fn validate<'a>(
             | CheckedUnitEffectOperationPlan::StructuralCaseLiteralFieldStore(_)
             | CheckedUnitEffectOperationPlan::MoveStructuralField { .. }
             | CheckedUnitEffectOperationPlan::StoreStructuralField { .. }
+            | CheckedUnitEffectOperationPlan::RebindStructuralLocal { .. }
             | CheckedUnitEffectOperationPlan::Complete { .. } => {}
         }
     }

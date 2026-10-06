@@ -123,6 +123,49 @@ pub(crate) struct StructuralValueOwner {
 }
 
 impl Evaluation {
+    /// Resolve one selected death in the live state value namespace. Result
+    /// registries differ between ordinary and graph bodies; owner/parameter
+    /// lookup and selection rebinding do not. The caller supplies its registry.
+    pub(crate) fn cleanup_storage(
+        &self,
+        source: &checked_trees::CheckedUnitStructuralArgumentSourcePlan,
+        parameters: &[StructuralParameterDeclaration],
+        mut result: impl FnMut(
+            u32,
+        ) -> Result<
+            (PlaceId, semantic_vocabulary::StructuralTypeId),
+            LoweringError,
+        >,
+    ) -> Result<(PlaceId, semantic_vocabulary::StructuralTypeId), LoweringError> {
+        use checked_trees::CheckedUnitStructuralArgumentSourcePlan;
+        let (place, structural_type) = match *source {
+            CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {
+                let parameter = parameters
+                    .get(parameter_index as usize)
+                    .ok_or(LoweringError::Unsupported("cleanup parameter is absent"))?;
+                (parameter.place, parameter.structural_type)
+            }
+            CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } => {
+                let local = self
+                    .structural_locals
+                    .iter()
+                    .find(|local| local.root == facts::PlaceRoot::Symbol(symbol))
+                    .ok_or(LoweringError::Unsupported(
+                        "cleanup local is not established",
+                    ))?;
+                if !local.argument.path.is_empty() {
+                    return unsupported("cleanup local is not its whole owner");
+                }
+                (local.argument.place, local.structural_type)
+            }
+            CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal } => {
+                result(binding_ordinal)?
+            }
+            _ => return unsupported("cleanup source has no owned structural storage"),
+        };
+        Ok((self.current_structural_place(place), structural_type))
+    }
+
     /// Bind the emitted structural signature before evaluating any operands.
     /// Field, case and extent observations share this exact source-position
     /// roster; a boundary-return body has the same namespace as an ordinary

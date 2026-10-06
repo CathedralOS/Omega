@@ -2,7 +2,7 @@
 
 use crate::checks::multiplicity::linear_obligations::LinearPlace;
 use crate::checks::multiplicity::type_multiplicity::type_multiplicity;
-use arena::HandleSpan;
+use arena::Arena;
 use checked_trees::{
     FlowClaimJoinExit, FlowClaimJoinExitKind, FlowPermissionEvaluation, FlowPermissionEventFact,
 };
@@ -26,6 +26,8 @@ pub(crate) fn append_owned_cleanup_permission_events(
     machine_symbol: SymbolHandle,
     coordinate: FlowClaimJoinExit,
     tracked_places: &[LinearPlace],
+    remaining: &super::super::cleanup_dispositions::RemainingCustody,
+    segments: &mut Arena<facts::PlaceSegment>,
     permission_events: &mut Vec<FlowPermissionEventFact>,
 ) {
     let evaluation = exit_evaluation(program, state, coordinate);
@@ -34,7 +36,7 @@ pub(crate) fn append_owned_cleanup_permission_events(
             .iter()
             .find(|place| place.symbol == symbol && place.path.is_empty());
         if let Some(place) = tracked_root {
-            if !place.live {
+            if !place.live && !remaining.is_reserved(facts::PlaceRoot::Symbol(symbol)) {
                 return;
             }
             if place.multiplicity == Multiplicity::Linear
@@ -52,32 +54,51 @@ pub(crate) fn append_owned_cleanup_permission_events(
             return;
         }
         let multiplicity = tracked_root.map_or(Multiplicity::Affine, |place| place.multiplicity);
-        permission_events.push(FlowPermissionEventFact {
-            evaluation,
-            machine_symbol,
-            state_symbol: state.symbol,
-            source: PermissionEventSource::StateExit,
-            kind: if multiplicity == Multiplicity::Linear {
-                PermissionEventKind::Consume
-            } else {
-                PermissionEventKind::AffineDrop
-            },
-            multiplicity,
-            access: PermissionAccess::Owned,
-            claim_identity: if multiplicity == Multiplicity::Linear {
-                tracked_root
-                    .and_then(|place| place.claim_identity)
-                    .unwrap_or(PermissionClaimIdentity::Unknown)
-            } else {
-                PermissionClaimIdentity::Unknown
-            },
-            provenance: tracked_root
-                .and_then(|place| place.provenance)
-                .unwrap_or(PermissionProvenance::Unknown),
-            root: facts::PlaceRoot::Symbol(symbol),
-            segments: HandleSpan::empty(),
-            obligation_live: false,
-        });
+        let root = facts::PlaceRoot::Symbol(symbol);
+        let paths = remaining
+            .cleanup_paths(root)
+            .map(|paths| {
+                paths
+                    .map(<[facts::PlaceSegment]>::to_vec)
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_else(|| vec![Vec::new()]);
+        for path in paths {
+            if multiplicity == Multiplicity::Affine
+                && crate::flow::project_type_reference_from_segments(program, type_reference, &path)
+                    .is_none_or(|reference| {
+                        type_multiplicity(program, reference) != Multiplicity::Affine
+                    })
+            {
+                continue;
+            }
+            permission_events.push(FlowPermissionEventFact {
+                evaluation,
+                machine_symbol,
+                state_symbol: state.symbol,
+                source: PermissionEventSource::StateExit,
+                kind: if multiplicity == Multiplicity::Linear {
+                    PermissionEventKind::Consume
+                } else {
+                    PermissionEventKind::AffineDrop
+                },
+                multiplicity,
+                access: PermissionAccess::Owned,
+                claim_identity: if multiplicity == Multiplicity::Linear {
+                    tracked_root
+                        .and_then(|place| place.claim_identity)
+                        .unwrap_or(PermissionClaimIdentity::Unknown)
+                } else {
+                    PermissionClaimIdentity::Unknown
+                },
+                provenance: tracked_root
+                    .and_then(|place| place.provenance)
+                    .unwrap_or(PermissionProvenance::Unknown),
+                root,
+                segments: segments.insert_many(path),
+                obligation_live: false,
+            });
+        }
     };
 
     for statement in program
@@ -134,6 +155,8 @@ pub(crate) fn apply_recorded_cleanup_events(
         machine_symbol,
         coordinate,
         places,
+        &super::super::cleanup_dispositions::RemainingCustody::default(),
+        &mut Arena::default(),
         &mut expected,
     );
     expected.retain(|event| event.kind == PermissionEventKind::Consume);

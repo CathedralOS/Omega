@@ -125,7 +125,7 @@ fn validate_stored_field_has_a_representation(
 /// zero gates VALUE establishment instead of making the declaration illegal.
 /// The check composes through record fields, arrays, and the payload of the
 /// zero-tag (first) sum case. Later cases do not inhabit zero storage.
-pub(crate) fn type_requires_establishment(
+pub fn type_requires_establishment(
     program: &TypedTrees,
     type_reference: TypeReferenceHandle,
 ) -> bool {
@@ -243,8 +243,15 @@ fn type_requires_establishment_inner(
         TypeReferenceNode::Constrained { base_type, .. } => {
             type_requires_establishment_inner(program, *base_type, index)
         }
-        TypeReferenceNode::FixedArray { element_type, .. } => {
-            type_requires_establishment_inner(program, *element_type, index)
+        TypeReferenceNode::FixedArray {
+            element_type,
+            length,
+        } => {
+            // An empty array contains no element values. Propagating an
+            // element's gate would fabricate unfinished construction and can
+            // suppress a containing owner's otherwise required cleanup hook.
+            !matches!(length, typed_trees::types::FixedArrayLength::Literal(0))
+                && type_requires_establishment_inner(program, *element_type, index)
         }
         TypeReferenceNode::Named { symbol, name } => {
             let definition = if symbol.is_valid() {

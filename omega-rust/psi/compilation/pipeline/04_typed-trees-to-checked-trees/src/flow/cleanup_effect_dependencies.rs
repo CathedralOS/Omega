@@ -82,9 +82,13 @@ pub(crate) fn selected_cleanup_leaves(
         .filter_map(|removed| removed.strip_prefix(path))
         .collect::<Vec<_>>();
     let statement = event_statement_index(program, disposition.state, disposition.source);
-    let reference =
-        event_type_reference(program, disposition.state, statement, disposition.root, &[])?;
-    let (reference, substitutions) = select_type(program, reference, &[], path)?;
+    let (reference, substitutions) = if disposition.disposed_type.is_valid() {
+        (disposition.disposed_type, Vec::new())
+    } else {
+        let reference =
+            event_type_reference(program, disposition.state, statement, disposition.root, &[])?;
+        select_type(program, reference, &[], path)?
+    };
     let mut leaves = Vec::new();
     visit(
         program,

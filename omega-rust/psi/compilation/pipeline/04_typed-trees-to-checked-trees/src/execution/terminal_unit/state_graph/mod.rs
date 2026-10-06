@@ -1277,24 +1277,22 @@ fn terminator_call_consumes_result(
 /// An inline argument construction also belongs to its consuming call when
 /// copyable; other unrestricted locals retain their reusable statement owner.
 fn call_owns_result(producer: &CheckedUnitEffectOperationPlan) -> bool {
-    match producer {
-        CheckedUnitEffectOperationPlan::EstablishStructuralValue {
-            result,
-            operand_source,
-            ..
-        } => {
-            result.multiplicity != Multiplicity::Unrestricted
-                || matches!(
-                    operand_source,
-                    Some(checked_trees::CheckedArrayConstructionSource::CallArgument { .. })
-                )
-        }
-        // Any call with a structural result, ordinary or boundary.
-        CheckedUnitEffectOperationPlan::Call(call) => call
-            .structural_result()
-            .is_some_and(|result| result.multiplicity != Multiplicity::Unrestricted),
-        _ => false,
-    }
+    // Custody belongs to the produced value, not its source idiom. An
+    // extracted old referent owns the same affine obligation as a call or
+    // constructor result. Unrestricted inline operands alone retain their
+    // consuming-call establishment rather than a reusable local binding.
+    producer
+        .structural_result_binding()
+        .is_some_and(|result| result.multiplicity != Multiplicity::Unrestricted)
+        || matches!(
+            producer,
+            CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+                operand_source: Some(
+                    checked_trees::CheckedArrayConstructionSource::CallArgument { .. }
+                ),
+                ..
+            }
+        )
 }
 
 /// An available structural binding, independently of whether its producer

@@ -97,106 +97,47 @@ pub(super) fn admit(
             // selected edges: its owned source, borrowed destination
             // window, and consumed result binding all rejoined at mint.
             CheckedUnitEffectOperationPlan::MoveStructuralField { source, .. }
-                if source.source_parameter_index().is_some()
-                    && source.access == CheckedStructuralAccess::Owned => {}
+                if source.access == CheckedStructuralAccess::Owned
+                    && call_argument_admitted(source, &operations[..operation_index]) => {}
             CheckedUnitEffectOperationPlan::StoreStructuralField {
                 destination,
                 value,
                 ..
-            } if destination.source_parameter_index().is_some()
-                && destination.access == CheckedStructuralAccess::Owned
-                && matches!(
-                    value.source,
-                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-                        ..
-                    } | checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
-                        ..
-                    }
-                )
-                && value.access == CheckedStructuralAccess::Owned => {}
-            // A result may die on its producing or borrowing call's continuation.
-            // The cleanup shares that call's coordinate rather than
-            // consuming a new authored statement; sequenced stores may sit
-            // between the producer -- the statement's call, or the
-            // establishment of a construction replacing a field -- and the
-            // discard that retires a displaced binding.
+            }
+            | CheckedUnitEffectOperationPlan::RebindStructuralLocal {
+                destination,
+                value,
+                ..
+            } if destination.access == CheckedStructuralAccess::Owned
+                && value.access == CheckedStructuralAccess::Owned
+                && call_argument_admitted(destination, &operations[..operation_index])
+                && call_argument_admitted(value, &operations[..operation_index]) => {}
+            // Every cleanup boundary uses the same live storage namespace as
+            // calls and stores. The ownership producer selected death; this
+            // join asks only whether the graph can address that storage.
+            // Result-only and nearest-producer recognizers lose owned child
+            // replacement and do not establish any additional authority.
             CheckedUnitEffectOperationPlan::ContinuationCleanup {
-                boundary: checked_trees::CheckedUnitCleanupBoundary::Call(coordinate),
+                boundary,
                 cleanup_actions,
             }
-                if cleanup_actions.iter().all(|discard| {
-                    matches!(
-                    *discard.source(),
-                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-                        ..
-                    }
-                )
-                }) && operations[..operation_index]
-                    .iter()
-                    .rev()
-                    .find(|operation| match operation {
-                        // A scalar/Unit consumer can retire its argument owners
-                        // just as a structural producer can retire its result.
-                        CheckedUnitEffectOperationPlan::Call(_) => true,
-                        CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. } => true,
-                        // A bound-value replacement's move-out produces the
-                        // displaced binding the cleanup retires.
-                        CheckedUnitEffectOperationPlan::MoveStructuralField { .. } => true,
-                        _ => false,
-                    })
-                    .is_some_and(|producer| match producer {
-                        CheckedUnitEffectOperationPlan::Call(call) => call.coordinate == *coordinate,
-                        CheckedUnitEffectOperationPlan::EstablishStructuralValue {
-                            result,
-                            ..
-                        }
-                        | CheckedUnitEffectOperationPlan::MoveStructuralField {
-                            result, ..
-                        } => {
-                            result.statement_index == coordinate.statement_index
-                                && coordinate.call_ordinal == 0
-                        }
-                        _ => false,
-                    }) => {}
-            // Statement entry retires an earlier whole carrier without
-            // consuming the following statement. Statement planning has joined
-            // the complete loan roster and whole-local liveness at this boundary.
-            CheckedUnitEffectOperationPlan::ContinuationCleanup {
-                boundary:
-                    checked_trees::CheckedUnitCleanupBoundary::StatementEntry { statement_index },
-                cleanup_actions,
-            } if statements.get(*statement_index as usize).is_some()
-                && !cleanup_actions.is_empty()
-                && cleanup_actions.iter().all(|discard| {
-                    let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-                        binding_ordinal,
-                    } = *discard.source()
-                    else {
-                        return false;
-                    };
-                    let mut producers = operations[..operation_index]
-                        .iter()
-                        .filter_map(|operation| {
-                            let result = operation.statement_structural_result_binding()?;
-                            (result.binding_ordinal == binding_ordinal)
-                                .then_some((operation, result))
-                        });
-                    let Some((producer, result)) = producers.next() else {
-                        return false;
-                    };
-                    producers.next().is_none()
-                        && discard.path().is_empty()
-                        && discard.type_identity() == result.type_identity
-                        && result.multiplicity == language_semantics::Multiplicity::Affine
-                        && result.statement_index < *statement_index
-                        && matches!(
-                            statements.get(result.statement_index as usize),
-                            Some(StatementNode::LocalData(_))
-                        )
-                        && producer
-                            .discardable_structural_result()
-                            .is_some_and(|(_, discard_on_return)| !discard_on_return)
-                }) => {}
+                if !cleanup_actions.is_empty()
+                    && cleanup_actions.iter().all(|action| call_argument_admitted(
+                        &checked_trees::CheckedUnitStructuralArgumentPlan {
+                            source: action.source().clone(),
+                            path: action.path().to_vec(),
+                            type_identity: action.type_identity().to_owned(),
+                            access: CheckedStructuralAccess::Owned,
+                        },
+                        &operations[..operation_index],
+                    ))
+                    && match boundary {
+                        checked_trees::CheckedUnitCleanupBoundary::Call(coordinate) => operations[..operation_index].iter()
+                            .filter_map(CheckedUnitEffectOperationPlan::call)
+                            .any(|call| call.coordinate == *coordinate),
+                        checked_trees::CheckedUnitCleanupBoundary::StatementEntry { statement_index }
+                        | checked_trees::CheckedUnitCleanupBoundary::Replacement { statement_index } => statements.get(*statement_index as usize).is_some(),
+                    } => {}
             _ => {
                 // Name the operation family whose custody the selected
                 // edges cannot yet carry; admitted families never reach

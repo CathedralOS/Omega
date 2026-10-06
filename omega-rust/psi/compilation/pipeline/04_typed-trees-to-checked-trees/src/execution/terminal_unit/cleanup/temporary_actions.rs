@@ -47,10 +47,34 @@ pub(in crate::execution::terminal_unit) fn operations(
     shapes: &mut ShapeCollector<'_>,
     machine: SymbolHandle,
     state: SymbolHandle,
+    parameters: &[checked_trees::CheckedUnitStructuralParameterPlan],
     operations: &[CheckedUnitEffectOperationPlan],
 ) -> Option<Vec<(usize, Vec<CheckedNormalCleanupAction>)>> {
     let mut replacements = Vec::new();
     for (operation_index, operation) in operations.iter().enumerate() {
+        if matches!(
+            operation,
+            CheckedUnitEffectOperationPlan::ContinuationCleanup {
+                boundary: checked_trees::CheckedUnitCleanupBoundary::Replacement { .. },
+                ..
+            }
+        ) {
+            replacements.push((
+                operation_index,
+                super::replacements::actions(
+                    program,
+                    facts,
+                    targets,
+                    shapes,
+                    machine,
+                    state,
+                    parameters,
+                    operations,
+                    operation_index,
+                )?,
+            ));
+            continue;
+        }
         let CheckedUnitEffectOperationPlan::ContinuationCleanup {
             boundary: checked_trees::CheckedUnitCleanupBoundary::Call(coordinate),
             cleanup_actions,

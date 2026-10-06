@@ -48,8 +48,10 @@
 //!
 //! Every other check either route applied runs for both. In particular a
 //! borrowed-window move or repair must name a machine-parameter root the
-//! sequence still holds (Terminal verification anchors windows on machine
-//! parameters only), and a repair value must be a whole owned result binding.
+//! sequence still holds, and a repair value must be a whole owned value.
+//! Owned local rebinding instead retains the produced value's home after the
+//! old occurrence's disposal. It creates neither an extraction nor borrowed
+//! restoration debt; later local reads and cleanup resolve the updated home.
 //! A completed result can occupy an operation result or a continuation's block
 //! parameter. The latter rejoins the registered binding's exact place and type;
 //! its source construction need not manufacture another operation result.
@@ -622,6 +624,7 @@ impl OperationFrame<'_, '_> {
                 | CheckedUnitEffectOperationPlan::EstablishScalarArray { .. }
                 | CheckedUnitEffectOperationPlan::MoveStructuralField { .. }
                 | CheckedUnitEffectOperationPlan::StoreStructuralField { .. }
+                | CheckedUnitEffectOperationPlan::RebindStructuralLocal { .. }
                 | CheckedUnitEffectOperationPlan::ContinuationCleanup { .. }
                 | CheckedUnitEffectOperationPlan::EstablishByteSequence { .. }
                 | CheckedUnitEffectOperationPlan::EstablishViewSubslice { .. }
@@ -715,6 +718,11 @@ impl OperationFrame<'_, '_> {
                 destination,
                 value,
             } => self.store_structural_field(*statement_index, destination, value),
+            CheckedUnitEffectOperationPlan::RebindStructuralLocal {
+                statement_index,
+                destination,
+                value,
+            } => self.rebind_structural_local(*statement_index, destination, value),
             CheckedUnitEffectOperationPlan::ContinuationCleanup {
                 cleanup_actions, ..
             } => self.continuation_cleanup(cleanup_actions),
@@ -1291,7 +1299,10 @@ impl OperationFrame<'_, '_> {
             None => bindings.expression(leaf.index())?,
         };
         let lowered;
-        let value = if matches!(leaf.value(), checked_trees::CheckedStoreValue::Computation(_)) {
+        let value = if matches!(
+            leaf.value(),
+            checked_trees::CheckedStoreValue::Computation(_)
+        ) {
             // A computed value runs the shared scalar evaluator. It completes
             // in a fresh block whose parameters rebind this namespace by
             // position, so the selector lowered above still names its values
@@ -2473,18 +2484,20 @@ impl OperationFrame<'_, '_> {
             // operation buffer's registry, so the moved value registers there.
             StructuralResults::StateGraph { places, .. } => {
                 places.push(declaration);
-                self.evaluation.establish_structural_result(
-                    self.checked,
-                    self.state,
-                    result,
-                    true,
-                    produced,
-                    self.structural_types.declarations(),
-                    self.operations,
-                )?;
             }
         }
-        Ok(())
+        // The result roster's layout does not decide whether this move binds
+        // an authored local. Publish the already admitted detached value to
+        // the same current-binding namespace in ordinary and composed bodies.
+        self.evaluation.establish_structural_binding(
+            self.checked,
+            self.state,
+            result,
+            true,
+            produced.into(),
+            self.structural_types.declarations(),
+            self.operations,
+        )
     }
 
     /// Establish the authored carrier at its declaration, then register the
@@ -2853,8 +2866,40 @@ impl OperationFrame<'_, '_> {
         destination: &CheckedUnitStructuralArgumentPlan,
         value: &CheckedUnitStructuralArgumentPlan,
     ) -> Result<(), LoweringError> {
+        let repair = self.owned_structural_value(value)?;
+        require_parameter_window_root(self.parameters, destination, self.evaluation)?;
+        let mut evaluation = WindowEvaluation {
+            checked: self.checked,
+            machine: self.machine,
+            state: self.state,
+            statement_index,
+            evaluation: &mut *self.evaluation,
+            source_value_count: self.source_value_count,
+            calls: &mut *self.calls,
+        };
+        self.windows.emit_store(
+            destination,
+            repair,
+            self.parameters,
+            self.structural_types.declarations(),
+            self.type_ids,
+            &mut evaluation,
+            self.values,
+            self.next_value,
+            self.next_block,
+            self.next_edge,
+            self.operations,
+        )
+    }
+
+    /// Resolve the completed owned occurrence independently of whether its
+    /// consumer binds a local or repairs another owner's borrowed storage.
+    fn owned_structural_value(
+        &self,
+        value: &CheckedUnitStructuralArgumentPlan,
+    ) -> Result<BorrowedWindowRepairValue, LoweringError> {
         if !value.path.is_empty() || value.access != checked_trees::CheckedStructuralAccess::Owned {
-            return unsupported("borrowed-window repair value is not a whole owned result");
+            return unsupported("replacement value is not a whole owned result");
         }
         let repair = match value.source {
             checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
@@ -2893,43 +2938,89 @@ impl OperationFrame<'_, '_> {
                     .find(|local| local.root == facts::PlaceRoot::Symbol(symbol));
                 let Some(crate::expression_preparation::bindings::StructuralLocalBinding {
                     argument,
+                    structural_type,
                     ..
                 }) = local
                 else {
                     return unsupported("borrowed-window repair value's local is not established");
                 };
+                if argument.access != StructuralAccess::Owned || !argument.path.is_empty() {
+                    return unsupported("replacement value's local does not own the whole home");
+                }
                 BorrowedWindowRepairValue {
                     place: argument.place,
-                    structural_type: lookup_type_id(self.type_ids, &value.type_identity)?,
+                    structural_type: *structural_type,
                 }
             }
             _ => {
                 return unsupported("borrowed-window repair value is not a whole owned result");
             }
         };
-        require_parameter_window_root(self.parameters, destination, self.evaluation)?;
-        let mut evaluation = WindowEvaluation {
-            checked: self.checked,
-            machine: self.machine,
-            state: self.state,
-            statement_index,
-            evaluation: &mut *self.evaluation,
-            source_value_count: self.source_value_count,
-            calls: &mut *self.calls,
+        if repair.structural_type != lookup_type_id(self.type_ids, &value.type_identity)? {
+            return unsupported("replacement value changed its declared structural type");
+        }
+        Ok(repair)
+    }
+
+    /// Owned bindings can change value identity after the prior occurrence's
+    /// ordered disposition. Reuse the completed producer's home; manufacturing
+    /// a borrowed-storage window here would give an ordinary local a second
+    /// owner's restoration debt and require a spurious extraction.
+    fn rebind_structural_local(
+        &mut self,
+        _statement_index: u32,
+        destination: &CheckedUnitStructuralArgumentPlan,
+        value: &CheckedUnitStructuralArgumentPlan,
+    ) -> Result<(), LoweringError> {
+        let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } =
+            destination.source
+        else {
+            return unsupported("owned rebind destination is not a local binding");
         };
-        self.windows.emit_store(
-            destination,
-            repair,
-            self.parameters,
-            self.structural_types.declarations(),
-            self.type_ids,
-            &mut evaluation,
-            self.values,
-            self.next_value,
-            self.next_block,
-            self.next_edge,
-            self.operations,
-        )
+        if !destination.path.is_empty()
+            || destination.access != checked_trees::CheckedStructuralAccess::Owned
+        {
+            return unsupported("owned rebind destination is not its whole local");
+        }
+        let replacement = self.owned_structural_value(value)?;
+        if replacement.structural_type != lookup_type_id(self.type_ids, &destination.type_identity)?
+        {
+            return unsupported("owned rebind changes the local's declared type");
+        }
+        let mut locals = self
+            .evaluation
+            .structural_locals
+            .iter_mut()
+            .filter(|local| local.root == facts::PlaceRoot::Symbol(symbol));
+        let local = locals.next().ok_or(LoweringError::Unsupported(
+            "owned rebind lost the destination local",
+        ))?;
+        if locals.next().is_some()
+            || local.structural_type != replacement.structural_type
+            || local.argument.access != StructuralAccess::Owned
+            || !local.argument.path.is_empty()
+        {
+            return unsupported("owned rebind has ambiguous or incompatible destination custody");
+        }
+        local.argument.place = replacement.place;
+        local.result_binding_ordinal = value.source_structural_result_binding_ordinal();
+        self.evaluation.structural_fields.rebind_local(
+            symbol,
+            replacement.place,
+            replacement.structural_type,
+        )?;
+        self.evaluation
+            .structural_value_owners
+            .retain(|owner| owner.symbol != symbol || owner.value.place == replacement.place);
+        if let Some(owner) = self
+            .evaluation
+            .structural_value_owners
+            .iter_mut()
+            .find(|owner| owner.value.place == replacement.place)
+        {
+            owner.symbol = symbol;
+        }
+        Ok(())
     }
 
     /// Commit ordered cleanup at its exact continuation while retaining scalar values.
@@ -2939,15 +3030,19 @@ impl OperationFrame<'_, '_> {
     ) -> Result<(), LoweringError> {
         let mut actions = Vec::new();
         for action in cleanup_actions {
-            let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-                binding_ordinal,
-            } = *action.source()
-            else {
-                return unsupported("continuation cleanup requires a result binding");
-            };
-            let place = self
-                .results
-                .continuation_place(binding_ordinal, self.operations)?;
+            let (place, _) = self.evaluation.cleanup_storage(
+                action.source(),
+                self.parameters,
+                |binding_ordinal| {
+                    let place = self
+                        .results
+                        .continuation_place(binding_ordinal, self.operations)?;
+                    let value = self
+                        .results
+                        .repair_value(binding_ordinal, self.operations)?;
+                    Ok((place, value.structural_type))
+                },
+            )?;
             let path = lower_structural_path(action.path())?;
             let structural_type = lookup_type_id(self.type_ids, action.type_identity())?;
             actions.push(match action {

@@ -118,21 +118,13 @@ pub(crate) fn check_linear_obligations(
     facts: &mut CheckFacts,
     incoming_guards: &crate::checks::ranges::incoming_guards::IncomingGuardIndex,
 ) -> Result<(), Vec<Diagnostic>> {
-    let consumed_owner_uses = validate_partial_moves(program, facts)?;
     // `facts.rs` recorded the permission events once, inside the contextual
     // cleanup fixed point; recording them again here reproduced the same
     // events. Only the crash-frontier projection needs the incoming guard
     // index, which exists only now.
     record_crash_frontier_lower_bounds(program, facts, incoming_guards);
     validate_linear_permission_events(program, facts)?;
-    // A repeated whole transfer is also a use of a consumed owner. Linear
-    // validation names that shape first; the occurrence replay reports only
-    // the reads, borrows, receivers and projections no permission event sees.
-    if consumed_owner_uses.is_empty() {
-        Ok(())
-    } else {
-        Err(consumed_owner_uses)
-    }
+    borrowed_windows::check_recorded_invocations(program, facts)
 }
 
 /// A nominal cleanup machine is entitled to one whole valid value. Reject a
@@ -141,15 +133,16 @@ pub(crate) fn check_linear_obligations(
 /// remains legal. Temporary partial moves must also retain every linear claim
 /// because there is no remaining local owner for an unselected sibling.
 ///
-/// The same occurrence replay tracks owned places already transferred or
-/// consumed. Those uses return as the `Ok` rows so `check_linear_obligations`
-/// can report them after linear validation.
-fn validate_partial_moves(
+/// The same occurrence walk tracks consumed owners and borrowed-storage
+/// holes, and selects old referents killed by replacement. These deaths must
+/// exist before contextual cleanup derives the hooks' entry requirements.
+pub(super) fn prepare_storage_deaths(
     program: &typed_trees::TypedTrees,
-    facts: &CheckFacts,
-) -> Result<Vec<Diagnostic>, Vec<Diagnostic>> {
+    facts: &mut CheckFacts,
+) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
     let mut consumed_owner_uses = Vec::new();
+    let mut deaths = Vec::new();
     for machine in program.machines() {
         for state in program.machine_states(machine) {
             let mut segments = arena::Arena::default();
@@ -161,11 +154,8 @@ fn validate_partial_moves(
                 state,
                 &mut segments,
             );
-            // Restoration debt cannot enter a state, and without extraction
-            // there is neither a window nor a partial-move obligation here.
-            if moves.is_empty() {
-                continue;
-            }
+            // Restoration debt cannot enter a state. A replacement can still
+            // kill a live old referent when this body contains no extraction.
             let statements = program.statement_table.statements(state.statement_nodes);
             let state_calls = facts
                 .flow
@@ -296,29 +286,35 @@ fn validate_partial_moves(
                                     diagnostics.push(diagnostic);
                                 }
                             }
-                            windows.check_invocation(
+                            // Literal and pure storage completions have no
+                            // invocation effects. Retain only exact calls or
+                            // boundary operators, not every evaluated leaf.
+                            if state_calls.iter().any(|call| {
+                                call.statement_index == statement_index
+                                    && call.authored_expression == expression
+                            }) || borrowed_windows::state_has_boundary_operator(
                                 program,
-                                state,
-                                statement_index,
-                                expression,
                                 &facts.flow.control,
-                                state_calls,
-                                &facts.service_reaches,
                                 &facts.operators,
-                                &mut diagnostics,
-                            );
-                            arm_plan.check_edge_invocation(
-                                program,
-                                machine,
-                                state,
-                                statement_index,
-                                expression,
-                                &facts.flow.control,
-                                state_calls,
-                                &facts.service_reaches,
-                                &facts.operators,
-                                &mut diagnostics,
-                            );
+                                state.symbol,
+                                Some(statement_index),
+                                Some(expression),
+                            ) {
+                                windows.record_invocation(
+                                    machine.symbol,
+                                    state.symbol,
+                                    statement_index,
+                                    expression,
+                                    &mut facts.contextual_cleanup,
+                                );
+                                arm_plan.record_edge_invocation(
+                                    machine.symbol,
+                                    state.symbol,
+                                    statement_index,
+                                    expression,
+                                    &mut facts.contextual_cleanup,
+                                );
+                            }
                             continue;
                         }
                         crate::checks::ownership_occurrences::StatementStep::Move {
@@ -480,6 +476,16 @@ fn validate_partial_moves(
                 // Replacement evaluation and destination selectors must both
                 // finish before the store discharges restoration debt.
                 if let StatementNode::Assignment(assignment) = statement {
+                    if let Some(death) = windows.replacement_death(
+                        program,
+                        machine,
+                        state,
+                        statements,
+                        statement_index,
+                        assignment,
+                    ) {
+                        deaths.push((machine.symbol, state.symbol, statement_index, death));
+                    }
                     windows.check_repair(
                         program,
                         machine,
@@ -523,11 +529,34 @@ fn validate_partial_moves(
             }
         }
     }
-    if diagnostics.is_empty() {
-        Ok(consumed_owner_uses)
-    } else {
-        Err(diagnostics)
+    diagnostics.extend(consumed_owner_uses);
+    if !diagnostics.is_empty() {
+        return Err(diagnostics);
     }
+    for (machine, state, statement_index, (place, disposed_type, excluded)) in deaths {
+        let path = facts.flow.ownership.segments.insert_many(place.segments);
+        let exclusions = excluded
+            .into_iter()
+            .map(|segments| facts::Place {
+                root: place.root,
+                segments: facts.contextual_cleanup.segments.insert_many(segments),
+            })
+            .collect::<Vec<_>>();
+        facts
+            .contextual_cleanup
+            .dispositions
+            .append(checked_trees::ContextualCleanupDisposition {
+                machine,
+                state,
+                source: PermissionEventSource::Statement { statement_index },
+                exit: checked_trees::FlowClaimJoinExit::default(),
+                root: place.root,
+                disposed_type,
+                path,
+                exclusions: facts.contextual_cleanup.exclusions.insert_many(exclusions),
+            });
+    }
+    Ok(())
 }
 
 /// Nominal cleanup is entitled to one whole value: a move out of borrowed

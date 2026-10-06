@@ -10,14 +10,14 @@
 //! call's immediate continuation, then the call's cleanup.
 use super::{
     CheckFacts, CheckedTrivialAffineStructuralLocalPlan, CheckedUnitEffectOperationPlan,
-    CheckedUnitEntryClaimPlan, CheckedUnitPartialAffineDiscardPlan,
-    CheckedUnitScalarResultBindingPlan, CheckedUnitStructuralArgumentSourcePlan,
-    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralResultBindingPlan,
-    ExpectedCallValueResult, ExpressionNode, LocalConstructionTrace, Multiplicity,
-    ScalarCalleePlans, ShapeCollector, StatementNode, SymbolHandle, TypedTrees,
-    bind_scalar_call_result, bind_structural_call_result, build_call_operation, consume_results,
-    structural_operands,
+    CheckedUnitEntryClaimPlan, CheckedUnitScalarResultBindingPlan,
+    CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralParameterPlan,
+    CheckedUnitStructuralResultBindingPlan, ExpectedCallValueResult, ExpressionNode,
+    LocalConstructionTrace, Multiplicity, ScalarCalleePlans, ShapeCollector, StatementNode,
+    SymbolHandle, TypedTrees, bind_scalar_call_result, bind_structural_call_result,
+    build_call_operation, consume_results, structural_operands,
 };
+use checked_trees::CheckedUnitPartialAffineDiscardPlan;
 
 /// The sequence state a statement's call reads and extends.
 pub(super) struct Planner<'a, 'program, 'shapes> {
@@ -56,8 +56,6 @@ pub(super) struct StatementCall {
     pub(super) result_stores: Vec<CheckedUnitEffectOperationPlan>,
     /// Structural bindings those stores mint beyond the call's own result.
     pub(super) structural_store_bindings: usize,
-    /// The field value the stores displace, disposed after the call.
-    pub(super) displaced_discard: Option<CheckedUnitPartialAffineDiscardPlan>,
 }
 
 pub(super) fn plan(
@@ -93,7 +91,6 @@ pub(super) fn plan(
         mut structural_result,
         result_stores: mut call_result_stores,
         structural_store_bindings,
-        mut displaced_discard,
     } = statement_call;
     // Guard-group markers beneath the statement phase keep the statement
     // position that `phase` resets.
@@ -158,7 +155,8 @@ pub(super) fn plan(
         if !call_result_stores.is_empty() {
             let (store, displacement) = call_result_stores.split_last_mut()?;
             match store {
-                CheckedUnitEffectOperationPlan::StoreStructuralField { value, .. } => {
+                CheckedUnitEffectOperationPlan::StoreStructuralField { value, .. }
+                | CheckedUnitEffectOperationPlan::RebindStructuralLocal { value, .. } => {
                     let old_source = CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
                         binding_ordinal: result.binding_ordinal,
                     };
@@ -201,35 +199,53 @@ pub(super) fn plan(
                 }
                 _ => return None,
             }
-            match displacement {
-                [] if structural_store_bindings == 0 && displaced_discard.is_none() => {}
-                [
+            let old_displaced = result.binding_ordinal.checked_add(1)?;
+            let new_displaced = binding_ordinal.checked_add(1)?;
+            let mut moved_bindings = 0;
+            for operation in displacement {
+                match operation {
                     CheckedUnitEffectOperationPlan::MoveStructuralField {
-                        result: displaced, ..
-                    },
-                ] if structural_store_bindings == 1 => {
-                    let old_displaced = result.binding_ordinal.checked_add(1)?;
-                    if displaced.binding_ordinal != old_displaced {
-                        return None;
-                    }
-                    displaced.binding_ordinal = binding_ordinal.checked_add(1)?;
-                    if let Some(discard) = &mut displaced_discard {
-                        if discard.source
-                            != (CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-                                binding_ordinal: old_displaced,
-                            })
-                        {
+                        result: displaced,
+                        ..
+                    } => {
+                        if displaced.binding_ordinal != old_displaced {
                             return None;
                         }
-                        discard.source =
-                            CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-                                binding_ordinal: displaced.binding_ordinal,
-                            };
+                        displaced.binding_ordinal = new_displaced;
+                        moved_bindings += 1;
                     }
+                    CheckedUnitEffectOperationPlan::ContinuationCleanup {
+                        boundary:
+                            checked_trees::CheckedUnitCleanupBoundary::Replacement {
+                                statement_index: boundary_statement,
+                            },
+                        cleanup_actions,
+                    } if *boundary_statement == statement_index => {
+                        for action in cleanup_actions {
+                            let source = match action {
+                                checked_trees::CheckedNormalCleanupAction::Discard(action) => {
+                                    &mut action.source
+                                }
+                                checked_trees::CheckedNormalCleanupAction::InvokeNominal(
+                                    action,
+                                ) => &mut action.source,
+                            };
+                            if let CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                                binding_ordinal,
+                            } = source
+                            {
+                                if *binding_ordinal != old_displaced {
+                                    return None;
+                                }
+                                *binding_ordinal = new_displaced;
+                            }
+                        }
+                    }
+                    _ => return None,
                 }
-                _ => {
-                    return None;
-                }
+            }
+            if moved_bindings != structural_store_bindings {
+                return None;
             }
         }
         result.binding_ordinal = binding_ordinal;
@@ -341,18 +357,6 @@ pub(super) fn plan(
         operations.push(store);
     }
     *structural_count = structural_count.checked_add(structural_store_bindings)?;
-    if let Some(discard) = displaced_discard {
-        let coordinate = operations.iter().rev().find_map(|operation| {
-            operation
-                .call()
-                .filter(|call| call.structural_result().is_some())
-                .map(|call| call.coordinate)
-        })?;
-        operations.push(CheckedUnitEffectOperationPlan::ContinuationCleanup {
-            boundary: checked_trees::CheckedUnitCleanupBoundary::Call(coordinate),
-            cleanup_actions: vec![checked_trees::CheckedNormalCleanupAction::Discard(discard)],
-        });
-    }
     super::super::super::cleanup::anonymous::append_continuation(
         program,
         facts,

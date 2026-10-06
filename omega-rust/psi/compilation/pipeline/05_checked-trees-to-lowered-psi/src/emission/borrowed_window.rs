@@ -103,6 +103,7 @@ struct ResolvedWindowPlace {
     field: Option<StructuralFieldId>,
     hole_type: StructuralTypeId,
     spelling: String,
+    restoration_required: bool,
 }
 
 impl BorrowedWindowLedger {
@@ -227,9 +228,16 @@ impl BorrowedWindowLedger {
             structural_types,
             type_ids,
         )?;
-        let Some(index) = self.open.iter().position(|absent| {
+        let index = self.open.iter().position(|absent| {
             absent.source == place.source && absent.checked_path == place.checked_path
-        }) else {
+        });
+        if index.is_none()
+            && (place.restoration_required
+                || self.open.iter().any(|absent| {
+                    absent.source == place.source
+                        && paths_overlap(&absent.checked_path, &place.checked_path)
+                }))
+        {
             let reason = if self.open.iter().any(|absent| {
                 absent.source == place.source
                     && paths_overlap(&absent.checked_path, &place.checked_path)
@@ -240,8 +248,8 @@ impl BorrowedWindowLedger {
                  storage is not a restoration"
             };
             return Err(unpinned(&place.spelling, reason));
-        };
-        if value.structural_type != self.open[index].hole_type {
+        }
+        if value.structural_type != place.hole_type {
             return Err(unpinned(
                 &place.spelling,
                 "the repair value's type differs from the type moved out of the place",
@@ -282,7 +290,9 @@ impl BorrowedWindowLedger {
                 },
             },
         });
-        self.open.remove(index);
+        if let Some(index) = index {
+            self.open.remove(index);
+        }
         Ok(())
     }
 
@@ -348,7 +358,7 @@ fn resolve_window_place(
     type_ids: &[(String, StructuralTypeId)],
 ) -> Result<ResolvedWindowPlace, LoweringError> {
     let spelling = spell_place(plan);
-    let (source, root_type) = match plan.source {
+    let (source, root_type, restoration_required) = match plan.source {
         CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {
             // Plan coordinates index the retained structural roster. A
             // composed declaration's `position` belongs to source readers
@@ -375,18 +385,25 @@ fn resolve_window_place(
                      restore",
                 ));
             }
-            (parameter.place, parameter.structural_type)
+            (parameter.place, parameter.structural_type, true)
         }
         CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } => {
             // A window uses the same exclusive destination as an ordinary
             // field store. Referent traversal below retains the loan carrier;
             // accepting a local never substitutes its payload for its storage.
-            super::store_destination::unqualified_local_store_root(
+            let (source, root_type) = super::store_destination::unqualified_local_store_root(
                 symbol, locals, operations,
             ).map_err(|_| unpinned(
                 &spelling,
                 "the local root is not an established structural local with unqualified exclusive custody",
-            ))?
+            ))?;
+            let (argument, _) =
+                super::store_destination::local_store_root(symbol, locals, operations)?;
+            (
+                source,
+                root_type,
+                argument.access != StructuralAccess::Owned,
+            )
         }
         _ => {
             return Err(unpinned(
@@ -429,6 +446,7 @@ fn resolve_window_place(
             field: None,
             hole_type: root_type,
             spelling,
+            restoration_required,
         });
     }
     let (steps, leaf) = lower_window_path(root_type, &plan.path, structural_types).map_err(|_| {
@@ -474,6 +492,7 @@ fn resolve_window_place(
         field,
         hole_type,
         spelling,
+        restoration_required,
     })
 }
 

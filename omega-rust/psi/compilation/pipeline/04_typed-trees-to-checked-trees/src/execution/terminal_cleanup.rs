@@ -542,7 +542,6 @@ pub(super) fn state_exit_result_locals(
 ) -> Option<Vec<symbols::SymbolHandle>> {
     let parameters = program.state_parameters(state);
     let statements = program.statement_table.statements(state.statement_nodes);
-    let permissions = &facts.flow.ownership;
     let mut results = Vec::new();
     for drop in facts
         .flow
@@ -568,61 +567,16 @@ pub(super) fn state_exit_result_locals(
             || drop.access != PermissionAccess::Owned
             || drop.claim_identity != PermissionClaimIdentity::Unknown
             || drop.obligation_live
-            || !drop.segments.is_empty()
-            || results.contains(&symbol)
         {
             return None;
         }
-        let exact = |event: &checked_trees::FlowPermissionEventFact| {
-            event.machine_symbol == machine.symbol
-                && event.state_symbol == state.symbol
-                && event.root == drop.root
-                && event.multiplicity == drop.multiplicity
-                && event.access == drop.access
-                && event.claim_identity == drop.claim_identity
-                && event.provenance == drop.provenance
-                && !event.obligation_live
-                && event.segments.is_empty()
-        };
-        // The establishment occurrence identifies this binding. Conserved
-        // ownership provenance can name a child moved into its initializer,
-        // so it need not name this local's declaration.
-        let mut establishments = permissions.permissions.iter().filter(|(_, event)| {
-            event.machine_symbol == machine.symbol
-                && event.state_symbol == state.symbol
-                && event.root == drop.root
-                && event.kind == PermissionEventKind::Establish
-                && event.access == PermissionAccess::Owned
-        });
-        let statement_index = if let Some((_, establish)) = establishments.next() {
-            if establishments.next().is_some() || !exact(establish) {
-                return None;
-            }
-            let PermissionEventSource::Statement { statement_index } = establish.source else {
-                return None;
-            };
-            statement_index
-        } else {
-            // An owned selection is established by its arm-transfer receipt,
-            // rather than an ordinary Establish row.
-            if drop.provenance != PermissionProvenance::Unknown {
-                return None;
-            }
-            let receipt = permissions
-                .owned_selections
-                .iter()
-                .map(|(_, receipt)| receipt)
-                .find(|receipt| {
-                    receipt.machine == machine.symbol
-                        && receipt.state == state.symbol
-                        && receipt.destination == symbol
-                        && receipt.death == PermissionEventSource::StateExit
-                })?;
-            receipt.statement_ordinal as usize
-        };
-        let StatementNode::LocalData(local) = statements.get(statement_index)? else {
-            return None;
-        };
+        if results.contains(&symbol) {
+            continue;
+        }
+        // This is the storage/result identity join, not a second permission
+        // replay. A root may have several established-prefix deaths or stores;
+        // its declaration identifies the one home normal-edge actions target.
+        let (statement_index, local) = program.state_local_declaration(state, symbol)?;
         if local.symbol != symbol
             || program.type_multiplicity(local.type_reference) != Multiplicity::Affine
             // Disposal preserves the established value until its death. Its

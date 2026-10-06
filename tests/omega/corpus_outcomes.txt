@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 14, "jobs": "2", "load1_end": 13.74, "load1_start": 13.74, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": null, "load1_end": 6.3, "load1_start": 6.3, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -193,8 +193,8 @@ fail/borrow/write_only_mutable_widening rejected 312ms expected @69d297ae3ee5
 	mutable argument `value` for state `entry` is not writable in this state; the source cannot lend the requested exclusive access
 fail/borrow/write_only_observation rejected 215ms expected @2d8ed253669f
 	machine `observe` state `entry` reads write-only parameter `source`; `&write` permits replacement or exact `&write` forwarding, never observation
-fail/borrows/affine_record_copy_handoff rejected 149ms expected @14f449e5e62b+wt
-	affine value `settings` was already transferred or consumed; it cannot be moved here
+fail/borrows/affine_record_copy_handoff rejected 362ms expected @04d0fbe9d97c
+	cannot use `settings` in machine `inspect` state `entry` (statement 2) after `settings` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `settings` first
 fail/borrows/array_carried_reference_live_source_move rejected 349ms expected @e477ee0294de+wt
 	statement 1 moves `main.inventory` while local borrow `loans` is still active (borrowed at statement 0; its last use is at statement 2)
 fail/borrows/array_carried_reference_live_source_write rejected 1043ms expected @056c1343fac1+wt
@@ -895,6 +895,8 @@ fail/domains/view_field_store_literal_outside_domain rejected 256ms expected @c0
 	cannot prove the value assigned to `main.name` in Main::main is in domain `[u8]::Utf8`; a place declared `in [u8]::Utf8` requires every write to be established in that domain (pass a value already proven in the domain, or a literal its byte-predicate fact accepts)
 fail/drops/authored_cleanup_static_argument_rejected rejected 72ms expected @9beb2be72f2d+wt
 	machine argument `Resource::drop` for `accept` does not refine `Selected`: expected 1 parameter(s), got 0
+fail/drops/borrowed_replacement_old_hook_prerequisite rejected 468ms expected @04d0fbe9d97c
+	cannot prove automatic cleanup requires at selected edge from replace state entry after statement 0: holder.token does not establish Token::drop clause `token.value == 7`
 fail/drops/cleanup_helper_guarantee_after_parent_hook rejected 351ms expected @e830e1bb7013+wt
 	cannot prove automatic cleanup requires at selected edge from main state entry after statement 2: owner.token does not establish Token::drop clause `token.value == 9 && token.ready`
 fail/drops/cleanup_helper_guarantee_after_write rejected 348ms expected @e830e1bb7013+wt
@@ -912,6 +914,8 @@ fail/drops/composed_cleanup_external_hook_state rejected 188ms expected @47ad8bb
 	machine `main` state `entry`: value call `drop.finish(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
 fail/drops/drop_ensures_unlocked_predicate rejected 316ms expected @9beb2be72f2d+wt
 	cannot prove ensures contract for exit from MutexGuard::drop at statement 0: mutex_guard.mutex.unlocked()
+fail/drops/empty_array_owner_cleanup_prerequisite rejected 418ms expected @04d0fbe9d97c
+	cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: missing holder.ready == true required by Holder::drop clause `holder.ready`
 fail/drops/generic_cleanup_fixed_owner_cannot_infer_demand rejected 374ms expected @65e8a0783b05
 	cannot prove automatic cleanup requires at selected edge from retire state entry after statement 1: token does not establish Token::drop clause `token.value == 7`
 	cannot prove automatic cleanup requires at selected edge from retire$specialized$5ae389475f33531d$0 state entry after statement 1: token does not establish Token::drop clause `token.value == 7`
@@ -921,12 +925,18 @@ fail/drops/generic_cleanup_mutated_integer_prerequisite rejected 512ms expected 
 	cannot prove contextual cleanup prerequisite for call forward$specialized$fe70d3b61e29b8d9$0 from main: token.value does not establish Token::drop clause `token.value == 7`
 fail/drops/local_cleanup_unmet_prerequisite rejected 309ms expected @9beb2be72f2d+wt
 	cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: missing token.ready == true required by Token::drop clause `token.ready`
+fail/drops/nested_cleanup_parent_mutates_child_prerequisite rejected 959ms expected @04d0fbe9d97c
+	cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: owner.token does not establish Token::drop clause `token.value == 7`
 fail/drops/overlapping_projected_reference_transition rejected 2442ms expected @9beb2be72f2d+wt
 	terminal-artifact production failed: Lowering(Unsupported("projected custody overlaps an earlier transfer or release"))
 fail/drops/overlapping_projected_transition rejected 2541ms expected @9beb2be72f2d+wt
 	terminal-artifact production failed: Lowering(Unsupported("projected custody overlaps an earlier transfer or release"))
-fail/drops/partial_move_inside_nominal_child rejected 264ms expected @9beb2be72f2d+wt
-	cleanup effect dependency in `main` has no exact structural residual disposition
+fail/drops/owned_replacement_old_hook_prerequisite rejected 428ms expected @04d0fbe9d97c
+	cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: token does not establish Token::drop clause `token.value == 7`
+fail/drops/owned_replacement_transferred_source_read rejected 336ms expected @04d0fbe9d97c
+	cannot use `replacement.value` in machine `main` state `entry` (statement 3) after `replacement` was transferred or consumed at statement 2: it holds no value; read what is needed before the transfer or assign a whole value to `replacement` first
+fail/drops/partial_move_inside_nominal_child rejected 323ms expected @04d0fbe9d97c
+	cannot partially move a value of `Token` because `Token::drop` requires the whole value
 fail/drops/read_after_conditional_call_move rejected 462ms expected @9beb2be72f2d+wt
 	cannot use `owner.value` in machine `invalid` state `entry` (statement 2) after `owner` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `owner` first
 fail/drops/successor_cleanup_unmet_prerequisite rejected 331ms expected @9beb2be72f2d+wt
@@ -1195,8 +1205,8 @@ fail/ownership/borrowed_storage_missing_repair_on_branch rejected 244ms expected
 	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `Main::apply`, state `apply` (statement 0): `main.inventory` must hold a value again before this state's exits consume the borrow
 fail/ownership/borrowed_storage_stale_read_in_hole rejected 280ms expected @c08960bee2b1+wt
 	cannot use `main.inventory.slots` while `main.inventory` is absent from borrowed storage: the value moved out at statement 0 must be restored first
-fail/ownership/boundary_cycle_reuses_consumed_owner rejected 333ms expected @cba4afbf6f2f+wt
-	affine value `token` was already transferred or consumed; it cannot be moved here
+fail/ownership/boundary_cycle_reuses_consumed_owner rejected 354ms expected @04d0fbe9d97c
+	cannot use `token` in machine `main` state `cycle` (statement 1) after `token` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `token` first
 fail/ownership/copy_linear_conflict rejected 2ms expected @2d8ed253669f
 	tests/omega/fail/ownership/copy_linear_conflict/main.omg:3:30: type properties `[copy]` and `[linear]` are mutually exclusive; `copy` was already declared
 fail/ownership/linear_live_overwrite rejected 572ms expected @2d8ed253669f
@@ -1206,8 +1216,8 @@ fail/ownership/linear_mixed_branch_treatment rejected 633ms expected @2d8ed25366
 	linear value `receipt` has inconsistent treatment across transition arms; every path must consume/transfer it or every path must preserve the same live obligation
 fail/ownership/linear_scope_loss rejected 512ms expected @2d8ed253669f
 	linear value `receipt` reaches scope exit without being consumed or transferred
-fail/ownership/linear_second_transfer rejected 566ms expected @2d8ed253669f
-	linear value `receipt` was already transferred or consumed; it cannot be moved here
+fail/ownership/linear_second_transfer rejected 332ms expected @04d0fbe9d97c
+	cannot use `receipt` in machine `Main::main` state `main` (statement 2) after `receipt` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `receipt` first
 fail/ownership/linear_transparent_record_member_scope_loss rejected 328ms expected @b69e30357ca8+wt
 	linear value `pair.right` reaches scope exit without being consumed or transferred
 fail/ownership/linear_zero_storage_not_established rejected 626ms expected @2d8ed253669f
@@ -2376,29 +2386,46 @@ pass/drops/core_drop_explicit_consume checked 2579ms check-target:macos_arm64 @9
 pass/drops/core_drop_owner_hook checked 2599ms check-target:macos_arm64 @9beb2be72f2d+wt
 pass/drops/core_drop_owner_hook_body checked 2629ms check-target:macos_arm64 @9beb2be72f2d+wt
 pass/drops/erased_record_initializer_exit checked 2276ms check-target:macos_arm64 @9beb2be72f2d+wt
+pass/drops/runtime_abandoned_record_construction_prefix_exit rejected 1993ms check-target:macos_arm64 @04d0fbe9d97c
+	terminal-artifact production failed: Lowering(InvalidTerminalModule(BorrowedStorageRepairMismatch { operation: OperationId(4), place: PlaceId(2) }))
+pass/drops/runtime_borrowed_nominal_replacement_exit rejected 1959ms check-target:macos_arm64 @04d0fbe9d97c
+	terminal-artifact production failed: Lowering(OperationProofUnavailable(ObligationId(9223372036854775810)))
 pass/drops/runtime_cleanup_helper_normal_guarantee_exit checked 1636ms check-target:macos_arm64 @e830e1bb7013+wt
 pass/drops/runtime_composed_nominal_output_hook_exit checked 1668ms check-target:macos_arm64 @47ad8bb72cea
 pass/drops/runtime_composed_nominal_return_hook_exit checked 1666ms check-target:macos_arm64 @47ad8bb72cea
 pass/drops/runtime_computed_call_owner_retirement_exit checked 2434ms check-target:macos_arm64 @9beb2be72f2d+wt
 pass/drops/runtime_effectful_projected_temporary_cleanup_exit checked 3581ms check-target:macos_arm64 @e28fa01a1e73+wt
+pass/drops/runtime_empty_array_owner_cleanup_exit rejected 1961ms check-target:macos_arm64 @04d0fbe9d97c
+	terminal-artifact production failed: Lowering(InvalidTerminalModule(ZeroedStructuralResultMismatch(OperationId(1))))
 pass/drops/runtime_generic_nominal_compound_prerequisite_exit checked 2091ms check-target:macos_arm64 @65e8a0783b05
 pass/drops/runtime_generic_nominal_integer_prerequisite_exit checked 2027ms check-target:macos_arm64 @65e8a0783b05
+pass/drops/runtime_generic_reserved_construction_exit rejected 1990ms check-target:macos_arm64 @04d0fbe9d97c
+	terminal-artifact production failed: Lowering(InvalidTerminalModule(BorrowedStorageRepairMismatch { operation: OperationId(4), place: PlaceId(2) }))
 pass/drops/runtime_indexed_nominal_cleanup_exit checked 2774ms check-target:macos_arm64 @9beb2be72f2d+wt
 pass/drops/runtime_local_indexed_transition_cleanup_exit checked 1537ms check-target:macos_arm64 @9beb2be72f2d+wt
 pass/drops/runtime_local_nominal_cleanup_exit checked 2404ms check-target:macos_arm64 @9beb2be72f2d+wt
 pass/drops/runtime_local_nominal_return_exit checked 2225ms check-target:macos_arm64 @9beb2be72f2d+wt
 pass/drops/runtime_mixed_temporary_effects_continuation_exit checked 3671ms check-target:macos_arm64 @e28fa01a1e73+wt
 pass/drops/runtime_mixed_temporary_scalar_continuation_exit checked 1690ms check-target:macos_arm64 @8611f9d5adf1+wt
+pass/drops/runtime_nested_cleanup_postcondition_exit rejected 1934ms check-target:macos_arm64 @04d0fbe9d97c
+	terminal-artifact production failed: Lowering(InvalidTerminalModule(InvalidNominalAffineCleanup { machine: MachineId(1), block: BlockId(13) }))
 pass/drops/runtime_nested_nominal_producer_loans_exit checked 1548ms check-target:macos_arm64 @f0ed096e2456+wt
 pass/drops/runtime_nested_temporary_capture_cleanup_exit checked 1690ms check-target:macos_arm64 @4df42bc194d5+wt
 pass/drops/runtime_nominal_cleanup_compound_contract_exit checked 1733ms check-target:macos_arm64 @4cc11cbadf31+wt
 pass/drops/runtime_nominal_successor_argument_order_exit checked 2265ms check-target:macos_arm64 @9beb2be72f2d+wt
 pass/drops/runtime_nominal_temporary_helper_closure_exit checked 1565ms check-target:macos_arm64 @c8b4e81e49fe
+pass/drops/runtime_owned_nominal_replacement_exit checked 1940ms check-target:macos_arm64 @04d0fbe9d97c
+pass/drops/runtime_owned_record_replacement_exit checked 1944ms check-target:macos_arm64 @04d0fbe9d97c
+pass/drops/runtime_owned_replacement_composition_exit checked 1958ms check-target:macos_arm64 @04d0fbe9d97c
+pass/drops/runtime_owned_replacement_reestablishment_exit rejected 1919ms check-target:macos_arm64 @04d0fbe9d97c
+	terminal-artifact production failed: Lowering(InvalidTerminalModule(EdgeAffineDiscardsInvalid { edge: EdgeId(10) }))
 pass/drops/runtime_projected_nominal_cleanup_exit checked 2301ms check-target:macos_arm64 @9beb2be72f2d+wt
 pass/drops/runtime_projected_nominal_core_exit checked 2218ms check-target:macos_arm64 @9beb2be72f2d+wt
 pass/drops/runtime_projected_reference_siblings_exit checked 1510ms check-target:macos_arm64 @9beb2be72f2d+wt
 pass/drops/runtime_projected_reference_transition_cleanup_exit checked 1397ms check-target:macos_arm64 @9beb2be72f2d+wt
 pass/drops/runtime_projected_transition_cleanup_exit checked 1359ms check-target:macos_arm64 @9beb2be72f2d+wt
+pass/drops/runtime_record_construction_cleanup_order_exit rejected 1988ms check-target:macos_arm64 @04d0fbe9d97c
+	terminal-artifact production failed: Lowering(InvalidTerminalModule(BorrowedStorageRepairMismatch { operation: OperationId(14), place: PlaceId(4) }))
 pass/drops/runtime_scalar_exit_nominal_cleanup_exit checked 2409ms check-target:macos_arm64 @9beb2be72f2d+wt
 pass/drops/runtime_scalar_temporary_nominal_continuation_exit checked 1676ms check-target:macos_arm64 @4df42bc194d5+wt
 pass/drops/runtime_scalar_temporary_residual_partition_exit checked 1695ms check-target:macos_arm64 @8611f9d5adf1+wt

@@ -22,12 +22,13 @@ use language_semantics::{SemanticDomainId, ServiceReachPlan, ServiceReachSummary
 use symbols::SymbolHandle;
 use typed_trees::types::PrimitiveType;
 
-/// Cleanup either follows one evaluated call/replacement occurrence or precedes
-/// an authored statement whose entry ends the captured loans. Statement entry
-/// does not consume that statement; its ordinary operations still follow.
+/// Cleanup follows an evaluated call, retires an assignment's old value after
+/// its operands complete and before its store, or precedes an authored statement
+/// whose entry ends captured loans. Replacement is not a fabricated call.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CheckedUnitCleanupBoundary {
     Call(CheckedUnitCallCoordinate),
+    Replacement { statement_index: u32 },
     StatementEntry { statement_index: u32 },
 }
 
@@ -325,6 +326,14 @@ pub enum CheckedUnitEffectOperationPlan {
         /// Whole owned place carrying the hole's declared type.
         value: CheckedUnitStructuralArgumentPlan,
     },
+    /// Transfer an established value to an owned local binding after disposing
+    /// the prior occurrence. Unlike a borrowed store, this changes the local's
+    /// value identity and opens no restoration debt at another owner's home.
+    RebindStructuralLocal {
+        statement_index: u32,
+        destination: CheckedUnitStructuralArgumentPlan,
+        value: CheckedUnitStructuralArgumentPlan,
+    },
     /// Finish the body after cleanup, yielding its retained structural/scalar
     /// binding or scalar control result when present, and Unit otherwise.
     Complete {
@@ -532,6 +541,9 @@ impl CheckedUnitEffectOperationPlan {
                 statement_index, ..
             }
             | Self::StoreStructuralField {
+                statement_index, ..
+            }
+            | Self::RebindStructuralLocal {
                 statement_index, ..
             } => Some(*statement_index),
             Self::PortWrite { coordinate, .. } => Some(coordinate.statement_index),

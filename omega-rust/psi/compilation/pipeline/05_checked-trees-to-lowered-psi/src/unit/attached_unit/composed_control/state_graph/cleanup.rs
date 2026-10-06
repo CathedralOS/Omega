@@ -9,10 +9,9 @@ use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::unit::attached_unit::argument_evaluation::{Evaluation, ScalarReturnCleanup};
 use checked_trees::{
     CheckedComposedUnitControlStatePlan, CheckedNormalCleanupAction,
-    CheckedScalarBranchDestination, CheckedUnitEffectOperationPlan,
-    CheckedUnitStructuralArgumentSourcePlan, FlowClaimJoinExit, FlowClaimJoinExitKind,
+    CheckedScalarBranchDestination, CheckedUnitEffectOperationPlan, FlowClaimJoinExit,
+    FlowClaimJoinExitKind,
 };
-use semantic_vocabulary::{PlaceId, StructuralTypeId};
 use terminal_psi::{
     StructuralAffineDiscard, StructuralParameterDeclaration, TerminalAffineCleanupAction,
 };
@@ -206,28 +205,31 @@ pub(super) fn coordinate(
 
 /// Dispositions a continuation cleanup in the body already committed.
 ///
-/// Stage 04 records the state's whole dying complement on every normal exit
-/// and separately records the cleanup each body boundary runs, so an exit's
-/// action stream repeats what the body already discharged before control
-/// reached any exit. Only a disposition whose last use belongs to the exit
-/// remains for its edge to commit; repeating one disposes the same owner
-/// twice. The ordinary return and selection routes subtract the same rows
-/// through `result_custody::retired_in_body` and
-/// `result_custody::statement_discards`.
+/// A receipt settles one value occurrence, not every later value stored at
+/// its source path. Establishing a replacement withdraws receipts for that
+/// subtree, so the new occurrence still receives its selected exit cleanup.
+/// A strict child store cannot revive a dead ancestor. Unreplaced receipts
+/// remain discharged, preventing duplicate disposal at the exit.
 fn discharged_in_body(
     state: &CheckedComposedUnitControlStatePlan,
 ) -> Vec<&CheckedNormalCleanupAction> {
-    state
-        .operations
-        .iter()
-        .filter_map(|operation| match operation {
+    let mut discharged: Vec<&CheckedNormalCleanupAction> = Vec::new();
+    for operation in &state.operations {
+        match operation {
             CheckedUnitEffectOperationPlan::ContinuationCleanup {
                 cleanup_actions, ..
-            } => Some(cleanup_actions),
-            _ => None,
-        })
-        .flatten()
-        .collect()
+            } => discharged.extend(cleanup_actions),
+            CheckedUnitEffectOperationPlan::StoreStructuralField { destination, .. }
+            | CheckedUnitEffectOperationPlan::RebindStructuralLocal { destination, .. } => {
+                discharged.retain(|action| {
+                    action.source() != &destination.source
+                        || !action.path().starts_with(&destination.path)
+                });
+            }
+            _ => {}
+        }
+    }
+    discharged
 }
 
 /// Carriers a deferred reference release leaves for this exit to retire.
@@ -319,7 +321,12 @@ pub(super) fn for_exit(
     let rows = selected_exit.actions.iter().filter(|action|
         !discharged.iter().any(|committed| *committed == *action)
     ).map(|action| {
-        let (place, root_type) = source(action.source(), parameters, evaluation, operations)?;
+        let (place, root_type) = evaluation.cleanup_storage(action.source(), parameters, |binding_ordinal| {
+            let (_, result) = operations.structural_values.iter()
+                .find(|(ordinal, _)| *ordinal == binding_ordinal)
+                .ok_or(LoweringError::Unsupported("cleanup result is not established"))?;
+            Ok((result.place(), result.structural_type()))
+        })?;
         match action {
             CheckedNormalCleanupAction::Discard(discard) => {
                 let structural_type = crate::terminal_identities::lookup_type_id(&catalogs.type_ids, &discard.type_identity)?;
@@ -349,54 +356,4 @@ pub(super) fn for_exit(
     actions.retain(|carrier| !rows.iter().any(|row| row.place() == carrier.place()));
     actions.extend(rows);
     Ok(actions)
-}
-
-fn source(
-    source: &CheckedUnitStructuralArgumentSourcePlan,
-    parameters: &[StructuralParameterDeclaration],
-    evaluation: &Evaluation,
-    operations: &OperationBuffer,
-) -> Result<(PlaceId, StructuralTypeId), LoweringError> {
-    let (place, structural_type) = match source {
-        CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {
-            let parameter =
-                parameters
-                    .get(*parameter_index as usize)
-                    .ok_or(LoweringError::Unsupported(
-                        "normal cleanup parameter is absent",
-                    ))?;
-            (parameter.place, parameter.structural_type)
-        }
-        CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } => {
-            let local = evaluation
-                .structural_locals
-                .iter()
-                .find(|local| local.root == facts::PlaceRoot::Symbol(*symbol))
-                .ok_or(LoweringError::Unsupported(
-                    "normal cleanup local is not established",
-                ))?;
-            if !local.argument.path.is_empty() {
-                return Err(LoweringError::Unsupported(
-                    "normal cleanup local is not its whole owner",
-                ));
-            }
-            (local.argument.place, local.structural_type)
-        }
-        CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal } => {
-            let (_, result) = operations
-                .structural_values
-                .iter()
-                .find(|(ordinal, _)| ordinal == binding_ordinal)
-                .ok_or(LoweringError::Unsupported(
-                    "normal cleanup result is not established",
-                ))?;
-            (result.place(), result.structural_type())
-        }
-        _ => {
-            return Err(LoweringError::Unsupported(
-                "normal cleanup source has no owned structural storage",
-            ));
-        }
-    };
-    Ok((evaluation.current_structural_place(place), structural_type))
 }

@@ -228,25 +228,11 @@ pub(super) fn plan(
             operations,
         )?;
         operations.push(establishment);
-        operations.extend(replacement.move_out);
         // The store consumes the whole constructed value, retiring
         // the establishment's own disposal debt.
         assignment_phase("statement sequence: assignment: structural result consumption");
         consume_results(&mut *operations, &replacement.store)?;
-        operations.push(replacement.store);
-        if let Some(discard) = replacement.displaced_discard {
-            // The displaced value dies on this statement's
-            // continuation, as it does after a replacing call.
-            operations.push(CheckedUnitEffectOperationPlan::ContinuationCleanup {
-                boundary: checked_trees::CheckedUnitCleanupBoundary::Call(
-                    checked_trees::CheckedUnitCallCoordinate {
-                        statement_index,
-                        call_ordinal: 0,
-                    },
-                ),
-                cleanup_actions: vec![checked_trees::CheckedNormalCleanupAction::Discard(discard)],
-            });
-        }
+        operations.extend(replacement.into_operations());
         return Some(AssignmentPlan::Planned);
     }
     // The value names owned storage the caller already holds — a
@@ -275,22 +261,19 @@ pub(super) fn plan(
             value,
         ) {
             let displaced_bindings = usize::from(replacement.move_out.is_some());
-            operations.extend(replacement.move_out);
-            consume_results(&mut *operations, &replacement.store)?;
-            operations.push(replacement.store);
-            if let Some(discard) = replacement.displaced_discard {
-                operations.push(CheckedUnitEffectOperationPlan::ContinuationCleanup {
-                    boundary: checked_trees::CheckedUnitCleanupBoundary::Call(
-                        checked_trees::CheckedUnitCallCoordinate {
-                            statement_index,
-                            call_ordinal: 0,
-                        },
-                    ),
-                    cleanup_actions: vec![checked_trees::CheckedNormalCleanupAction::Discard(
-                        discard,
-                    )],
-                });
+            if matches!(replacement.store, CheckedUnitEffectOperationPlan::StoreStructuralField { ref value, .. }
+                | CheckedUnitEffectOperationPlan::RebindStructuralLocal { ref value, .. }
+                if matches!(value.source, CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { .. }))
+            {
+                super::consume_result(
+                    operations,
+                    produced.binding_ordinal,
+                    CheckedStructuralAccess::Owned,
+                    false,
+                )?;
             }
+            consume_results(&mut *operations, &replacement.store)?;
+            operations.extend(replacement.into_operations());
             *structural_count = structural_count.checked_add(displaced_bindings)?;
             return Some(AssignmentPlan::Planned);
         }
@@ -368,7 +351,7 @@ pub(super) fn plan(
                 replacement: FieldReplacement {
                     move_out: None,
                     store,
-                    displaced_discard: None,
+                    cleanup: None,
                 },
             });
         }
@@ -516,20 +499,8 @@ fn element_replacements(
         )?;
         *structural_count =
             structural_count.checked_add(usize::from(replacement.move_out.is_some()))?;
-        operations.extend(replacement.move_out);
         consume_results(&mut *operations, &replacement.store)?;
-        operations.push(replacement.store);
-        if let Some(discard) = replacement.displaced_discard {
-            operations.push(CheckedUnitEffectOperationPlan::ContinuationCleanup {
-                boundary: checked_trees::CheckedUnitCleanupBoundary::Call(
-                    checked_trees::CheckedUnitCallCoordinate {
-                        statement_index,
-                        call_ordinal: 0,
-                    },
-                ),
-                cleanup_actions: vec![checked_trees::CheckedNormalCleanupAction::Discard(discard)],
-            });
-        }
+        operations.extend(replacement.into_operations());
     }
     Some(AssignmentPlan::Planned)
 }
@@ -657,9 +628,9 @@ fn bound_value_source(
     Some((
         binding.clone(),
         CheckedUnitStructuralArgumentPlan {
-            source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-                binding_ordinal: binding.binding_ordinal,
-            },
+            // A local names its current occurrence. Its initial result remains
+            // a producer identity, not the storage after an owned rebind.
+            source: CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol },
             path: Vec::new(),
             type_identity: binding.type_identity.clone(),
             access: CheckedStructuralAccess::Owned,

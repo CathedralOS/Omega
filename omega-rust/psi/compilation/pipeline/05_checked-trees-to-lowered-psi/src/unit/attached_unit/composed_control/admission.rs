@@ -321,6 +321,7 @@ pub(super) fn admit_calls<'a>(
                 // callee; the replacing call carries its own dependency.
                 | CheckedUnitEffectOperationPlan::MoveStructuralField { .. }
                 | CheckedUnitEffectOperationPlan::StoreStructuralField { .. }
+                | CheckedUnitEffectOperationPlan::RebindStructuralLocal { .. }
                 // A view-subslice local narrows a view the state holds.
                 | CheckedUnitEffectOperationPlan::EstablishByteSequence { .. }
                 | CheckedUnitEffectOperationPlan::EstablishViewSubslice { .. }

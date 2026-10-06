@@ -1,6 +1,8 @@
 //! Executable action selection from an already checked contextual disposition.
 //! State exits and temporary call continuations share this geometry and hook
 //! selection. Storage namespaces differ; cleanup order and prerequisites do not.
+//! A receiver's nominal hook precedes its structural children; nested hook
+//! paths are ordered obligations, not overlapping attempts to consume a root.
 
 use crate::execution::terminal_unit::types::{ShapeCollector, machine_binders};
 use checked_trees::{
@@ -39,12 +41,16 @@ pub(super) fn disposition_actions(
             .span(disposition.path)?
             .to_vec(),
     };
-    let reference = crate::flow::canonical_place_type_reference(
-        program,
-        disposition.state,
-        statement_index,
-        &place,
-    )?;
+    let reference = if disposition.disposed_type.is_valid() {
+        disposition.disposed_type
+    } else {
+        crate::flow::canonical_place_type_reference(
+            program,
+            disposition.state,
+            statement_index,
+            &place,
+        )?
+    };
     let type_identity = shapes.add_type(reference, &binders, &[])?;
     let path = if place.segments.is_empty() {
         Vec::new()
@@ -106,13 +112,16 @@ pub(super) fn disposition_actions(
                 root: disposition.root,
                 segments,
             };
-            let (reference, selected_path) =
+            let (mut reference, selected_path) =
                 crate::execution::terminal_unit::calls::projected_argument_path(
                     program,
                     disposition.state,
                     statement_index,
                     &selected_place,
                 )?;
+            if disposition.disposed_type.is_valid() && selected_place.segments == place.segments {
+                reference = disposition.disposed_type;
+            }
             let selected_type = shapes.add_type(reference, &binders, &[])?;
             hooks.push(selected_nominal(
                 program,
@@ -125,9 +134,10 @@ pub(super) fn disposition_actions(
         }
     }
     // Geometry chooses the live complement, not whether it is cleanup-free.
-    // Hook receivers are intact disposition boundaries. Refine only the
-    // paths that reach them, preserving maximal ordinary residual subtrees
-    // and the same reverse declaration/index order for every action kind.
+    // Hook receivers are intact disposition boundaries. A parent's hook is
+    // followed by structural children, not substituted for them. Refine only
+    // the paths that reach hooks, preserving maximal ordinary residual
+    // subtrees and the same reverse declaration/index order for every kind.
     let residuals = if moved.is_empty() && hooks.is_empty() {
         vec![CheckedUnitPartialAffineDiscardPlan {
             source: source.clone(),

@@ -111,7 +111,8 @@ pub(super) fn plan(
     let uninit_zeroed = !program
         .expression_table
         .expression_is_valid(local.initial_value)
-        && validation::zeroed_structural_parts(program, local.type_reference);
+        && validation::zeroed_structural_parts(program, local.type_reference)
+        && !validation::type_requires_establishment(program, local.type_reference);
     if !program
         .expression_table
         .expression_is_valid(local.initial_value)

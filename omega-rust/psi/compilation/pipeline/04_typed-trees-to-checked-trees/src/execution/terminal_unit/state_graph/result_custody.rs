@@ -425,7 +425,12 @@ pub(super) fn account(
         let call_transfers = if result.multiplicity == Multiplicity::Unrestricted {
             0
         } else {
-            operations[producer_index + 1..]
+            let consumers = &operations[producer_index + 1..];
+            let occurrence_end = consumers
+                .iter()
+                .position(|consumer| consumer.ends_local_occurrence(result_local))
+                .map_or(consumers.len(), |position| position + 1);
+            consumers[..occurrence_end]
                 .iter()
                 .map(|consumer| {
                     consumer.definite_call_transfers(&facts.values, operation, result_local)
@@ -441,6 +446,9 @@ pub(super) fn account(
             matches!(
                 operation,
                 CheckedUnitEffectOperationPlan::StoreStructuralField {
+                    value, ..
+                }
+                | CheckedUnitEffectOperationPlan::RebindStructuralLocal {
                     value, ..
                 } if value.source_structural_result_binding_ordinal()
                     == Some(result.binding_ordinal)

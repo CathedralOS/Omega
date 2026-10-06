@@ -286,25 +286,9 @@ pub(super) fn validate_unit_operation_sequence(
                     )?;
                 }
                 structural_calls::validate_usage(checked, machine, &result_uses, result)?;
-                // A later element of a whole array-literal replacement binds
-                // the next dense ordinal and continues the statement its
-                // first element began.
-                if super::field_replacement::continues_array_elements(
-                    &machine.operations,
-                    operation_index,
-                ) {
-                    if result.binding_ordinal != next_structural_binding {
-                        return unsupported(
-                            "Unit structural result is not the next dense source binding",
-                        );
-                    }
-                    next_structural_binding = next_structural_binding.checked_add(1).ok_or(
-                        LoweringError::Unsupported(
-                            "Unit structural result binding ordinal space is exhausted",
-                        ),
-                    )?;
-                    continue;
-                }
+                // Every establishment participates in the same binding
+                // sequence. One statement may establish several values;
+                // lowering does not rediscover an array-literal roster.
                 checked_trees::CheckedUnitCallCoordinate {
                     statement_index: result.statement_index,
                     call_ordinal: 0,
@@ -443,77 +427,9 @@ pub(super) fn validate_unit_operation_sequence(
                     call_ordinal: 0,
                 }
             }
-            // The window pair of a field replacement continues its producer's
-            // statement: the move-out and the store share the producing
-            // call's or establishment's coordinate rather than taking one of
-            // their own. The displaced binding still takes the next dense
-            // ordinal.
-            CheckedUnitEffectOperationPlan::MoveStructuralField { result, .. }
-                if super::field_replacement::continues(&machine.operations, operation_index)
-                    || super::field_replacement::continues_bound_value(
-                        &machine.operations,
-                        operation_index,
-                    )
-                    || super::field_replacement::continues_array_elements(
-                        &machine.operations,
-                        operation_index,
-                    ) =>
-            {
-                if result.binding_ordinal != next_structural_binding {
-                    return unsupported(
-                        "Unit structural result is not the next dense source binding",
-                    );
-                }
-                next_structural_binding =
-                    next_structural_binding
-                        .checked_add(1)
-                        .ok_or(LoweringError::Unsupported(
-                            "Unit structural result binding ordinal space is exhausted",
-                        ))?;
-                continue;
-            }
-            CheckedUnitEffectOperationPlan::StoreStructuralField {
-                statement_index,
-                value,
-                ..
-            } if super::field_replacement::continues(&machine.operations, operation_index)
-                || super::field_replacement::continues_bound_value(
-                    &machine.operations,
-                    operation_index,
-                )
-                || super::field_replacement::continues_array_elements(
-                    &machine.operations,
-                    operation_index,
-                ) =>
-            {
-                if !super::field_replacement::continues(&machine.operations, operation_index)
-                    && !super::field_replacement::continues_array_elements(
-                        &machine.operations,
-                        operation_index,
-                    )
-                {
-                    let (_, source) =
-                        crate::declarations::state_declaration(checked, machine.state)?;
-                    let Some(checked_trees::statement::StatementNode::Assignment(assignment)) =
-                        checked
-                            .statement_table
-                            .statements(source.statement_nodes)
-                            .get(*statement_index as usize)
-                    else {
-                        return unsupported("bound field replacement has no authored assignment");
-                    };
-                    super::field_replacement::bound_value_type(
-                        checked,
-                        source,
-                        *statement_index as usize,
-                        assignment.value,
-                        value,
-                        &machine.structural_parameters,
-                        &machine.operations,
-                    )?;
-                }
-                continue;
-            }
+            // Moves, cleanup and stores consume the checked operation stream.
+            // Dense result/storage joins below remain; producer-neighbor and
+            // source-literal recognizers do not decide assignment eligibility.
             CheckedUnitEffectOperationPlan::MoveStructuralField { result, .. } => {
                 checked_trees::CheckedUnitCallCoordinate {
                     statement_index: result.statement_index,
@@ -527,6 +443,9 @@ pub(super) fn validate_unit_operation_sequence(
                 statement_index, ..
             }
             | CheckedUnitEffectOperationPlan::StoreStructuralField {
+                statement_index, ..
+            }
+            | CheckedUnitEffectOperationPlan::RebindStructuralLocal {
                 statement_index, ..
             } => checked_trees::CheckedUnitCallCoordinate {
                 statement_index: *statement_index,

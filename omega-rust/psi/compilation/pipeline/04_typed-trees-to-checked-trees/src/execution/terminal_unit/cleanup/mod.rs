@@ -17,6 +17,7 @@ mod cleanup_evidence;
 mod nominal_requirements;
 pub(super) mod normal_edges;
 mod partial_affine_cleanup;
+mod replacements;
 mod residuals;
 pub(super) mod temporary_actions;
 pub(crate) use temporary_actions::finalize_scalar_actions;

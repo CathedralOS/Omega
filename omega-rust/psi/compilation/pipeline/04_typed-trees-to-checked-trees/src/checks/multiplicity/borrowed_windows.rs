@@ -29,6 +29,7 @@
 
 use super::owned_selection::place_paths_overlap;
 use crate::flow::CanonicalPlace;
+use checked_trees::facts::StorageWindowInvocation;
 use diagnostics::Diagnostic;
 use language_core::ReferenceAccess;
 use symbols::SymbolHandle;
@@ -56,6 +57,104 @@ pub(super) struct BorrowedStorageWindows {
 }
 
 impl BorrowedStorageWindows {
+    /// Select the still-present old referent after RHS evaluation. A repair
+    /// into an exact hole creates no second death; replacing an enclosing
+    /// value retains the absent children's exclusions. This is the same
+    /// window state that checks reads, moves, invocations and restoration.
+    pub(super) fn replacement_death(
+        &self,
+        program: &typed_trees::TypedTrees,
+        machine: &typed_trees::machine::Machine,
+        state: &typed_trees::state::State,
+        statements: &[StatementNode],
+        statement_index: usize,
+        assignment: &typed_trees::statement::TableAssignment,
+    ) -> Option<(
+        CanonicalPlace,
+        TypeReferenceHandle,
+        Vec<Vec<facts::PlaceSegment>>,
+    )> {
+        let target = crate::flow::canonical_place_from_expression_in_state(
+            program,
+            state.symbol,
+            statement_index,
+            assignment.target,
+        )?;
+        let borrowed = (0..=target.segments.len()).any(|length| {
+            let prefix = CanonicalPlace {
+                root: target.root,
+                segments: target.segments[..length].to_vec(),
+            };
+            crate::flow::canonical_place_type_reference(
+                program,
+                state.symbol,
+                statement_index,
+                &prefix,
+            )
+            .is_some_and(|reference| {
+                super::linear_obligations::type_reference_is_reference(program, reference)
+            })
+        });
+        if !borrowed
+            || !exclusive_storage_chain(
+                program,
+                machine,
+                state,
+                statement_index,
+                target.root,
+                &target.segments,
+            )
+        {
+            return None;
+        }
+        let destination_type = crate::flow::canonical_place_type_reference(
+            program,
+            state.symbol,
+            statement_index,
+            &target,
+        )?;
+        // Death belongs to the old stored type, including its declared
+        // refinements and generic substitutions. The RHS proves a new value;
+        // it cannot redefine the old value's disposal obligations.
+        let value_type = validation::assignment_value_type(program, destination_type);
+        if program.type_multiplicity(value_type) != language_semantics::Multiplicity::Affine {
+            return None;
+        }
+        let facts::PlaceRoot::Symbol(symbol) = target.root else {
+            return None;
+        };
+        let (root, path) = resolve_storage_place(
+            program,
+            machine,
+            state,
+            statements,
+            statement_index,
+            symbol,
+            &target.segments,
+        );
+        if self
+            .open
+            .iter()
+            .any(|absent| absent.root == root && path.starts_with(&absent.path))
+        {
+            return None;
+        }
+        let excluded = self
+            .open
+            .iter()
+            .filter(|absent| absent.root == root && absent.path.starts_with(&path))
+            .map(|absent| absent.path.clone())
+            .collect();
+        Some((
+            CanonicalPlace {
+                root,
+                segments: path,
+            },
+            value_type,
+            excluded,
+        ))
+    }
+
     /// The repair obligation an eligible borrowed move creates. Returns the
     /// diagnostic to emit when the transfer cannot open a window — a
     /// non-symbol root, a shared or write-only link in the chain, or an
@@ -191,71 +290,30 @@ impl BorrowedStorageWindows {
         )));
     }
 
-    /// Inspect the invocation only after its operands have evaluated. An
-    /// earlier operand may already have detached borrowed content; a later
-    /// move must not retroactively fence this call.
-    #[allow(clippy::too_many_arguments)]
-    pub(super) fn check_invocation(
+    /// Retain the exact open frontier after operands finish. Cleanup effect
+    /// closure is unavailable during source death selection, so invocation
+    /// effects consume these occurrences later rather than replaying moves.
+    pub(super) fn record_invocation(
         &self,
-        program: &typed_trees::TypedTrees,
-        state: &typed_trees::state::State,
-        statement_index: usize,
+        machine: SymbolHandle,
+        state: SymbolHandle,
+        statement: usize,
         expression: ExpressionHandle,
-        control: &checked_trees::FlowControlFacts,
-        state_calls: &[checked_trees::FlowCallFact],
-        service_reaches: &checked_trees::ServiceReachFacts,
-        operators: &checked_trees::CheckedOperatorFacts,
-        diagnostics: &mut Vec<Diagnostic>,
+        cleanup: &mut checked_trees::ContextualCleanupFacts,
     ) {
-        if self.open.is_empty() {
-            return;
-        }
-        if state_calls.iter().any(|call| {
-            call.statement_index == statement_index
-                && call.authored_expression == expression
-                && !control.is_retired(state.symbol, call)
-                && (call.suspension.direct_may_suspend
-                    || call.suspension.transitive_may_suspend
-                    || call.blocking.direct_may_block
-                    || call.blocking.transitive_may_block)
-        }) {
-            for absent in &self.open {
-                diagnostics.push(Diagnostic::error(format!(
-                    "cannot suspend or block at statement {statement_index} while `{}` is \
-                     absent: restore the value moved out of borrowed storage at statement \
-                     {} first",
-                    absent.spelling, absent.opened_statement,
-                )));
-            }
-        }
-        if state_calls.iter().any(|call| {
-            call.statement_index == statement_index
-                && call.authored_expression == expression
-                && !control.is_retired(state.symbol, call)
-                && call_may_enter_boundary(
-                    program,
-                    service_reaches,
-                    control,
-                    operators,
-                    state.symbol,
-                    call,
-                )
-        }) || state_has_boundary_operator(
-            program,
-            control,
-            operators,
-            state.symbol,
-            Some(statement_index),
-            Some(expression),
-        ) {
-            for absent in &self.open {
-                diagnostics.push(Diagnostic::error(format!(
-                    "cannot make a boundary or service call at statement {statement_index} \
-                     while `{}` is absent: restore the value moved out of borrowed storage \
-                     at statement {} first",
-                    absent.spelling, absent.opened_statement,
-                )));
-            }
+        for absent in &self.open {
+            let segments = cleanup.segments.insert_many(absent.path.iter().copied());
+            cleanup.window_invocations.append(StorageWindowInvocation {
+                machine,
+                state,
+                statement,
+                expression,
+                absent: facts::Place {
+                    root: absent.root,
+                    segments,
+                },
+                opened_statement: Some(absent.opened_statement),
+            });
         }
     }
 
@@ -441,6 +499,99 @@ pub(super) fn check_call_occurrences(
     }
 }
 
+/// Complete invocation checks after selected cleanup closes the effect graph.
+/// Source recording retained each actual open frontier, including match-arm
+/// occurrences. This consumes final call effects without reapplying any move
+/// or reconstructing restoration from the later, repaired storage state.
+pub(super) fn check_recorded_invocations(
+    program: &typed_trees::TypedTrees,
+    facts: &checked_trees::CheckFacts,
+) -> Result<(), Vec<Diagnostic>> {
+    let mut diagnostics = Vec::new();
+    for (_, invocation) in facts.contextual_cleanup.window_invocations.iter() {
+        let Some(machine) = crate::lookup::machine_by_symbol(program, invocation.machine) else {
+            return Err(vec![Diagnostic::error(
+                "borrowed-storage invocation has no owning machine",
+            )]);
+        };
+        let Some(state) = program
+            .machine_states(machine)
+            .iter()
+            .find(|state| state.symbol == invocation.state)
+        else {
+            return Err(vec![Diagnostic::error(
+                "borrowed-storage invocation has no owning state",
+            )]);
+        };
+        let Some(flow) = facts.flow.control.states.iter().find_map(|(_, flow)| {
+            (flow.machine_symbol == invocation.machine && flow.state_symbol == invocation.state)
+                .then_some(flow)
+        }) else {
+            return Err(vec![Diagnostic::error(
+                "borrowed-storage invocation has no final call flow",
+            )]);
+        };
+        let calls = facts.flow.control.calls.span_or_empty(flow.calls);
+        let selected = |call: &&checked_trees::FlowCallFact| {
+            call.statement_index == invocation.statement
+                && call.authored_expression == invocation.expression
+                && !facts.flow.control.is_retired(state.symbol, call)
+        };
+        let may_suspend = calls.iter().filter(selected).any(|call| {
+            call.suspension.direct_may_suspend
+                || call.suspension.transitive_may_suspend
+                || call.blocking.direct_may_block
+                || call.blocking.transitive_may_block
+        });
+        let may_enter_boundary = calls.iter().filter(selected).any(|call| {
+            call_may_enter_boundary(
+                program,
+                &facts.service_reaches,
+                &facts.flow.control,
+                &facts.operators,
+                state.symbol,
+                call,
+            )
+        }) || state_has_boundary_operator(
+            program,
+            &facts.flow.control,
+            &facts.operators,
+            state.symbol,
+            Some(invocation.statement),
+            Some(invocation.expression),
+        );
+        if !may_suspend && !may_enter_boundary {
+            continue;
+        }
+        let path = facts
+            .contextual_cleanup
+            .segments
+            .span_or_empty(invocation.absent.segments);
+        let spelling = place_spelling(program, machine, state, invocation.absent.root, path);
+        let extraction = invocation
+            .opened_statement
+            .map(|statement| format!(" at statement {statement}"))
+            .unwrap_or_default();
+        if may_suspend {
+            diagnostics.push(Diagnostic::error(format!(
+                "cannot suspend or block at statement {} while `{spelling}` is absent: restore the value moved out of borrowed storage{extraction} first",
+                invocation.statement,
+            )));
+        }
+        if may_enter_boundary {
+            diagnostics.push(Diagnostic::error(format!(
+                "cannot make a boundary or service call at statement {} while `{spelling}` is absent: restore the value moved out of borrowed storage{extraction} first",
+                invocation.statement,
+            )));
+        }
+    }
+    if diagnostics.is_empty() {
+        Ok(())
+    } else {
+        Err(diagnostics)
+    }
+}
+
 /// Service reach and boundary invocation are different facts: an opaque
 /// boundary may declare empty reach. Follow the retained exact call topology
 /// through ordinary wrappers as well, rather than treating that empty row (or
@@ -518,7 +669,7 @@ fn call_may_enter_boundary(
 /// Operator invocations are scheduled separately from ordinary calls. Use
 /// those records for both named and spelled operators so skipped operands do
 /// not become calls, and wrappers cannot hide an opaque operator invocation.
-fn state_has_boundary_operator(
+pub(super) fn state_has_boundary_operator(
     program: &typed_trees::TypedTrees,
     control: &checked_trees::FlowControlFacts,
     operators: &checked_trees::CheckedOperatorFacts,
@@ -1071,81 +1222,39 @@ impl ArmWindowPlan {
         }
     }
 
-    /// The arm-local counterpart of [`BorrowedStorageWindows::check_invocation`]:
-    /// a call evaluated on an arm's edge meets the holes that arm already
-    /// opened, not the join's pending list.
-    #[allow(clippy::too_many_arguments)]
-    pub(super) fn check_edge_invocation(
+    /// Preserve each selected arm's open frontier at its own invocation.
+    /// Sibling arms do not lend their holes to this evaluated occurrence.
+    pub(super) fn record_edge_invocation(
         &self,
-        program: &typed_trees::TypedTrees,
-        machine: &typed_trees::machine::Machine,
-        state: &typed_trees::state::State,
-        statement_index: usize,
+        machine: SymbolHandle,
+        state: SymbolHandle,
+        statement: usize,
         expression: ExpressionHandle,
-        control: &checked_trees::FlowControlFacts,
-        state_calls: &[checked_trees::FlowCallFact],
-        service_reaches: &checked_trees::ServiceReachFacts,
-        operators: &checked_trees::CheckedOperatorFacts,
-        diagnostics: &mut Vec<Diagnostic>,
+        cleanup: &mut checked_trees::ContextualCleanupFacts,
     ) {
-        if self.edge_absent.is_empty() {
-            return;
-        }
         let Some(&arm) = self.arm_of_expression.get(&expression_key(expression)) else {
             return;
         };
         if !arm.is_valid() {
             return;
         }
-        let absent_edges: Vec<&(ArmHandle, facts::PlaceRoot, Vec<facts::PlaceSegment>)> = self
+        for (_, root, path) in self
             .edge_absent
             .iter()
             .filter(|(edge_arm, _, _)| self.edge_covers(*edge_arm, arm))
-            .collect();
-        if state_calls.iter().any(|call| {
-            call.statement_index == statement_index
-                && call.authored_expression == expression
-                && !control.is_retired(state.symbol, call)
-                && (call.suspension.direct_may_suspend
-                    || call.suspension.transitive_may_suspend
-                    || call.blocking.direct_may_block
-                    || call.blocking.transitive_may_block)
-        }) {
-            for (_, absent_root, absent_path) in &absent_edges {
-                let spelling = place_spelling(program, machine, state, *absent_root, absent_path);
-                diagnostics.push(Diagnostic::error(format!(
-                    "cannot suspend or block at statement {statement_index} while `{spelling}` is \
-                     absent: restore the value moved out of borrowed storage first",
-                )));
-            }
-        }
-        if state_calls.iter().any(|call| {
-            call.statement_index == statement_index
-                && call.authored_expression == expression
-                && !control.is_retired(state.symbol, call)
-                && call_may_enter_boundary(
-                    program,
-                    service_reaches,
-                    control,
-                    operators,
-                    state.symbol,
-                    call,
-                )
-        }) || state_has_boundary_operator(
-            program,
-            control,
-            operators,
-            state.symbol,
-            Some(statement_index),
-            Some(expression),
-        ) {
-            for (_, absent_root, absent_path) in &absent_edges {
-                let spelling = place_spelling(program, machine, state, *absent_root, absent_path);
-                diagnostics.push(Diagnostic::error(format!(
-                    "cannot make a boundary or service call at statement {statement_index} while \
-                     `{spelling}` is absent: restore the value moved out of borrowed storage first",
-                )));
-            }
+        {
+            let segments = cleanup.segments.insert_many(path.iter().copied());
+            cleanup.window_invocations.append(StorageWindowInvocation {
+                machine,
+                state,
+                statement,
+                expression,
+                absent: facts::Place {
+                    root: *root,
+                    segments,
+                },
+                opened_statement: None,
+            });
         }
     }
 
