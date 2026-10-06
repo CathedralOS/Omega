@@ -914,15 +914,6 @@ fn collect_exact_proof_expression_edges(
         };
     }
     match program.expression_table.expression(expression) {
-        ExpressionNode::Match(dispatch) => {
-            recurse!(dispatch.subject);
-            for arm in program.expression_table.match_arms(dispatch.arms) {
-                if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
-                    recurse!(pattern);
-                }
-                recurse!(arm.value);
-            }
-        }
         ExpressionNode::Atomic(atomic) => recurse!(atomic.value),
         ExpressionNode::Call(call) => {
             let receiver_is_selfish = !call.receiver.is_valid()
@@ -962,39 +953,9 @@ fn collect_exact_proof_expression_edges(
                 recurse!(*argument);
             }
         }
-        ExpressionNode::Binary(binary) => {
-            recurse!(binary.left);
-            recurse!(binary.right);
-        }
-        ExpressionNode::Cast(cast) => recurse!(cast.value),
-        ExpressionNode::Indexed(indexed) => {
-            recurse!(indexed.collection);
-            recurse!(indexed.index);
-        }
-        ExpressionNode::Member(member) => recurse!(member.receiver),
-        ExpressionNode::Borrow(inner) => recurse!(inner.target),
-        ExpressionNode::Range(range) => {
-            recurse!(range.start);
-            recurse!(range.end);
-        }
-        ExpressionNode::Unary(unary) => recurse!(unary.operand),
-        ExpressionNode::ArrayLiteral(items) => {
-            for item in program.expression_table.expression_handles(*items) {
-                recurse!(*item);
-            }
-        }
-        ExpressionNode::StructLiteral(literal) => {
-            for field in program.expression_table.struct_fields(literal.fields) {
-                recurse!(field.value);
-            }
-        }
-        ExpressionNode::Boolean(_)
-        | ExpressionNode::Float(_)
-        | ExpressionNode::UndeterminedNaN(_)
-        | ExpressionNode::Integer(_)
-        | ExpressionNode::Name(_)
-        | ExpressionNode::String(_)
-        | ExpressionNode::ZeroValue(_) => {}
+        other => crate::expression_traversal::children(program, other, |child| {
+            recurse!(child);
+        }),
     }
 }
 
