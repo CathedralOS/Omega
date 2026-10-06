@@ -67,8 +67,7 @@ pass/borrows/branch_selected_record_composed_receiver_exit rejected 1143ms @8735
 pass/borrows/branch_selected_record_receiver_exit built 2553ms exit:70 @8735cafb4cf
 pass/borrows/case_payload_state_loan_exit built 4101ms exit:70 @c773c4ad3c34
 pass/borrows/mut_loan_local_write_through_exit built 3170ms exit:9 @944fb1232f17
-pass/borrows/owned_byte_value_call_exit rejected 1122ms @8735cafb4cf
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: result custody accounting` (state 0)
+pass/borrows/owned_byte_value_call_exit built 10173ms exit:70 @0df0a0c4183
 pass/borrows/projected_indexed_member_loan built 743ms @2d8ed253669f+wt
 pass/borrows/projected_local_member_loan built 767ms @2d8ed253669f+wt
 pass/borrows/projected_param_member_loan built 763ms exit:0 @2d8ed253669f+wt
@@ -112,8 +111,8 @@ pass/build/runtime_depend_mapping_exit built 796ms exit:70 @2d8ed253669f+wt
 pass/build/runtime_main_source_builder_is_ordinary_exit built 908ms exit:70 @2d8ed253669f+wt
 pass/build/runtime_static_service_exclusion_exit built 3023ms exit:0 @5fac9b57088
 pass/build/selected_const_array_length_exit built 40712ms exit:0 @aeb3a47a1e0
-pass/build/uefi_os_handoff_invocation rejected 7628ms @b2906d953be
-	selected compiler intrinsic `<selected target>::UefiOsHandoffNativeProvider::satisfies::UefiOsHandoffTermination` for Terminal boundary `named-callable(path(UefiOsHandoffTermination::firmware_return),parameters(parameter\(mutable\(no\)\,const\(no\)\,named\(name\(u64\)\)\)),result-dispatch())` has no closed native catalog identity
+pass/build/uefi_os_handoff_invocation rejected 6951ms @0df0a0c4183
+	selected compiler intrinsic `<selected target>::UefiOsHandoffNativeProvider::satisfies::UefiOsHandoffTermination` for Terminal boundary `named-callable(path(UefiOsHandoffTermination::firmware_return),parameters(parameter\\(mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(u64\\)\\)\\)),result-dispatch())` has no closed native catalog identity
 	selected compiler intrinsic `<selected target>::UefiOsHandoffNativeProvider::satisfies::UefiOsHandoffTermination` for Terminal boundary `named-callable(path(UefiOsHandoffTermination::transfer),parameters(),result-dispatch())` has no closed native catalog identity
 pass/calls/ambient_receiver_scalar_return_exit built 913ms exit:70 @2d8ed253669f+wt
 pass/calls/borrowed_case_dispatch_member_leaf_reads built 1276ms exit:70 @2d8ed253669f+wt

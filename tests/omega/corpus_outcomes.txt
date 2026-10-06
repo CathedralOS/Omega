@@ -1648,7 +1648,8 @@ pass/borrows/runtime_record_primitive_reference_capture_exit checked 4511ms chec
 pass/borrows/runtime_reference_array_pressure_exit checked 2021ms check-target:macos_arm64 @a195e6cdf066+wt
 pass/borrows/runtime_reference_local_constructor_leaf_retirement_exit checked 1686ms check-target:macos_arm64 @9660dd146223
 pass/borrows/runtime_reference_record_array_field_read_exit checked 1602ms check-target:macos_arm64 @681c48c0cebc+wt
-pass/borrows/runtime_reference_record_call_completion_exit checked 1503ms check-target:macos_arm64 @b5d8c6882a8b+wt
+pass/borrows/runtime_reference_record_call_completion_exit rejected 3378ms check-target:macos_arm64 @0df0a0c4183
+	terminal-artifact production failed: Lowering(InvalidTerminalModule(UnitReturnAffineDiscardsMismatch { machine: MachineId(2), block: BlockId(20) }))
 pass/borrows/runtime_reference_record_call_payload_restoration_exit checked 1477ms check-target:macos_arm64 @b5d8c6882a8b+wt
 pass/borrows/runtime_reference_record_direct_payload_restoration_exit checked 1277ms check-target:macos_arm64 @681c48c0cebc+wt
 pass/borrows/runtime_released_loan_with_forwarded_view_exit checked 1627ms check-target:macos_arm64 @921839635ad
