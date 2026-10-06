@@ -26,19 +26,6 @@ pub(super) fn validate_expression(
         return;
     }
     match program.expression_table.expression(expression) {
-        ExpressionNode::Match(dispatch) => {
-            for child in crate::expression_traversal::match_children(program, *dispatch) {
-                validate_expression(
-                    program,
-                    proof_only,
-                    machine,
-                    state,
-                    child,
-                    context,
-                    diagnostics,
-                );
-            }
-        }
         ExpressionNode::Name(path) => {
             if context == Context::Runtime {
                 let mut reported = false;
@@ -175,112 +162,17 @@ pub(super) fn validate_expression(
                 diagnostics,
             );
         }
-        ExpressionNode::ArrayLiteral(values) => {
-            for value in program.expression_table.expression_handles(*values) {
-                validate_expression(
-                    program,
-                    proof_only,
-                    machine,
-                    state,
-                    *value,
-                    context,
-                    diagnostics,
-                );
-            }
-        }
-        ExpressionNode::Binary(binary) => {
+        other => crate::expression_traversal::children(program, other, |child| {
             validate_expression(
                 program,
                 proof_only,
                 machine,
                 state,
-                binary.left,
+                child,
                 context,
                 diagnostics,
             );
-            validate_expression(
-                program,
-                proof_only,
-                machine,
-                state,
-                binary.right,
-                context,
-                diagnostics,
-            );
-        }
-        ExpressionNode::Cast(cast) => validate_expression(
-            program,
-            proof_only,
-            machine,
-            state,
-            cast.value,
-            context,
-            diagnostics,
-        ),
-        ExpressionNode::Indexed(indexed) => {
-            validate_expression(
-                program,
-                proof_only,
-                machine,
-                state,
-                indexed.collection,
-                context,
-                diagnostics,
-            );
-            validate_expression(
-                program,
-                proof_only,
-                machine,
-                state,
-                indexed.index,
-                context,
-                diagnostics,
-            );
-        }
-        ExpressionNode::Borrow(inner) => validate_expression(
-            program,
-            proof_only,
-            machine,
-            state,
-            inner.target,
-            context,
-            diagnostics,
-        ),
-        ExpressionNode::Range(range) => {
-            validate_expression(
-                program,
-                proof_only,
-                machine,
-                state,
-                range.start,
-                context,
-                diagnostics,
-            );
-            validate_expression(
-                program,
-                proof_only,
-                machine,
-                state,
-                range.end,
-                context,
-                diagnostics,
-            );
-        }
-        ExpressionNode::Unary(unary) => validate_expression(
-            program,
-            proof_only,
-            machine,
-            state,
-            unary.operand,
-            context,
-            diagnostics,
-        ),
-        ExpressionNode::Boolean(_)
-        | ExpressionNode::Float(_)
-        | ExpressionNode::UndeterminedNaN(_)
-        | ExpressionNode::Integer(_)
-        | ExpressionNode::String(_)
-        | ExpressionNode::ZeroValue(_) => {}
+        }),
     }
 }
 
