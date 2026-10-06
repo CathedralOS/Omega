@@ -1733,6 +1733,7 @@ pass/borrows/runtime_returned_nested_reference_array_bounded_read_exit checked 3
 pass/borrows/runtime_returned_reference_array_bounded_read_exit checked 2675ms check-target:macos_arm64 @6ba9c43af356+wt
 pass/borrows/runtime_returned_reference_array_restoration_exit checked 1330ms check-target:macos_arm64 @b5d8c6882a8b+wt
 pass/borrows/runtime_returned_reference_constructor_leaf_retirement_exit checked 1151ms check-target:macos_arm64 @104c2da31081
+pass/borrows/runtime_shared_qualified_view_scalar_choice_exit checked 2700ms check-target:macos_arm64 @fb52befd538a
 pass/borrows/runtime_shared_reference_array_cohort_restoration_exit checked 1541ms check-target:macos_arm64 @b5d8c6882a8b+wt
 pass/borrows/runtime_shared_reference_record_direct_payload_restoration_exit checked 1153ms check-target:macos_arm64 @104c2da31081
 pass/borrows/runtime_shared_scalar_local_capture_exit checked 3689ms check-target:macos_arm64 @3fa817733300+wt

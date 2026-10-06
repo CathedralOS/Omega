@@ -1,0 +1,36 @@
+// A machine taking a shared qualified view (`&[u8] in Path`) chooses its
+// scalar result through a multi-arm guard whose arms call. A shared loan
+// cannot change its referent, so the qualification it arrived with holds at
+// every exit and the scalar result join owes no discharge for it. Both
+// choices are observed: the qualified view reaching the first arm answers 70,
+// and the second arm answers 69.
+// Expected exit: 70.
+use omega_language_std::console;
+use omega_language_std::filesystem_host;
+use omega::language::core::binding;
+
+data Main {
+    console: Binding<Console>;
+}
+
+machine seventy() -> i32 { 70 }
+
+machine choose(path: &[u8] in Path, flag: bool) -> i32 {
+    let base: i32 = seventy();
+    transition {
+        flag && path.len > 2 -> (seventy())
+        !flag -> (base - 1)
+        _ -> (base + 1)
+    }
+}
+
+machine Main::main(main: &mut Main) reaches Console {
+    let chosen: i32 = choose("/tmp", true);
+    let other: i32 = choose("/tmp", false);
+    transition chosen == 70 && other == 69 {
+        true -> good(main)
+        _ -> bad(main)
+    }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main) { main.console.exit_process(71); }
+}
