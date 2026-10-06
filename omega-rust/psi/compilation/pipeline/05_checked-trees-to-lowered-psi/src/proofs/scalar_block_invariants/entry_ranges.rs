@@ -22,7 +22,7 @@ pub(super) fn candidates(module: &TerminalModule) -> Vec<ScalarBlockInvariant> {
         else {
             continue;
         };
-        let Ok(components) = terminal_verifier::control_cycle_members(machine) else {
+        let Ok(components) = terminal_semantics::control_graph::control_cycle_members(machine) else {
             continue;
         };
         if !components.iter().any(|members| members.contains(target)) {

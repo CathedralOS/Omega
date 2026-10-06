@@ -1,12 +1,12 @@
 //! Validation of global value numbering rewrites.
 
-use crate::{
-    ModuleError, reconstruct_optimizable_crash_obligations,
-    reconstruct_optimizable_terminal_obligations, validate_module_for_optimization,
-};
 use semantic_vocabulary::{BlockId, MachineId, OperationId, ValueId};
 use std::collections::BTreeMap;
 use terminal_psi::TerminalModule;
+use terminal_verifier::{
+    ModuleError, reconstruct_optimizable_crash_obligations,
+    reconstruct_optimizable_terminal_obligations, validate_module_for_optimization,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum GlobalValueNumberingRewriteError {
@@ -72,14 +72,14 @@ pub fn validate_global_value_numbering(
                 surviving.insert(operation.id);
             }
         }
-        let dominators = crate::control_graph::dominators(old);
+        let dominators = terminal_semantics::control_graph::dominators(old);
         let mut representative: BTreeMap<ValueId, ValueId> = BTreeMap::new();
         let mut leaders: Vec<(
             terminal_psi::OperationKind,
             BlockId,
             terminal_psi::ValueDeclaration,
         )> = Vec::new();
-        for block_id in crate::control_graph::reverse_postorder(old) {
+        for block_id in terminal_semantics::control_graph::reverse_postorder(old) {
             let old_block = old
                 .blocks
                 .iter()

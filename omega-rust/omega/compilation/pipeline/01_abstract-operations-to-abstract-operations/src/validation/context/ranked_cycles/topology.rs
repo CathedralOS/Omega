@@ -17,7 +17,7 @@ pub(super) fn derive_components(
 }
 
 /// Components of one authenticated Terminal machine. Member identity is the
-/// verifier's canonical cyclic-component surface — the exact topology every
+/// Terminal semantics' canonical cyclic-component surface — the exact topology every
 /// retained `Natural` ranking row was validated against — so the roster loop
 /// consumers iterate is the validated Terminal SCC evidence itself rather
 /// than a second private derivation. Edge identity still comes from the
@@ -26,7 +26,7 @@ pub(super) fn derive_components(
 pub(super) fn derive_terminal_components(
     machine: &terminal_psi::TerminalMachine,
 ) -> Result<Vec<OptimizerCycleComponent>, OptimizationUnitValidationError> {
-    let members = terminal_verifier::control_cycle_members(machine).map_err(|_| {
+    let members = terminal_semantics::control_graph::control_cycle_members(machine).map_err(|_| {
         OptimizationUnitValidationError::RankedCycleTopologyMismatch {
             machine: machine.id,
         }

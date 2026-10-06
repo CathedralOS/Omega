@@ -1,12 +1,12 @@
 //! Validation of sparse conditional constant propagation rewrites.
 
-use crate::{
-    ModuleError, reconstruct_optimizable_crash_obligations,
-    reconstruct_optimizable_terminal_obligations, validate_module_for_optimization,
-};
 use semantic_vocabulary::{MachineId, ValueId};
 use std::collections::BTreeMap;
 use terminal_psi::TerminalModule;
+use terminal_verifier::{
+    ModuleError, reconstruct_optimizable_crash_obligations,
+    reconstruct_optimizable_terminal_obligations, validate_module_for_optimization,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SparseConditionalConstantPropagationRewriteError {
@@ -106,7 +106,7 @@ pub fn validate_sparse_conditional_constant_propagation(
         }
         let mut literals: BTreeMap<ValueId, terminal_semantics::ScalarLeafLiteral> =
             BTreeMap::new();
-        for block_id in crate::control_graph::reverse_postorder(old) {
+        for block_id in terminal_semantics::control_graph::reverse_postorder(old) {
             let position = block_positions
                 .get(&block_id)
                 .copied()

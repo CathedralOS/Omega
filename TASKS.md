@@ -3462,13 +3462,15 @@ deletions, which the commit lists.
     `omega-rust/omega/compilation/pipeline/01_abstract-operations-to-abstract-operations/src/rules/proof_check_elision/`
     read "an Exact operation's canonical goal holds", which
     **CHECKER-DISCHARGES-OPERATION-OBLIGATIONS** makes true;
-  - `control_cycle_members` still runs its graph-shape check in the verifier;
-    the graph derivation, cycle identities and `substitute_crash_routes`
-    already live in `terminal_semantics` (`control_graph`, `substitution`);
   - move the structural ownership frontier reconstruction
     (`omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/frontier.rs`
     and `frontier/`) into an Omega analysis owned by stage 01;
-  - move `validate_boundary_crash_outcome` into the interpreter.
+
+  Stage 06 now owns control-flow cleanup, global value numbering and sparse
+  conditional constant propagation validation plus cleanup retention. Its
+  remaining verifier dependency is certificate-bound copy/dead-scalar
+  transport and proof-check elision; delete those with
+  **PCC-CERTIFICATES-DELETED**, rather than moving their PCC machinery.
 
   Acceptance: `terminal-verifier`
   has no dependent outside its own tests, and the check corpus and native plus

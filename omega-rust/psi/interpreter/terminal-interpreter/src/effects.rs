@@ -6,6 +6,7 @@
 //! boundary call lends the host and their separately committed replacement.
 
 pub(crate) mod byte_buffers;
+pub(crate) mod crash_outcome;
 pub(crate) mod results;
 
 use crate::effects::byte_buffers::TerminalBoundaryByteBuffer;

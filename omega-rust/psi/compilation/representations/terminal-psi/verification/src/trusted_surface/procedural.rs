@@ -50,6 +50,22 @@ macro_rules! tv {
         )
     };
 }
+macro_rules! p6 {
+    ($file:literal) => {
+        concat!(
+            "omega-rust/psi/compilation/pipeline/06_lowered-psi-to-lowered-psi/src/",
+            $file
+        )
+    };
+}
+macro_rules! ti {
+    ($file:literal) => {
+        concat!(
+            "omega-rust/psi/interpreter/terminal-interpreter/src/",
+            $file
+        )
+    };
+}
 macro_rules! tp {
     ($file:literal) => {
         concat!(
@@ -538,7 +554,7 @@ rows! {
         "a crash site's declared guard terms and outcome, plus each operation's declared crash contracts checked against its owning machine's crash-route coverage",
         "crash sites and operation-level crash contracts validate before their private fact bundles are reconstructed",
         &["formation:machine-validation", "formation:frontier"],
-        &[tv!( "validation/crash.rs"), tv!( "validation/crash/operation_contracts.rs"), tv!( "validation/crash/outcome.rs"), tv!( "verification/reconstruction/crash_obligations.rs")]
+        &[tv!( "validation/crash.rs"), tv!( "validation/crash/operation_contracts.rs"), ti!( "effects/crash_outcome.rs"), tv!( "verification/reconstruction/crash_obligations.rs")]
     );
     FORM_CRASH_REQUIREMENTS => (
         "formation:crash-entry-requirements",
@@ -742,7 +758,7 @@ rows! {
         "a producer's target-neutral rewrite claim over a verified module",
         "the rewrite is independently checked: surviving structure, operations, block parameters and edge arguments obey the exact rule; proof goals, classes, ordered requirements and arrivals survive exact copy substitution, axiom citations transport only to reconstructed facts, and the transported bundle replays independently; the producer's liveness result is never trusted",
         &["formation:evidence-orchestration"],
-        &[tv!( "optimization.rs"), tv!( "optimization/dead_scalar_elimination.rs"), tv!( "optimization/copy_propagation.rs"), tv!( "optimization/global_value_numbering.rs"), tv!( "optimization/sparse_conditional_constant_propagation.rs"), tv!( "optimization/control_flow_cleanup.rs"), tv!( "optimization/proof_check_elision.rs"), tv!( "optimization/proof_context_transport.rs")]
+        &[tv!( "optimization.rs"), tv!( "optimization/dead_scalar_elimination.rs"), tv!( "optimization/copy_propagation.rs"), p6!( "global_value_numbering/validation.rs"), p6!( "sparse_conditional_constant_propagation/validation.rs"), p6!( "control_flow_cleanup/validation.rs"), tv!( "optimization/proof_check_elision.rs"), tv!( "optimization/proof_context_transport.rs")]
     );
     FORM_TRACE => (
         "formation:trace-observation-profile",

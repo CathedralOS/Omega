@@ -10,7 +10,8 @@
 use semantic_vocabulary::{BlockId, OperationId, ValueId};
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{Block, OperationKind, OperationResult, TerminalMachine, Terminator};
-use terminal_verifier::BlockLocalEvidence;
+
+use super::retention::BlockLocalEvidence;
 
 pub(super) fn cleanup(
     machine: &mut TerminalMachine,

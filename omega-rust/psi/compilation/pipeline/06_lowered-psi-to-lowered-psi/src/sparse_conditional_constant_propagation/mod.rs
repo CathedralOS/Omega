@@ -22,13 +22,16 @@
 //! and proof questions.
 
 mod folding;
+mod validation;
+
+pub(super) use validation::SparseConditionalConstantPropagationRewriteError;
 
 use crate::PsiOptimizationStageError;
 use lowered_psi::LoweredPsi;
 use terminal_verifier::{
     reconstruct_optimizable_terminal_obligations, validate_module_for_optimization,
-    validate_sparse_conditional_constant_propagation,
 };
+use validation::validate_sparse_conditional_constant_propagation;
 
 pub(super) fn propagate(before: LoweredPsi) -> Result<LoweredPsi, PsiOptimizationStageError> {
     let validated = validate_module_for_optimization(&before.semantic_module)
@@ -53,9 +56,8 @@ pub(super) fn propagate(before: LoweredPsi) -> Result<LoweredPsi, PsiOptimizatio
         if proof_bearing
             && matches!(
                 error,
-                terminal_verifier::SparseConditionalConstantPropagationRewriteError::InvalidModule(
-                    _
-                ) | terminal_verifier::SparseConditionalConstantPropagationRewriteError::ChangedProofQuestion
+                SparseConditionalConstantPropagationRewriteError::InvalidModule(_)
+                    | SparseConditionalConstantPropagationRewriteError::ChangedProofQuestion
             )
         {
             return Ok(before);

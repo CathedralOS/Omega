@@ -1,15 +1,15 @@
 //! Validation of control flow cleanup rewrites.
 
-use crate::optimization::{
+use super::retention::{
     block_local_evidence, evidence_bound_block, machine_evidence_bound, retained_machines,
-};
-use crate::{
-    ModuleError, reconstruct_optimizable_crash_obligations,
-    reconstruct_optimizable_terminal_obligations, validate_module_for_optimization,
 };
 use semantic_vocabulary::{BlockId, MachineId};
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{TerminalModule, Terminator};
+use terminal_verifier::{
+    ModuleError, reconstruct_optimizable_crash_obligations,
+    reconstruct_optimizable_terminal_obligations, validate_module_for_optimization,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ControlFlowCleanupRewriteError {
@@ -182,7 +182,7 @@ pub fn validate_control_flow_cleanup(
                 block.terminator = terminator.clone();
             }
         }
-        let outgoing = crate::control_graph::successors(&simulated);
+        let outgoing = terminal_semantics::control_graph::successors(&simulated);
         let mut reachable = BTreeSet::from([simulated.entry]);
         let mut pending = vec![simulated.entry];
         while let Some(block) = pending.pop() {

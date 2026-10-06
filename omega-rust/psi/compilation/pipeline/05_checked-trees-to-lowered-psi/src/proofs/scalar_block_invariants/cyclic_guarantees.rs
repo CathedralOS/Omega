@@ -77,7 +77,7 @@ fn unproved_cyclic_guarantees(
         let Some(owner) = module.machines.iter().find(|owner| owner.id == machine) else {
             continue;
         };
-        let Ok(components) = terminal_verifier::control_cycle_members(owner) else {
+        let Ok(components) = terminal_semantics::control_graph::control_cycle_members(owner) else {
             continue;
         };
         if components.is_empty() {
@@ -132,7 +132,7 @@ fn header_candidates(
     else {
         return candidates;
     };
-    let Ok(components) = terminal_verifier::control_cycle_members(machine) else {
+    let Ok(components) = terminal_semantics::control_graph::control_cycle_members(machine) else {
         return candidates;
     };
     let Some(component) = components

@@ -523,8 +523,8 @@ pub(super) fn retain(
         return Ok(());
     }
     let mut components = Vec::new();
-    for members in terminal_verifier::control_cycle_members(machine)
-        .map_err(LoweringError::InvalidTerminalModule)?
+    for members in terminal_semantics::control_graph::control_cycle_members(machine)
+        .map_err(LoweringError::InvalidControlGraph)?
     {
         let mut retained_edges = Vec::new();
         let mut retained_ranks = Vec::new();

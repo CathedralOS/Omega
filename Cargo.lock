@@ -32,7 +32,6 @@ dependencies = [
  "terminal-psi",
  "terminal-psi-to-abstract-operations",
  "terminal-semantics",
- "terminal-verifier",
  "tokens-to-syntax-trees",
  "typed-trees-to-checked-trees",
 ]
@@ -1153,6 +1152,7 @@ dependencies = [
  "target",
  "terminal-fixed-fuel",
  "terminal-psi",
+ "terminal-semantics",
  "terminal-verifier",
  "typed-trees",
 ]
@@ -2015,7 +2015,6 @@ dependencies = [
  "terminal-fuel",
  "terminal-psi",
  "terminal-semantics",
- "terminal-verifier",
 ]
 
 [[package]]

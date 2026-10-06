@@ -6,9 +6,17 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use semantic_vocabulary::{BlockId, EdgeId};
-use terminal_psi::{TerminalMachine, TerminalNaturalCycle, Terminator};
 use semantic_vocabulary::{CycleComponentId, PsiSemanticId};
 use sha2::{Digest, Sha256};
+use terminal_psi::{TerminalMachine, TerminalNaturalCycle, Terminator};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ControlGraphError {
+    DuplicateBlock(BlockId),
+    MissingEntry(BlockId),
+    UnknownTarget(BlockId),
+    UnreachableBlock(BlockId),
+}
 
 pub fn successors(machine: &TerminalMachine) -> BTreeMap<BlockId, Vec<(EdgeId, BlockId)>> {
     machine
@@ -92,6 +100,61 @@ pub fn cyclic_components(machine: &TerminalMachine) -> Vec<Vec<BlockId>> {
     }
     components.sort();
     components
+}
+
+/// Canonical topology for consumers that need cyclic members without proof or
+/// progress authority.
+pub fn control_cycle_members(
+    machine: &TerminalMachine,
+) -> Result<Vec<Vec<BlockId>>, ControlGraphError> {
+    validate_control_graph(machine)?;
+    Ok(cyclic_components(machine))
+}
+
+/// Canonical iteration entries dominating a member: the feedback-edge targets
+/// above it in the dominance tree.
+pub fn dominating_control_cycle_entries(
+    machine: &TerminalMachine,
+    member: BlockId,
+) -> Result<Vec<BlockId>, ControlGraphError> {
+    validate_control_graph(machine)?;
+    let dominators = dominators(machine);
+    let mut entries = feedback_edges(machine)
+        .values()
+        .copied()
+        .filter(|entry| dominators.dominates(*entry, member))
+        .collect::<Vec<_>>();
+    entries.sort();
+    Ok(entries)
+}
+
+pub fn validate_control_graph(machine: &TerminalMachine) -> Result<(), ControlGraphError> {
+    let mut blocks = BTreeSet::new();
+    for block in &machine.blocks {
+        if !blocks.insert(block.id) {
+            return Err(ControlGraphError::DuplicateBlock(block.id));
+        }
+    }
+    if !blocks.contains(&machine.entry) {
+        return Err(ControlGraphError::MissingEntry(machine.entry));
+    }
+    let outgoing = successors(machine);
+    for (_, target) in outgoing.values().flatten() {
+        if !blocks.contains(target) {
+            return Err(ControlGraphError::UnknownTarget(*target));
+        }
+    }
+    let mut reached = BTreeSet::new();
+    let mut pending = vec![machine.entry];
+    while let Some(block) = pending.pop() {
+        if reached.insert(block) {
+            pending.extend(outgoing[&block].iter().map(|(_, target)| *target));
+        }
+    }
+    if let Some(block) = blocks.difference(&reached).next() {
+        return Err(ControlGraphError::UnreachableBlock(*block));
+    }
+    Ok(())
 }
 
 /// Reachable blocks in reverse postorder: every dominator precedes each block

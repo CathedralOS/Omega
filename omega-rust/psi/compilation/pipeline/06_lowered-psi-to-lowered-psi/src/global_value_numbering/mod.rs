@@ -22,15 +22,18 @@
 //! before/after relation and proof questions.
 
 mod equivalents;
+mod validation;
+
+pub(super) use validation::GlobalValueNumberingRewriteError;
 
 use crate::PsiOptimizationStageError;
 use lowered_psi::LoweredPsi;
 use std::collections::BTreeSet;
 use terminal_psi::DebugSubject;
 use terminal_verifier::{
-    reconstruct_optimizable_terminal_obligations, validate_global_value_numbering,
-    validate_module_for_optimization,
+    reconstruct_optimizable_terminal_obligations, validate_module_for_optimization,
 };
+use validation::validate_global_value_numbering;
 
 pub(super) fn number(before: LoweredPsi) -> Result<LoweredPsi, PsiOptimizationStageError> {
     let validated = validate_module_for_optimization(&before.semantic_module)
@@ -85,8 +88,8 @@ pub(super) fn number(before: LoweredPsi) -> Result<LoweredPsi, PsiOptimizationSt
         if proof_bearing
             && matches!(
                 error,
-                terminal_verifier::GlobalValueNumberingRewriteError::InvalidModule(_)
-                    | terminal_verifier::GlobalValueNumberingRewriteError::ChangedProofQuestion
+                GlobalValueNumberingRewriteError::InvalidModule(_)
+                    | GlobalValueNumberingRewriteError::ChangedProofQuestion
             )
         {
             return Ok(before);

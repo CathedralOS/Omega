@@ -35,15 +35,19 @@
 
 mod cleanup;
 mod machines;
+mod retention;
+mod validation;
+
+pub(super) use validation::ControlFlowCleanupRewriteError;
 
 use crate::PsiOptimizationStageError;
 use lowered_psi::LoweredPsi;
 use std::collections::BTreeSet;
 use terminal_psi::{DebugSubject, OperationResult};
 use terminal_verifier::{
-    reconstruct_optimizable_terminal_obligations, validate_control_flow_cleanup,
-    validate_module_for_optimization,
+    reconstruct_optimizable_terminal_obligations, validate_module_for_optimization,
 };
+use validation::validate_control_flow_cleanup;
 
 pub(super) fn cleanup(before: LoweredPsi) -> Result<LoweredPsi, PsiOptimizationStageError> {
     let validated = validate_module_for_optimization(&before.semantic_module)
@@ -72,7 +76,7 @@ pub(super) fn cleanup(before: LoweredPsi) -> Result<LoweredPsi, PsiOptimizationS
     for occurrence in &before.selected_integer_comparison_occurrences {
         sidecar_operations.insert(occurrence.terminal_operation);
     }
-    let evidence = terminal_verifier::block_local_evidence(&before.semantic_module);
+    let evidence = retention::block_local_evidence(&before.semantic_module);
     for machine in &mut after.semantic_module.machines {
         cleanup::cleanup(machine, &evidence, &sidecar_operations, &sidecar_values);
     }
@@ -90,8 +94,8 @@ pub(super) fn cleanup(before: LoweredPsi) -> Result<LoweredPsi, PsiOptimizationS
         if proof_bearing
             && matches!(
                 error,
-                terminal_verifier::ControlFlowCleanupRewriteError::InvalidModule(_)
-                    | terminal_verifier::ControlFlowCleanupRewriteError::ChangedProofQuestion
+                ControlFlowCleanupRewriteError::InvalidModule(_)
+                    | ControlFlowCleanupRewriteError::ChangedProofQuestion
             )
         {
             return Ok(before);

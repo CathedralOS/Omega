@@ -21,7 +21,6 @@ terminal-codec = { path = "../../../../psi/compilation/representations/terminal-
 terminal-semantics = { path = "../../../../psi/compilation/representations/terminal-psi/semantics" }
 terminal-fuel = { path = "../../../../psi/compilation/representations/terminal-psi/fuel" }
 proof-admission = { path = "../../../../psi/compilation/proof/admission" }
-terminal-verifier = { path = "../../../../psi/compilation/representations/terminal-psi/verification" }
 
 [dev-dependencies]
 # Dev builds enable test-support so the psi_optimization_allocations example and

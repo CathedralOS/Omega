@@ -8,10 +8,8 @@ use semantic_vocabulary::{BlockId, CycleComponentId, MachineId};
 
 pub(crate) use reconstruction::reconstruct_validated_control_cycle_obligations;
 pub use reconstruction::{
-    control_cycle_components, control_cycle_members, dominating_control_cycle_entries,
-    reconstruct_control_cycle_obligations,
+    control_cycle_components, reconstruct_control_cycle_obligations,
 };
-pub use terminal_semantics::control_graph::{control_cycle_identity, cyclic_component_identity};
 pub(crate) use validation::validate_natural_cycles;
 
 #[derive(Debug, Clone, PartialEq, Eq)]

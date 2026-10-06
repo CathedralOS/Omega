@@ -420,7 +420,7 @@ pub(crate) fn prune_incomplete_closed_reach_applications(module: &mut TerminalMo
                     };
                     binding.nominal_requirement.is_some()
                         && binding.schema.is_some()
-                        && !terminal_verifier::has_schema_application_in_call_closure(
+                        && !terminal_semantics::closed_reach::has_schema_application_in_call_closure(
                             module, owner.id, binding,
                         )
                 });

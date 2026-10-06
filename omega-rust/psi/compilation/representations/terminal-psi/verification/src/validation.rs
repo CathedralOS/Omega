@@ -27,10 +27,6 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-pub use crash::{
-    BoundaryCrashOutcomeError, validate_boundary_crash_outcome,
-};
-
 use semantic_vocabulary::{
     BlockId, BoundaryMachineId, CanonicalStructuralPathSegment, ClaimId, ContentAlgebra,
     ContentConservation, ContentDomainId, ContentProjectionExpression, ContentProjectionIdentity,
@@ -54,7 +50,7 @@ use terminal_psi::{
 };
 
 use crate::verification::{
-    substitute_proposition_structural_places, substitute_proposition_values,
+    substitute_proposition_structural_places,
 };
 
 mod affine_cleanup;
@@ -90,7 +86,6 @@ pub(crate) mod structural;
 
 mod reach_applications;
 mod references;
-pub use reach_applications::has_schema_application_in_call_closure;
 mod qualification_establishments;
 pub(crate) mod record;
 mod root_service_reach;

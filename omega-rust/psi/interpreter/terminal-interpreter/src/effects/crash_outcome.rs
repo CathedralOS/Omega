@@ -1,22 +1,12 @@
-//! Admission of a reported boundary crash, not prediction of an invocation.
-//!
-//! Arguments are already evaluated snapshots. Substitute the declaration's
-//! exact scalar telescope, then decide its closed predicates. Mathematical
-//! integers share the proof kernel's denotation; a fixed-width evaluator would
-//! incorrectly wrap proof-only intermediate values. Bound input traversal before
-//! validation/cloning and share arithmetic work across the whole outcome check.
-//! Unsupported or exhausted evaluation cannot become a false route or authorize
-//! a crash. This adds neither a normal-return guarantee nor a provider inference.
-use super::{
-    BoundaryMachineDeclaration, CrashRouteGuard, ModuleError, Proposition, ScalarTerm, ScalarType,
-    substitute_proposition_values, validate_boundary_crash_routes,
-};
+//! Admission of one externally reported boundary crash against evaluated arguments.
+
 use proof_admission::{ClosedIntegerEvaluationError, ClosedIntegerEvaluator};
-use terminal_psi::CrashCause;
+use semantic_vocabulary::{Proposition, PropositionContext, ScalarTerm, ScalarType};
+use terminal_psi::{BoundaryMachineDeclaration, CrashCause, CrashRouteGuard};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BoundaryCrashOutcomeError {
-    InvalidDeclaration(ModuleError),
+    InvalidDeclaration,
     InvalidArguments,
     UndeclaredCause,
     GuardFalse,
@@ -24,17 +14,8 @@ pub enum BoundaryCrashOutcomeError {
     GuardEvaluationLimitExceeded,
 }
 
-impl std::fmt::Display for BoundaryCrashOutcomeError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "{self:?}")
-    }
-}
-
-impl std::error::Error for BoundaryCrashOutcomeError {}
-
 /// Check that a published same-cause route permits an externally reported crash
-/// for these exact, already evaluated scalar arguments. Success does not demand
-/// a crash and establishes neither normal completion nor disposition receipts.
+/// for these exact, already evaluated scalar arguments.
 pub fn validate_boundary_crash_outcome(
     boundary: &BoundaryMachineDeclaration,
     arguments: &[ScalarTerm],
@@ -51,8 +32,7 @@ pub fn validate_boundary_crash_outcome(
             }),
     )
     .map_err(|_| BoundaryCrashOutcomeError::GuardEvaluationLimitExceeded)?;
-    validate_boundary_crash_routes(boundary)
-        .map_err(BoundaryCrashOutcomeError::InvalidDeclaration)?;
+    validate_boundary_crash_routes(boundary)?;
     if arguments.len() != boundary.scalar_parameters.len()
         || arguments
             .iter()
@@ -75,8 +55,6 @@ pub fn validate_boundary_crash_outcome(
     let parameters = boundary
         .scalar_contract_parameters()
         .ok_or(BoundaryCrashOutcomeError::InvalidArguments)?;
-    // Formal IDs belong to the scalar telescope, not caller IDs or the mixed
-    // structural argument positions. Substitution is simultaneous.
     let substitutions = parameters
         .iter()
         .zip(arguments)
@@ -89,7 +67,10 @@ pub fn validate_boundary_crash_outcome(
         let value = match guard {
             CrashRouteGuard::Truth => Ok(Some(true)),
             CrashRouteGuard::Predicate(predicate) => closed_guard(
-                &substitute_proposition_values(predicate.proposition(), &substitutions),
+                &terminal_semantics::substitution::substitute_proposition_values(
+                    predicate.proposition(),
+                    &substitutions,
+                ),
                 &mut integers,
             ),
         };
@@ -107,6 +88,59 @@ pub fn validate_boundary_crash_outcome(
     } else {
         BoundaryCrashOutcomeError::GuardFalse
     })
+}
+
+fn validate_boundary_crash_routes(
+    boundary: &BoundaryMachineDeclaration,
+) -> Result<(), BoundaryCrashOutcomeError> {
+    if boundary
+        .crash_routes
+        .windows(2)
+        .any(|pair| pair[0].cause >= pair[1].cause)
+        || boundary.crash_routes.iter().any(|bucket| {
+            bucket.alternatives.is_empty()
+                || bucket
+                    .alternatives
+                    .windows(2)
+                    .any(|pair| pair[0] >= pair[1])
+                || (bucket.alternatives.contains(&CrashRouteGuard::Truth)
+                    && bucket.alternatives != [CrashRouteGuard::Truth])
+                || bucket.alternatives.iter().any(|guard| {
+                    matches!(guard, CrashRouteGuard::Predicate(predicate)
+                        if predicate.proposition().validate().is_err())
+                })
+        })
+    {
+        return Err(BoundaryCrashOutcomeError::InvalidDeclaration);
+    }
+    if boundary.crash_routes.is_empty() {
+        return Ok(());
+    }
+    let context = PropositionContext::from_value_types(
+        boundary
+            .scalar_contract_parameters()
+            .ok_or(BoundaryCrashOutcomeError::InvalidDeclaration)?
+            .iter()
+            .map(|parameter| (parameter.id, parameter.scalar_type)),
+    )
+    .map_err(|_| BoundaryCrashOutcomeError::InvalidDeclaration)?;
+    for predicate in boundary
+        .crash_routes
+        .iter()
+        .flat_map(|bucket| &bucket.alternatives)
+        .filter_map(|guard| match guard {
+            CrashRouteGuard::Truth => None,
+            CrashRouteGuard::Predicate(predicate) => Some(predicate.proposition()),
+        })
+    {
+        if matches!(predicate, Proposition::Truth | Proposition::Falsehood)
+            || !predicate.visit_value_ids(|_| {})
+            || context.validate(predicate).is_err()
+        {
+            return Err(BoundaryCrashOutcomeError::InvalidDeclaration);
+        }
+    }
+    Ok(())
 }
 
 fn closed_guard(
@@ -173,8 +207,6 @@ fn closed_guard(
             Some(true) => closed_guard(conclusion, integers)?,
             None => None,
         },
-        // Structural/opaque predicates need their own observation support;
-        // inability to evaluate is never false.
         _ => None,
     })
 }

@@ -29,7 +29,7 @@ pub(super) fn candidates(
     let mut candidates = Vec::new();
     for machine in &module.machines {
         let mut proposed = BTreeSet::new();
-        let Ok(components) = terminal_verifier::control_cycle_members(machine) else {
+        let Ok(components) = terminal_semantics::control_graph::control_cycle_members(machine) else {
             continue;
         };
         // An invariant may observe only places alive at its header's

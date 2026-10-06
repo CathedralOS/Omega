@@ -774,8 +774,8 @@ pub(crate) fn substitute_invariant_call_roots(
 /// The crash continuations a `Call` to `callee` carries once its actual
 /// scalar arguments are `arguments`: the callee's verifier-owned published
 /// crash routes instantiated under the formal→actual substitution — the
-/// same derivation [`terminal_verifier::substitute_crash_routes`] performs
-/// when the terminal verifier checks an invocation's custody roster. A
+/// same derivation [`terminal_semantics::substitution::substitute_crash_routes`]
+/// performs when checking an invocation's custody roster. A
 /// relocated call re-derives the roster against its substituted arguments
 /// rather than carrying the member-spelled payload byte-exact, so the moved
 /// node's crash evidence is reconstructed, not trusted. `None` when the
@@ -805,7 +805,7 @@ pub(crate) fn call_crash_continuations(
             )
         })
         .collect();
-    Some(terminal_verifier::substitute_crash_routes(
+    Some(terminal_semantics::substitution::substitute_crash_routes(
         &contract.crash_routes,
         &substitutions,
     ))

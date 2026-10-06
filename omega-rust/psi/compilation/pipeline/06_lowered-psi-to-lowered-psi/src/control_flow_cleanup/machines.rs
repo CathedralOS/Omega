@@ -32,7 +32,7 @@ pub(super) fn prune(
     sidecar_operations: &BTreeSet<OperationId>,
     sidecar_values: &BTreeSet<ValueId>,
 ) {
-    let mut kept = terminal_verifier::retained_machines(module);
+    let mut kept = super::retention::retained_machines(module);
     loop {
         if module
             .machines
@@ -45,7 +45,7 @@ pub(super) fn prune(
         // lists, and the module-level evidence carriers name their rows by
         // module-unique identity: reading the evidence over the kept machines
         // answers exactly what the module with the others removed publishes.
-        let evidence = terminal_verifier::block_local_evidence_over_machines(
+        let evidence = super::retention::block_local_evidence_over_machines(
             module,
             module
                 .machines
@@ -56,7 +56,7 @@ pub(super) fn prune(
             !kept.contains(&machine.id)
                 && machine_bound(machine, &evidence, sidecar_operations, sidecar_values)
         });
-        let next = terminal_verifier::retained_machines_with_roots(
+        let next = super::retention::retained_machines_with_roots(
             module,
             kept.iter().copied().chain(bound.map(|machine| machine.id)),
         );
@@ -73,11 +73,11 @@ pub(super) fn prune(
 /// holding its named operation or captured scalar values.
 fn machine_bound(
     machine: &TerminalMachine,
-    evidence: &terminal_verifier::BlockLocalEvidence,
+    evidence: &super::retention::BlockLocalEvidence,
     sidecar_operations: &BTreeSet<OperationId>,
     sidecar_values: &BTreeSet<ValueId>,
 ) -> bool {
-    if terminal_verifier::machine_evidence_bound(machine, evidence) {
+    if super::retention::machine_evidence_bound(machine, evidence) {
         return true;
     }
     let sidecar_value = |value: &terminal_psi::ValueDeclaration| sidecar_values.contains(&value.id);

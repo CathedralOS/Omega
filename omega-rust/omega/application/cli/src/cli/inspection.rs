@@ -169,7 +169,8 @@ fn terminal_summary(
                     output,
                     "control_cycle machine=machine:{} component={} ranking=natural",
                     machine.id.get(),
-                    terminal_verifier::control_cycle_identity(machine, component).get(),
+                    terminal_semantics::control_graph::control_cycle_identity(machine, component)
+                        .get(),
                 )
                 .expect("writing to a String cannot fail");
             }

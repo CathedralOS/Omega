@@ -7,8 +7,8 @@ use proof_admission::{
     RecursiveEdgeObligation,
 };
 use semantic_vocabulary::{
-    BlockId, EdgeId, IntegerSign, ObligationId, Proposition, PsiSemanticId,
-    RankingRelationId, ScalarTerm, ScalarType,
+    EdgeId, IntegerSign, ObligationId, Proposition, PsiSemanticId, RankingRelationId, ScalarTerm,
+    ScalarType,
 };
 use sha2::{Digest, Sha256};
 use terminal_psi::{
@@ -19,60 +19,6 @@ use terminal_psi::{
 use super::ReconstructedControlCycleObligation;
 use crate::{ModuleError, validate_module_representation};
 use terminal_semantics::control_graph::control_cycle_identity;
-
-/// Canonical topology for a producer retaining a selected source witness.
-/// No proof or progress authority is returned by this query.
-pub fn control_cycle_members(machine: &TerminalMachine) -> Result<Vec<Vec<BlockId>>, ModuleError> {
-    check_control_graph(machine)?;
-    Ok(crate::control_graph::cyclic_components(machine))
-}
-
-/// Canonical iteration entries dominating a member: the feedback-edge targets
-/// above it in the dominance tree. A member inside nested loops has one entry
-/// per enclosing natural cycle, not only the component's outermost arrival.
-/// No proof or progress authority is returned by this query.
-pub fn dominating_control_cycle_entries(
-    machine: &TerminalMachine,
-    member: BlockId,
-) -> Result<Vec<BlockId>, ModuleError> {
-    check_control_graph(machine)?;
-    let dominators = crate::control_graph::dominators(machine);
-    let mut entries = crate::control_graph::feedback_edges(machine)
-        .values()
-        .copied()
-        .filter(|entry| dominators.dominates(*entry, member))
-        .collect::<Vec<_>>();
-    entries.sort();
-    Ok(entries)
-}
-
-fn check_control_graph(machine: &TerminalMachine) -> Result<(), ModuleError> {
-    let blocks = machine
-        .blocks
-        .iter()
-        .map(|block| block.id)
-        .collect::<std::collections::BTreeSet<_>>();
-    if blocks.len() != machine.blocks.len() || !blocks.contains(&machine.entry) {
-        return Err(ModuleError::InvalidRankedScc(machine.id));
-    }
-    let outgoing = crate::control_graph::successors(machine);
-    for (_, target) in outgoing.values().flatten() {
-        if !blocks.contains(target) {
-            return Err(ModuleError::UnknownTargetBlock(*target));
-        }
-    }
-    let mut reached = std::collections::BTreeSet::new();
-    let mut pending = vec![machine.entry];
-    while let Some(block) = pending.pop() {
-        if reached.insert(block) {
-            pending.extend(outgoing[&block].iter().map(|(_, target)| *target));
-        }
-    }
-    if let Some(block) = blocks.difference(&reached).next() {
-        return Err(ModuleError::UnreachableBlock(*block));
-    }
-    Ok(())
-}
 
 pub fn reconstruct_control_cycle_obligations(
     module: &TerminalModule,

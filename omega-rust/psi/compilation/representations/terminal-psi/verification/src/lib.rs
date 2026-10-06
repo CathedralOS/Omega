@@ -23,8 +23,7 @@ use terminal_semantics::control_graph;
 pub mod trusted_surface;
 pub use control_cycles::{
     AcceptedControlCycle, ReconstructedControlCycleObligation, control_cycle_components,
-    control_cycle_identity, control_cycle_members, cyclic_component_identity,
-    dominating_control_cycle_entries, reconstruct_control_cycle_obligations,
+    reconstruct_control_cycle_obligations,
 };
 mod optimization;
 mod proof_recursion;
@@ -33,14 +32,10 @@ mod validation;
 mod verification;
 
 pub use optimization::{
-    BlockLocalEvidence, ControlFlowCleanupRewriteError, CopyPropagationRewriteError,
-    DeadScalarRewriteError, GlobalValueNumberingRewriteError, ProofCheckElisionRewriteError,
-    SparseConditionalConstantPropagationRewriteError, block_local_evidence,
-    block_local_evidence_over_machines, machine_evidence_bound, retained_machines,
-    retained_machines_with_roots, transport_copy_propagation_evidence,
-    transport_dead_scalar_elimination_evidence, validate_control_flow_cleanup,
-    validate_dead_scalar_elimination, validate_global_value_numbering,
-    validate_proof_check_elision, validate_sparse_conditional_constant_propagation,
+    CopyPropagationRewriteError, DeadScalarRewriteError, ProofCheckElisionRewriteError,
+    transport_copy_propagation_evidence,
+    transport_dead_scalar_elimination_evidence, validate_dead_scalar_elimination,
+    validate_proof_check_elision,
 };
 pub use proof_recursion::{
     proof_recursive_component_identity, proof_recursive_edge_obligation_id,
@@ -54,14 +49,14 @@ pub use terminal_trace_v1::{
 pub use validation::trapping_integer::reconstruct_trapping_integer_normal_return_equation;
 pub use validation::validate_module_retaining_frontiers;
 pub use validation::{
-    AtomicAccessRefusal, BoundaryCrashOutcomeError, ContractClauseKind, ControlCycleIneligibility,
+    AtomicAccessRefusal, ContractClauseKind, ControlCycleIneligibility,
     ModuleError, ServiceCeilingOwner, StructuralSignatureOwner, SuspensionCallPlanError,
     ValidatedInterpretableTerminalModule, ValidatedOptimizableTerminalModule,
     ValidatedTerminalModule, VerifiedLiveClaim, VerifiedMachineStructuralFrontiers,
     VerifiedOwnedStructuralPlace, VerifiedPartialStructuralCustody,
     VerifiedStructuralOwnershipFrontier, VerifiedTerminalStructuralFrontiers,
-    has_schema_application_in_call_closure, maximum_registered_obligation_id,
-    scalar_block_invariant_scope, substitute_crash_routes, validate_boundary_crash_outcome,
+    maximum_registered_obligation_id,
+    scalar_block_invariant_scope, substitute_crash_routes,
     validate_module, validate_module_for_interpretation, validate_module_for_optimization,
     validate_module_representation,
 };

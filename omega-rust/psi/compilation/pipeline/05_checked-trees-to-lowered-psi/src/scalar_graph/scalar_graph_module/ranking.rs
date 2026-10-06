@@ -54,8 +54,8 @@ pub(super) fn retain(
     let ScalarType::Integer(rank_type) = parameter.scalar_type else {
         return unsupported("scalar natural rank requires an integer parameter");
     };
-    let components = terminal_verifier::control_cycle_members(machine)
-        .map_err(LoweringError::InvalidTerminalModule)?;
+    let components = terminal_semantics::control_graph::control_cycle_members(machine)
+        .map_err(LoweringError::InvalidControlGraph)?;
     let [members] = components.as_slice() else {
         return unsupported("scalar ranking requires one control component");
     };

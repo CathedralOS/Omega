@@ -2919,7 +2919,7 @@ pub(super) fn unbounded_rank_report(
 /// this report. A machine whose graph fails basic verification has no
 /// component derivation to cite and keeps the plain traversal marker.
 pub(super) fn unbounded_cycle_report(machine: &TerminalMachine, hit: BlockId) -> FixedFuelError {
-    terminal_verifier::control_cycle_members(machine)
+    terminal_semantics::control_graph::control_cycle_members(machine)
         .ok()
         .and_then(|components| {
             components

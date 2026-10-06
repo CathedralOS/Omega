@@ -11,12 +11,14 @@ use terminal_verifier::ModuleError;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PsiOptimizationStageError {
-    InvalidControlFlowCleanupRewrite(terminal_verifier::ControlFlowCleanupRewriteError),
+    InvalidControlFlowCleanupRewrite(crate::control_flow_cleanup::ControlFlowCleanupRewriteError),
     InvalidCopyPropagationRewrite(terminal_verifier::CopyPropagationRewriteError),
     InvalidDeadScalarRewrite(terminal_verifier::DeadScalarRewriteError),
-    InvalidGlobalValueNumberingRewrite(terminal_verifier::GlobalValueNumberingRewriteError),
+    InvalidGlobalValueNumberingRewrite(
+        crate::global_value_numbering::GlobalValueNumberingRewriteError,
+    ),
     InvalidSparseConditionalConstantPropagationRewrite(
-        terminal_verifier::SparseConditionalConstantPropagationRewriteError,
+        crate::sparse_conditional_constant_propagation::SparseConditionalConstantPropagationRewriteError,
     ),
     InvalidProofCheckElisionRewrite(terminal_verifier::ProofCheckElisionRewriteError),
     InvalidModule(ModuleError),

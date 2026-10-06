@@ -125,7 +125,7 @@ pub enum TerminalInterpretError {
         operation: OperationId,
         boundary: BoundaryMachineId,
         cause: CrashCause,
-        reason: terminal_verifier::BoundaryCrashOutcomeError,
+        reason: crate::effects::crash_outcome::BoundaryCrashOutcomeError,
     },
     Crash(TerminalCrash),
     Fuel(FuelMeterError),

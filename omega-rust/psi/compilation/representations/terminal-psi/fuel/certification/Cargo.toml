@@ -13,6 +13,5 @@ semantic-vocabulary = { path = "../../../../../foundation/semantic-vocabulary" }
 terminal-psi = { path = "../.." }
 terminal-codec = { path = "../../codec" }
 terminal-fuel = { path = ".." }
-terminal-verifier = { path = "../../verification" }
 terminal-semantics = { path = "../../semantics" }
 

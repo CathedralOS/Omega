@@ -6,7 +6,7 @@ use super::{
     IntegerType, IntegerValue, ModuleError, PlaceId, Proposition, PropositionContext, ScalarTerm,
     ScalarType, StructuralFieldType, StructuralTypeId, StructuralTypeShape, TerminalMachine,
     TerminalModule, Terminator, ValueId, contracts, structural_leaf_type,
-    substitute_proposition_values, view_extent_leaf_has_extent,
+    view_extent_leaf_has_extent,
 };
 pub use terminal_semantics::substitution::substitute_crash_routes;
 use numerics::{
@@ -15,9 +15,6 @@ use numerics::{
 };
 
 mod operation_contracts;
-mod outcome;
-
-pub use outcome::{BoundaryCrashOutcomeError, validate_boundary_crash_outcome};
 
 pub(super) use operation_contracts::validate_operation_crash_contracts;
 

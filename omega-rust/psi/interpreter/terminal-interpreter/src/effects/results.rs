@@ -65,7 +65,7 @@ impl TerminalExecution {
                 }
             })
             .collect::<Result<Vec<_>, _>>()?;
-        terminal_verifier::validate_boundary_crash_outcome(declaration, &arguments, cause)
+        super::crash_outcome::validate_boundary_crash_outcome(declaration, &arguments, cause)
             .map_err(|reason| TerminalInterpretError::BoundaryCrashNotPermitted {
                 operation: *operation,
                 boundary: *boundary,
