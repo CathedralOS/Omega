@@ -133,6 +133,16 @@ debug = 0
 [profile.dev.package.proof-admission]
 opt-level = 3
 
+# Typed programs, checked plans, live ranges, allocation legality and homes
+# each carry a SHA-256 identity, and register allocation's spill recovery
+# recomputes the changed function's digests at every step. Unoptimized, sha2's
+# software compression was 22.9% of the compile thread in a debug native build
+# of samples/cli/games/dungeon_crawler_cli on macOS ARM64 (2026-10-06).
+# Optimizing only this leaf crate leaves every digest and every compiler crate
+# as they were; the test profile inherits the override.
+[profile.dev.package.sha2]
+opt-level = 3
+
 # The workspace's test binaries are enormous and short-lived. Full DWARF made
 # a three-test, zero-runtime frontend regression spend over a minute in codegen
 # on a 14-core development host. Compiler diagnostics remain unchanged; panic

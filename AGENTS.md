@@ -156,8 +156,8 @@ The rules that touch every edit:
 
 Deliberate configuration — do not "fix" it: `clippy.toml` thresholds are
 raised and dev/test profiles use `debug = 0`. Tests use `opt-level = 1`;
-ordinary dev builds are unoptimized except `proof-admission`, which uses
-`opt-level = 3`. Check `Cargo.toml` and session overrides before interpreting
+ordinary dev builds are unoptimized except `proof-admission` and the `sha2`
+dependency, which use `opt-level = 3`. Check `Cargo.toml` and session overrides before interpreting
 compiler timings. Use `CARGO_PROFILE_DEV_OPT_LEVEL=1` for an optimized dev
 compiler comparison without changing repository defaults. Debug information
 can be restored with `CARGO_PROFILE_DEV_DEBUG=2` or `CARGO_PROFILE_TEST_DEBUG=2`;
