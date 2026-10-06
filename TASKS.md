@@ -2153,86 +2153,37 @@ crash and native exit behavior.
   70 is verifiable only on a Windows host, so a macOS lane states that leg as
   unverified rather than claiming it.
 
-- **COMPILE-REPORT-PRODUCTS.** (new-scope) Product admission is part of
-  report construction in
-  `omega-rust/omega/compilation/products/src/compilation_products.rs`, and
-  every compiler and package route reaches it through one report-settlement
-  call.
-  - Frontier: `CompileReportSettlement` owns construction for all five stops
-    (`finish_terminal`, `finish_native`, and the Check and artifact-only arms
-    inside `prepare_product_report`), carrying root path, source count,
-    `pcc_requests` and native application metadata
-    captured before lowering (`33d5557dc4f`). `terminal_report`,
-    `native_report`, `check_report`, `CompileReport::verify_native_source_metadata`
-    and the CLI's hand-derived Check rollback predicate are deleted. The
-    coverage half is now closed. Artifact-only admission is authorable,
-    verified through the CLI, and exercised by the corpus. `d37ea22ec59`
-    repaired the
-    prerequisite nobody knew was broken: `BuildOutput::require`/`complete`/`fail`
-    and `RequiredOutput::path` selected by RECEIVER SHAPE and became silently
-    unreachable when the receiver-to-explicit-argument migration retired that
-    spelling, so `Build::artifact_only` could never complete a required output
-    and nothing diagnosed the loss. Proof rather than inference: two `require`
-    calls reserving the same name, which the evaluator rejects as a collision,
-    compiled clean before the repair and reject after it. The four entrypoints
-    now read their facet from the first argument, the shape `try_build_path_call`
-    and the three `BuildProduct` queries already used -- which is why
-    `resolve`/`create`/`write`/`close`/`include_source` survived the migration
-    and the obligation family did not. The receiver route and `output_facet_root`
-    are deleted.
+- **COMPILE-REPORT-PRODUCTS.** (new-scope) Automate the remaining
+  artifact-only publication control: a refused release-rollback overlay must
+  publish no partial product set. Product admission and report construction
+  already share `CompileReportSettlement` in
+  `omega-rust/omega/compilation/products/src/checked_compilation/report.rs`.
+  The corpus checks the refusal diagnostic, but not output-directory contents;
+  the fixture README's manual CLI observation is not an automated control.
 
-    The three witnesses now run in `pass`/`fail` under sealed fixture source
-    staging: `pass/build/artifact_only_required_output_completion` records
-    `checked`, `fail/build/artifact_only_rollback_overlay_refused` pins
-    "artifact-only builds execute no product optimization stages to roll back",
-    and `fail/build/artifact_only_unsealed_output_refused` pins the sticky
-    required-output failure -- measured over 1962 fixtures with 0 other rows
-    moved and 0 fail fixtures failing to reject. What remains is the
-    acceptance's second half: **no automated check asserts that the refused
-    overlay publishes no partial product set.** The corpus runner records
-    diagnostics, not build-directory contents, so "the refused invocation
-    leaves only the build-directory owner stamp" is still only the manual CLI
-    observation written in that fixture's README; closing it needs a
-    build-directory assertion the runner does not have today.
-    Note also that an `OptimizationRollback`
-    cannot be authored in Omega at all: the only two non-test construction sites
-    are the CLI's `--disable-optimization <ExactName>` and the corpus runner's
-    `rollback.txt` sidecar, which 15 fixtures already use.
+  Use `tests/omega/fail/build/artifact_only_rollback_overlay_refused` and its
+  `rollback.txt` overlay. Its build completes and seals a required output before
+  product admission rejects, so the check must cover publication after staged
+  work, not merely rejection before Build runs. Pair it with
+  `tests/omega/pass/build/artifact_only_required_output_completion`, which
+  publishes `files/manifest.txt`, and retain
+  `tests/omega/fail/build/artifact_only_unsealed_output_refused` as the sticky
+  required-output failure control.
 
-    Correction for whoever picks this up: there is **no**
-    `RequestedCompileProduct::ArtifactOnly`. That enum has exactly `Check`,
-    `TerminalArtifact` and `NativeArtifact`; `artifact_only` is a `bool` on
-    `EvaluatedBuild` selecting `CompileOutputKind::BuildArtifacts` inside
-    `admit_build_requirements`, and the spec adds no fourth project role.
-  - `admit_terminal_production` and `terminal_native_proposal_request` stay
-    where they are: the first is the single pre-production head every
-    Terminal-producing route enters, including the package route whose
-    settlement is `Native`, so folding it into admission would skip it there;
-    the second is a borrow projection into stage 00's request with no
-    admission in it.
-  - The [rollback](wiki/spec/build/optimizations.md#release-rollback-and-promotion)
-    refusals now live at two placements, down from three: request admission
-    before source acquisition, and `prepare_product_report` as the
-    product-owned boundary the directly constructed package routes cross since
-    they build no `CompileRequest`. Honest reachability: of the three package
-    routes two request `NativeArtifact` (whose phase filter rejects nothing)
-    and `check_project` passes an empty overlay, so the `CompileRequest`/CLI
-    route is the only one that can carry a nonempty overlay today.
-  - The item's premise that the corpus runner has no Terminal-request mode is
-    **false**: `produce_terminal_semantic`
-    (`omega-rust/omega/compilation/driver/tests/corpus_runner.rs:325`) compiles
-    the 15 `tests/omega/pass/optimizer/rollback_*` fixtures twice with
-    `RequestedCompileProduct::TerminalArtifact` and compares rolled against
-    unrolled semantic modules, and `driver/tests/terminal_decode_once.rs`
-    drives the Terminal product through full native realization. Terminal
-    admission is covered end to end; only artifact-only is not.
-  - Note for whoever takes this: `compilation-products` has **zero** Rust
-    tests, so the corpus and real-CLI probes are the entire evidence for that
-    crate.
+  Extend the corpus's real publication path to assert the refused invocation
+  leaves no published outputs; do not add fixture-name behavior to the shipped
+  CLI. Preserve the [rollback](wiki/spec/build/optimizations.md#release-rollback-and-promotion)
+  admission placements: request admission before acquisition and product
+  admission for direct package routes. `admit_terminal_production` remains the
+  shared Terminal pre-production head; `terminal_native_proposal_request`
+  only projects borrowed inputs. Artifact-only is an evaluated Build property,
+  not a fourth `RequestedCompileProduct` variant. Supply rollback through the
+  CLI or corpus sidecar, not a new Omega declaration.
 
-  Acceptance: an [artifact-only](wiki/spec/build/scoped_execution.md) corpus
-  fixture compiles and refuses a nonempty release-rollback overlay without
-  publishing partial outputs.
+  Acceptance: the [artifact-only](wiki/spec/build/scoped_execution.md) positive
+  fixture publishes its expected file; the nonempty-overlay invocation rejects
+  with its expected diagnostic and an automated check proves no partial outputs
+  were published.
 
 - **NATIVE-LEG-DEPENDS-ON-ACCEPTED-PACKAGE-STATE.** (new-scope)
   The native leg's outcome for a fixture that path-depends on
