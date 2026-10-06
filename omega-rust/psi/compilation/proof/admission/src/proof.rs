@@ -195,25 +195,6 @@ pub fn check_certificate(
     accept_certificate(context, goal, assumptions, semantic_axioms, proof).map(|_| ())
 }
 
-pub fn check_certificate_with_machine_parameters(
-    context: &PropositionContext,
-    goal: &Proposition,
-    assumptions: &[Proposition],
-    semantic_axioms: &[Proposition],
-    machine_parameter_values: &BTreeSet<ValueId>,
-    proof: &ProofNode,
-) -> Result<(), ProofError> {
-    accept_certificate_with_machine_parameters(
-        context,
-        goal,
-        assumptions,
-        semantic_axioms,
-        machine_parameter_values,
-        proof,
-    )
-    .map(|_| ())
-}
-
 /// Check a certificate and return its exact premise/rule trust closure.
 pub fn accept_certificate(
     context: &PropositionContext,
