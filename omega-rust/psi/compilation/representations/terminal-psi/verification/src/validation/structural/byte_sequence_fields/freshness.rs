@@ -142,12 +142,41 @@ fn overlaps(left: &[StructuralPathSegment], right: &[StructuralPathSegment]) -> 
 /// Retain its exact establishment prefix when checking a call's mutation;
 /// a narrowed view with an unknown offset conservatively names its parent's
 /// whole backing. Unresolved aliases cannot establish that a snapshot survived.
+/// Whether `observed` below `root` is a borrowed element or byte view, whose
+/// extent lives in its descriptor rather than in its elements.
+fn observes_view(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    root: PlaceId,
+    observed: &[StructuralPathSegment],
+) -> bool {
+    crate::validation::structural::operations::caller_structural_root_type(machine, root)
+        .or_else(|| {
+            crate::validation::structural::result_contracts::source_signature(machine, root)
+                .map(|signature| signature.structural_type)
+        })
+        .and_then(|root_type| {
+            super::super::runtime_indexes::checked_projection_type(module, root_type, observed)
+        })
+        .and_then(|carrier| module.structural_types.iter().find(|row| row.id == carrier))
+        .is_some_and(|declaration| {
+            matches!(
+                declaration.shape,
+                StructuralTypeShape::ElementView { .. }
+                    | StructuralTypeShape::ByteSequence(
+                        terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
+                    )
+            )
+        })
+}
+
 fn call_argument_changes(
     module: &TerminalModule,
     machine: &TerminalMachine,
     root: PlaceId,
     observed: &[StructuralPathSegment],
     argument: &terminal_psi::StructuralArgument,
+    footprint: Footprint,
 ) -> bool {
     let mut place = argument.place;
     let mut region = argument.path.clone();
@@ -160,6 +189,22 @@ fn call_argument_changes(
             return true;
         }
         if place == root {
+            // A selector directly below an observed view lends one element of
+            // its backing. The descriptor whose extent was observed is not
+            // part of that loan, just as a direct element write leaves it
+            // intact. The element's content is, so content facts still lapse.
+            if footprint == Footprint::Extent
+                && region.len() > observed.len()
+                && region.starts_with(observed)
+                && matches!(
+                    region[observed.len()],
+                    StructuralPathSegment::RuntimeIndex { .. }
+                        | StructuralPathSegment::FixedIndex(_)
+                )
+                && observes_view(module, machine, root, observed)
+            {
+                return false;
+            }
             return terminal_semantics::structural_paths_may_overlap(observed, &region);
         }
         if !visited.insert(place) {
@@ -240,12 +285,33 @@ fn call_argument_changes(
     }
 }
 
+/// What an earlier observation of a byte or element sequence recorded: only
+/// its extent, or also the content of its elements.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Footprint {
+    Extent,
+    Content,
+}
+
 fn changes_length(
     module: &TerminalModule,
     machine: &TerminalMachine,
     root: PlaceId,
     path: &[StructuralPathSegment],
     operation: &terminal_psi::Operation,
+) -> bool {
+    changes(module, machine, root, path, operation, Footprint::Extent)
+}
+
+/// Whether `operation` may change the observed `footprint` at `path` below
+/// `root`. Every extent change is also a content change.
+fn changes(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    root: PlaceId,
+    path: &[StructuralPathSegment],
+    operation: &terminal_psi::Operation,
+    footprint: Footprint,
 ) -> bool {
     match &operation.kind {
         OperationKind::EstablishByteSequenceConcatenation { .. } => operation
@@ -344,7 +410,7 @@ fn changes_length(
                 StructuralAccess::MutableBorrow
                     | StructuralAccess::WriteOnlyBorrow
                     | StructuralAccess::Owned
-            ) && call_argument_changes(module, machine, root, path, argument)
+            ) && call_argument_changes(module, machine, root, path, argument, footprint)
         }),
         // Dynamic dispatch retains its receiver in a separate catalog. Until
         // that exact footprint is resolved here it cannot preserve this fact.
@@ -480,7 +546,14 @@ pub(crate) fn field_content_is_ascii(
                     && field_path(module, machine, root, written, *written_field, true, false)
                         .is_none_or(|written| overlaps(&exact_path, &written))
             }
-            _ => changes_length(module, machine, root, &exact_path, candidate),
+            _ => changes(
+                module,
+                machine,
+                root,
+                &exact_path,
+                candidate,
+                Footprint::Content,
+            ),
         },
     )
 }
@@ -536,7 +609,7 @@ pub(crate) fn owned_content_is_ascii(
                 )
                 .is_some_and(|predicates| predicates.implies(ascii))
         },
-        |candidate, root| changes_length(module, machine, root, &[], candidate),
+        |candidate, root| changes(module, machine, root, &[], candidate, Footprint::Content),
     )
 }
 
@@ -576,7 +649,7 @@ fn changes_content(
     path: &[StructuralPathSegment],
     operation: &terminal_psi::Operation,
 ) -> bool {
-    changes_length(module, machine, root, path, operation)
+    changes(module, machine, root, path, operation, Footprint::Content)
         || matches!(&operation.kind,
             OperationKind::StructuralByteSequenceFieldByteStore {
                 destination, path: written, field: written_field, ..

@@ -1744,9 +1744,7 @@ pass/borrows/projected_reference_record_residual_exit rejected 1208ms check-targ
 pass/borrows/projected_scalar_member_loan checked 1316ms check-target:macos_arm64 @2d8ed253669f
 pass/borrows/qualified_byte_owner_exclusive_call_exit checked 7292ms check-target:macos_arm64 @cfe60a3a242
 pass/borrows/qualified_byte_owner_shared_call_exit checked 24307ms check-target:macos_arm64 @cfe60a3a242
-pass/borrows/qualified_record_view_call_exit rejected 1015ms check-target:macos_arm64 @74a22511782
-	cannot prove default-domain field requirement for call fill from Main::main::main: parameter cell.label requires [u8; N]::Utf8
-	cannot prove default-domain field requirement for call fill from Main::main::main: parameter cell.label requires [u8; N]::Utf8
+pass/borrows/qualified_record_view_call_exit checked 2701ms check-target:macos_arm64 @53d5dde47ae5
 pass/borrows/returned_record_byte_field_store_exit checked 1496ms check-target:macos_arm64 @011fd400e8c1+wt
 pass/borrows/returned_record_case_field_store_exit checked 1497ms check-target:macos_arm64 @4e4bfed13aee+wt
 pass/borrows/returned_record_field_read_exit checked 935ms check-target:macos_arm64 @2816825e8941

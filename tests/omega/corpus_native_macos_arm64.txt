@@ -104,9 +104,7 @@ pass/borrows/projected_reference_record_residual_exit rejected 677ms regressed-f
 pass/borrows/projected_scalar_member_loan built 2224ms exit:0 @bed5f45e9185+wt
 pass/borrows/qualified_byte_owner_exclusive_call_exit built 1130ms exit:70 @e26439b2fe50+wt
 pass/borrows/qualified_byte_owner_shared_call_exit built 3053ms exit:70 @29448bf62fa8+wt
-pass/borrows/qualified_record_view_call_exit rejected 669ms regressed-from:built+exit:70 @0604ece757cd+wt
-	cannot prove default-domain field requirement for call fill from Main::main::main: parameter cell.label requires [u8; N]::Utf8
-	cannot prove default-domain field requirement for call fill from Main::main::main: parameter cell.label requires [u8; N]::Utf8
+pass/borrows/qualified_record_view_call_exit built 2993ms exit:70 @53d5dde47ae5
 pass/borrows/returned_record_byte_field_store_exit built 1437ms exit:70 @011fd400e8c1+wt
 pass/borrows/returned_record_case_field_store_exit built 1024ms exit:70 @fc625a0e0329+wt
 pass/borrows/returned_record_field_read_exit built 995ms exit:70 @2816825e8941
