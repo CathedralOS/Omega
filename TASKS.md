@@ -2310,6 +2310,40 @@ crash and native exit behavior.
   checkout before recording anything.
 
 
+- **TERMINAL-EDGE-VALIDATION-REGRESSED-FORTY.** (new-scope)
+  `cfc85e2c592` ("tests: re-pin fifty-two corpus outcomes at `74a22511782`")
+  is **bodyless** and absorbed **40 regressions with 0 improvements** -- the
+  largest such batch recorded. Measured from its own diff: 48 rows touched, 40
+  `checked` to `rejected`, none the other way, no row's status unchanged.
+
+  Two diagnostic families cover the sample, both `InvalidTerminalModule` on an
+  **edge**: `EdgeAffineDiscardsInvalid { edge }` and
+  `InvalidStructuralSuccessorArgument { edge, place }`. The affected rows are
+  concentrated in `pass/borrows/` (reference-shaped fixtures), with
+  `control_flow/`, `recast/`, `collections/` and `expressions/` behind them.
+  18 of the 40 also had native rows claiming `built` with authored exits, which
+  is how `--cross-golden` surfaced the batch; those 18 now carry
+  `regressed-from:` tokens so the native gate exits 3 rather than counting them
+  as runs.
+
+  **Attribution is open, deliberately.** The rows are stamped `@74a22511782`
+  ("omega: derive optimizer cycle components without re-validating the unit",
+  about 2,690 deleted lines), but **a stamp records where a row was measured,
+  not what caused it** -- that inference was wrong twice earlier today. That
+  commit is a legitimate application of the verify-at-trust-boundaries rule, and
+  deleting a re-validation should not by itself make validation fail, so the
+  honest next step is to bisect one representative row from each diagnostic
+  family rather than assume the stamp. `InvalidStructuralSuccessorArgument` is
+  also a long-known wall, so some of these may predate the stamp.
+
+  **This is the third bodyless batch re-pin today to absorb regressions with
+  zero improvements** -- `dce3e972eff` took 7, `2b6ea65a9e1` took 9, this one
+  40, for 56 in a day. Each left native rows overstating success, and each was
+  invisible until the cross-golden detector ran. A re-pin whose rows move only
+  one way is the signal to stop and attribute.
+  Acceptance: the 40 reach `checked` again, with the native tokens dropping on
+  their own as each recovers.
+
 - **CONSTRUCTED-ARGUMENT-SCHEDULE-REGRESSED-NINE.** (new-scope)
   Five customers still need the shared constructed-argument schedule completed:
   `pass/borrows/{branch_selected_record_composed_receiver_exit,
