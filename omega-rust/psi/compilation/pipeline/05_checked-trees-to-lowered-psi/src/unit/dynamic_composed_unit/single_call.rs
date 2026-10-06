@@ -11,9 +11,9 @@
 
 use super::{
     Block, CheckedTrees, LoweredPsi, LoweringError, Operation, OperationKind, OperationResult,
-    ProofBundle, StructuralPlaceDeclaration, StructuralPlaceKind, TerminalMachine,
-    TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, allocate_dense, block_id,
-    edge_id, lookup_type_id, lower_installation_machine_service_ceiling, lower_root_service_reach,
+    StructuralPlaceDeclaration, StructuralPlaceKind, TerminalMachine, TerminalMachineResult,
+    TerminalModule, Terminator, ValueDeclaration, allocate_dense, block_id, edge_id,
+    lookup_type_id, lower_installation_machine_service_ceiling, lower_root_service_reach,
     machine_id, operation_id, place_id, value_id,
 };
 use crate::unit::dynamic_composed_unit::LoweredDynamicDispatch;
@@ -264,13 +264,6 @@ pub(super) fn lower<Call: DynamicCall>(
             dynamic_dispatch,
             machines,
             ..TerminalModule::for_entry(caller_machine)
-        },
-        proof_bundle: ProofBundle {
-            crash_obligations: Vec::new(),
-            recursive_components: Vec::new(),
-            control_cycles: Vec::new(),
-            evidence_producers: Vec::new(),
-            evidence: Vec::new(),
         },
         debug_map: None,
         source_call_occurrences,

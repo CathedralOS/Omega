@@ -3,19 +3,14 @@
 //! Validation proceeds in one visible order: transformed unit and ledger,
 //! identity bundle, pass manifests, then reconstructible projection shape.
 
-
 use optimization_core::{
-    OptimizationIdentityBundle, OptimizationSelectionIdentity,
-    OptimizationSelections, OptimizationUnitIdentity, OptimizationValidatorIdentity,
+    OptimizationIdentityBundle, OptimizationSelectionIdentity, OptimizationSelections,
+    OptimizationUnitIdentity, OptimizationValidatorIdentity,
     OptimizedAbstractPlanProjectionIdentity, TransformationLedgerIdentity,
 };
-use optimization_unit::{
-    PsiOptimizationUnit, PsiTransformationLedger,
-};
+use optimization_unit::{PsiOptimizationUnit, PsiTransformationLedger};
 use semantic_vocabulary::FuelScheduleIdentity;
 use terminal_psi::TerminalPsiIdentity;
-
-
 
 /// Seal the projection receipt of a run this compile produced. The ledger
 /// records the initial unit identity it started from; the rewrites were
@@ -41,7 +36,6 @@ pub fn seal_optimized_abstract_plan_projection(
         ),
     }
 }
-
 
 /// Validator-owned receipt for one optimized-unit to abstract-plan projection.
 ///

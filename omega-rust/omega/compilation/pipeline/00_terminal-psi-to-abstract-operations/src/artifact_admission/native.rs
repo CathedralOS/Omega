@@ -35,8 +35,7 @@ impl VerifiedNativeArtifactInput {
         let module = artifact
             .semantic_module()
             .map_err(ArtifactLoweringError::SemanticDecode)?;
-        super::lower_decoded_artifact(module)?
-            .try_into_native_input(establishments)
+        super::lower_decoded_artifact(module)?.try_into_native_input(establishments)
     }
 
     pub fn plan(&self) -> &AbstractOperationPlan {
@@ -52,7 +51,6 @@ impl VerifiedNativeArtifactInput {
     pub fn placed_view_establishments(&self) -> &[TerminalPlacedViewEstablishment] {
         &self.placed_view_establishments
     }
-
 
     /// Establishment bindings are invocation-scoped executable evidence and
     /// do not transfer into optimizer authority; the provider keeps custody
@@ -81,7 +79,6 @@ impl AdmittedNativeArtifact {
     pub fn placed_view_inputs(&self) -> &[terminal_psi::TerminalPlacedViewInput] {
         &self.context().module().placed_view_inputs
     }
-
 
     /// Downgrade authority while preserving the complete semantic roster.
     pub fn into_optimization_artifact(self) -> AdmittedOptimizationArtifact {
@@ -127,13 +124,8 @@ impl AdmittedNativeArtifact {
 pub(super) fn lower_decoded_native_module(
     module: &terminal_psi::TerminalModule,
 ) -> Result<AdmittedNativeArtifact, ArtifactLoweringError> {
-    let validated =
-        terminal_verifier::validate_module(module).map_err(ArtifactLoweringError::Validation)?;
-    let reconstructed_obligations =
-        terminal_verifier::reconstruct_execution_terminal_obligations(validated)
-            .map_err(ArtifactLoweringError::Validation)?;
     let plan = lower_decoded_module(module).map_err(ArtifactLoweringError::Lowering)?;
-    let context = retain_optimization_context(module, reconstructed_obligations);
+    let context = retain_optimization_context(module);
     Ok(AdmittedNativeArtifact {
         optimization_input: VerifiedPsiOptimizationInput { plan, context },
     })

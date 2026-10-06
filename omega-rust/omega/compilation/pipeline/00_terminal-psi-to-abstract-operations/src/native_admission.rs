@@ -44,8 +44,8 @@ pub fn admit_native_realization<'request>(
     artifact: &CanonicalTerminalArtifact,
     request: &NativeAdmissionRequest<'request>,
 ) -> Result<AdmittedNativeRealization<'request>, Vec<Diagnostic>> {
-    let input = VerifiedNativeArtifactInput::prepare(artifact, &[])
-        .map_err(artifact_lowering_error)?;
+    let input =
+        VerifiedNativeArtifactInput::prepare(artifact, &[]).map_err(artifact_lowering_error)?;
     let providers = admit_native_providers(&input, artifact, &request.providers)?;
     // Exclusions constrain the exercised mechanism closure even when the
     // caller makes no receiver-permission claim.

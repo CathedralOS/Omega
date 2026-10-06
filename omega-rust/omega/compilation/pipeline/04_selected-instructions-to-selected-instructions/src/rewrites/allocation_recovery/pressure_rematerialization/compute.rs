@@ -10,7 +10,8 @@ mod work;
 
 use optimization_core::OptimizationWorkBudget;
 use register_model::{
-    TargetRegisterEnvironmentConstraintKeys, TargetRegisterEnvironmentIdentity, ValidatedRegisterConstraintCatalog,
+    TargetRegisterEnvironmentConstraintKeys, TargetRegisterEnvironmentIdentity,
+    ValidatedRegisterConstraintCatalog,
 };
 use target_operations_to_selected_instructions::selected_instruction_plan_identity;
 

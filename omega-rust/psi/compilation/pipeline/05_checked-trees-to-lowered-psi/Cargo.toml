@@ -25,7 +25,6 @@ symbols = { path = "../../../foundation/symbols" }
 terminal-psi = { path = "../../representations/terminal-psi" }
 terminal-semantics = { path = "../../representations/terminal-psi/semantics" }
 terminal-codec = { path = "../../representations/terminal-psi/codec" }
-terminal-verifier = { path = "../../representations/terminal-psi/verification" }
 validation = { path = "../../checking" }
 sha2 = "0.10.9"
 

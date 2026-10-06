@@ -23,7 +23,7 @@ class SelectionTests(unittest.TestCase):
             ("app", "crates/app", ["core"]),
             ("core", "crates/app/core", []),
             ("unrelated", "crates/unrelated", []),
-            ("terminal-verifier", "crates/verifier", []),
+            ("proof-admission", "crates/proof-admission", []),
             ("terminal-codec", "crates/codec", []),
             ("codec-user", "crates/codec-user", ["terminal-codec"]),
         ]:
@@ -42,8 +42,8 @@ class SelectionTests(unittest.TestCase):
         self.assertFalse(reasons)
 
     def test_source_reader_edge_and_its_dependents(self):
-        _, packages, _ = self.select("crates/verifier/src/new_proof.rs")
-        self.assertEqual(packages, ["codec-user", "terminal-codec", "terminal-verifier"])
+        _, packages, _ = self.select("crates/proof-admission/src/new_proof.rs")
+        self.assertEqual(packages, ["codec-user", "proof-admission", "terminal-codec"])
 
     def test_unknown_shared_manifest_and_non_source_inputs_are_full(self):
         for path in ["Cargo.lock", "crates/app/Cargo.toml", "crates/app/build.rs",

@@ -8,7 +8,7 @@ pub(crate) mod loop_invariant_scalar_motion;
 pub use countdown_invariant_constant_relocation::{
     CountdownInvariantConstantRelocationError, apply_countdown_invariant_constant_relocation,
     propose_countdown_invariant_constant_relocations,
-    };
+};
 pub use loop_invariant_scalar_motion::LoopInvariantScalarMotionError;
 #[cfg(any(test, feature = "test-support"))]
 pub use loop_invariant_scalar_motion::{

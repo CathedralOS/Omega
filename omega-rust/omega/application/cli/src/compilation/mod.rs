@@ -431,31 +431,29 @@ fn compile_project_targets(
             .position(|(reported, _)| reported == profile)
             .expect("every active target produces a report row");
         let (_, result) = reports.remove(position);
-        let result = result.and_then(|report| {
-            match product {
-                ProjectProduct::Check => Ok(CompileProjectOutcome {
+        let result = result.and_then(|report| match product {
+            ProjectProduct::Check => Ok(CompileProjectOutcome {
+                report,
+                timings: timings.clone(),
+                executable_path: None,
+            }),
+            ProjectProduct::NativeArtifact => {
+                let (report, path) = timings
+                    .record_result(
+                        StageMeta::new(
+                            "publish",
+                            "retained product",
+                            "published product",
+                            TimingCategory::Pipeline,
+                        ),
+                        || publication::publish_compilation(report, &target_directories[index]),
+                    )
+                    .map_err(CompileProjectError::Publication)?;
+                Ok(CompileProjectOutcome {
                     report,
                     timings: timings.clone(),
-                    executable_path: None,
-                }),
-                ProjectProduct::NativeArtifact => {
-                    let (report, path) = timings
-                        .record_result(
-                            StageMeta::new(
-                                "publish",
-                                "retained product",
-                                "published product",
-                                TimingCategory::Pipeline,
-                            ),
-                            || publication::publish_compilation(report, &target_directories[index]),
-                        )
-                        .map_err(CompileProjectError::Publication)?;
-                    Ok(CompileProjectOutcome {
-                        report,
-                        timings: timings.clone(),
-                        executable_path: path,
-                    })
-                }
+                    executable_path: path,
+                })
             }
         });
         outcomes.push(TargetProjectOutcome {

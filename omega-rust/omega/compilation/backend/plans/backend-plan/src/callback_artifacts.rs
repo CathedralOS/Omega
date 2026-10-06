@@ -146,8 +146,6 @@ pub struct NativeCallbackThunkSettlement<'artifact> {
     pub boundary_entry_plan: &'artifact calling_conventions::BoundaryEntryPlan,
 }
 
-
-
 /// Recheck the retained source, symbol and function joins, then borrow native
 /// inputs in occurrence order without carrying the source-to-Terminal receipt.
 ///

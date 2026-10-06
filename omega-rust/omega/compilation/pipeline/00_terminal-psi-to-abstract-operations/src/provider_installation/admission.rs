@@ -20,7 +20,6 @@ pub(crate) fn admit_provider_installation_with_projection(
     semantic_bytes: &[u8],
     selected: &[SelectedProviderAdapter],
 ) -> Result<AdmittedProviderInstallation, ProviderInstallationError> {
-
     let mut selections = Vec::new();
     let mut installed_candidates = Vec::new();
     let mut boundaries = plan
@@ -80,8 +79,7 @@ pub(crate) fn admit_provider_installation_with_projection(
         });
         installed_candidates.push((**candidate).clone());
     }
-    let installed_calls =
-        replay_installed_provider_calls(plan, module, &installed_candidates)?;
+    let installed_calls = replay_installed_provider_calls(plan, module, &installed_candidates)?;
     let installation = terminal_interpreter::admit_provider_installation_from_artifact(
         semantic_bytes,
         &selections,

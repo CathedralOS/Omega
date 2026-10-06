@@ -148,7 +148,6 @@ pub(crate) fn executable_container_digest(bytes: &[u8]) -> ExecutableContainerDi
     ExecutableContainerDigest::from_digest(digest.finalize().into())
 }
 
-
 /// Immutable custody for one compiler-published executable container.
 ///
 /// This records the exact final-footprint certificate, publication seal, and
@@ -299,6 +298,4 @@ impl ExecutablePublicationReceipt {
                     self.container_digest,
                 )
     }
-
 }
-

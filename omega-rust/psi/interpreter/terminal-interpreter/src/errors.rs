@@ -134,7 +134,6 @@ pub enum TerminalInterpretError {
 #[derive(Debug)]
 pub enum ProviderInstallationError {
     SemanticDecode(terminal_codec::CodecError),
-    Validation(terminal_verifier::ModuleError),
     UnknownOrDuplicateSelection {
         boundary: BoundaryMachineId,
         candidate: MachineId,
@@ -176,7 +175,6 @@ pub enum AssumedBindingRejection {
 pub enum TerminalArtifactInterpretError {
     ArtifactDecode(terminal_codec::CanonicalTerminalArtifactError),
     SemanticDecode(terminal_codec::CodecError),
-    Validation(terminal_verifier::ModuleError),
     Execution(TerminalInterpretError),
 }
 

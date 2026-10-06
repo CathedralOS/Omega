@@ -198,7 +198,6 @@ fn validate_structural_field_range_authority(
                         fact.machine == function.machine
                             && fact.operation == *psi_operation
                             && fact.obligation == *obligation
-                            && fact.proposition == proposition
                             && fact.psi == unit.psi
                             && fact.has_canonical_identity()
                     })
@@ -247,7 +246,6 @@ fn validate_structural_field_range_authority(
                         fact.machine == function.machine
                             && fact.operation == *psi_operation
                             && fact.obligation == *obligation
-                            && fact.proposition == proposition
                             && fact.psi == unit.psi
                             && fact.has_canonical_identity()
                     })
@@ -328,7 +326,6 @@ fn validate_structural_field_range_authority(
                         fact.machine == function.machine
                             && fact.operation == *psi_operation
                             && fact.obligation == *obligation
-                            && fact.proposition == proposition
                             && fact.psi == unit.psi
                             && fact.has_canonical_identity()
                     })
@@ -391,7 +388,6 @@ fn validate_structural_field_range_authority(
                         fact.machine == function.machine
                             && fact.operation == *psi_operation
                             && fact.obligation == *capacity_obligation
-                            && fact.proposition == proposition
                             && fact.psi == unit.psi
                             && fact.has_canonical_identity()
                     })
@@ -445,7 +441,6 @@ fn validate_structural_field_range_authority(
                         fact.machine == function.machine
                             && fact.operation == *psi_operation
                             && fact.obligation == *obligation
-                            && fact.proposition == proposition
                             && fact.psi == unit.psi
                             && fact.has_canonical_identity()
                     })
@@ -512,7 +507,6 @@ fn validate_structural_field_range_authority(
                             fact.machine == function.machine
                                 && fact.operation == *psi_operation
                                 && fact.obligation == *obligation
-                                && fact.proposition == proposition
                                 && fact.psi == unit.psi
                                 && fact.has_canonical_identity()
                         })
@@ -681,7 +675,6 @@ fn validate_field_range_authority(
             fact.machine == machine
                 && fact.operation == operation
                 && Some(fact.obligation) == obligation
-                && fact.proposition == proposition
                 && fact.psi == unit.psi
                 && fact.has_canonical_identity()
         })

@@ -1,19 +1,16 @@
 //! Payloadless guarded-call evidence and outcome-specific ensures.
 
-use crate::machine_lowering::guarded_exits::exact_payloadless_return_guard;
 use crate::proofs::evidence_lowering::evidence_terms::{
     LoweredEvidenceTerms, lower_evidence_terms, lower_proposition_vocabulary,
 };
-use crate::proofs::evidence_lowering::producer_provenance::lower_evidence_producer_provenance;
 use crate::proofs::evidence_lowering::proof_output_calls::terminal_evidence_term_id;
 use crate::proofs::{
-    BTreeMap, CheckedPropositionBinderArgumentKind, CheckedTrees, EvidenceRoute,
-    EvidenceTermDeclaration, EvidenceTermId, LoweredPsi, LoweringError, MachineId,
-    ObligationEvidence, OperationKind, OutcomeSpecificCallEvidence,
-    OutcomeSpecificCallEvidenceValidity, OutcomeSpecificCallResultSubstitution,
-    OutcomeSpecificEnsure, OutcomeSpecificEvidence, OutcomeSpecificEvidenceUse,
-    OutcomeSpecificGuard, PrimitiveJudgment, Proposition, StructuralTypeShape, TerminalModule,
-    dense_identity, machine_id, obligation_id, unsupported,
+    BTreeMap, CheckedPropositionBinderArgumentKind, CheckedTrees, EvidenceTermDeclaration,
+    EvidenceTermId, LoweredPsi, LoweringError, MachineId, OperationKind,
+    OutcomeSpecificCallEvidence, OutcomeSpecificCallEvidenceValidity,
+    OutcomeSpecificCallResultSubstitution, OutcomeSpecificEnsure, OutcomeSpecificEvidence,
+    OutcomeSpecificEvidenceUse, OutcomeSpecificGuard, Proposition, StructuralTypeShape,
+    TerminalModule, dense_identity, machine_id, obligation_id, unsupported,
 };
 
 pub(crate) fn lower_outcome_specific_ensures(
@@ -258,13 +255,9 @@ pub(crate) fn lower_and_install_payloadless_guarded_call_evidence(
         &evidence_terms.term_ids,
         &evidence_terms.declarations,
     )?;
-    let evidence_producers =
-        lower_evidence_producer_provenance(checked, plan.machine, &evidence_terms.term_ids)?;
-
     lowered.semantic_module.proposition_declarations = declarations;
     lowered.semantic_module.proposition_applications = applications;
     lowered.semantic_module.evidence_terms = evidence_terms.declarations;
-    lowered.proof_bundle.evidence_producers = evidence_producers;
     let callee = lowered
         .semantic_module
         .machines
@@ -274,22 +267,6 @@ pub(crate) fn lower_and_install_payloadless_guarded_call_evidence(
             "guarded payloadless callee is absent while installing evidence",
         ))?;
     callee.contract.outcome_specific_ensures = callee_ensures;
-    for row in &callee.contract.outcome_specific_ensures {
-        if row.evidence.is_none()
-            && row.proposition == Proposition::Truth
-            && exact_payloadless_return_guard(callee) == Some(row.guard)
-        {
-            lowered.proof_bundle.evidence.push(ObligationEvidence {
-                obligation: row.obligation,
-                route: EvidenceRoute::KernelDerived(PrimitiveJudgment::Truth),
-            });
-        }
-    }
-    lowered
-        .proof_bundle
-        .evidence
-        .sort_by_key(|evidence| evidence.obligation);
-
     let mut retained_selected_rows = checked
         .facts
         .proof

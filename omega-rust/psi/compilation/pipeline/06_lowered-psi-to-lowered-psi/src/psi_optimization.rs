@@ -1,11 +1,10 @@
 //! Execute selected target-neutral passes and return their validated publication result.
 
 use crate::optimization_error::PsiOptimizationStageError;
-use crate::rewrite_refusal::PsiRewriteRefusal;
 
 use crate::{
     control_flow_cleanup, copy_propagation, dead_scalar_elimination, global_value_numbering,
-    proof_check_elision, sparse_conditional_constant_propagation,
+    sparse_conditional_constant_propagation,
 };
 use lowered_psi::LoweredPsi;
 use optimization::{PRETERMINAL_PSI_PASS_CATALOG, PsiOptimization, PsiOptimizationSelections};
@@ -30,7 +29,6 @@ pub fn run_psi_optimization(
     selections: PsiOptimizationSelections,
 ) -> Result<PsiOptimizationStageResult, PsiOptimizationStageError> {
     let input_semantic = carrier_identity(&lowered)?;
-    let mut refusals = Vec::new();
     for selected in selections.as_slice() {
         match selected {
             PsiOptimization::ControlFlowCleanup => {
@@ -40,18 +38,16 @@ pub fn run_psi_optimization(
                 lowered = sparse_conditional_constant_propagation::propagate(lowered)?;
             }
             PsiOptimization::CopyPropagation => {
-                lowered = copy_propagation::propagate(lowered, &mut refusals)?;
+                lowered = copy_propagation::propagate(lowered)?;
             }
             PsiOptimization::GlobalValueNumbering => {
                 lowered = global_value_numbering::number(lowered)?;
             }
             PsiOptimization::DeadPureScalarElimination => {
-                lowered = dead_scalar_elimination::eliminate(lowered, &mut refusals)?;
+                lowered = dead_scalar_elimination::eliminate(lowered)?;
             }
-            PsiOptimization::ProofCheckElision => {
-                lowered = proof_check_elision::elide(lowered)?;
-            }
-            PsiOptimization::StateSpecialization
+            PsiOptimization::ProofCheckElision
+            | PsiOptimization::StateSpecialization
             | PsiOptimization::RepresentationSpecialization
             | PsiOptimization::LoopInvariantScalarMotion => {}
         }
@@ -66,19 +62,18 @@ pub fn run_psi_optimization(
             .filter(|selected| PRETERMINAL_PSI_PASS_CATALOG.contains(selected)),
     )
     .expect("a filtered selection subset stays duplicate-free");
-    let execution = PsiOptimizationExecutionRecord::new(
-        executed,
-        input_semantic,
-        output_semantic,
-    )
-    .map_err(PsiOptimizationStageError::InvalidExecutionRecord)?;
+    let execution = PsiOptimizationExecutionRecord::new(executed, input_semantic, output_semantic)
+        .map_err(PsiOptimizationStageError::InvalidExecutionRecord)?;
     Ok(PsiOptimizationStageResult::new(
-        lowered, selections, execution, refusals,
+        lowered, selections, execution,
     ))
 }
 
-fn carrier_identity(lowered: &LoweredPsi) -> Result<TerminalPsiIdentity, PsiOptimizationStageError> {
-    terminal_psi_identity(&lowered.semantic_module).map_err(PsiOptimizationStageError::InvalidSemantic)
+fn carrier_identity(
+    lowered: &LoweredPsi,
+) -> Result<TerminalPsiIdentity, PsiOptimizationStageError> {
+    terminal_psi_identity(&lowered.semantic_module)
+        .map_err(PsiOptimizationStageError::InvalidSemantic)
 }
 
 /// Validated output of the selected target-neutral Psi optimization phase.
@@ -93,7 +88,6 @@ pub struct PsiOptimizationStageResult {
     lowered: LoweredPsi,
     selections: PsiOptimizationSelections,
     execution: PsiOptimizationExecutionRecord,
-    refusals: Vec<PsiRewriteRefusal>,
 }
 
 impl PsiOptimizationStageResult {
@@ -101,13 +95,11 @@ impl PsiOptimizationStageResult {
         lowered: LoweredPsi,
         selections: PsiOptimizationSelections,
         execution: PsiOptimizationExecutionRecord,
-        refusals: Vec<PsiRewriteRefusal>,
     ) -> Self {
         Self {
             lowered,
             selections,
             execution,
-            refusals,
         }
     }
 
@@ -121,14 +113,6 @@ impl PsiOptimizationStageResult {
 
     pub const fn execution(&self) -> &PsiOptimizationExecutionRecord {
         &self.execution
-    }
-
-    /// Selected passes that proposed a rewrite and deliberately withheld it,
-    /// in execution order. Empty when every selected pass either rewrote or
-    /// found nothing to rewrite. Producer-side explanation only: it is not
-    /// encoded in the canonical execution record.
-    pub fn refusals(&self) -> &[PsiRewriteRefusal] {
-        &self.refusals
     }
 
     pub fn into_lowered(self) -> LoweredPsi {

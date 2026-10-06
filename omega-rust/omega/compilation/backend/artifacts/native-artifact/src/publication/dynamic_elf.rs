@@ -117,7 +117,6 @@ impl DynamicElfPublicationReceipt {
                 self.container_digest,
             )
     }
-
 }
 
 /// Domain-separated installation commitment. The dynamic domain keeps equal

@@ -12,5 +12,4 @@ lowered-psi = { path = "../../representations/lowered-psi" }
 optimization = { path = "../../../foundation/optimization-selections" }
 terminal-psi = { path = "../../representations/terminal-psi" }
 terminal-codec = { path = "../../representations/terminal-psi/codec" }
-terminal-verifier = { path = "../../representations/terminal-psi/verification" }
 

@@ -1,7 +1,7 @@
 //! Whole owned-affine identity returns, shared by ordinary and selected machines.
 use super::{
     Block, CheckedClaimFreeAffineStructuralReturnMachinePlan, CheckedTrees, LoweredPsi,
-    LoweringError, MachineContract, MachineId, Multiplicity, ProofBundle, StructuralMultiplicity,
+    LoweringError, MachineContract, MachineId, Multiplicity, StructuralMultiplicity,
     StructuralPlaceDeclaration, StructuralPlaceKind, StructuralResultDeclaration,
     StructuralTypeDeclaration, StructuralTypeId, TERMINAL_MACHINE_IDENTITY_STRIDE, TerminalMachine,
     TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, allocate_dense, block_id,
@@ -43,7 +43,6 @@ pub(crate) fn lower_affine_return_machine(
     )?;
     Ok(LoweredPsi {
         semantic_module,
-        proof_bundle: ProofBundle::default(),
         debug_map: None,
         source_call_occurrences: Vec::new(),
         selected_ieee_float_comparison_occurrences: Vec::new(),

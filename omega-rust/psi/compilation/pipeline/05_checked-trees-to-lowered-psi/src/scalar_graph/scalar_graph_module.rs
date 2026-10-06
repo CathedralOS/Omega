@@ -8,15 +8,15 @@
 //! just like ordinary calls borrow its machine identities. Scalar result shape
 //! does not create a separate provider namespace or bypass invocation custody.
 use super::{
-    BTreeMap, Block, ContentPartitionComposition, ContractClause, EvidenceRoute, KnownDirectScalar,
+    BTreeMap, Block, ContentPartitionComposition, ContractClause, KnownDirectScalar,
     LoweredContentIdentityReshuffles, LoweredContentPartitionCompositions, LoweredPsi,
-    LoweringError, MachineContract, MachineId, ObligationEvidence, OperationKind, OperationResult,
-    PrimitiveJudgment, ProofBundle, Proposition, QualifiedScalarType, ScalarFloatRange,
-    ScalarIntegerRange, ScalarTerm, ScalarType, StructuralArgument, StructuralParameterDeclaration,
-    StructuralPlaceDeclaration, StructuralPlaceKind, TERMINAL_MACHINE_IDENTITY_STRIDE,
-    TerminalMachine, TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, block_id,
-    contract_id, edge_id, lower_checked_crash_route_buckets, merge_content_place_declaration,
-    obligation_id, scalar_source_block, terminal_scalar_type, unsupported, value_id,
+    LoweringError, MachineContract, MachineId, OperationKind, OperationResult, Proposition,
+    QualifiedScalarType, ScalarFloatRange, ScalarIntegerRange, ScalarTerm, ScalarType,
+    StructuralArgument, StructuralParameterDeclaration, StructuralPlaceDeclaration,
+    StructuralPlaceKind, TERMINAL_MACHINE_IDENTITY_STRIDE, TerminalMachine, TerminalMachineResult,
+    TerminalModule, Terminator, ValueDeclaration, block_id, contract_id, edge_id,
+    lower_checked_crash_route_buckets, merge_content_place_declaration, obligation_id,
+    scalar_source_block, terminal_scalar_type, unsupported, value_id,
 };
 use crate::emission::boolean_control::PendingNestedBlockGroup;
 use crate::emission::operation_emission::buffer::OperationBuffer;
@@ -387,7 +387,7 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
     resolved_partition_compositions.sort();
-    let (mut requires, ensures, evidence) = match (result_type.scalar_type, contract) {
+    let (mut requires, ensures) = match (result_type.scalar_type, contract) {
         (
             ScalarType::Boolean,
             PreparedScalarContract::ClosedLiteral(KnownDirectScalar::Boolean(value)),
@@ -404,10 +404,6 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
                 vec![ContractClause {
                     obligation,
                     proposition: goal,
-                }],
-                vec![ObligationEvidence {
-                    obligation,
-                    route: EvidenceRoute::KernelDerived(PrimitiveJudgment::ReflexiveEquality),
                 }],
             )
         }
@@ -429,13 +425,9 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
                     obligation,
                     proposition: goal,
                 }],
-                vec![ObligationEvidence {
-                    obligation,
-                    route: EvidenceRoute::KernelDerived(PrimitiveJudgment::ClosedIntegerRelation),
-                }],
             )
         }
-        (_, PreparedScalarContract::Empty) => (Vec::new(), Vec::new(), Vec::new()),
+        (_, PreparedScalarContract::Empty) => (Vec::new(), Vec::new()),
         (_, PreparedScalarContract::Predicates(plan)) => {
             let requires = scalar_contracts::clauses(
                 &scalar_contracts::covered_requires(&plan)?,
@@ -531,7 +523,7 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
             .collect();
             // These are real parameter/result relations. Finalization proves
             // their requirements at calls and guarantees from emitted exits.
-            (requires, ensures, Vec::new())
+            (requires, ensures)
         }
         _ => unreachable!("validated scalar contract matches the machine result type"),
     };
@@ -724,18 +716,6 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
                 },
             }],
             ..TerminalModule::for_entry(terminal_machine)
-        },
-        proof_bundle: ProofBundle {
-            crash_obligations: Vec::new(),
-            recursive_components: Vec::new(),
-            control_cycles: Vec::new(),
-            evidence_producers: Vec::new(),
-            evidence: evidence
-                .into_iter()
-                .chain(crate::proofs::operation_proofs::source_checked_evidence(
-                    all_operations.source_checked_obligations,
-                ))
-                .collect(),
         },
         debug_map: None,
         source_call_occurrences: all_operations.source_calls,

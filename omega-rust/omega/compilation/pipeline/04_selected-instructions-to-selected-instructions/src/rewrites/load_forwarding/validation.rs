@@ -14,16 +14,13 @@
 
 use std::sync::Arc;
 
-use selected_instructions::{
-    SelectedInstructionId, SelectedInstructionPlan,
-};
+use selected_instructions::{SelectedInstructionId, SelectedInstructionPlan};
 use target_operations_to_selected_instructions::selected_instruction_plan_identity;
 
 use super::{
     StoredLoadForwardingError, StoredLoadForwardingReceipt, ValidatedStoredLoadForwarding,
 };
 use crate::ValidatedSelectedAnalysis;
-
 
 /// Admit a freshly produced plan with its receipt; the producer calls this
 /// instead of replaying its own output.

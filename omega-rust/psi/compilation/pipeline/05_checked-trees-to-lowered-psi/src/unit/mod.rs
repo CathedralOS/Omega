@@ -48,7 +48,6 @@ use terminal_psi::{
     TerminalRankedScc, Terminator, ValueDeclaration, VocabularyMarker,
     program_local_root_introduction_compatibility_report_identity,
 };
-use terminal_verifier::ProofBundle;
 
 use crate::emission::boolean_control::{
     boolean_decision_block_count, emit_reserved_boolean_tuple_stage_blocks,
@@ -67,16 +66,13 @@ use crate::emission::scalar_types::{
 use crate::expression_preparation::bindings::structural_paths::lower_structural_path;
 use crate::expression_preparation::prepare_expression::lower_checked_scalar_expression;
 use crate::lowering_error::{LoweringError, unsupported};
-use crate::producer_result::{
-    DebugPublication, LoweredSelectedMachine, LoweringCompletion, OperandProofCompletion,
-};
+use crate::producer_result::{DebugPublication, LoweredSelectedMachine, LoweringCompletion};
 use crate::proofs::content_conservation::lower_boundary_content_guarantees;
 use crate::proofs::crash_routes::{
     lower_boundary_crash_routes, lower_checked_crash_route_buckets,
     lower_structural_crash_route_buckets, structural_crash_route_argument_prefix,
     substitute_structural_crash_route_roots,
 };
-use crate::proofs::operation_proofs::finalize_operation_proofs;
 use crate::proofs::{content_conservation, evidence_lowering};
 use crate::retention::placed_view_inputs::lower_placed_view_input;
 use crate::returns::structural_types::{
@@ -124,7 +120,6 @@ pub(crate) fn lower_unit_plan_machine(
         CheckedUnitPlan::NominalAffineCleanup(plan) => LoweredSelectedMachine::entry_only(
             lower_nominal_affine_unit_cleanup_machine(checked, plan)?,
             LoweringCompletion {
-                operands: OperandProofCompletion::Finalize,
                 debug: DebugPublication::Omit,
                 ..Default::default()
             },
@@ -133,7 +128,6 @@ pub(crate) fn lower_unit_plan_machine(
         CheckedUnitPlan::PartialAffineCleanup(plan) => LoweredSelectedMachine::source_mapped(
             lower_partial_affine_unit_cleanup_machine(checked, plan)?,
             LoweringCompletion {
-                operands: OperandProofCompletion::Finalize,
                 debug: DebugPublication::Omit,
                 ..Default::default()
             },
@@ -141,7 +135,6 @@ pub(crate) fn lower_unit_plan_machine(
         CheckedUnitPlan::ComposedControl(plan) => LoweredSelectedMachine::source_mapped(
             lower_composed_unit_control_machine(checked, plan)?,
             LoweringCompletion {
-                operands: OperandProofCompletion::Finalize,
                 debug: DebugPublication::Omit,
                 ..Default::default()
             },

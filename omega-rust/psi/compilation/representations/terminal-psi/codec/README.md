@@ -32,7 +32,6 @@ Do not infer one section's identity from another section's current version.
 
 Current markers live with their owners: semantic format in [semantic_module.rs](src/sections/semantic_module.rs),
 vocabulary in [VocabularyMarker](../src/terminal_module/identity/vocabulary.rs),
-proof format in [proof_bundle.rs](src/sections/proof_bundle.rs), envelope in
 [canonical_artifact.rs](src/canonical_artifact.rs), and manifest in
 [artifact_manifest.rs](src/sections/artifact_manifest.rs). The image-emission owner
 maintains the separate [installation format](../../../../../omega/compilation/backend/images/image-emission/src/installation_record.rs).

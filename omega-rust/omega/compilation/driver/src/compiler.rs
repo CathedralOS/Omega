@@ -75,7 +75,6 @@ fn compile_target(
             settlement
                 .with_timings(produced.timings)
                 .finish_terminal(produced.artifact, produced.rollback_receipt)
-                .map(|report| report.with_withheld_rewrites(produced.withheld_rewrites))
         }
         // The same retained Terminal boundary, then Omega 00-09 and image emission.
         CheckedProductReport::Native(settlement) => {
@@ -84,7 +83,6 @@ fn compile_target(
             settlement
                 .with_timings(produced.timings)
                 .finish_native(produced.artifact, produced.rollback_receipt)
-                .map(|report| report.with_withheld_rewrites(produced.withheld_rewrites))
         }
     }
 }

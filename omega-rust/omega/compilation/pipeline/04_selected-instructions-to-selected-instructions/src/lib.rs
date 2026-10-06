@@ -52,7 +52,7 @@ pub use analyses::{
     stage_optimized_liveness, stage_optimized_selected_reanalysis, validate_allocation_legality,
     validate_fixed_precolored_intervals, validate_fixed_precolored_segment_homes,
     validate_fixed_precolored_split_requirements, validate_live_ranges, validate_liveness,
-    };
+};
 pub(crate) use analyses::{
     AllocationLegalityValidationReceipt, AllocatorAvailabilityError,
     AllocatorAvailabilityValidationReceipt, FixedPrecoloredIntervalValidationReceipt,
@@ -98,7 +98,8 @@ pub use rewrites::{
     stage_first_optimized_literal_fold, stage_next_optimized_literal_fold,
     stage_optimized_fixed_precolored_segment_homes, stage_optimized_fixed_view_copies,
     validate_fixed_view_copies, validate_optimized_fixed_precolored_segment_home_custody,
-    validate_optimized_fixed_view_copy_custody, validate_pre_allocation_optimization_custody, validate_runtime_spill_with_span_policy, validate_selected_lowering_optimization_custody,
+    validate_optimized_fixed_view_copy_custody, validate_pre_allocation_optimization_custody,
+    validate_runtime_spill_with_span_policy, validate_selected_lowering_optimization_custody,
 };
 pub(crate) use rewrites::{
     FixedViewCopyDestination, FixedViewCopyValidationReceipt, FunctionLiteralFold,
@@ -117,7 +118,7 @@ pub(crate) use rewrites::{
 };
 pub use rewrites::{
     RuntimeSplitError, RuntimeSplitReceipt, ValidatedRuntimeSplit, split_selected_runtime_value,
-    };
+};
 
 #[cfg(any(test, feature = "test-support"))]
 pub use rewrites::test_support;
@@ -137,4 +138,5 @@ pub use selected_instructions::{
 
 pub use rewrites::{
     StoredLoadForwardingError, StoredLoadForwardingReceipt, ValidatedStoredLoadForwarding,
-    forward_selected_stored_load, };
+    forward_selected_stored_load,
+};

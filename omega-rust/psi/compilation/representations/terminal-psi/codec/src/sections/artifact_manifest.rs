@@ -117,8 +117,12 @@ pub fn validate_artifact_manifest(
     debug_maps: Option<&[u8]>,
     manifest: TerminalArtifactManifest,
 ) -> Result<(), ArtifactManifestError> {
-    let expected =
-        build_artifact_manifest(semantic_module, optimization, installation_record, debug_maps)?;
+    let expected = build_artifact_manifest(
+        semantic_module,
+        optimization,
+        installation_record,
+        debug_maps,
+    )?;
     if expected != manifest {
         return Err(ArtifactManifestError::ManifestMismatch);
     }

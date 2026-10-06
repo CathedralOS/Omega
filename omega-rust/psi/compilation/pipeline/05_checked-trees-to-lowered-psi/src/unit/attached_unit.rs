@@ -29,7 +29,7 @@ use super::{
     CheckedBoundaryMachinePlan, CheckedBoundaryMachineResultPlan, CheckedScalarExpression,
     CheckedScalarExpressionRole, CheckedTrees, CheckedUnitEffectMachinePlan,
     CheckedUnitEffectOperationPlan, ClaimTransfer, LoweredPsi, LoweringError, MachineContract,
-    MachineId, Multiplicity, Operation, OperationKind, OperationResult, PlaceId, ProofBundle,
+    MachineId, Multiplicity, Operation, OperationKind, OperationResult, PlaceId,
     ProviderCandidateConformance, ProviderParameterRefinement, ProviderRefinement,
     ProviderSignature, ProviderSignatureParameter, ScalarType, SemanticDomainId,
     ServiceReachSummary, StructuralDomainRequirement, StructuralMultiplicity,
@@ -437,7 +437,6 @@ pub(crate) fn lower_unit_closure(
     let mut next_edge = 1_u64;
     let mut next_block = 1_u64;
     let mut next_call_obligation = TERMINAL_UNIT_CALL_OBLIGATION_BASE;
-    let mut call_evidence = Vec::new();
     let mut machines = Vec::with_capacity(
         closure.len() + scalar_closure.len() + realizations.structural_results.len(),
     );
@@ -611,7 +610,6 @@ pub(crate) fn lower_unit_closure(
     )?;
 
     // Publication: one module in canonical roster order.
-    call_evidence.append(&mut scalar_output.evidence);
     scalar_block_invariants.append(&mut scalar_output.scalar_block_invariants);
     let mut scalar_qualifications = scalar_output.qualifications;
     scalar_qualifications
@@ -661,18 +659,6 @@ pub(crate) fn lower_unit_closure(
             suspension_call_sites: Vec::new(),
             suspension_call_plans: Vec::new(),
             machines,
-        },
-        proof_bundle: ProofBundle {
-            crash_obligations: Vec::new(),
-            recursive_components: Vec::new(),
-            control_cycles: Vec::new(),
-            evidence_producers: Vec::new(),
-            evidence: call_evidence
-                .into_iter()
-                .chain(crate::proofs::operation_proofs::source_checked_evidence(
-                    occurrences.source_checked_obligations,
-                ))
-                .collect(),
         },
         debug_map: None,
         source_call_occurrences: occurrences.source_calls,

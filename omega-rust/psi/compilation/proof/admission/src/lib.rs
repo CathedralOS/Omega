@@ -26,7 +26,6 @@
 //! `admission/` the evidence routes.
 
 mod admission;
-mod certificate_search;
 mod classicality;
 mod integer_rules;
 mod kernel;
@@ -34,26 +33,11 @@ mod mathematical_core;
 mod predicate_denotation;
 mod proof;
 
-pub use admission::denotation::check_denotation_certificate;
 pub use admission::evidence::{
     AcceptedFact, AcceptedFactRoute, AdmissionEvidence, AdmissionKind, AuthorizedAdmission,
     CertificateEnvelope, EvidenceError, EvidenceRoute, Obligation, ObligationClass,
     ProofSystemMarker, accept_source_checked_operation, verify_obligation,
     verify_obligation_with_machine_parameters,
-};
-pub use admission::normalization::{
-    NormalizationAcceptance, NormalizationCertificate, NormalizationError,
-    NormalizationLawAcceptance, NormalizationLawCertificate, NormalizationLawObligation,
-    NormalizationObligation, verify_normalization,
-};
-pub use admission::recursion::{
-    CertificateObligation, RecursiveComponentAcceptance, RecursiveComponentCertificate,
-    RecursiveComponentError, RecursiveComponentObligation, RecursiveEdgeCertificate,
-    RecursiveEdgeObligation, verify_recursive_component,
-    verify_recursive_component_with_machine_parameters,
-};
-pub use certificate_search::{
-    produce_denotation_certificates, produce_predicate_proof, retain_original_predicate_citations,
 };
 pub use classicality::ProofRuleFoundation;
 pub use integer_rules::closed_integer::{

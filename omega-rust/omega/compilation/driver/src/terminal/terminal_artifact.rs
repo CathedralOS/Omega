@@ -32,13 +32,12 @@ const NATIVE_REALIZATION_PROPOSAL_STAGE: StageMeta = StageMeta::new(
 
 /// What one Terminal stage sequence produces for the admitted settlement to
 /// turn into a report: the retained product, the settled rollback receipt, the
-/// post-production timing ladder and the producer-side rewrite explanation.
+/// post-production timing ladder.
 /// None of it is a report, an admission or a publication.
 pub struct ProducedTerminalProduct {
     pub artifact: compilation_products::RetainedTerminalArtifact,
     pub rollback_receipt: Option<optimization_core::OptimizationRollbackReceipt>,
     pub timings: Vec<artifacts::compile_timings::PhaseTiming>,
-    pub withheld_rewrites: Vec<optimization_core::WithheldRewrite>,
 }
 
 /// Run the Terminal stage sequence the product admission already allowed. The
@@ -55,7 +54,6 @@ pub fn produce_terminal_product(
         artifact: produced.artifact,
         rollback_receipt: rollback.into_receipt(),
         timings: checked.timings().phases().to_vec(),
-        withheld_rewrites: produced.withheld_rewrites,
     })
 }
 
@@ -68,14 +66,9 @@ pub fn produce_terminal_product(
 /// (`omega-rust/pipeline.md`) the producer is the gate, and the corpus runner
 /// and tests exercise the verifier. It does not assemble a compiler report or
 /// enter native realization.
-/// The retained product and the pass decisions that explain it.
-///
-/// The decisions are producer-side explanation, so they ride beside the
-/// canonical artifact rather than on it: the artifact is the same bytes
-/// whether a pass withheld a rewrite or found none.
+/// The retained product.
 pub(crate) struct ProducedRetainedTerminal {
     pub(crate) artifact: compilation_products::RetainedTerminalArtifact,
-    pub(crate) withheld_rewrites: Vec<optimization_core::WithheldRewrite>,
 }
 
 pub(crate) fn produce_retained_terminal_artifact(
@@ -141,8 +134,6 @@ pub(crate) fn produce_retained_terminal_artifact(
         produced.unoptimized(),
         entry_machine_symbol,
     )?;
-    // Read before `into_parts` consumes the production result.
-    let withheld_rewrites = produced.withheld_rewrites().to_vec();
     let (
         artifact,
         _,
@@ -174,8 +165,5 @@ pub(crate) fn produce_retained_terminal_artifact(
             callback_placements,
             native_realization_proposal,
         );
-    Ok(ProducedRetainedTerminal {
-        artifact,
-        withheld_rewrites,
-    })
+    Ok(ProducedRetainedTerminal { artifact })
 }

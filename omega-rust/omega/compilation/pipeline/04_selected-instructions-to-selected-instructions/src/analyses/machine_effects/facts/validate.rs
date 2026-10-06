@@ -1,4 +1,3 @@
-
 use super::receipt;
 use super::{MachineEffectError, ValidatedPreAllocationMachineEffects};
 use selected_instructions::PreAllocationMachineEffectPlan;
@@ -11,4 +10,3 @@ pub(crate) fn seal_pre_allocation_machine_effects(
     let receipt = receipt(&plan)?;
     Ok(ValidatedPreAllocationMachineEffects::new(plan, receipt))
 }
-

@@ -26,8 +26,7 @@ pub use literal_fold::{
     PairTailCustody, PairUnitDefRelation, PairUnitEffects, SelectedInstructionPairRule,
     ValidatedLiteralFold,
 };
-pub(crate) use literal_fold::{
-    fold_selected_incoming_literal, literal_fold_identity, };
+pub(crate) use literal_fold::{fold_selected_incoming_literal, literal_fold_identity};
 
 /// Resolve every selected-lowering catalog row in canonical catalog order.
 ///

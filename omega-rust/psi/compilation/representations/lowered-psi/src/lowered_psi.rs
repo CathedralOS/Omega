@@ -6,16 +6,14 @@ pub use source_custody::{
     LoweredSelectedIntegerComparisonOccurrence, LoweredSelectedIntegerComparisonOperandOrder,
     LoweredSelectedIntegerComparisonOperation, LoweredSourceCallOccurrence,
 };
-use terminal_psi::{ProofBundle, TerminalDebugMap, TerminalModule};
+use terminal_psi::{TerminalDebugMap, TerminalModule};
 
-/// Semantic module and separate replaceable proof artifact produced by the
-/// Psi frontend producer.
+/// Semantic module and source companions produced by the Psi frontend.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LoweredPsi {
     pub selected_ieee_float_comparison_occurrences:
         Vec<LoweredSelectedIeeeFloatComparisonOccurrence>,
     pub semantic_module: TerminalModule,
-    pub proof_bundle: ProofBundle,
     /// Replaceable presentation metadata. The public producer always fills
     /// this after semantic identities are final; private builders leave it
     /// empty until that finalization step.

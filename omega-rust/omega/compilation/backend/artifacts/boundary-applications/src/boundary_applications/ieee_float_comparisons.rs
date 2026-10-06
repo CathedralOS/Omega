@@ -39,7 +39,6 @@ impl TerminalIeeeFloatComparisonOccurrenceProposal {
         }
     }
 
-
     /// Check complete one-to-one association with the independently verified
     /// Terminal operation roster. This does not establish source custody.
     pub fn validate_roster(

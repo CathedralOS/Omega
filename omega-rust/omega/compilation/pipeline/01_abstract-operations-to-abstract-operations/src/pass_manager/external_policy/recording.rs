@@ -1,6 +1,5 @@
 use optimization_core::{
-    BaselineDecisionLog, BaselineDecisionOutcome, ExternalCandidateFeatures,
-    ExternalDecisionPoint,
+    BaselineDecisionLog, BaselineDecisionOutcome, ExternalCandidateFeatures, ExternalDecisionPoint,
 };
 use optimization_core::{
     OptimizationCandidateVerdict, OptimizationDecisionRecord, OptimizationReasonCode,
@@ -69,4 +68,3 @@ pub(crate) fn external_points_from_manifest_decisions(
     }
     Ok(points)
 }
-

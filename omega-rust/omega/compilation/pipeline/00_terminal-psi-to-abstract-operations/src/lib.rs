@@ -65,9 +65,7 @@ pub use artifact_admission::{
     TerminalPlacedViewEstablishment, VerifiedNativeArtifactInput, lower_artifact,
 };
 pub use boundary_application_settlement::BoundaryApplicationSettlement;
-pub use callback_settlement::{
-    CallbackRegistrarOccurrence, settle_callback_registrar_imports,
-    };
+pub use callback_settlement::{CallbackRegistrarOccurrence, settle_callback_registrar_imports};
 pub use comparison_settlement::{
     settle_ieee_float_comparison_occurrences, settle_integer_comparison_occurrences,
 };

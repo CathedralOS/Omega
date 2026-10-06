@@ -24,9 +24,9 @@ mod syntax_projection;
 mod tests;
 
 pub use build_declaration::{
-    ApplicationDeclaration, BUILD_FILE_NAME, BUILD_TYPE_NAME, BuildDeclaration, BuildDeclarationKind,
-    InvalidWorkspaceMemberPath, PackageDeclaration, ProjectName, WorkspaceDeclaration,
-    WorkspaceMemberPath,
+    ApplicationDeclaration, BUILD_FILE_NAME, BUILD_TYPE_NAME, BuildDeclaration,
+    BuildDeclarationKind, InvalidWorkspaceMemberPath, PackageDeclaration, ProjectName,
+    WorkspaceDeclaration, WorkspaceMemberPath,
 };
 pub use declaration_errors::BuildDeclarationError;
 pub use dependencies::{

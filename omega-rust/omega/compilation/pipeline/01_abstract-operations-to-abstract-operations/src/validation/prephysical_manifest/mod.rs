@@ -8,12 +8,10 @@
 
 mod projection;
 
-
 use optimization_core::BaselineDecisionLog;
 use optimization_core::{
-    OptimizationIdentityBundle, OptimizationPassManifestRecord,
-    OptimizationSelections, OptimizationWorkBudget, OptimizationWorkUsage,
-    PrePhysicalOptimizationManifestIdentity,
+    OptimizationIdentityBundle, OptimizationPassManifestRecord, OptimizationSelections,
+    OptimizationWorkBudget, OptimizationWorkUsage, PrePhysicalOptimizationManifestIdentity,
 };
 use optimization_unit::{
     OptimizationManifestStage, OptimizationStructuralStatistics, PhysicalOptimizationDataStatus,

@@ -11,7 +11,7 @@
 use super::{
     Block, CheckedBooleanExpression, CheckedScalarExpression, CheckedStructuralAccess,
     CheckedTrees, LoweredPsi, LoweredSourceCallOccurrence, LoweringError, Operation,
-    OperationResult, PrimitiveType, ProofBundle, StructuralAccess, StructuralParameterDeclaration,
+    OperationResult, PrimitiveType, StructuralAccess, StructuralParameterDeclaration,
     StructuralPlaceDeclaration, StructuralPlaceKind, TerminalDynamicConformanceSelection,
     TerminalDynamicDescriptorArgument, TerminalDynamicDescriptorParameter,
     TerminalDynamicDescriptorSource, TerminalDynamicDispatchCatalog, TerminalMachine,
@@ -419,13 +419,6 @@ pub(super) fn lower<Call: DynamicCall>(
             dynamic_dispatch,
             machines,
             ..TerminalModule::for_entry(caller_machine)
-        },
-        proof_bundle: ProofBundle {
-            crash_obligations: Vec::new(),
-            recursive_components: Vec::new(),
-            control_cycles: Vec::new(),
-            evidence_producers: Vec::new(),
-            evidence: Vec::new(),
         },
         debug_map: None,
         source_call_occurrences,

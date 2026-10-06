@@ -3,7 +3,7 @@
 use super::{
     BTreeMap, Block, CarryPolicy, CheckedStructuralReturnMachinePlan, CheckedTrees,
     DomainSemanticId, EntryClaim, LoweredPsi, LoweringError, MachineContract, Multiplicity,
-    Operation, OperationKind, PermissionClaimIdentity, ProofBundle, RESULT_STRUCTURAL_PLACE_ID,
+    Operation, OperationKind, PermissionClaimIdentity, RESULT_STRUCTURAL_PLACE_ID,
     StructuralDomainDeclaration, StructuralMultiplicity, StructuralPlaceDeclaration,
     StructuralPlaceKind, StructuralResultDeclaration, StructuralTypeId, StructuralTypeShape,
     TerminalMachine, TerminalMachineResult, TerminalModule, Terminator, allocate_dense, block_id,
@@ -289,7 +289,6 @@ pub(crate) fn lower_structural_return_machine(
             machines: vec![machine],
             ..TerminalModule::for_entry(terminal_machine)
         },
-        proof_bundle: ProofBundle::default(),
         debug_map: None,
         source_call_occurrences: Vec::new(),
         selected_ieee_float_comparison_occurrences: Vec::new(),

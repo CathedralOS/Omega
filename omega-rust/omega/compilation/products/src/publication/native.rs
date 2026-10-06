@@ -1,8 +1,7 @@
 //! Native executable and application-package publication.
 use crate::CompileReport;
 use native_artifact::{
-    PreparedDynamicElfPublication, PreparedExecutablePublication,
-    publish_macos_application_package,
+    PreparedDynamicElfPublication, PreparedExecutablePublication, publish_macos_application_package,
 };
 use platform_custody::file_publication::{install_staged_files, stage_exact_bytes};
 
@@ -29,7 +28,6 @@ pub(super) fn publish(
     })?;
     let publication = PreparedExecutablePublication::new(artifact)?;
     let output = artifact.image().output();
-
 
     std::fs::create_dir_all(build_dir).map_err(|error| {
         format!(

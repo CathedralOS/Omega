@@ -11,8 +11,6 @@
 //! realizes native output. Candidate checking is shared with `--check`, but
 //! trust admission and native acceptance/publication remain separate operations.
 
-pub mod evidence;
-
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use compiler::{CheckedCompileRequest, CompileOptions};
 use diagnostics::Diagnostic;
@@ -29,7 +27,6 @@ pub struct InspectTerminalRequest {
 
 pub struct TerminalInspection {
     pub module: TerminalModule,
-    pub fixed_fuel: evidence::FixedFuel,
 }
 
 #[derive(Debug)]
@@ -40,10 +37,6 @@ pub enum InspectTerminalError {
     Lowering {
         machine: String,
         error: checked_trees_to_lowered_psi::LoweringError,
-    },
-    Evidence {
-        machine: String,
-        error: evidence::InspectionError,
     },
 }
 
@@ -65,10 +58,6 @@ impl std::fmt::Display for InspectTerminalError {
                 formatter,
                 "cannot lower terminal machine `{machine}`: {error}"
             ),
-            Self::Evidence { machine, error } => write!(
-                formatter,
-                "cannot inspect terminal machine `{machine}`: {error}"
-            ),
         }
     }
 }
@@ -87,16 +76,8 @@ pub fn inspect_terminal(
         machine: request.machine.clone(),
         error,
     })?;
-    let fixed_fuel =
-        evidence::inspect(&lowered.semantic_module).map_err(|error| {
-            InspectTerminalError::Evidence {
-                machine: request.machine.clone(),
-                error,
-            }
-        })?;
     Ok(TerminalInspection {
         module: lowered.semantic_module,
-        fixed_fuel,
     })
 }
 

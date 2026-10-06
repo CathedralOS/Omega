@@ -2,20 +2,12 @@
 //!
 //! `LoweredSelectedMachine` carries the unsealed module beside the choices the
 //! plan family already made about it: which source machines it closed over
-//! (`SourceMapping`), whether operand proofs are finalized here or only
-//! validated (`OperandProofCompletion`), whether a debug companion is published
+//! (`SourceMapping`), whether a debug companion is published
 //! (`DebugPublication`), and which conformances still need publishing. The
 //! entrance reads those modes to decide what remains to run.
 
 use crate::lowering_error::{LoweringError, unsupported};
 use lowered_psi::LoweredPsi;
-
-#[derive(Default, Debug, PartialEq, Eq)]
-pub(crate) enum OperandProofCompletion {
-    #[default]
-    Validate,
-    Finalize,
-}
 
 #[derive(Default, Debug, PartialEq, Eq)]
 pub(crate) enum DebugPublication {
@@ -55,7 +47,6 @@ impl SourceMapping {
 #[derive(Default)]
 pub(crate) struct LoweringCompletion {
     pub(crate) conformances: ConformancePublication,
-    pub(crate) operands: OperandProofCompletion,
     pub(crate) debug: DebugPublication,
 }
 

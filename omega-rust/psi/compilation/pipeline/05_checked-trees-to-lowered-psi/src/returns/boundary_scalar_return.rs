@@ -1,14 +1,13 @@
 //! Result-bearing boundary custody lowering.
 use super::{
     CheckedBoundaryMachinePlan, CheckedBoundaryScalarReturnMachinePlan, CheckedTrees,
-    DomainSemanticId, LoweredPsi, LoweringError, ProofBundle, ServiceDeclaration, ServiceId,
-    ServiceReachId, ServiceReachSummary, StructuralDomainDeclaration, StructuralTypeId,
-    TerminalModule, boundary_machine_id, checked_unit_boundary_identity,
+    DomainSemanticId, LoweredPsi, LoweringError, ServiceDeclaration, ServiceId, ServiceReachId,
+    ServiceReachSummary, StructuralDomainDeclaration, StructuralTypeId, TerminalModule,
+    boundary_machine_id, checked_unit_boundary_identity,
     collect_installation_machine_contract_services, collect_published_contract_services,
-    collect_service_summary, content_conservation, contract_id, dense_identity,
-    finalize_operation_proofs, lookup_service_id, lookup_type_id, lower_root_service_reach,
-    lower_structural_type_plans, lower_unit_parameters, machine_id, service_id,
-    structural_domain_id, terminal_scalar_type, unsupported,
+    collect_service_summary, content_conservation, contract_id, dense_identity, lookup_service_id,
+    lookup_type_id, lower_root_service_reach, lower_structural_type_plans, lower_unit_parameters,
+    machine_id, service_id, structural_domain_id, terminal_scalar_type, unsupported,
 };
 use crate::producer_result::SourceMappedLowered;
 use crate::scalar_graph::scalar_call_closure::embedded::EmbeddedScalarCalls;
@@ -133,14 +132,12 @@ pub(crate) fn lower_boundary_scalar_return_machine(
             machines: vec![machine],
             ..TerminalModule::for_entry(entry)
         },
-        proof_bundle: ProofBundle::default(),
         debug_map: None,
         source_call_occurrences,
         selected_ieee_float_comparison_occurrences,
         selected_integer_comparison_occurrences,
     };
     scalar_calls.append_to(&mut lowered)?;
-    finalize_operation_proofs(&mut lowered)?;
     Ok(SourceMappedLowered {
         terminal: lowered,
         source_machine_ids,

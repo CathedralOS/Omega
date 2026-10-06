@@ -28,11 +28,12 @@ pub(crate) use machine_effects::analyze_pre_allocation_machine_effects;
 pub(crate) use machine_effects::validated_machine_effect_catalog;
 pub use machine_effects::{
     MachineEffectError, MachineEffectStageError, ValidatedPreAllocationMachineEffects,
-    analyze_machine_effects, };
+    analyze_machine_effects,
+};
 pub use reanalysis::{
     OptimizedSelectedReanalysisError, StagedOptimizedSelectedReanalysis,
     StagedOptimizedSelectedReanalysisCustodyReceipt, stage_optimized_selected_reanalysis,
-    };
+};
 
 pub(crate) mod allocation_legality;
 pub(crate) mod allocator_availability;
@@ -68,11 +69,11 @@ pub use fixed_precolored_split_requirements::{
 pub use recovery_classification::{
     RecoveryClassificationError, RecoveryClassificationValidationReceipt,
     ValidatedRecoveryClassifications, classify_pressure_recovery,
-    };
+};
 pub use selected_input::{OwnedSelectedProgram, SelectedProgramRef, ValidatedSelectedAnalysis};
 pub use spill_choice::{
     SpillChoiceError, SpillChoiceValidationReceipt, ValidatedSpillChoices, choose_spill_victims,
-    };
+};
 
 /// Each function's digest for the receipt identity: a carried function's
 /// comes from its validated predecessor, whose rows it copies; every other

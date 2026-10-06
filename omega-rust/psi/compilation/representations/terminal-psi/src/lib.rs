@@ -15,14 +15,11 @@ pub use artifacts::{
     CheckedProgramEntryDeterminedEvidenceField, CheckedProgramEntryFusedServiceField,
     CheckedProgramEntryReceiverCleanup, CheckedProgramEntryReceiverEligibility,
     CheckedProgramEntryReceiverProjection, CheckedProgramEntryTerminalReceipt,
-    ControlCycleEvidence, CorrelatedAffineBranchWitness, CorrelatedAffineStepWitness,
-    CrashCertificate, CrashObligationEvidence, CrashObligationOwner, DebugFileId, DebugSite,
+    CorrelatedAffineBranchWitness, CorrelatedAffineStepWitness, DebugFileId, DebugSite,
     DebugSourceDigest, DebugSourceFile, DebugSourceOrigin, DebugSourceSpan, DebugSubject,
-    EvidenceProducerProvenance, EvidenceProducerRealization, EvidenceProducerRowSource,
     EvidenceRoute, IntegerAffineWitness, IntegerCastChainWitness,
-    IntegerCorrelatedForbiddenRootWitness, ObligationEvidence, PrimitiveJudgment, ProofBundle,
-    ProofNode, ProofRule, ProofSystemMarker, RecursiveComponentCertificate,
-    RecursiveComponentEvidence, RecursiveEdgeCertificate, TerminalDebugMap,
+    IntegerCorrelatedForbiddenRootWitness, PrimitiveJudgment, ProofNode, ProofRule,
+    ProofSystemMarker, TerminalDebugMap,
 };
 
 pub use language_core::BindingRelevance;

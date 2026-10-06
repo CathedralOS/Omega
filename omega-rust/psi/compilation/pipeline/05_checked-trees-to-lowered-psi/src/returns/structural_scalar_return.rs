@@ -7,13 +7,13 @@ use super::{
     BTreeSet, Block, CheckedNormalCleanupAction, CheckedScalarBindingValue,
     CheckedScalarExpressionRole, CheckedStructuralScalarReturnMachinePlan, CheckedTrees,
     CheckedUnitStructuralTypePlan, LoweredPsi, LoweringError, MachineContract, MachineId,
-    Multiplicity, Operation, PrimitiveType, ProofBundle, ScalarType, StructuralArgument,
+    Multiplicity, Operation, PrimitiveType, ScalarType, StructuralArgument,
     StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeDeclaration,
     TERMINAL_MACHINE_IDENTITY_STRIDE, TerminalAffineCleanupAction, TerminalMachine,
     TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, allocate_dense, block_id,
     boolean_decision_block_count, contains_short_circuit, contract_id, edge_id,
-    emit_direct_expression, emit_inlined_boolean_value_blocks, finalize_operation_proofs,
-    lookup_type_id, lower_boolean_value_decision, lower_checked_scalar_expression_at,
+    emit_direct_expression, emit_inlined_boolean_value_blocks, lookup_type_id,
+    lower_boolean_value_decision, lower_checked_scalar_expression_at,
     lower_checked_scalar_expression_at_with_parameters, lower_structural_type_plans,
     lower_unit_parameters, machine_id, operation_id, terminal_scalar_type, unsupported,
     validate_boolean_parameter_types, validate_direct_parameter_types, value_id,
@@ -341,7 +341,6 @@ pub(crate) fn lower_trait_operator_scalar_return_machine(
     };
     lowered.semantic_module.entry = caller.id;
     lowered.semantic_module.machines.insert(0, caller);
-    finalize_operation_proofs(&mut lowered)?;
     Ok(lowered)
 }
 
@@ -1064,19 +1063,17 @@ pub(crate) fn lower_structural_scalar_return_machine_in_namespace(
         },
     };
     let entry = machine.id;
-    let mut lowered = LoweredPsi {
+    let lowered = LoweredPsi {
         semantic_module: TerminalModule {
             structural_types,
             machines: vec![machine],
             ..TerminalModule::for_entry(entry)
         },
-        proof_bundle: ProofBundle::default(),
         debug_map: None,
         source_call_occurrences: Vec::new(),
         selected_ieee_float_comparison_occurrences: Vec::new(),
         selected_integer_comparison_occurrences: Vec::new(),
     };
-    finalize_operation_proofs(&mut lowered)?;
     Ok(lowered)
 }
 

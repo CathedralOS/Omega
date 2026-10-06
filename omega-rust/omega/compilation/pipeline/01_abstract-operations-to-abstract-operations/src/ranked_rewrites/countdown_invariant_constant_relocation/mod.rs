@@ -33,7 +33,6 @@ pub fn propose_countdown_invariant_constant_relocations(
     propose::all(session, candidate_limit)
 }
 
-
 pub fn apply_countdown_invariant_constant_relocation(
     session: VerifiedPsiOptimizationSession,
     validated: ValidatedCountdownInvariantConstantRelocation,

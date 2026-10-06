@@ -3,19 +3,13 @@
 use semantic_vocabulary::{BlockId, MachineId, OperationId, ValueId};
 use std::collections::BTreeMap;
 use terminal_psi::TerminalModule;
-use terminal_verifier::{
-    ModuleError, reconstruct_optimizable_crash_obligations,
-    reconstruct_optimizable_terminal_obligations, validate_module_for_optimization,
-};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum GlobalValueNumberingRewriteError {
-    InvalidModule(ModuleError),
     ChangedProgramStructure,
     RemovedIneligibleOperation(OperationId),
     MissingDominatingEquivalent(OperationId),
     ChangedMachine(MachineId),
-    ChangedProofQuestion,
 }
 
 /// Check the exact duplicate-removal relation, not the producer's numbering.
@@ -34,10 +28,6 @@ pub fn validate_global_value_numbering(
     before: &TerminalModule,
     after: &TerminalModule,
 ) -> Result<(), GlobalValueNumberingRewriteError> {
-    let before_valid = validate_module_for_optimization(before)
-        .map_err(GlobalValueNumberingRewriteError::InvalidModule)?;
-    let after_valid = validate_module_for_optimization(after)
-        .map_err(GlobalValueNumberingRewriteError::InvalidModule)?;
     if before.machines.len() != after.machines.len() {
         return Err(GlobalValueNumberingRewriteError::ChangedProgramStructure);
     }
@@ -141,25 +131,6 @@ pub fn validate_global_value_numbering(
     }
     if &expected != after {
         return Err(GlobalValueNumberingRewriteError::ChangedProgramStructure);
-    }
-    let old_question = reconstruct_optimizable_terminal_obligations(before_valid)
-        .map_err(GlobalValueNumberingRewriteError::InvalidModule)?;
-    let new_question = reconstruct_optimizable_terminal_obligations(after_valid)
-        .map_err(GlobalValueNumberingRewriteError::InvalidModule)?;
-    if old_question != new_question {
-        return Err(GlobalValueNumberingRewriteError::ChangedProofQuestion);
-    }
-    // The crash-obligation roster is a second reconstructed question: a
-    // rewrite that leaves every terminal obligation intact may still retarget
-    // a crash site's reconstructed paths or a continuation's coverage goal,
-    // and the supplied certificates answer only the questions they were
-    // produced against.
-    let old_crash = reconstruct_optimizable_crash_obligations(before_valid)
-        .map_err(GlobalValueNumberingRewriteError::InvalidModule)?;
-    let new_crash = reconstruct_optimizable_crash_obligations(after_valid)
-        .map_err(GlobalValueNumberingRewriteError::InvalidModule)?;
-    if old_crash != new_crash {
-        return Err(GlobalValueNumberingRewriteError::ChangedProofQuestion);
     }
     Ok(())
 }

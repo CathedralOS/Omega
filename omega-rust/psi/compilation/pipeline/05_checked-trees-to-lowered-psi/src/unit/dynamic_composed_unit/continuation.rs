@@ -1,12 +1,11 @@
 //! One direct named-dynamic scalar result followed by checked Unit control.
 use super::super::{
-    BlockId, SuccessorEdge, emit_direct_expression, finalize_operation_proofs,
-    lower_checked_crash_route_buckets, lower_checked_scalar_expression,
-    validate_direct_parameter_types,
+    BlockId, SuccessorEdge, emit_direct_expression, lower_checked_crash_route_buckets,
+    lower_checked_scalar_expression, validate_direct_parameter_types,
 };
 use super::{
     Block, CheckedDynamicScalarCallPlan, CheckedTrees, LoweredPsi, LoweringError, Operation,
-    OperationKind, OperationResult, ProofBundle, StructuralPlaceDeclaration, StructuralPlaceKind,
+    OperationKind, OperationResult, StructuralPlaceDeclaration, StructuralPlaceKind,
     TerminalDynamicDispatchCatalog, TerminalMachine, TerminalMachineResult, TerminalModule,
     Terminator, ValueDeclaration, allocate_dense, block_id, edge_id, lookup_type_id,
     lower_installation_machine_service_ceiling, machine_id, operation_id, place_id,
@@ -343,13 +342,6 @@ pub(super) fn lower(
             boundary_machines: catalogs.boundary_machines.into_owned(),
             ..TerminalModule::for_entry(caller_machine)
         },
-        proof_bundle: ProofBundle {
-            crash_obligations: Vec::new(),
-            recursive_components: Vec::new(),
-            control_cycles: Vec::new(),
-            evidence_producers: Vec::new(),
-            evidence: Vec::new(),
-        },
         debug_map: None,
         source_call_occurrences: Vec::new(),
         selected_ieee_float_comparison_occurrences: Vec::new(),
@@ -415,7 +407,6 @@ pub(super) fn lower(
         dynamic_dispatch,
     );
     catalogs.scalar_calls.append_to(&mut lowered)?;
-    finalize_operation_proofs(&mut lowered)?;
     retain_dynamic_source_owners(
         lowered,
         &view,

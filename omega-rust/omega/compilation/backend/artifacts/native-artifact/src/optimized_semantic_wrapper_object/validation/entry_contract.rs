@@ -3,8 +3,7 @@ use object_file::StagedValidatedOptimizedObjectArtifact;
 use program_entry_plan::{
     OptimizedProgramStorageSemanticCallingApplication,
     OptimizedProgramStorageSemanticEntryContract, OptimizedProgramStorageSemanticReceiverLayout,
-    ProgramEntrySourceReceiverSignature,
-    bind_optimized_program_storage_semantic_entry_contract,
+    ProgramEntrySourceReceiverSignature, bind_optimized_program_storage_semantic_entry_contract,
 };
 use semantic_vocabulary::{IntegerSign, ScalarType, StructuralPlaceKind};
 use terminal_psi::{

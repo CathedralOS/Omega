@@ -13,10 +13,9 @@ use super::{
     LoweredPsi, LoweringError, PrimitiveType, ScalarType, StructuralPlaceDeclaration,
     StructuralPlaceKind, TerminalAffineCleanupAction, TerminalMachineResult, Terminator,
     ValueDeclaration, allocate_dense, block_id, boolean_decision_block_count, edge_id,
-    emit_direct_expression, emit_inlined_boolean_value_blocks, finalize_operation_proofs,
-    lower_boolean_value_decision, lower_checked_scalar_expression_at, lower_unit_parameters,
-    terminal_scalar_type, unsupported, validate_boolean_parameter_types,
-    validate_direct_parameter_types, value_id,
+    emit_direct_expression, emit_inlined_boolean_value_blocks, lower_boolean_value_decision,
+    lower_checked_scalar_expression_at, lower_unit_parameters, terminal_scalar_type, unsupported,
+    validate_boolean_parameter_types, validate_direct_parameter_types, value_id,
 };
 use crate::emission::boolean_control::LoweredBooleanDecisionExit;
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
@@ -1160,7 +1159,6 @@ pub(super) fn lower_nominal_structural_scalar_return_machine(
             },
         },
     );
-    finalize_operation_proofs(&mut lowered)?;
     Ok(lowered)
 }
 

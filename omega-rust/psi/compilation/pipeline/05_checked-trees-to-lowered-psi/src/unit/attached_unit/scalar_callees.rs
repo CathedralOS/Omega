@@ -22,7 +22,7 @@ use super::{
 use crate::expression_preparation::qualifications::PreparedScalarQualifications;
 use crate::scalar_graph::scalar_graph_lowering::ScalarContractMode;
 use crate::terminal_identities::StructuralDomainBinding;
-use terminal_psi::{ObligationEvidence, ScalarBlockInvariant, ScalarQualificationCatalog};
+use terminal_psi::{ScalarBlockInvariant, ScalarQualificationCatalog};
 pub(super) fn retain_catalog_roots<'checked>(
     checked: &'checked CheckedTrees,
     callees: &[CheckedScalarCallee<'checked>],
@@ -275,7 +275,6 @@ pub(super) struct EmissionCatalog<'a> {
 /// What scalar callee emission publishes beside its machines and occurrence
 /// rows.
 pub(super) struct EmittedScalarCallees {
-    pub(super) evidence: Vec<ObligationEvidence>,
     pub(super) scalar_block_invariants: Vec<ScalarBlockInvariant>,
     /// Domains and sets share one prepared namespace. Coercions and entry
     /// ranges additionally retain their emitted machine-local identities.
@@ -294,7 +293,6 @@ pub(super) fn emit(
     occurrences: &mut ClosureOccurrences,
 ) -> Result<EmittedScalarCallees, LoweringError> {
     let mut output = EmittedScalarCallees {
-        evidence: Vec::new(),
         scalar_block_invariants: Vec::new(),
         qualifications: prepared.qualifications,
     };
@@ -323,7 +321,6 @@ pub(super) fn emit(
             output
                 .scalar_block_invariants
                 .append(&mut lowered.semantic_module.scalar_block_invariants);
-            output.evidence.append(&mut lowered.proof_bundle.evidence);
             occurrences.retain_lowered(&mut lowered);
             continue;
         }
@@ -478,7 +475,6 @@ pub(super) fn emit(
                 .scalar_qualifications
                 .integer_entry_ranges,
         );
-        output.evidence.append(&mut lowered.proof_bundle.evidence);
         occurrences.retain_lowered(&mut lowered);
     }
     Ok(output)

@@ -27,9 +27,7 @@ mod projection;
 pub(crate) mod relocation_rewrites;
 mod scalar_case_frontiers;
 
-pub(crate) use scalar_case_frontiers::{
-    rewrite_relocated_case_result_frontiers,
-};
+pub(crate) use scalar_case_frontiers::rewrite_relocated_case_result_frontiers;
 
 pub use context::{
     ValidatedOptimizerCycleComponents, ValidatedOptimizerRankingCertificates,
@@ -40,6 +38,5 @@ pub use prephysical_manifest::{
     project_pre_physical_optimization_manifest,
 };
 pub use projection::{
-    ValidatedOptimizedAbstractPlanProjection,
-    seal_optimized_abstract_plan_projection,
+    ValidatedOptimizedAbstractPlanProjection, seal_optimized_abstract_plan_projection,
 };

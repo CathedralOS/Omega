@@ -8,9 +8,7 @@ use super::{
     project_conventional_record_with_sum_materialization_layout,
     project_conventional_sum_materialization_layout, unique_data_layout,
 };
-use build_time_evaluation::{
-    BuildTimeValue, validate_const_materializable_conventional_sum,
-    };
+use build_time_evaluation::{BuildTimeValue, validate_const_materializable_conventional_sum};
 use layout_plans::{ByteOrder, normalized_conventional_sum_layout_report_fingerprint};
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;

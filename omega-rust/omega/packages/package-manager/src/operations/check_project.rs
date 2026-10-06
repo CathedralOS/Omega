@@ -66,7 +66,6 @@ impl PreparedLocalProjectCheckRequest {
         self
     }
 
-
     /// Select the root build's input inventory and output obligations. Dependency
     /// builds retain their independently captured package inventories.
     pub fn with_build_snapshot(mut self, snapshot: build_evaluation::BuildSnapshotRequest) -> Self {
@@ -229,7 +228,7 @@ pub fn check_prepared_local_project_for_targets(
                 &entry_path,
                 &build_dir.join(profile.target_name()),
                 build_snapshot.as_ref(),
-                        verify,
+                verify,
                 timings,
                 &mut preparation,
             );

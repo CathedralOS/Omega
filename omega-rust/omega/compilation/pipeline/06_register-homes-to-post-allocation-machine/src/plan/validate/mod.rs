@@ -9,11 +9,9 @@ mod instruction;
 mod ordinary;
 mod roots;
 
-
 use super::post_allocation_receipt;
 use crate::{PostAllocationMachineError, ValidatedPostAllocationMachinePlan};
 use physical_instructions::PostAllocationMachinePlan;
-
 
 /// Admit a freshly produced plan with its receipt; the producer calls this
 /// instead of replaying its own output.

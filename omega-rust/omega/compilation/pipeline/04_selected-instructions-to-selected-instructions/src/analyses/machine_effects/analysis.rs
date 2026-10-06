@@ -1,5 +1,5 @@
-use crate::analyses::analyze_pre_allocation_machine_effects;
 use crate::ValidatedPreAllocationMachineEffects;
+use crate::analyses::analyze_pre_allocation_machine_effects;
 
 use register_environment::ValidatedTargetRegisterEnvironment;
 
@@ -22,4 +22,3 @@ pub(super) fn analyze<S: crate::ValidatedSelectedAnalysis>(
     )
     .map_err(MachineEffectStageError::Analysis)
 }
-

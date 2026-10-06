@@ -43,11 +43,7 @@ fn staged_replacement_preserves_live_source_and_reuses_snapshot_after_edit() {
         std::fs::create_dir_all(root.join("nested/empty")).expect("create empty directory");
         std::fs::write(root.join("nested/omega.lock"), b"nested source")
             .expect("write captured nested lock");
-        for excluded in [
-            ".git/index",
-            "build/output",
-            "omega.lock",
-        ] {
+        for excluded in [".git/index", "build/output", "omega.lock"] {
             let path = root.join(excluded);
             std::fs::create_dir_all(path.parent().unwrap()).expect("create excluded parent");
             std::fs::write(path, b"excluded").expect("write excluded content");
@@ -193,11 +189,7 @@ fn assert_invalid_replacement(root: &Path, lane: &RetainedStorageLane, relative_
 fn staged_replacement_rejects_missing_directory_and_excluded_paths() {
     with_staging_source("staging-invalid-target", |root, lane| {
         std::fs::create_dir(root.join("directory")).expect("create directory target");
-        let excluded = [
-            ".git/index",
-            "build/output",
-            "omega.lock",
-        ];
+        let excluded = [".git/index", "build/output", "omega.lock"];
         for relative_path in excluded {
             let path = root.join(relative_path);
             std::fs::create_dir_all(path.parent().unwrap()).unwrap();

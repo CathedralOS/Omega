@@ -54,9 +54,7 @@ pub(crate) use analyses::{
 pub use pass_manager::OptimizationRunError;
 pub(crate) use pass_manager::PsiValidatedCandidateDeclaration;
 pub(crate) use pass_manager::VerifiedPsiOptimizationSession;
-pub(crate) use pass_manager::{
-    OptimizationRun, OptimizationRunUsage, PsiOptimizationCommit,
-};
+pub(crate) use pass_manager::{OptimizationRun, OptimizationRunUsage, PsiOptimizationCommit};
 pub use ranked_rewrites::LoopInvariantScalarMotionError;
 pub(crate) use rules::registry::{
     OrderedRuleRegistry, PsiOptimizationRule, RuleAnalysisView, RuleProposalError,

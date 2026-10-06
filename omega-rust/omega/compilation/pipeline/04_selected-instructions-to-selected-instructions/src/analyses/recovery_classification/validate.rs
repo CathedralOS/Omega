@@ -1,11 +1,10 @@
-
 use crate::{
-    RecoveryClassificationError, RecoveryClassificationValidationReceipt, ValidatedRecoveryClassifications,
+    RecoveryClassificationError, RecoveryClassificationValidationReceipt,
+    ValidatedRecoveryClassifications,
 };
 use register_homes::{
     RecoveryClassification, RecoveryClassificationPlan, recovery_classification_identity,
 };
-
 
 /// Admit a freshly produced plan with its receipt; the producer calls this
 /// instead of replaying its own output.
@@ -54,4 +53,3 @@ pub(crate) fn seal_recovery_classifications(
     };
     Ok(ValidatedRecoveryClassifications { plan, receipt })
 }
-

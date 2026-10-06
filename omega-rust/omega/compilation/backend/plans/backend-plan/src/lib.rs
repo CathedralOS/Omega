@@ -89,7 +89,7 @@ mod callback_root_schedule;
 pub use callback_artifacts::{
     NativeCallbackThunkSettlement, TerminalCallbackOccurrenceProposal,
     TerminalCallbackThunkArtifact, admitted_native_callback_thunks,
-    };
+};
 pub use callback_placements::{
     BoundCallbackPrivateMaterialization, BoundNominalCallbackPlacement,
     CallbackPlacementBindingIdentity, CallbackThunkPlan, callback_placement_binding_identity,

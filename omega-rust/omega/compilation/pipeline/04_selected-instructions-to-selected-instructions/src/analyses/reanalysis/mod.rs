@@ -9,7 +9,6 @@ mod custody;
 mod invariants;
 mod validation;
 
-
 use crate::StagedOptimizedFixedViewCopies;
 use crate::{
     AllocationLegalityError, LiveRangeError, LivenessError, OptimizedFixedViewCopyCustodyError,

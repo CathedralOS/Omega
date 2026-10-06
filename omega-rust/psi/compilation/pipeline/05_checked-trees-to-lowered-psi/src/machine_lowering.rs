@@ -34,11 +34,8 @@ use crate::machine_lowering::machine_dispatch::{
     TerminalMachineSelection, lower_selected_machine, select_terminal_machine,
 };
 use crate::machine_lowering::reborrow_handoffs::retain_admitted_reborrow_root_handoffs;
-use crate::producer_result::{DebugPublication, LoweredSelectedMachine, OperandProofCompletion};
+use crate::producer_result::{DebugPublication, LoweredSelectedMachine};
 use crate::proofs::evidence_lowering::lower_and_install_evidence_artifacts;
-use crate::proofs::mathematical_declarations::admit_mathematical_declarations;
-use crate::proofs::operation_proofs::finalize_operation_proofs;
-use crate::proofs::proof_recursion::lower_and_install_proof_recursion;
 use crate::retention::placed_view_inputs::retain_selected_placed_view_inputs;
 use crate::retention::{
     closed_reach_applications, operation_crash_contracts, reborrow_restored_call_use,
@@ -192,7 +189,6 @@ fn lower_terminal_selection(
     checked: &CheckedTrees,
     selection: &checked_trees::CheckedTerminalMachineSelection,
 ) -> Result<LoweredPsi, LoweringError> {
-    admit_mathematical_declarations(checked)?;
     reject_conditional_claim_joins(checked, &[selection.machine])?;
     // Custody gates order deliberately: this program-level check runs before
     // per-machine lowering, so a custody-carrying unit-effects plan whose
@@ -285,56 +281,12 @@ fn lower_terminal_selection(
     )?;
     retain_float_meanings(checked, &projection_sources, &mut lowered)?;
     lower_and_install_evidence_artifacts(checked, selection.machine, &mut lowered)?;
-    lower_and_install_proof_recursion(
-        checked,
-        &source_machines,
-        &mut lowered.semantic_module,
-        &mut lowered.proof_bundle,
-    )?;
     // Proof-only quotient correspondence rows join module identity before
     // validation; a nonempty table is then refused by the execution gate below
     // until executable quotient lowering exists.
     crate::emission::operation_emission::place_declarations::reconcile_leaf_copy_place_declarations(
         &mut lowered.semantic_module,
     );
-    // Unit closures can be provisional inputs to cleanup/borrow assembly.
-    // Discharge operand obligations only after the selected module is complete.
-    if completion.operands == OperandProofCompletion::Finalize {
-        if let Err(error) = finalize_operation_proofs(&mut lowered) {
-            return Err(error);
-        }
-    } else if lowered
-        .semantic_module
-        .machines
-        .iter()
-        .any(|machine| machine.ranked_scc.is_some())
-    {
-        if let Err(error) =
-            terminal_verifier::validate_module_for_interpretation(&lowered.semantic_module)
-        {
-            return Err(LoweringError::InvalidTerminalModule(error));
-        }
-    } else {
-        if let Err(error) = terminal_verifier::validate_module(&lowered.semantic_module) {
-            return Err(LoweringError::InvalidTerminalModule(error));
-        }
-    }
-    // The crash-certificate roster answers the questions the verifier
-    // reconstructs from this exact finished module. Producing it here — after
-    // crash contracts, custody retention, and proof installation settle —
-    // keeps the supplied rows keyed to the artifact, not to a mid-lowering
-    // module the receiver never sees.
-    lowered.proof_bundle.crash_obligations =
-        crate::produce_crash_obligation_evidence(&lowered.semantic_module).map_err(|error| {
-            match error {
-                crate::CrashRosterError::Module(error) => {
-                    LoweringError::InvalidTerminalModule(error)
-                }
-                crate::CrashRosterError::Undischarged(owners) => {
-                    LoweringError::UndischargedCrashObligations(owners)
-                }
-            }
-        })?;
     lowered.debug_map = if selection.signature == CheckedTerminalSignatureEligibility::Eligible
         && completion.debug == DebugPublication::FromCheckedPlan
     {

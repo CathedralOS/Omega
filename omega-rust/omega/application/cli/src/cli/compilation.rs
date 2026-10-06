@@ -174,17 +174,6 @@ fn print_elapsed(started: std::time::Instant) {
 }
 
 fn print_outcome(outcome: &omega::compilation::CompileProjectOutcome) {
-    // A pass that proposed a rewrite and withheld it is a different outcome
-    // from a pass that found nothing, and the published product is identical
-    // either way. Naming the exact rule and reason is the only way the
-    // difference reaches the person compiling.
-    for withheld in outcome.report.withheld_rewrites() {
-        println!(
-            "optimizer withheld {}: {}",
-            withheld.optimization().name(),
-            withheld.reason().name()
-        );
-    }
     if let Some(path) = &outcome.executable_path {
         if let Some(receipt) = outcome.report.optimization_rollback_receipt() {
             println!("optimizer rollback: {receipt}");

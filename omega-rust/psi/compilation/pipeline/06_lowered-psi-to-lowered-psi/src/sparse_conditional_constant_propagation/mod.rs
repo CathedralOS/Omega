@@ -28,20 +28,9 @@ pub(super) use validation::SparseConditionalConstantPropagationRewriteError;
 
 use crate::PsiOptimizationStageError;
 use lowered_psi::LoweredPsi;
-use terminal_verifier::{
-    reconstruct_optimizable_terminal_obligations, validate_module_for_optimization,
-};
 use validation::validate_sparse_conditional_constant_propagation;
 
 pub(super) fn propagate(before: LoweredPsi) -> Result<LoweredPsi, PsiOptimizationStageError> {
-    let validated = validate_module_for_optimization(&before.semantic_module)
-        .map_err(PsiOptimizationStageError::InvalidModule)?;
-    let questions = reconstruct_optimizable_terminal_obligations(validated)
-        .map_err(PsiOptimizationStageError::InvalidModule)?;
-    // Call composition can include a callee's axioms in another machine's
-    // obligation: the verifier's reconstructed-question check is the refusal
-    // boundary for the complete closure, not just the obligation owner.
-    let proof_bearing = !questions.obligations().is_empty();
     let mut after = before.clone();
     for machine in &mut after.semantic_module.machines {
         folding::fold(machine);
@@ -50,18 +39,6 @@ pub(super) fn propagate(before: LoweredPsi) -> Result<LoweredPsi, PsiOptimizatio
         &before.semantic_module,
         &after.semantic_module,
     ) {
-        // Without proof-context transport a proof-bearing input keeps only a
-        // rewrite the reconstructed question survives unchanged; a refused
-        // rewrite leaves the module as authored.
-        if proof_bearing
-            && matches!(
-                error,
-                SparseConditionalConstantPropagationRewriteError::InvalidModule(_)
-                    | SparseConditionalConstantPropagationRewriteError::ChangedProofQuestion
-            )
-        {
-            return Ok(before);
-        }
         return Err(
             PsiOptimizationStageError::InvalidSparseConditionalConstantPropagationRewrite(error),
         );

@@ -61,10 +61,7 @@ impl CheckedCompilation {
         let source_file_count = self.sources().source_file_count();
         let timings = self.timings().phases().to_vec();
         if requested == RequestedCompileProduct::Check {
-            requested.admit_build_requirements(
-                self.build_admission().artifact_only(),
-                rollback,
-            )?;
+            requested.admit_build_requirements(self.build_admission().artifact_only(), rollback)?;
             // A check never acquires completed output files.
             return CompileReport::check_only(root_path, source_file_count)
                 .map(|report| CheckedProductReport::Complete(report.with_timings(timings)))

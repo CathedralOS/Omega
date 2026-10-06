@@ -9,23 +9,15 @@
 
 mod evidence_terms;
 mod guarded_call_evidence;
-mod producer_provenance;
 mod proof_output_calls;
 
-use super::{
-    CheckedTrees, EvidenceRoute, LoweredPsi, LoweringError, ObligationEvidence, PrimitiveJudgment,
-    Proposition, unsupported,
-};
-use crate::machine_lowering::guarded_exits::exact_payloadless_return_guard;
+use super::{CheckedTrees, LoweredPsi, LoweringError, unsupported};
 use crate::proofs::evidence_lowering::evidence_terms::{
     lower_evidence_contract_lanes, lower_evidence_term_ids, lower_evidence_terms,
     lower_proposition_vocabulary,
 };
 use crate::proofs::evidence_lowering::guarded_call_evidence::{
     lower_and_install_payloadless_guarded_call_evidence, lower_outcome_specific_ensures,
-};
-use crate::proofs::evidence_lowering::producer_provenance::{
-    hex_bytes, lower_evidence_producer_provenance,
 };
 use crate::proofs::evidence_lowering::proof_output_calls::lower_proof_output_calls;
 
@@ -75,10 +67,6 @@ pub(crate) fn lower_and_install_evidence_artifacts(
         &declarations,
         &applications,
     )?;
-    let evidence_producers =
-        lower_evidence_producer_provenance(checked, machine, &evidence_terms.term_ids)?;
-
-    lowered.proof_bundle.evidence_producers = evidence_producers;
     lowered.semantic_module.proposition_declarations = declarations;
     lowered.semantic_module.proposition_applications = applications;
     lowered.semantic_module.evidence_terms = evidence_terms.declarations;
@@ -93,22 +81,16 @@ pub(crate) fn lower_and_install_evidence_artifacts(
             "selected terminal machine is absent while installing guarded guarantees",
         ))?;
     entry.contract.outcome_specific_ensures = outcome_specific_ensures;
-    for row in &entry.contract.outcome_specific_ensures {
-        if row.evidence.is_none()
-            && row.proposition == Proposition::Truth
-            && exact_payloadless_return_guard(entry) == Some(row.guard)
-        {
-            lowered.proof_bundle.evidence.push(ObligationEvidence {
-                obligation: row.obligation,
-                route: EvidenceRoute::KernelDerived(PrimitiveJudgment::Truth),
-            });
-        }
-    }
-    lowered
-        .proof_bundle
-        .evidence
-        .sort_by_key(|evidence| evidence.obligation);
     Ok(())
+}
+
+fn hex_bytes(bytes: &[u8]) -> String {
+    let mut rendered = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        use std::fmt::Write;
+        write!(&mut rendered, "{byte:02x}").expect("writing to a String cannot fail");
+    }
+    rendered
 }
 
 pub(crate) fn checked_evidence_requirement_identity(

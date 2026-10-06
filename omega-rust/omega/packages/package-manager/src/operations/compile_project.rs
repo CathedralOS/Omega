@@ -80,7 +80,6 @@ impl PreparedLocalProjectNativeRequest {
         self
     }
 
-
     pub fn with_optimization_rollback(mut self, rollback: OptimizationRollback) -> Self {
         self.optimization_rollback = rollback;
         self
@@ -357,7 +356,6 @@ fn compile_one_prepared_target<Observation>(
                 settlement
                     .with_timings(produced.timings)
                     .finish_native(produced.artifact, produced.rollback_receipt)
-                    .map(|report| report.with_withheld_rewrites(produced.withheld_rewrites))
             })
         }
         compilation_products::CheckedProductReport::Terminal(_) => Err(vec![Diagnostic::error(

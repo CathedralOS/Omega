@@ -3,17 +3,12 @@
 use semantic_vocabulary::{MachineId, ValueId};
 use std::collections::BTreeMap;
 use terminal_psi::TerminalModule;
-use terminal_verifier::{
-    ModuleError, reconstruct_optimizable_crash_obligations,
-    reconstruct_optimizable_terminal_obligations, validate_module_for_optimization,
-};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SparseConditionalConstantPropagationRewriteError {
-    InvalidModule(ModuleError),
+    InvalidOperationSemantic(terminal_semantics::OperationSemanticError),
     ChangedProgramStructure,
     ChangedMachine(MachineId),
-    ChangedProofQuestion,
 }
 
 /// Check the exact constant-fold relation, not the producer's literal scan.
@@ -43,31 +38,8 @@ pub fn validate_sparse_conditional_constant_propagation(
     after: &TerminalModule,
 ) -> Result<(), SparseConditionalConstantPropagationRewriteError> {
     use SparseConditionalConstantPropagationRewriteError as RewriteError;
-    let before_valid =
-        validate_module_for_optimization(before).map_err(RewriteError::InvalidModule)?;
-    let after_valid =
-        validate_module_for_optimization(after).map_err(RewriteError::InvalidModule)?;
     if before.machines.len() != after.machines.len() {
         return Err(RewriteError::ChangedProgramStructure);
-    }
-    let old_question = reconstruct_optimizable_terminal_obligations(before_valid)
-        .map_err(RewriteError::InvalidModule)?;
-    let new_question = reconstruct_optimizable_terminal_obligations(after_valid)
-        .map_err(RewriteError::InvalidModule)?;
-    if old_question != new_question {
-        return Err(RewriteError::ChangedProofQuestion);
-    }
-    // The crash-obligation roster is a second reconstructed question: a
-    // rewrite that leaves every terminal obligation intact may still retarget
-    // a crash site's reconstructed paths or a continuation's coverage goal,
-    // and the supplied certificates answer only the questions they were
-    // produced against.
-    let old_crash = reconstruct_optimizable_crash_obligations(before_valid)
-        .map_err(RewriteError::InvalidModule)?;
-    let new_crash = reconstruct_optimizable_crash_obligations(after_valid)
-        .map_err(RewriteError::InvalidModule)?;
-    if old_crash != new_crash {
-        return Err(RewriteError::ChangedProofQuestion);
     }
     let mut expected = before.clone();
     for ((old, new), expected_machine) in before
@@ -153,9 +125,8 @@ pub fn validate_sparse_conditional_constant_propagation(
                         &literals,
                         &value_types,
                     )
-                    .map_err(|error| {
-                        RewriteError::InvalidModule(ModuleError::OperationSemanticSchema(error))
-                    })? && let Some(literal) = elision.result_literal()
+                    .map_err(RewriteError::InvalidOperationSemantic)?
+                        && let Some(literal) = elision.result_literal()
                     {
                         literals.insert(
                             result.id,

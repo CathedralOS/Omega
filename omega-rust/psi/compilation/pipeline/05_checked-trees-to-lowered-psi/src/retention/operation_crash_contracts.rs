@@ -215,8 +215,10 @@ fn lower_site(
             ))
         })
         .collect::<Result<BTreeMap<_, _>, LoweringError>>()?;
-    let crash_continuations =
-        terminal_verifier::substitute_crash_routes(&published_routes, &substitutions);
+    let crash_continuations = terminal_semantics::substitution::substitute_crash_routes(
+        &published_routes,
+        &substitutions,
+    );
     Ok(Some(TerminalOperationCrashContract {
         machine: machine_id,
         operation: operation_id,
@@ -415,7 +417,7 @@ fn reindex_formal_telescope(
             ))
         })
         .collect::<Result<BTreeMap<_, _>, LoweringError>>()?;
-    Ok(terminal_verifier::substitute_crash_routes(
+    Ok(terminal_semantics::substitution::substitute_crash_routes(
         &routes, &renaming,
     ))
 }

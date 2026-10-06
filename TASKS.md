@@ -190,14 +190,14 @@ helper that passes does not close an item.
     counts; the native compile (`omega --timings --target macos_arm64`) takes
     645 s: 16 s checking, 16 s settlement, 229 s Psi lowering, about 384 s
     native realization. Stack samples put the lowering
-    time in certificate production that **PCC-CERTIFICATES-DELETED** removes,
+    certificate production in that profile is now deleted; remeasure lowering,
     and most of realization in spill recovery
     (`selected_instructions_to_register_homes/src/assignment/runtime_spill/recovery.rs::recover_over`),
     which re-analyzes the changed function's liveness, live ranges and
     allocation legality at each of several hundred steps (per-function digest
     reuse already skips unchanged functions; do not implement it again).
-  - Verification removal belongs to **OMEGA-READS-TERMINAL-UNVERIFIED** and
-    **PCC-CERTIFICATES-DELETED**. The old stage 03 legalization replay is gone;
+  - Terminal receiver verification and certificate production are gone. The old
+    stage 03 legalization replay is also gone;
     do not restore it or create a new replay harness as a prerequisite.
   Acceptance: the sample native gate builds the app within its normal timeout
   and the app meets the oracle in
@@ -249,9 +249,8 @@ helper that passes does not close an item.
     affine result`. Stage 04's
     `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/execution/terminal_unit/calls/structural_result_call.rs`
     and `omega-rust/psi/compilation/checking/src/machine_calls/structural_call_custody.rs`
-    conflate input transfers with returned claims. The Terminal verifier's
-    copy (`.../validation/structural/operations/unit_operation/structural_calls.rs`)
-    is deleted by **OMEGA-READS-TERMINAL-UNVERIFIED**; do not extend it.
+    conflate input transfers with returned claims. The former Terminal-verifier
+    copy is gone; do not recreate it.
   Acceptance: the unchanged customer checks and produces a terminal artifact
   through `omega run`. Native execution additionally needs a selected
   `Task::finish` provider; source declarations alone do not supply one.
@@ -661,9 +660,8 @@ defines the complete product bar.
     checking and interprets to 70 unchanged, but `python3 tools/corpus_gate.py
     --both --filter runtime_direct_view_requires_index_exit` still fails native
     production with `OperationProofUnavailable(ObligationId(9223372036854775808))`.
-    This customer depends on **PCC-CERTIFICATES-DELETED**, after
-    **CHECKER-DISCHARGES-OPERATION-OBLIGATIONS**; do not extend late certificate
-    search. Its expected native exit remains 70. Carry exact
+    Late certificate search is gone; reproduce the current failure before
+    repair. Its expected native exit remains 70. Carry exact
     anonymous arithmetic through generic, boundary, aggregate, parameter,
     float and proof uses with result carrier/policy and warning origins.
     **OPERATOR-MACHINE-SUPPLY** owns executable selected helpers.
@@ -745,8 +743,8 @@ defines the complete product bar.
     `runtime_abandoned_record_construction_prefix_exit` and
     `runtime_generic_reserved_construction_exit` reach the same retiring
     replay; `runtime_empty_array_owner_cleanup_exit` reaches
-    `ZeroedStructuralResultMismatch`. **OMEGA-READS-TERMINAL-UNVERIFIED** and
-    **TERMINAL-VERIFIER-DELETED** own removal of those consumer fences.
+    `ZeroedStructuralResultMismatch` in the old receiver replay. Reproduce the
+    current frontier before changing this item.
     The nested-guarantee witness
     `pass/drops/runtime_nested_cleanup_postcondition_exit` passes source
     checking but reaches retiring `InvalidNominalAffineCleanup` during native
@@ -755,8 +753,8 @@ defines the complete product bar.
     Borrowed whole-root and field replacement still reaches
     `OperationProofUnavailable` in
     `pass/drops/runtime_borrowed_nominal_replacement_exit` on macOS ARM64.
-    The undischarged site is `ContractEnsures`, not a primitive operation;
-    **PCC-CERTIFICATES-DELETED** owns that retiring reconstruction. Keep
+    The old undischarged site was `ContractEnsures`, not a primitive operation;
+    late reconstruction is gone, so reproduce the current frontier. Keep
     `fail/drops/borrowed_replacement_old_hook_prerequisite` as the old-value
     prerequisite control. Preserve exact source-window call occurrences until
     cleanup effects finish; an incomplete effect table cannot decide whether
@@ -765,18 +763,17 @@ defines the complete product bar.
     Re-establishment after an owned transfer still reaches
     `EdgeAffineDiscardsInvalid` at edge 10 in
     `pass/drops/runtime_owned_replacement_reestablishment_exit` on macOS ARM64:
-    the retiring verifier sorts homes by producer order rather than the
-    source-declaration-order action stream. **OMEGA-READS-TERMINAL-UNVERIFIED**
-    and **TERMINAL-VERIFIER-DELETED** own removal of that replay. Keep
+    the retired verifier sorted homes by producer order rather than the
+    source-declaration-order action stream. Reproduce the current frontier. Keep
     `runtime_owned_{record_replacement,nominal_replacement,replacement_composition}_exit`
     and `fail/drops/owned_replacement_{old_hook_prerequisite,transferred_source_read}`
     as value-home, occurrence and invalid-custody controls.
   - Abstract optimization validation still requires whole owned successor
     arguments in
     `omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/unit_validation/function_structure/structural_transfers.rs`.
-    Preserve selected-subtree contracts as **OMEGA-READS-TERMINAL-UNVERIFIED**
-    moves ownership analysis out of the retiring verifier; do not add a second
-    independent replay. Coordinate the static-maze loan outcome.
+    Preserve selected-subtree contracts through stage 01's current-ownership
+    analysis; do not add a second independent replay. Coordinate the static-maze
+    loan outcome.
     Reference-bearing nominal owners remain excluded by
     `checking/src/machine_calls/reference_result_custody.rs`; admitting their
     intact receiver also reaches `InvalidNominalAffineCleanup` in the retiring
@@ -793,9 +790,8 @@ defines the complete product bar.
     `pending/drops/runtime_claim_bearing_temporary_cleanup_exit` passes source
     checking and now reaches Terminal production, but `omega run` on macOS
     ARM64 stops at `UnknownStructuralArgument` for its claim-bearing child
-    result. **OMEGA-READS-TERMINAL-UNVERIFIED** and
-    **TERMINAL-VERIFIER-DELETED** own removal of that claim-free affine-only
-    result replay; do not add a linear exception to it. Scalar materialization
+    result in the old receiver replay. Reproduce the current frontier and do not
+    add a linear exception. Scalar materialization
     of moved linear places and claim-bearing call results remains unfinished;
     an anonymous returned owner without a unique conserved claim map must
     still reject rather than mint replacement identities.
@@ -906,9 +902,8 @@ defines the complete product bar.
     because stores through the loan owe `valid_utf8` over content the
     receiving state does not see. **STATIC-MACHINE-MIGRATION** records the
     glider shape.
-  - `simulation/game_of_life`: Terminal production stops at the private
-    `proof_search_integer_certificate_work` capacity (`Incomplete`), which
-    **PCC-CERTIFICATES-DELETED** removes.
+  - `simulation/game_of_life`: remeasure after deletion of the former private
+    `proof_search_integer_certificate_work` pass.
 
   Host coverage still owed:
   - std `Clock` on Linux (`rendering/{bouncing_ball_2d,mandelbrot_zoom,bouncing_particles}`):
@@ -1046,7 +1041,7 @@ defines the complete product bar.
   Native customers (under `tests/omega/pass`):
   - `text/runtime_local_struct_string_field_concat_exit` (188),
     `text/runtime_string_stored_suffix_exit` (193): rejected on all hosts;
-    re-measure under **OMEGA-READS-TERMINAL-UNVERIFIED**, then
+    remeasure on the verifier-free pipeline, then continue
     **REFERENCE-BEARING-RECORD-LOCAL-FILL**. Keep
     `traits/equatable_string_field_equality_exit` and
     `text/runtime_mixed_byte_field_equality_exit` (exit 70 on macOS ARM64).
@@ -1456,9 +1451,8 @@ defines the complete product bar.
   `samples/cli/{collections/array_max,arithmetic/dot_product,algorithms/horner_eval}`;
   acyclic control `pass/collections/runtime_borrowed_fixed_array_state_reads_exit`.
 
-  Remaining cycle shapes are refused by the Terminal verifier's fences in
-  `omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/control_flow/unranked_cycles.rs`
-  (deleted by **TERMINAL-VERIFIER-DELETED**): broader qualified/partial
+  Reproduce the current frontier for remaining cycle shapes after deletion of
+  the old Terminal-verifier fences: broader qualified/partial
   ownership, reference-bearing or claim-carrying structural call results,
   moving claims, content reshuffles/partitions, broader structural-result
   custody, boundary completion receipts, and claim transfers through Unit/scalar
@@ -1615,10 +1609,8 @@ then independent claimed restoration slices -> final closure.
   dependencies, compiler-owned source lookup or a separate trusted execution
   engine. Reuse one core for direct interpretation and embedding; drivers own
   exact entries, supplied values, effects, resource provisions and observations.
-  Its current `TerminalProgram::load` requires proof bytes and Terminal
-  verification: coordinate the interpreter part of
-  **OMEGA-READS-TERMINAL-UNVERIFIED** and its prerequisite PCC/checker removals,
-  rather than synthesize empty proofs or replay the producer. Keep genuine
+  `TerminalProgram::load` now decodes directly without proof bytes or receiver
+  verification. Keep genuine
   foreign-package/build confinement at its existing trust boundary.
   Owners: `omega-rust/psi/interpreter/terminal-interpreter/src/program.rs`,
   `src/instance.rs`, `src/execution.rs`, `src/adapters.rs` within that crate.
@@ -1636,10 +1628,8 @@ then independent claimed restoration slices -> final closure.
   reference-result backing is an explicit pre-effect capability gap, with the
   unchanged canary designated in `tests/omega/interpreter_migration.json`.
   Exact entry/host adapters remain **TERMINAL-RUNTIME-DRIVERS** work. The missing
-  source-program constructor and production execution callers depend on
-  **CHECKER-DISCHARGES-OPERATION-OBLIGATIONS** -> **PCC-CERTIFICATES-DELETED** ->
-  **OMEGA-READS-TERMINAL-UNVERIFIED**; do not add a constructor that bypasses
-  those obligations or another wrapper around the existing engine.
+  source-program constructor and production execution callers remain; do not
+  add another wrapper around the existing engine.
 
 - **EARLY-TERMINAL-JOBS.** (new-scope) Produce a checked, closed Terminal job
   for a demanded compile-time machine and its complete call dependencies before
@@ -1997,7 +1987,7 @@ crash and native exit behavior.
     samples/cli/systems/descriptor_walk/main.omg` returns 50 in both engines
     after local package review. Ordinary owned scalar/record helper arguments
     use their published storage bindings. The encoded `IntegerAt` call ABI
-    remains owned by **CHECKER-DISCHARGES-OPERATION-OBLIGATIONS**.
+    remains part of this transport outcome.
     Remaining: `reference_result_custody::aggregate_construction_sources`
     transports reference origins from record/array constructors but not from
     `match` results. Carry each alternative's exact source-to-result paths so
@@ -2121,8 +2111,7 @@ crash and native exit behavior.
     calls. Longer probes reached that gap after the comparison-literal repair;
     **TWINS-GOLDEN-RECORDS-A-LOAD-ARTIFACT** owns stale macOS timeout records.
     Reproduce the current frontier and require matching-host exit 70 after
-    repair. Late certificate cost belongs to **PCC-CERTIFICATES-DELETED**,
-    not a float-specific verifier path.
+    repair. Late certificate search is gone; do not add a float-specific replay.
   - **Windows GUI providers.** Verify explicit Windows provider selection and
     native execution for `samples/gui/{window_app,window_demo,windowed_calculator}`.
     Their current named maps select macOS operations; historical stage-05
@@ -3291,13 +3280,11 @@ Coordinate dependent producer/consumer removals so no intermediate product
 needs deleted evidence. Preserve each named corpus slice except for intended
 deletions, which the commit lists.
 
-- **CHECKER-DISCHARGES-OPERATION-OBLIGATIONS.** (new-scope) Complete checking-time
+- **CHECKER-CARRIES-OPERATION-DECISIONS.** (new-scope) Complete checking-time
   discharge of primitive operation conditions and consume those decisions in
-  stage 05 without certificate search. Owners: stage 04 arithmetic/range
-  checking and `CheckFacts`; stage 05
-  `src/proofs/operation_proofs.rs` and operation emission. This precedes
-  **PCC-CERTIFICATES-DELETED**: do not delete a late gate until source checking
-  owns its obligation.
+  stage 05 and stage 00 source-checked operation facts. Owners: stage 04
+  arithmetic/range checking and `CheckFacts`, stage 05 operation emission and
+  stage 00 optimization-unit construction.
 
   Reuse occurrence-bound `ArithmeticDecisions`, `proven_scalar_indexes`,
   `proven_byte_writes` and `decided_call_requires`, carried through
@@ -3309,20 +3296,19 @@ deletions, which the commit lists.
     `ElementViewRead` admits static descendants only; dynamic descendants need
     a selected-element storage home that retains the live descriptor's extent
     and loan custody before the ordinary scalar projection, not a raw
-    fixed-array read. Synthesized widenings and generated scalar-graph
-    casts still use search.
-    Join the exact checked occurrence rather than performing another syntax walk
-    or extending certificate search.
+    fixed-array read. Synthesized widenings and generated scalar-graph casts
+    still need exact source-decision transport. Join the exact checked
+    occurrence rather than performing another syntax walk.
   - Cover shift counts, representation geometry, capacities
     and remaining bounded stores outside completed bounded-integer field
     replacements and interval-refined element-view writes, including generated
     indexed stores. Finish the formation audit across aggregate and proposition
     positions; unify abstract declaration-contract carrier resolution with the
     ordinary formation walk.
-  - Replace search for invocation-entry, scalar-graph, local-refinement and
-    inferred arrival obligations, and conditional cleanup prerequisites, before
-    deleting those gates. Keep call/cleanup contracts and mathematical proofs
-    distinct from primitive operation conditions.
+  - Carry source decisions for invocation-entry, scalar-graph,
+    local-refinement and inferred arrival obligations, and conditional cleanup
+    prerequisites. Keep call/cleanup contracts and mathematical proofs distinct
+    from primitive operation conditions.
   - Preserve non-Exact division's nonzero obligation, domain and custody
     checks, and intermediate-write requirements; a final value contract cannot
     authorize opaque intermediate operations. Public layout literals remain
@@ -3351,11 +3337,11 @@ deletions, which the commit lists.
 
   Acceptance: every supported primitive operation reaches stage 05 with its
   exact checking-time decision carried through `SourceChecked`; corpus failures
-  currently rejected by `OperationProofUnavailable` reject from `omega --check`
-  with checking diagnostics instead, without weakening other check outcomes.
+  rejected for a missing source decision reject from `omega --check` with
+  checking diagnostics instead, without weakening other check outcomes.
 
 - **ENCODED-STORAGE-REFERENCE-TRANSPORT.**
-  (split-of:CHECKER-DISCHARGES-OPERATION-OBLIGATIONS) Preserve the actual backing
+  (new-scope) Preserve the actual backing
   and canonical encoding of references to values whose selected storage is
   narrower than their semantic carrier. This is an independent representation
   and ABI outcome, not a prerequisite for deleting PCC certificates.
@@ -3374,101 +3360,6 @@ deletions, which the commit lists.
   Acceptance: `python tools/corpus_gate.py --both --filter
   layouts/runtime_callee_integer_at_fitting_write_exit` runs with exit 0 and
   preserves neighboring byte 85.
-
-- **PCC-CERTIFICATES-DELETED.** (new-scope) Depends on
-  **CHECKER-DISCHARGES-OPERATION-OBLIGATIONS**. Delete certificate production
-  and transport in one commit:
-  - stage 05
-    `omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/proofs/`:
-    `nonzero_divisor_certificate`, `operation_proofs`,
-    `scalar_block_invariants`, `scalar_result_guarantees`,
-    `entry_requirement_certificates`, `proof_recursion`,
-    `control_cycle_proofs`, `retained_evidence`,
-    `float_meaning_projection` and `mathematical_declarations`, plus the
-    certificate half of `evidence_lowering`;
-  - `proof-admission`
-    `omega-rust/psi/compilation/proof/admission/src/certificate_search/`;
-  - `ProofBundle` on `lowered-psi`;
-  - stage 06's `reconstruct_optimizable_terminal_obligations` and
-    `transport_*` evidence calls.
-
-  Keep the IR lowering in `proofs/crash_routes`, `proofs/contract_predicates`,
-  `proofs/integer_predicates`, `proofs/content_conservation` and
-  `src/retention/`. Delete `src/retention/operation_crash_contracts.rs` if a
-  search finds no backend reader. Stage 06 rewrites keep their own validity
-  checks. Acceptance: no `ProofBundle` is produced, and the check and native
-  corpus are unchanged.
-
-  Ordering gap: stage 00 native admission
-  (`00_terminal-psi-to-abstract-operations/src/artifact_admission/native.rs`)
-  and the terminal interpreter still run `verify_module` until
-  **OMEGA-READS-TERMINAL-UNVERIFIED**. `verify_validated_module`
-  (`terminal-psi/verification/src/verification.rs`) demands one evidence
-  route per reconstructed obligation and raises `MissingEvidence` otherwise.
-  Every operation obligation is reconstructed `Derivable`, so only a
-  certificate or the checker's `SourceChecked` route admits it. Without a `ProofBundle`, every compile
-  would therefore fail. This item must also stop requiring evidence for
-  operation-owned obligations there, or land together with
-  **OMEGA-READS-TERMINAL-UNVERIFIED**. Checker-decided obligations already
-  avoid this: they carry `EvidenceRoute::SourceChecked`, which the verifier
-  admits for operation owners.
-
-- **OMEGA-READS-TERMINAL-UNVERIFIED.** (new-scope) Depends on
-  **PCC-CERTIFICATES-DELETED**. Stop every consumer from verifying Terminal:
-  - stage 00
-    `omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/artifact_admission/native.rs`
-    `verify_module`: decode only;
-  - stage 00 `src/provider_installation/admission.rs`;
-  - the terminal interpreter
-    (`omega-rust/psi/interpreter/terminal-interpreter/src/terminal_interpreter.rs`,
-    `src/program.rs`);
-
-  Re-source the optimizer's facts:
-  - `AcceptedObligationFact`
-    (`omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/src/optimization_unit/proof.rs`)
-    and
-    `omega-rust/omega/compilation/pipeline/01_abstract-operations-to-abstract-operations/src/rules/proof_check_elision/`
-    read "an Exact operation's canonical goal holds", which
-    **CHECKER-DISCHARGES-OPERATION-OBLIGATIONS** makes true;
-
-  Stage 06 now owns control-flow cleanup, global value numbering and sparse
-  conditional constant propagation validation plus cleanup retention. Its
-  remaining verifier dependency is certificate-bound copy/dead-scalar
-  transport and proof-check elision; delete those with
-  **PCC-CERTIFICATES-DELETED**, rather than moving their PCC machinery.
-
-  Acceptance: `terminal-verifier`
-  has no dependent outside its own tests, and the check corpus and native plus
-  interpreter (`--both`) corpus are unchanged.
-
-- **TERMINAL-VERIFIER-DELETED.** (new-scope) Depends on
-  **OMEGA-READS-TERMINAL-UNVERIFIED**. Delete the `terminal-verifier` crate
-  (`omega-rust/psi/compilation/representations/terminal-psi/verification/`)
-  and its tests. This also retires its `trusted_surface` ledger and stale
-  `TEST_ONLY_SOURCES` inventory. `trusted-surface-ledger-drift` is superseded
-  by this deletion, not a reason to restore the removed verifier test suite.
-  Remove `tools/trusted_surface_digests.py` and the landing guard/documentation
-  that refers to this retired ledger once its consumers are gone; retain the
-  independent mathematics kernel and bootstrap proof obligations. Until removal,
-  changes to still-bound production sites require the documented revalidation,
-  not permission from their original author. Historical drift is not a blanket
-  authorization to refresh hashes without checking the citing entries.
-  Acceptance: workspace `mbx build --lib --tests` succeeds, the corpus is
-  unchanged, and no maintenance or landing command reads the deleted ledger.
-
-- **PCC-WIRE-DELETED.** (new-scope) The canonical artifact carries no proof
-  section, obligation ledger, mathematical-signature section or trust graph,
-  and the codec's proof sidecar, PCC receiver, publication binary and TraceV1
-  profile are deleted. Remaining: the `ProofBundle` type in `terminal-psi`
-  (`src/artifacts/proof_bundle/`) and the `LoweredPsi.proof_bundle` stage 05
-  still fills; `sections/semantic_module/mathematical_certificate_wire/`; the
-  PCC-only parts of `terminal-psi/src/terminal_module/proof/`; and
-  `proof-admission`'s `admission/recursion.rs`, `admission/normalization.rs`
-  and the PCC half of `admission/denotation.rs`. Acceptance: the
-  `proof-admission` math tests and the check and native corpus are unchanged.
-
-  Acceptance: the `proof-admission` math tests and the check and native
-  corpus are unchanged; no codec section carries proof evidence.
 
 - **PCC-DOCS-RETIRED.** (new-scope) Remove PCC from the instructions,
   specification and board text in one commit:
@@ -4198,31 +4089,6 @@ rejects at build and `mapped` needs a Windows full-i32 measurement.
   [metatheory evidence ledger](wiki/spec/proofs/kernel_metatheory.md#evidence-ledger)
   (its combined-profile argument is paper-level). Calculus changes go to
   `OWNER_QUESTIONS.md`.
-
-- **C2L-PROOF-SEARCH-BLOWUP-CONTAINMENT.** (new-scope) Proof search cost grows
-  with scope size and its exhaustion is not reported from checking. Today the
-  bounded search and its `ProofSearchCapacityExhausted` -> `Incomplete`
-  publication (codes 27-35 in [compiler-request](wiki/spec/build/compiler_request.md))
-  live in stage 05's certificate search
-  (`omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/proofs/mod.rs`),
-  which **PCC-CERTIFICATES-DELETED** removes; `samples/cli/simulation/cellular_automaton`
-  spends most of its compile in that pass, re-proving each roster arrival
-  every round under a growing axiom set. Depends on
-  **CHECKER-DISCHARGES-OPERATION-OBLIGATIONS**.
-
-  When checking owns the discharge, its search must not re-prove under every
-  round's axioms or scale with unrelated scope, and every named provision must
-  decline into an `Incomplete` outcome rather than a rejection. Re-scope or
-  retire codes 27-35 to match the surviving provisions, and project them into
-  `tests/bootstrap/ocreq-tables.sh` / `bootstrap/5_omega` outcome tables.
-  [Kernel budgets](wiki/spec/proofs/kernel_metatheory.md) stay implementation
-  policy, not language semantics.
-
-  Acceptance: `cellular_automaton` checks in time dominated by ordinary
-  checking rather than proof rounds (measure with `OMEGA_PROOF_MEASUREMENTS`);
-  a corpus fixture that exceeds a provision reports `Incomplete` (`omega` exit 2,
-  `omega run` status 202), distinct from invalid source; invalid proofs still
-  reject.
 
 - **PROOF-CONTRACT-MIGRATION.** General mathematics is not yet delivered through
   [machine contracts and witness/law bundles](wiki/spec/proofs/contracts.md#machines-and-bundles)

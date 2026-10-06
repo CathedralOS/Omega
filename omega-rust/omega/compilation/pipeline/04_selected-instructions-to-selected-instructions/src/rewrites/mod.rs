@@ -72,7 +72,8 @@ pub use allocation_recovery::{
     PressureRematerializationValidationReceipt, ValidatedFixedViewCopies,
     ValidatedPressureRematerialization, fixed_view_copy_identity,
     rematerialize_selected_active_resident, selected_allocation_recovery_rule,
-    validate_fixed_view_copies, };
+    validate_fixed_view_copies,
+};
 pub use constant_boolean::{ConstantBooleanError, ValidatedConstantBoolean};
 pub(crate) use constant_boolean::{
     fold_selected_constant_boolean, measured_steps as constant_boolean_measured_steps,
@@ -141,14 +142,15 @@ pub(crate) use redundant_extension::{
 };
 pub use runtime_rematerialization::{
     RuntimeRematerializationError, ValidatedRuntimeRematerialization,
-    rematerialize_selected_runtime_value, };
+    rematerialize_selected_runtime_value,
+};
 pub use runtime_spill::{
     RuntimeSpillError, RuntimeSpillSpanPolicy, ValidatedRuntimeSpill, spill_selected_runtime_value,
     spill_selected_runtime_value_with_span_policy, validate_runtime_spill_with_span_policy,
 };
 pub use runtime_split::{
     RuntimeSplitError, RuntimeSplitReceipt, ValidatedRuntimeSplit, split_selected_runtime_value,
-    };
+};
 pub(crate) use selected_lowering::enabled_pair_rules;
 pub(crate) use selected_lowering::fold_selected_incoming_literal;
 pub(crate) use selected_lowering::literal_fold_identity;
@@ -174,4 +176,5 @@ pub enum RegisterAllocationRuleTargetApplicability {
 
 pub use load_forwarding::{
     StoredLoadForwardingError, StoredLoadForwardingReceipt, ValidatedStoredLoadForwarding,
-    forward_selected_stored_load, };
+    forward_selected_stored_load,
+};

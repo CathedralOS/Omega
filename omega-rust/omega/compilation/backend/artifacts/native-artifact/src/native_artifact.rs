@@ -491,7 +491,6 @@ impl NativeArtifact {
         Ok(())
     }
 
-
     pub fn physical_evidence_scope(&self) -> NativePhysicalEvidenceScope {
         self.physical_evidence_scope.clone()
     }

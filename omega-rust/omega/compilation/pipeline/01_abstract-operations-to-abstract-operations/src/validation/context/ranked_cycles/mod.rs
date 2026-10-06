@@ -11,7 +11,6 @@ mod ordinary;
 mod replay;
 mod topology;
 
-
 use optimization_unit::{
     CycleComponentEdge, CycleComponentId, OptimizerCycleComponent, OptimizerCycleComponentSnapshot,
     OptimizerRankingCertificateSnapshot, OptimizerUnsignedCountdownRankingCertificate,
@@ -30,10 +29,7 @@ pub(super) fn validate_exact_ranked_cycles(
     let snapshot = replay::rederive_exact_components(input.context().module(), unit)?;
     let rankings =
         countdown_ranking::rederive_exact_certificates(input.context().module(), unit, &snapshot)?;
-    Ok(RankedCycleAdmission {
-        snapshot,
-        rankings,
-    })
+    Ok(RankedCycleAdmission { snapshot, rankings })
 }
 
 /// Opaque authority to use the contained SCC topology for optimizer analysis.

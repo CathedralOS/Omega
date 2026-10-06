@@ -29,16 +29,14 @@
 //!    keep: closed reaches, placed view inputs, restored reborrow call uses,
 //!    suspension call plans, foreign borrow custody and operation crash
 //!    contracts.
-//! 4. [`proofs`] publishes conformances' evidence, proof recursion and
-//!    quotient correspondence, then finalizes or validates operand proofs and
-//!    produces the crash-obligation roster keyed to the finished module.
+//! 4. [`proofs`] lowers authored propositions, contracts, evidence terms,
+//!    crash routes, content conservation and float-meaning projections.
 //!
-//! The entrance closes by validating the module through `terminal_verifier`
-//! and, when the checked plan is eligible, attaching the Terminal debug
-//! companion that `machine_lowering::debug_map` builds.
+//! The entrance closes by attaching the Terminal debug companion that
+//! `machine_lowering::debug_map` builds when the checked plan is eligible.
 //!
 //! Beside the route: `producer_result` names what a plan family hands back —
-//! its source mapping and its operand, debug and conformance completion modes
+//! its source mapping and its debug and conformance completion modes
 //! — `terminal_identities` and `lowering_error` carry the identity and
 //! failure vocabulary every producer shares, and `declarations` maps a checked
 //! state symbol to its declared machine and state. `direct_calls` is the one place
@@ -72,7 +70,7 @@ mod reference_custody;
 mod terminal_identities;
 
 // The entrance, and the failure vocabulary its callers match on.
-pub use lowering_error::{LoweringError, ProofSearchCapacity, ProofSearchExhaustion};
+pub use lowering_error::LoweringError;
 pub use machine_lowering::machine_dispatch::{TerminalMachineSelection, select_terminal_machine};
 pub use machine_lowering::{callback_lowering_receipt, lower_machine};
 
@@ -85,12 +83,6 @@ pub use proofs::content_conservation::{
     LoweredContentPartitionComposition, LoweredContentPartitionCompositions,
 };
 pub use proofs::float_meaning_projection::FloatMeaningProjectionLoweringError;
-// Crash entry-requirement certificates are produced here but attached to the
-// artifact by the Terminal assembly stage, which runs in a downstream crate.
-pub use proofs::entry_requirement_certificates::{
-    CrashRosterError, EntryRequirementCertificate, check_entry_requirement_certificate,
-    produce_crash_obligation_evidence, produce_entry_requirement_certificates,
-};
 
 // The front-end pipeline the tests run, shared with the `suite` integration
 // target that includes the same file; see its module documentation.

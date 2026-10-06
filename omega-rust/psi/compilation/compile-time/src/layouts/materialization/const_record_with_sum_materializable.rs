@@ -82,6 +82,3 @@ pub fn validate_const_materializable_record_with_conventional_sums(
         non_authoritative_materialization_report_fingerprint: materialization_report_fingerprint,
     })
 }
-
-
-

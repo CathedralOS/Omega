@@ -30,7 +30,6 @@ diagnostics = { path = "../../../psi/foundation/diagnostics" }
 checked-interpreter = { path = "../../../psi/interpreter/checked-interpreter" }
 proof-admission = { path = "../../../psi/compilation/proof/admission" }
 terminal-psi = { path = "../../../psi/compilation/representations/terminal-psi" }
-terminal-fixed-fuel = { path = "../../../psi/compilation/representations/terminal-psi/fuel/certification" }
 terminal-semantics = { path = "../../../psi/compilation/representations/terminal-psi/semantics" }
 
 # Selected virtual host providers are interpreted only after exact Omega settlement.

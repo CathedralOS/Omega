@@ -1,27 +1,21 @@
-//! Fuel-bounded reference execution for verified terminal-Psi artifacts:
-//! where interpretation starts.
+//! Fuel-bounded reference execution for Terminal-Psi artifacts.
 //!
-//! The public entries accept only canonical semantic/proof bytes and an
-//! admission profile; no source or checked-tree representation crosses this
-//! boundary. Every entry runs the same sequence:
+//! The public entries accept canonical semantic bytes; no source or checked-tree
+//! representation crosses this boundary. Every entry runs the same sequence:
 //!
-//! 1. decode — `terminal_codec::decode_module` reconstructs the module and
-//!    `decode_proof_section_for` accepts only the proof section sealed for
-//!    that exact module;
-//! 2. verify — `terminal_verifier` checks the module against the profile
-//!    before any runtime state exists;
-//! 3. construct — `TerminalProgram::load` (in `program`) admits the verified
-//!    module into shared immutable form and `start_execution` binds the scalar
+//! 1. decode — `terminal_codec::decode_module` reconstructs the module;
+//! 2. construct — `TerminalProgram::load` (in `program`) retains the module in
+//!    shared immutable form and `start_execution` binds the scalar
 //!    and [`TerminalStructuralInputs`] before committing any operation;
-//! 4. run — [`TerminalExecution::resume`] charges fuel and dispatches every
+//! 3. run — [`TerminalExecution::resume`] charges fuel and dispatches every
 //!    operation and terminator until the artifact completes, crashes or the
 //!    sponsor's fuel is exhausted.
 //!
 //! [`interpret_serialized_terminal_artifact_measured`] starts from one
 //! portable envelope, [`interpret_terminal_artifact_measured`] from its
-//! semantic and proof sections, and [`interpret_terminal_artifact`] returns
+//! semantic section, and [`interpret_terminal_artifact`] returns
 //! only the semantic result under the accepting effect handler. The two
-//! `TerminalExecution` starts below are steps 1 to 3 for a caller that drives
+//! `TerminalExecution` starts below are steps 1 and 2 for a caller that drives
 //! `resume` itself; [`admit_provider_installation_from_artifact`] decodes and
 //! verifies the same way and admits provider selections against the
 //! verified catalog instead of running.
@@ -80,11 +74,8 @@ pub fn interpret_terminal_artifact_measured(
     structural_inputs: TerminalStructuralInputs<'_>,
     handler: &mut impl TerminalEffectHandler,
 ) -> Result<MeasuredTerminalExecution, TerminalArtifactInterpretError> {
-    let mut execution = TerminalExecution::start_artifact(
-        semantic_bytes,
-        scalar_arguments,
-        structural_inputs,
-    )?;
+    let mut execution =
+        TerminalExecution::start_artifact(semantic_bytes, scalar_arguments, structural_inputs)?;
     let mut meter = TerminalFuelMeter::unbounded();
     let value = match execution
         .resume(&mut meter, handler)
@@ -132,11 +123,7 @@ pub fn admit_provider_installation_from_artifact(
     semantic_bytes: &[u8],
     selections: &[ProviderInstallationSelection],
 ) -> Result<AdmittedProviderInstallation, ProviderInstallationError> {
-    admit_provider_installation_with_assumed_bindings_from_artifact(
-        semantic_bytes,
-        selections,
-        &[],
-    )
+    admit_provider_installation_with_assumed_bindings_from_artifact(semantic_bytes, selections, &[])
 }
 
 /// Decode and verify an artifact, then admit its provider selections and the
@@ -168,23 +155,17 @@ pub fn admit_provider_installation_with_assumed_bindings_from_artifact(
 ) -> Result<AdmittedProviderInstallation, ProviderInstallationError> {
     let module = terminal_codec::decode_module(semantic_bytes)
         .map_err(ProviderInstallationError::SemanticDecode)?;
-    let verified = terminal_verifier::validate_module(&module)
-        .map_err(ProviderInstallationError::Validation)?;
     let mut installed = BTreeMap::new();
     for selection in selections {
         if selection.provider_identity.is_empty()
             || installed
                 .insert(selection.boundary, selection.candidate)
                 .is_some()
-            || !verified
-                .module()
-                .provider_candidates
-                .iter()
-                .any(|candidate| {
-                    candidate.boundary == selection.boundary
-                        && candidate.provider_identity == selection.provider_identity
-                        && candidate.candidate == selection.candidate
-                })
+            || !module.provider_candidates.iter().any(|candidate| {
+                candidate.boundary == selection.boundary
+                    && candidate.provider_identity == selection.provider_identity
+                    && candidate.candidate == selection.candidate
+            })
         {
             return Err(ProviderInstallationError::UnknownOrDuplicateSelection {
                 boundary: selection.boundary,
@@ -192,9 +173,9 @@ pub fn admit_provider_installation_with_assumed_bindings_from_artifact(
             });
         }
     }
-    let assumed_bindings = admit_assumed_bindings(verified.module(), &installed, assumptions)?;
+    let assumed_bindings = admit_assumed_bindings(&module, &installed, assumptions)?;
     Ok(AdmittedProviderInstallation {
-        terminal_psi: terminal_codec::terminal_psi_identity(verified.module())
+        terminal_psi: terminal_codec::terminal_psi_identity(&module)
             .map_err(ProviderInstallationError::SemanticDecode)?,
         installed,
         assumed_bindings,
@@ -285,8 +266,11 @@ impl TerminalExecution {
         // One admission path serves both public surfaces: `load` decodes the
         // subject-sealed sections and verifies under the interpretation
         // profile; `start_execution` binds this record's inputs.
-        crate::program::TerminalProgram::load(semantic_bytes)?
-            .start_execution(scalar_arguments, structural_inputs, None)
+        crate::program::TerminalProgram::load(semantic_bytes)?.start_execution(
+            scalar_arguments,
+            structural_inputs,
+            None,
+        )
     }
 
     /// Begin execution with one explicit provider installation previously
@@ -300,8 +284,6 @@ impl TerminalExecution {
     ) -> Result<Self, TerminalArtifactInterpretError> {
         let module = terminal_codec::decode_module(semantic_bytes)
             .map_err(TerminalArtifactInterpretError::SemanticDecode)?;
-        terminal_verifier::validate_module(&module)
-            .map_err(TerminalArtifactInterpretError::Validation)?;
         let program = crate::program::TerminalProgram::from_admitted(
             crate::program::AdmittedTerminalProgram::admit(module)
                 .map_err(TerminalArtifactInterpretError::Execution)?,

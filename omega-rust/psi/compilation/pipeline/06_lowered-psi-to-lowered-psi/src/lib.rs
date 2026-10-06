@@ -23,7 +23,6 @@
 //! 3. `copy_propagation`
 //! 4. `global_value_numbering`
 //! 5. `dead_scalar_elimination`
-//! 6. `proof_check_elision`
 //!
 //! The catalog's remaining two members, `StateSpecialization` and
 //! `RepresentationSpecialization`, have no folder here: they rewrite the
@@ -47,13 +46,11 @@ mod control_flow_cleanup;
 mod copy_propagation;
 mod dead_scalar_elimination;
 mod global_value_numbering;
-mod proof_check_elision;
 mod sparse_conditional_constant_propagation;
 
 // Beneath the passes: what a rewrite must preserve, and how it refuses.
 mod optimization_error;
 mod retained_identities;
-mod rewrite_refusal;
 
 // The entrance and its validated carrier.
 pub use psi_optimization::{PsiOptimizationStageResult, run_psi_optimization};
@@ -62,7 +59,6 @@ pub use psi_optimization::{PsiOptimizationStageResult, run_psi_optimization};
 pub use optimization_error::PsiOptimizationStageError;
 
 // The deliberate rewrite withholdings the validated result lists.
-pub use rewrite_refusal::{PsiRewriteRefusal, PsiRewriteRefusalReason};
 
 // The execution record this stage fills: owned by `terminal_codec`, which
 // encodes it, and re-exported here beside the entrance that produces it.

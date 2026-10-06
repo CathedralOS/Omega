@@ -632,8 +632,7 @@ fn validate_stored_indirect_call(
 
 /// The table position one dynamic dispatch names: the exact
 /// `(declaring trait, complete requirement overload, canonical value tuple)`
-/// row that also retains the dispatch's realization coordinates, the same
-/// join terminal-verifier applies when it admits the dispatch row.
+/// row that also retains the dispatch's realization coordinates.
 #[allow(clippy::too_many_arguments)]
 fn selected_row_position(
     application: &terminal_psi::ClosedConformanceApplication,

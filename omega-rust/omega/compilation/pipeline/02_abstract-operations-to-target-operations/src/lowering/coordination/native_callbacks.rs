@@ -176,4 +176,3 @@ fn native_callback_application_is_exact(
         }
     }
 }
-

@@ -43,6 +43,4 @@ fn derive_cycle_components(
     ))
 }
 
-pub use ranked_cycles::{
-    ValidatedOptimizerCycleComponents, ValidatedOptimizerRankingCertificates,
-    };
+pub use ranked_cycles::{ValidatedOptimizerCycleComponents, ValidatedOptimizerRankingCertificates};

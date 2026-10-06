@@ -6,7 +6,8 @@ use crate::ValidatedRecoveryClassifications;
 use crate::ValidatedSelectedAnalysis;
 use crate::ValidatedSpillChoices;
 use register_model::{
-    TargetRegisterEnvironmentConstraintKeys, TargetRegisterEnvironmentIdentity, ValidatedRegisterConstraintCatalog,
+    TargetRegisterEnvironmentConstraintKeys, TargetRegisterEnvironmentIdentity,
+    ValidatedRegisterConstraintCatalog,
 };
 
 pub(crate) mod compute;

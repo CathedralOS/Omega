@@ -30,20 +30,9 @@ use crate::PsiOptimizationStageError;
 use lowered_psi::LoweredPsi;
 use std::collections::BTreeSet;
 use terminal_psi::DebugSubject;
-use terminal_verifier::{
-    reconstruct_optimizable_terminal_obligations, validate_module_for_optimization,
-};
 use validation::validate_global_value_numbering;
 
 pub(super) fn number(before: LoweredPsi) -> Result<LoweredPsi, PsiOptimizationStageError> {
-    let validated = validate_module_for_optimization(&before.semantic_module)
-        .map_err(PsiOptimizationStageError::InvalidModule)?;
-    let questions = reconstruct_optimizable_terminal_obligations(validated)
-        .map_err(PsiOptimizationStageError::InvalidModule)?;
-    // Call composition can include a callee's axioms in another machine's
-    // obligation: the verifier's reconstructed-question check is the refusal
-    // boundary for the complete closure, not just the obligation owner.
-    let proof_bearing = !questions.obligations().is_empty();
     let mut after = before.clone();
     // These are semantic uses even when no executable operand reads the
     // value: proof projections and retained suspension frontiers survive
@@ -82,18 +71,6 @@ pub(super) fn number(before: LoweredPsi) -> Result<LoweredPsi, PsiOptimizationSt
     if let Err(error) =
         validate_global_value_numbering(&before.semantic_module, &after.semantic_module)
     {
-        // Without proof-context transport a proof-bearing input keeps only a
-        // rewrite the reconstructed question survives unchanged; a refused
-        // rewrite leaves the module as authored.
-        if proof_bearing
-            && matches!(
-                error,
-                GlobalValueNumberingRewriteError::InvalidModule(_)
-                    | GlobalValueNumberingRewriteError::ChangedProofQuestion
-            )
-        {
-            return Ok(before);
-        }
         return Err(PsiOptimizationStageError::InvalidGlobalValueNumberingRewrite(error));
     }
     if let Some(debug) = after.debug_map.as_mut() {

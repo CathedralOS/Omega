@@ -1,6 +1,7 @@
 use super::{
     TerminalCallbackOccurrenceProposal, TerminalCallbackThunkArtifact,
-    admitted_native_callback_thunks, };
+    admitted_native_callback_thunks,
+};
 use crate::callback_placements::tests::{materialized_placement, placement};
 
 fn occurrence(

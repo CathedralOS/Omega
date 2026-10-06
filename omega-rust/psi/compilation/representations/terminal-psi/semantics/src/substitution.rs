@@ -638,11 +638,7 @@ impl FactIndex {
     }
 
     /// [`push_unique_fact`] answered through the index.
-    pub fn push_unique(
-        &mut self,
-        axioms: &mut impl AxiomRosterMut,
-        proposition: Proposition,
-    ) {
+    pub fn push_unique(&mut self, axioms: &mut impl AxiomRosterMut, proposition: Proposition) {
         if !self.has_fact(axioms, &proposition) {
             self.record(axioms.roster_len(), &proposition);
             axioms.push_fact(proposition);

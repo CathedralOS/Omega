@@ -2,7 +2,6 @@
 //! lanes in terminal form.
 
 use crate::proofs::evidence_lowering::checked_evidence_requirement_identity;
-use crate::proofs::evidence_lowering::producer_provenance::evidence_term_root;
 use crate::proofs::evidence_lowering::proof_output_calls::proof_output_forwarded_source;
 use crate::proofs::{
     BTreeMap, BTreeSet, CheckedPropositionBinderArgumentKind, CheckedPropositionBinderKind,
@@ -13,6 +12,15 @@ use crate::proofs::{
     PropositionBinderArgumentKind, PropositionBinderDeclaration, PropositionBinderKind,
     PropositionDeclaration, PropositionEvidence, PropositionId, proposition_id,
 };
+
+fn evidence_term_root(parents: &mut [usize], mut index: usize) -> usize {
+    while parents[index] != index {
+        let parent = parents[index];
+        parents[index] = parents[parent];
+        index = parents[index];
+    }
+    index
+}
 
 pub(crate) fn lower_proposition_vocabulary(
     checked: &CheckedTrees,

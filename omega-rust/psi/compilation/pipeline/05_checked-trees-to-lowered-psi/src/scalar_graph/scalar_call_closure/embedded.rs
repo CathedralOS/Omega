@@ -180,10 +180,6 @@ impl EmbeddedScalarCalls {
                 .machines
                 .append(&mut helper.semantic_module.machines);
             lowered
-                .proof_bundle
-                .evidence
-                .append(&mut helper.proof_bundle.evidence);
-            lowered
                 .source_call_occurrences
                 .append(&mut helper.source_call_occurrences);
             lowered

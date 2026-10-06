@@ -24,23 +24,11 @@ use artifacts::compile_timings::CompileTimings;
 #[must_use = "Terminal production retains the artifact and checked-source custody"]
 pub struct ProducedTerminalArtifact {
     pub(super) production: psi_terminal_production::ProducedTerminalArtifact,
-    /// Rewrites a selected pass proposed and then withheld. Empty when every
-    /// pass either rewrote or found nothing; the published artifact is the
-    /// same either way.
-    pub(super) withheld_rewrites: Vec<optimization_core::WithheldRewrite>,
 }
 
 impl ProducedTerminalArtifact {
     pub const fn artifact(&self) -> &terminal_codec::CanonicalTerminalArtifact {
         self.production.artifact()
-    }
-
-    /// The rewrites selected passes proposed and withheld, with the reason
-    /// each validator gave. A pass that found nothing to rewrite records
-    /// nothing here, so an empty slice and a withheld proposal stay
-    /// distinguishable in the report.
-    pub fn withheld_rewrites(&self) -> &[optimization_core::WithheldRewrite] {
-        &self.withheld_rewrites
     }
 
     /// The checked `ProgramEntry` receipt, present exactly when the request

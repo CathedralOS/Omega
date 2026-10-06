@@ -47,11 +47,9 @@ fn lower_callback_thunk(
     artifact
         .validate()
         .map_err(|error| realization_error("callback thunk artifact replay", error))?;
-    let input = terminal_psi_to_abstract_operations::VerifiedNativeArtifactInput::prepare(
-        artifact,
-        &[],
-    )
-    .map_err(artifact_lowering_error)?;
+    let input =
+        terminal_psi_to_abstract_operations::VerifiedNativeArtifactInput::prepare(artifact, &[])
+            .map_err(artifact_lowering_error)?;
     let selections = request.optimization_selections.selections();
     let optimized = abstract_operations_to_abstract_operations::optimize_abstract_operations(
         input.into_optimization_input(),

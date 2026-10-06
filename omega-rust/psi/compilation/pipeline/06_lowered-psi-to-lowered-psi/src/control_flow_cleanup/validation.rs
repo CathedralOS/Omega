@@ -6,14 +6,9 @@ use super::retention::{
 use semantic_vocabulary::{BlockId, MachineId};
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{TerminalModule, Terminator};
-use terminal_verifier::{
-    ModuleError, reconstruct_optimizable_crash_obligations,
-    reconstruct_optimizable_terminal_obligations, validate_module_for_optimization,
-};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ControlFlowCleanupRewriteError {
-    InvalidModule(ModuleError),
     ChangedProgramStructure,
     ChangedMachine(MachineId),
     ChangedSurvivingBlock(BlockId),
@@ -22,7 +17,6 @@ pub enum ControlFlowCleanupRewriteError {
     RemovedEvidenceBlock(BlockId),
     RemovedReachableMachine(MachineId),
     RemovedEvidenceMachine(MachineId),
-    ChangedProofQuestion,
 }
 
 /// Check the exact branch-cleanup relation, not the producer's folding order.
@@ -66,10 +60,6 @@ pub fn validate_control_flow_cleanup(
     after: &TerminalModule,
 ) -> Result<(), ControlFlowCleanupRewriteError> {
     use ControlFlowCleanupRewriteError as RewriteError;
-    let before_valid =
-        validate_module_for_optimization(before).map_err(RewriteError::InvalidModule)?;
-    let after_valid =
-        validate_module_for_optimization(after).map_err(RewriteError::InvalidModule)?;
     // Machines leave only by removal: `after` carries an ordered subsequence
     // of `before`'s rows, so a cursor match separates surviving pairs from
     // removed machines and rejects added or reordered rows at once.
@@ -85,25 +75,6 @@ pub fn validate_control_flow_cleanup(
     }
     if incoming.next().is_some() {
         return Err(RewriteError::ChangedProgramStructure);
-    }
-    let old_question = reconstruct_optimizable_terminal_obligations(before_valid)
-        .map_err(RewriteError::InvalidModule)?;
-    let new_question = reconstruct_optimizable_terminal_obligations(after_valid)
-        .map_err(RewriteError::InvalidModule)?;
-    if old_question != new_question {
-        return Err(RewriteError::ChangedProofQuestion);
-    }
-    // The crash-obligation roster is a second reconstructed question: a
-    // rewrite that leaves every terminal obligation intact may still retarget
-    // a crash site's reconstructed paths or a continuation's coverage goal,
-    // and the supplied certificates answer only the questions they were
-    // produced against.
-    let old_crash = reconstruct_optimizable_crash_obligations(before_valid)
-        .map_err(RewriteError::InvalidModule)?;
-    let new_crash = reconstruct_optimizable_crash_obligations(after_valid)
-        .map_err(RewriteError::InvalidModule)?;
-    if old_crash != new_crash {
-        return Err(RewriteError::ChangedProofQuestion);
     }
     let evidence = block_local_evidence(before);
     for (old, new) in surviving_pairs {

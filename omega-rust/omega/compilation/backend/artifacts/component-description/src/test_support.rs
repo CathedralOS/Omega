@@ -182,7 +182,6 @@ pub fn module_subject(module: &TerminalModule) -> TerminalPsiIdentity {
 /// of its own, and no native realization facts. Returns the encoded
 /// description bytes a consumer verifies.
 pub fn describe_module(module: &TerminalModule) -> Vec<u8> {
-    let proof = terminal_psi::ProofBundle::default();
     let record = terminal_codec::build_identity_optimization_execution_record(module)
         .expect("identity optimization record");
     let artifact = terminal_codec::CanonicalTerminalArtifact::from_parts(module, &record, None)
@@ -200,10 +199,8 @@ pub fn describe_module(module: &TerminalModule) -> Vec<u8> {
     encode_component_description(&description)
 }
 
-/// Describe and independently verify one component module under the
-/// current schema with no accepted assumptions and an empty module-proof
-/// admission profile: the producer/consumer pair a build route runs, so a
-/// consumer test only ever sees replayed evidence.
+/// Describe and validate one component module under the current schema with no
+/// accepted assumptions, matching the producer/consumer pair a build route runs.
 pub fn verified_component(module: &TerminalModule) -> VerifiedComponent {
     let request = ComponentVerificationRequest {
         expected_subject: module_subject(module),

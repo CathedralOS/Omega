@@ -176,4 +176,3 @@ fn retain_occurrence(
         expressions(lowerer).set_compiler_selection_partition(generated, partition);
     }
 }
-

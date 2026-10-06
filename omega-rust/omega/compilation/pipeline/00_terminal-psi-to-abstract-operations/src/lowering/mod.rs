@@ -15,7 +15,9 @@ use terminal_psi::TerminalModule;
 
 /// Lower a decoded, structurally validated module, retaining its explicit
 /// control-flow and operation relationships.
-pub(crate) fn lower_decoded_module(module: &TerminalModule) -> Result<AbstractOperationPlan, LoweringError> {
+pub(crate) fn lower_decoded_module(
+    module: &TerminalModule,
+) -> Result<AbstractOperationPlan, LoweringError> {
     // Boundary crash contracts ride through `boundary_machines` unchanged.
     // Terminal verification already covered every caller continuation against
     // them; the realized provider body or builtin settlement commits the trap

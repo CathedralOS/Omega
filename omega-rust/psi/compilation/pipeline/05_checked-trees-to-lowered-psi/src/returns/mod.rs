@@ -39,7 +39,6 @@ use terminal_psi::{
     StructuralTypeShape, TerminalAffineCleanupAction, TerminalMachine, TerminalMachineResult,
     TerminalModule, Terminator, ValueDeclaration,
 };
-use terminal_verifier::ProofBundle;
 
 use crate::emission::boolean_control::{
     bind_boolean_decision, boolean_decision_block_count, emit_inlined_boolean_value_blocks,
@@ -61,7 +60,6 @@ use crate::proofs::content_conservation::{
     RESULT_STRUCTURAL_PLACE_ID, lower_content_identity_reshuffles,
 };
 use crate::proofs::crash_routes::lower_checked_crash_route_buckets;
-use crate::proofs::operation_proofs::finalize_operation_proofs;
 use crate::returns::affine_return::lower_affine_return_machine;
 use crate::returns::boundary_scalar_return::lower_boundary_scalar_return_machine;
 use crate::returns::payloadless_guarded_call_return::lower_payloadless_guarded_call_return_machine;

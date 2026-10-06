@@ -158,7 +158,6 @@ impl EvaluatedViaBindingTable {
                 && row.requirement == requirement
         })
     }
-
 }
 
 struct BindingVocabulary {

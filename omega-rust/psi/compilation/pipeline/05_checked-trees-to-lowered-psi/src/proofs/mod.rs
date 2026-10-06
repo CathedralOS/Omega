@@ -1,11 +1,8 @@
-//! Proposition, contract, certificate and evidence lowering.
+//! Proposition, contract, and semantic evidence lowering.
 //!
 //! Owns crash routes and canonical propositions, logical contract conversion,
-//! content conservation guarantees, float-meaning projections, quotient
-//! correspondences, proof-SCC custody, scalar block invariants, the focused
-//! integer certificate producer, ranking certificates, evidence artifacts,
-//! mathematical declaration admission, and operation proof completion over the
-//! finished module.
+//! content conservation guarantees, float-meaning projections, and authored
+//! evidence artifacts retained in Terminal Psi.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -30,17 +27,14 @@ use language_semantics::content::{
 };
 use language_semantics::{PermissionClaimIdentity, SemanticDomainId};
 use lowered_psi::LoweredPsi;
-use proof_admission::{
-    CertificateEnvelope, EvidenceRoute, PrimitiveJudgment, ProofNode, ProofRule, ProofSystemMarker,
-};
 use semantic_vocabulary::{
     ByteSequenceStructuralField, CanonicalStructuralPathSegment, ClaimId, ContentAlgebra,
     ContentAlgebraKind, ContentConservation, ContentDomainId, ContentPlaceSegment,
     ContentPlaceVersion, ContentProjectionExpression, ContentProjectionIdentity,
-    ContentProjectionScalar, ContentStructuralPlace, ContentTerm, EvidenceIdentity, EvidenceTermId,
-    IeeeFloatFormat, IeeeFloatStructuralField, IntegerSign, IntegerType, IntegerValue, MachineId,
-    ObligationId, PlaceId, Proposition, PropositionContext, PropositionId, ScalarTerm, ScalarType,
-    StructuralCaseSubject, StructuralPlaceKind, StructuralTypeId,
+    ContentProjectionScalar, ContentStructuralPlace, ContentTerm, EvidenceTermId, IeeeFloatFormat,
+    IeeeFloatStructuralField, IntegerSign, IntegerType, IntegerValue, MachineId, PlaceId,
+    Proposition, PropositionContext, PropositionId, ScalarTerm, ScalarType, StructuralCaseSubject,
+    StructuralPlaceKind, StructuralTypeId,
 };
 use terminal_psi::{
     BoundaryContentGuarantee, ClaimContentProjection, ContentConservationGuarantee,
@@ -58,314 +52,19 @@ use terminal_psi::{
     StructuralPlaceDeclaration, StructuralTypeDeclaration, StructuralTypeShape, TerminalModule,
     ValueDeclaration,
 };
-use terminal_verifier::{
-    EvidenceProducerProvenance, EvidenceProducerRealization, EvidenceProducerRowSource,
-    ObligationEvidence,
-};
 
 use crate::emission::scalar_types::{
     integer_landing_scalar_type, integer_scalar_type, integer_value, terminal_scalar_type,
 };
 use crate::expression_preparation::prepare_expression::lower_checked_scalar_expression;
-use crate::lowering_error::{LoweringError, ProofSearchCapacity, unsupported};
+use crate::lowering_error::{LoweringError, unsupported};
 use crate::terminal_identities::{
     dense_identity, lookup_claim_id, machine_id, obligation_id, proposition_id, value_id,
 };
 
 pub(crate) mod content_conservation;
 pub(crate) mod contract_predicates;
-pub(crate) mod control_cycle_proofs;
 pub(crate) mod crash_routes;
-pub(crate) mod entry_requirement_certificates;
 pub(crate) mod evidence_lowering;
 pub(crate) mod float_meaning_projection;
 pub(crate) mod integer_predicates;
-pub(crate) mod mathematical_declarations;
-pub(crate) mod nonzero_divisor_certificate;
-pub(crate) mod operation_proofs;
-pub(crate) mod proof_recursion;
-mod retained_evidence;
-pub(crate) mod scalar_block_invariants;
-mod scalar_result_guarantees;
-
-/// The named proof-search capacities that declined a request during one
-/// finalization's optional inference. A decline is accounted, not silent:
-/// the ledger keeps the first mention of each capacity so that an
-/// obligation which later proves unmet reports the named capacity — the
-/// publication contract's `Incomplete` outcome — instead of the ordinary
-/// unavailable-proof rejection.
-///
-/// Each retained mention carries the declined draw's total demand on its
-/// capacity — the pool already consumed plus the refused amount — so the
-/// published `(limit, requested)` pair compares like quantities and always
-/// shows the demand past the provision, as the compiler request's
-/// scalar-resource rows require.
-#[derive(Debug, Default)]
-pub(crate) struct ProofSearchDeclines {
-    declines: Vec<(ProofSearchCapacity, u64)>,
-}
-
-impl ProofSearchDeclines {
-    fn extend(&mut self, later: Self) {
-        for (capacity, requested) in later.declines {
-            self.retain_first(capacity, requested);
-        }
-    }
-
-    fn retain_first(&mut self, capacity: ProofSearchCapacity, requested: u64) {
-        if !self.declines.iter().any(|(named, _)| *named == capacity) {
-            self.declines.push((capacity, requested));
-        }
-    }
-
-    /// Account one refused unit draw from `capacity`, whose total demand is
-    /// one past the provisioned limit: the process-wide exhaustion aggregate
-    /// ticks once per refusal, and the ledger retains the first mention of
-    /// each named capacity.
-    pub(crate) fn record(&mut self, capacity: ProofSearchCapacity) {
-        self.record_demand(capacity, capacity.limit().saturating_add(1));
-    }
-
-    /// Account one refused draw whose total demand on `capacity` — the pool
-    /// already consumed plus the refused amount — is `requested`.
-    pub(crate) fn record_demand(&mut self, capacity: ProofSearchCapacity, requested: u64) {
-        proof_timing::count_budget_exhaustion();
-        self.retain_first(capacity, requested);
-    }
-
-    /// The refusal an unproved obligation reports: the earliest recorded
-    /// capacity's `Incomplete` refusal when any decline happened during this
-    /// finalization's optional inference, else the ordinary
-    /// unavailable-proof rejection.
-    ///
-    /// The mapping is deliberately coarse: once a named capacity declined,
-    /// the pass can no longer establish whether the unproved site was
-    /// genuinely unprovable or simply beyond the provisioned search, so the
-    /// outcome must not read as a disproof of the module.
-    pub(crate) fn unproved_obligation_error(&self, obligation: ObligationId) -> LoweringError {
-        match self.declines.first() {
-            Some(&(capacity, requested)) => LoweringError::ProofSearchCapacityExhausted {
-                capacity,
-                requested,
-                obligation,
-            },
-            None => LoweringError::OperationProofUnavailable(obligation),
-        }
-    }
-}
-
-/// Fresh obligation identities one optional pass mints above the module's
-/// registered identities, under the `proof_obligation_identities` provision.
-pub(crate) struct FreshObligations {
-    next: u64,
-    minted: u64,
-}
-
-impl FreshObligations {
-    pub(crate) fn above(module: &TerminalModule) -> Result<Self, LoweringError> {
-        Ok(Self {
-            next: terminal_verifier::maximum_registered_obligation_id(module)
-                .map_err(LoweringError::InvalidTerminalModule)?,
-            minted: 0,
-        })
-    }
-
-    /// The next fresh identity, or `None` after recording the decline when
-    /// the provision or the identity space is spent.
-    pub(crate) fn mint(&mut self, declines: &mut ProofSearchDeclines) -> Option<ObligationId> {
-        let capacity = ProofSearchCapacity::TerminalObligationIdentities;
-        let fresh = (self.minted < capacity.limit())
-            .then(|| self.next.checked_add(1))
-            .flatten()
-            .and_then(ObligationId::new);
-        let Some(fresh) = fresh else {
-            declines.record(capacity);
-            return None;
-        };
-        self.next = fresh.get();
-        self.minted += 1;
-        Some(fresh)
-    }
-}
-
-/// Scratch instrumentation for C2L-PROOF-SEARCH-BLOWUP-CONTAINMENT attribution.
-/// Enabled by OMEGA_PROOF_TIMINGS=1; prints to stderr.
-pub(crate) mod proof_timing {
-    use std::sync::atomic::{AtomicU64, Ordering};
-    use std::time::Instant;
-
-    pub(crate) fn enabled() -> bool {
-        static ENABLED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
-        *ENABLED.get_or_init(|| std::env::var("OMEGA_PROOF_TIMINGS").is_ok())
-    }
-
-    pub(crate) struct Scope {
-        name: &'static str,
-        started: Instant,
-    }
-
-    impl Scope {
-        pub(crate) fn enter(name: &'static str) -> Option<Self> {
-            enabled().then(|| Self {
-                name,
-                started: Instant::now(),
-            })
-        }
-    }
-
-    impl Drop for Scope {
-        fn drop(&mut self) {
-            eprintln!(
-                "[proof-timing] {} {:.3}ms",
-                self.name,
-                self.started.elapsed().as_secs_f64() * 1000.0
-            );
-        }
-    }
-
-    pub(crate) static RECONSTRUCT_CALLS: AtomicU64 = AtomicU64::new(0);
-    pub(crate) static VALIDATE_CALLS: AtomicU64 = AtomicU64::new(0);
-    pub(crate) static RECONSTRUCT_MICROS: AtomicU64 = AtomicU64::new(0);
-    pub(crate) static VALIDATE_MICROS: AtomicU64 = AtomicU64::new(0);
-    pub(crate) static VALUE_CONTEXT_CALLS: AtomicU64 = AtomicU64::new(0);
-    pub(crate) static VALUE_CONTEXT_MICROS: AtomicU64 = AtomicU64::new(0);
-    pub(crate) static PRODUCER_CALLS: AtomicU64 = AtomicU64::new(0);
-    pub(crate) static PRODUCER_MICROS: AtomicU64 = AtomicU64::new(0);
-
-    pub(crate) fn count_reconstruct(elapsed: std::time::Duration) {
-        if enabled() {
-            RECONSTRUCT_CALLS.fetch_add(1, Ordering::Relaxed);
-            RECONSTRUCT_MICROS.fetch_add(elapsed.as_micros() as u64, Ordering::Relaxed);
-        }
-    }
-
-    pub(crate) fn count_validate(elapsed: std::time::Duration) {
-        if enabled() {
-            VALIDATE_CALLS.fetch_add(1, Ordering::Relaxed);
-            VALIDATE_MICROS.fetch_add(elapsed.as_micros() as u64, Ordering::Relaxed);
-        }
-    }
-
-    pub(crate) fn count_value_context(elapsed: std::time::Duration) {
-        if enabled() {
-            VALUE_CONTEXT_CALLS.fetch_add(1, Ordering::Relaxed);
-            VALUE_CONTEXT_MICROS.fetch_add(elapsed.as_micros() as u64, Ordering::Relaxed);
-        }
-    }
-
-    pub(crate) fn count_producer(elapsed: std::time::Duration) {
-        if enabled() {
-            PRODUCER_CALLS.fetch_add(1, Ordering::Relaxed);
-            PRODUCER_MICROS.fetch_add(elapsed.as_micros() as u64, Ordering::Relaxed);
-        }
-    }
-
-    /// Counts the enclosing scope's elapsed time into `counter` on drop.
-    pub(crate) struct Counted {
-        started: Instant,
-        counter: fn(std::time::Duration),
-    }
-
-    impl Counted {
-        pub(crate) fn enter(counter: fn(std::time::Duration)) -> Option<Self> {
-            enabled().then(|| Self {
-                started: Instant::now(),
-                counter,
-            })
-        }
-    }
-
-    impl Drop for Counted {
-        fn drop(&mut self) {
-            (self.counter)(self.started.elapsed());
-        }
-    }
-
-    /// One search's canonical and relaxed durations and its answer, printed
-    /// per search so a slow refusal can be attributed to its question.
-    pub(crate) fn search(
-        label: &str,
-        identity: u64,
-        goal: &semantic_vocabulary::Proposition,
-        requirements: usize,
-        axioms: usize,
-        canonical: std::time::Duration,
-        relaxed: Option<std::time::Duration>,
-        proved: bool,
-    ) {
-        if enabled() {
-            let mut text = format!("{goal:?}");
-            text.truncate(240);
-            eprintln!(
-                "[proof-search] {label} id={identity} canonical_ms={:.1} relaxed_ms={} proved={proved} requirements={requirements} axioms={axioms} goal={text}",
-                canonical.as_secs_f64() * 1000.0,
-                relaxed.map_or_else(
-                    || "-".to_owned(),
-                    |relaxed| format!("{:.1}", relaxed.as_secs_f64() * 1000.0)
-                ),
-            );
-        }
-    }
-
-    /// The candidate pool left after one discovery producer, with the
-    /// candidates it leaves proposed.
-    pub(crate) fn discovery(producer: &str, round: usize, remaining: usize, candidates: usize) {
-        if enabled() {
-            eprintln!(
-                "[roster-discovery] round={round} producer={producer} remaining={remaining} candidates={candidates}"
-            );
-        }
-    }
-
-    /// A stable digest of a search key for joining per-site and per-search lines.
-    pub(crate) fn key_digest(key: &impl std::hash::Hash) -> u64 {
-        use std::hash::Hasher;
-        let mut hasher = std::collections::hash_map::DefaultHasher::new();
-        key.hash(&mut hasher);
-        hasher.finish()
-    }
-
-    pub(crate) static VERDICT_HITS: AtomicU64 = AtomicU64::new(0);
-    pub(crate) static VERDICT_MISSES: AtomicU64 = AtomicU64::new(0);
-    pub(crate) static BUDGET_EXHAUSTIONS: AtomicU64 = AtomicU64::new(0);
-
-    /// A cached proof verdict was reused instead of re-running the search.
-    /// Counted unconditionally: the accounting must be accurate with or
-    /// without the timing flag.
-    pub(crate) fn count_verdict_hit() {
-        VERDICT_HITS.fetch_add(1, Ordering::Relaxed);
-    }
-
-    /// A proof search ran (its duration is counted by `count_producer`).
-    /// Counted unconditionally for the same reason.
-    pub(crate) fn count_verdict_miss() {
-        VERDICT_MISSES.fetch_add(1, Ordering::Relaxed);
-    }
-
-    /// A named private proof-work capacity declined a candidate. Bounded
-    /// execution keeps the verdict but the exhaustion is accounted here —
-    /// unconditionally, so the aggregate is never silent.
-    pub(crate) fn count_budget_exhaustion() {
-        BUDGET_EXHAUSTIONS.fetch_add(1, Ordering::Relaxed);
-    }
-
-    pub(crate) fn report(label: &str) {
-        if enabled() {
-            eprintln!(
-                "[proof-timing] {} reconstruct: {} calls {:.1}ms | validate: {} calls {:.1}ms | value_context: {} calls {:.1}ms | producer: {} calls {:.1}ms | verdicts: {} hits {} misses | budget exhaustions: {}",
-                label,
-                RECONSTRUCT_CALLS.load(Ordering::Relaxed),
-                RECONSTRUCT_MICROS.load(Ordering::Relaxed) as f64 / 1000.0,
-                VALIDATE_CALLS.load(Ordering::Relaxed),
-                VALIDATE_MICROS.load(Ordering::Relaxed) as f64 / 1000.0,
-                VALUE_CONTEXT_CALLS.load(Ordering::Relaxed),
-                VALUE_CONTEXT_MICROS.load(Ordering::Relaxed) as f64 / 1000.0,
-                PRODUCER_CALLS.load(Ordering::Relaxed),
-                PRODUCER_MICROS.load(Ordering::Relaxed) as f64 / 1000.0,
-                VERDICT_HITS.load(Ordering::Relaxed),
-                VERDICT_MISSES.load(Ordering::Relaxed),
-                BUDGET_EXHAUSTIONS.load(Ordering::Relaxed),
-            );
-        }
-    }
-}

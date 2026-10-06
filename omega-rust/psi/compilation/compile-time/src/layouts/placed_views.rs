@@ -295,7 +295,6 @@ fn prepare_placement_probe(
     }
 }
 
-
 pub(crate) fn validate_placed_view_plans_in(
     typed: &mut TypedTrees,
     records: &[PlacedViewRecord],

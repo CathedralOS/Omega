@@ -6,7 +6,8 @@ use crate::ValidatedRecoveryClassifications;
 use crate::ValidatedSelectedAnalysis;
 use crate::ValidatedSpillChoices;
 use register_model::{
-    TargetRegisterEnvironmentConstraintKeys, TargetRegisterEnvironmentIdentity, ValidatedRegisterConstraintCatalog,
+    TargetRegisterEnvironmentConstraintKeys, TargetRegisterEnvironmentIdentity,
+    ValidatedRegisterConstraintCatalog,
 };
 
 pub(crate) mod compute;
@@ -178,7 +179,11 @@ pub(crate) fn fold_selected_incoming_literal<S: ValidatedSelectedAnalysis>(
     )?;
     // The fold was computed in this compile from these exact inputs;
     // nothing re-derives it before admission.
-    let applied_count = plan.functions.iter().map(|function| function.actions.len()).sum();
+    let applied_count = plan
+        .functions
+        .iter()
+        .map(|function| function.actions.len())
+        .sum();
     let transformed_selected = plan.transformed_selected;
     Ok(receipt::admit_literal_fold(
         plan,

@@ -25,7 +25,9 @@ pub struct ArtifactSections<'artifact> {
 /// through `AdmittedNativeArtifact::into_optimization_artifact`, and a
 /// realization consumer binds its placed-view establishments through
 /// `AdmittedNativeArtifact::try_into_native_input`.
-pub fn lower_artifact(sections: ArtifactSections<'_>) -> Result<AdmittedNativeArtifact, ArtifactLoweringError> {
+pub fn lower_artifact(
+    sections: ArtifactSections<'_>,
+) -> Result<AdmittedNativeArtifact, ArtifactLoweringError> {
     // Loose section bytes carry no decoded module, so this is the one place
     // that runs canonical module decoding for them. A consumer holding the
     // whole `CanonicalTerminalArtifact` reads the artifact's own decoded

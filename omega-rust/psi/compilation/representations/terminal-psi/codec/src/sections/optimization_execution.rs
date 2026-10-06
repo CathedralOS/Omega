@@ -48,18 +48,12 @@ impl PsiOptimizationExecutionRecord {
     pub fn new(
         selections: PsiOptimizationSelections,
         input_semantic: TerminalPsiIdentity,
-            output_semantic: TerminalPsiIdentity,
-        ) -> Result<Self, PsiOptimizationExecutionRecordError> {
-        if selections.is_empty()
-            && input_semantic != output_semantic
-        {
+        output_semantic: TerminalPsiIdentity,
+    ) -> Result<Self, PsiOptimizationExecutionRecordError> {
+        if selections.is_empty() && input_semantic != output_semantic {
             return Err(PsiOptimizationExecutionRecordError::IdentityStageChangedProduct);
         }
-        let identity = execution_identity(
-            selections.identity(),
-            input_semantic,
-            output_semantic,
-        );
+        let identity = execution_identity(selections.identity(), input_semantic, output_semantic);
         Ok(Self {
             selections,
             input_semantic,
@@ -113,7 +107,7 @@ pub fn build_identity_optimization_execution_record(
     let semantic = terminal_psi_identity(module)
         .map_err(PsiOptimizationExecutionRecordBuildError::Semantic)?;
     PsiOptimizationExecutionRecord::new(PsiOptimizationSelections::default(), semantic, semantic)
-    .map_err(PsiOptimizationExecutionRecordBuildError::Record)
+        .map_err(PsiOptimizationExecutionRecordBuildError::Record)
 }
 
 pub fn encode_psi_optimization_execution_record(
@@ -156,12 +150,8 @@ pub fn decode_psi_optimization_execution_record(
             cursor.remaining(),
         ));
     }
-    let record = PsiOptimizationExecutionRecord::new(
-        selections,
-        input_semantic,
-        output_semantic,
-    )
-    .map_err(PsiOptimizationExecutionRecordDecodeError::InvalidRecord)?;
+    let record = PsiOptimizationExecutionRecord::new(selections, input_semantic, output_semantic)
+        .map_err(PsiOptimizationExecutionRecordDecodeError::InvalidRecord)?;
     if encode_psi_optimization_execution_record(&record) != bytes {
         return Err(PsiOptimizationExecutionRecordDecodeError::NonCanonicalEncoding);
     }

@@ -184,7 +184,6 @@ impl ProgramEntrySourceExtentValueLayout {
         }
         Ok(())
     }
-
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -397,7 +396,6 @@ impl SelectedProgramEntrySourceSignature {
         });
         ProgramEntrySourceSignatureIdentity(Sha256::digest(canonical).into())
     }
-
 
     fn validate_capture(&self) -> Result<(), String> {
         if self.target_slot != self.target_slot.owner.program_entry_slot()

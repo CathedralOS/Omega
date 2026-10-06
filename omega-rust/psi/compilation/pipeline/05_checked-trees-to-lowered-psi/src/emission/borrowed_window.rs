@@ -20,9 +20,7 @@
 //! another place, a repair value that is not a whole owned value of the hole's
 //! type, or an open hole at a sequence exit — is a
 //! `LoweringError::UnpinnedBorrowedStorageWindow` naming
-//! the place. Terminal verification reconstructs the same debt independently
-//! (`terminal-verifier/src/validation/borrowed_windows.rs`); nothing here is
-//! evidence for it.
+//! the place.
 //!
 //! A returned record reference retains its carrier place and an explicit
 //! `Referent` crossing in both the emitted path and ledger key. Geometry walks

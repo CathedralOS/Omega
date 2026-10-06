@@ -57,7 +57,6 @@ pub fn stage_whole_function_exit_contract_for_layout<S: ValidatedSelectedAnalysi
     })
 }
 
-
 /// Check the exit record after this invocation has replayed the exact borrowed
 /// selected/machine/encoding/layout tuple. Fixed-frame admission additionally
 /// binds encoding to its actual frame and layout to its source phase selections.

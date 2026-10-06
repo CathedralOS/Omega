@@ -28,28 +28,11 @@
 mod copies;
 
 use crate::PsiOptimizationStageError;
-use crate::rewrite_refusal::{PsiRewriteRefusal, PsiRewriteRefusalReason};
 use lowered_psi::LoweredPsi;
-use optimization::PsiOptimization;
 use std::collections::BTreeSet;
 use terminal_psi::DebugSubject;
-use terminal_verifier::{
-    reconstruct_optimizable_terminal_obligations, transport_copy_propagation_evidence,
-    validate_module_for_optimization,
-};
 
-pub(super) fn propagate(
-    before: LoweredPsi,
-    refusals: &mut Vec<PsiRewriteRefusal>,
-) -> Result<LoweredPsi, PsiOptimizationStageError> {
-    let validated = validate_module_for_optimization(&before.semantic_module)
-        .map_err(PsiOptimizationStageError::InvalidModule)?;
-    let questions = reconstruct_optimizable_terminal_obligations(validated)
-        .map_err(PsiOptimizationStageError::InvalidModule)?;
-    // Call composition can include a callee's axioms in another machine's
-    // obligation: the verifier's reconstructed-question check is the refusal
-    // boundary for the complete closure, not just the obligation owner.
-    let proof_bearing = !questions.obligations().is_empty();
+pub(super) fn propagate(before: LoweredPsi) -> Result<LoweredPsi, PsiOptimizationStageError> {
     // One proposal, two treatments of the retained join invariants: the
     // rewriting attempt lets a copy parameter a predicate names collapse
     // while rewriting the predicate to the resolved source; the retained
@@ -96,51 +79,7 @@ pub(super) fn propagate(
         }
         after
     };
-    let after = propose(true);
-    let invariants_rewritten = after.semantic_module.scalar_block_invariants
-        != before.semantic_module.scalar_block_invariants;
-    let first = transport_copy_propagation_evidence(
-        &before.semantic_module,
-        &after.semantic_module,
-        &before.proof_bundle,
-    );
-    // A rewritten predicate must also remain publishable: remapped identities
-    // can reorder the conjunction's canonical member list, and a module whose
-    // stored proposition no longer encodes is not a candidate. When the
-    // rewritten attempt fails either check — and only an invariant rewrite
-    // separates it from the retained proposal — retry that boundary rather
-    // than spending a refusal on the join.
-    let publishable = first.is_ok()
-        && (!invariants_rewritten
-            || terminal_codec::terminal_psi_identity(&after.semantic_module).is_ok());
-    let (after, transported) = if publishable {
-        (
-            after,
-            first.expect("publishable implies the transport succeeded"),
-        )
-    } else if invariants_rewritten {
-        let retained_after = propose(false);
-        match transport_copy_propagation_evidence(
-            &before.semantic_module,
-            &retained_after.semantic_module,
-            &before.proof_bundle,
-        ) {
-            Ok(proof) => (retained_after, proof),
-            Err(error) => {
-                withhold_or_fail(error, proof_bearing, refusals)?;
-                return Ok(before);
-            }
-        }
-    } else {
-        withhold_or_fail(
-            first.expect_err("not publishable with unchanged invariants"),
-            proof_bearing,
-            refusals,
-        )?;
-        return Ok(before);
-    };
-    let mut after = after;
-    after.proof_bundle = transported;
+    let mut after = propose(false);
     if let Some(debug) = after.debug_map.as_mut() {
         let removed_values = before
             .semantic_module
@@ -172,36 +111,4 @@ pub(super) fn propagate(
             .map_err(PsiOptimizationStageError::InvalidSemantic)?;
     }
     Ok(after)
-}
-
-/// Map one transport failure onto the recorded refusal surface. A refusal
-/// reason exists only for the two boundaries that preserve the complete
-/// input — a changed proof question or a proposal that left proof context
-/// dangling — and only a proof-bearing module can owe one. Anything else is
-/// a stage error, and a refusal pushes onto `refusals` for the caller to
-/// return the input module with.
-fn withhold_or_fail(
-    error: terminal_verifier::CopyPropagationRewriteError,
-    proof_bearing: bool,
-    refusals: &mut Vec<PsiRewriteRefusal>,
-) -> Result<(), PsiOptimizationStageError> {
-    let reason = match error {
-        terminal_verifier::CopyPropagationRewriteError::ChangedProofQuestion => {
-            Some(PsiRewriteRefusalReason::ChangedProofQuestion)
-        }
-        terminal_verifier::CopyPropagationRewriteError::InvalidModule(_) => {
-            Some(PsiRewriteRefusalReason::ProposalLeftProofContextDangling)
-        }
-        _ => None,
-    };
-    if let Some(reason) = reason.filter(|_| proof_bearing) {
-        refusals.push(PsiRewriteRefusal::new(
-            PsiOptimization::CopyPropagation,
-            reason,
-        ));
-        return Ok(());
-    }
-    Err(PsiOptimizationStageError::InvalidCopyPropagationRewrite(
-        error,
-    ))
 }

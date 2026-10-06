@@ -1,7 +1,6 @@
 //! Text presentation of a checked terminal inspection.
 
 use super::arguments::InspectTerminalArguments;
-use omega::inspection::evidence;
 use omega::inspection::{InspectTerminalRequest, inspect_terminal};
 use semantic_vocabulary::{ServiceId, StructuralTypeId};
 use std::fmt::Write;
@@ -14,10 +13,7 @@ pub(crate) fn run(arguments: InspectTerminalArguments) {
         target_name: arguments.target_name,
     };
     match inspect_terminal(&request) {
-        Ok(inspection) => print!(
-            "{}",
-            terminal_summary(&request.machine, &inspection.module, &inspection.fixed_fuel,)
-        ),
+        Ok(inspection) => print!("{}", terminal_summary(&request.machine, &inspection.module)),
         Err(error) => {
             eprintln!("{error}");
             std::process::exit(1);
@@ -25,15 +21,11 @@ pub(crate) fn run(arguments: InspectTerminalArguments) {
     }
 }
 
-fn terminal_summary(
-    selected_machine: &str,
-    module: &TerminalModule,
-    fixed_fuel: &evidence::FixedFuel,
-) -> String {
+fn terminal_summary(selected_machine: &str, module: &TerminalModule) -> String {
     let mut output = String::new();
     writeln!(
         output,
-        "terminal selected_machine={} entry=machine:{} verified=true",
+        "terminal selected_machine={} entry=machine:{}",
         selected_machine,
         module.entry.get()
     )
@@ -231,26 +223,6 @@ fn terminal_summary(
             .expect("writing to a String cannot fail");
         }
     }
-    let fixed_fuel = match fixed_fuel {
-        evidence::FixedFuel::Available(certificate) => certificate,
-        evidence::FixedFuel::Unavailable(reason) => {
-            writeln!(output, "fixed_fuel status=unknown reason={reason}")
-                .expect("writing to a String cannot fail");
-            return output;
-        }
-    };
-    let identity = fixed_fuel.terminal_psi();
-    writeln!(
-        output,
-        "fixed_fuel terminal_vocabulary={} terminal_fingerprint={} schedule={} entry=machine:{} ceiling_units={} relevant_preconditions={}",
-        identity.vocabulary_marker.get(),
-        identity.program_fingerprint,
-        fixed_fuel.schedule().marker(),
-        fixed_fuel.entry().get(),
-        fixed_fuel.ceiling_units(),
-        fixed_fuel.relevant_preconditions().len(),
-    )
-    .expect("writing to a String cannot fail");
     output
 }
 

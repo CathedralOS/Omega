@@ -52,9 +52,7 @@ mod report_identity;
 mod sum_reachability;
 
 pub use record_level::ValidatedConstRecordSumChildMaterialization;
-pub use recursive::{
-    ValidatedConstRecordWithRecursiveNestedSumsMaterialization,
-    };
+pub use recursive::ValidatedConstRecordWithRecursiveNestedSumsMaterialization;
 pub(super) use sum_reachability::SumReachability;
 use sum_reachability::{record_sum_profile, reject_sum_array_type};
 
@@ -285,7 +283,6 @@ impl ValidatedConstRecordWithNestedSumRecordMaterialization {
     }
 }
 
-
 /// Exact custody for the complete authored-order set of qualifying direct
 /// inner-record occurrences. Each occurrence retains one independent existing
 /// direct-sum record carrier; the outer layout is retained only once.
@@ -478,7 +475,6 @@ impl ValidatedConstRecordWithNestedSumRecordsMaterialization {
         Ok(())
     }
 }
-
 
 struct DerivedNestedRecordSumMaterialization {
     schema_report_fingerprint: u64,

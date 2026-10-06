@@ -15,28 +15,11 @@
 mod liveness;
 
 use crate::PsiOptimizationStageError;
-use crate::rewrite_refusal::{PsiRewriteRefusal, PsiRewriteRefusalReason};
 use lowered_psi::LoweredPsi;
-use optimization::PsiOptimization;
 use std::collections::BTreeSet;
 use terminal_psi::DebugSubject;
-use terminal_verifier::{
-    reconstruct_optimizable_terminal_obligations, transport_dead_scalar_elimination_evidence,
-    validate_module_for_optimization,
-};
 
-pub(super) fn eliminate(
-    before: LoweredPsi,
-    refusals: &mut Vec<PsiRewriteRefusal>,
-) -> Result<LoweredPsi, PsiOptimizationStageError> {
-    let validated = validate_module_for_optimization(&before.semantic_module)
-        .map_err(PsiOptimizationStageError::InvalidModule)?;
-    let questions = reconstruct_optimizable_terminal_obligations(validated)
-        .map_err(PsiOptimizationStageError::InvalidModule)?;
-    // Call composition can include a callee's axioms in another machine's
-    // obligation: the verifier's reconstructed-question check is the refusal
-    // boundary for the complete closure, not just the obligation owner.
-    let proof_bearing = !questions.obligations().is_empty();
+pub(super) fn eliminate(before: LoweredPsi) -> Result<LoweredPsi, PsiOptimizationStageError> {
     let mut after = before.clone();
     // These are semantic uses even when no executable operand reads the
     // value: proof projections and retained suspension frontiers survive
@@ -81,36 +64,6 @@ pub(super) fn eliminate(
     for machine in &mut after.semantic_module.machines {
         liveness::eliminate(machine, &before.source_call_occurrences, &retained_values);
     }
-    let transported = match transport_dead_scalar_elimination_evidence(
-        &before.semantic_module,
-        &after.semantic_module,
-        &before.proof_bundle,
-    ) {
-        Ok(proof) => proof,
-        Err(error) => {
-            // The proposal cannot carry the existing evidence through its exact
-            // reconstructed question. Preserve the complete input and record
-            // the refusal; a new proof search must not turn this into a rewrite.
-            let reason = match error {
-                terminal_verifier::DeadScalarRewriteError::ChangedProofQuestion => {
-                    Some(PsiRewriteRefusalReason::ChangedProofQuestion)
-                }
-                terminal_verifier::DeadScalarRewriteError::InvalidModule(_) => {
-                    Some(PsiRewriteRefusalReason::ProposalLeftProofContextDangling)
-                }
-                _ => None,
-            };
-            if let Some(reason) = reason.filter(|_| proof_bearing) {
-                refusals.push(PsiRewriteRefusal::new(
-                    PsiOptimization::DeadPureScalarElimination,
-                    reason,
-                ));
-                return Ok(before);
-            }
-            return Err(PsiOptimizationStageError::InvalidDeadScalarRewrite(error));
-        }
-    };
-    after.proof_bundle = transported;
     if let Some(debug) = after.debug_map.as_mut() {
         let operations = after
             .semantic_module

@@ -44,20 +44,9 @@ use crate::PsiOptimizationStageError;
 use lowered_psi::LoweredPsi;
 use std::collections::BTreeSet;
 use terminal_psi::{DebugSubject, OperationResult};
-use terminal_verifier::{
-    reconstruct_optimizable_terminal_obligations, validate_module_for_optimization,
-};
 use validation::validate_control_flow_cleanup;
 
 pub(super) fn cleanup(before: LoweredPsi) -> Result<LoweredPsi, PsiOptimizationStageError> {
-    let validated = validate_module_for_optimization(&before.semantic_module)
-        .map_err(PsiOptimizationStageError::InvalidModule)?;
-    let questions = reconstruct_optimizable_terminal_obligations(validated)
-        .map_err(PsiOptimizationStageError::InvalidModule)?;
-    // Call composition can include a callee's axioms in another machine's
-    // obligation: the verifier's reconstructed-question check is the refusal
-    // boundary for the complete closure, not just the obligation owner.
-    let proof_bearing = !questions.obligations().is_empty();
     let mut after = before.clone();
     // Checked-source joins are unsealed sidecars the module-level evidence
     // inventory cannot see: an occurrence keeps its Terminal operation and
@@ -88,18 +77,6 @@ pub(super) fn cleanup(before: LoweredPsi) -> Result<LoweredPsi, PsiOptimizationS
     if let Err(error) =
         validate_control_flow_cleanup(&before.semantic_module, &after.semantic_module)
     {
-        // Without proof-context transport a proof-bearing input keeps only a
-        // rewrite the reconstructed question survives unchanged; a refused
-        // rewrite leaves the module as authored.
-        if proof_bearing
-            && matches!(
-                error,
-                ControlFlowCleanupRewriteError::InvalidModule(_)
-                    | ControlFlowCleanupRewriteError::ChangedProofQuestion
-            )
-        {
-            return Ok(before);
-        }
         return Err(PsiOptimizationStageError::InvalidControlFlowCleanupRewrite(
             error,
         ));

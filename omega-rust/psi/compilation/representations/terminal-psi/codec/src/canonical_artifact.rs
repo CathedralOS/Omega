@@ -9,9 +9,8 @@
 use terminal_psi::TerminalModule;
 
 use crate::{
-    ArtifactManifestError, CodecError, DebugMapError,
-    PsiOptimizationExecutionRecord, PsiOptimizationExecutionRecordDecodeError,
-    TerminalArtifactManifest, TerminalDebugMap,
+    ArtifactManifestError, CodecError, DebugMapError, PsiOptimizationExecutionRecord,
+    PsiOptimizationExecutionRecordDecodeError, TerminalArtifactManifest, TerminalDebugMap,
     build_artifact_manifest, decode_debug_map, decode_module,
     decode_psi_optimization_execution_record, encode_debug_map, encode_module,
     encode_psi_optimization_execution_record, validate_artifact_manifest,
@@ -102,13 +101,9 @@ impl CanonicalTerminalArtifact {
                     .map_err(CanonicalTerminalArtifactError::Debug)
             })
             .transpose()?;
-        let manifest = build_artifact_manifest(
-            semantic_module,
-            optimization,
-            None,
-            debug_bytes.as_deref(),
-        )
-        .map_err(CanonicalTerminalArtifactError::Manifest)?;
+        let manifest =
+            build_artifact_manifest(semantic_module, optimization, None, debug_bytes.as_deref())
+                .map_err(CanonicalTerminalArtifactError::Manifest)?;
         let artifact = Self {
             semantic_bytes,
             optimization_bytes,

@@ -16,7 +16,6 @@ pub fn validate_function_fragment_object_artifact(
     validate(source, artifact, None)
 }
 
-
 fn validate(
     source: &StagedOptimizedRelocationFreeObjectContainer,
     artifact: &ObjectArtifact,

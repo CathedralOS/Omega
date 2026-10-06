@@ -10,13 +10,13 @@
 //! `crate::semantic_wrapper_object`; this stage binds them to the
 //! settlement, source artifact, and encoding custody it retains.
 
+use crate::semantic_wrapper_object::encode_sealed_optimized_program_storage_semantic_wrapper_object;
 use crate::{
     OptimizedProgramStorageSemanticWrapperObjectContainer,
     OptimizedProgramStorageSemanticWrapperObjectCustodyReceipt,
     OptimizedProgramStorageSemanticWrapperObjectPlan,
     ValidatedOptimizedProgramStorageSemanticWrapperObjectManifest,
 };
-use crate::semantic_wrapper_object::encode_sealed_optimized_program_storage_semantic_wrapper_object;
 use object_file::StagedValidatedOptimizedObjectArtifact;
 use program_entry_plan::StagedOptimizedProgramStorageSemanticWrapperEncoding;
 use terminal_psi_to_abstract_operations::ValidatedNativeProgramEntrySettlement;
@@ -29,10 +29,8 @@ pub use error::{
     InstalledProgramStorageContinuationEvidenceError,
     OptimizedProgramStorageSemanticWrapperObjectError,
 };
+pub use validation::validate_installed_program_storage_continuation_evidence;
 pub use validation::{bind_semantic_contract, receiver_layout};
-pub use validation::{
-    validate_installed_program_storage_continuation_evidence,
-    };
 
 use object::construct_object;
 use validation::validate_entry_shape;

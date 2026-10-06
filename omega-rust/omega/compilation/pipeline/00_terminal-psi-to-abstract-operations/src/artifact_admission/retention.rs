@@ -47,10 +47,8 @@ impl AdmittedOptimizationArtifact {
 
 pub(super) fn retain_optimization_context(
     module: &terminal_psi::TerminalModule,
-    reconstructed_obligations: terminal_verifier::ReconstructedTerminalObligationSet,
 ) -> VerifiedPsiOptimizationContext {
     VerifiedPsiOptimizationContext {
         module: module.clone(),
-        reconstructed_obligations,
     }
 }

@@ -363,7 +363,6 @@ dependencies = [
  "terminal-codec",
  "terminal-psi",
  "terminal-semantics",
- "terminal-verifier",
  "typed-trees",
  "validation",
 ]
@@ -948,7 +947,6 @@ dependencies = [
  "terminal-codec",
  "terminal-psi",
  "terminal-semantics",
- "terminal-verifier",
 ]
 
 [[package]]
@@ -1153,7 +1151,6 @@ dependencies = [
  "source",
  "symbols",
  "target",
- "terminal-fixed-fuel",
  "terminal-psi",
  "terminal-semantics",
  "typed-trees",
@@ -2010,17 +2007,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "terminal-fixed-fuel"
-version = "0.1.0"
-dependencies = [
- "semantic-vocabulary",
- "terminal-codec",
- "terminal-fuel",
- "terminal-psi",
- "terminal-semantics",
-]
-
-[[package]]
 name = "terminal-fuel"
 version = "0.1.0"
 dependencies = [
@@ -2039,7 +2025,6 @@ dependencies = [
  "terminal-fuel",
  "terminal-psi",
  "terminal-semantics",
- "terminal-verifier",
 ]
 
 [[package]]
@@ -2102,7 +2087,6 @@ dependencies = [
  "terminal-interpreter",
  "terminal-psi",
  "terminal-semantics",
- "terminal-verifier",
  "typed-trees",
 ]
 
@@ -2115,19 +2099,6 @@ dependencies = [
  "semantic-vocabulary",
  "sha2",
  "terminal-psi",
-]
-
-[[package]]
-name = "terminal-verifier"
-version = "0.1.0"
-dependencies = [
- "language-semantics",
- "numerics",
- "proof-admission",
- "semantic-vocabulary",
- "sha2",
- "terminal-psi",
- "terminal-semantics",
 ]
 
 [[package]]

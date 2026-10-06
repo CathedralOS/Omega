@@ -229,7 +229,6 @@ impl ValidatedConstRecordWithRecursiveNestedSumsMaterialization {
     }
 }
 
-
 pub(super) fn validate_with_reachability(
     typed: &TypedTrees,
     schema_name: &str,

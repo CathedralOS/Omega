@@ -9,7 +9,6 @@ use checked_trees::{
 use crate::lowering_error::LoweringError;
 use crate::producer_result::{
     ConformancePublication, DebugPublication, LoweredSelectedMachine, LoweringCompletion,
-    OperandProofCompletion,
 };
 use crate::returns::lower_return_machine;
 use crate::unit::attached_unit::lower_unit_effect_closure;
@@ -134,7 +133,6 @@ pub(crate) fn lower_selected_machine(
         return Ok(LoweredSelectedMachine::source_mapped(
             lower_unit_effect_closure(checked, selection.machine)?,
             LoweringCompletion {
-                operands: OperandProofCompletion::Finalize,
                 debug: DebugPublication::Omit,
                 ..Default::default()
             },
@@ -164,7 +162,6 @@ pub(crate) fn lower_selected_machine(
     Ok(LoweredSelectedMachine::source_mapped(
         crate::unit::attached_unit::lower_scalar_effect_closure(checked, selection.machine)?,
         LoweringCompletion {
-            operands: OperandProofCompletion::Finalize,
             ..Default::default()
         },
     ))

@@ -43,11 +43,10 @@ pub(super) fn interpret(
     expected_stdout: Option<&str>,
     fuel_allowance: u64,
 ) -> Observation {
-    let program =
-        match TerminalProgram::load(artifact.semantic_bytes()) {
-            Ok(program) => program,
-            Err(error) => return Observation::failure(error),
-        };
+    let program = match TerminalProgram::load(artifact.semantic_bytes()) {
+        Ok(program) => program,
+        Err(error) => return Observation::failure(error),
+    };
     let requirements = match program.execution_requirements(None) {
         Ok(requirements) => requirements,
         Err(error) => {

@@ -38,7 +38,6 @@ pub fn legalize_target_operations<'source>(
     Ok(seal(target, unit, plan))
 }
 
-
 fn seal(
     target: &TargetOperationPlan,
     unit: &optimization_unit::PsiOptimizationUnit,

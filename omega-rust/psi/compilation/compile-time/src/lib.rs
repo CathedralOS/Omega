@@ -55,9 +55,8 @@ pub use layouts::materialization::{
     ValidatedConstSumMaterialization, evaluate_and_materialize_typed_owned_layout_into,
     materialize_typed_owned_layout_into, validate_const_materializable_conventional_sum,
     validate_const_materializable_record_with_conventional_sums,
-    };
-pub use layouts::placed_views::{
-    PlacedViewRecord, desugar_placed_views, };
+};
+pub use layouts::placed_views::{PlacedViewRecord, desugar_placed_views};
 pub use layouts::plan_laid::{
     PlanLaidRecord, compute_plan_laid_layouts, desugar_plan_laid_value_types,
 };
@@ -71,12 +70,12 @@ pub use machine_execution::build_activation::{
     admit_toolchain_build_activation, is_exact_toolchain_build_prelude_data,
 };
 pub use machine_execution::build_machines::{
-    BuildEvaluationSponsor, BuildEvaluationSponsorLimits,
-    BuildMachineEvaluationError, BuildMachineExecutionMode, BuildMachineFilesystemAccess,
-    BuildMachineFilesystemGrantRoot, BuildMachineFilesystemGrantRootIdentity,
-    BuildMachineFilesystemGrants, BuildMachineFilesystemMetadataLayout,
-    BuildMachineFilesystemSponsor, BuildMachineInvocation, CheckedBuildProgram,
-    PreparedBuildMachineEntry, PreparedBuildMachineProgram, evaluate_build_machine_measured,
+    BuildEvaluationSponsor, BuildEvaluationSponsorLimits, BuildMachineEvaluationError,
+    BuildMachineExecutionMode, BuildMachineFilesystemAccess, BuildMachineFilesystemGrantRoot,
+    BuildMachineFilesystemGrantRootIdentity, BuildMachineFilesystemGrants,
+    BuildMachineFilesystemMetadataLayout, BuildMachineFilesystemSponsor, BuildMachineInvocation,
+    CheckedBuildProgram, PreparedBuildMachineEntry, PreparedBuildMachineProgram,
+    evaluate_build_machine_measured,
 };
 pub use machine_execution::selected_operators::{
     SelectedBuildTimeProviderBody, validate_selected_operators, validate_selected_provider_bodies,

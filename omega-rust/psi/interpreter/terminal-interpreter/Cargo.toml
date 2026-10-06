@@ -14,7 +14,6 @@ numerics = { path = "../../foundation/numerics" }
 terminal-psi = { path = "../../compilation/representations/terminal-psi" }
 terminal-codec = { path = "../../compilation/representations/terminal-psi/codec" }
 terminal-fuel = { path = "../../compilation/representations/terminal-psi/fuel" }
-terminal-verifier = { path = "../../compilation/representations/terminal-psi/verification" }
 terminal-semantics = { path = "../../compilation/representations/terminal-psi/semantics" }
 proof-admission = { path = "../../compilation/proof/admission" }
 

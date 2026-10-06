@@ -32,7 +32,7 @@ import urllib.request
 # inputs, requiring review of this map before the next narrow run.
 SOURCE_READERS = {
     "terminal-codec": {
-        "terminal-verifier", "terminal-psi", "proof-admission",
+        "terminal-psi", "proof-admission",
         "semantic-vocabulary", "terminal-semantics",
     },
 }

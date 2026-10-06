@@ -6,6 +6,7 @@
 //! tags stay inside the known domain — so a malformed record fails decode
 //! rather than materializing a row the evaluator never wrote.
 
+use super::FilesystemOperationResult;
 use super::grants::{
     FilesystemGrantAccess, FilesystemGrantRefusal, FilesystemGrantRefusalReason,
     FilesystemObservationProvider,
@@ -15,7 +16,6 @@ use super::logical_handles::{
     FilesystemLogicalHandleInputResolution, FilesystemLogicalHandleKind,
     FilesystemLogicalHandleOutput, FilesystemLogicalHandleOutputSource,
 };
-use super::FilesystemOperationResult;
 
 /// Sequential byte cursor over one retained record's payload. Out-of-range
 /// reads surface as `None`; callers map them to a truncated-record error.

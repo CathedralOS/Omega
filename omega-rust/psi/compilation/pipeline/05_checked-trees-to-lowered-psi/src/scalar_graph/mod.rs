@@ -17,7 +17,6 @@ use checked_trees::{
 };
 use language_semantics::{Multiplicity, PermissionClaimIdentity};
 use lowered_psi::LoweredPsi;
-use proof_admission::{EvidenceRoute, PrimitiveJudgment};
 use semantic_vocabulary::{
     BlockId, ClaimId, IeeeFloatFormat, IntegerValue, MachineId, PlaceId, Proposition,
     QualifiedScalarType, ScalarTerm, ScalarType, StructuralFieldId, StructuralPlaceKind,
@@ -31,7 +30,6 @@ use terminal_psi::{
     StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge, TerminalMachine,
     TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration,
 };
-use terminal_verifier::{ObligationEvidence, ProofBundle};
 
 use crate::emission::boolean_control::{
     boolean_decision_block_count, boolean_guard_decision_block_count,

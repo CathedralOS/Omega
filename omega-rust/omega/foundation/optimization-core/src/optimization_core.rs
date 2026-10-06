@@ -21,7 +21,6 @@ pub(crate) mod post_terminal;
 pub(crate) mod refusal_site;
 pub(crate) mod report_request;
 pub(crate) mod rollback;
-pub(crate) mod withheld;
 
 use sha2::{Digest, Sha256};
 use std::fmt;

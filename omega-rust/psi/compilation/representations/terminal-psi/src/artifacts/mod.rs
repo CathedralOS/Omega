@@ -5,7 +5,7 @@
 
 mod checked_program_entry;
 mod debug_map;
-mod proof_bundle;
+mod proof_kernel;
 pub use checked_program_entry::{
     CheckedProgramEntryDeterminedEvidenceField, CheckedProgramEntryFusedServiceField,
     CheckedProgramEntryReceiverCleanup, CheckedProgramEntryReceiverEligibility,
@@ -15,12 +15,9 @@ pub use debug_map::{
     DebugFileId, DebugSite, DebugSourceDigest, DebugSourceFile, DebugSourceOrigin, DebugSourceSpan,
     DebugSubject, TerminalDebugMap,
 };
-pub use proof_bundle::{
-    AdmissionEvidence, AdmissionKind, CertificateEnvelope, ControlCycleEvidence,
-    CorrelatedAffineBranchWitness, CorrelatedAffineStepWitness, CrashCertificate,
-    CrashObligationEvidence, CrashObligationOwner, EvidenceProducerProvenance,
-    EvidenceProducerRealization, EvidenceProducerRowSource, EvidenceRoute, IntegerAffineWitness,
-    IntegerCastChainWitness, IntegerCorrelatedForbiddenRootWitness, ObligationEvidence,
-    PrimitiveJudgment, ProofBundle, ProofNode, ProofRule, ProofSystemMarker,
-    RecursiveComponentCertificate, RecursiveComponentEvidence, RecursiveEdgeCertificate,
+pub use proof_kernel::{
+    AdmissionEvidence, AdmissionKind, CertificateEnvelope, CorrelatedAffineBranchWitness,
+    CorrelatedAffineStepWitness, EvidenceRoute, IntegerAffineWitness, IntegerCastChainWitness,
+    IntegerCorrelatedForbiddenRootWitness, PrimitiveJudgment, ProofNode, ProofRule,
+    ProofSystemMarker,
 };

@@ -37,9 +37,7 @@ use machine_code::{
     WholeFunctionEntryAssumption, WholeFunctionExitContractIdentity, WholeFunctionExitPolicy,
     WholeFunctionHardeningPolicy,
 };
-use object_file::{
-    OptimizedObjectArtifactError, StagedValidatedOptimizedObjectArtifact,
-};
+use object_file::{OptimizedObjectArtifactError, StagedValidatedOptimizedObjectArtifact};
 
 const RECORD_MAGIC: &[u8; 8] = b"OMGOER\0\0";
 const MANIFEST_MAGIC: &[u8; 8] = b"OMGOEM\0\0";
@@ -71,7 +69,6 @@ pub fn stage_validated_optimized_ordinary_callable_entry(
         custody,
     })
 }
-
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OptimizedOrdinaryCallableEntryStage {

@@ -2,10 +2,9 @@
 
 use checked_trees::CheckedTrees;
 use checked_trees_to_lowered_psi::{
-    LoweringError, ProofSearchExhaustion, TerminalMachineSelection, lower_machine,
-    select_terminal_machine,
+    LoweringError, TerminalMachineSelection, lower_machine, select_terminal_machine,
 };
-use diagnostics::{Diagnostic, ExceededProvision};
+use diagnostics::Diagnostic;
 use lowered_psi::LoweredPsi;
 use lowered_psi_to_lowered_psi::{
     PsiOptimizationStageError, PsiOptimizationStageResult, run_psi_optimization,
@@ -91,10 +90,6 @@ impl<'a> TerminalProductionRequest<'a> {
             ),
             _ => None,
         };
-        // Publication consumes the stage result, so the pass decisions are read
-        // off it first. They explain the published module rather than changing
-        // it: a withheld rewrite leaves the artifact exactly as authored.
-        let withheld_rewrites = optimized.refusals().to_vec();
         let (artifact, lowered) = observer
             .record_result(TerminalProductionStage::Publication, || {
                 publish_terminal_artifact(optimized, checked)
@@ -122,7 +117,6 @@ impl<'a> TerminalProductionRequest<'a> {
                 .selected_ieee_float_comparison_occurrences,
             selected_integer_comparison_occurrences: lowered
                 .selected_integer_comparison_occurrences,
-            withheld_rewrites,
         })
     }
 
@@ -158,7 +152,7 @@ fn publish_terminal_artifact(
 ) -> Result<(terminal_codec::CanonicalTerminalArtifact, LoweredPsi), TerminalArtifactProductionError>
 {
     let artifact = lowered_psi_to_terminal_psi::finalize_terminal_artifact(&optimized)
-    .map_err(TerminalArtifactProductionError::Artifact)?;
+        .map_err(TerminalArtifactProductionError::Artifact)?;
     Ok((artifact, optimized.into_lowered()))
 }
 
@@ -171,43 +165,16 @@ pub enum TerminalArtifactProductionError {
 }
 
 impl TerminalArtifactProductionError {
-    /// The refusal as the diagnostic compilation reports. A capacity
-    /// exhaustion carries its exceeded provision -- resource name, limit,
-    /// declined demand and the unproved obligation as its internal-row
-    /// coordinate -- so the compiler-request outcome publishes `Incomplete`
-    /// from that record instead of recognizing the message's wording.
+    /// The refusal as the diagnostic compilation reports.
     pub fn diagnostic(&self) -> Diagnostic {
-        let message = self.diagnostic_message();
-        match self.incomplete_capacity() {
-            Some(exhaustion) => Diagnostic::incomplete(
-                message,
-                ExceededProvision {
-                    resource: exhaustion.capacity.resource_name(),
-                    limit: exhaustion.capacity.limit(),
-                    requested: exhaustion.requested,
-                    coordinate: exhaustion.obligation.get(),
-                },
-            ),
-            None => Diagnostic::error(message),
-        }
+        Diagnostic::error(self.diagnostic_message())
     }
 
     /// Report the production verdict without making a consumer classify a
-    /// lowerer's private failures. Capacity exhaustion is incomplete evidence,
-    /// not a refutation; an absent compiler route retains its own report.
+    /// lowerer's private failures.
     pub fn diagnostic_message(&self) -> String {
         if let Some(report) = self.unimplemented_report() {
             return report.to_owned();
-        }
-        if let Some(exhaustion) = self.incomplete_capacity() {
-            return format!(
-                "incomplete: terminal-artifact production stopped at the private \
-                 `{}` proof-search capacity (provision {}) with obligation {} \
-                 unproved; the module is not shown invalid",
-                exhaustion.capacity.resource_name(),
-                exhaustion.capacity.limit(),
-                exhaustion.obligation,
-            );
         }
         format!("terminal-artifact production failed: {self}")
     }
@@ -217,16 +184,6 @@ impl TerminalArtifactProductionError {
     pub fn unimplemented_report(&self) -> Option<&str> {
         match self {
             Self::Lowering(error) => error.unimplemented_report(),
-            _ => None,
-        }
-    }
-
-    /// The named capacity, declined demand and unproved obligation when the
-    /// refusal is a proof-search capacity exhaustion -- the publication
-    /// contract's `Incomplete` outcome rather than a defect of the program.
-    pub fn incomplete_capacity(&self) -> Option<ProofSearchExhaustion> {
-        match self {
-            Self::Lowering(error) => error.incomplete_capacity(),
             _ => None,
         }
     }

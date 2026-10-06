@@ -7,12 +7,11 @@ use compilation_products::NativeProductRequest;
 
 /// What one native stage sequence produces for the admitted settlement to turn
 /// into a report: the realized image, the settled rollback receipt, the
-/// post-production timing ladder and the producer-side rewrite explanation.
+/// post-production timing ladder.
 pub struct ProducedNativeProduct {
     pub artifact: native_artifact::RequestedNativeArtifact,
     pub rollback_receipt: Option<optimization_core::OptimizationRollbackReceipt>,
     pub timings: Vec<artifacts::compile_timings::PhaseTiming>,
-    pub withheld_rewrites: Vec<optimization_core::WithheldRewrite>,
 }
 
 /// Produce the same retained Terminal product used by package re-entry, then
@@ -35,9 +34,6 @@ pub fn produce_native_product(
     let terminal =
         crate::terminal::produce_retained_terminal_artifact(&mut checked, rollback.effective())?;
     let post_terminal = rollback.effective().project_post_terminal();
-    // The same Psi passes ran here, so a native product explains its
-    // withheld rewrites exactly as a Terminal product does.
-    let withheld_rewrites = terminal.withheld_rewrites;
     let artifact = crate::native::realize_retained_native_artifact(
         terminal.artifact,
         compilation_products::RetainedNativeRealizationRequest {
@@ -56,7 +52,6 @@ pub fn produce_native_product(
         artifact,
         rollback_receipt: rollback.into_receipt(),
         timings: checked.timings().phases().to_vec(),
-        withheld_rewrites,
     })
 }
 

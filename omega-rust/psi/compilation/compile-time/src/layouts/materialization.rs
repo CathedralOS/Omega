@@ -24,8 +24,7 @@ mod const_record_with_sum_materializable;
 mod const_sum_materializable;
 mod owned_value_encoding;
 
-pub use const_materializable::{
-    ValidatedConstMaterialization, };
+pub use const_materializable::ValidatedConstMaterialization;
 pub use const_record_with_nested_sum_materializable::{
     ValidatedConstNestedSumRecordOccurrenceMaterialization,
     ValidatedConstRecordArrayElementSelection, ValidatedConstRecordArrayFieldMaterialization,
@@ -33,7 +32,7 @@ pub use const_record_with_nested_sum_materializable::{
     ValidatedConstRecordWithNestedSumRecordMaterialization,
     ValidatedConstRecordWithNestedSumRecordsMaterialization,
     ValidatedConstRecordWithRecursiveNestedSumsMaterialization,
-    };
+};
 pub use const_record_with_sum_materializable::{
     ValidatedConstRecordSumArrayElementMaterialization,
     ValidatedConstRecordSumArrayElementSelection, ValidatedConstRecordSumArrayFieldMaterialization,

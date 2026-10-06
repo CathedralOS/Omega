@@ -34,9 +34,9 @@ mod structural_types;
 
 use super::{
     CheckedTrees, LoweredPsi, LoweredSourceCallOccurrence, LoweringError, PrimitiveType,
-    ProofBundle, allocate_dense, block_id, edge_id, lookup_type_id,
-    lower_installation_machine_service_ceiling, lower_root_service_reach, machine_id, operation_id,
-    place_id, terminal_scalar_type, unsupported, value_id,
+    allocate_dense, block_id, edge_id, lookup_type_id, lower_installation_machine_service_ceiling,
+    lower_root_service_reach, machine_id, operation_id, place_id, terminal_scalar_type,
+    unsupported, value_id,
 };
 use crate::unit::dynamic_composed_unit::dynamic_lanes::{DynamicCall, DynamicLoweringLane};
 use checked_trees::{

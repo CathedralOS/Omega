@@ -4,24 +4,17 @@
 //! proof bundle, debug map or execution record on either side of the selected
 //! passes, and each pass's own refusal.
 
-use terminal_codec::{
-    CodecError, DebugMapError, PsiOptimizationExecutionRecordError,
-};
-use terminal_verifier::ModuleError;
+use terminal_codec::{CodecError, DebugMapError, PsiOptimizationExecutionRecordError};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PsiOptimizationStageError {
     InvalidControlFlowCleanupRewrite(crate::control_flow_cleanup::ControlFlowCleanupRewriteError),
-    InvalidCopyPropagationRewrite(terminal_verifier::CopyPropagationRewriteError),
-    InvalidDeadScalarRewrite(terminal_verifier::DeadScalarRewriteError),
     InvalidGlobalValueNumberingRewrite(
         crate::global_value_numbering::GlobalValueNumberingRewriteError,
     ),
     InvalidSparseConditionalConstantPropagationRewrite(
         crate::sparse_conditional_constant_propagation::SparseConditionalConstantPropagationRewriteError,
     ),
-    InvalidProofCheckElisionRewrite(terminal_verifier::ProofCheckElisionRewriteError),
-    InvalidModule(ModuleError),
     InvalidSemantic(CodecError),
     InvalidDebugMap(DebugMapError),
     InvalidExecutionRecord(PsiOptimizationExecutionRecordError),
@@ -32,12 +25,6 @@ impl std::fmt::Display for PsiOptimizationStageError {
         match self {
             Self::InvalidControlFlowCleanupRewrite(error) => {
                 write!(formatter, "invalid control flow cleanup rewrite: {error:?}")
-            }
-            Self::InvalidCopyPropagationRewrite(error) => {
-                write!(formatter, "invalid copy propagation rewrite: {error:?}")
-            }
-            Self::InvalidDeadScalarRewrite(error) => {
-                write!(formatter, "invalid dead scalar rewrite: {error:?}")
             }
             Self::InvalidGlobalValueNumberingRewrite(error) => {
                 write!(
@@ -51,10 +38,6 @@ impl std::fmt::Display for PsiOptimizationStageError {
                     "invalid sparse conditional constant propagation rewrite: {error:?}"
                 )
             }
-            Self::InvalidProofCheckElisionRewrite(error) => {
-                write!(formatter, "invalid proof check elision rewrite: {error:?}")
-            }
-            Self::InvalidModule(error) => write!(formatter, "invalid optimization input: {error}"),
             Self::InvalidSemantic(error) => {
                 write!(formatter, "invalid optimization semantics: {error}")
             }

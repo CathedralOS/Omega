@@ -299,7 +299,6 @@ pub fn validate_selected_lowering_optimization_custody(
     Ok(receipt)
 }
 
-
 #[allow(clippy::too_many_arguments)]
 fn build_step<S: ValidatedSelectedAnalysis>(
     selected: &S,

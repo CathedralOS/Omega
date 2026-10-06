@@ -4,7 +4,6 @@ use crate::lowering::LoweringError;
 pub enum ArtifactLoweringError {
     CanonicalArtifact(terminal_codec::CanonicalTerminalArtifactError),
     SemanticDecode(terminal_codec::CodecError),
-    Validation(terminal_verifier::ModuleError),
     /// A placed-view roster row is bound by its call rather than by the
     /// executable's host, or a declared direct-entry row was left without a
     /// supply; the input boundary cannot silently discard either.

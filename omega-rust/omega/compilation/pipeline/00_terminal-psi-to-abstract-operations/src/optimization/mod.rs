@@ -3,15 +3,12 @@
 //! then seal the unit beside the verifier-owned input context. Stage 01
 //! reconstructs current ownership from this unit before running any pass.
 
-mod accepted_obligations;
 mod error;
-mod proof_questions;
 
 pub use error::VerifiedPsiOptimizationUnitBuildError;
 
 use abstract_operations::AbstractOperationPlan;
-use accepted_obligations::project_accepted_obligation_facts;
-use proof_questions::project_proof_questions;
+use std::collections::BTreeSet;
 
 /// The only optimizer-facing unit constructor. Consuming the verified carrier
 /// prevents callers from pairing a plan with evidence admitted for a different
@@ -25,11 +22,38 @@ pub fn build_verified_psi_optimization_unit(
     let context = input.context();
     optimization_unit::attach_verified_module_context(&mut seed, context.module())
         .map_err(VerifiedPsiOptimizationUnitBuildError::MissingStructuralCatalogMachine)?;
-    let facts = project_accepted_obligation_facts(&seed, context)?;
+    let facts = source_checked_operation_facts(&seed);
     let unit = optimization_unit::attach_accepted_obligation_facts(seed, facts)?;
-    let proof_questions = project_proof_questions(&input)?;
-    let unit = optimization_unit::attach_proof_questions(unit, proof_questions)?;
     Ok(VerifiedPsiOptimizationUnit { input, unit })
+}
+
+fn source_checked_operation_facts(
+    unit: &optimization_unit::PsiOptimizationUnit,
+) -> Vec<optimization_unit::AcceptedObligationFact> {
+    let mut coordinates = BTreeSet::new();
+    let mut facts = Vec::new();
+    for function in &unit.functions {
+        for fact in &function.facts {
+            let optimization_unit::OptimizationFact::OperationObligationReference {
+                obligation,
+                support,
+            } = fact
+            else {
+                continue;
+            };
+            if coordinates.insert((function.machine, *support, *obligation)) {
+                facts.push(optimization_unit::AcceptedObligationFact::new(
+                    unit.psi,
+                    [0; 32],
+                    function.machine,
+                    *support,
+                    *obligation,
+                    Vec::new(),
+                ));
+            }
+        }
+    }
+    facts
 }
 
 /// Required optimizer input produced only after canonical artifact decoding,
@@ -61,20 +85,12 @@ impl VerifiedPsiOptimizationInput {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VerifiedPsiOptimizationContext {
     pub(crate) module: terminal_psi::TerminalModule,
-    pub(crate) reconstructed_obligations: terminal_verifier::ReconstructedTerminalObligationSet,
 }
 
 impl VerifiedPsiOptimizationContext {
     pub const fn module(&self) -> &terminal_psi::TerminalModule {
         &self.module
     }
-
-    pub const fn reconstructed_obligations(
-        &self,
-    ) -> &terminal_verifier::ReconstructedTerminalObligationSet {
-        &self.reconstructed_obligations
-    }
-
 }
 
 /// A reconstructible optimizer unit that cannot detach from the exact

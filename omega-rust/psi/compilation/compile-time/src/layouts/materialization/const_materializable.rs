@@ -167,7 +167,6 @@ impl ValidatedConstMaterialization {
     }
 }
 
-
 struct DerivedMaterialization {
     schema_report_fingerprint: u64,
     bytes: Vec<u8>,

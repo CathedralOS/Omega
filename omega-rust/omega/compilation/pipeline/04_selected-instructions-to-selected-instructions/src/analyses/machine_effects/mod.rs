@@ -13,9 +13,7 @@ mod error;
 mod facts;
 
 pub use error::MachineEffectStageError;
-pub use facts::{
-    MachineEffectError, ValidatedPreAllocationMachineEffects,
-    };
+pub use facts::{MachineEffectError, ValidatedPreAllocationMachineEffects};
 pub(crate) use facts::{analyze_pre_allocation_machine_effects, machine_semantic_kind};
 
 use crate::ValidatedSelectedAnalysis;
@@ -44,4 +42,3 @@ pub fn analyze_machine_effects<S: ValidatedSelectedAnalysis>(
 ) -> Result<ValidatedPreAllocationMachineEffects, MachineEffectStageError> {
     analysis::analyze(selected, environment)
 }
-
