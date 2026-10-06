@@ -1462,19 +1462,12 @@ impl Replay<'_> {
                             .iter()
                             .any(|segment| matches!(segment, StructuralPathSegment::FixedIndex(_)))
                         {
-                            let (element_type, element_offset) =
-                                structural_shapes::project_static_path(
-                                    root.structural_type,
-                                    &semantic.path,
-                                    self.declarations,
-                                )
-                                .map_err(|_| psi_operation)?;
-                            (
-                                element_type,
-                                structural_shapes::reconstruct(element_type, self.declarations)
-                                    .map_err(|_| psi_operation)?,
-                                element_offset,
+                            static_element_projection(
+                                root.structural_type,
+                                &semantic.path,
+                                self.declarations,
                             )
+                            .ok_or(psi_operation)?
                         } else {
                             structural_shapes::projected_field(
                                 root.structural_type,
@@ -1520,28 +1513,12 @@ impl Replay<'_> {
                         // A fixed element (`&text[0]`) is one static offset
                         // inside the referent, like a field; the element's
                         // own declaration supplies its storage shape.
-                        if semantic.path.iter().any(|segment| {
-                            !matches!(
-                                segment,
-                                StructuralPathSegment::Field(_)
-                                    | StructuralPathSegment::FixedIndex(_)
-                            )
-                        }) {
-                            return Err(psi_operation);
-                        }
-                        let (element_type, element_offset) =
-                            structural_shapes::project_static_path(
-                                root.structural_type,
-                                &semantic.path,
-                                self.declarations,
-                            )
-                            .map_err(|_| psi_operation)?;
-                        (
-                            element_type,
-                            structural_shapes::reconstruct(element_type, self.declarations)
-                                .map_err(|_| psi_operation)?,
-                            element_offset,
+                        static_element_projection(
+                            root.structural_type,
+                            &semantic.path,
+                            self.declarations,
                         )
+                        .ok_or(psi_operation)?
                     } else {
                         if semantic
                             .path
@@ -3493,6 +3470,29 @@ fn matches_argument_identity(
         && actual.access == semantic.access
         && actual.access == declared.access
         && actual.structural_type == declared.structural_type
+}
+
+/// A static element path — `Field` and `FixedIndex` segments only —
+/// projects to its leaf type, the leaf's own reconstructed storage shape,
+/// and its byte offset inside the referent; any other segment kind has no
+/// static projection.
+fn static_element_projection(
+    root: StructuralTypeId,
+    path: &[StructuralPathSegment],
+    declarations: &[StructuralTypeDeclaration],
+) -> Option<(StructuralTypeId, ValueShape, u32)> {
+    if path.iter().any(|segment| {
+        !matches!(
+            segment,
+            StructuralPathSegment::Field(_) | StructuralPathSegment::FixedIndex(_)
+        )
+    }) {
+        return None;
+    }
+    let (element_type, element_offset) =
+        structural_shapes::project_static_path(root, path, declarations).ok()?;
+    let element_shape = structural_shapes::reconstruct(element_type, declarations).ok()?;
+    Some((element_type, element_shape, element_offset))
 }
 
 /// A one-register placement occupying exactly the declared shape's byte
