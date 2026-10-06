@@ -668,6 +668,26 @@ pub(crate) fn case_transition_run_is_exhaustive(
     })
 }
 
+/// The symbol-rooted canonical path a guard `subject` resolves to — the
+/// shared peel both case-alternative guards apply before their path tests.
+fn guarded_case_subject(
+    program: &typed_trees::TypedTrees,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    subject: typed_trees::expression::ExpressionHandle,
+) -> Option<(SymbolHandle, Vec<facts::PlaceSegment>)> {
+    let place = crate::flow::canonical_place_from_expression_in_state(
+        program,
+        state_symbol,
+        statement_index,
+        subject,
+    )?;
+    let facts::PlaceRoot::Symbol(symbol) = place.root else {
+        return None;
+    };
+    Some((symbol, place.segments))
+}
+
 pub(crate) fn select_case_alternative_from_guard(
     program: &typed_trees::TypedTrees,
     state_symbol: SymbolHandle,
@@ -676,18 +696,11 @@ pub(crate) fn select_case_alternative_from_guard(
     variant: SymbolHandle,
     places: &mut [LinearPlace],
 ) {
-    let Some(place) = crate::flow::canonical_place_from_expression_in_state(
-        program,
-        state_symbol,
-        statement_index,
-        subject,
-    ) else {
+    let Some((symbol, mut selected_path)) =
+        guarded_case_subject(program, state_symbol, statement_index, subject)
+    else {
         return;
     };
-    let facts::PlaceRoot::Symbol(symbol) = place.root else {
-        return;
-    };
-    let mut selected_path = place.segments;
     selected_path.push(facts::PlaceSegment::Case { variant });
     select_static_case_alternative(facts::PlaceRoot::Symbol(symbol), &selected_path, places);
 }
@@ -700,21 +713,15 @@ pub(crate) fn exclude_case_alternative(
     variant: SymbolHandle,
     places: &mut [LinearPlace],
 ) {
-    let Some(place) = crate::flow::canonical_place_from_expression_in_state(
-        program,
-        state_symbol,
-        statement_index,
-        subject,
-    ) else {
+    let Some((symbol, path)) =
+        guarded_case_subject(program, state_symbol, statement_index, subject)
+    else {
         return;
     };
-    let facts::PlaceRoot::Symbol(symbol) = place.root else {
-        return;
-    };
-    let case_index = place.segments.len();
+    let case_index = path.len();
     for candidate in places.iter_mut().filter(|candidate| {
         candidate.root == facts::PlaceRoot::Symbol(symbol)
-            && candidate.path.get(..case_index) == Some(place.segments.as_slice())
+            && candidate.path.get(..case_index) == Some(path.as_slice())
             && candidate.path.get(case_index) == Some(&facts::PlaceSegment::Case { variant })
     }) {
         candidate.live = false;
