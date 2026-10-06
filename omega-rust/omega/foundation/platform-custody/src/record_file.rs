@@ -158,12 +158,7 @@ impl RecordFileRoot {
         limits: RecordFileLimits,
         staging: &RecordFileRoot,
     ) -> Result<(), RecordFileError> {
-        if bytes.len() > limits.maximum_bytes {
-            return Err(RecordFileError::ByteLimitExceeded {
-                actual: u64::try_from(bytes.len()).unwrap_or(u64::MAX),
-                maximum: limits.maximum_bytes,
-            });
-        }
+        enforce_byte_limit(bytes.len(), limits)?;
         let file_name = single_file_name(relative_path)?;
         let display_path = self.display_path.join(file_name);
         let mut stage = stage::prepare(staging, bytes, limits, None)?;
@@ -216,12 +211,7 @@ impl RecordFileRoot {
         bytes: &[u8],
         limits: RecordFileLimits,
     ) -> Result<(), RecordFileError> {
-        if bytes.len() > limits.maximum_bytes {
-            return Err(RecordFileError::ByteLimitExceeded {
-                actual: u64::try_from(bytes.len()).unwrap_or(u64::MAX),
-                maximum: limits.maximum_bytes,
-            });
-        }
+        enforce_byte_limit(bytes.len(), limits)?;
         let file_name = single_file_name(relative_path)?;
         let display_path = self.display_path.join(file_name);
         let destination_metadata = self
@@ -458,18 +448,23 @@ fn read_bytes_bounded(
             .len()
             .checked_add(count)
             .ok_or(RecordFileError::LengthOverflow)?;
-        if next_length > limits.maximum_bytes {
-            return Err(RecordFileError::ByteLimitExceeded {
-                actual: u64::try_from(next_length).unwrap_or(u64::MAX),
-                maximum: limits.maximum_bytes,
-            });
-        }
+        enforce_byte_limit(next_length, limits)?;
         bytes
             .try_reserve(count)
             .map_err(|_| RecordFileError::AllocationFailed)?;
         bytes.extend_from_slice(&chunk[..count]);
     }
     Ok(bytes)
+}
+
+fn enforce_byte_limit(actual: usize, limits: RecordFileLimits) -> Result<(), RecordFileError> {
+    if actual > limits.maximum_bytes {
+        return Err(RecordFileError::ByteLimitExceeded {
+            actual: u64::try_from(actual).unwrap_or(u64::MAX),
+            maximum: limits.maximum_bytes,
+        });
+    }
+    Ok(())
 }
 
 fn io_error(path: &Path, error: std::io::Error) -> RecordFileError {
