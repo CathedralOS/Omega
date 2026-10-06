@@ -556,8 +556,8 @@ defines the complete product bar.
     (unchanged from base `988b7227595`). Preserve selected local ownership with
     `pass/calls/runtime_selected_trivial_local_cleanup_exit` and
     `runtime_selected_local_owner_exit`: both engines exit 0 on macOS ARM64
-    at `16bba2bbc2d`, including nonempty/nonprefix locals, mutually exclusive
-    consuming calls and Unit-return cleanup. Each selected completion owns
+    at `6db1b9eb18d+wt`, including nonempty/nonprefix locals, mutually exclusive
+    consuming calls, direct value returns and Unit-return cleanup. Each selected completion owns
     its transfer/disposal partition; a producer's return-discard flag is not
     liveness authority. Runtime-indexed observations below case payloads still reject
     an unsupported case path before emission.

@@ -39,12 +39,33 @@ pub(super) fn account(
             .collect::<Vec<_>>(),
         _ => Vec::new(),
     };
-    let construction_uses = construction_local_uses(facts, state.symbol, operations)?;
+    let construction_uses = construction_local_uses(facts, state.symbol, operations.iter())?;
+    // Return producers have the same value-place operands as ordinary
+    // constructors, but each roster belongs to one mutually exclusive arm.
+    // Keeping those inventories separate avoids counting sibling transfers
+    // as sequential consumption or overlooking a direct returned local.
+    let return_arms = terminator.return_arms();
+    let return_construction_uses = return_arms
+        .iter()
+        .map(|arm| construction_local_uses(facts, state.symbol, arm.operation_dependencies()))
+        .collect::<Option<Vec<_>>>()?;
     let mut guarded_discards = Vec::new();
     for (producer_index, operation) in operations.iter().enumerate() {
         let Some((result, _)) = operation.discardable_structural_result() else {
             continue;
         };
+        let construction_owns_result =
+            |argument: &checked_trees::CheckedUnitStructuralArgumentPlan| {
+                matches!(statements.get(result.statement_index as usize),
+                Some(StatementNode::LocalData(local))
+                    if matches!(argument.source,
+                        CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol }
+                            if symbol == local.symbol))
+                    && argument.type_identity == result.type_identity
+                    && (result.multiplicity == Multiplicity::Unrestricted
+                        || argument.access == CheckedStructuralAccess::Owned)
+                    && argument.path.is_empty()
+            };
         // An operand constructed for a call argument belongs to that call.
         // Its statement declares the call's result local, not the operand,
         // so the statement local's disposal permit would book a second owner
@@ -282,7 +303,6 @@ pub(super) fn account(
                 // The source checker owns move validity; normal-edge cleanup
                 // retains the exact disposal schedule for each coordinate.
                 let successors = terminator.successors();
-                let return_arms = terminator.return_arms();
                 // With no normal exit there is no transfer/disposal owner
                 // here to count beside an earlier in-sequence consumption.
                 let has_normal_exit = !successors.is_empty()
@@ -296,20 +316,29 @@ pub(super) fn account(
                     && successors
                         .iter()
                         .all(|edge| transferred(edge) || permits_disposal(&[edge]))
-                    && return_arms.iter().all(|arm| {
-                        // Abnormal completion abandons custody; it must not
-                        // invent a normal disposal obligation or run cleanup.
-                        matches!(
-                            arm,
-                            checked_trees::CheckedConditionalReturnArm::Crash { .. }
-                        ) || arm
-                            .operation_dependencies()
-                            .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
-                            .any(|operation| {
-                                terminator_call_consumes_result(operation, result.binding_ordinal)
-                            })
-                            || permits_disposal(&[])
-                    })
+                    && return_arms
+                        .iter()
+                        .zip(&return_construction_uses)
+                        .all(|(arm, uses)| {
+                            // Abnormal completion abandons custody; it must not
+                            // invent a normal disposal obligation or run cleanup.
+                            matches!(
+                                arm,
+                                checked_trees::CheckedConditionalReturnArm::Crash { .. }
+                            ) || arm
+                                .operation_dependencies()
+                                .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
+                                .any(|operation| {
+                                    terminator_call_consumes_result(
+                                        operation,
+                                        result.binding_ordinal,
+                                    )
+                                })
+                                || uses
+                                    .iter()
+                                    .any(|(_, argument)| construction_owns_result(argument))
+                                || permits_disposal(&[])
+                        })
             }
             CheckedComposedUnitControlTerminatorPlan::ClosedSum { subject, cases, .. } => {
                 if matches!(subject.source, CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal } if binding_ordinal == result.binding_ordinal)
@@ -421,22 +450,12 @@ pub(super) fn account(
         // rejoin the exact value children here instead of requiring that the
         // operand itself also be the returned outer binding. Selected values
         // retain their separate per-arm ownership receipts.
-        let construction_count = match statements.get(result.statement_index as usize) {
-            Some(StatementNode::LocalData(local)) => construction_uses
-                .iter()
-                .filter(|(consumer_index, argument)| {
-                    *consumer_index > producer_index
-                        && matches!(argument.source,
-                            CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol }
-                                if symbol == local.symbol)
-                        && argument.type_identity == result.type_identity
-                        && (result.multiplicity == Multiplicity::Unrestricted
-                            || argument.access == CheckedStructuralAccess::Owned)
-                        && argument.path.is_empty()
-                })
-                .count(),
-            _ => 0,
-        };
+        let construction_count = construction_uses
+            .iter()
+            .filter(|(consumer_index, argument)| {
+                *consumer_index > producer_index && construction_owns_result(argument)
+            })
+            .count();
         // Copyable local leaves may be retained as shared case/record reads,
         // or as owned operands. Neither form moves the original owner; repeated
         // observations do not create or discharge an affine obligation.
@@ -569,14 +588,14 @@ pub(super) fn account(
     Some(())
 }
 
-/// Borrow whole local operands once per unconditional construction tree. The
+/// Borrow whole local operands once per supplied construction sequence. The
 /// sequence mutation walker also enters dispatch/projection nodes to update
 /// disposal flags; accounting cannot flatten those per-arm/residual receipts.
 /// Keep this inventory restricted to ordinary constructor composition.
-fn construction_local_uses<'a>(
+fn construction_local_uses<'a, 'operation>(
     facts: &'a CheckFacts,
     state: symbols::SymbolHandle,
-    operations: &[CheckedUnitEffectOperationPlan],
+    operations: impl IntoIterator<Item = &'operation CheckedUnitEffectOperationPlan>,
 ) -> Option<Vec<(usize, &'a checked_trees::CheckedUnitStructuralArgumentPlan)>> {
     use checked_trees::{CheckedStructuralRecordFieldValue, CheckedStructuralValueKind};
 
@@ -584,7 +603,7 @@ fn construction_local_uses<'a>(
     let mut uses = Vec::new();
     let mut pending = Vec::new();
     let mut visited = Vec::new();
-    for (index, operation) in operations.iter().enumerate() {
+    for (index, operation) in operations.into_iter().enumerate() {
         let CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, value, .. } =
             operation
         else {

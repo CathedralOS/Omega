@@ -27,13 +27,24 @@ machine maybe_consume(selected: bool, count: &mut u64) {
     }
 }
 
+machine choose_payload(selected: bool) -> Payload {
+    let payload: Payload = Payload { amount: 23 };
+    transition selected {
+        true -> (payload)
+        false -> forward(payload)
+    }
+    state forward(payload: Payload) -> Payload { payload }
+}
+
 machine main() crashes Trap {
     let mut count: u64 = 0;
     let first: bool = choose(false, &mut count);
     let second: bool = choose(true, &mut count);
     maybe_consume(false, &mut count);
     maybe_consume(true, &mut count);
-    transition first && second && count == 54 {
+    let returned: Payload = choose_payload(true);
+    let forwarded: Payload = choose_payload(false);
+    transition first && second && count == 54 && returned.amount == 23 && forwarded.amount == 23 {
         true -> done()
         false -> bad()
     }
