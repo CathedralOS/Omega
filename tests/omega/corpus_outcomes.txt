@@ -1605,11 +1605,9 @@ pass/borrow/runtime_write_only_record_array_argument_exit checked 1544ms check-t
 pass/borrow/write_only_composed_forward_exit checked 1023ms check-target:macos_arm64 @2bde2a770491
 pass/borrow/write_only_constrained_record_field checked 305ms @2d8ed253669f
 pass/borrow/write_only_whole_scalar_replace checked 293ms @2d8ed253669f
-pass/borrows/borrow_domain_window_write_and_call rejected 3891ms check-target:macos_arm64 @835baa6033e
-	terminal-artifact production failed: Lowering(InvalidTerminalModule(BorrowedDescriptorLoanDisturbed { operation: OperationId(27), place: PlaceId(6) }))
+pass/borrows/borrow_domain_window_write_and_call checked 11682ms check-target:macos_arm64 @51b2cebdd24f
 pass/borrows/borrow_guarded_window_write_and_call checked 286ms check-target:macos_arm64 @2d8ed253669f
-pass/borrows/borrow_returned_window_write_and_call rejected 4278ms check-target:macos_arm64 @835baa6033e
-	terminal-artifact production failed: Lowering(InvalidTerminalModule(BorrowedDescriptorLoanDisturbed { operation: OperationId(28), place: PlaceId(6) }))
+pass/borrows/borrow_returned_window_write_and_call checked 11704ms check-target:macos_arm64 @51b2cebdd24f
 pass/borrows/borrow_stated_index_disequality_mut checked 278ms @2d8ed253669f
 pass/borrows/branch_selected_record_composed_receiver_exit rejected 1375ms check-target:macos_arm64 @8735cafb4cf
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable callee (`CommandSource::connect`), which was itself omitted at local construction at `outer calls: structural operands`

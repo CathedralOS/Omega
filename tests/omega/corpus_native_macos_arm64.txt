@@ -60,11 +60,9 @@ pass/borrow/runtime_method_view_write_after_last_use_exit built 1212ms exit:70 @
 pass/borrow/write_only_composed_forward_exit built 1037ms exit:70 @2bde2a770491
 pass/borrow/write_only_constrained_record_field checked 188ms
 pass/borrow/write_only_whole_scalar_replace checked 204ms
-pass/borrows/borrow_domain_window_write_and_call rejected 17590ms regressed-from:built+exit:0 @d2121d578c46+wt
-	terminal-artifact production failed: Lowering(InvalidTerminalModule(BorrowedDescriptorLoanDisturbed { operation: OperationId(27), place: PlaceId(6) }))
+pass/borrows/borrow_domain_window_write_and_call built 11228ms exit:0 @51b2cebdd24f
 pass/borrows/borrow_guarded_window_write_and_call built 881ms exit:0 @f6c42bccfedd
-pass/borrows/borrow_returned_window_write_and_call rejected 18211ms regressed-from:built+exit:0 @d2121d578c46+wt
-	terminal-artifact production failed: Lowering(InvalidTerminalModule(BorrowedDescriptorLoanDisturbed { operation: OperationId(28), place: PlaceId(6) }))
+pass/borrows/borrow_returned_window_write_and_call built 11228ms exit:0 @51b2cebdd24f
 pass/borrows/borrow_stated_index_disequality_mut checked 163ms
 pass/borrows/branch_selected_record_composed_receiver_exit rejected 1082ms regressed-from:built+exit:70 @bf30e2cd0c13+wt
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable callee (`CommandSource::connect`), which was itself omitted at local construction at `outer calls: structural operands`
@@ -76,8 +74,7 @@ pass/borrows/indexed_record_field_replacement_exit built 1785ms exit:70 @8d34ee6
 pass/borrows/interleaved_parameter_field_replacement_exit built 1497ms exit:70 @63377f7122bb+wt
 pass/borrows/local_reference_record_transfer_exit built 1613ms exit:70 @82ec69a91ceb+wt
 pass/borrows/loop_descriptor_reformation_exit built 1933ms exit:70 @63377f7122bb+wt
-pass/borrows/mut_loan_local_write_through_exit rejected 16454ms regressed-from:built+exit:9 @d2121d578c46+wt
-	terminal-artifact production failed: Lowering(Unsupported("structural argument has no established storage"))
+pass/borrows/mut_loan_local_write_through_exit built 11207ms exit:9 @51b2cebdd24f
 pass/borrows/mutable_record_loan_read_in_state_arms_exit built 1383ms exit:70 @a9f373809a48+wt
 pass/borrows/nested_reference_crossings_exit built 1082ms exit:70 @21b65913386f+wt
 pass/borrows/nested_reference_leaf_projection_exit built 980ms exit:70 @21b65913386f+wt
@@ -1276,8 +1273,7 @@ pass/wire/wire_preserving_decode_relay_exit built 3087ms exit:70 @057ea2e61cc9
 pass/write_only/state_forwarded_scalar_store_exit built 1019ms exit:70 @2bde2a770491
 run/borrows/direct_runtime_index_write built 1114ms exit:9 @48008365d839
 run/borrows/indexed_loan_element_write built 1123ms exit:0 @48008365d839
-run/borrows/local_mut_borrow rejected 9451ms regressed-from:built+exit:9 @d2121d578c46+wt
-	terminal-artifact production failed: Lowering(Unsupported("structural argument has no established storage"))
+run/borrows/local_mut_borrow built 6985ms exit:9 @51b2cebdd24f
 run/borrows/mut_record_loan_member_access built 1207ms exit:0 @48008365d839
 run/borrows/probe_shared_len built 1209ms exit:0 @48008365d839
 run/borrows/recast_mut_borrow built 1125ms exit:0 @48008365d839
