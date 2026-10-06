@@ -189,32 +189,18 @@ machine ParserHarness::write_parse_observation(
     state parse_root(parser_harness: &mut ParserHarness, output: &SyntaxTrees, index: u64 [0..=255]) {
         let root: RootItem = output.roots[index];
         transition root.kind {
-            RootItemKind::Use -> parse_root_use(parser_harness, output, root, index)
-            RootItemKind::Data -> parse_root_data(parser_harness, output, root, index)
+            RootItemKind::Use -> parse_root_tagged(parser_harness, output, root, index, 1)
+            RootItemKind::Data -> parse_root_tagged(parser_harness, output, root, index, 2)
         }
     }
 
-    state parse_root_use(
+    state parse_root_tagged(
         parser_harness: &mut ParserHarness, output: &SyntaxTrees,
         root: RootItem,
-        index: u64 [0..=255]
+        index: u64 [0..=255],
+        tag: u8
     ) {
-        ParserHarness::write_byte(parser_harness, 1);
-        ParserHarness::write_u64(parser_harness, root.item_index);
-        ParserHarness::write_source_span(parser_harness, root.source_span);
-        let next: u64 = index + 1;
-        transition next < output.root_count {
-            true -> parse_root_bound(parser_harness, output, next)
-            _ -> parse_use_count(parser_harness, output)
-        }
-    }
-
-    state parse_root_data(
-        parser_harness: &mut ParserHarness, output: &SyntaxTrees,
-        root: RootItem,
-        index: u64 [0..=255]
-    ) {
-        ParserHarness::write_byte(parser_harness, 2);
+        ParserHarness::write_byte(parser_harness, tag);
         ParserHarness::write_u64(parser_harness, root.item_index);
         ParserHarness::write_source_span(parser_harness, root.source_span);
         let next: u64 = index + 1;
