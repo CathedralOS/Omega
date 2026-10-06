@@ -41,6 +41,7 @@
 //!   adapter that issues the field subloans and dispatches the active case
 //!   is a later slice on this contract, as are recursive derivations.
 
+mod fnv;
 mod schema_graph;
 mod selection;
 mod visitation;

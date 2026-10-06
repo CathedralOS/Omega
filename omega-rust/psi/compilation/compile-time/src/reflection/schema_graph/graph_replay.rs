@@ -513,31 +513,7 @@ fn resolve_requester(
 /// diagnostic coordinate, never identity (matching the repository's
 /// fingerprint rule).
 pub(crate) fn graph_revision(authority: &SchemaQueryAuthority, nodes: &[SchemaNode]) -> u64 {
-    fn byte(hash: &mut u64, value: u8) {
-        *hash ^= u64::from(value);
-        *hash = hash.wrapping_mul(0x100000001b3);
-    }
-    fn bytes(hash: &mut u64, value: &[u8]) {
-        for value in value {
-            byte(hash, *value);
-        }
-    }
-    fn uint(hash: &mut u64, value: u64) {
-        bytes(hash, &value.to_le_bytes());
-    }
-    fn text(hash: &mut u64, value: &str) {
-        uint(hash, value.len() as u64);
-        bytes(hash, value.as_bytes());
-    }
-    fn optional_text(hash: &mut u64, value: &Option<String>) {
-        match value {
-            Some(value) => {
-                byte(hash, 1);
-                text(hash, value);
-            }
-            None => byte(hash, 0),
-        }
-    }
+    use crate::reflection::fnv::{byte, bytes, optional_text, text, uint};
     fn handle(hash: &mut u64, value: SchemaNodeHandle) {
         uint(hash, value.0 as u64);
     }

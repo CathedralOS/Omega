@@ -167,31 +167,7 @@ pub fn replay_selection_snapshot(
 /// and diagnostic coordinate, never identity (the repository's
 /// report-only-fingerprint rule, matching `schema_graph`).
 pub(crate) fn snapshot_revision(snapshot: &SelectionSnapshot) -> u64 {
-    fn byte(hash: &mut u64, value: u8) {
-        *hash ^= u64::from(value);
-        *hash = hash.wrapping_mul(0x100000001b3);
-    }
-    fn bytes(hash: &mut u64, value: &[u8]) {
-        for value in value {
-            byte(hash, *value);
-        }
-    }
-    fn uint(hash: &mut u64, value: u64) {
-        bytes(hash, &value.to_le_bytes());
-    }
-    fn text(hash: &mut u64, value: &str) {
-        uint(hash, value.len() as u64);
-        bytes(hash, value.as_bytes());
-    }
-    fn optional_text(hash: &mut u64, value: &Option<String>) {
-        match value {
-            Some(value) => {
-                byte(hash, 1);
-                text(hash, value);
-            }
-            None => byte(hash, 0),
-        }
-    }
+    use crate::reflection::fnv::{byte, bytes, optional_text, text, uint};
 
     let mut hash = 0xcbf29ce484222325u64;
     bytes(&mut hash, b"omega.reflect.selection.v1");
