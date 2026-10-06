@@ -117,8 +117,11 @@ pub(crate) fn validate_direct_parameter_types(
             validate_path_parameter_types(path, parameter_types)?;
             validate_direct_parameter_types(index, parameter_types)
         }
-        LoweredDirectExpression::ElementViewRead { index, .. }
-        | LoweredDirectExpression::ByteSequenceRead { index, .. } => {
+        LoweredDirectExpression::ElementViewRead { index, path, .. } => {
+            validate_direct_parameter_types(index, parameter_types)?;
+            validate_path_parameter_types(path, parameter_types)
+        }
+        LoweredDirectExpression::ByteSequenceRead { index, .. } => {
             validate_direct_parameter_types(index, parameter_types)
         }
         LoweredDirectExpression::IntegerBinary { left, right, .. }

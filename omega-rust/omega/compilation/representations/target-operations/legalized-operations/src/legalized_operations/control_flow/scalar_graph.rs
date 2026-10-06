@@ -174,8 +174,7 @@ impl LegalizedScalarInstruction {
                 length,
                 ..
             } => [*index, *value, *length].into_iter().for_each(visit),
-            LegalizedScalarInstructionKind::ByteSequenceRead { index, length, .. }
-            | LegalizedScalarInstructionKind::ElementViewRead { index, length, .. } => {
+            LegalizedScalarInstructionKind::ByteSequenceRead { index, length, .. } => {
                 [*index, *length].into_iter().for_each(visit)
             }
             LegalizedScalarInstructionKind::StructuralByteSequenceFieldRead {
@@ -187,6 +186,15 @@ impl LegalizedScalarInstruction {
                 .iter()
                 .map(|index| index.operand.value)
                 .chain([*index, *length])
+                .for_each(visit),
+            LegalizedScalarInstructionKind::ElementViewRead {
+                index,
+                length,
+                indices,
+                ..
+            } => [*index, *length]
+                .into_iter()
+                .chain(indices.iter().map(|element| element.operand.value))
                 .for_each(visit),
             // A window store addresses its element through the same runtime
             // selectors as the copy that opened the window.
@@ -639,6 +647,7 @@ pub enum LegalizedScalarInstructionKind {
         obligation: semantic_vocabulary::ObligationId,
         accepted_fact: optimization_core::AcceptedObligationFactIdentity,
         path: Vec<terminal_psi::StructuralPathSegment>,
+        indices: Vec<LegalizedRuntimeIndexOperand>,
     },
     ElementViewLength {
         source: semantic_vocabulary::PlaceId,

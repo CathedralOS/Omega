@@ -840,6 +840,7 @@ impl AbstractOperation {
     fn structural_paths(&self) -> Vec<&[StructuralPathSegment]> {
         match self {
             Self::PrimitiveScalarRead { path, .. }
+            | Self::ElementViewRead { path, .. }
             | Self::WriteOnlyPrimitiveStore { path, .. }
             | Self::StructuralScalarFieldStore { path, .. }
             | Self::StructuralCaseMembership { path, .. }

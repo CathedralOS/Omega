@@ -608,6 +608,7 @@ pub(super) fn project_element_view_read(
         length,
         obligation,
         path,
+        result,
         ..
     } = &node.operation
     else {
@@ -630,6 +631,28 @@ pub(super) fn project_element_view_read(
             obligation: *obligation,
             accepted_fact: fact.identity,
             path: path.clone(),
+            indices: {
+                let element = scalar_graph_input::byte_views::element_type(
+                    optimized,
+                    *source,
+                    &unit.structural_types,
+                )
+                .ok_or(Error::custody())?;
+                let (_, _, elements) =
+                    crate::structural_inputs::structural_reference_input::element_leaf_projection(
+                        element,
+                        path,
+                        result.scalar_type,
+                        &unit.structural_types,
+                    )
+                    .ok_or(Error::custody())?;
+                crate::legalization::runtime_indices::operands(
+                    optimized,
+                    unit,
+                    *psi_operation,
+                    &elements,
+                )?
+            },
         }
     };
     Ok(kind)

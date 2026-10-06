@@ -207,7 +207,7 @@ pub(in crate::legalization) fn shared_return(
     super::literals::declaration_producer(function, place).is_some()
 }
 
-pub(super) fn element_type(
+pub(in crate::legalization) fn element_type(
     function: &PsiOptimizationFunction,
     place: semantic_vocabulary::PlaceId,
     types: &[terminal_psi::StructuralTypeDeclaration],

@@ -1786,11 +1786,26 @@ pub(crate) fn element_leaf_geometry(
     scalar: ScalarType,
     declarations: &[StructuralTypeDeclaration],
 ) -> Option<(u32, u8)> {
+    let (offset, bytes, elements) = element_leaf_projection(element, path, scalar, declarations)?;
+    // Layout disclosures and typed reinterpretations describe a static leaf.
+    // Dynamic reads must retain the selectors, not discard their displacement.
+    elements.is_empty().then_some((offset, bytes))
+}
+
+/// A view's outer selector uses its live length. Below that selected element,
+/// reuse ordinary record/array geometry and retain every descendant selector;
+/// returning only a static offset would silently read element zero.
+pub(crate) fn element_leaf_projection(
+    element: StructuralTypeId,
+    path: &[StructuralPathSegment],
+    scalar: ScalarType,
+    declarations: &[StructuralTypeDeclaration],
+) -> Option<(u32, u8, Vec<RuntimeElement>)> {
     if terminal_semantics::element_view_leaf_scalar(declarations, element, path) != Some(scalar) {
         return None;
     }
     if let Some((StructuralPathSegment::Field(identity), prefix)) = path.split_last() {
-        let (parent, _) = project(element, prefix, declarations)?;
+        let (parent, _, _) = runtime_projection(element, prefix, declarations)?;
         let StructuralTypeShape::Record { fields } = &declarations
             .iter()
             .find(|declaration| declaration.id == parent)?
@@ -1800,12 +1815,10 @@ pub(crate) fn element_leaf_geometry(
         };
         let field = fields.iter().find(|field| field.identity == *identity)?;
         if field.field_type.scalar_type() == Some(scalar) {
-            return scalar_field_geometry(element, prefix, field.id, scalar, declarations, false)
-                .map(|(offset, bytes, _)| (offset, bytes));
+            return scalar_field_geometry(element, prefix, field.id, scalar, declarations, false);
         }
     }
     primitive_geometry(element, path, scalar, declarations)
-        .map(|(offset, bytes, _)| (offset, bytes))
 }
 
 /// Reads and proven writes share carrier geometry. Neither this layout nor a

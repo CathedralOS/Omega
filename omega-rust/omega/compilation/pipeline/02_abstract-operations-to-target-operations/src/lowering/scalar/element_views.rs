@@ -2,9 +2,7 @@
 use super::{KnownInteger, KnownScalar};
 use crate::LoweringError;
 use crate::lowering::scalar::expressions::insert_value;
-use crate::lowering::structural_layout::{
-    direct_scalar_field_offset, resolve_structural_projection_path, runtime_projection,
-};
+use crate::lowering::structural_layout::{direct_scalar_field_offset, runtime_projection};
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
 use abstract_operations::{AbstractFunction, AbstractOperation};
 use calling_conventions::ValueShape;
@@ -324,14 +322,9 @@ fn scalar_leaf_offset(
         let (parent, parent_offset) = if prefix.is_empty() {
             (element, 0)
         } else {
-            let (parent, _, offset) = resolve_structural_projection_path(
-                element,
-                prefix,
-                structural_types,
-                &mut cache,
-                &mut active,
-            )
-            .ok()?;
+            let (parent, _, offset, _) =
+                runtime_projection(element, prefix, structural_types, &mut cache, &mut active)
+                    .ok()?;
             (parent, offset)
         };
         let StructuralTypeShape::Record { fields } = &structural_types.get(&parent)?.shape else {
@@ -344,9 +337,9 @@ fn scalar_leaf_offset(
             );
         }
     }
-    resolve_structural_projection_path(element, path, structural_types, &mut cache, &mut active)
+    runtime_projection(element, path, structural_types, &mut cache, &mut active)
         .ok()
-        .map(|(_, _, offset)| offset)
+        .map(|(_, _, offset, _)| offset)
 }
 
 /// Resolve one element-view place's descriptor identity: signature or

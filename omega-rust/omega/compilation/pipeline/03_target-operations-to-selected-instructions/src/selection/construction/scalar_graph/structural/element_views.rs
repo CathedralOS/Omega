@@ -86,6 +86,7 @@ fn element_view_read(
         obligation,
         accepted_fact,
         ref path,
+        ref indices,
     } = row.kind
     else {
         return Err(invalid());
@@ -118,14 +119,19 @@ fn element_view_read(
             _ => None,
         })
         .ok_or_else(|| invalid())?;
-    let (byte_offset, byte_count) =
-        crate::structural_inputs::structural_reference_input::element_leaf_geometry(
+    let (byte_offset, byte_count, elements) =
+        crate::structural_inputs::structural_reference_input::element_leaf_projection(
             element,
             path,
             definition.scalar_type,
             signature.structural_types.as_slice(),
         )
         .ok_or_else(|| invalid())?;
+    if !crate::structural_inputs::structural_reference_input::runtime_indices_match(
+        indices, &elements,
+    ) {
+        return Err(invalid());
+    }
     let pointer = element_backing_pointer(builder, row, source)?;
     let view = builder
         .transport
@@ -188,6 +194,20 @@ fn element_view_read(
         definition.definition_site,
         definition.scalar_type,
     )?;
+    let address = transport_register(builder, source, 0)?;
+    builder.emit(
+        SelectedInstructionKind::ByteViewAddress,
+        builder.constraints.keys.add_i64,
+        &[pointer, physical_index, address],
+        SelectedInstructionProvenance {
+            operations: vec![row.operation],
+            values: vec![index, length],
+            obligations: vec![obligation],
+            ..Default::default()
+        },
+    )?;
+    let address =
+        super::runtime_address::scale(builder, row, source, byte_offset, address, indices)?;
     memory(
         builder,
         row,
@@ -201,18 +221,19 @@ fn element_view_read(
             accepted_fact,
         },
     )?;
-    let address = transport_register(builder, source, 0)?;
-    builder.emit(
-        SelectedInstructionKind::ByteViewAddress,
-        builder.constraints.keys.add_i64,
-        &[pointer, physical_index, address],
-        SelectedInstructionProvenance {
-            operations: vec![row.operation],
-            values: vec![index, length],
-            obligations: vec![obligation],
-            ..Default::default()
-        },
-    )?;
+    // The final access depends on both the live outer window and every inner
+    // fixed-array bound. Record those independent footprints on the load.
+    if !indices.is_empty() {
+        super::runtime_address::footprint(
+            builder,
+            row,
+            source,
+            byte_offset,
+            u32::from(byte_count),
+            indices,
+            super::runtime_address::Written::None,
+        )?;
+    }
     let (kind, constraint) = match byte_count {
         1 => (
             SelectedInstructionKind::Load8 { byte_offset },

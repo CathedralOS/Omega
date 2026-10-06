@@ -149,6 +149,9 @@ pub struct StructuralPlaceDeclaration {
 
 /// One name-spelled projection an operation carries: the place it starts
 /// from and the ordered path beneath it.
+/// An `ElementViewRead` carries a descriptor root but starts its path below
+/// the separately selected element; its index/length operands retain the outer
+/// live bound. Path consumers resolve descendant types from that element.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct OperationProjection<'a> {
     pub root: PlaceId,
@@ -380,6 +383,7 @@ impl OperationKind {
                 projections.push(argument_projection(source));
             }
             Self::PrimitiveScalarRead { source, path }
+            | Self::ElementViewRead { source, path, .. }
             | Self::AtomicAccess {
                 place: source,
                 path,
@@ -471,7 +475,6 @@ impl OperationKind {
             | Self::ByteSequenceStore { .. }
             | Self::ByteSequenceSubslice { .. }
             | Self::ElementViewLength { .. }
-            | Self::ElementViewRead { .. }
             | Self::ElementViewWrite { .. }
             | Self::ElementViewSubslice { .. }
             | Self::EstablishTrivialAffineLocal { .. }
@@ -550,6 +553,7 @@ impl OperationKind {
                 paths.push(&mut source.path);
             }
             Self::PrimitiveScalarRead { path, .. }
+            | Self::ElementViewRead { path, .. }
             | Self::AtomicAccess { path, .. }
             | Self::WriteOnlyPrimitiveStore { path, .. }
             | Self::StructuralByteSequenceFieldLength { path, .. }

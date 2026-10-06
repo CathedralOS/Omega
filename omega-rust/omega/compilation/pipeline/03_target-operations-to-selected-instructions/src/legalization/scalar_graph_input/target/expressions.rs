@@ -120,9 +120,9 @@ impl Checker<'_> {
                         if operation == psi_operation && result.value == resolved && expected == source
                         && path == expected_path
                         && super::super::byte_views::element_type(self.optimized, *source, self.types)
-                            .and_then(|element| crate::structural_inputs::structural_reference_input::element_leaf_geometry(
+                            .and_then(|element| crate::structural_inputs::structural_reference_input::element_leaf_projection(
                                 element, path, result.scalar_type, self.types))
-                            .is_some_and(|(offset, _)| offset == *element_byte_offset)
+                            .is_some_and(|(offset, _, _)| offset == *element_byte_offset)
                         && length == expected_length && obligation == expected_obligation && self.integer_source(index, *expected_index, aliases)))
             }
             Expression::ElementViewLength { psi_operation, source_value, source, view, length_byte_offset } => {
@@ -259,9 +259,9 @@ impl Checker<'_> {
                     && result.scalar_type == ScalarType::Boolean
                     && path == expected_path
                     && super::super::byte_views::element_type(self.optimized, *source, self.types)
-                        .and_then(|element| crate::structural_inputs::structural_reference_input::element_leaf_geometry(
+                        .and_then(|element| crate::structural_inputs::structural_reference_input::element_leaf_projection(
                             element, path, result.scalar_type, self.types))
-                        .is_some_and(|(offset, _)| offset == *element_byte_offset)
+                        .is_some_and(|(offset, _, _)| offset == *element_byte_offset)
                     && length == expected_length && obligation == expected_obligation && self.integer_source(index, *expected_index, aliases)));
         }
         if let Boolean::BlockParameter(parameter) = expression {

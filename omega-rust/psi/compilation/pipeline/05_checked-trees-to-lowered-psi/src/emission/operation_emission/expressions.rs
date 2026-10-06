@@ -166,7 +166,7 @@ pub(crate) enum LoweredDirectExpression {
     ElementViewRead {
         source: PlaceId,
         index: Box<LoweredDirectExpression>,
-        path: Vec<terminal_psi::StructuralPathSegment>,
+        path: Vec<LoweredElementPathSegment>,
         scalar_type: ScalarType,
         /// Checking proved this read's source `[]` index within the live
         /// length; emission records its bound obligation as source-checked.
@@ -753,6 +753,7 @@ pub(crate) fn emit_direct_expression(
                 .rev()
                 .find_map(|(place, value)| (*place == *source).then_some(*value))
                 .unwrap_or_else(|| emit_element_length(*source, next_value_identity, operations));
+            let path = emit_prepared_path(path, 0, parameters, next_value_identity, operations);
             // A missing dominating observation may still form a valid read
             // shape. Its canonical bounds certificate must then be produced;
             // constructing a fresh length does not prove the read is in bounds.
@@ -771,7 +772,7 @@ pub(crate) fn emit_direct_expression(
                     index,
                     length,
                     obligation,
-                    path: path.clone(),
+                    path,
                 },
                 *scalar_type,
                 next_value_identity,

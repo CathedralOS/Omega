@@ -4,8 +4,8 @@
 //! names. Before an operation runs, every such segment in its projections
 //! becomes the `FixedIndex` the current value selects, and the operation then
 //! executes exactly as it would over that static path: no operation keeps a
-//! second, runtime-index-aware copy of its projection handling. The verifier
-//! already discharged each segment's obligation (`runtime_index_bound`), so a
+//! second, runtime-index-aware copy of its projection handling. Source checking
+//! discharged each segment's bound (`runtime_index_bound`), so a
 //! value outside the array here is a malformed module, not a program trap.
 
 use terminal_psi::{Operation, StructuralPathSegment, StructuralTypeShape};
@@ -50,6 +50,23 @@ impl TerminalExecution {
                 // root. Resolve their selectors here too, before dispatch, so
                 // every consumer receives the same checked static projection.
                 let root_type = self.live_structural_type(root)?;
+                let root_type = if matches!(
+                    operation.kind,
+                    terminal_psi::OperationKind::ElementViewRead { .. }
+                ) {
+                    match self
+                        .program
+                        .structural_types
+                        .get(&root_type)
+                        .ok_or_else(invalid)?
+                        .shape
+                    {
+                        StructuralTypeShape::ElementView { element } => element,
+                        _ => return Err(invalid()),
+                    }
+                } else {
+                    root_type
+                };
                 let array = resolve_structural_path_type(
                     &self.program.structural_types,
                     root_type,

@@ -754,15 +754,9 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                     Ok(LoweredDirectExpression::ElementViewRead {
                         source,
                         index,
-                        // This Terminal operation projects a static scalar leaf
-                        // below the live element selection. Dynamic descendants
-                        // need a selected-element storage home, not a fixed-array
-                        // read that would discard the descriptor's live extent.
-                        path: element_path.into_iter().map(|step| match step {
-                            LoweredElementPathSegment::Static(segment) => Ok(segment),
-                            LoweredElementPathSegment::RuntimeIndex { .. } => unsupported(
-                                "element-view read requires a selected storage home for dynamic descendants"),
-                        }).collect::<Result<_, _>>()?,
+                        // The outer selector keeps the descriptor's live extent;
+                        // descendants keep their own declaration-driven bounds.
+                        path: element_path,
                         scalar_type,
                         bound_decided,
                     })

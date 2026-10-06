@@ -81,11 +81,12 @@ pub fn element_establishment_length_equation(
 
 /// The scalar an `ElementViewRead` yields at `path` below one element of type
 /// `element`. An empty path reads a scalar element whole. Otherwise every step
-/// but the last is a static structural projection (a record field holding a
-/// structural child, or a literal index inside a fixed array's extent), and
+/// but the last is a structural projection (a record field holding a
+/// structural child, or an index inside a fixed array's extent), and
 /// the last step names the leaf: a non-erased scalar record field, or a
 /// structural child or array element whose declaration is a primitive scalar.
-/// Runtime indexes, referents and byte windows name no element leaf.
+/// Runtime selectors carry separate operation obligations. Referents and byte
+/// windows require their own storage/custody operations, not an inline leaf.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ElementViewLeaf {
     pub scalar_type: ScalarType,
@@ -99,7 +100,9 @@ pub fn element_view_leaf(
     if path.iter().any(|segment| {
         !matches!(
             segment,
-            StructuralPathSegment::Field(_) | StructuralPathSegment::FixedIndex(_)
+            StructuralPathSegment::Field(_)
+                | StructuralPathSegment::FixedIndex(_)
+                | StructuralPathSegment::RuntimeIndex { .. }
         )
     }) {
         return None;
@@ -145,6 +148,10 @@ pub fn element_view_leaf(
             StructuralPathSegment::FixedIndex(index),
             StructuralTypeShape::FixedArray { element, length },
         ) if index < length => primitive(*element),
+        (
+            StructuralPathSegment::RuntimeIndex { .. },
+            StructuralTypeShape::FixedArray { element, .. },
+        ) => primitive(*element),
         _ => None,
     }
 }
@@ -165,6 +172,11 @@ pub fn element_view_write_goal(
     length: semantic_vocabulary::ValueId,
     value: semantic_vocabulary::ValueId,
 ) -> Option<Proposition> {
+    // Writes still use a single static descendant leaf. Dynamic writes need
+    // independently carried descendant bounds, not this one certificate.
+    if path.iter().any(|segment| segment.runtime_index().is_some()) {
+        return None;
+    }
     let leaf = element_view_leaf(types, element, path)?;
     let count = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).ok()?);
     let index = Proposition::LessThan(

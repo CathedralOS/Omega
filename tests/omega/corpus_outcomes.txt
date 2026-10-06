@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 14, "jobs": "1", "load1_end": 6.41, "load1_start": 4.18, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": null, "load1_end": 5.02, "load1_start": 5.02, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -605,6 +605,10 @@ fail/collections/authored_index_guard_bound rejected 667ms expected @2d8ed253669
 	cannot prove index `index` is within unknown slice length of `items` in read::entry
 fail/collections/declared_range_index_too_wide rejected 291ms expected @c08960bee2b1+wt
 	cannot prove index `main.i` is within length 5 in Main::main::read
+fail/collections/element_view_descendant_uses_selected_extent rejected 364ms expected @9b554b6a9397+wt
+	cannot prove index `column` is within length 2 in read::entry
+fail/collections/element_view_read_requires_live_extent rejected 364ms expected @9b554b6a9397+wt
+	cannot prove index `row` is within unknown slice length of `rows` in read::entry
 fail/collections/empty_record_array_index_rejected rejected 257ms expected @3e847a410959+wt
 	cannot prove index `0` is within length 0
 fail/collections/fixed_array_write_out_of_bounds_after_mutation rejected 430ms expected @3ff24ec6504a+wt
@@ -2195,7 +2199,9 @@ pass/collections/runtime_borrowed_fixed_array_state_reads_exit checked 791ms che
 pass/collections/runtime_bounded_byte_reference_forward_exit checked 2738ms check-target:macos_arm64 @c86f2eca11a9
 pass/collections/runtime_bounded_byte_reference_read_exit checked 1463ms check-target:macos_arm64 @8351bf5ebf1b
 pass/collections/runtime_case_array_element_write_exit checked 2347ms check-target:macos_arm64 @2d8ed253669f
+pass/collections/runtime_composed_element_view_reads_exit checked 1649ms check-target:macos_arm64 @9b554b6a9397+wt
 pass/collections/runtime_composed_owned_element_reads_exit checked 2161ms check-target:macos_arm64 @c267eef85dbe+wt
+pass/collections/runtime_composed_subview_reads_exit checked 1665ms check-target:macos_arm64 @9b554b6a9397+wt
 pass/collections/runtime_computed_index_direct_exit checked 1505ms check-target:macos_arm64 @2d8ed253669f
 pass/collections/runtime_constant_expression_index_stores_exit checked 830ms check-target:macos_arm64 @c864ec75728c+wt
 pass/collections/runtime_declared_range_index_write_exit checked 1216ms check-target:macos_arm64 @2d8ed253669f

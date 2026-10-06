@@ -3291,13 +3291,9 @@ deletions, which the commit lists.
   `formation_decided`/`SourceChecked`. Bounds alone do not establish a byte
   domain, and inferred additions to an arrival withdraw its source-checked mark.
   Remaining:
-  - Carry decisions through dynamic descendants of element views, generated
-    selectors and remaining semantic-to-storage casts. Terminal
-    `ElementViewRead` admits static descendants only; dynamic descendants need
-    a selected-element storage home that retains the live descriptor's extent
-    and loan custody before the ordinary scalar projection, not a raw
-    fixed-array read. Synthesized widenings and generated scalar-graph casts
-    still need exact source-decision transport. Join the exact checked
+  - Carry decisions through generated selectors and remaining
+    semantic-to-storage casts. Synthesized widenings and generated scalar-graph
+    casts still need exact source-decision transport. Join the exact checked
     occurrence rather than performing another syntax walk.
   - Cover shift counts, representation geometry, capacities
     and remaining bounded stores outside completed bounded-integer field
@@ -3329,6 +3325,10 @@ deletions, which the commit lists.
   ordered member/selector projections, computed selectors and declared scalar
   fields; `collections/nested_read_index_uses_selected_extent` must reject an
   inner read even when the same operand fits the outer extent.
+  `collections/runtime_composed_{element_view,subview}_reads_exit` (0) constrain
+  live view bounds, ordered descendant selectors and nonzero window offsets;
+  `collections/element_view_descendant_uses_selected_extent` and
+  `collections/element_view_read_requires_live_extent` must reject independently.
   Existing wildcard debt and
   out-of-domain results must still reject. Wrong-path, escaped, stale-index,
   mutated-subject facts and byte-domain corruption must still reject.

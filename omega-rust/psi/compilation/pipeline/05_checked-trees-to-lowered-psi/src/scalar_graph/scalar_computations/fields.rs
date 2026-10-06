@@ -1574,7 +1574,12 @@ fn observe(
             LoweredDirectExpression::ElementViewRead {
                 source,
                 index: Box::new(index),
-                path: binding.element_path.clone(),
+                path: binding
+                    .element_path
+                    .iter()
+                    .cloned()
+                    .map(LoweredElementPathSegment::Static)
+                    .collect(),
                 scalar_type,
                 bound_decided: false,
             }
