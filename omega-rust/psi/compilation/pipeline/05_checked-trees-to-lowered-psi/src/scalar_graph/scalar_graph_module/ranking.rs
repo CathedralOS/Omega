@@ -181,21 +181,49 @@ pub(super) fn retain(
         }
         members_specs.push((block, owner, state));
     }
+    // A staged member emitted with an empty parameter roster reads the loop
+    // value its in-cycle predecessors hand it: the term its dominating block
+    // holds. That is not necessarily its owner's: a call continuation or a
+    // short-circuit test between them may already have rebound the term as a
+    // block parameter. Every predecessor must carry the same value; a join
+    // that merges different values declares the term as a parameter.
+    let mut predecessors: BTreeMap<BlockId, Vec<BlockId>> = BTreeMap::new();
+    for block in machine
+        .blocks
+        .iter()
+        .filter(|block| members.contains(&block.id))
+    {
+        for target in member_targets(block) {
+            if members.contains(&target) {
+                predecessors.entry(target).or_default().push(block.id);
+            }
+        }
+    }
     let mut unresolved: Vec<BlockId> = members_specs
         .iter()
         .map(|(block, ..)| *block)
         .filter(|block| !rank_ids.contains_key(block))
         .collect();
-    while let Some(block) = unresolved.pop() {
-        let mut cursor = owners[&block];
-        while !rank_ids.contains_key(&cursor) {
-            let next = owners[&cursor];
-            if next == cursor {
-                return unsupported("scalar rank lost a member's current loop value");
+    while !unresolved.is_empty() {
+        let before = unresolved.len();
+        unresolved.retain(|block| {
+            let arriving = predecessors
+                .get(block)
+                .into_iter()
+                .flatten()
+                .map(|predecessor| rank_ids.get(predecessor).copied())
+                .collect::<Vec<_>>();
+            match arriving.split_first() {
+                Some((Some(value), rest)) if rest.iter().all(|other| *other == Some(*value)) => {
+                    rank_ids.insert(*block, *value);
+                    false
+                }
+                _ => true,
             }
-            cursor = next;
+        });
+        if unresolved.len() == before {
+            return unsupported("scalar rank lost a member's current loop value");
         }
-        rank_ids.insert(block, rank_ids[&cursor]);
     }
     let mut coordinates = Vec::with_capacity(members.len());
     for (block, _owner, state) in members_specs {

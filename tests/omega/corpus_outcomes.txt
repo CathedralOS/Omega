@@ -3031,6 +3031,7 @@ pass/termination/rank_range_state_cycle checked 292ms @2d8ed253669f
 pass/termination/ranked_callee_projected_receiver_compile checked 291ms check-target:macos_arm64 @2d8ed253669f
 pass/termination/remainder_actual_call_component checked 305ms @2d8ed253669f
 pass/termination/remainder_literal_call_component checked 297ms @2d8ed253669f
+pass/termination/runtime_call_result_short_circuit_rank_exit checked 1703ms check-target:macos_arm64 @98f54226c10c
 pass/termination/runtime_named_state_remainder_endpoint_exit checked 1581ms check-target:macos_arm64 @2d8ed253669f
 pass/termination/runtime_rank_range_state_call_exit checked 867ms check-target:macos_arm64 @82d2bd2d7669
 pass/termination/runtime_receiver_byte_slice_recursion_exit checked 738ms check-target:macos_arm64 @c9c108ecb4ac+wt

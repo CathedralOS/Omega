@@ -1378,6 +1378,7 @@ pass/termination/rank_range_state_cycle checked 179ms
 pass/termination/ranked_callee_projected_receiver_compile built 13283ms exit:70 @7c6892099245+wt
 pass/termination/remainder_actual_call_component checked 210ms
 pass/termination/remainder_literal_call_component checked 218ms
+pass/termination/runtime_call_result_short_circuit_rank_exit built 1801ms exit:70 @98f54226c10c
 pass/termination/runtime_named_state_remainder_endpoint_exit built 33533ms exit:0
 pass/termination/runtime_rank_range_state_call_exit built 1004ms exit:70 @82d2bd2d7669+wt
 pass/termination/runtime_receiver_byte_slice_recursion_exit built 1474ms exit:70 @c9c108ecb4ac+wt
