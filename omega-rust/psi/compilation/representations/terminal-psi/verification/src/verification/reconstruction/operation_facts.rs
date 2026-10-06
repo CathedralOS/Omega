@@ -24,6 +24,7 @@ mod case_hops;
 pub(super) use case_hops::validate_successors;
 mod element_extent;
 mod float_fields;
+mod owned_contents;
 mod primitive_elements;
 mod record;
 mod runtime_index;
@@ -361,16 +362,11 @@ pub(super) fn append_operation(
             return Err(error);
         }
     }
-    if let OperationKind::StructuralLeafCopy { source, path } = &operation.kind {
-        // Freshness of the result and the exact selected leaf type are total
-        // validation judgments. An owned record copy additionally carries
-        // its source's scalar leaves through exact declaration paths.
-        record::append_leaf_copy(module, machine, operation, *source, path, axioms);
-        return Ok(());
-    }
-    if matches!(operation.kind, OperationKind::StructuralCaseLeafCopy { .. }) {
-        // A case-leaf copy publishes no scalar fact: freshness of the result
-        // and the exact selected leaf type are total validation judgments.
+    if matches!(
+        operation.kind,
+        OperationKind::StructuralLeafCopy { .. } | OperationKind::StructuralCaseLeafCopy { .. }
+    ) {
+        owned_contents::append_copy(module, machine, operation, axioms);
         return Ok(());
     }
     if let OperationKind::EstablishPrimitiveLocal { .. } = &operation.kind

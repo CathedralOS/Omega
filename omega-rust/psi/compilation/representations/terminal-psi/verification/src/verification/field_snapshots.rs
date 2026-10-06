@@ -58,7 +58,12 @@ pub(super) fn retain(
         if keep(fact) {
             return true;
         }
-        capture_proposition(fact, &captures);
+        super::observation_substitution::substitute(fact, &mut |field| {
+            captures
+                .iter()
+                .find(|(captured, _)| captured == field)
+                .map(|(_, value)| value.clone())
+        });
         keep(fact)
     });
     // Capturing `field = value` into `captured = value` can restate an
@@ -76,95 +81,4 @@ pub(super) fn retain(
         }
         _ => true,
     });
-}
-
-fn capture_proposition(proposition: &mut Proposition, captures: &[(ScalarTerm, ScalarTerm)]) {
-    match proposition {
-        Proposition::Equal(left, right)
-        | Proposition::LessThan(left, right)
-        | Proposition::LessOrEqual(left, right) => {
-            capture_scalar(left, captures);
-            capture_scalar(right, captures);
-        }
-        Proposition::ScalarIeeeFloatComparison {
-            kind, left, right, ..
-        } => {
-            capture_scalar(left, captures);
-            capture_scalar(right, captures);
-            if kind.is_symmetric() && left > right {
-                std::mem::swap(left, right);
-            }
-        }
-        Proposition::Conjunction(members) | Proposition::Disjunction(members) => {
-            for member in members {
-                capture_proposition(member, captures);
-            }
-        }
-        Proposition::Implication {
-            premise,
-            conclusion,
-        } => {
-            capture_proposition(premise, captures);
-            capture_proposition(conclusion, captures);
-        }
-        // Other observation families have no scalar-field capture rule. The
-        // unchanged invalidation check decides whether they survive.
-        _ => {}
-    }
-}
-
-fn capture_scalar(term: &mut ScalarTerm, captures: &[(ScalarTerm, ScalarTerm)]) {
-    match term {
-        ScalarTerm::IntegerField { .. }
-        | ScalarTerm::BooleanField { .. }
-        | ScalarTerm::IeeeFloatField { .. } => {
-            if let Some((_, value)) = captures.iter().find(|(field, _)| field == term) {
-                *term = value.clone();
-            }
-        }
-        // View extents are not entry-snapshotted values — a requires-side
-        // extent is discharged against the caller's live view at the callsite.
-        // A saved Boolean result does not preserve the current byte contents.
-        ScalarTerm::ByteSequencePredicate { .. } | ScalarTerm::ViewExtent { .. } => {}
-        ScalarTerm::BooleanNot { operand }
-        | ScalarTerm::IntegerBitwiseNot { operand, .. }
-        | ScalarTerm::IntegerWiden { operand, .. }
-        | ScalarTerm::IntegerExactCast { operand, .. } => capture_scalar(operand, captures),
-        ScalarTerm::BooleanEqual { left, right }
-        | ScalarTerm::IntegerEqual { left, right, .. }
-        | ScalarTerm::IntegerLessThan { left, right, .. }
-        | ScalarTerm::IntegerLessOrEqual { left, right, .. }
-        | ScalarTerm::IntegerBitwiseAnd { left, right, .. }
-        | ScalarTerm::IntegerBitwiseOr { left, right, .. }
-        | ScalarTerm::IntegerBitwiseXor { left, right, .. }
-        | ScalarTerm::ExactIntegerAdd { left, right, .. }
-        | ScalarTerm::ExactIntegerSubtract { left, right, .. }
-        | ScalarTerm::ExactIntegerMultiply { left, right, .. }
-        | ScalarTerm::ExactIntegerDivide { left, right, .. }
-        | ScalarTerm::ExactIntegerRemainder { left, right, .. }
-        | ScalarTerm::WrappingIntegerAdd { left, right, .. }
-        | ScalarTerm::WrappingIntegerSubtract { left, right, .. }
-        | ScalarTerm::WrappingIntegerMultiply { left, right, .. }
-        | ScalarTerm::WrappingIntegerDivide { left, right, .. }
-        | ScalarTerm::WrappingIntegerRemainder { left, right, .. }
-        | ScalarTerm::SaturatingIntegerAdd { left, right, .. }
-        | ScalarTerm::SaturatingIntegerSubtract { left, right, .. }
-        | ScalarTerm::SaturatingIntegerMultiply { left, right, .. }
-        | ScalarTerm::SaturatingIntegerDivide { left, right, .. }
-        | ScalarTerm::SaturatingIntegerRemainder { left, right, .. } => {
-            capture_scalar(left, captures);
-            capture_scalar(right, captures);
-        }
-        ScalarTerm::WrappingIntegerShiftLeft { value, count, .. }
-        | ScalarTerm::WrappingIntegerShiftRight { value, count, .. }
-        | ScalarTerm::ExactIntegerShiftLeft { value, count, .. }
-        | ScalarTerm::ExactIntegerShiftRight { value, count, .. } => {
-            capture_scalar(value, captures);
-            capture_scalar(count, captures);
-        }
-        ScalarTerm::Value { .. }
-        | ScalarTerm::Boolean(_)
-        | ScalarTerm::Integer { .. }
-        | ScalarTerm::IeeeFloatLiteral(_) => {}
-    }
 }

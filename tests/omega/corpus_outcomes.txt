@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": "3", "load1_end": 8.43, "load1_start": 7.22, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "2", "load1_end": 3.05, "load1_start": 3.05, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -207,6 +207,8 @@ fail/borrows/borrow_unknown_index_pair_mut rejected 1575ms expected @c5d32a00863
 	cannot prove index `right_index` is within length 2 in Main::main::main
 fail/borrows/case_payload_shared_clone_mutation rejected 134ms expected @bb878591d2fc+wt
 	mutable argument `source` for state `clone` is not writable in this state
+fail/borrows/copied_byte_predicate_invalidated_by_destination_write rejected 253ms expected @1a0d1c0cd491+wt
+	cannot prove requires contract for call take_ascii from overwrite_copy: ascii_only(saved) (needs fact `ascii_only(value)` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/borrows/direct_reference_array_duplicate_mutable rejected 1517ms expected @15c77983aab0+wt
 	terminal-artifact production failed: Lowering(InvalidTerminalModule(InvalidReferenceCustody { machine: MachineId(1), reason: "projected ingress remains suspended by a live reference" }))
 fail/borrows/direct_reference_array_live_source_move rejected 385ms expected @15c77983aab0+wt
@@ -1663,6 +1665,8 @@ pass/borrows/runtime_carrier_reference_reselection_exit checked 1601ms check-tar
 pass/borrows/runtime_carrier_reference_store_exit checked 1441ms check-target:macos_arm64 @f41cc6938f06+wt
 pass/borrows/runtime_case_return_parameter_order_exit checked 962ms check-target:macos_arm64 @f935383e1d47+wt
 pass/borrows/runtime_constructed_reference_array_restoration_exit checked 1487ms check-target:macos_arm64 @b5d8c6882a8b+wt
+pass/borrows/runtime_copied_byte_distinct_epochs_exit checked 1404ms check-target:macos_arm64 @1a0d1c0cd491+wt
+pass/borrows/runtime_copied_byte_predicate_snapshot_exit checked 1403ms check-target:macos_arm64 @1a0d1c0cd491+wt
 pass/borrows/runtime_cyclic_field_loan_release_exit checked 4743ms check-target:macos_arm64 @cfe60a3a242
 pass/borrows/runtime_discarded_reference_release_exit checked 3696ms check-target:macos_arm64 @3fa817733300+wt
 pass/borrows/runtime_forwarded_primitive_state_loan_exit checked 1312ms check-target:macos_arm64 @63377f7122bb+wt
@@ -1831,6 +1835,7 @@ pass/calls/runtime_computed_case_terminal_payload_result_exit checked 783ms chec
 pass/calls/runtime_constructed_borrowed_payload_arguments_exit checked 1957ms check-target:macos_arm64 @a9ea4297a1a9
 pass/calls/runtime_constructed_copy_payload_arguments_exit checked 6100ms check-target:macos_arm64 @b2906d953be
 pass/calls/runtime_constructed_payload_arguments_exit checked 6944ms check-target:macos_arm64 @b2906d953be
+pass/calls/runtime_constructor_byte_predicate_snapshot_exit checked 1200ms check-target:macos_arm64 @1a0d1c0cd491+wt
 pass/calls/runtime_constructor_child_equal_captures_exit checked 1282ms check-target:macos_arm64 @8093eb34a6ed+wt
 pass/calls/runtime_constructor_child_inherited_captures_exit checked 1233ms check-target:macos_arm64 @8093eb34a6ed+wt
 pass/calls/runtime_constructor_child_membership_snapshot_exit checked 1205ms check-target:macos_arm64 @8093eb34a6ed+wt

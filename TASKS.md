@@ -512,12 +512,6 @@ defines the complete product bar.
     certificate, respectively. The fixture READMEs identify the producer and
     consumer joins. Preserve issuer provenance and exact call observations;
     repeated syntax alone cannot establish either obligation.
-    Terminal `StructuralLeafCopy` also needs bounded-byte content-predicate
-    transport to the fresh destination: record-only fact reconstruction drops
-    it. `pending/borrows/runtime_copied_byte_predicate_snapshot_exit` source-checks
-    but lacks its native call-requirement proof on the published baseline too.
-    Its saved ASCII argument precedes a non-ASCII overwrite; preserve the copy's
-    predicate while still invalidating facts about the rewritten source.
     Stored constructor values also need the completed RHS operand tree on
     `FlowStatementFact`, shared by initialization, assignment and value-origin
     transfer. `pending/calls/constructor_child_local_epochs_not_equal` still

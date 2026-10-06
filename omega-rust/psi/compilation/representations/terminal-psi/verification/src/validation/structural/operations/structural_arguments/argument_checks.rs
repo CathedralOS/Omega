@@ -496,7 +496,7 @@ pub(in crate::validation) fn validate_structural_argument(
             .iter()
             .any(|claim| claim.input.root == argument.place)
     {
-        terminal_semantics::byte_copied_field_predicates_at_call(
+        terminal_semantics::byte_copied_field_predicates_at_transfer(
             module,
             caller,
             argument.place,

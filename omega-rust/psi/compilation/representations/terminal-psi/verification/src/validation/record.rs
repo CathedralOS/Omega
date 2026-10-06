@@ -275,12 +275,26 @@ pub(crate) fn fields<'a>(
                     .iter()
                     .find(|candidate| candidate.id == source.structural_type)
                     .ok_or_else(failure)?;
-                let predicates = terminal_semantics::byte_qualification_predicates_in(
+                let mut predicates = terminal_semantics::byte_qualification_predicates_in(
                     module.structural_domains.iter(),
                     source.structural_type,
                     source.qualifications,
                 )
                 .ok_or_else(failure)?;
+                // A projected copy can retain the selected field's declared
+                // byte predicates without inventing nominal qualification IDs.
+                // The shared transfer query authenticates that exact untouched
+                // snapshot; the destination supplies no predicate authority.
+                if let Some(captured) = terminal_semantics::byte_copied_field_predicates_at_transfer(
+                    module,
+                    machine,
+                    argument.place,
+                    operation.id,
+                ) {
+                    for predicate in captured.predicates() {
+                        predicates.insert(predicate);
+                    }
+                }
                 if argument.access != StructuralAccess::Owned
                     || !argument.path.is_empty()
                     || argument.place == result.place

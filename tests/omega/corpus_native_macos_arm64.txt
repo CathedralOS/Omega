@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": "3", "load1_end": 6.14, "load1_start": 6.86, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "2", "load1_end": 3.05, "load1_start": 3.05, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 189ms
 pass/arithmetic/anonymous_rational_integer_landing checked 186ms
 pass/arithmetic/bounded_assignment checked 197ms
@@ -104,6 +104,8 @@ pass/borrows/runtime_affine_local_scalar_exit built 885ms exit:42 @48008365d839
 pass/borrows/runtime_captured_record_nested_field_snapshot_exit built 3466ms exit:70 @681c48c0cebc+wt
 pass/borrows/runtime_carrier_reference_reselection_exit built 1618ms exit:70 @104c2da31081
 pass/borrows/runtime_constructed_reference_array_restoration_exit built 1599ms exit:70 @b5d8c6882a8b+wt
+pass/borrows/runtime_copied_byte_distinct_epochs_exit built 1606ms exit:0 @1a0d1c0cd491+wt
+pass/borrows/runtime_copied_byte_predicate_snapshot_exit built 1530ms exit:0 @1a0d1c0cd491+wt
 pass/borrows/runtime_forwarded_primitive_state_loan_exit built 1428ms exit:70 @63377f7122bb+wt
 pass/borrows/runtime_forwarded_reference_array_bounded_read_exit built 2195ms exit:70 @6ba9c43af356+wt
 pass/borrows/runtime_index_mut_loan_write_exit built 2117ms exit:0 @af9f91f2fb06+wt
@@ -247,6 +249,7 @@ pass/calls/runtime_call_statement_before_state_return_exit built 1440ms exit:42 
 pass/calls/runtime_case_record_return_exit built 1202ms exit:70
 pass/calls/runtime_constructed_borrowed_payload_arguments_exit built 1975ms exit:0 @a9ea4297a1a9
 pass/calls/runtime_constructed_copy_payload_arguments_exit built 1361ms exit:0 @8093eb34a6ed+wt
+pass/calls/runtime_constructor_byte_predicate_snapshot_exit built 1340ms exit:0 @1a0d1c0cd491+wt
 pass/calls/runtime_constructor_child_equal_captures_exit built 1370ms exit:0 @8093eb34a6ed+wt
 pass/calls/runtime_constructor_child_inherited_captures_exit built 1328ms exit:0 @8093eb34a6ed+wt
 pass/calls/runtime_constructor_child_membership_snapshot_exit built 1306ms exit:0 @8093eb34a6ed+wt

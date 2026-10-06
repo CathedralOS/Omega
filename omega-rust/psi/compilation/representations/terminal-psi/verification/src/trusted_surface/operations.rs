@@ -278,7 +278,7 @@ static OP_STRUCTURAL_CASE_MEMBERSHIP: TrustedSurfaceEntry = entry(
 static OP_STRUCTURAL_LEAF_COPY: TrustedSurfaceEntry = entry(
     "operation:structural-leaf-copy",
     "a readable live whole root and validated field/index path to an Unrestricted leaf, with every element-view selector retaining a runtime-index live-length obligation, or to an existing shared-reference descriptor that the copy relocates; a whole bounded-byte copy has the exact source carrier and primitive qualification roster, with no new establishment evidence or claims",
-    "an Unrestricted result is a fresh owned exact copy and the source stays fully intact: prior observations of the result place retire, and when the source path is a canonical static field/index path each scalar leaf of a copied record equals the source's leaf at that path (IEEE leaves as exact-format bit-identity equations, never IEEE equality); ordinary write invalidation retires an equation when either root's leaf is written; a runtime-selected source path publishes no equation; a SharedBorrow result relocates an existing reference descriptor with its original loan origin and publishes no equation; borrowing a new payload uses an ordinary borrowed argument or EstablishReference, never an implicit owned snapshot or a new loan hidden in a copy",
+    "an Unrestricted result is a fresh owned exact copy and the source stays fully intact: prior observations of the result place retire, and when the source path is a canonical static field/index path each scalar leaf of a copied record equals the source's leaf at that path (IEEE leaves as exact-format bit-identity equations, never IEEE equality); ordinary write invalidation retires an equation when either root's leaf is written; live byte-predicate formulas follow the exact copied owned subtree to its fresh destination with their logical premises intact, independently of later source writes; borrowed descriptors and recast namespaces supply no byte content authority; a runtime-selected source path publishes no equation; a SharedBorrow result relocates an existing reference descriptor with its original loan origin and publishes no equation; borrowing a new payload uses an ordinary borrowed argument or EstablishReference, never an implicit owned snapshot or a new loan hidden in a copy",
     &[
         "fact:semantic-axiom-roster",
         "formation:operation-validation",
@@ -287,6 +287,8 @@ static OP_STRUCTURAL_LEAF_COPY: TrustedSurfaceEntry = entry(
         VOCAB,
         TS_ROWS,
         OP_FACTS,
+        "omega-rust/psi/compilation/representations/terminal-psi/verification/src/verification/observation_substitution.rs",
+        "omega-rust/psi/compilation/representations/terminal-psi/verification/src/verification/reconstruction/operation_facts/owned_contents.rs",
         OP_FACTS_RECORD,
         VAL_OPS,
         VAL_LEAF_COPY,
@@ -295,7 +297,7 @@ static OP_STRUCTURAL_LEAF_COPY: TrustedSurfaceEntry = entry(
 static OP_STRUCTURAL_CASE_LEAF_COPY: TrustedSurfaceEntry = entry(
     "operation:structural-case-leaf-copy",
     "a readable live whole root and a canonical path entering at least one case; every case hop has exact root/prefix membership in the reconstructed incoming facts, or every other declared case of that sum is refuted by a surviving membership observation of the same place whose result is known false, before copying an Unrestricted leaf",
-    "no proposition facts: a fresh owned place holding an exact copy of the projected case-leaf; the source stays fully intact",
+    "a fresh owned exact copy retires previous destination observations and transports the copied owned subtree's scalar equations and live byte-predicate formulas, preserving every logical premise and the exact declaration paths; borrowed descriptors and recast field namespaces confer no content authority; the source stays fully intact",
     &[
         "formation:operation-validation",
         "fact:semantic-axiom-roster",
@@ -309,6 +311,8 @@ static OP_STRUCTURAL_CASE_LEAF_COPY: TrustedSurfaceEntry = entry(
         VOCAB,
         TS_ROWS,
         OP_FACTS,
+        "omega-rust/psi/compilation/representations/terminal-psi/verification/src/verification/observation_substitution.rs",
+        "omega-rust/psi/compilation/representations/terminal-psi/verification/src/verification/reconstruction/operation_facts/owned_contents.rs",
         OP_FACTS_CASE_HOPS,
         VAL_OPS,
         VAL_LEAF_COPY,
@@ -878,6 +882,8 @@ static OP_ESTABLISH_RECORD: TrustedSurfaceEntry = entry(
         TS_ROWS,
         TS_SE,
         OP_FACTS,
+        "omega-rust/psi/compilation/representations/terminal-psi/verification/src/verification/observation_substitution.rs",
+        "omega-rust/psi/compilation/representations/terminal-psi/verification/src/verification/reconstruction/operation_facts/owned_contents.rs",
         OP_FACTS_RECORD,
         TS_FIELD_REQUIREMENTS,
         VAL_OPS,

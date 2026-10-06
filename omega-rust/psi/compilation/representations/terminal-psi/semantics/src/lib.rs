@@ -16,8 +16,6 @@
 //! proof-bearing scalars, record fields, primitive places, scalar arrays and
 //! structural effects.
 
-pub mod control_graph;
-pub mod substitution;
 mod arrival_storage;
 pub mod borrowed_storage;
 mod byte_carriers;
@@ -25,6 +23,7 @@ mod byte_sequence_concatenation;
 mod byte_sequence_predicates;
 mod call_composition;
 mod collection_backing;
+pub mod control_graph;
 pub mod descriptor_results;
 mod partial_affine;
 mod placed_view_referent;
@@ -45,6 +44,7 @@ mod static_path;
 mod storage_regions;
 mod structural_effect;
 mod structural_window;
+pub mod substitution;
 mod zeroed_structural;
 
 pub use arrival_storage::{StorageNames, arrival_parameter, root_before_edge, storage_names};
@@ -53,7 +53,7 @@ pub use byte_sequence_concatenation::{
     byte_sequence_concatenation_capacity_goal, byte_sequence_concatenation_length_equation,
 };
 pub use byte_sequence_predicates::{
-    byte_copied_field_predicates_at_call, byte_field_root, byte_literal_qualifications_hold,
+    byte_copied_field_predicates_at_transfer, byte_field_root, byte_literal_qualifications_hold,
     byte_literal_qualifications_hold_in, byte_owned_call_result, byte_owned_result_predicates,
     byte_parameter_predicates, byte_parameter_predicates_from_domains,
     byte_parameter_predicates_in, byte_predicate_requirement, byte_qualification_predicates_in,

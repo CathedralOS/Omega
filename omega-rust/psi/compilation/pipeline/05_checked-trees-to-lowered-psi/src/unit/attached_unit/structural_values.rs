@@ -8,6 +8,7 @@
 
 use super::CheckedTrees;
 mod emission;
+pub(crate) mod field_carrier;
 mod fixed_array;
 mod locals;
 pub(crate) mod record;

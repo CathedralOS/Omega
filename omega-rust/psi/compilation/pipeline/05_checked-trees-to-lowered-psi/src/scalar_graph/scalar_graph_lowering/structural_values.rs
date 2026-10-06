@@ -696,9 +696,13 @@ impl Preparation<'_> {
                     }
                 }
                 CheckedStructuralRecordFieldValue::Structural(child) => {
-                    let StructuralFieldType::Structural(child_type) = target.field_type else {
-                        return unsupported("nested record has a scalar destination");
-                    };
+                    let child_type =
+                        crate::unit::attached_unit::structural_values::field_carrier::resolve(
+                            self.checked,
+                            self.types,
+                            &target.field_type,
+                            field.type_reference,
+                        )?;
                     if carrier_declaration(self.checked, self.types, field.type_reference)?.id
                         != child_type
                     {

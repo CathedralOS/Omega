@@ -55,32 +55,21 @@ pub(super) fn append(
             let terminal_psi::RecordFieldValue::Structural(argument) = &binding.value else {
                 unreachable!()
             };
-            match declaration.field_type {
-                terminal_psi::StructuralFieldType::Structural(child) => {
-                    append_child_fields(
-                        module,
-                        child,
-                        result.place,
-                        vec![CanonicalStructuralPathSegment::Field(binding.field)],
-                        argument.place,
-                        Vec::new(),
-                        axioms,
-                    );
-                }
-                // Byte bindings have no scalar child fields to equate. The
-                // field validator above already checks exact owned capacity
-                // and predicate implication (or borrowed descriptor custody).
-                terminal_psi::StructuralFieldType::ByteSequence(
-                    terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
-                    | terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
-                )
-                | terminal_psi::StructuralFieldType::PredicateByteSequence {
-                    carrier:
-                        terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
-                        | terminal_psi::ByteSequenceCarrier::BorrowedView { .. },
-                    ..
-                } => {}
-                _ => return Err(ModuleError::RecordResultMismatch(operation.id)),
+            if let Some(source_path) = crate::validation::canonical_field_path(
+                module,
+                machine,
+                argument.place,
+                &argument.path,
+            ) {
+                super::owned_contents::append(
+                    module,
+                    &declaration.field_type,
+                    result.place,
+                    vec![CanonicalStructuralPathSegment::Field(binding.field)],
+                    argument.place,
+                    source_path,
+                    axioms,
+                );
             }
             continue;
         };
@@ -104,46 +93,6 @@ pub(super) fn append(
         ));
     }
     Ok(())
-}
-
-/// An owned leaf copy of a record is an exact copy of the source leaf when it
-/// completes: each scalar leaf of the result equals the source's leaf at the
-/// copied canonical path, IEEE leaves as bit-identity equations. Re-execution
-/// creates fresh storage, so prior observations of the result place retire
-/// first. A borrowed reference result is a carrier rooted at the source, and a
-/// copy through a runtime-selected element names no canonical source leaf;
-/// neither publishes an equation. Later writes to either root retire the
-/// equations through ordinary write invalidation.
-pub(super) fn append_leaf_copy(
-    module: &TerminalModule,
-    machine: &TerminalMachine,
-    operation: &Operation,
-    source: semantic_vocabulary::PlaceId,
-    path: &[terminal_psi::StructuralPathSegment],
-    axioms: &mut Vec<Proposition>,
-) {
-    let Some(result) = operation.result.structural() else {
-        return;
-    };
-    if result.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted {
-        return;
-    }
-    axioms.retain(|proposition| {
-        !crate::validation::proposition_observes_places(proposition, &[result.place])
-    });
-    let Some(source_path) = crate::validation::canonical_field_path(module, machine, source, path)
-    else {
-        return;
-    };
-    append_child_fields(
-        module,
-        result.structural_type,
-        result.place,
-        Vec::new(),
-        source,
-        source_path,
-        axioms,
-    );
 }
 
 // Whole child transfer preserves observations through exact declaration paths.
@@ -185,9 +134,9 @@ pub(super) fn append_array(
             &argument.path,
         )
         .ok_or(ModuleError::RecordResultMismatch(operation.id))?;
-        append_child_fields(
+        super::owned_contents::append(
             module,
-            element,
+            &terminal_psi::StructuralFieldType::Structural(element),
             result.place,
             vec![CanonicalStructuralPathSegment::FixedIndex(index as u64)],
             argument.place,
@@ -196,53 +145,4 @@ pub(super) fn append_array(
         );
     }
     Ok(())
-}
-
-pub(super) fn append_child_fields(
-    module: &TerminalModule,
-    structural_type: semantic_vocabulary::StructuralTypeId,
-    destination: semantic_vocabulary::PlaceId,
-    destination_path: Vec<CanonicalStructuralPathSegment>,
-    source: semantic_vocabulary::PlaceId,
-    source_path: Vec<CanonicalStructuralPathSegment>,
-    axioms: &mut Vec<Proposition>,
-) {
-    let Some(declaration) = module
-        .structural_types
-        .iter()
-        .find(|item| item.id == structural_type)
-    else {
-        return;
-    };
-    let terminal_psi::StructuralTypeShape::Record { fields } = &declaration.shape else {
-        return;
-    };
-    for field in fields {
-        let mut target = destination_path.clone();
-        target.push(CanonicalStructuralPathSegment::Field(field.id));
-        let mut origin = source_path.clone();
-        origin.push(CanonicalStructuralPathSegment::Field(field.id));
-        if let terminal_psi::StructuralFieldType::Structural(child) = field.field_type {
-            append_child_fields(module, child, destination, target, source, origin, axioms);
-        } else {
-            let equation = match field.field_type.scalar_type() {
-                Some(ScalarType::Integer(integer)) => Some((
-                    ScalarTerm::integer_field_path(destination, target, integer),
-                    ScalarTerm::integer_field_path(source, origin, integer),
-                )),
-                Some(ScalarType::Boolean) => Some((
-                    ScalarTerm::boolean_field_path(destination, target),
-                    ScalarTerm::boolean_field_path(source, origin),
-                )),
-                Some(ScalarType::IeeeFloat(format)) => Some((
-                    ScalarTerm::ieee_float_field_path(destination, target, format),
-                    ScalarTerm::ieee_float_field_path(source, origin, format),
-                )),
-                _ => None,
-            };
-            if let Some((left, right)) = equation {
-                axioms.push(Proposition::Equal(left, right));
-            }
-        }
-    }
 }

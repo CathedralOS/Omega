@@ -31,6 +31,7 @@ mod call_composition;
 mod evidence_provenance;
 mod field_snapshots;
 mod float_meaning_projection;
+mod observation_substitution;
 mod proof_bundle;
 mod reconstruction;
 mod storage_observations;

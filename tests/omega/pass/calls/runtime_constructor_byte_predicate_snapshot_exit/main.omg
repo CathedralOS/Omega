@@ -1,0 +1,37 @@
+domain [u8; 16]::Utf8(bytes) requires valid_utf8(bytes);
+
+data Envelope [copy] { replaced: bool; line: [u8; 16] in Utf8; }
+
+data Main {
+    line: [u8; 16] in Utf8;
+    sibling: u64;
+}
+
+machine Main::replace(main: &mut Main) -> bool {
+    main.line = "é";
+    true
+}
+
+machine observe(value: Envelope) -> bool
+requires ascii_only(value.line) {
+    value.replaced && value.line == "Gate" && value.line.len == 4
+}
+
+machine Main::main(main: &mut Main) crashes Trap {
+    main.line = "Gate";
+    main.sibling = 29;
+    transition ascii_only(main.line) {
+        true -> capture(main)
+        false -> bad()
+    }
+    state capture(main: &mut Main)
+    requires ascii_only(main.line) {
+        let captured: bool = observe(Envelope { line: main.line, replaced: Main::replace(main) });
+        transition captured && main.line == "é" && main.line.len == 2 && main.sibling == 29 {
+            true -> done()
+            false -> bad()
+        }
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

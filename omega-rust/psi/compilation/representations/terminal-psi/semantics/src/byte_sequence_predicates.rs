@@ -1,6 +1,9 @@
 //! Primitive byte predicates replay from exact values and declared invariants.
 //! These queries grant no availability or loan authority: receiving validation
 //! separately checks dominance, source access and current length observations.
+//! A completed owned field copy carries the same declared invariants into an
+//! ordinary call or constructor: both consume its exact whole snapshot, while
+//! later changes to the original backing cannot change the copied contents.
 
 use semantic_vocabulary::{PlaceId, StructuralPlaceKind};
 use terminal_psi::{
@@ -407,15 +410,15 @@ pub fn byte_sequence_concatenation_predicates(
     )
 }
 
-/// Declared byte invariants captured by a field copy at one owned call.
+/// Declared byte invariants captured by a field copy at one whole owned transfer.
 /// The snapshot observes the field's live bytes, not its spare capacity. A
 /// later legal write to the backing field preserves its declared invariants
 /// and cannot change this fresh copy. In contrast, any other possible write
 /// or exclusive alias of the copy makes this conservative query unavailable.
-/// This is not the timeless source query: only this exact consuming call is
+/// This is not the timeless source query: only this exact consuming operation is
 /// excluded from the clobber scan. Dominance and loan authority remain the
 /// receiving verifier's independent obligations.
-pub fn byte_copied_field_predicates_at_call(
+pub fn byte_copied_field_predicates_at_transfer(
     module: &TerminalModule,
     machine: &TerminalMachine,
     source: PlaceId,
@@ -515,7 +518,7 @@ pub fn byte_copied_field_predicates_at_call(
         .iter()
         .flat_map(|block| &block.operations)
         .find(|operation| operation.id == consumer)?;
-    let arguments = match &consuming.kind {
+    let call_arguments = match &consuming.kind {
         OperationKind::CallUnit {
             structural_arguments,
             ..
@@ -531,17 +534,21 @@ pub fn byte_copied_field_predicates_at_call(
         | OperationKind::CallStructuralWithScalarArguments {
             structural_arguments,
             ..
-        } => structural_arguments,
-        _ => return None,
+        } => structural_arguments.as_slice(),
+        _ => &[],
     };
-    if !arguments.iter().any(|argument| {
-        argument.place == source
-            && argument.path.is_empty()
-            && argument.access == StructuralAccess::Owned
-    }) || arguments.iter().any(|argument| {
-        argument.place == source
-            && (!argument.path.is_empty() || argument.access != StructuralAccess::Owned)
-    }) {
+    // Whole constructors and ordinary calls consume the same completed value.
+    // Their source occurrence, rather than the requested destination predicates,
+    // selects which pristine snapshot may supply its declared field invariants.
+    let mut matching = call_arguments
+        .iter()
+        .chain(consuming.kind.constructor_arguments())
+        .filter(|argument| argument.place == source)
+        .peekable();
+    if matching.peek().is_none()
+        || matching
+            .any(|argument| !argument.path.is_empty() || argument.access != StructuralAccess::Owned)
+    {
         return None;
     }
     if machine

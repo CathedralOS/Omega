@@ -75,19 +75,22 @@ pub(super) fn append(
             let terminal_psi::RecordFieldValue::Structural(argument) = &binding.value else {
                 unreachable!()
             };
-            let terminal_psi::StructuralFieldType::Structural(child) = declaration.field_type
-            else {
-                return Err(ModuleError::StructuralCaseResultMismatch(operation.id));
-            };
-            super::record::append_child_fields(
+            if let Some(source_path) = crate::validation::canonical_field_path(
                 module,
-                child,
-                result.place,
-                path,
+                machine,
                 argument.place,
-                Vec::new(),
-                axioms,
-            );
+                &argument.path,
+            ) {
+                super::owned_contents::append(
+                    module,
+                    &declaration.field_type,
+                    result.place,
+                    path,
+                    argument.place,
+                    source_path,
+                    axioms,
+                );
+            }
             continue;
         };
         let scalar_type = declaration

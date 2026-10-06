@@ -7,7 +7,7 @@ use super::super::{
     CheckedScalarExpressionRole, LoweringError, Operation, OperationKind, OperationResult, PlaceId,
     ScalarType, StructuralMultiplicity, StructuralOperationResult, StructuralPlaceDeclaration,
     StructuralPlaceKind, StructuralTypeId, StructuralTypeShape, ValueDeclaration, allocate_dense,
-    lookup_type_id, obligation_id, place_id, unsupported,
+    obligation_id, place_id, unsupported,
 };
 use super::emission;
 use crate::emission::operation_emission::buffer::OperationBuffer;
@@ -200,56 +200,12 @@ impl emission::Emission<'_, '_, '_> {
                             range_obligation,
                         }
                     } else {
-                        // Nominal children retain their identity. Byte members
-                        // instead embed a carrier contract; resolve that carrier
-                        // without requiring an unrelated source alias to survive.
-                        let child_type = match &target.field_type {
-                            StructuralFieldType::Structural(child_type) => *child_type,
-                            StructuralFieldType::ByteSequence(
-                                terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
-                            )
-                            | StructuralFieldType::PredicateByteSequence {
-                                carrier: terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
-                                ..
-                            } => {
-                                let carrier = super::super::structural_carrier_type(
-                                    self.checked,
-                                    field.type_reference,
-                                )?;
-                                lookup_type_id(
-                                    self.type_ids,
-                                    self.checked.normalized_type_identity(carrier).as_str(),
-                                )?
-                            }
-                            StructuralFieldType::ByteSequence(
-                                terminal_psi::ByteSequenceCarrier::BorrowedView { .. },
-                            )
-                            | StructuralFieldType::PredicateByteSequence {
-                                carrier: terminal_psi::ByteSequenceCarrier::BorrowedView { .. },
-                                ..
-                            } => {
-                                // Byte fields embed their carrier, not a nominal
-                                // type identity. Choose that descriptor contract
-                                // from the operand catalog; an unrelated parameter
-                                // must not be needed to root a source-spelled alias.
-                                self.structural_types.iter().find_map(|declaration|
-                                    matches!(declaration.shape,
-                                        terminal_psi::StructuralTypeShape::ByteSequence(
-                                            terminal_psi::ByteSequenceCarrier::BorrowedView {
-                                                access: None | Some(terminal_psi::StructuralAccess::SharedBorrow),
-                                            }
-                                        )
-                                    ).then_some(declaration.id)
-                                ).ok_or(LoweringError::Unsupported(
-                                    "shared byte member has no descriptor carrier",
-                                ))?
-                            }
-                            _ => {
-                                return unsupported(
-                                    "nested record operand has a scalar destination",
-                                );
-                            }
-                        };
+                        let child_type = super::field_carrier::resolve(
+                            self.checked,
+                            self.structural_types,
+                            &target.field_type,
+                            field.type_reference,
+                        )?;
                         let parent_type = self.structural_type;
                         let parent_multiplicity = self.multiplicity;
                         self.structural_type = child_type;
