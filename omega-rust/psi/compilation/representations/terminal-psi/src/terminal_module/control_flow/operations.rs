@@ -115,13 +115,6 @@ impl OperationResult {
         }
     }
 
-    pub fn scalar_mut(&mut self) -> Option<&mut ValueDeclaration> {
-        match self {
-            Self::Unit | Self::Structural(_) => None,
-            Self::Scalar(value) => Some(value),
-        }
-    }
-
     pub const fn structural(&self) -> Option<&StructuralOperationResult> {
         match self {
             Self::Structural(result) => Some(result),

@@ -199,14 +199,6 @@ pub fn descriptor_location_lifetime(
     DescriptorLifetime { live, authorized }
 }
 
-pub fn descriptor_location_authorized_locations(
-    steps: &BTreeMap<DescriptorPosition, DescriptorFlowStep>,
-    birth: DescriptorPosition,
-    descriptor: &DescriptorLocation,
-) -> BTreeMap<DescriptorPosition, BTreeSet<DescriptorLocation>> {
-    descriptor_location_lifetime(steps, birth, descriptor).authorized
-}
-
 fn authorized_locations(
     steps: &BTreeMap<DescriptorPosition, DescriptorFlowStep>,
     birth: DescriptorPosition,

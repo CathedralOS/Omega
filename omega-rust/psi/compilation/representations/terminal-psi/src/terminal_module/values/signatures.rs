@@ -58,13 +58,6 @@ impl TerminalMachineResult {
         }
     }
 
-    pub fn scalar_mut(&mut self) -> Option<&mut ValueDeclaration> {
-        match self {
-            Self::Scalar(result) => Some(result),
-            Self::Unit | Self::Structural(_) => None,
-        }
-    }
-
     pub const fn structural(&self) -> Option<&StructuralResultDeclaration> {
         match self {
             Self::Structural(result) => Some(result),
