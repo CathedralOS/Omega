@@ -1659,11 +1659,6 @@ impl QuotientFamily {
         self.spine(arena, QUOTIENT_PROJECT, Vec::new(), &[representative])
     }
 
-    /// `setQ A R : isSet (Q A R)` — the propositional setness law.
-    pub fn set_quotient(&self, arena: &mut TermArena) -> TermHandle {
-        self.spine(arena, QUOTIENT_SET, Vec::new(), &[])
-    }
-
     /// `sound A R a b r : Id (Q A R) (project a) (project b)` — the
     /// congruence law of the selected relation.
     pub fn sound(
@@ -1770,34 +1765,6 @@ impl QuotientFamily {
             levels: vec![level],
         });
         for argument in [ty, left, middle, right, first, second] {
-            term = arena.insert(Term::Apply {
-                function: term,
-                argument,
-            });
-        }
-        term
-    }
-
-    /// `transportConst A B x y p b : Id B (J(λy'. λ_. B, b, y, p)) b` —
-    /// transport across the constant family is propositionally the
-    /// identity. `levels` are `[u, w]` — the ambient level of `A` and
-    /// the target level of `B`.
-    pub fn transport_const(
-        &self,
-        arena: &mut TermArena,
-        levels: [Level; 2],
-        ambient: TermHandle,
-        target: TermHandle,
-        left: TermHandle,
-        right: TermHandle,
-        proof: TermHandle,
-        value: TermHandle,
-    ) -> TermHandle {
-        let mut term = arena.insert(Term::Constant {
-            declaration: QUOTIENT_TRANSPORT_CONST,
-            levels: levels.to_vec(),
-        });
-        for argument in [ambient, target, left, right, proof, value] {
             term = arena.insert(Term::Apply {
                 function: term,
                 argument,
