@@ -6,15 +6,13 @@ use crate::ValidatedRecoveryClassifications;
 use crate::ValidatedSelectedAnalysis;
 use crate::ValidatedSpillChoices;
 use register_model::{
-    TargetRegisterEnvironmentConstraintKeys, TargetRegisterEnvironmentIdentity,
-    ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog,
-    ValidatedRegisterReservationProfile,
+    TargetRegisterEnvironmentConstraintKeys, TargetRegisterEnvironmentIdentity, ValidatedRegisterConstraintCatalog,
 };
 
 pub(crate) mod compute;
 pub(crate) mod identity;
 pub(crate) mod pair_rule;
-pub(crate) mod validate;
+mod receipt;
 
 use identity::encode_terminal_literal_fold_content;
 pub(crate) use identity::literal_fold_identity;
@@ -36,7 +34,6 @@ use selected_instructions::{
     SelectedInstructionPlan, SelectedInstructionPlanIdentity, VirtualRegisterId,
 };
 use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
-pub(crate) use validate::validate_literal_fold;
 
 /// Fold each nominated materialized literal into the enabled consumer that is
 /// the literal's sole use later in its block: nomination scans every
@@ -159,15 +156,13 @@ pub(crate) fn fold_selected_incoming_literal<S: ValidatedSelectedAnalysis>(
     recovery: &ValidatedRecoveryClassifications,
     availability: &ValidatedAllocatorAvailability,
     register_environment: TargetRegisterEnvironmentIdentity,
-    physical: &ValidatedPhysicalRegisterModel,
     constraints: &ValidatedRegisterConstraintCatalog,
-    reservations: &ValidatedRegisterReservationProfile,
     selected_keys: &TargetRegisterEnvironmentConstraintKeys,
     effect_catalog: &selected_instructions::ValidatedMachineEffectCatalog,
     policy: LiteralFoldPolicy,
     budget: optimization_core::OptimizationWorkBudget,
 ) -> Result<ValidatedLiteralFold, LiteralFoldError> {
-    let plan = compute::compute_terminal_literal_fold(
+    let (plan, transformed) = compute::compute_terminal_literal_fold(
         selected,
         ranges,
         legality,
@@ -175,29 +170,22 @@ pub(crate) fn fold_selected_incoming_literal<S: ValidatedSelectedAnalysis>(
         recovery,
         availability,
         register_environment,
-        physical,
         constraints,
-        reservations,
         selected_keys,
         effect_catalog,
         policy,
         budget,
     )?;
-    validate_literal_fold(
-        selected,
-        ranges,
-        legality,
-        spill_choices,
-        recovery,
-        availability,
-        register_environment,
-        physical,
-        constraints,
-        reservations,
-        selected_keys,
-        effect_catalog,
+    // The fold was computed in this compile from these exact inputs;
+    // nothing re-derives it before admission.
+    let applied_count = plan.functions.iter().map(|function| function.actions.len()).sum();
+    let transformed_selected = plan.transformed_selected;
+    Ok(receipt::admit_literal_fold(
         plan,
-    )
+        transformed,
+        transformed_selected,
+        applied_count,
+    ))
 }
 
 const LITERAL_FOLD_MAGIC: &[u8; 8] = b"OMGLFD\0\0";
@@ -946,7 +934,6 @@ impl ValidatedLiteralFold {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LiteralFoldError {
     RootMismatch,
-    UnsupportedPolicy,
     WorkOverflow,
     BudgetExceeded {
         required: OptimizationWorkUsage,
@@ -955,27 +942,7 @@ pub enum LiteralFoldError {
     FunctionMismatch {
         function: usize,
     },
-    ClassificationNotAdmitted {
-        function: usize,
-    },
-    UnsupportedVictimRole {
-        function: usize,
-    },
-    UnsupportedImmediate {
-        function: usize,
-    },
-    FutureUseMismatch {
-        function: usize,
-    },
-    LiteralMismatch {
-        function: usize,
-    },
     ConsumerMismatch {
-        function: usize,
-    },
-    /// The producer, consumer, or rewritten catalog declaration does not
-    /// satisfy the pair's declared machine-effect surface.
-    EffectSurfaceMismatch {
         function: usize,
     },
     /// The bound machine-effect catalog does not declare a policy-enabled
@@ -989,9 +956,6 @@ pub enum LiteralFoldError {
     DecisionMismatch {
         function: usize,
     },
-    UsageMismatch,
-    TransformedPlanMismatch,
-    TransformedIdentityMismatch,
 }
 
 impl std::fmt::Display for LiteralFoldError {

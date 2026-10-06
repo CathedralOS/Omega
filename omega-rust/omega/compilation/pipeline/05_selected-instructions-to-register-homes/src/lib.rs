@@ -103,5 +103,4 @@ pub use preservation::{
 pub use selected_instructions_to_selected_instructions::{
     MachineEffectStageError, ValidatedAllocationLegality, ValidatedLiveRanges,
     ValidatedPreAllocationMachineEffects, ValidatedSelectedAnalysis, analyze_machine_effects,
-    validate_machine_effects,
 };

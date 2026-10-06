@@ -8,7 +8,6 @@ pub enum MachineEffectStageError {
     X86_64Catalog(X86_64MachineEffectCatalogValidationError),
     Aarch64Catalog(Aarch64MachineEffectCatalogValidationError),
     Analysis(MachineEffectError),
-    ReceiptMismatch,
 }
 
 impl std::fmt::Display for MachineEffectStageError {

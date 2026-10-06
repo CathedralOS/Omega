@@ -27,8 +27,7 @@ pub use literal_fold::{
     ValidatedLiteralFold,
 };
 pub(crate) use literal_fold::{
-    fold_selected_incoming_literal, literal_fold_identity, validate_literal_fold,
-};
+    fold_selected_incoming_literal, literal_fold_identity, };
 
 /// Resolve every selected-lowering catalog row in canonical catalog order.
 ///

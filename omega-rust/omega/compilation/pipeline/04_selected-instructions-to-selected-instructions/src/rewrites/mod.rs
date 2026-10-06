@@ -159,7 +159,6 @@ pub(crate) use selected_lowering::literal_fold_identity;
 // Reached as `crate::rewrites::validate_literal_fold` by the literal-fold
 // test corpus.
 #[allow(unused_imports)]
-pub(crate) use selected_lowering::validate_literal_fold;
 pub use selected_lowering::{
     FunctionLiteralFold, LiteralFoldAction, LiteralFoldError, LiteralFoldIdentity, LiteralFoldPlan,
     LiteralFoldPolicy, LiteralFoldValidationReceipt, PairConsumerBindingAdmission,

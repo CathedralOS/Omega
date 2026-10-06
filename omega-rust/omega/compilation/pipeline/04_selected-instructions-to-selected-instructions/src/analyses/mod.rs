@@ -28,7 +28,7 @@ pub(crate) use machine_effects::analyze_pre_allocation_machine_effects;
 pub(crate) use machine_effects::validated_machine_effect_catalog;
 pub use machine_effects::{
     MachineEffectError, MachineEffectStageError, ValidatedPreAllocationMachineEffects,
-    analyze_machine_effects, validate_machine_effects, validate_pre_allocation_machine_effects,
+    analyze_machine_effects, validate_pre_allocation_machine_effects,
 };
 pub use reanalysis::{
     OptimizedSelectedReanalysisError, StagedOptimizedSelectedReanalysis,

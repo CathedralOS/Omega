@@ -3,7 +3,7 @@ use selected_instructions::{SelectedInstructionPlan, SelectedInstructionPlanIden
 use crate::rewrites::literal_fold_identity;
 use crate::{LiteralFoldPlan, LiteralFoldValidationReceipt, ValidatedLiteralFold};
 
-pub(super) fn admit_literal_fold(
+pub(crate) fn admit_literal_fold(
     plan: LiteralFoldPlan,
     transformed: SelectedInstructionPlan,
     transformed_selected: SelectedInstructionPlanIdentity,

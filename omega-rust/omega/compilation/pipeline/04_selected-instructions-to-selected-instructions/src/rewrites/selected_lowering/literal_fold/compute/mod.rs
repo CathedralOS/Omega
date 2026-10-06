@@ -4,16 +4,13 @@ mod actions;
 mod constraints;
 mod function_rewrite;
 mod functions;
-mod roots;
 mod usage;
 
 use optimization_core::OptimizationWorkBudget;
 use register_model::{
-    TargetRegisterEnvironmentConstraintKeys, TargetRegisterEnvironmentIdentity,
-    ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog,
-    ValidatedRegisterReservationProfile,
+    TargetRegisterEnvironmentConstraintKeys, TargetRegisterEnvironmentIdentity, ValidatedRegisterConstraintCatalog,
 };
-use selected_instructions::ValidatedMachineEffectCatalog;
+use selected_instructions::{SelectedInstructionPlan, ValidatedMachineEffectCatalog};
 use target_operations_to_selected_instructions::selected_instruction_plan_identity;
 
 use crate::{
@@ -24,7 +21,6 @@ use crate::{
 
 use constraints::select_admitted_pairs;
 use functions::derive_function_folds;
-use roots::validate_literal_fold_roots;
 use usage::{ensure_budget, fold_usage};
 
 #[allow(clippy::too_many_arguments)]
@@ -36,34 +32,19 @@ pub(crate) fn compute_terminal_literal_fold<S: ValidatedSelectedAnalysis>(
     recovery: &ValidatedRecoveryClassifications,
     availability: &ValidatedAllocatorAvailability,
     register_environment: TargetRegisterEnvironmentIdentity,
-    physical: &ValidatedPhysicalRegisterModel,
     constraints: &ValidatedRegisterConstraintCatalog,
-    reservations: &ValidatedRegisterReservationProfile,
     selected_keys: &TargetRegisterEnvironmentConstraintKeys,
     effect_catalog: &ValidatedMachineEffectCatalog,
     policy: LiteralFoldPolicy,
     budget: OptimizationWorkBudget,
-) -> Result<LiteralFoldPlan, LiteralFoldError> {
-    validate_literal_fold_roots(
-        selected,
-        ranges,
-        legality,
-        spill_choices,
-        recovery,
-        availability,
-        register_environment,
-        physical,
-        constraints,
-        reservations,
-        selected_keys,
-        effect_catalog,
-    )?;
+) -> Result<(LiteralFoldPlan, SelectedInstructionPlan), LiteralFoldError> {
     let rows = select_admitted_pairs(constraints, selected_keys, policy, effect_catalog)?;
     let (functions, transformed) = derive_function_folds(selected, recovery, &rows)?;
     let usage = fold_usage(selected, &functions, &rows)?;
     ensure_budget(usage, budget)?;
 
-    Ok(LiteralFoldPlan {
+    let transformed_selected = selected_instruction_plan_identity(&transformed);
+    let plan = LiteralFoldPlan {
         source_selected: selected.selected_identity(),
         spill_choices: spill_choices.receipt().identity(),
         recovery_classifications: recovery.receipt().identity(),
@@ -78,6 +59,7 @@ pub(crate) fn compute_terminal_literal_fold<S: ValidatedSelectedAnalysis>(
         budget,
         usage,
         functions,
-        transformed_selected: selected_instruction_plan_identity(&transformed),
-    })
+        transformed_selected,
+    };
+    Ok((plan, transformed))
 }

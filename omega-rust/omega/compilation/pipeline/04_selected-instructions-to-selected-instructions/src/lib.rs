@@ -52,7 +52,7 @@ pub use analyses::{
     stage_optimized_liveness, stage_optimized_selected_reanalysis, validate_allocation_legality,
     validate_fixed_precolored_intervals, validate_fixed_precolored_segment_homes,
     validate_fixed_precolored_split_requirements, validate_live_ranges, validate_liveness,
-    validate_machine_effects, validate_optimized_selected_reanalysis_custody,
+    validate_optimized_selected_reanalysis_custody,
     validate_pre_allocation_machine_effects, validate_recovery_classifications,
     validate_spill_choices,
 };

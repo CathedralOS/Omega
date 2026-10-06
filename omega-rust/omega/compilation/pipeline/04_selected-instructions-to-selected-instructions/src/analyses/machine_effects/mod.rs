@@ -38,22 +38,11 @@ pub(crate) fn validated_machine_effect_catalog(
     catalog::validated_catalog(target, constraints)
 }
 
-/// Construct and independently replay effects for the current selected program.
+/// Construct effects for the current selected program.
 pub fn analyze_machine_effects<S: ValidatedSelectedAnalysis>(
     selected: &S,
     environment: &ValidatedTargetRegisterEnvironment,
 ) -> Result<ValidatedPreAllocationMachineEffects, MachineEffectStageError> {
-    let effects = analysis::analyze(selected, environment)?;
-    validate_machine_effects(selected, environment, &effects)?;
-    Ok(effects)
+    analysis::analyze(selected, environment)
 }
 
-/// Rejoin a retained effect result to the exact selected program and target.
-pub fn validate_machine_effects<S: ValidatedSelectedAnalysis>(
-    selected: &S,
-    environment: &ValidatedTargetRegisterEnvironment,
-    effects: &ValidatedPreAllocationMachineEffects,
-) -> Result<(), MachineEffectStageError> {
-    analysis::revalidate(selected, environment, effects)?;
-    Ok(())
-}
