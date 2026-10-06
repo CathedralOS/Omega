@@ -2312,46 +2312,36 @@ pass/expressions/runtime_numeric_cast_exit checked 4281ms check-target:macos_arm
 pass/expressions/runtime_temporary_record_field_call_exit checked 501ms check-target:macos_arm64 @f70a22c80ac3
 pass/expressions/runtime_widened_comparison_exit checked 1648ms check-target:macos_arm64 @2d8ed253669f
 pass/expressions/scalar_match_boundary_composition_exit checked 5240ms check-target:macos_arm64 @2d8ed253669f
-pass/filesystem/cross_linux_value_syscalls checked 17448ms @2d8ed253669f
-pass/filesystem/dir_walk_wrappers_exit rejected 86187ms check-target:macos_arm64 @8632b5713761
+pass/filesystem/cross_linux_value_syscalls checked 23964ms @e01f73c689de+wt
+pass/filesystem/dir_walk_wrappers_exit rejected 19074ms check-target:macos_arm64 @e01f73c689de+wt
 	selected ProgramEntry Binding field `Main::fs::host` requires a selected Fused provider for boundary `FilesystemHost`
-pass/filesystem/native_canonicalize rejected 1980ms check-target:macos_arm64 @835baa6033e
+pass/filesystem/native_canonicalize rejected 1684ms check-target:macos_arm64 @e01f73c689de+wt
 	selected ProgramEntry Binding field `Main::fs` requires a selected Fused provider for boundary `FilesystemHost`
-pass/filesystem/native_close rejected 9568ms check-target:macos_arm64 @a730a3a70c28+wt
-	selected ProgramEntry Binding field `Main::fs` requires a selected Fused provider for boundary `FilesystemHost`
-pass/filesystem/native_crud rejected 2422ms check-target:macos_arm64 @835baa6033e
-	selected ProgramEntry Binding field `Main::fs` requires a selected Fused provider for boundary `FilesystemHost`
-pass/filesystem/native_errno rejected 2000ms check-target:macos_arm64 @835baa6033e
-	selected ProgramEntry Binding field `Main::fs` requires a selected Fused provider for boundary `FilesystemHost`
-pass/filesystem/native_filetype rejected 2595ms check-target:macos_arm64 @835baa6033e
-	selected ProgramEntry Binding field `Main::fs` requires a selected Fused provider for boundary `FilesystemHost`
-pass/filesystem/native_fs_workflow rejected 2611ms check-target:macos_arm64 @835baa6033e
-	selected ProgramEntry Binding field `Main::fs` requires a selected Fused provider for boundary `FilesystemHost`
-pass/filesystem/native_metadata_blocks rejected 2635ms check-target:macos_arm64 @835baa6033e
-	selected ProgramEntry Binding field `Main::fs` requires a selected Fused provider for boundary `FilesystemHost`
-pass/filesystem/native_metadata_ctime_dev rejected 2733ms check-target:macos_arm64 @835baa6033e
-	selected ProgramEntry Binding field `Main::fs` requires a selected Fused provider for boundary `FilesystemHost`
-pass/filesystem/native_metadata_ino rejected 3058ms check-target:macos_arm64 @835baa6033e
-	selected ProgramEntry Binding field `Main::fs` requires a selected Fused provider for boundary `FilesystemHost`
-pass/filesystem/native_metadata_nlink rejected 2596ms check-target:macos_arm64 @835baa6033e
-	selected ProgramEntry Binding field `Main::fs` requires a selected Fused provider for boundary `FilesystemHost`
-pass/filesystem/native_read_dir_iter rejected 2379ms check-target:macos_arm64 @835baa6033e
-	selected ProgramEntry Binding field `Main::fs` requires a selected Fused provider for boundary `FilesystemHost`
-pass/filesystem/native_wrapper_write_all_result rejected 30462ms check-target:macos_arm64 @835baa6033e
+pass/filesystem/native_close checked 3285ms check-target:macos_arm64 @e01f73c689de+wt
+pass/filesystem/native_crud checked 4335ms check-target:macos_arm64 @e01f73c689de+wt
+pass/filesystem/native_errno checked 3901ms check-target:macos_arm64 @e01f73c689de+wt
+pass/filesystem/native_filetype checked 5147ms check-target:macos_arm64 @e01f73c689de+wt
+pass/filesystem/native_fs_workflow checked 6702ms check-target:macos_arm64 @e01f73c689de+wt
+pass/filesystem/native_metadata_blocks checked 11359ms check-target:macos_arm64 @e01f73c689de+wt
+pass/filesystem/native_metadata_ctime_dev checked 25811ms check-target:macos_arm64 @e01f73c689de+wt
+pass/filesystem/native_metadata_ino incomplete 59435ms check-target:macos_arm64 @e01f73c689de+wt
+	incomplete: terminal-artifact production stopped at the private `proof_search_result_guarantee_work` proof-search capacity (provision 4096) with obligation 105 unproved; the module is not shown invalid
+pass/filesystem/native_metadata_nlink checked 5611ms check-target:macos_arm64 @e01f73c689de+wt
+pass/filesystem/native_read_dir_iter checked 5138ms check-target:macos_arm64 @e01f73c689de+wt
+pass/filesystem/native_wrapper_write_all_result rejected 17172ms check-target:macos_arm64 @e01f73c689de+wt
 	selected ProgramEntry Binding field `Main::fs::host` requires a selected Fused provider for boundary `FilesystemHost`
-pass/filesystem/runtime_local_host_result_dispatch_exit rejected 2339ms check-target:macos_arm64 @835baa6033e
-	selected ProgramEntry Binding field `Main::host` requires a selected Fused provider for boundary `FilesystemHost`
-pass/filesystem/windows_canonicalize_exit rejected 40044ms check-target:windows_x86_64 @3243c9001d4
+pass/filesystem/runtime_local_host_result_dispatch_exit checked 3625ms check-target:macos_arm64 @e01f73c689de+wt
+pass/filesystem/windows_canonicalize_exit rejected 17804ms check-target:windows_x86_64 @e01f73c689de+wt
 	selected ProgramEntry Binding field `Main::fs::host` requires a selected Fused provider for boundary `FilesystemHost`
-pass/filesystem/windows_raw_breadth_exit rejected 2340ms check-target:windows_x86_64 @c47f8652484
+pass/filesystem/windows_raw_breadth_exit rejected 1516ms check-target:windows_x86_64 @e01f73c689de+wt
 	selected ProgramEntry Binding field `Main::raw` requires a selected Fused provider for boundary `FilesystemHost`
-pass/filesystem/windows_set_file_time_exit rejected 2454ms check-target:windows_x86_64 @c47f8652484
+pass/filesystem/windows_set_file_time_exit rejected 1792ms check-target:windows_x86_64 @e01f73c689de+wt
 	selected ProgramEntry Binding field `Main::fs` requires a selected Fused provider for boundary `FilesystemHost`
-pass/filesystem/windows_wrapper_results_exit rejected 31494ms check-target:macos_arm64 @835baa6033e
+pass/filesystem/windows_wrapper_results_exit rejected 16580ms check-target:macos_arm64 @e01f73c689de+wt
 	selected ProgramEntry Binding field `Main::fs::host` requires a selected Fused provider for boundary `FilesystemHost`
-pass/filesystem/wrapper_lock_metadata_exit rejected 46769ms check-target:macos_arm64 @6ba9c43af35
+pass/filesystem/wrapper_lock_metadata_exit rejected 15645ms check-target:macos_arm64 @e01f73c689de+wt
 	selected ProgramEntry Binding field `Main::fs::host` requires a selected Fused provider for boundary `FilesystemHost`
-pass/filesystem/wrapper_open_with_exit rejected 31196ms check-target:macos_arm64 @835baa6033e
+pass/filesystem/wrapper_open_with_exit rejected 15759ms check-target:macos_arm64 @e01f73c689de+wt
 	selected ProgramEntry Binding field `Main::fs::host` requires a selected Fused provider for boundary `FilesystemHost`
 pass/float/build_runtime_semantics_twins_windows_x64 rejected 343582ms check-target:windows_x86_64 @a32d1a54af2
 	selected compiler intrinsic `<selected target>::FloatNativeProvider::satisfies::operator::F32::classify(named(name(f32)))->named(name(FloatClass))` for Terminal boundary `operator::F32::classify(named(name(f32)))->named(name(FloatClass))` has no native boundary realization
@@ -2987,8 +2977,8 @@ pass/text/view_field_literal_store_outlives_helper_exit checked 1252ms check-tar
 pass/text/zii_default_string_equality_exit checked 1968ms check-target:macos_arm64 @4e4bfed13aee+wt
 pass/time/runtime_checked_time_arith_exit checked 83365ms check-target:macos_arm64 @8778c440081
 pass/time/runtime_duration_core_exit checked 24317ms check-target:macos_arm64 @ca8c127c90c5
-pass/time/runtime_fs_mtime_system_time_interop_exit rejected 3465ms check-target:macos_arm64 @c47f8652484
-	selected ProgramEntry Binding field `Main::fs` requires a selected Fused provider for boundary `FilesystemHost`
+pass/time/runtime_fs_mtime_system_time_interop_exit rejected 5089ms check-target:macos_arm64 @e01f73c689de+wt
+	terminal-artifact production failed: Lowering(Unsupported("Unit graph moved local is mutable"))
 pass/time/runtime_time_elapsed_since_exit checked 22587ms check-target:macos_arm64 @22d7c734257c+wt
 pass/time/runtime_time_host_native_darwin_exit checked 4141ms check-target:macos_arm64 @ca8c127c90c5
 pass/time/runtime_time_host_native_darwin_x86_64_exit checked 13546ms check-target:macos_x86_64 @22d7c734257c+wt

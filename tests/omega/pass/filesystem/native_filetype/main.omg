@@ -5,12 +5,12 @@
 // system; a freshly-created regular file is S_IFREG (0o100000 = 32768). Proves
 // is_char_device()/is_file() decode real device nodes, not just regular files.
 
-use omega_language_std::filesystem_host;
+use omega_language_std::posix_filesystem_host;
 use omega::language::core::numeric_conversion;
 use omega::language::core::binding;
 
 data Main {
-    fs: Binding<FilesystemHost>;
+    fs: Binding<PosixFilesystemHost>;
     mode: i32;
     fd: i32;
     rc: i32;
@@ -20,7 +20,7 @@ data Main {
     buffer: [u8; 144];
 }
 
-machine Main::main(main: &mut Main) reaches FilesystemHost {
+machine Main::main(main: &mut Main) reaches PosixFilesystemHost {
     main.mode = 420;
     // 1: /dev/null must stat as a character device
     main.rc = main.fs.read_metadata("/dev/null", &mut main.buffer);

@@ -3,13 +3,13 @@
 // value-returning read/write/close results, and adapt the portable four-argument
 // read_dir seam to Linux getdents64(fd, buffer, count).
 // Expected native exit: 70.
-use omega_language_std::filesystem_host;
+use omega_language_std::posix_filesystem_host;
 use omega_language_std::filesystem;
 use omega_language_std::console;
 use omega::language::core::binding;
 
 data Main {
-    fs: Binding<FilesystemHost>;
+    fs: Binding<PosixFilesystemHost>;
     semantic_fs: Filesystem;
     console: Binding<Console>;
     open_result: OpenResult;
@@ -25,7 +25,7 @@ data Main {
     metadata: [u8; 144];
 }
 
-machine Main::main(main: &mut Main) reaches Console + FilesystemHost {
+machine Main::main(main: &mut Main) reaches Console + PosixFilesystemHost {
     // O_WRONLY | O_CREAT. /dev/null already exists, so this exercises the
     // four-argument openat adapter without leaving a filesystem artifact.
     main.fd = main.fs.open_create("/dev/null", 65, 438);

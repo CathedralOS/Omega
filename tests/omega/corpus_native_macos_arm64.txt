@@ -659,46 +659,36 @@ pass/expressions/runtime_indexed_float_record_fields_exit built 5290ms exit:70 @
 pass/expressions/runtime_numeric_cast_exit built 2496ms exit:70 @1c13b12180bf+wt
 pass/expressions/runtime_widened_comparison_exit built 853ms exit:70
 pass/expressions/scalar_match_boundary_composition_exit built 1964ms exit:70 @de036fe72b0b
-pass/filesystem/cross_linux_value_syscalls checked 2659ms
-pass/filesystem/dir_walk_wrappers_exit rejected 11844ms @48008365d839
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Filesystem::read_dir_is_empty`), which was itself omitted at local construction at `statement sequence: structural result: returned value` (state 3)
-pass/filesystem/native_canonicalize rejected 406ms
-	selected ProgramEntry Binding field `Main::fs` requires a selected Fused provider for boundary `FilesystemHost`
-pass/filesystem/native_close rejected 416ms
-	selected ProgramEntry Binding field `Main::fs` requires a selected Fused provider for boundary `FilesystemHost`
-pass/filesystem/native_crud rejected 420ms
-	selected ProgramEntry Binding field `Main::fs` requires a selected Fused provider for boundary `FilesystemHost`
-pass/filesystem/native_errno rejected 452ms
-	selected ProgramEntry Binding field `Main::fs` requires a selected Fused provider for boundary `FilesystemHost`
-pass/filesystem/native_filetype rejected 595ms
-	selected ProgramEntry Binding field `Main::fs` requires a selected Fused provider for boundary `FilesystemHost`
-pass/filesystem/native_fs_workflow rejected 589ms
-	selected ProgramEntry Binding field `Main::fs` requires a selected Fused provider for boundary `FilesystemHost`
-pass/filesystem/native_metadata_blocks rejected 571ms
-	selected ProgramEntry Binding field `Main::fs` requires a selected Fused provider for boundary `FilesystemHost`
-pass/filesystem/native_metadata_ctime_dev rejected 558ms
-	selected ProgramEntry Binding field `Main::fs` requires a selected Fused provider for boundary `FilesystemHost`
-pass/filesystem/native_metadata_ino rejected 576ms
-	selected ProgramEntry Binding field `Main::fs` requires a selected Fused provider for boundary `FilesystemHost`
-pass/filesystem/native_metadata_nlink rejected 574ms
-	selected ProgramEntry Binding field `Main::fs` requires a selected Fused provider for boundary `FilesystemHost`
-pass/filesystem/native_read_dir_iter rejected 473ms
-	selected ProgramEntry Binding field `Main::fs` requires a selected Fused provider for boundary `FilesystemHost`
-pass/filesystem/native_wrapper_write_all_result rejected 2659ms
+pass/filesystem/cross_linux_value_syscalls checked 24317ms @e01f73c689de+wt
+pass/filesystem/dir_walk_wrappers_exit rejected 18899ms @e01f73c689de+wt
 	selected ProgramEntry Binding field `Main::fs::host` requires a selected Fused provider for boundary `FilesystemHost`
-pass/filesystem/runtime_local_host_result_dispatch_exit rejected 466ms
-	selected ProgramEntry Binding field `Main::host` requires a selected Fused provider for boundary `FilesystemHost`
-pass/filesystem/windows_canonicalize_exit rejected 11462ms @48008365d839
+pass/filesystem/native_canonicalize rejected 1738ms @e01f73c689de+wt
+	selected ProgramEntry Binding field `Main::fs` requires a selected Fused provider for boundary `FilesystemHost`
+pass/filesystem/native_close built 3369ms @e01f73c689de+wt
+pass/filesystem/native_crud built 4559ms exit:0 stdout:match @e01f73c689de+wt
+pass/filesystem/native_errno built 4045ms exit:0 stdout:match @e01f73c689de+wt
+pass/filesystem/native_filetype built 5239ms exit:0 stdout:match @e01f73c689de+wt
+pass/filesystem/native_fs_workflow built 6991ms exit:0 stdout:match @e01f73c689de+wt
+pass/filesystem/native_metadata_blocks built 11535ms exit:0 stdout:match @e01f73c689de+wt
+pass/filesystem/native_metadata_ctime_dev built 26003ms exit:0 stdout:match @e01f73c689de+wt
+pass/filesystem/native_metadata_ino incomplete 59397ms @e01f73c689de+wt
+	incomplete: terminal-artifact production stopped at the private `proof_search_result_guarantee_work` proof-search capacity (provision 4096) with obligation 105 unproved; the module is not shown invalid
+pass/filesystem/native_metadata_nlink built 5648ms exit:0 stdout:match @e01f73c689de+wt
+pass/filesystem/native_read_dir_iter built 5345ms exit:0 stdout:match @e01f73c689de+wt
+pass/filesystem/native_wrapper_write_all_result rejected 17438ms @e01f73c689de+wt
 	selected ProgramEntry Binding field `Main::fs::host` requires a selected Fused provider for boundary `FilesystemHost`
-pass/filesystem/windows_raw_breadth_exit rejected 518ms
+pass/filesystem/runtime_local_host_result_dispatch_exit built 3686ms exit:70 @e01f73c689de+wt
+pass/filesystem/windows_canonicalize_exit rejected 17869ms @e01f73c689de+wt
+	selected ProgramEntry Binding field `Main::fs::host` requires a selected Fused provider for boundary `FilesystemHost`
+pass/filesystem/windows_raw_breadth_exit rejected 1556ms @e01f73c689de+wt
 	selected ProgramEntry Binding field `Main::raw` requires a selected Fused provider for boundary `FilesystemHost`
-pass/filesystem/windows_set_file_time_exit rejected 1279ms @48008365d839
+pass/filesystem/windows_set_file_time_exit rejected 2013ms @e01f73c689de+wt
 	selected ProgramEntry Binding field `Main::fs` requires a selected Fused provider for boundary `FilesystemHost`
-pass/filesystem/windows_wrapper_results_exit rejected 11371ms @48008365d839
+pass/filesystem/windows_wrapper_results_exit rejected 16286ms @e01f73c689de+wt
 	selected ProgramEntry Binding field `Main::fs::host` requires a selected Fused provider for boundary `FilesystemHost`
-pass/filesystem/wrapper_lock_metadata_exit rejected 10991ms @48008365d839
+pass/filesystem/wrapper_lock_metadata_exit rejected 15879ms @e01f73c689de+wt
 	selected ProgramEntry Binding field `Main::fs::host` requires a selected Fused provider for boundary `FilesystemHost`
-pass/filesystem/wrapper_open_with_exit rejected 10915ms @48008365d839
+pass/filesystem/wrapper_open_with_exit rejected 15773ms @e01f73c689de+wt
 	selected ProgramEntry Binding field `Main::fs::host` requires a selected Fused provider for boundary `FilesystemHost`
 pass/float/build_runtime_semantics_twins_windows_x64 timeout 20010ms @6ef30fb818e6+wt
 pass/float/build_runtime_semantics_twins_x86_baseline timeout 20005ms @6ef30fb818e6+wt
@@ -1271,8 +1261,8 @@ pass/text/view_field_literal_store_outlives_helper_exit built 1073ms exit:70 @2c
 pass/text/zii_default_string_equality_exit built 1614ms exit:70 @5715dd4d97f7+wt
 pass/time/runtime_checked_time_arith_exit built 940ms exit:70
 pass/time/runtime_duration_core_exit built 14314ms exit:70 @fb2178def922
-pass/time/runtime_fs_mtime_system_time_interop_exit rejected 3161ms @48008365d839
-	selected ProgramEntry Binding field `Main::fs` requires a selected Fused provider for boundary `FilesystemHost`
+pass/time/runtime_fs_mtime_system_time_interop_exit rejected 5402ms @e01f73c689de+wt
+	terminal-artifact production failed: Lowering(Unsupported("Unit graph moved local is mutable"))
 pass/time/runtime_time_elapsed_since_exit built 12008ms exit:70 @dfbd9bc4ec99+wt
 pass/time/runtime_time_host_native_darwin_exit built 2086ms exit:70 @dfbd9bc4ec99+wt
 pass/time/runtime_time_host_native_darwin_x86_64_exit built 9486ms @22d7c734257c+wt

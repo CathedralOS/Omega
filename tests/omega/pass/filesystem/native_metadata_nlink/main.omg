@@ -4,12 +4,12 @@
 // names share one inode). Proves the nlink field decodes from the real stat
 // record on macOS syscalls.
 
-use omega_language_std::filesystem_host;
+use omega_language_std::posix_filesystem_host;
 use omega::language::core::numeric_conversion;
 use omega::language::core::binding;
 
 data Main {
-    fs: Binding<FilesystemHost>;
+    fs: Binding<PosixFilesystemHost>;
     discard: i32;
     mode: i32;
     fd: i32;
@@ -20,7 +20,7 @@ data Main {
     buffer: [u8; 144];
 }
 
-machine Main::main(main: &mut Main) reaches FilesystemHost {
+machine Main::main(main: &mut Main) reaches PosixFilesystemHost {
     main.mode = 420;
     main.fd = main.fs.create("/tmp/omega_nlink.txt", main.mode);
     main.n = main.fs.write(main.fd, "hi");

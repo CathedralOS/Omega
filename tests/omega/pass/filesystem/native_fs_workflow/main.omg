@@ -12,12 +12,12 @@
 //   8. remove both files + the directory
 // Prints PASS iff every step's rc/decoded field matches.
 
-use omega_language_std::filesystem_host;
+use omega_language_std::posix_filesystem_host;
 use omega::language::core::numeric_conversion;
 use omega::language::core::binding;
 
 data Main {
-    fs: Binding<FilesystemHost>;
+    fs: Binding<PosixFilesystemHost>;
     mode: i32;
     dir_mode: i32;
     ro_mode: u32;
@@ -34,7 +34,7 @@ data Main {
     buffer: [u8; 144];
 }
 
-machine Main::main(main: &mut Main) reaches FilesystemHost {
+machine Main::main(main: &mut Main) reaches PosixFilesystemHost {
     main.mode = 420;      // 0o644
     main.dir_mode = 493;  // 0o755
     main.ro_mode = 292;   // 0o444

@@ -9,6 +9,7 @@ use filesystem;
 use format_lineage;
 use macos_gui;
 use math;
+use posix_filesystem_host;
 use process_exit;
 use time;
 use units;

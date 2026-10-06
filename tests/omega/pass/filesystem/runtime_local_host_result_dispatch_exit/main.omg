@@ -10,11 +10,11 @@
 // definitely-absent path returns -1 on both the native seam and the
 // interpreter's virtual fs, so `fd < 0` is deterministic -- a missed result
 // slot would read ZII 0 and take the wrong arm (exit 71).
-use omega_language_std::filesystem_host;
+use omega_language_std::posix_filesystem_host;
 use omega_language_std::console;
 use omega::language::core::binding;
-data Main { console: Binding<Console>; host: Binding<FilesystemHost>; }
-machine Main::main(main: &mut Main) reaches Console + FilesystemHost {
+data Main { console: Binding<Console>; host: Binding<PosixFilesystemHost>; }
+machine Main::main(main: &mut Main) reaches Console + PosixFilesystemHost {
     let fd: i32 = main.host.open("omega_definitely_absent_9x7.dat", 0);
     transition fd < 0 { true -> good(main) _ -> bad(main, 71) }
     state good(main: &mut Main) { main.console.exit_process(70); }

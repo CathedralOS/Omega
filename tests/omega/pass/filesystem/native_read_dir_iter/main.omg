@@ -7,11 +7,11 @@
 // runtime value) exercise `CopyRuntimeMachineIndexedToRuntimeStorage`, which now
 // lowers correctly on aarch64. Prints PASS iff exactly 4 entries are walked.
 
-use omega_language_std::filesystem_host;
+use omega_language_std::posix_filesystem_host;
 use omega::language::core::binding;
 
 data Main {
-    fs: Binding<FilesystemHost>;
+    fs: Binding<PosixFilesystemHost>;
     discard: i32;
     dirmode: i32;
     filemode: i32;
@@ -35,7 +35,7 @@ data Main {
     buffer: [u8; 512];
 }
 
-machine Main::main(main: &mut Main) reaches FilesystemHost {
+machine Main::main(main: &mut Main) reaches PosixFilesystemHost {
     main.dirmode = 493;
     main.filemode = 420;
     main.rdonly = 0;

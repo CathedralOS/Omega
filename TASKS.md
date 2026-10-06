@@ -5296,10 +5296,34 @@ wait for Cathedral's instruction coverage. The interpreter is
   Windows operations in one trait; providers must cover the complete schema,
   so partial Linux rows and sentinel implementations cannot supply it.
 
-  Split `PosixFilesystemHost` and `WindowsFilesystemHost`, with per-family
-  handles and complete authored checked-adapter providers. The portable
-  wrapper's carrier depends on `portable-service-per-family-binding-carrier`
-  in `OWNER_QUESTIONS.md`; independent family/provider work can proceed.
+  `PosixFilesystemHost` (`source/library/std/posix_filesystem_host.omg`)
+  has complete authored providers on macos_arm64 (checked adapters over
+  libSystem imports), linux_x86_64 and linux_arm64 (direct system calls).
+  Failures return the negated `errno`, so no provider keeps error state.
+  The raw-seam fixtures hold `Binding<PosixFilesystemHost>` and run natively
+  on macOS. `pass/filesystem/native_{crud,errno,filetype,fs_workflow,metadata_blocks,metadata_ctime_dev,metadata_nlink,read_dir_iter}`
+  match their stdout oracles, and `runtime_local_host_result_dispatch_exit`
+  exits 70. Still open on the raw side:
+  - `WindowsFilesystemHost` and its provider for
+    `pass/filesystem/windows_{raw_breadth,set_file_time}_exit`.
+  - `native_canonicalize`: `canonicalize` is a libc routine on Darwin and
+    has no Linux system call, so it belongs to the target implementations of
+    the portable service, not the raw POSIX trait.
+  - `native_metadata_ino` stops at the proof-search budget
+    (`proof_search_result_guarantee_work`); PCC removal owns it.
+  - `pass/time/runtime_fs_mtime_system_time_interop_exit`: stage 05 refuses
+    moving its `let mut` stat buffer into a successor state ("Unit graph
+    moved local is mutable").
+  - The providers copy bytes through 4096-byte chunks. Two compiler gaps
+    force this. First, a byte slice cannot lend its storage to a foreign
+    pointer formal: `&bytes[0]` on a view has no Terminal projection.
+    Second, a received `&[u8; N]` loan forwarded whole to another call is
+    refused: stage 02 `fixed_array_view_argument` takes its pointer cell for
+    the backing, and stage 03 legalization and selection refuse the forward.
+    Closing either gap removes the copies.
+  The portable wrapper's carrier depends on
+  `portable-service-per-family-binding-carrier` in `OWNER_QUESTIONS.md`;
+  independent family/provider work can proceed.
   Update `source/library/std/targets/<target>/filesystem_impl.omg`:
   POSIX stores descriptor + 1, Windows stores HANDLE, zero OpenOptions means
   defaults, failures are closed and unsupported operations return

@@ -15,7 +15,7 @@
 // differential-excluded with a reason (the windows leg waits on fs
 // open-work #2's stat rows, exactly as TASKS_TIME #9 records).
 // Expected exit: 70.
-use omega_language_std::filesystem_host;
+use omega_language_std::posix_filesystem_host;
 use omega_language_std::time;
 
 use omega_language_std::console;
@@ -24,11 +24,11 @@ use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;
-    fs: Binding<FilesystemHost>;
+    fs: Binding<PosixFilesystemHost>;
     time: Time;
 }
 
-machine Main::main(context: &mut Main) reaches Console + FilesystemHost {
+machine Main::main(context: &mut Main) reaches Console + PosixFilesystemHost {
     let mode: i32 = 438;
     let mut buffer: [u8; 144];
     let descriptor: i32 = context.fs.create("/tmp/omega_time_interop.txt", mode);

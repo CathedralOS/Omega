@@ -3,7 +3,7 @@
 //   "PASS: native fs CRUD round-trip (create+write+read 17B+close+remove)"
 // and the file is created (0644) then deleted.
 //
-// The raw boundary `FilesystemHost` is VALUE-RETURNING with HUMAN method names
+// The raw boundary `PosixFilesystemHost` is VALUE-RETURNING with HUMAN method names
 // (create/open/read/write/close/remove) — the ugly libc spellings (_creat,
 // _unlink) live only in the darwin binding table. `create` maps to `_creat`
 // (not `_open`) because open's mode is variadic (stack-passed on arm64);
@@ -11,11 +11,11 @@
 // host-call primitive. Read count is captured in `rn` BEFORE close overwrites
 // `n`. NOT registered in ACTIVE_PASS_CANARIES yet (canary_suite.rs is hot).
 
-use omega_language_std::filesystem_host;
+use omega_language_std::posix_filesystem_host;
 use omega::language::core::binding;
 
 data Main {
-    fs: Binding<FilesystemHost>;
+    fs: Binding<PosixFilesystemHost>;
     discard: i32;
     mode: i32;
     read_flags: i32;
@@ -26,7 +26,7 @@ data Main {
     buffer: [u8; 64];
 }
 
-machine Main::main(main: &mut Main) reaches FilesystemHost {
+machine Main::main(main: &mut Main) reaches PosixFilesystemHost {
     main.mode = 420;
     main.read_flags = 0;
     main.cap = 64;
