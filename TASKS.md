@@ -702,7 +702,7 @@ defines the complete product bar.
     `fail/drops/local_cleanup_unmet_prerequisite` still rejects a false hook
     prerequisite. The corpus harness supplies explicit custom-Console provider
     acceptance; bare CLI execution does not supply that test policy.
-    At `c255111f1a9`, `python3 tools/corpus_gate.py --both --filter
+    At `27a604037e7`, `python3 tools/corpus_gate.py --both --filter
     drops/runtime_local_nominal_return_exit` observes matching output and
     interpreter/native exit 0. Eleven selected runtime controls pass.
   - Remaining implementation: preserve those actions through Terminal and
