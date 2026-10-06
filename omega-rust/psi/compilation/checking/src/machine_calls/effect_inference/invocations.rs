@@ -477,66 +477,11 @@ fn collect_expression_calls(
         return;
     }
     match program.expression_table.expression(expression) {
-        ExpressionNode::Match(dispatch) => {
-            for child in crate::expression_traversal::match_children(program, *dispatch) {
-                collect_expression_calls(
-                    program,
-                    machine,
-                    state,
-                    child,
-                    direct,
-                    calls,
-                    state_to_machine,
-                );
-            }
-        }
         ExpressionNode::Atomic(atomic) => collect_expression_calls(
             program,
             machine,
             state,
             atomic.value,
-            direct,
-            calls,
-            state_to_machine,
-        ),
-        ExpressionNode::ArrayLiteral(values) => {
-            for value in program.expression_table.expression_handles(*values) {
-                collect_expression_calls(
-                    program,
-                    machine,
-                    state,
-                    *value,
-                    direct,
-                    calls,
-                    state_to_machine,
-                );
-            }
-        }
-        ExpressionNode::Binary(binary) => {
-            collect_expression_calls(
-                program,
-                machine,
-                state,
-                binary.left,
-                direct,
-                calls,
-                state_to_machine,
-            );
-            collect_expression_calls(
-                program,
-                machine,
-                state,
-                binary.right,
-                direct,
-                calls,
-                state_to_machine,
-            );
-        }
-        ExpressionNode::Cast(cast) => collect_expression_calls(
-            program,
-            machine,
-            state,
-            cast.value,
             direct,
             calls,
             state_to_machine,
@@ -572,93 +517,17 @@ fn collect_expression_calls(
                 );
             }
         }
-        ExpressionNode::Indexed(indexed) => {
+        other => crate::expression_traversal::children(program, other, |child| {
             collect_expression_calls(
                 program,
                 machine,
                 state,
-                indexed.collection,
+                child,
                 direct,
                 calls,
                 state_to_machine,
             );
-            collect_expression_calls(
-                program,
-                machine,
-                state,
-                indexed.index,
-                direct,
-                calls,
-                state_to_machine,
-            );
-        }
-        ExpressionNode::Member(member) => collect_expression_calls(
-            program,
-            machine,
-            state,
-            member.receiver,
-            direct,
-            calls,
-            state_to_machine,
-        ),
-        ExpressionNode::Borrow(inner) => collect_expression_calls(
-            program,
-            machine,
-            state,
-            inner.target,
-            direct,
-            calls,
-            state_to_machine,
-        ),
-        ExpressionNode::Unary(unary) => collect_expression_calls(
-            program,
-            machine,
-            state,
-            unary.operand,
-            direct,
-            calls,
-            state_to_machine,
-        ),
-        ExpressionNode::Range(range) => {
-            collect_expression_calls(
-                program,
-                machine,
-                state,
-                range.start,
-                direct,
-                calls,
-                state_to_machine,
-            );
-            collect_expression_calls(
-                program,
-                machine,
-                state,
-                range.end,
-                direct,
-                calls,
-                state_to_machine,
-            );
-        }
-        ExpressionNode::StructLiteral(literal) => {
-            for field in program.expression_table.struct_fields(literal.fields) {
-                collect_expression_calls(
-                    program,
-                    machine,
-                    state,
-                    field.value,
-                    direct,
-                    calls,
-                    state_to_machine,
-                );
-            }
-        }
-        ExpressionNode::Boolean(_)
-        | ExpressionNode::Float(_)
-        | ExpressionNode::UndeterminedNaN(_)
-        | ExpressionNode::Integer(_)
-        | ExpressionNode::Name(_)
-        | ExpressionNode::String(_)
-        | ExpressionNode::ZeroValue(_) => {}
+        }),
     }
 }
 
