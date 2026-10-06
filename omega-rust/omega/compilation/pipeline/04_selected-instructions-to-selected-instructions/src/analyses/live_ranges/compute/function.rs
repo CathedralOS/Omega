@@ -1,11 +1,11 @@
 //! Ordinary and structural function live-range construction.
 use super::{
     BTreeSet, FunctionLiveRanges, RegisterOperandAccess, VirtualFixedConstraint,
-    VirtualFixedConstraintSite, VirtualInterference, VirtualLiveRange, VirtualOccurrence,
+    VirtualFixedConstraintSite, VirtualLiveRange, VirtualOccurrence,
 };
 use super::{
     LiveRangeError, architectural_units, block_domain, connector, derive_early_clobbers,
-    derive_tied_pairs, fragments_from_points, fragments_overlap, operand_point, register_points,
+    derive_tied_pairs, fragments_from_points, operand_point, register_points,
 };
 
 pub(super) fn compute_function(
@@ -116,17 +116,7 @@ pub(super) fn compute_function(
 
     let architectural_units = architectural_units(function_index, liveness)?;
 
-    let mut interference = BTreeSet::new();
-    for (left_index, left) in virtual_rows.iter().enumerate() {
-        for right in virtual_rows.iter().skip(left_index + 1) {
-            if fragments_overlap(&left.fragments, &right.fragments) {
-                interference.insert(VirtualInterference {
-                    lower: left.virtual_register,
-                    higher: right.virtual_register,
-                });
-            }
-        }
-    }
+    let interference = super::interference(&virtual_rows);
     Ok(FunctionLiveRanges {
         machine: selected.machine,
         block_domains,

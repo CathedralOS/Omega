@@ -23,7 +23,7 @@ use selected_instructions::{SelectedBlockId, VirtualRegisterId};
 use architectural_units::architectural_units;
 pub(crate) use constraints::{derive_early_clobbers, derive_tied_pairs};
 use fragments::{
-    after_point, before_point, block_domain, connector, fragments_from_points, fragments_overlap,
+    after_point, before_point, block_domain, connector, fragments_from_points, interference,
     operand_point, register_points,
 };
 use function::compute_function;

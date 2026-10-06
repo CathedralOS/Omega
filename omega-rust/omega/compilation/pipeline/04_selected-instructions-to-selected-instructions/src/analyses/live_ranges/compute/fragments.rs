@@ -123,12 +123,58 @@ pub(super) fn fragments_from_points(
     fragments
 }
 
-pub(super) fn fragments_overlap(left: &[LiveRangeFragment], right: &[LiveRangeFragment]) -> bool {
-    left.iter().any(|left| {
-        right.iter().any(|right| {
-            left.block == right.block && left.start < right.end && right.start < left.end
+/// Every pair of virtual registers with overlapping fragments in one block:
+/// `lower` is the register earlier in `rows`.
+pub(super) fn interference(
+    rows: &[super::VirtualLiveRange],
+) -> BTreeSet<super::VirtualInterference> {
+    let fragments = rows
+        .iter()
+        .map(|range| range.fragments.as_slice())
+        .collect::<Vec<_>>();
+    overlapping_rows(&fragments)
+        .into_iter()
+        .map(|(lower, higher)| super::VirtualInterference {
+            lower: rows[lower].virtual_register,
+            higher: rows[higher].virtual_register,
         })
-    })
+        .collect()
+}
+
+/// The `(lower, higher)` row pairs owning overlapping fragments in one block.
+/// Each block's fragments are swept in start order against the ones still
+/// live; a fragment ending at or before the current start overlaps nothing
+/// that starts later and leaves the active set, and each remaining candidate
+/// takes the exact half-open overlap test. A large function costs its sorted
+/// sweep plus the live pressure at each point, not one comparison per row
+/// pair, and yields the same pairs as testing every row pair.
+fn overlapping_rows(rows: &[&[LiveRangeFragment]]) -> BTreeSet<(usize, usize)> {
+    let mut by_block =
+        std::collections::BTreeMap::<SelectedBlockId, Vec<(LiveRangeFragment, usize)>>::new();
+    for (row, fragments) in rows.iter().enumerate() {
+        for fragment in fragments.iter() {
+            by_block
+                .entry(fragment.block)
+                .or_default()
+                .push((*fragment, row));
+        }
+    }
+    let mut pairs = BTreeSet::new();
+    let mut active: Vec<(LiveRangeFragment, usize)> = Vec::new();
+    for fragments in by_block.values_mut() {
+        fragments.sort_by_key(|(fragment, row)| (fragment.start, *row));
+        active.clear();
+        for &(fragment, row) in fragments.iter() {
+            active.retain(|(live, _)| fragment.start < live.end);
+            for &(live, live_row) in &active {
+                if live_row != row && live.start < fragment.end && fragment.start < live.end {
+                    pairs.insert((live_row.min(row), live_row.max(row)));
+                }
+            }
+            active.push((fragment, row));
+        }
+    }
+    pairs
 }
 
 pub(super) fn connector(
@@ -181,4 +227,54 @@ pub(super) fn after_point(
         .and_then(|point| point.checked_add(1))
         .map(LiveRangePoint)
         .ok_or(LiveRangeError::PointOverflow { function })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{LiveRangeFragment, LiveRangePoint, SelectedBlockId, overlapping_rows};
+
+    /// The sweep returns exactly the pairs a test of every row pair returns,
+    /// including empty and touching fragments and rows spanning many blocks.
+    #[test]
+    fn sweep_matches_every_row_pair() {
+        let mut seed = 0x2545_f491_4f6c_dd1du64;
+        let mut next = |bound: u32| {
+            seed ^= seed << 13;
+            seed ^= seed >> 7;
+            seed ^= seed << 17;
+            (seed % u64::from(bound)) as u32
+        };
+        for _ in 0..200 {
+            let rows = (0..next(24) + 1)
+                .map(|_| {
+                    (0..next(5))
+                        .map(|_| {
+                            let start = next(40);
+                            LiveRangeFragment {
+                                block: SelectedBlockId(next(3)),
+                                start: LiveRangePoint(start),
+                                end: LiveRangePoint(start + next(12)),
+                            }
+                        })
+                        .collect::<Vec<_>>()
+                })
+                .collect::<Vec<_>>();
+            let views = rows.iter().map(Vec::as_slice).collect::<Vec<_>>();
+            let mut expected = std::collections::BTreeSet::new();
+            for (lower, left) in rows.iter().enumerate() {
+                for (higher, right) in rows.iter().enumerate().skip(lower + 1) {
+                    if left.iter().any(|left| {
+                        right.iter().any(|right| {
+                            left.block == right.block
+                                && left.start < right.end
+                                && right.start < left.end
+                        })
+                    }) {
+                        expected.insert((lower, higher));
+                    }
+                }
+            }
+            assert_eq!(overlapping_rows(&views), expected);
+        }
+    }
 }
