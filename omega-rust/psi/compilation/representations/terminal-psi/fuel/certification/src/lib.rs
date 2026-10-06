@@ -59,9 +59,7 @@ mod fuel_certification;
 pub use fuel_certification::{
     derive_fixed_entry_fuel, derive_fixed_safe_point_segments, derive_fixed_segment_fuel,
     derive_validated_fixed_safe_point_segments, retain_validated_fixed_safe_point_segments,
-    validate_fixed_entry_fuel, validate_fixed_safe_point_segments, validate_fixed_segment_fuel,
-    validate_retained_fixed_safe_point_segments,
-};
+    validate_fixed_entry_fuel, };
 
 /// Exact restricted theorem: every path from one machine entry reaches a
 /// return or crash within the published current logical-fuel ceiling.

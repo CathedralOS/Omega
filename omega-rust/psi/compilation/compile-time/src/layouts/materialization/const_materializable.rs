@@ -167,40 +167,6 @@ impl ValidatedConstMaterialization {
     }
 }
 
-/// Validate the first closed `ConstMaterializable(value, layout)` subset.
-///
-/// The admitted subset is intentionally smaller than legacy typed-owned
-/// materialization: closed non-generic unrestricted records containing only
-/// integer/Boolean values, non-NaN binary32/binary64 values, literal fixed
-/// arrays, and records of those shapes.
-pub fn validate_const_materializable_typed_owned_layout(
-    typed: &TypedTrees,
-    schema_name: &str,
-    layout: &LayoutPlanReport,
-    value: &BuildTimeValue,
-    byte_order: ByteOrder,
-) -> Result<ValidatedConstMaterialization, MaterializationDiagnostic> {
-    let derived = derive_bytes(typed, schema_name, layout, value, byte_order)?;
-    let layout_report_fingerprint = normalized_layout_plan_report_fingerprint(layout);
-    let materialization_report_fingerprint = non_authoritative_materialization_report_fingerprint(
-        schema_name,
-        derived.schema_report_fingerprint,
-        layout_report_fingerprint,
-        byte_order,
-        value,
-        &derived.bytes,
-    );
-    Ok(ValidatedConstMaterialization {
-        schema_name: schema_name.to_owned(),
-        non_authoritative_schema_report_fingerprint: derived.schema_report_fingerprint,
-        value: value.clone(),
-        layout: layout.clone(),
-        non_authoritative_layout_report_fingerprint: layout_report_fingerprint,
-        byte_order,
-        bytes: derived.bytes,
-        non_authoritative_materialization_report_fingerprint: materialization_report_fingerprint,
-    })
-}
 
 struct DerivedMaterialization {
     schema_report_fingerprint: u64,

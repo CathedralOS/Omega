@@ -40,7 +40,7 @@ pub use publication::{
 pub use sections::artifact_manifest::{
     ArtifactManifestError, SectionFingerprint, TerminalArtifactIdentity, TerminalArtifactManifest,
     build_artifact_manifest, build_artifact_manifest_with_mathematical_signature,
-    validate_artifact_manifest, validate_artifact_manifest_with_mathematical_signature,
+    validate_artifact_manifest_with_mathematical_signature,
 };
 pub use sections::debug_map::{
     DebugFileId, DebugMapError, DebugSite, DebugSourceDigest, DebugSourceFile, DebugSourceOrigin,

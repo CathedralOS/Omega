@@ -82,23 +82,6 @@ pub fn derive_fixed_segment_fuel(
     prepared.segment_certificate(start_block, end_edge, &mut BTreeMap::new())
 }
 
-/// Recompute every public segment field from independently verified terminal
-/// semantics.
-pub fn validate_fixed_segment_fuel(
-    verified: &VerifiedTerminalModule<'_>,
-    certificate: &FixedSegmentFuelCertificate,
-) -> Result<(), FixedFuelError> {
-    let expected = derive_fixed_segment_fuel(
-        verified,
-        certificate.machine,
-        certificate.start_block,
-        certificate.end_edge,
-    )?;
-    if expected != *certificate {
-        return Err(FixedFuelError::CertificateMismatch);
-    }
-    Ok(())
-}
 
 /// Select the complete current-vocabulary safe-point partition for one
 /// machine. Every reachable explicit jump, conditional, return, or local crash
@@ -120,17 +103,6 @@ pub fn derive_fixed_safe_point_segments(
     prepared.derive_catalog()
 }
 
-/// Recompute the whole ordered safe-point partition. Validating certificates
-/// one at a time is insufficient because a producer could omit a reachable
-/// segment or present a different order.
-pub fn validate_fixed_safe_point_segments(
-    verified: &VerifiedTerminalModule<'_>,
-    machine: MachineId,
-    certificates: &[FixedSegmentFuelCertificate],
-) -> Result<(), FixedFuelError> {
-    let expected = derive_fixed_safe_point_segments(verified, machine)?;
-    validate_certificate_sequence(&expected, certificates)
-}
 
 /// Validate and retain one complete ordered safe-point partition.
 ///
@@ -175,21 +147,6 @@ pub fn derive_validated_fixed_safe_point_segments(
     })
 }
 
-/// Independently replay a retained catalog against verified terminal Psi.
-pub fn validate_retained_fixed_safe_point_segments(
-    verified: &VerifiedTerminalModule<'_>,
-    catalog: &ValidatedFixedSafePointFuelSegments,
-) -> Result<(), FixedFuelError> {
-    let subject = PreparedFuelModule::new(verified.module());
-    if catalog.terminal_psi != subject.identity()?
-        || catalog.schedule != TerminalFuelSchedule::CURRENT.identity()
-    {
-        return Err(FixedFuelError::CertificateMismatch);
-    }
-    let prepared = PreparedSegments::new(&subject, catalog.machine)?;
-    let expected = prepared.derive_catalog()?;
-    validate_certificate_sequence(&expected, &catalog.certificates)
-}
 
 fn validate_certificate_sequence(
     expected: &[FixedSegmentFuelCertificate],

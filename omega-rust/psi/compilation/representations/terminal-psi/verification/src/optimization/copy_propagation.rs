@@ -19,21 +19,6 @@ pub enum CopyPropagationRewriteError {
     ChangedProofQuestion,
 }
 
-/// Check the exact scalar-copy relation, not the producer's resolution result.
-///
-/// A removed block parameter is justified only when every inventoried incoming
-/// `Jump`/`Conditional` edge binds the same resolved value at its position.
-/// The check re-derives the resolution lattice from `before`, substitutes only
-/// removed parameters at scalar use sites, drops their edge-argument
-/// positions, and compares the reconstructed module to `after`. Propositions
-/// and proof evidence are not use sites: value identities they carry are
-/// preserved by valid module validation rather than rewritten here.
-pub fn validate_copy_propagation(
-    before: &TerminalModule,
-    after: &TerminalModule,
-) -> Result<(), CopyPropagationRewriteError> {
-    checked_substitutions(before, after).map(|_| ())
-}
 
 /// Carry existing evidence only through the independently reconstructed copy relation.
 pub fn transport_copy_propagation_evidence(

@@ -177,24 +177,6 @@ pub fn build_artifact_manifest_with_mathematical_signature(
     })
 }
 
-pub fn validate_artifact_manifest(
-    semantic_module: &TerminalModule,
-    proof_bundle: &ProofBundle,
-    optimization: &PsiOptimizationExecutionRecord,
-    installation_record: Option<&[u8]>,
-    debug_maps: Option<&[u8]>,
-    manifest: TerminalArtifactManifest,
-) -> Result<(), ArtifactManifestError> {
-    validate_artifact_manifest_with_mathematical_signature(
-        semantic_module,
-        proof_bundle,
-        optimization,
-        installation_record,
-        debug_maps,
-        None,
-        manifest,
-    )
-}
 
 /// Manifest re-decision for an artifact whose envelope carries a
 /// mathematical-signature section; `Some` must carry the section's exact

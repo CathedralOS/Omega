@@ -229,25 +229,6 @@ impl ValidatedConstRecordWithRecursiveNestedSumsMaterialization {
     }
 }
 
-/// Validate complete recursive paths before granting materialization custody.
-pub fn validate_const_materializable_record_with_recursive_nested_sums(
-    typed: &TypedTrees,
-    schema_name: &str,
-    path_layout: &ConventionalRecursiveRecordSumPathsLayoutReport,
-    value: &BuildTimeValue,
-    byte_order: ByteOrder,
-) -> Result<ValidatedConstRecordWithRecursiveNestedSumsMaterialization, MaterializationDiagnostic> {
-    validate_report_resources(path_layout)?;
-    let mut reachability = SumReachability::new(typed);
-    validate_with_reachability(
-        typed,
-        schema_name,
-        path_layout,
-        value,
-        byte_order,
-        &mut reachability,
-    )
-}
 
 pub(super) fn validate_with_reachability(
     typed: &TypedTrees,

@@ -16,8 +16,7 @@ mod sparse_conditional_constant_propagation;
 
 pub use control_flow_cleanup::{ControlFlowCleanupRewriteError, validate_control_flow_cleanup};
 pub use copy_propagation::{
-    CopyPropagationRewriteError, transport_copy_propagation_evidence, validate_copy_propagation,
-};
+    CopyPropagationRewriteError, transport_copy_propagation_evidence, };
 pub use dead_scalar_elimination::{
     DeadScalarRewriteError, transport_dead_scalar_elimination_evidence,
     validate_dead_scalar_elimination,

@@ -54,8 +54,7 @@ mod sum_reachability;
 pub use record_level::ValidatedConstRecordSumChildMaterialization;
 pub use recursive::{
     ValidatedConstRecordWithRecursiveNestedSumsMaterialization,
-    validate_const_materializable_record_with_recursive_nested_sums,
-};
+    };
 pub(super) use sum_reachability::SumReachability;
 use sum_reachability::{record_sum_profile, reject_sum_array_type};
 
@@ -286,40 +285,6 @@ impl ValidatedConstRecordWithNestedSumRecordMaterialization {
     }
 }
 
-/// Validate the singular one-level record path and retain the inner direct-sum
-/// carrier as one atomic outer field value.
-pub fn validate_const_materializable_record_with_nested_sum_record(
-    typed: &TypedTrees,
-    schema_name: &str,
-    path_layout: &ConventionalNestedRecordSumPathLayoutReport,
-    value: &BuildTimeValue,
-    byte_order: ByteOrder,
-) -> Result<ValidatedConstRecordWithNestedSumRecordMaterialization, MaterializationDiagnostic> {
-    let derived =
-        derive_nested_record_sum_bytes(typed, schema_name, path_layout, value, byte_order)?;
-    let outer_fingerprint = normalized_layout_plan_report_fingerprint(&path_layout.outer_layout);
-    let materialization_fingerprint = nested_record_sum_materialization_report_fingerprint(
-        schema_name,
-        derived.schema_report_fingerprint,
-        outer_fingerprint,
-        path_layout,
-        &derived.inner,
-        byte_order,
-        value,
-        &derived.bytes,
-    );
-    Ok(ValidatedConstRecordWithNestedSumRecordMaterialization {
-        schema_name: schema_name.to_owned(),
-        non_authoritative_schema_report_fingerprint: derived.schema_report_fingerprint,
-        value: value.clone(),
-        path_layout: path_layout.clone(),
-        non_authoritative_outer_layout_report_fingerprint: outer_fingerprint,
-        inner: derived.inner,
-        byte_order,
-        bytes: derived.bytes,
-        non_authoritative_materialization_report_fingerprint: materialization_fingerprint,
-    })
-}
 
 /// Exact custody for the complete authored-order set of qualifying direct
 /// inner-record occurrences. Each occurrence retains one independent existing
@@ -514,63 +479,6 @@ impl ValidatedConstRecordWithNestedSumRecordsMaterialization {
     }
 }
 
-pub fn validate_const_materializable_record_with_nested_sum_records(
-    typed: &TypedTrees,
-    schema_name: &str,
-    path_layout: &ConventionalNestedRecordSumPathsLayoutReport,
-    value: &BuildTimeValue,
-    byte_order: ByteOrder,
-) -> Result<ValidatedConstRecordWithNestedSumRecordsMaterialization, MaterializationDiagnostic> {
-    let mut reachability = SumReachability::new(typed);
-    validate_const_materializable_record_with_nested_sum_records_with_reachability(
-        typed,
-        schema_name,
-        path_layout,
-        value,
-        byte_order,
-        &mut reachability,
-    )
-}
-
-fn validate_const_materializable_record_with_nested_sum_records_with_reachability(
-    typed: &TypedTrees,
-    schema_name: &str,
-    path_layout: &ConventionalNestedRecordSumPathsLayoutReport,
-    value: &BuildTimeValue,
-    byte_order: ByteOrder,
-    reachability: &mut SumReachability<'_>,
-) -> Result<ValidatedConstRecordWithNestedSumRecordsMaterialization, MaterializationDiagnostic> {
-    let derived = derive_nested_record_sums_bytes_with_reachability(
-        typed,
-        schema_name,
-        NestedPathsView::Plural(path_layout),
-        value,
-        byte_order,
-        reachability,
-    )?;
-    let outer_fingerprint = normalized_layout_plan_report_fingerprint(&path_layout.outer_layout);
-    let materialization_fingerprint = nested_record_sums_materialization_report_fingerprint(
-        schema_name,
-        derived.schema_report_fingerprint,
-        outer_fingerprint,
-        path_layout,
-        &derived.inner_records,
-        byte_order,
-        value,
-        &derived.bytes,
-    );
-    Ok(ValidatedConstRecordWithNestedSumRecordsMaterialization {
-        schema_name: schema_name.to_owned(),
-        non_authoritative_schema_report_fingerprint: derived.schema_report_fingerprint,
-        value: value.clone(),
-        path_layout: path_layout.clone(),
-        non_authoritative_outer_layout_report_fingerprint: outer_fingerprint,
-        inner_records: derived.inner_records,
-        byte_order,
-        bytes: derived.bytes,
-        non_authoritative_materialization_report_fingerprint: materialization_fingerprint,
-    })
-}
 
 struct DerivedNestedRecordSumMaterialization {
     schema_report_fingerprint: u64,

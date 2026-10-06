@@ -295,18 +295,6 @@ fn prepare_placement_probe(
     }
 }
 
-pub fn validate_placed_view_plans(
-    typed: &mut TypedTrees,
-    records: &[PlacedViewRecord],
-    selection_authority: Option<Arc<dyn crate::BuildTimeSelectionAuthority>>,
-) -> Result<(), Vec<Diagnostic>> {
-    validate_placed_view_plans_in(
-        typed,
-        records,
-        selection_authority,
-        &crate::build_time_evaluation::EvaluationDomain::all(),
-    )
-}
 
 pub(crate) fn validate_placed_view_plans_in(
     typed: &mut TypedTrees,

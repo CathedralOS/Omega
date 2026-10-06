@@ -54,18 +54,10 @@ pub use layouts::materialization::{
     ValidatedConstRecordWithSumArraysMaterialization, ValidatedConstRecordWithSumMaterialization,
     ValidatedConstSumMaterialization, evaluate_and_materialize_typed_owned_layout_into,
     materialize_typed_owned_layout_into, validate_const_materializable_conventional_sum,
-    validate_const_materializable_record_with_conventional_sum,
-    validate_const_materializable_record_with_conventional_sum_array,
-    validate_const_materializable_record_with_conventional_sum_arrays,
     validate_const_materializable_record_with_conventional_sums,
-    validate_const_materializable_record_with_nested_sum_record,
-    validate_const_materializable_record_with_nested_sum_records,
-    validate_const_materializable_record_with_recursive_nested_sums,
-    validate_const_materializable_typed_owned_layout,
-};
+    };
 pub use layouts::placed_views::{
-    PlacedViewRecord, desugar_placed_views, validate_placed_view_plans,
-};
+    PlacedViewRecord, desugar_placed_views, };
 pub use layouts::plan_laid::{
     PlanLaidRecord, compute_plan_laid_layouts, desugar_plan_laid_value_types,
 };
