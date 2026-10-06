@@ -43,8 +43,10 @@ data WindowClass {
     class_name: [u8; 13];
 }
 
-WindowProcedureSlot:
-    WindowClass satisfies PrivateCallbackSlot<WindowProcedure::window_procedure>;
+WindowProcedureSlot satisfies PrivateCallbackSlot<
+    WindowClass,
+    WindowProcedure::window_procedure
+> { }
 
 machine plan(schema: Schema) -> Plan {
     let mut entries: [FieldEntry; 64];

@@ -114,16 +114,6 @@ fn normalize_private_callback_demands(
                     selected.display_name()
                 )
             })?;
-        if conformance.carrier_symbol != policy_machine.attached_data_symbol {
-            return Err(format!(
-                "policy `{policy_name}` selected private slot `{}` for layout `{}`, but the active layout producer is attached to `{}`",
-                selected.display_name(),
-                conformance
-                    .carrier_name()
-                    .map_or("<subjectless>", |name| name.as_str()),
-                typed.symbols.name(policy_machine.attached_data_symbol),
-            ));
-        }
         let trait_definition = typed
             .traits()
             .iter()
@@ -139,19 +129,31 @@ fn normalize_private_callback_demands(
                 != Some(source::SourceOrigin::Toolchain)
         {
             return Err(format!(
-                "private layout conformance `{}` must implement core `PrivateCallbackSlot<Requirement>`",
+                "private layout conformance `{}` must implement core `PrivateCallbackSlot<Layout, Requirement>`",
                 selected.display_name()
             ));
         }
+        // `PrivateCallbackSlot<Layout, machine Requirement>`: the layout policy
+        // type is an ordinary trait argument, and only that policy's own plan
+        // may place the slot.
         let arguments = typed
             .type_reference_table
             .type_reference_handles(conformance.arguments);
-        let [requirement_argument] = arguments else {
+        let [layout_argument, requirement_argument] = arguments else {
             return Err(format!(
-                "private layout conformance `{}` must carry exactly one callback-requirement argument",
+                "private layout conformance `{}` must carry exactly one layout argument and one callback-requirement argument",
                 selected.display_name()
             ));
         };
+        let layout = typed.type_reference_table.type_symbol(*layout_argument);
+        if !layout.is_valid() || layout != policy_machine.attached_data_symbol {
+            return Err(format!(
+                "policy `{policy_name}` selected private slot `{}` for layout `{}`, but the active layout producer is attached to `{}`",
+                selected.display_name(),
+                typed.display_type_reference(*layout_argument),
+                typed.symbols.name(policy_machine.attached_data_symbol),
+            ));
+        }
         let typed_trees::types::TypeReferenceNode::Named {
             symbol: requirement,
             ..
@@ -223,8 +225,7 @@ fn normalize_private_callback_demands(
         normalized.push(PrivateCallbackLayoutDemandReport {
             slot_application: closed_application,
             slot_identity,
-            layout_subject_identity: typed
-                .normalized_hermetic_symbol_identity(conformance.carrier_symbol)?,
+            layout_subject_identity: typed.normalized_hermetic_symbol_identity(layout)?,
             callback_requirement_identity: typed
                 .trait_requirement_callable_identity_text(requirement_trait, requirement_row),
             offset: receipt.offset,

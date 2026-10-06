@@ -905,10 +905,10 @@ expose this private ABI slot or replace the callback requirement, calling plan,
 or registration custody with a number.
 
 A nested destination instead comes from a layout explicitly citing a named
-`PrivateCallbackSlot<Requirement>` conformance. Layout owns the offset; the
-calling plan maps the binder to the declared private place. Merely declaring
-a conformance changes no layout, and private slots are not readable source
-fields. [Private callbacks](../spec/build/private_callbacks.md) defines both forms
+`PrivateCallbackSlot<Layout, Requirement>` implementation whose `Layout`
+argument is that layout policy. Layout owns the offset; the calling plan maps
+the binder to the declared private place. Merely declaring an implementation
+changes no layout, and private slots are not readable source fields. [Private callbacks](../spec/build/private_callbacks.md) defines both forms
 and their independent occurrence/placement checks.
 
 Code emission is not registration. Build selects realization and resources;

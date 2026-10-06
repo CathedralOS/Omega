@@ -323,12 +323,13 @@ several overloads is not an exact selection.
 An identity-only trait binder has no callable signature:
 
 ```omega
-trait PrivateCallbackSlot<machine Requirement> { }
+trait PrivateCallbackSlot<Layout, machine Requirement> { }
 ```
 
 This illustrates the existing identity relationship, not a replacement core
-declaration. Its argument must identify one exact free machine or requirement,
-not a type, conformance, runtime value, or overloaded family. Neither a default
+declaration. `Layout` is an ordinary type argument; the machine argument must
+identify one exact free machine or requirement, not a type, conformance,
+runtime value, or overloaded family. Neither a default
 nor a consumer may invoke it as if a missing callable contract were inferred.
 
 A structural callable contract can itself bind machine parameters. Matching is

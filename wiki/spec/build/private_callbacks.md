@@ -19,9 +19,10 @@ expanded-signature or `as Name` overload-selector form exists.
 
 A direct destination is written `native callback name from Selected` at its
 actual native argument position. It has no source runtime argument. A nested
-destination uses the explicitly cited `PrivateCallbackSlot<Requirement>`
-conformance in its owning layout. The [calling plan](calling_plans.md) places
-these declared demands; it does not invent hidden trailing parameters.
+destination uses the explicitly cited `PrivateCallbackSlot<Layout, Requirement>`
+implementation whose `Layout` argument is its owning layout policy. The
+[calling plan](calling_plans.md) places these declared demands; it does not
+invent hidden trailing parameters.
 
 The binder receives its signature, contracts, operational ceilings, and entry
 plan from the requirement. Per-instance state uses the protocol's context
@@ -62,8 +63,9 @@ that same identity space. Calling policy places declared entries; it cannot
 create, reorder, retarget, or infer a trailing callback argument.
 
 A nested private field destination originates in an explicitly selected named
-`PrivateCallbackSlot<Requirement>` conformance cited by the layout plan. An
-uncited declaration is inert. Retain conformance-owned slot identity, exact
+`PrivateCallbackSlot<Layout, Requirement>` implementation cited by the plan of
+its `Layout` policy; another policy cannot place it. An uncited declaration is
+inert. Retain conformance-owned slot identity, exact
 target-neutral requirement overload, target-closed placement, and the complete
 layout-plan identity. A compact fingerprint alone is not that identity.
 An authored byte offset is placement data, neither

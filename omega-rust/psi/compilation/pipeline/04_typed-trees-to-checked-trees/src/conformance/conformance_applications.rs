@@ -267,9 +267,8 @@ pub fn close_conformance_application(
             && program.trait_requirements(trait_definition).is_empty() =>
         {
             // A bodyless conformance to a true marker trait is already a
-            // complete empty map. This is the ordinary source form used by
-            // typed declaration relationships such as PrivateCallbackSlot;
-            // no realization row exists to discover or synthesize.
+            // complete empty map; no realization row exists to discover or
+            // synthesize.
             &[]
         }
         None => {

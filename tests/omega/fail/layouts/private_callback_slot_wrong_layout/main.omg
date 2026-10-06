@@ -9,8 +9,7 @@ boundary trait Callback {
 data OtherLayout {
 }
 
-WrongLayoutSlot:
-    OtherLayout satisfies PrivateCallbackSlot<Callback::call>;
+WrongLayoutSlot satisfies PrivateCallbackSlot<OtherLayout, Callback::call> { }
 
 data Spread {
 }

@@ -11,14 +11,20 @@ pub boundary trait UnusedProcedure {
 
 data Spread {}
 
-WndClassWindowProcedureSlot:
-    Spread satisfies PrivateCallbackSlot<WindowProcedure::call>;
+WndClassWindowProcedureSlot satisfies PrivateCallbackSlot<
+    Spread,
+    WindowProcedure::call
+> { }
 
-SecondaryWndClassWindowProcedureSlot:
-    Spread satisfies PrivateCallbackSlot<WindowProcedure::call>;
+SecondaryWndClassWindowProcedureSlot satisfies PrivateCallbackSlot<
+    Spread,
+    WindowProcedure::call
+> { }
 
-UnusedWindowProcedureSlot:
-    Spread satisfies PrivateCallbackSlot<UnusedProcedure::call>;
+UnusedWindowProcedureSlot satisfies PrivateCallbackSlot<
+    Spread,
+    UnusedProcedure::call
+> { }
 
 machine Spread::plan(schema: Schema) -> Plan {
     let mut owned_entries: [FieldEntry; 64];
