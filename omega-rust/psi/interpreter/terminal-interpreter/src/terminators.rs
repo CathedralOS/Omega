@@ -203,7 +203,7 @@ impl TerminalExecution {
         else {
             unreachable!("dispatched settle_conditional")
         };
-        let condition = self.scalar_value(condition)?;
+        let condition = self.scalar_value(*condition)?;
         let TerminalScalarValue::Boolean(condition) = condition else {
             return Err(malformed());
         };
@@ -326,7 +326,7 @@ impl TerminalExecution {
         if let Err(error) = meter.charge_terminator(terminator) {
             return meter_status(error).map(TerminatorFlow::Yield);
         }
-        let result = self.scalar_value(value)?;
+        let result = self.scalar_value(*value)?;
         self.retire_return_inputs();
         self.continue_cleanup_actions(
             cleanup_actions.clone().into_iter(),
