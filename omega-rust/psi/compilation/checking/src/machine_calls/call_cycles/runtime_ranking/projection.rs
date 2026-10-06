@@ -622,14 +622,8 @@ fn unsigned_carrier_type(
     .then_some(primitive)
 }
 
-pub(super) fn unwrapped(
-    program: &TypedTrees,
-    mut expression: ExpressionHandle,
-) -> ExpressionHandle {
-    while let ExpressionNode::Atomic(atomic) = program.expression_table.expression(expression) {
-        expression = atomic.value;
-    }
-    expression
+pub(super) fn unwrapped(program: &TypedTrees, expression: ExpressionHandle) -> ExpressionHandle {
+    crate::expression_traversal::unwrapped(program, expression)
 }
 
 /// Publish only coordinates already selected by the component's filtered

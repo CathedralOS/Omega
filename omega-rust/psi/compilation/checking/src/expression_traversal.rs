@@ -73,6 +73,14 @@ pub fn children(
     }
 }
 
+/// Strip `Atomic` wrappers: an atomically-evaluated step is still a step.
+pub fn unwrapped(program: &TypedTrees, mut expression: ExpressionHandle) -> ExpressionHandle {
+    while let ExpressionNode::Atomic(atomic) = program.expression_table.expression(expression) {
+        expression = atomic.value;
+    }
+    expression
+}
+
 /// Push every value edge in reverse source order so a stack `pop` yields
 /// source-order traversal.
 pub fn push_children_reversed(

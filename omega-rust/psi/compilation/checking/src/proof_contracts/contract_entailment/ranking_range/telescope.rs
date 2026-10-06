@@ -5,6 +5,7 @@
 //! member's own termination witness proves.
 
 use super::fields::{collect_record_paths, record_referent};
+use crate::expression_traversal::unwrapped;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::domain::ProofFact;
@@ -644,15 +645,6 @@ fn positive_floor_fact(
         BinaryOperator::Greater => name(binary.left) && floor(binary.right, true),
         _ => false,
     }
-}
-
-/// Strip `Atomic` wrappers, matching the call-component judgment's arrival
-/// reading: an atomically-evaluated step is still a step.
-fn unwrapped(program: &TypedTrees, mut expression: ExpressionHandle) -> ExpressionHandle {
-    while let ExpressionNode::Atomic(atomic) = program.expression_table.expression(expression) {
-        expression = atomic.value;
-    }
-    expression
 }
 
 /// Every authored internal arrival: `(source index, destination index,
