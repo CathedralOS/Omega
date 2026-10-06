@@ -965,9 +965,8 @@ defines the complete product bar.
 
   Roster and oracle accounting:
   - Reconcile added/removed fixtures with the check and per-host native
-    goldens after attributing their outcomes. `pass/collections/runtime_shared_array_{dot_product,polynomial}_exit`
-    have portable-check and macOS both-engine rows, but no separate native
-    golden rows; reconcile coverage without treating a missing row as a run.
+    goldens after attributing their outcomes, without treating a missing row
+    as a run.
   - Keep one portable check golden without hiding semantic differences:
     host-selected providers can change a refusal; attribute it rather than
     repin one host over another. Keep missing rows, wrong-reason negatives,
