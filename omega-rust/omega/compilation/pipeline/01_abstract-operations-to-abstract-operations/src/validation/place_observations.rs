@@ -19,18 +19,6 @@ use optimization_unit::{
 use semantic_vocabulary::{BlockId, EdgeId, PlaceId, StructuralPlaceKind, ValueId};
 use std::collections::{BTreeMap, BTreeSet};
 
-/// The storage root an admitted place observation, byte read, field byte
-/// read, or subslice names — whichever observation gate the node's operation
-/// shape admits through. `same_relocated_node` needs the expected root to
-/// replay the member parameter's rebind without trusting the transformed
-/// unit's spelling.
-pub(crate) fn invariant_observation_source(node: &OptimizationNode) -> Option<PlaceId> {
-    admissible_invariant_place_read(node)
-        .or_else(|| admissible_invariant_byte_read(node).map(|(source, _, _)| source))
-        .or_else(|| admissible_invariant_field_byte_read(node).map(|(source, _, _)| source))
-        .or_else(|| admissible_invariant_subslice(node).map(|(source, _, _, _)| source))
-}
-
 /// Whether `component`'s member blocks perform no place mutation or custody
 /// movement visible to a member observation: no store, record establishment,
 /// atomic event, or custody-moving ownership event inside a member, no call

@@ -28,7 +28,7 @@ pub(crate) mod relocation_rewrites;
 mod scalar_case_frontiers;
 
 pub(crate) use scalar_case_frontiers::{
-    relocated_scalar_case_result_places, rewrite_relocated_case_result_frontiers,
+    rewrite_relocated_case_result_frontiers,
 };
 
 pub use context::{

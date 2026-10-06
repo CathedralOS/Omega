@@ -3549,10 +3549,6 @@ of a check the same flow already performed, not the check itself.
     (`native-artifact/src/optimized_semantic_wrapper_object/validation/entry_contract.rs`)
     replays the semantic calling application to recover its validated plan;
     the settlement should carry that plan;
-  - stage 01's pass manager obtains cycle components through
-    `validate_verified_psi_cycle_components` and
-    `validate_transformed_psi_cycle_components`, which re-validate the whole
-    unit to compute them; split the computation from the validation;
   - uncalled verifiers kept only because tests construct through them:
     `validate_final_placement` (executable-installation),
     `validate_installed_segment_fuel` and `_catalog` (external-roots), the

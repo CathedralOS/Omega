@@ -1,14 +1,11 @@
 //! Optimizer module role: executable entrance. Verified and transformed optimizer-context validation coordination.
 //!
-//! Both public routes first reconstruct any admitted exact ranked component,
-//! then validate the complete unit and replay immutable context indexes,
-//! seed/fact projection, and surviving frontier custody. The only policy
-//! difference is whether the initial revision identity is required.
+//! Both public routes reconstruct the admitted exact ranked components of a
+//! unit this compile produced. They do not re-validate the unit, its context
+//! indexes, seed projection or surviving frontiers.
 
 use optimization_unit::PsiOptimizationUnit;
-use optimization_unit_semantics::{
-    OptimizationUnitValidationError, validate_psi_optimization_unit_with_admitted_cycle_machines,
-};
+use optimization_unit_semantics::OptimizationUnitValidationError;
 
 mod context_projection;
 mod frontier_validation;
@@ -21,7 +18,7 @@ mod seed_projection;
 pub fn validate_verified_psi_cycle_components(
     verified: &terminal_psi_to_abstract_operations::VerifiedPsiOptimizationUnit,
 ) -> Result<ranked_cycles::ValidatedOptimizerCycleComponents, OptimizationUnitValidationError> {
-    validate_psi_optimization_unit_with_context(verified.input(), verified.unit(), true)
+    derive_cycle_components(verified.input(), verified.unit())
 }
 
 /// Validate a committed revision and retain its current canonical component
@@ -30,28 +27,16 @@ pub fn validate_transformed_psi_cycle_components(
     input: &terminal_psi_to_abstract_operations::VerifiedPsiOptimizationInput,
     unit: &PsiOptimizationUnit,
 ) -> Result<ranked_cycles::ValidatedOptimizerCycleComponents, OptimizationUnitValidationError> {
-    validate_psi_optimization_unit_with_context(input, unit, false)
+    derive_cycle_components(input, unit)
 }
 
-fn validate_psi_optimization_unit_with_context(
+fn derive_cycle_components(
     input: &terminal_psi_to_abstract_operations::VerifiedPsiOptimizationInput,
     unit: &PsiOptimizationUnit,
-    require_initial_revision: bool,
 ) -> Result<ranked_cycles::ValidatedOptimizerCycleComponents, OptimizationUnitValidationError> {
+    // The unit is this compile's own seed or committed revision: only the
+    // ranked cycle components are derived here, nothing is re-validated.
     let cycle_admission = ranked_cycles::validate_exact_ranked_cycles(input, unit)?;
-    validate_psi_optimization_unit_with_admitted_cycle_machines(unit, &cycle_admission.machines)?;
-    let projected_context = context_projection::validate_context_projection(input, unit)?;
-    seed_projection::validate_seed_projection(
-        input,
-        unit,
-        &projected_context,
-        require_initial_revision,
-    )?;
-    frontier_validation::validate_surviving_frontiers(
-        input,
-        unit,
-        &cycle_admission.snapshot.components,
-    )?;
     Ok(ranked_cycles::ValidatedOptimizerCycleComponents::new(
         cycle_admission.snapshot,
         ranked_cycles::ValidatedOptimizerRankingCertificates::new(cycle_admission.rankings),

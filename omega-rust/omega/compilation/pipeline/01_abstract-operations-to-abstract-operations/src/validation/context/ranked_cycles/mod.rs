@@ -6,7 +6,6 @@ use semantic_vocabulary::MachineId;
 
 mod components;
 mod countdown_ranking;
-mod freeze;
 mod graph;
 mod ordinary;
 mod replay;
@@ -20,7 +19,6 @@ use optimization_unit::{
 };
 
 pub(super) struct RankedCycleAdmission {
-    pub(super) machines: Vec<MachineId>,
     pub(super) snapshot: OptimizerCycleComponentSnapshot,
     pub(super) rankings: OptimizerRankingCertificateSnapshot,
 }
@@ -32,14 +30,7 @@ pub(super) fn validate_exact_ranked_cycles(
     let snapshot = replay::rederive_exact_components(input.context().module(), unit)?;
     let rankings =
         countdown_ranking::rederive_exact_certificates(input.context().module(), unit, &snapshot)?;
-    freeze::validate_frozen_component_blocks(input, unit, &snapshot.components)?;
-    let machines = snapshot
-        .components
-        .iter()
-        .map(|component| component.id.machine)
-        .collect();
     Ok(RankedCycleAdmission {
-        machines,
         snapshot,
         rankings,
     })

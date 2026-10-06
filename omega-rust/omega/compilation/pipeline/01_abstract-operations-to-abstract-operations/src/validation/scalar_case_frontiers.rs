@@ -22,78 +22,12 @@
 //! validating the verified seed itself never rewrites a single fact.
 
 use abstract_operations::AbstractOperation as O;
-use abstract_operations::AbstractStructuralCallResult;
 use optimization_unit::{
     OwnershipFrontierFact, OwnershipFrontierOwnedPlace, OwnershipFrontierSite,
     PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance,
 };
 use semantic_vocabulary::{BlockId, EdgeId, MachineId, OperationId, PlaceId};
 use std::collections::{BTreeMap, BTreeSet};
-
-/// The affine `EstablishCase`, `EstablishRecord`, and structural-result
-/// `CallStructural` results whose
-/// position in `unit` moved
-/// away from the block the seed established them in — the only places whose
-/// frontier membership a relocation may re-time. A node's seed home is the
-/// block containing its `psi_operation` in the immutable Terminal module; a
-/// moved producer is the signature the relocation freeze already
-/// proved against the seed. Validating the verified seed itself always
-/// yields an empty map, so the seed catalog is never touched.
-pub(crate) fn relocated_scalar_case_result_places(
-    input: &terminal_psi_to_abstract_operations::VerifiedPsiOptimizationInput,
-    unit: &PsiOptimizationUnit,
-) -> BTreeMap<MachineId, BTreeSet<PlaceId>> {
-    let mut seed_home: BTreeMap<(MachineId, OperationId), BlockId> = BTreeMap::new();
-    for machine in &input.context().module().machines {
-        for block in &machine.blocks {
-            for operation in &block.operations {
-                seed_home.insert((machine.id, operation.id), block.id);
-            }
-        }
-    }
-    let mut relocated: BTreeMap<MachineId, BTreeSet<PlaceId>> = BTreeMap::new();
-    for function in &unit.functions {
-        for block in &function.blocks {
-            for node in &block.nodes {
-                let (psi_operation, place) = match &node.operation {
-                    O::EstablishCase {
-                        psi_operation,
-                        result,
-                        ..
-                    }
-                    | O::EstablishRecord {
-                        psi_operation,
-                        result,
-                        ..
-                    }
-                    | O::CallStructural {
-                        psi_operation,
-                        result: AbstractStructuralCallResult::Structural { result, .. },
-                        ..
-                    } => {
-                        if result.multiplicity != terminal_psi::StructuralMultiplicity::Affine {
-                            continue;
-                        }
-                        (*psi_operation, result.place)
-                    }
-                    // A trivial affine local's declared place is affine by
-                    // construction — relocation moves its single establishment.
-                    O::EstablishTrivialAffineLocal {
-                        psi_operation,
-                        place,
-                        ..
-                    } => (*psi_operation, place.id),
-                    _ => continue,
-                };
-                if seed_home.get(&(function.machine, psi_operation)) == Some(&block.id) {
-                    continue;
-                }
-                relocated.entry(function.machine).or_default().insert(place);
-            }
-        }
-    }
-    relocated
-}
 
 /// Rewrite `facts`' owned-place membership for every place in `relocated`:
 /// each catalog site owns the place exactly when the unit's current custody —
