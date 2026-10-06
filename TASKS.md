@@ -3542,9 +3542,6 @@ of a check the same flow already performed, not the check itself.
   settlement-roster joins (separate inputs; a missing settlement is a
   capability refusal), and the ProgramStorage wrapper's
   `validate_entry_shape` (the zero-valid receiver rule). Remaining:
-  - the retained-terminal proposal settlement checks in
-    `omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/retained_terminal/`
-    on the fresh-compile route;
   - `bind_semantic_contract` in the ProgramStorage wrapper stage
     (`native-artifact/src/optimized_semantic_wrapper_object/validation/entry_contract.rs`)
     replays the semantic calling application to recover its validated plan;

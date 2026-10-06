@@ -119,7 +119,6 @@ pub fn project_terminal_native_realization_proposal(
     let callback_occurrences = project_callback_occurrences(
         callback_placements,
         source_call_occurrences,
-        request.boundaries.calling_plan_realizations,
         request.callback_thunks,
     )?;
     let ieee_float_comparison_occurrences = crate::settle_ieee_float_comparison_occurrences(
@@ -180,11 +179,11 @@ pub fn project_terminal_native_realization_proposal(
 }
 
 /// Rejoin retained callback placements to their exact Terminal registrar
-/// occurrences and independently check each supplied thunk's native interface.
+/// occurrences. The thunks were compiled from these placements in this
+/// compile, so their native interfaces are not re-checked here.
 fn project_callback_occurrences(
     callback_placements: &[backend_plan::BoundNominalCallbackPlacement],
     source_call_occurrences: &[lowered_psi::LoweredSourceCallOccurrence],
-    calling_plans: &[provider_planning::calling_policy_plans::BoundaryCallingPlanRealization],
     thunks: Vec<crate::TerminalCallbackThunkArtifact>,
 ) -> Result<Vec<crate::TerminalCallbackOccurrenceProposal>, Vec<Diagnostic>> {
     if callback_placements.len() != thunks.len() {
@@ -215,9 +214,6 @@ fn project_callback_occurrences(
                             "callback placement {placement_index} cannot derive one valid callback-thunk identity",
                         ))]
                     })?;
-            crate::validate_callback_thunk_settlement(
-                callback_thunk_artifact.artifact(), placement, calling_plans,
-            ).map_err(|message| vec![Diagnostic::error(message)])?;
             Ok(crate::TerminalCallbackOccurrenceProposal::new(
                 placement_index,
                 occurrence.terminal_operation,
@@ -232,7 +228,5 @@ fn project_callback_occurrences(
             ))
         })
         .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
-    backend_plan::validate_callback_occurrence_placements(callback_placements, &occurrences)
-        .map_err(|message| vec![Diagnostic::error(message)])?;
     Ok(occurrences)
 }

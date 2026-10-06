@@ -147,60 +147,6 @@ pub struct NativeCallbackThunkSettlement<'artifact> {
 }
 
 
-/// Replay complete retained placement coverage, native destinations and exact
-/// source-selection custody before a retained product can be realized.
-pub fn validate_callback_occurrence_placements(
-    placements: &[BoundNominalCallbackPlacement],
-    occurrences: &[TerminalCallbackOccurrenceProposal],
-) -> Result<(), &'static str> {
-    if occurrences.len() != placements.len() {
-        return Err("Terminal native proposal does not cover every retained callback placement");
-    }
-    for (placement_index, placement) in placements.iter().enumerate() {
-        let matching = occurrences
-            .iter()
-            .filter(|occurrence| occurrence.placement_index == placement_index)
-            .collect::<Vec<_>>();
-        let [occurrence] = matching.as_slice() else {
-            return Err(
-                "Terminal native proposal does not uniquely bind a retained callback placement",
-            );
-        };
-        let expected_application = placement
-            .private_materialization
-            .as_ref()
-            .map(|materialization| materialization.destination_parameter_application())
-            .transpose()
-            .map_err(|_| "retained Terminal product contains an invalid callback placement")?;
-        if occurrence.destination_parameter_application() != expected_application {
-            return Err(
-                "Terminal callback occurrence native parameter application drifted from its retained placement",
-            );
-        }
-        let expected_thunk = canonical_callback_thunk_identity(placement_index, placement)
-            .ok_or("retained callback placement cannot derive one valid callback-thunk identity")?;
-        if occurrence.callback_thunk_identity() != expected_thunk {
-            return Err(
-                "Terminal callback occurrence thunk continuation drifted from its retained placement",
-            );
-        }
-        let expected_symbol = canonical_callback_private_symbol(placement);
-        if occurrence.callback_thunk_artifact().private_symbol() != &expected_symbol {
-            return Err(
-                "Terminal callback occurrence private symbol drifted from its retained placement",
-            );
-        }
-        let receipt = occurrence.callback_thunk_artifact().lowering_receipt();
-        if receipt.source_machine != placement.selected_machine
-            || receipt.source_entry != placement.selected_entry
-        {
-            return Err(
-                "Terminal callback occurrence lowering receipt drifted from its retained placement",
-            );
-        }
-    }
-    Ok(())
-}
 
 /// Recheck the retained source, symbol and function joins, then borrow native
 /// inputs in occurrence order without carrying the source-to-Terminal receipt.
