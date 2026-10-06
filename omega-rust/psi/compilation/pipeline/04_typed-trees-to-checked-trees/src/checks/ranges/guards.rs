@@ -17,6 +17,48 @@ use bounds::{
 /// `i < k` with `k <= 8` proves `i < 8`; `<=` shifts by one and `>`/`>=`
 /// mirror. Read live bounds, legacy store-enforced ranges, or an immutable
 /// parameter's own declaration facts; mutable default-domain text is not a
+
+/// The decomposed-meaning check plus boolean-alias peel both guard seeders
+/// share: a guard with no builtin decomposed meaning is the caller's to
+/// skip, and a name-headed guard stands for its comparison, so re-seed from
+/// the alias guard. Returns whether the caller should also return.
+fn peel_boolean_alias_guard(
+    program: &typed_trees::TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    facts: &mut RangeFacts<'_>,
+    guard: ExpressionHandle,
+    recurse: fn(
+        &typed_trees::TypedTrees,
+        &typed_trees::machine::Machine,
+        &typed_trees::state::State,
+        &mut RangeFacts<'_>,
+        ExpressionHandle,
+    ),
+) -> bool {
+    if !validation::has_builtin_decomposed_guard_meaning(program, machine, Some(state), guard) {
+        return true;
+    }
+    // A boolean local's name stands for its comparison: `has_next ->
+    // target(next_index)` under `has_next = next_index < count` mints
+    // `next_index`'s bound from `count`'s declared range exactly as the
+    // spelled comparison would.
+    if let ExpressionNode::Name(path) = program.expression_table.expression(guard) {
+        let name = program
+            .expression_table
+            .name_path_members(path.members)
+            .last()
+            .map(|name| name.as_str());
+        if let Some(alias_guard) = facts.boolean_guard_local(path.symbol, name)
+            && alias_guard != guard
+        {
+            recurse(program, machine, state, facts, alias_guard);
+        }
+        return true;
+    }
+    false
+}
+
 /// premise during an open invariant window. Literal RHS comparisons stay
 /// with the literal seeders. This needs machine/state context, so it runs
 /// beside `seed_guard_facts` at the co-located transition arm.
@@ -27,24 +69,14 @@ pub(super) fn seed_value_vs_value_endpoints(
     facts: &mut RangeFacts<'_>,
     guard: ExpressionHandle,
 ) {
-    if !validation::has_builtin_decomposed_guard_meaning(program, machine, Some(state), guard) {
-        return;
-    }
-    // A boolean local's name stands for its comparison: `has_next ->
-    // target(next_index)` under `has_next = next_index < count` mints
-    // `next_index`'s bound from `count`'s declared range exactly as the
-    // spelled comparison would. Same resolution `seed_guard_facts` runs.
-    if let ExpressionNode::Name(path) = program.expression_table.expression(guard) {
-        let name = program
-            .expression_table
-            .name_path_members(path.members)
-            .last()
-            .map(|name| name.as_str());
-        if let Some(alias_guard) = facts.boolean_guard_local(path.symbol, name)
-            && alias_guard != guard
-        {
-            seed_value_vs_value_endpoints(program, machine, state, facts, alias_guard);
-        }
+    if !peel_boolean_alias_guard(
+        program,
+        machine,
+        state,
+        facts,
+        guard,
+        seed_value_vs_value_endpoints,
+    ) {
         return;
     }
     let ExpressionNode::Binary(binary) = program.expression_table.expression(guard) else {
@@ -145,21 +177,7 @@ pub(super) fn seed_guard_facts(
     facts: &mut RangeFacts<'_>,
     guard: ExpressionHandle,
 ) {
-    if !validation::has_builtin_decomposed_guard_meaning(program, machine, Some(state), guard) {
-        return;
-    }
-
-    if let ExpressionNode::Name(path) = program.expression_table.expression(guard) {
-        let name = program
-            .expression_table
-            .name_path_members(path.members)
-            .last()
-            .map(|name| name.as_str());
-        if let Some(alias_guard) = facts.boolean_guard_local(path.symbol, name)
-            && alias_guard != guard
-        {
-            seed_guard_facts(program, machine, state, facts, alias_guard);
-        }
+    if !peel_boolean_alias_guard(program, machine, state, facts, guard, seed_guard_facts) {
         return;
     }
 
