@@ -3,7 +3,7 @@
 use register_model::RegisterOperandAccess;
 use selected_instructions::{
     SelectedBlockId, SelectedFunction, SelectedInstruction, SelectedInstructionKind,
-    SelectedTerminator, VirtualRegisterId, VirtualRegisterOrigin,
+    SelectedOperand, SelectedTerminator, VirtualRegisterId, VirtualRegisterOrigin,
 };
 use semantic_vocabulary::{IntegerValue, ScalarType};
 
@@ -382,10 +382,7 @@ fn admit_candidate(
                 || row.operands.len() != 2
                 || left.class != row.operands[0].class
                 || result.class != row.operands[1].class
-                || !scratch.iter().all(|operand| {
-                    operand.access == RegisterOperandAccess::Def
-                        && dropped_def_is_dead(function, operand.virtual_register)
-                })
+                || !dead_scratch(function, scratch)
             {
                 return None;
             }
@@ -411,10 +408,7 @@ fn admit_candidate(
                 || row.operands.len() != 2
                 || left.class != row.operands[0].class
                 || result.class != row.operands[1].class
-                || !auxiliary.iter().all(|operand| {
-                    operand.access == RegisterOperandAccess::Use
-                        && auxiliary_zero_defined(function, operand.virtual_register)
-                })
+                || !auxiliary_uses(function, auxiliary)
             {
                 return None;
             }
@@ -444,15 +438,7 @@ fn admit_candidate(
                 || row.operands.len() != 2
                 || left.class != row.operands[0].class
                 || result.class != row.operands[1].class
-                || !tail.iter().all(|operand| match operand.access {
-                    RegisterOperandAccess::Use => {
-                        auxiliary_zero_defined(function, operand.virtual_register)
-                    }
-                    RegisterOperandAccess::Def => {
-                        dropped_def_is_dead(function, operand.virtual_register)
-                    }
-                    _ => false,
-                })
+                || !droppable_tail(function, tail)
             {
                 return None;
             }
@@ -479,10 +465,7 @@ fn admit_candidate(
                 || row.operands.len() != 1
                 || row.operands[0].access != RegisterOperandAccess::Def
                 || result.class != row.operands[0].class
-                || !scratch.iter().all(|operand| {
-                    operand.access == RegisterOperandAccess::Def
-                        && dropped_def_is_dead(function, operand.virtual_register)
-                })
+                || !dead_scratch(function, scratch)
             {
                 return None;
             }
@@ -509,10 +492,7 @@ fn admit_candidate(
                 || row.operands.len() != 1
                 || row.operands[0].access != RegisterOperandAccess::Def
                 || result.class != row.operands[0].class
-                || !scratch.iter().all(|operand| {
-                    operand.access == RegisterOperandAccess::Def
-                        && dropped_def_is_dead(function, operand.virtual_register)
-                })
+                || !dead_scratch(function, scratch)
             {
                 return None;
             }
@@ -542,10 +522,7 @@ fn admit_candidate(
                 || row.operands.len() != 1
                 || row.operands[0].access != RegisterOperandAccess::Def
                 || result.class != row.operands[0].class
-                || !auxiliary.iter().all(|operand| {
-                    operand.access == RegisterOperandAccess::Use
-                        && auxiliary_zero_defined(function, operand.virtual_register)
-                })
+                || !auxiliary_uses(function, auxiliary)
             {
                 return None;
             }
@@ -576,15 +553,7 @@ fn admit_candidate(
                 || row.operands.len() != 1
                 || row.operands[0].access != RegisterOperandAccess::Def
                 || result.class != row.operands[0].class
-                || !tail.iter().all(|operand| match operand.access {
-                    RegisterOperandAccess::Use => {
-                        auxiliary_zero_defined(function, operand.virtual_register)
-                    }
-                    RegisterOperandAccess::Def => {
-                        dropped_def_is_dead(function, operand.virtual_register)
-                    }
-                    _ => false,
-                })
+                || !droppable_tail(function, tail)
             {
                 return None;
             }
@@ -628,10 +597,7 @@ fn admit_candidate(
                 || row.operands.len() != 2
                 || right.class != row.operands[0].class
                 || result.class != row.operands[1].class
-                || !scratch.iter().all(|operand| {
-                    operand.access == RegisterOperandAccess::Def
-                        && dropped_def_is_dead(function, operand.virtual_register)
-                })
+                || !dead_scratch(function, scratch)
             {
                 return None;
             }
@@ -802,6 +768,36 @@ fn admit_candidate(
 /// instructions producing `Unsigned(0)` — the provenance the
 /// auxiliary-`Use` operand grammar requires of every operand it drops. A
 /// register with no definition, or any definition that is not a zero
+/// Every scratch operand past the folded result is a `Def` whose register
+/// dies with this rewrite — the occurrence-free custody the grammars
+/// require of every dropped definition.
+fn dead_scratch(function: &SelectedFunction, operands: &[SelectedOperand]) -> bool {
+    operands.iter().all(|operand| {
+        operand.access == RegisterOperandAccess::Def
+            && dropped_def_is_dead(function, operand.virtual_register)
+    })
+}
+
+/// Every auxiliary operand past the folded result is a `Use` whose register
+/// is defined in this function solely by zero materializations.
+fn auxiliary_uses(function: &SelectedFunction, operands: &[SelectedOperand]) -> bool {
+    operands.iter().all(|operand| {
+        operand.access == RegisterOperandAccess::Use
+            && auxiliary_zero_defined(function, operand.virtual_register)
+    })
+}
+
+/// A mixed drop tail: each operand's own access declares the custody it
+/// drops under — a `Use` must be auxiliary-zero defined, a `Def` must die
+/// with the rewrite, any other access rejects.
+fn droppable_tail(function: &SelectedFunction, operands: &[SelectedOperand]) -> bool {
+    operands.iter().all(|operand| match operand.access {
+        RegisterOperandAccess::Use => auxiliary_zero_defined(function, operand.virtual_register),
+        RegisterOperandAccess::Def => dropped_def_is_dead(function, operand.virtual_register),
+        _ => false,
+    })
+}
+
 /// materialization, fails: the dropped operand would carry a value the
 /// folded form silently stopped observing.
 fn auxiliary_zero_defined(
