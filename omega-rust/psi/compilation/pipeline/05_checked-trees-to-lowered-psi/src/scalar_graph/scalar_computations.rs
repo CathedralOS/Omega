@@ -774,7 +774,10 @@ impl<'a> Expansion<'a> {
                 }
             }
             CheckedScalarComputationKind::AuthoredCast {
-                operand, domain, ..
+                operand,
+                domain,
+                formation_decided,
+                ..
             } => {
                 // The operand completes at its own carrier, then the authored
                 // conversion applies once: widening is total, the remaining
@@ -818,7 +821,7 @@ impl<'a> Expansion<'a> {
                             LoweredDirectExpression::IntegerExactCast {
                                 scalar_type: result_type.scalar_type,
                                 operand: Box::new(operand_expression),
-                                formation_decided: false,
+                                formation_decided,
                             }
                         }
                     }

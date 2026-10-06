@@ -983,6 +983,18 @@ impl Builder<'_, '_> {
             operand
         };
         let result_type = semantic_casts::result_type(self.program, self.state, expression)?;
+        let source_primitive = self.plans.nodes.get(operand).primitive_type;
+        let target_primitive = self.program.primitive_type_reference(result_type)?;
+        // Payload completion and semantic qualification custody use separate
+        // namespaces. Preserve the checker's exact cast occurrence and both
+        // carriers here; the lowering must not search again after detagging
+        // or mistake another cast of this operand for the checked conversion.
+        let formation_decided = cast.domain == ArithmeticDomain::Exact
+            && self.exact_integer_casts.iter().any(|fact| {
+                fact.expression == expression
+                    && fact.source_type == source_primitive
+                    && fact.target_type == target_primitive
+            });
         Some(self.insert(
             expected_type,
             CheckedScalarComputationKind::AuthoredCast {
@@ -990,6 +1002,7 @@ impl Builder<'_, '_> {
                 operand,
                 result_type,
                 domain: cast.domain,
+                formation_decided,
             },
         ))
     }

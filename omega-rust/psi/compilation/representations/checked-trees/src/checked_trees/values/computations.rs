@@ -209,6 +209,10 @@ pub enum CheckedScalarComputationKind {
         operand: CheckedScalarComputationHandle,
         result_type: typed_trees::types::TypeReferenceHandle,
         domain: numerics::arithmetic::ArithmeticDomain,
+        /// Source checking proved this exact occurrence's partial integer
+        /// conversion, at these source and destination carriers. Completing
+        /// its operand through private blocks does not withdraw that decision.
+        formation_decided: bool,
     },
     /// Authored Boolean-to-integer conversion at one cast occurrence. Every
     /// arithmetic domain produces the same payload: `false` becomes 0 and

@@ -3367,7 +3367,7 @@ deletions, which the commit lists.
   Remaining:
   - Carry decisions through every emission route, including nested/non-root
     expressions, element-view writes, generated selectors and semantic-to-storage
-    casts. Synthesized widenings and scalar-graph cast replays still use search.
+    casts. Synthesized widenings and generated scalar-graph casts still use search.
     Join the exact checked occurrence rather than performing another syntax walk
     or extending certificate search.
   - Cover shift counts, Boolean landing, representation geometry, capacities
@@ -3397,7 +3397,8 @@ deletions, which the commit lists.
     are not substitutes. Foreign pointers need compatible checked adapters.
 
   Regression controls: `arithmetic/runtime_short_circuit_cast_decisions_exit`
-  (70), `samples/cli/collections/heat_grid` (45), nested projected stores and
+  (70), `arithmetic/runtime_qualified_cast_decision_exit` (0),
+  `samples/cli/collections/heat_grid` (45), nested projected stores and
   `collections/runtime_fixed_array_{captured_selector,selector_call}_store_exit`
   (70). Wrong-path, escaped, stale-index and mutated-subject facts and byte-domain
   corruption must still reject. The checked-tree interpreter declines the
