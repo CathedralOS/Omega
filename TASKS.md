@@ -13,7 +13,7 @@ implementation, it does not exempt anything from release.
 | Priority | Work |
 | --- | --- |
 | 1. Run existing programs | [High-priority composition repairs](#high-priority-composition-repairs) and [Immediate product closure](#immediate-product-closure). Choose a concrete failure from SAMPLE-CORPUS, CANARY-CORPUS or SQUALR-HEADLESS and repair the general operation. |
-| 2. Remove source and pipeline blockers | [Universal interpreter cutover](#universal-interpreter-cutover), [Pipeline route](#pipeline-route), [Data-flow defects](#data-flow-defects), [Trust ceremony](#trust-ceremony), [Red tests](#red-tests) and [PCC removal](#pcc-removal). |
+| 2. Remove source and pipeline blockers | [Universal interpreter cutover](#universal-interpreter-cutover), [Pipeline route](#pipeline-route), [Lowering simplification](#lowering-simplification), [Checker simplification](#checker-simplification), [Data-flow defects](#data-flow-defects) and [PCC removal](#pcc-removal). |
 | 3. Connect remaining accepted capabilities | [Entry and authority](#p1---authority-roots-and-entry), [materialization](#p2---materialization-and-placed-access), [service reach](#automatic-service-reach), [reflection](#semantic-reflection), [scoped build execution](#scoped-build-execution), [process exit](#process-exit-contract), [exclusions](#build-level-behavior-exclusions), [tests](#requirement-based-tests), [embedding](#embedding-and-interpreted-components) and [parallel lanes](#parallel-language-and-compiler-lanes). Move an item earlier when the chosen program needs it. |
 | 4. Close the release matrix | [Rust compiler release closure](#rust-compiler-release-closure). Focused successes do not satisfy full gates. |
 | Separate owners | [Optimizer](TASKS_OPTIMIZER.md), [bootstrap](TASKS_BOOTSTRAP.md) and [Cathedral](#p5---cathedral-over-general-omega-primitives). A native correctness dependency moves with the program that exercises it. |
@@ -3178,29 +3178,24 @@ check corpus and the native corpus unchanged on the slices it names.
 ## Checker simplification
 
 Owner ruling 2026-10-04: remove the checker's re-checking, duplicate analyses,
-shape gates and review/certificate support. The checker is stage 04
-(`omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src`,
-about 253k lines) plus the `validation` crate it calls
-(`omega-rust/psi/compilation/checking`, about 169k lines). An audit at
-`c252be7fa2` estimates 40–60k of those lines decide nothing new. The rulings
-in [Trust ceremony](#trust-ceremony), [PCC removal](#pcc-removal) and
+shape gates and review/certificate support. Owners are stage 04
+(`omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src`)
+and the `validation` crate (`omega-rust/psi/compilation/checking`). The rulings
+in [PCC removal](#pcc-removal) and
 [Lowering simplification](#lowering-simplification) apply here. Related items
 already filed elsewhere: **LOWERING-READS-CHECKED-TYPES**,
 **TYPED-FROZEN-BEFORE-CHECKING** and **CHECKING-FROZEN-PROGRAM-CONTEXT**.
 
-Each item lands in one commit, deletes what it replaces, and keeps every
+Each coherent repair deletes what it replaces and keeps every
 check-corpus verdict and diagnostic family unchanged unless the item says
 otherwise. Paths below are relative to the stage 04 `src/` (written `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/`) or
 the validation `src/` (written `omega-rust/psi/compilation/checking/src/`) unless spelled in full.
 
 - **BORROW-CERTIFICATES-DELETED.** (new-scope) Remaining work is the
   lowering-consumed reborrow resource certificates, not borrow admission.
-  Stage 04 now checks compatibility, mutation and calls directly over one
-  `BorrowFacts`, without source reconstruction, selector snapshots or
-  certificate replay. On macOS ARM64, the `borrows/,borrow/,references/`
-  check slice retains all 176 baseline outcomes (114 checked, 62 rejected);
-  the positive native slice executes 91 programs with matching authored
-  oracles.
+  Preserve stage 04's direct compatibility, mutation and call checking over
+  one `BorrowFacts`; do not restore source reconstruction, selector snapshots
+  or certificate replay.
 
   Retire `checks/borrows/resources/{resource_reconstruction,certificate_planning}.rs`
   only with their remaining consumers: stage 04
@@ -3209,13 +3204,13 @@ the validation `src/` (written `omega-rust/psi/compilation/checking/src/`) unles
   and `machine_lowering/reborrow_handoffs.rs`. These consume
   `reborrow_containment_certificates` and
   `reborrow_restored_call_use_certificates`; deleting their construction
-  alone removes required lowering inputs. Coordinate those currently assigned
-  paths with **REFERENCE-LOCAL-BINDING-ROUTES**. Keep direct loan resources and
+  alone removes required lowering inputs. Coordinate the consumer replacement
+  with **REFERENCE-LOCAL-BINDING-ROUTES**. Keep direct loan resources and
   access attenuation, parent/child lifetimes, conflict, writability, escape
   and persistence judgments in the single production route. Acceptance:
   no checker self-replay or obsolete resource-certificate consumers, one
   `build_borrow_facts` call per check, unchanged borrow check corpus and
-  native restoration results.
+  native restoration results (`--filter borrows/,borrow/,references/`).
 
 - **SPECIALIZATION-LOOP-ONCE.** (new-scope) The specialization fixed point in
   `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checking.rs`
@@ -3270,13 +3265,12 @@ the validation `src/` (written `omega-rust/psi/compilation/checking/src/`) unles
   collections/,slices/,termination/,contracts` unchanged.
 
 - **ONE-ENSURES-PROVER.** (new-scope) Exit guarantees are decided twice:
-  `omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment` (26k lines) judges
+  `omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment` judges
   requires⇒ensures, and `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/{exits,prover}` independently
   proves exit `ensures` from flow. The two are bridged by "stand-downs":
   `collect_contract_entailment_stand_downs` re-runs whole-program entailment
   and discards its diagnostics, called from
-  `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/exit_membership.rs`, `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/proof/contract_entailment.rs`
-  (twice) and
+  `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/proof/contract_entailment.rs` and
   `omega-rust/omega/compilation/realization/selected-dispatch/src/execution_settlement.rs`.
   Make the stage 04 prover the one decision over bodies and have it call the
   entailment engine for proof-only and contract-to-contract judgments; delete
@@ -3284,12 +3278,8 @@ the validation `src/` (written `omega-rust/psi/compilation/checking/src/`) unles
   `collect_contract_entailment_stand_downs` is gone; corpus
   `--filter contracts,proofs/,ensures` unchanged.
 
-- **CHECKER-RECORDS-ONCE.** (new-scope) Values the checker decides are still
-  re-derived by later consumers instead of read from checked trees. Stage 05
-  and compile-time no longer replay the specialization commitment, selected
-  dispatch reads the checked operator realization contracts, stage 00's
-  comparison settlement reads the meaning stage 05 recorded, and the
-  template-identity join reads the recorded template identity. Remaining:
+- **CHECKER-RECORDS-ONCE.** (new-scope) Stop these consumers from re-deriving
+  checker decisions instead of reading retained facts:
   - `trust_model::AcceptedTemplateClassifications::capture` reruns operational
     and service-reach inference to hash each `AdmissionClaim` template that
     stage 04 already committed on its specializations; an unspecialized
@@ -3300,14 +3290,11 @@ the validation `src/` (written `omega-rust/psi/compilation/checking/src/`) unles
     execution identities; checked facts carry no requirement identity on
     `CheckedBoundaryOperatorApplicationDemand`.
 
-  Record what these consumers read in checked trees or Terminal Psi and delete
-  the re-derivation. Acceptance: those modules hold no replay, stage 00 reads
-  no typed trees, and the corpus is unchanged.
-
   Replace the commitments with a plain identity key where one is needed and
   delete the hashing; record what stage 00 reads in checked trees or Terminal
   Psi. Acceptance: those modules hold no replay; no Omega crate references
   `checked.typed`; corpus unchanged.
+
 - **LOWERING-GATES-OUT-OF-CHECKER.** (new-scope) The checker carries lowering
   capability gates and per-shape query variants:
   - 16 `*_supported` functions (for example
@@ -4001,26 +3988,27 @@ execution and retained outputs.
   explicitly delegated private entry description stays usable without
   enumeration authority.
 
-- **SAME-NAME-REQUIREMENT-CALL-TARGETS.** (new-scope) Replace the remaining
-  record-name-matched attachment lookups with the retained attachment identity
-  (including closed applications):
-  - stage 04 (`omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/`):
-    `execution/terminal_unit/calls/signatures.rs`
-    (`structural_signature_with_partial_affine`), `operators/receiver.rs`, the
-    contained-target filter in `facts/carry.rs`,
-    `checks/contracts/evaluator/collections.rs`,
-    `monomorphization/body_cloning.rs`;
-  - stage 05: `omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/returns/boundary_scalar_return/source_custody.rs`.
+- **SAME-NAME-REQUIREMENT-CALL-TARGETS.** (new-scope) Remove name fallback from
+  retained type identity in stage 04
+  (`omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/`):
+  - `operators/receiver.rs::field_type_reference` selects a data definition
+    when its symbol **or** name matches, even when a valid symbol names a
+    different definition. Use exact identity, preserving closed applications.
+  - `checks/contracts/evaluator/collections.rs::self_data_definition` finds
+    the first data declaration with the attached name. This is legacy `self`
+    contract evaluation: retire it with **STATIC-MACHINE-MIGRATION**, rather
+    than repairing an implicit-receiver path the language has revoked. Retain
+    collection-length reasoning over ordinary explicit arguments.
 
-  No current fixture reaches these sites;
-  `pass/providers/same_name_requirement{,_right}_dispatch_exit` and
-  `pass/modules/same_name_requirement_field_calls_exit` already exit 70.
-  Extend a runtime customer through the affected storage, borrow or return path
-  before replacing each lookup. Unverified: re-read each site; some may already
-  select by attachment symbol.
-
-  Acceptance: a same-name-module pass fixture reaches each replaced site and
-  exits with its oracle; a forged target from a different requirement rejects.
+  The former signature, carry-fact, body-cloning and boundary-return site list
+  no longer describes this defect. Do not recreate those removed lookups.
+  Extend a same-name-module runtime customer through field-type lookup before
+  changing it; the existing `pass/providers/same_name_requirement{,_right}_dispatch_exit`
+  and `pass/modules/same_name_requirement_field_calls_exit` (exit 70) are
+  regression controls, not evidence that the remaining branch is exercised.
+  Acceptance: the new customer reaches the repaired lookup and executes its
+  authored result, closed applications retain their exact fields, and a target
+  from a different requirement rejects. No implicit receiver is restored.
 
 - **BUILD-SNAPSHOT-OUTPUTS.** Finish coherent capture and host acceptance under
   the [captured-input and committed-output contract](wiki/spec/build/scoped_execution.md#inputs-and-default-filesystem).
