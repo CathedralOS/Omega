@@ -1412,13 +1412,17 @@ impl Builder<'_, '_> {
                                     _ => return None,
                                 }
                             }
+                            // The retained root still owns the complete declared
+                            // type matched to this formal. The operand names its
+                            // storage carrier; qualifications are not type rows.
+                            let contract = validation::structural_result_contract(self.program, referent).ok()?;
                             Some(checked_trees::CheckedUnitStructuralArgumentPlan {
                                 source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralExpression {
                                     expression,
                                 },
                                 path: Vec::new(),
                                 type_identity: self.program
-                                    .normalized_type_identity(referent)
+                                    .normalized_type_identity(contract.carrier)
                                     .into_string(),
                                 access,
                             })

@@ -141,10 +141,11 @@ pub(super) fn validate(
                                 root.statement_ordinal,
                                 expression,
                             )?;
+                            let contract = validation::structural_result_contract(program, value.type_reference).ok()?;
                             if value.machine != machine
                                 || !structural_values.nodes.is_valid(value.root)
                                 || structural_values.nodes.get(value.root).expression != expression
-                                || program.normalized_type_identity(value.type_reference).as_str()
+                                || program.normalized_type_identity(contract.carrier).as_str()
                                     != argument.type_identity
                                 || !argument.path.is_empty()
                             {

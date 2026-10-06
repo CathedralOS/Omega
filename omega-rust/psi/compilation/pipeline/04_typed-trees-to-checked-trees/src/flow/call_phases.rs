@@ -14,9 +14,11 @@ use checked_trees::{
 };
 use facts::{FactPlan, ProgramPoint};
 
+mod copied_guarantees;
 mod invalidation;
 mod referents;
 
+pub(super) use copied_guarantees::ArgumentSources;
 pub(super) use invalidation::{apply_call_invalidations, call_storage_writes};
 pub(super) use referents::append_call_referent_field_domain_facts;
 
@@ -98,6 +100,8 @@ pub(super) fn build_call_requires_contexts(
 }
 
 pub(super) fn build_call_exit_contexts(
+    program: &typed_trees::TypedTrees,
+    proof: &checked_trees::ProofFacts,
     semantic: &FactPlan,
     build: &mut FlowBuildContext,
     machine: &typed_trees::machine::Machine,
@@ -105,15 +109,14 @@ pub(super) fn build_call_exit_contexts(
     borrow_call: &BorrowCallFact,
     post_contexts: HandleSpan<FlowSemanticContextRef>,
     post_constraints: HandleSpan<FlowConstraintRef>,
+    argument_sources: Option<&ArgumentSources<'_, '_>>,
 ) -> CallFlowContexts {
-    let mut contexts = retained_flow_contexts(&build.contexts.semantic_context_refs, post_contexts);
-    let mut constraints =
-        retained_constraint_refs(&build.contexts.constraint_refs, post_constraints);
-    append_call_contract_contexts(
+    // Only newly substituted callee guarantees can confuse a captured value
+    // with its former storage. Keep the live caller contexts after the call's
+    // own invalidation; later operands may already have restored their domains.
+    let mut ensured = build_call_contract_contexts(
         semantic,
         build,
-        &mut contexts,
-        &mut constraints,
         ProgramPoint::CallEnsures {
             machine_symbol: machine.symbol,
             state_symbol: state.symbol,
@@ -121,6 +124,54 @@ pub(super) fn build_call_exit_contexts(
             call_ordinal: borrow_call.call_ordinal,
         },
     );
+    ensured.contexts = copied_guarantees::retain_guarantees(
+        program,
+        proof,
+        semantic,
+        build,
+        super::proof_contract_call(
+            proof,
+            machine.symbol,
+            state.symbol,
+            borrow_call.statement_index,
+            borrow_call.call_ordinal,
+        ),
+        argument_sources,
+        ensured.contexts,
+    );
+    ensured.constraints = super::project_constraint_refs_to_active_contexts(
+        &mut build.contexts.constraint_refs,
+        ensured.constraints,
+        ensured.contexts,
+        &build.contexts.semantic_context_refs,
+    );
+    let mut contexts = retained_flow_contexts(&build.contexts.semantic_context_refs, post_contexts);
+    let mut constraints =
+        retained_constraint_refs(&build.contexts.constraint_refs, post_constraints);
+    let ensured_contexts = build
+        .contexts
+        .semantic_context_refs
+        .span_or_empty(ensured.contexts)
+        .to_vec();
+    for reference in ensured_contexts {
+        super::reference_spans::append_flow_reference(
+            &mut build.contexts.semantic_context_refs,
+            &mut contexts,
+            reference,
+        );
+    }
+    let ensured_constraints = build
+        .contexts
+        .constraint_refs
+        .span_or_empty(ensured.constraints)
+        .to_vec();
+    for reference in ensured_constraints {
+        super::reference_spans::append_flow_reference(
+            &mut build.contexts.constraint_refs,
+            &mut constraints,
+            reference,
+        );
+    }
 
     CallFlowContexts {
         contexts,

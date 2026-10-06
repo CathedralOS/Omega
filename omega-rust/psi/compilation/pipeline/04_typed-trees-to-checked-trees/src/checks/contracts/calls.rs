@@ -64,6 +64,10 @@ pub(super) fn check_call_requires(
     {
         let context = facts.semantic.contexts.get(requires_context);
         for fact in facts.semantic.context_view(context).facts() {
+            let captured_contexts = super::call_values::membership_contexts(
+                program, facts, state_flow, call_flow, fact,
+            );
+            let requirement_contexts = captured_contexts.as_deref().unwrap_or(&entry_contexts);
             let satisfied = match fact.payload {
                 FactPayload::ContractBooleanExpression { expression, .. } => {
                     boolean_requirements::proves(
@@ -71,7 +75,7 @@ pub(super) fn check_call_requires(
                         facts,
                         state_flow,
                         call_flow,
-                        &entry_contexts,
+                        requirement_contexts,
                         expression,
                         incoming_guards,
                         call_frames,
@@ -86,7 +90,7 @@ pub(super) fn check_call_requires(
                 _ => semantic_contexts_prove_contract_fact(
                     program,
                     &facts.semantic,
-                    &entry_contexts,
+                    requirement_contexts,
                     fact,
                 ),
             };
@@ -116,7 +120,7 @@ pub(super) fn check_call_requires(
                     ) || subslice_grants_domain(
                         program,
                         facts,
-                        &entry_contexts,
+                        requirement_contexts,
                         fact.payload,
                         fact.place,
                     ) || parameter_domain_grants(
@@ -130,7 +134,7 @@ pub(super) fn check_call_requires(
                         facts,
                         state_flow,
                         call_flow,
-                        &entry_contexts,
+                        requirement_contexts,
                         fact,
                         call_frames,
                     ) || proven_predicates_grant_domain(
@@ -138,7 +142,7 @@ pub(super) fn check_call_requires(
                         facts,
                         state_flow,
                         call_flow,
-                        &entry_contexts,
+                        requirement_contexts,
                         incoming_guards,
                         fact,
                         call_frames,
@@ -148,7 +152,7 @@ pub(super) fn check_call_requires(
                 && super::prover::contract_membership_place_is_accessible(
                     program,
                     &facts.semantic,
-                    &entry_contexts,
+                    requirement_contexts,
                     fact,
                 );
             if !satisfied {

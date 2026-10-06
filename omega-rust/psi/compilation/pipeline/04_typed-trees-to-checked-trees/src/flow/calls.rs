@@ -39,6 +39,7 @@ pub(super) fn build_call_flow_fact<'plans>(
     active_contexts: &mut arena::HandleSpan<FlowSemanticContextRef>,
     active_constraints: &mut arena::HandleSpan<FlowConstraintRef>,
     borrow_call: &BorrowCallFact,
+    changed_operand_sources: &[super::CanonicalPlace],
 ) -> FlowCallFact {
     super::state_values::record_invocation(program, build, machine, state, borrow_call);
     let contract_call = proof_contract_call(
@@ -70,7 +71,17 @@ pub(super) fn build_call_flow_fact<'plans>(
         *active_constraints,
         borrow_call,
     );
+    let argument_sources = super::call_phases::ArgumentSources::new(
+        program,
+        machine.symbol,
+        state.symbol,
+        borrow_call,
+        invalidation.storage_writes.as_deref(),
+        changed_operand_sources,
+    );
     let mut exit = build_call_exit_contexts(
+        program,
+        proof,
         semantic,
         build,
         machine,
@@ -78,6 +89,7 @@ pub(super) fn build_call_flow_fact<'plans>(
         borrow_call,
         invalidation.post_contexts,
         invalidation.post_constraints,
+        argument_sources.as_ref(),
     );
     append_one_to_one_call_carry_facts(
         program,
@@ -106,6 +118,7 @@ pub(super) fn build_call_flow_fact<'plans>(
         state,
         borrow_call,
         &mut exit,
+        argument_sources.as_ref(),
     );
     // Every readable `&mut` referent comes back satisfying the field facts
     // the callee re-proved at its return (checks/contracts/exits).
@@ -466,10 +479,9 @@ fn append_call_result_field_domain_facts<'plans>(
 /// Authored `ensures <parameter> in <domain>` claims the call hands back on
 /// the exact argument place. These are provisional checked-signature facts,
 /// not new issuance: the content checker independently rejoins routed
-/// parameter claims to this invocation. An `ensures` subject naming an
-/// immutable parameter asserts the caller's input still satisfies the
-/// membership; naming a mutable parameter is the out-parameter establishment
-/// the callee owed — either way the caller sees the same honest claim.
+/// parameter claims to this invocation. A copied-input guarantee can describe
+/// caller storage only while its captured contents survive. A mutable-formal
+/// guarantee describes the live output and remains publishable after writes.
 fn append_call_parameter_domain_facts<'plans>(
     program: &'plans typed_trees::TypedTrees,
     semantic: &mut FactPlan,
@@ -478,6 +490,7 @@ fn append_call_parameter_domain_facts<'plans>(
     state: &typed_trees::state::State,
     borrow_call: &BorrowCallFact,
     exit: &mut CallFlowContexts,
+    argument_sources: Option<&super::call_phases::ArgumentSources<'_, '_>>,
 ) {
     if !build
         .call_parameter_identities
@@ -521,8 +534,12 @@ fn append_call_parameter_domain_facts<'plans>(
         language_semantics::QualificationEvidenceOrigin::Propagated,
         borrow_call.target_symbol,
     );
-    let mut refs = HandleSpan::empty();
     for (position, domain_symbol, semantic_domain, declared) in claims.iter() {
+        if !declared
+            && !argument_sources.is_some_and(|sources| sources.observation_survives(*position, &[]))
+        {
+            continue;
+        }
         // An ENSURED claim publishes only for a routed domain: that is the
         // provenance the checker rejoins, and a predicate-domain `ensures`
         // would only add an invalidatable fact the call never minted.
@@ -566,22 +583,20 @@ fn append_call_parameter_domain_facts<'plans>(
                 semantic_domain: *semantic_domain,
             },
         });
+        let mut refs = HandleSpan::empty();
         semantic.append_ref(&mut refs, fact);
+        let context = semantic.append_context(point, refs);
+        reference_spans::append_flow_reference(
+            &mut build.contexts.semantic_context_refs,
+            &mut exit.contexts,
+            FlowSemanticContextRef { context },
+        );
+        append_constraint_ref(
+            &mut build.contexts.constraint_refs,
+            &mut exit.constraints,
+            FlowConstraintKind::SemanticContext { context },
+        );
     }
-    if refs.is_empty() {
-        return;
-    }
-    let context = semantic.append_context(point, refs);
-    reference_spans::append_flow_reference(
-        &mut build.contexts.semantic_context_refs,
-        &mut exit.contexts,
-        FlowSemanticContextRef { context },
-    );
-    append_constraint_ref(
-        &mut build.contexts.constraint_refs,
-        &mut exit.constraints,
-        FlowConstraintKind::SemanticContext { context },
-    );
 }
 
 /// The callee identity a typed call's flow occurrence keys on. A named

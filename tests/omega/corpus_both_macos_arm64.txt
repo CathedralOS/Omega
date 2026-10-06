@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 14, "jobs": "4", "load1_end": 3.79, "load1_start": 3.69, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "2", "load1_end": 9.69, "load1_start": 9.41, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/runtime_exact_dispatch_divisor_exit built 1233ms exit:70 interpreter-exit:70 interpreter:agrees @01974e342562+wt
 pass/arithmetic/runtime_exact_projection_sibling_exit built 1644ms exit:70 stdout:match interpreter-exit:70 interpreter-stdout:match interpreter:agrees @ffe8db2ea9e9
 pass/arithmetic/runtime_exact_signed_divisor_exclusions_exit built 1455ms exit:70 interpreter-exit:70 interpreter:agrees @d9720a4fa49b+wt
@@ -44,6 +44,7 @@ pass/borrows/runtime_nested_carrier_bounded_reference_read_exit built 6484ms exi
 pass/borrows/runtime_nested_carrier_reference_read_exit built 4466ms exit:70 interpreter-exit:70 interpreter:agrees @056c1343fac1+wt
 pass/borrows/runtime_nested_reference_array_bounded_read_exit built 1991ms exit:70 interpreter-exit:70 interpreter:agrees @15c77983aab0+wt
 pass/borrows/runtime_nested_reference_record_direct_payload_restoration_exit built 2548ms exit:70 interpreter-exit:70 interpreter:agrees @681c48c0cebc+wt
+pass/borrows/runtime_qualified_byte_argument_snapshot_exit built 3275ms exit:70 interpreter-exit:70 interpreter:agrees @cfbb6c8709b4+wt
 pass/borrows/runtime_record_byte_region_loan_exit built 28339ms exit:50 interpreter-exit:50 interpreter:agrees @faab7e6c1b7d+wt
 pass/borrows/runtime_reference_local_constructor_leaf_retirement_exit built 2444ms exit:70 interpreter-exit:70 interpreter:agrees @9660dd146223
 pass/borrows/runtime_reference_record_array_field_read_exit built 2479ms exit:70 interpreter-exit:70 interpreter:agrees @681c48c0cebc+wt
@@ -98,6 +99,8 @@ pass/calls/runtime_computed_case_terminal_payload_result_exit built 1318ms exit:
 pass/calls/runtime_constructed_borrowed_payload_arguments_exit built 4619ms exit:0 interpreter-exit:0 interpreter:agrees @a9ea4297a1a9
 pass/calls/runtime_constructed_copy_payload_arguments_exit built 3370ms exit:0 interpreter-exit:0 interpreter:agrees @6a3a2f5cba58
 pass/calls/runtime_constructed_payload_arguments_exit built 3370ms exit:0 interpreter-exit:0 interpreter:agrees @6a3a2f5cba58
+pass/calls/runtime_constructor_projected_membership_snapshot_exit built 3896ms exit:0 interpreter-exit:0 interpreter:agrees @cfbb6c8709b4+wt
+pass/calls/runtime_copied_argument_live_mutable_ensures_exit built 3758ms exit:0 interpreter-exit:0 interpreter:agrees @cfbb6c8709b4+wt
 pass/calls/runtime_cyclic_state_reference_result_exit built 8642ms exit:0 interpreter-exit:0 interpreter:agrees @8ed3ee405530
 pass/calls/runtime_explicit_reference_alias_argument_exit built 800ms exit:0 interpreter-exit:0 interpreter:agrees @bf12cd0f89bb+wt
 pass/calls/runtime_guarded_boundary_tail_call_exit built 1559ms exit:70 interpreter-exit:70 interpreter:agrees @107e79a608d59bd9eb5a38b5570d124edf1e1114+wt
@@ -110,6 +113,7 @@ pass/calls/runtime_guarded_terminal_reference_result_exit built 2336ms exit:0 in
 pass/calls/runtime_guarded_terminal_reference_write_exit built 1443ms exit:0 interpreter-exit:0 interpreter:agrees @23ad5028e896
 pass/calls/runtime_guarded_terminal_structural_result_exit built 1267ms exit:0 interpreter-exit:0 interpreter:agrees @4f20c0c110be
 pass/calls/runtime_indexed_scalar_calls_exit built 8979ms exit:70 interpreter-exit:70 interpreter:agrees @faab7e6c1b7d+wt
+pass/calls/runtime_inherited_membership_argument_snapshot_exit built 3702ms exit:0 interpreter-exit:0 interpreter:agrees @cfbb6c8709b4+wt
 pass/calls/runtime_linear_guarded_owner_disposition_exit built 2138ms exit:0 interpreter-exit:0 interpreter:agrees @2bc90c3ea398
 pass/calls/runtime_linear_guarded_unit_owner_disposition_exit built 2070ms exit:0 interpreter-exit:0 interpreter:agrees @2bc90c3ea398
 pass/calls/runtime_linear_state_owner_disposition_exit built 4772ms exit:0 interpreter-exit:0 interpreter:agrees @a6d22383c443

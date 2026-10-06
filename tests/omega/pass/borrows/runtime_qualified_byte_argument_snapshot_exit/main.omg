@@ -1,0 +1,30 @@
+use omega_language_std::console;
+use omega::language::core::binding;
+
+domain [u8; 16]::Utf8(bytes) requires valid_utf8(bytes);
+
+data Main {
+    console: Binding<Console>;
+    line: [u8; 16] in Utf8;
+    sibling: u64;
+}
+
+machine Main::replace(main: &mut Main) -> bool {
+    main.line = "é";
+    true
+}
+
+machine observe(value: [u8; 16] in Utf8, replaced: bool) -> bool {
+    replaced && value == "Gate" && value.len == 4
+}
+
+machine Main::main(main: &mut Main) reaches Console {
+    main.line = "Gate";
+    main.sibling = 29;
+    let captured: bool = observe(main.line, Main::replace(main));
+    transition captured && main.line == "é" && main.line.len == 2 && main.sibling == 29 {
+        true -> finish(main, 70)
+        false -> finish(main, 1)
+    }
+    state finish(main: &mut Main, code: i32) { main.console.exit_process(code); }
+}

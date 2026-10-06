@@ -319,9 +319,10 @@ pub(super) fn structural_sequence_length(
         let parameter_type = parameters
             .get(usize::try_from(parameter_position).ok()?)?
             .type_reference;
-        // A borrowed whole bounded owner (`&[u8; 8] in Utf8`) observes the
-        // live length stored beside its bytes, exactly as a bounded-owned
-        // field does; its capacity is never the answer.
+        // A whole bounded owner observes the live length stored beside its
+        // bytes, whether the parameter owns that value or lends readable
+        // access to it. Its capacity is never the answer; a write-only loan
+        // still grants no observation of the stored extent.
         if matches!(
             crate::execution::terminal_unit::types::byte_sequence_carrier(
                 program,
@@ -329,8 +330,12 @@ pub(super) fn structural_sequence_length(
                 &[]
             ),
             Some(checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. })
-        ) && borrows_shared_or_mutable(program, parameter_type)
-        {
+        ) && validation::reference_shell(program, parameter_type).is_none_or(|shell| {
+            matches!(
+                shell.access,
+                language_core::ReferenceAccess::Shared | language_core::ReferenceAccess::Mutable
+            )
+        }) {
             return Some(CheckedScalarExpression::StructuralParameterByteLength {
                 root: checked_trees::CheckedStorageRoot::Parameter {
                     index: parameter_position,
@@ -402,27 +407,6 @@ pub(super) fn structural_sequence_length(
         },
         path,
     })
-}
-
-/// Whether a parameter type loans its referent through `&` or `&mut`, looking
-/// through domain qualifications on either side of the reference.
-fn borrows_shared_or_mutable(
-    program: &TypedTrees,
-    mut type_reference: TypeReferenceHandle,
-) -> bool {
-    loop {
-        match program.type_reference_table.type_reference(type_reference) {
-            TypeReferenceNode::Constrained { base_type, .. } => type_reference = *base_type,
-            TypeReferenceNode::Reference { access, .. } => {
-                return matches!(
-                    access,
-                    language_core::ReferenceAccess::Shared
-                        | language_core::ReferenceAccess::Mutable
-                );
-            }
-            _ => return false,
-        }
-    }
 }
 
 /// The `let` symbol and declared type of an immutable borrowed view local

@@ -283,7 +283,6 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         invocation.visited = true;
         let borrowed_call = invocation.call;
         let captured_sources = self.changed_operand_sources(operands);
-        self.filter_captured_sources(&captured_sources, contexts, constraints);
         let writes = super::call_phases::call_storage_writes(
             self.program,
             self.borrow,
@@ -304,6 +303,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             contexts,
             constraints,
             borrowed_call,
+            &captured_sources,
         );
         // Evaluation consumers need this occurrence before the later package
         // source-custody binding pass. The authored ordinal identifies a call;
@@ -320,9 +320,9 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             .control
             .operands
             .insert_many(captured_operands.iter().copied());
-        // A by-value argument is not the storage value after a later operand
-        // changed it. Do not republish that substitution through callee ensures.
-        self.filter_captured_sources(&captured_sources, contexts, constraints);
+        // Call publication filters only guarantees substituted through stale
+        // operand places. Live caller facts describe the storage after the
+        // evaluated operands and must survive independently of their snapshots.
         call.exit_semantic_contexts = *contexts;
         call.exit_constraints = *constraints;
         self.context

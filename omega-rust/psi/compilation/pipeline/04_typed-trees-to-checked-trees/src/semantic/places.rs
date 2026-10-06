@@ -26,7 +26,7 @@ use crate::semantic::calls::call_target_parameters;
 use crate::semantic::calls::find_call_site;
 use crate::semantic::calls::find_state_in_machine;
 use crate::semantic::facts::contract_fact_place;
-use checked_trees::{ContractCallFact, ContractProofFact};
+use checked_trees::{ContractCallFact, ContractProofFact, ProofFacts};
 use facts::{FactPlace, FactPlan};
 mod expression;
 mod place_builders;
@@ -40,6 +40,7 @@ pub(crate) use expression::{
 
 pub(crate) fn instantiate_call_contract_place(
     program: &typed_trees::TypedTrees,
+    proof: &ProofFacts,
     facts: &mut FactPlan,
     call: &ContractCallFact,
     contract: &ContractProofFact,
@@ -56,6 +57,11 @@ pub(crate) fn instantiate_call_contract_place(
             }
         }
         typed_trees::domain::ProofFact::Membership(membership) => {
+            if let Some(place) =
+                membership_argument_place(program, proof, facts, call, contract, membership.value)
+            {
+                return place;
+            }
             if let Some(place) = expression::instantiate_call_contract_expression_place(
                 program,
                 facts,
@@ -92,6 +98,60 @@ pub(crate) fn instantiate_call_contract_place(
         substitution.root,
         &segments,
     ))
+}
+
+/// Membership subjects retain their declaration's formal symbols even when
+/// inherited by a differently named satisfier. Bind through that exact edge
+/// before projecting an actual; display-name substitution cannot select it.
+fn membership_argument_place(
+    program: &typed_trees::TypedTrees,
+    proof: &ProofFacts,
+    facts: &mut FactPlan,
+    call: &ContractCallFact,
+    contract: &ContractProofFact,
+    expression: checked_trees::expression::ExpressionHandle,
+) -> Option<FactPlace> {
+    let declared = crate::flow::canonical_place_from_expression(program, expression)?;
+    let facts::PlaceRoot::Symbol(symbol) = declared.root else {
+        return None;
+    };
+    let position = match crate::semantic::facts::contract_parameter_position(
+        program,
+        proof,
+        contract,
+        call.target_state_symbol,
+        symbol,
+    ) {
+        Ok(Some(position)) => position,
+        Ok(None) => return None,
+        Err(()) => return Some(FactPlace::Unknown),
+    };
+    let bound = || {
+        let site = find_call_site(
+            program,
+            call.caller_machine_symbol,
+            call.caller_state_symbol,
+            call.statement_index,
+            call.call_ordinal,
+        )?;
+        let argument = *call_site_argument_expressions(program, &site).get(position)?;
+        let parameter = call_target_parameters(program, call.target_state_symbol)?.get(position)?;
+        crate::semantic::facts::projected_argument_place(
+            program,
+            call.caller_state_symbol,
+            call.statement_index,
+            argument,
+            parameter.type_reference,
+            &declared.segments,
+        )
+    };
+    Some(bound().map_or(FactPlace::Unknown, |actual| {
+        FactPlace::Place(place_builders::append_place_with_segments(
+            facts,
+            actual.root,
+            &actual.segments,
+        ))
+    }))
 }
 pub(crate) use place_builders::{
     append_place_from_name_path, append_place_segment, append_place_with_segments,

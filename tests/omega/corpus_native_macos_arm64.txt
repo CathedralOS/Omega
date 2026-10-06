@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": "2", "load1_end": 5.01, "load1_start": 4.4, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "2", "load1_end": 9.41, "load1_start": 9.09, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 189ms
 pass/arithmetic/anonymous_rational_integer_landing checked 186ms
 pass/arithmetic/bounded_assignment checked 197ms
@@ -111,6 +111,7 @@ pass/borrows/runtime_indexed_reference_array_bounded_read_exit built 1818ms exit
 pass/borrows/runtime_mutable_reference_array_bounded_read_exit built 1743ms exit:70 @15c77983aab0+wt
 pass/borrows/runtime_nested_reference_array_bounded_read_exit built 1916ms exit:70 @15c77983aab0+wt
 pass/borrows/runtime_nested_reference_record_direct_payload_restoration_exit built 3753ms exit:70 @681c48c0cebc+wt
+pass/borrows/runtime_qualified_byte_argument_snapshot_exit built 1955ms exit:70 @cfbb6c8709b4+wt
 pass/borrows/runtime_record_byte_region_loan_exit built 30261ms exit:50 @48008365d839
 pass/borrows/runtime_reference_array_pressure_exit built 2056ms exit:70 @a195e6cdf066+wt
 pass/borrows/runtime_reference_record_array_field_read_exit built 3670ms exit:70 @681c48c0cebc+wt
@@ -227,6 +228,8 @@ pass/calls/runtime_call_statement_before_state_return_exit built 1440ms exit:42 
 pass/calls/runtime_case_record_return_exit built 1202ms exit:70
 pass/calls/runtime_constructed_borrowed_payload_arguments_exit built 1975ms exit:0 @a9ea4297a1a9
 pass/calls/runtime_constructor_computed_field_exit built 530ms exit:1
+pass/calls/runtime_constructor_projected_membership_snapshot_exit built 2048ms exit:0 @cfbb6c8709b4+wt
+pass/calls/runtime_copied_argument_live_mutable_ensures_exit built 1988ms exit:0 @cfbb6c8709b4+wt
 pass/calls/runtime_cross_machine_substate_name_exit built 771ms exit:70
 pass/calls/runtime_dispatch_binary_call_argument_exit built 551ms exit:70 @f711d1b640be
 pass/calls/runtime_dispatch_float_terminal_exit built 2925ms exit:70 @fb2178def922
@@ -240,6 +243,7 @@ pass/calls/runtime_fixed_element_view_field_loan_exit built 1112ms exit:70 stdou
 pass/calls/runtime_guard_call_vs_call_exit built 855ms exit:70
 pass/calls/runtime_guarded_effectful_transition_argument_exit built 1284ms exit:70 @df0288f59fd+wt
 pass/calls/runtime_indexed_scalar_calls_exit built 1627ms exit:70 @63377f7122bb+wt
+pass/calls/runtime_inherited_membership_argument_snapshot_exit built 2072ms exit:0 @cfbb6c8709b4+wt
 pass/calls/runtime_let_mut_reassign_exit built 591ms exit:2
 pass/calls/runtime_lifetime_only_constructor_result_exit built 1050ms exit:70
 pass/calls/runtime_local_scalar_array_element_loan_exit built 925ms exit:70 @54b18fcb782e

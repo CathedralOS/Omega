@@ -520,7 +520,12 @@ defines the complete product bar.
     payload returns use ordinary expression continuations, not raw jump
     arguments. Preserve `pass/operators/runtime_constructed_operand_result_exit`.
     Structural arrays and value dispatch still need their full construction
-    schedule. Explicit and implicit shared arguments retain the completed
+    schedule. Retain each constructor child's completion facts when a later
+    field writes its source: the issued ticket in
+    `pending/calls/runtime_constructor_child_membership_snapshot_exit` is
+    copied before replacement, but whole-constructor evidence drops its
+    membership. The opposite order must not retroactively issue the saved child.
+    Explicit and implicit shared arguments retain the completed
     owner, lend its referent and retire eligible affine owners on the checked
     normal call continuation. Copyable temporaries carry no affine disposal
     debt. On macOS ARM64 after package update,

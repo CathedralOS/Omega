@@ -16,6 +16,9 @@ pub(in crate::flow) struct CallInvalidationResult {
     pub(in crate::flow) post_contexts: HandleSpan<FlowSemanticContextRef>,
     pub(in crate::flow) post_constraints: HandleSpan<FlowConstraintRef>,
     pub(in crate::flow) invalidations: HandleSpan<FlowInvalidationFact>,
+    /// The same write frame also bounds which copied-input guarantees can be
+    /// substituted back onto caller storage after the invocation.
+    pub(in crate::flow) storage_writes: Option<Vec<CanonicalPlace>>,
 }
 
 pub(in crate::flow) fn call_storage_writes(
@@ -66,7 +69,7 @@ pub(in crate::flow) fn apply_call_invalidations(
 ) -> CallInvalidationResult {
     let mutated_places = call_storage_writes(program, borrow, build, machine, state, borrow_call);
     let invalidations_start = build.invalidations.events.len();
-    let post_contexts = match mutated_places {
+    let post_contexts = match &mutated_places {
         None => HandleSpan::empty(),
         Some(mutated_places) => filter_contexts_after_place_mutations(
             program,
@@ -76,7 +79,7 @@ pub(in crate::flow) fn apply_call_invalidations(
             &mut build.invalidations.segments,
             &mut build.invalidations.events,
             active_contexts,
-            &mutated_places,
+            mutated_places,
             FlowInvalidationSource::Call {
                 statement_index: borrow_call.statement_index,
                 call_ordinal: borrow_call.call_ordinal,
@@ -96,5 +99,6 @@ pub(in crate::flow) fn apply_call_invalidations(
         post_contexts,
         post_constraints,
         invalidations,
+        storage_writes: mutated_places,
     }
 }

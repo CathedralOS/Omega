@@ -10,8 +10,10 @@ use facts::{
     QualificationEvidence,
 };
 use typed_trees::proposition::PropositionLabels;
+mod parameters;
 mod payload;
 mod places;
+pub(crate) use parameters::{contract_parameter_position, projected_argument_place};
 pub(crate) use places::contract_fact_place;
 
 use payload::semantic_contract_payload;
@@ -724,7 +726,7 @@ fn append_call_semantic_contract_refs(
 ) {
     for source_ref in source_refs {
         let contract = proof.contract_facts.get(source_ref.fact);
-        let place = instantiate_call_contract_place(program, facts, call, contract);
+        let place = instantiate_call_contract_place(program, proof, facts, call, contract);
         let mut payload = semantic_contract_payload(program, contract);
         instantiate_call_contract_payload(program, proof, facts, call, contract, &mut payload);
         if matches!(payload, FactPayload::ContractBooleanExpression { instantiated, .. } if !instantiated.is_valid())

@@ -160,6 +160,130 @@ pub(crate) fn captured_actual<'facts>(
     operands.get(actual.operand_position)
 }
 
+/// Select the evidence epoch of a declared membership's exact formal. A
+/// copied argument retains completion facts even when a later operand writes
+/// its source; borrowed arguments retain the ordinary invocation-live rules.
+/// The declaration's subject and its substituted place must agree with the
+/// same argument occurrence. A missing capture supplies no evidence.
+pub(crate) fn membership_contexts(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    state: &FlowStateFact,
+    call: &FlowCallFact,
+    requirement: &facts::Fact,
+) -> Option<Vec<FactContextHandle>> {
+    let facts::FactPayload::ContractDomainMembership {
+        value,
+        fact: source_fact,
+        ..
+    } = requirement.payload
+    else {
+        return None;
+    };
+    let declared = crate::flow::canonical_place_from_expression(program, value)?;
+    let facts::PlaceRoot::Symbol(symbol) = declared.root else {
+        return None;
+    };
+    let Some(contract_call) = crate::flow::proof_contract_call(
+        &facts.proof,
+        state.machine_symbol,
+        state.state_symbol,
+        call.statement_index,
+        call.call_ordinal,
+    ) else {
+        return Some(Vec::new());
+    };
+    let mut position = None;
+    for reference in facts
+        .proof
+        .contract_fact_refs
+        .span_or_empty(contract_call.requires)
+    {
+        let contract = facts.proof.contract_facts.get(reference.fact);
+        if contract.fact != source_fact {
+            continue;
+        }
+        let bound = match crate::semantic::facts::contract_parameter_position(
+            program,
+            &facts.proof,
+            contract,
+            contract_call.target_state_symbol,
+            symbol,
+        ) {
+            Ok(Some(bound)) => bound,
+            Ok(None) => return None,
+            Err(()) => return Some(Vec::new()),
+        };
+        if position.is_some_and(|position| position != bound) {
+            return Some(Vec::new());
+        }
+        position = Some(bound);
+    }
+    let Some(position) = position else {
+        return Some(Vec::new());
+    };
+    let Some(actual) = actual_at(program, state, call, position, declared.segments) else {
+        return Some(Vec::new());
+    };
+    let facts::FactPlace::Place(place) = requirement.place else {
+        return Some(Vec::new());
+    };
+    let Some(required) = crate::flow::canonical_place_from_semantic_place(
+        program,
+        &facts.semantic,
+        facts.semantic.places.get(place),
+    ) else {
+        return Some(Vec::new());
+    };
+    let Some(expected) = actual.argument.and_then(|argument| {
+        crate::semantic::facts::projected_argument_place(
+            program,
+            state.state_symbol,
+            call.statement_index,
+            argument,
+            actual.parameter.type_reference,
+            &actual.path,
+        )
+    }) else {
+        return Some(Vec::new());
+    };
+    if required.root != expected.root
+        || required.segments.len() != expected.segments.len()
+        || !required
+            .segments
+            .iter()
+            .zip(&expected.segments)
+            .all(|(left, right)| {
+                crate::flow::canonical_place_segments_equal(program, *left, *right)
+            })
+    {
+        return Some(Vec::new());
+    }
+    Some(actual_contexts(program, facts, state, call, &actual))
+}
+
+/// Memberships of an actual and its declared fields share one evaluation
+/// epoch. Absent or mismatched occurrence custody cannot provide evidence.
+pub(crate) fn actual_contexts(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    state: &FlowStateFact,
+    call: &FlowCallFact,
+    actual: &Actual<'_>,
+) -> Vec<FactContextHandle> {
+    let Some(captured) = captured_actual(program, facts, state, call, actual) else {
+        return Vec::new();
+    };
+    crate::flow::operand_contexts(
+        program,
+        &facts.flow,
+        &facts.semantic,
+        captured,
+        actual.parameter.type_reference,
+        call.entry_constraints,
+    )
+}
+
 /// Rebind a selected actual expression to exact current storage. Local slots
 /// denote stored values; their initializer expressions are never replayed.
 fn current_actual(

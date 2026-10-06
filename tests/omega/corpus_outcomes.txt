@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 32, "jobs": "2", "load1_end": null, "load1_start": null, "machine": "amd64", "platform": "windows", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "2", "load1_end": 2.17, "load1_start": 2.17, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -447,6 +447,22 @@ fail/calls/computed_zero_requires_argument_rejected rejected 333ms expected @2d8
 	machine `Main::main` state `main` value call to `Main::scale` violates required fact `divisor != 0`: the instantiated fact is structurally false
 fail/calls/constructed_case_invalid_common_zero rejected 418ms expected @b2906d953be
 	data `Reply` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
+fail/calls/constructor_child_membership_precedes_repair rejected 237ms expected @cfbb6c8709b4+wt
+	cannot prove requires contract for call observe from main: holder.ticket in Ticket::Issued
+fail/calls/constructor_projected_membership_precedes_repair rejected 426ms expected @cfbb6c8709b4+wt
+	cannot prove requires contract for call observe from main: holder.envelope.ticket in Ticket::Issued
+fail/calls/copied_argument_ensures_cannot_restore_callee_mutated_source rejected 371ms expected @cfbb6c8709b4+wt
+	cannot prove requires contract for call take_ascii from Main::main: ascii_only(main.line) (needs fact `ascii_only(value)` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/calls/copied_argument_ensures_cannot_restore_mutated_source rejected 449ms expected @cfbb6c8709b4+wt
+	cannot prove requires contract for call take_ascii from Main::main: ascii_only(main.line) (needs fact `ascii_only(value)` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/calls/copied_argument_inherited_membership_precedes_repair rejected 493ms expected @cfbb6c8709b4+wt
+	cannot prove requires contract for call observe from main: holder.ticket in Ticket::Issued
+fail/calls/copied_argument_routed_ensures_cannot_restore_callee_mutated_source rejected 443ms expected @cfbb6c8709b4+wt
+	cannot prove requires contract for call require_issued from main: holder.ticket in Ticket::Issued (invalidated by prior mutation of holder.ticket; holder.ticket is part of Ticket::Issued)
+fail/calls/copied_argument_routed_ensures_cannot_restore_mutated_source rejected 337ms expected @cfbb6c8709b4+wt
+	cannot prove requires contract for call require_issued from main: holder.ticket in Ticket::Issued (invalidated by prior mutation of holder.ticket; holder.ticket is part of Ticket::Issued)
+fail/calls/copied_nominal_argument_precedes_field_repair rejected 325ms expected @cfbb6c8709b4+wt
+	cannot prove default-domain field requirement for call observe from main::entry: parameter value.level requires i32::Positive
 fail/calls/discarded_call_result rejected 339ms expected @2d8ed253669f
 	call to `roll` discards its non-unit `bool` result; consume the value or discard it explicitly with `_ = roll(...);`
 fail/calls/duplicate_named_machine_overload_rejected rejected 745ms expected @3eebfe9c3de
@@ -1647,6 +1663,7 @@ pass/borrows/runtime_nested_carrier_bounded_reference_read_exit checked 2200ms c
 pass/borrows/runtime_nested_carrier_reference_read_exit checked 3670ms check-target:macos_arm64 @056c1343fac1+wt
 pass/borrows/runtime_nested_reference_array_bounded_read_exit checked 1736ms check-target:macos_arm64 @15c77983aab0+wt
 pass/borrows/runtime_nested_reference_record_direct_payload_restoration_exit checked 1757ms check-target:macos_arm64 @681c48c0cebc+wt
+pass/borrows/runtime_qualified_byte_argument_snapshot_exit checked 2197ms check-target:macos_arm64 @cfbb6c8709b4+wt
 pass/borrows/runtime_record_byte_region_loan_exit checked 40006ms check-target:macos_arm64 @cfe60a3a242
 pass/borrows/runtime_record_primitive_reference_capture_exit checked 4511ms check-target:macos_arm64 @99b41199ec38
 pass/borrows/runtime_reference_array_pressure_exit checked 2021ms check-target:macos_arm64 @a195e6cdf066+wt
@@ -1801,6 +1818,8 @@ pass/calls/runtime_constructed_borrowed_payload_arguments_exit checked 1957ms ch
 pass/calls/runtime_constructed_copy_payload_arguments_exit checked 6100ms check-target:macos_arm64 @b2906d953be
 pass/calls/runtime_constructed_payload_arguments_exit checked 6944ms check-target:macos_arm64 @b2906d953be
 pass/calls/runtime_constructor_computed_field_exit checked 1305ms check-target:macos_arm64 @2d8ed253669f
+pass/calls/runtime_constructor_projected_membership_snapshot_exit checked 2264ms check-target:macos_arm64 @cfbb6c8709b4+wt
+pass/calls/runtime_copied_argument_live_mutable_ensures_exit checked 1886ms check-target:macos_arm64 @cfbb6c8709b4+wt
 pass/calls/runtime_cross_machine_substate_name_exit checked 1579ms check-target:macos_arm64 @2d8ed253669f
 pass/calls/runtime_cyclic_state_reference_result_exit checked 5224ms check-target:macos_arm64 @8ed3ee405530
 pass/calls/runtime_dispatch_binary_call_argument_exit checked 1428ms check-target:macos_arm64 @2d8ed253669f
@@ -1826,6 +1845,7 @@ pass/calls/runtime_guarded_terminal_reference_result_exit checked 2478ms check-t
 pass/calls/runtime_guarded_terminal_reference_write_exit checked 766ms check-target:macos_arm64 @23ad5028e896
 pass/calls/runtime_guarded_terminal_structural_result_exit checked 928ms check-target:macos_arm64 @4f20c0c110be
 pass/calls/runtime_indexed_scalar_calls_exit checked 4149ms check-target:macos_arm64 @c773c4ad3c3
+pass/calls/runtime_inherited_membership_argument_snapshot_exit checked 1798ms check-target:macos_arm64 @cfbb6c8709b4+wt
 pass/calls/runtime_let_mut_reassign_exit checked 1342ms check-target:macos_arm64 @2d8ed253669f
 pass/calls/runtime_lifetime_only_constructor_result_exit checked 1883ms check-target:macos_arm64 @2d8ed253669f
 pass/calls/runtime_linear_guarded_owner_disposition_exit checked 1554ms check-target:macos_arm64 @2bc90c3ea398

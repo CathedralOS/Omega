@@ -128,6 +128,15 @@ pub(super) fn check(
                 )
             })
         };
+        // Field contracts describe the completed argument value. A later
+        // argument can replace its original storage; only reference formals
+        // observe the live referent rather than the saved owned value.
+        let argument_contexts =
+            super::call_values::actual_at(program, state, call, argument_index - 1, Vec::new())
+                .map(|actual| {
+                    super::call_values::actual_contexts(program, facts, state, call, &actual)
+                });
+        let contexts = argument_contexts.as_deref().unwrap_or(contexts);
         // Every formal owes the same declared fields, including a subject
         // forwarded from the caller, independently of declaration qualification.
         // Its nominal type cannot restore evidence invalidated by a write.

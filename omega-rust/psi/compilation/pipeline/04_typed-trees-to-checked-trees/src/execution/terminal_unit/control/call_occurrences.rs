@@ -1379,7 +1379,11 @@ fn collect_structural_argument_calls(
         if !values.nodes.is_valid(root.root)
             || values.nodes.get(root.root).expression != expression
             || program
-                .normalized_type_identity(root.type_reference)
+                .normalized_type_identity(
+                    validation::structural_result_contract(program, root.type_reference)
+                        .ok()?
+                        .carrier,
+                )
                 .as_str()
                 != argument.type_identity
             || !matches!(

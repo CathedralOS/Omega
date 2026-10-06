@@ -397,12 +397,13 @@ pub(crate) fn produced_value_root<'checked>(
         .ok_or(LoweringError::Unsupported(
             "computed structural operand lost its complete value root",
         ))?;
+    // The root keeps the declared value contract; the argument and catalog
+    // name only its storage carrier. Splitting it grants no qualifications.
+    let contract = validation::structural_result_contract(&checked.typed, root.type_reference)
+        .map_err(LoweringError::Unsupported)?;
     if root.machine != state.machine_symbol
         || !values.nodes.is_valid(root.root)
-        || checked
-            .normalized_type_identity(root.type_reference)
-            .as_str()
-            != argument.type_identity
+        || checked.normalized_type_identity(contract.carrier).as_str() != argument.type_identity
     {
         return unsupported("computed structural operand disagrees with its retained value");
     }

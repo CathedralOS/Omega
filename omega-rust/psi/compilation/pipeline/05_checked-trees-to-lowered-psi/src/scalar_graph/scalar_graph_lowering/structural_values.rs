@@ -248,19 +248,7 @@ pub(crate) fn prepare_value(
         steps: Vec::new(),
         consumed: Vec::new(),
     };
-    let identity = checked.normalized_type_identity(reference);
-    let mut declarations = types
-        .iter()
-        .filter(|declaration| declaration.identity == identity.as_str());
-    let structural_type = declarations
-        .next()
-        .ok_or(LoweringError::Unsupported(
-            "record lost its declared carrier",
-        ))?
-        .id;
-    if declarations.next().is_some() {
-        return unsupported("record carrier is ambiguous");
-    }
+    let structural_type = carrier_declaration(checked, types, reference)?.id;
     let mut place = preparation.value(value, reference)?;
     if preparation.consumed_calls.len() != calls.len() {
         return unsupported("structural value contains unconsumed call producers");
@@ -291,6 +279,28 @@ pub(crate) fn prepare_value(
     })
 }
 
+/// Layout lookup uses the carrier; the caller keeps the declared type for
+/// qualifications, access and ownership throughout the value schedule. A
+/// reference carrier remains a reference, rather than becoming an owned value.
+fn carrier_declaration<'types>(
+    checked: &CheckedTrees,
+    types: &'types [StructuralTypeDeclaration],
+    reference: checked_trees::types::TypeReferenceHandle,
+) -> Result<&'types StructuralTypeDeclaration, LoweringError> {
+    let carrier = crate::unit::attached_unit::structural_carrier_type(checked, reference)?;
+    let identity = checked.normalized_type_identity(carrier);
+    let mut declarations = types
+        .iter()
+        .filter(|declaration| declaration.identity == identity.as_str());
+    let declaration = declarations.next().ok_or(LoweringError::Unsupported(
+        "structural value lost its declared carrier",
+    ))?;
+    if declarations.next().is_some() {
+        return unsupported("structural value carrier is ambiguous");
+    }
+    Ok(declaration)
+}
+
 struct Preparation<'a> {
     checked: &'a CheckedTrees,
     qualifications: &'a PreparedScalarQualifications,
@@ -313,14 +323,7 @@ impl Preparation<'_> {
     ) -> Result<PlaceId, LoweringError> {
         let plans = &self.checked.facts.values.structural_values;
         let node = plans.nodes.get(value);
-        let identity = self.checked.normalized_type_identity(reference);
-        let declaration = self
-            .types
-            .iter()
-            .find(|declaration| declaration.identity == identity.as_str())
-            .ok_or(LoweringError::Unsupported(
-                "structural value has no structural type namespace",
-            ))?;
+        let declaration = carrier_declaration(self.checked, self.types, reference)?;
         if let CheckedStructuralValueKind::Call { .. } = &node.kind {
             let mut producers = self.calls.iter().filter(|call| call.value == value);
             let producer = producers.next().ok_or(LoweringError::Unsupported(
@@ -696,14 +699,9 @@ impl Preparation<'_> {
                     let StructuralFieldType::Structural(child_type) = target.field_type else {
                         return unsupported("nested record has a scalar destination");
                     };
-                    if !self.types.iter().any(|declaration| {
-                        declaration.id == child_type
-                            && declaration.identity
-                                == self
-                                    .checked
-                                    .normalized_type_identity(field.type_reference)
-                                    .as_str()
-                    }) {
+                    if carrier_declaration(self.checked, self.types, field.type_reference)?.id
+                        != child_type
+                    {
                         return unsupported("nested record substituted its structural carrier");
                     }
                     Field::Structural(self.value(child, field.type_reference)?)

@@ -134,11 +134,11 @@ pub(crate) fn lower_checked_scalar_expression_at_with_parameters(
     ))
 }
 
-/// The whole view parameter at `position`, for a length or element read. An
-/// exclusive `&mut [T]` view grants observation as well as mutation, so its
-/// lengths and element reads observe the parameter place exactly as a shared
-/// view's do; a write-only or owned parameter grants no observation here.
-fn view_observation_parameter(
+/// The exact whole sequence parameter for a live length, element or predicate
+/// observation. An owned bounded sequence reads its own storage; shared and
+/// mutable loans read their retained referent. A write-only loan supplies no
+/// observation. Carrier selection remains with the checked read and catalog.
+fn readable_sequence_parameter(
     position: u32,
     parameters: &[(u32, StructuralParameterDeclaration)],
 ) -> Result<&StructuralParameterDeclaration, LoweringError> {
@@ -148,15 +148,15 @@ fn view_observation_parameter(
             (*source_position == position).then_some(parameter)
         })
         .ok_or(LoweringError::Unsupported(
-            "view observation has no exact structural parameter",
+            "sequence observation has no exact structural parameter",
         ))?;
     if !matches!(
         parameter.access,
-        StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+        StructuralAccess::Owned | StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
     ) || parameter.multiplicity != StructuralMultiplicity::Unrestricted
     {
         return unsupported(
-            "view observation requires an exact whole view with access for this observation",
+            "sequence observation requires readable access to an unrestricted whole carrier",
         );
     }
     Ok(parameter)
@@ -271,7 +271,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                     index: parameter_position,
                 } => {
                     let parameter =
-                        view_observation_parameter(parameter_position, structural_parameters)?;
+                        readable_sequence_parameter(parameter_position, structural_parameters)?;
                     (
                         parameter.place,
                         parameter_view_carrier(element_views, parameter.structural_type),
@@ -816,10 +816,9 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                 checked_trees::CheckedStorageRoot::Parameter {
                     index: parameter_position,
                 } => {
-                    // A whole owned array has an empty carrier path, but
-                    // still gets its extent and element type from the same
-                    // declaration as an array field. It is not a borrowed
-                    // view and must not acquire view-observation authority.
+                    // Ownership does not determine a collection's extent:
+                    // a raw fixed array uses its declared size, while a bounded
+                    // byte owner reads the live length stored with its bytes.
                     let owned_parameter =
                         structural_parameters.iter().any(|(position, parameter)| {
                             *position == parameter_position
@@ -833,6 +832,18 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                             *position == parameter_position
                                 && element_views.contains_key(&parameter.structural_type)
                         });
+                    let whole_byte_sequence = path.is_empty()
+                        && structural_parameters.iter().any(|(position, parameter)| {
+                            *position == parameter_position
+                                && structural_fields.declarations().iter().any(|declaration| {
+                                    declaration.id == parameter.structural_type
+                                        && matches!(
+                                            declaration.shape,
+                                            terminal_psi::StructuralTypeShape::ByteSequence(_)
+                                        )
+                                })
+                        });
+                    let whole_sequence = whole_element_view || whole_byte_sequence;
                     // A borrowed whole fixed array of non-byte elements
                     // (`numbers: &[i32; 6]`) reads through its declared
                     // extent exactly as an owned array parameter does; only
@@ -850,7 +861,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                                 if scalar_type != terminal_scalar_type(PrimitiveType::U8)?
                         );
                     if !path.is_empty()
-                        || (!whole_element_view
+                        || (!whole_sequence
                             && (!element_path.is_empty()
                                 || owned_parameter
                                 || borrowed_fixed_array))
@@ -971,7 +982,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                         return unsupported("indexed field read has no scalar collection carrier");
                     }
                     let parameter =
-                        view_observation_parameter(parameter_position, structural_parameters)?;
+                        readable_sequence_parameter(parameter_position, structural_parameters)?;
                     (
                         parameter.place,
                         parameter_view_carrier(element_views, parameter.structural_type),
@@ -1343,7 +1354,7 @@ fn lower_checked_boolean_expression_with_parameters(
             let source = match *root {
                 checked_trees::CheckedStorageRoot::Parameter {
                     index: parameter_position,
-                } => view_observation_parameter(parameter_position, structural_parameters)?.place,
+                } => readable_sequence_parameter(parameter_position, structural_parameters)?.place,
                 checked_trees::CheckedStorageRoot::ViewLocal { symbol } => {
                     view_local_observation(view_locals, symbol, path)?.0
                 }

@@ -131,7 +131,7 @@ impl<'a> BorrowAccessCollection<'a> {
         if !self
             .expression_type_reference(expression)
             .is_some_and(|reference| {
-                validation::has_plain_owned_contents_with_numeric_constraints(
+                validation::has_plain_owned_contents_with_represented_constraints(
                     self.program,
                     reference,
                 )
@@ -158,9 +158,11 @@ impl<'a> BorrowAccessCollection<'a> {
             expression,
         )
         .is_some_and(|reference| {
-            validation::has_plain_owned_contents_with_numeric_constraints(self.program, reference)
-                && self.program.type_multiplicity(reference)
-                    == language_semantics::Multiplicity::Unrestricted
+            validation::has_plain_owned_contents_with_represented_constraints(
+                self.program,
+                reference,
+            ) && self.program.type_multiplicity(reference)
+                == language_semantics::Multiplicity::Unrestricted
         })
     }
 
