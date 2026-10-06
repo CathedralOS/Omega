@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": "2", "load1_end": 3.72, "load1_start": 3.72, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "1", "load1_end": 3.46, "load1_start": 3.5, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 189ms
 pass/arithmetic/anonymous_rational_integer_landing checked 186ms
 pass/arithmetic/bounded_assignment checked 197ms
@@ -116,6 +116,7 @@ pass/borrows/runtime_affine_local_case_return_exit built 1865ms exit:42 @5b34dbe
 pass/borrows/runtime_affine_local_scalar_exit built 885ms exit:42 @48008365d839
 pass/borrows/runtime_array_primitive_reference_capture_exit built 3524ms exit:0 @9beb2be72f2d+wt
 pass/borrows/runtime_byte_view_element_loan_exit built 1300ms exit:70 @c5248fcf82a0+wt
+pass/borrows/runtime_byte_view_element_reference_calls_exit built 1392ms exit:0 @d1ebe54629b8
 pass/borrows/runtime_captured_primitive_reference_exit built 2519ms exit:70 @9beb2be72f2d+wt
 pass/borrows/runtime_captured_record_nested_field_snapshot_exit built 3466ms exit:70 @681c48c0cebc+wt
 pass/borrows/runtime_carrier_reference_reselection_exit built 1618ms exit:70 @104c2da31081
@@ -787,6 +788,7 @@ pass/filesystem/native_read_dir_iter built 5345ms exit:0 stdout:match @e01f73c68
 pass/filesystem/native_wrapper_write_all_result rejected 17438ms @e01f73c689de+wt
 	selected ProgramEntry Binding field `Main::fs::host` requires a selected Fused provider for boundary `FilesystemHost`
 pass/filesystem/runtime_local_host_result_dispatch_exit built 3686ms exit:70 @e01f73c689de+wt
+pass/filesystem/runtime_posix_borrowed_view_io_exit built 3171ms exit:0 stdout:match @d1ebe54629b8
 pass/filesystem/windows_canonicalize_exit rejected 17869ms @e01f73c689de+wt
 	selected ProgramEntry Binding field `Main::fs::host` requires a selected Fused provider for boundary `FilesystemHost`
 pass/filesystem/windows_raw_breadth_exit rejected 1556ms @e01f73c689de+wt

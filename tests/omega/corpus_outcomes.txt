@@ -7,7 +7,7 @@
 # (`+wt` = dirty tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": "2", "load1_end": 3.72, "load1_start": 3.7, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "1", "load1_end": 3.5, "load1_start": 3.54, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/array_constructor_divisor_requires_nonzero rejected 504ms expected @c5d32a00863
@@ -220,6 +220,8 @@ fail/borrows/borrow_unknown_index_pair_mut rejected 1575ms expected @c5d32a00863
 	cannot prove index `right_index` is within length 2 in Main::main::main
 fail/borrows/boundary_argument_later_write_under_element_loan rejected 706ms expected @cba4afbf6f2f+wt
 	state `c_strnlen` receives `bytes` as both mutable and read-only
+fail/borrows/byte_view_shared_element_mutable_reference rejected 139ms expected @d1ebe54629b8
+	mutable argument `bytes` for state `entry` is not writable in this state; the source cannot lend the requested exclusive access
 fail/borrows/case_payload_shared_clone_mutation rejected 238ms expected @69d297ae3ee5
 	mutable argument `source` for state `clone` is not writable in this state; the source cannot lend the requested exclusive access
 fail/borrows/case_reference_from_immutable_bytes rejected 296ms expected @69d297ae3ee5
@@ -1048,6 +1050,8 @@ fail/layouts/callee_integer_at_rhs_exposes_origin rejected 356ms expected @9ac5a
 	IntegerAt call in Main::main requires every performed value to fit its physical storage: performed write has unknown destination origins
 fail/layouts/callee_integer_at_write_requires_fit rejected 250ms expected @bf12cd0f89bb+wt
 	IntegerAt call in Main::main requires every performed value to fit its physical storage: performed integer value is not proven to fit
+fail/layouts/encoded_view_opaque_write_requires_fit rejected 256ms expected @d1ebe54629b8
+	IntegerAt call in write_first requires every performed value to fit its physical storage: effectful invocation has no complete performed-write body
 fail/layouts/plan_laid_dynamic_plan rejected 79ms expected @2d8ed253669f
 	plan-laid value type `Streamy<Pairish>`: policy `Streamy::plan` produced a dynamic plan; a dynamic plan cannot be a value type -- values need offsets, bytes need mints
 fail/layouts/plan_laid_policy_without_plan_machine rejected 43ms expected @2d8ed253669f
@@ -1406,6 +1410,8 @@ fail/relevance/static_proof_borrow_requires_storage rejected 351ms expected @0c9
 	machine `Natural::inspect` state `inspect` parameter `value` mentions proof-only `Natural`, which has no runtime layout
 fail/relevance/static_proof_result_cannot_materialize rejected 338ms expected @0c9d1b8dd763+wt
 	call to proof machine `answer` has no runtime result; use it only in a proof or erased context, or as a statement citation
+fail/slices/byte_view_element_reference_without_bound rejected 253ms expected @d1ebe54629b8
+	cannot prove index `0` is within unknown slice length of `bytes` in first::entry
 fail/slices/call_endpoint_view_backing_write rejected 366ms expected @cba4afbf6f2f+wt
 	statement 2 mutates `values[0]` while local borrow `view` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
 fail/slices/call_requires_different_view_extent rejected 265ms expected @0991904fed3b+wt
@@ -1721,6 +1727,7 @@ pass/borrows/runtime_affine_local_case_return_exit checked 2144ms check-target:m
 pass/borrows/runtime_affine_local_scalar_exit checked 1529ms check-target:macos_arm64 @ca8c127c90c5
 pass/borrows/runtime_array_primitive_reference_capture_exit checked 6920ms check-target:macos_arm64 @99b41199ec38
 pass/borrows/runtime_byte_view_element_loan_exit checked 1300ms check-target:macos_arm64 @c5248fcf82a0+wt
+pass/borrows/runtime_byte_view_element_reference_calls_exit checked 1233ms check-target:macos_arm64 @d1ebe54629b8
 pass/borrows/runtime_captured_primitive_reference_exit checked 4568ms check-target:macos_arm64 @3fa817733300+wt
 pass/borrows/runtime_captured_record_nested_field_snapshot_exit checked 1563ms check-target:macos_arm64 @681c48c0cebc+wt
 pass/borrows/runtime_carrier_reference_reselection_exit checked 1601ms check-target:macos_arm64 @104c2da31081
@@ -2393,6 +2400,7 @@ pass/filesystem/native_read_dir_iter checked 5138ms check-target:macos_arm64 @e0
 pass/filesystem/native_wrapper_write_all_result rejected 17172ms check-target:macos_arm64 @e01f73c689de+wt
 	selected ProgramEntry Binding field `Main::fs::host` requires a selected Fused provider for boundary `FilesystemHost`
 pass/filesystem/runtime_local_host_result_dispatch_exit checked 3625ms check-target:macos_arm64 @e01f73c689de+wt
+pass/filesystem/runtime_posix_borrowed_view_io_exit checked 3029ms check-target:macos_arm64 @d1ebe54629b8
 pass/filesystem/windows_canonicalize_exit rejected 17804ms check-target:windows_x86_64 @e01f73c689de+wt
 	selected ProgramEntry Binding field `Main::fs::host` requires a selected Fused provider for boundary `FilesystemHost`
 pass/filesystem/windows_raw_breadth_exit rejected 1516ms check-target:windows_x86_64 @e01f73c689de+wt
@@ -2522,6 +2530,7 @@ pass/inline_asm/asm_runtime_port_msr_final_validation rejected 701ms check-targe
 	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "Main::main", reason: "attached Unit closure is missing a checked transitive machine plan", omission: Some("`Main::main` has no admitted body (local construction stopped at call operation: call site, statement 0)") })
 pass/inline_asm/asm_where_exact_clobbers_compile checked 353ms @4e4bfed13aee+wt
 pass/layouts/access_plan_inaccessible_seed checked 444ms @2d8ed253669f
+pass/layouts/byte_view_borrow_with_encoded_sibling checked 276ms @d1ebe54629b8
 pass/layouts/integer_at_owned_local_borrow_call_exit checked 1327ms check-target:macos_arm64 @313322813ba5+wt
 pass/layouts/placed_view_source_access_compile checked 1502ms @2d8ed253669f
 pass/layouts/private_callback_slot_demand_compile rejected 53ms @c47f8652484
