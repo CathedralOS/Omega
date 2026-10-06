@@ -102,3 +102,16 @@ pub(crate) fn range_constraints(
     }
     ranges
 }
+
+/// `reference` with its `Constrained` shells peeled away.
+pub(crate) fn unconstrained_base(
+    program: &TypedTrees,
+    mut reference: TypeReferenceHandle,
+) -> TypeReferenceHandle {
+    while let TypeReferenceNode::Constrained { base_type, .. } =
+        program.type_reference_table.type_reference(reference)
+    {
+        reference = *base_type;
+    }
+    reference
+}

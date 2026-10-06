@@ -567,7 +567,7 @@ fn is_content_scalar_embedding(program: &TypedTrees, call: &TableCallExpression)
 }
 
 fn runtime_scalar_can_embed(program: &TypedTrees, type_reference: TypeReferenceHandle) -> bool {
-    let type_reference = unconstrained(program, type_reference);
+    let type_reference = crate::program_scope::type_shape::unconstrained_base(program, type_reference);
     matches!(
         program.type_reference_table.type_reference(type_reference),
         TypeReferenceNode::Named { name, .. }
@@ -613,20 +613,12 @@ fn projection_subject(program: &TypedTrees, machine: &Machine) -> Option<Project
         } if access.is_readable() && !access.is_exclusive() => Some(ProjectionSubject {
             symbol: parameter.symbol,
             qualified: *referee,
-            carrier: unconstrained(program, *referee),
+            carrier: crate::program_scope::type_shape::unconstrained_base(program, *referee),
         }),
         _ => None,
     }
 }
 
-fn unconstrained(program: &TypedTrees, mut reference: TypeReferenceHandle) -> TypeReferenceHandle {
-    while let TypeReferenceNode::Constrained { base_type, .. } =
-        program.type_reference_table.type_reference(reference)
-    {
-        reference = *base_type;
-    }
-    reference
-}
 
 fn projection_domain_candidates<'program>(
     program: &'program TypedTrees,

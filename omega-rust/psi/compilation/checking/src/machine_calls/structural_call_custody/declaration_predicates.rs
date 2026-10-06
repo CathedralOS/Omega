@@ -131,7 +131,7 @@ fn parameter_data_definition<'program>(
 ) -> Option<&'program DataDefinition> {
     let owner = match program
         .type_reference_table
-        .type_reference(peel_constrained(program, referee))
+        .type_reference(crate::program_scope::type_shape::unconstrained_base(program, referee))
     {
         TypeReferenceNode::Named { symbol, name }
             if *symbol == machine.symbol || name.as_str() == "Self" =>
@@ -231,7 +231,7 @@ impl RowEmitter<'_, '_> {
         type_reference: TypeReferenceHandle,
         visited: &mut Vec<SymbolHandle>,
     ) {
-        let carrier = peel_constrained(self.program, type_reference);
+        let carrier = crate::program_scope::type_shape::unconstrained_base(self.program, type_reference);
         match self.program.type_reference_table.type_reference(carrier) {
             TypeReferenceNode::FixedArray {
                 element_type,
@@ -284,7 +284,7 @@ impl RowEmitter<'_, '_> {
             if matches!(
                 self.program
                     .type_reference_table
-                    .type_reference(peel_constrained(self.program, field.type_reference)),
+                    .type_reference(crate::program_scope::type_shape::unconstrained_base(self.program, field.type_reference)),
                 TypeReferenceNode::Reference { .. }
             ) {
                 continue;
@@ -425,7 +425,7 @@ impl RowEmitter<'_, '_> {
 /// The integer carrier a collection consequence bounds: an array field's
 /// element or a scalar field itself.
 fn field_consequence_primitive(program: &TypedTrees, field: &DataField) -> Option<PrimitiveType> {
-    let carrier = peel_constrained(program, field.type_reference);
+    let carrier = crate::program_scope::type_shape::unconstrained_base(program, field.type_reference);
     let leaf = match program.type_reference_table.type_reference(carrier) {
         TypeReferenceNode::FixedArray { element_type, .. } => *element_type,
         _ => carrier,
@@ -448,17 +448,6 @@ fn carrier_bounds(primitive: PrimitiveType) -> Option<(i128, i128)> {
     })
 }
 
-fn peel_constrained(
-    program: &TypedTrees,
-    mut reference: TypeReferenceHandle,
-) -> TypeReferenceHandle {
-    while let TypeReferenceNode::Constrained { base_type, .. } =
-        program.type_reference_table.type_reference(reference)
-    {
-        reference = *base_type;
-    }
-    reference
-}
 
 /// The nominal data definition a field or parameter carrier owns inline.
 /// A `&T`/`&mut T` field is borrowed storage whose referee's facts do not
@@ -469,7 +458,7 @@ fn owned_data_definition(
 ) -> Option<&DataDefinition> {
     match program
         .type_reference_table
-        .type_reference(peel_constrained(program, type_reference))
+        .type_reference(crate::program_scope::type_shape::unconstrained_base(program, type_reference))
     {
         // Array traversal revisits these owners at each exact index. Reuse the
         // program's revision-checked first-match index instead of rescanning
