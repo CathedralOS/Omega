@@ -153,7 +153,8 @@ impl BorrowedWindowLedger {
             operations,
             evaluation.calls,
         )?;
-        let path = runtime_elements::complete_path(place.steps, indexes, evaluation.calls)?;
+        let path =
+            runtime_elements::complete_path(place.steps, indexes, evaluation.calls, operations)?;
         if let Some(absent) = self.open.iter().find(|absent| {
             absent.source == place.source
                 && paths_overlap(&absent.checked_path, &place.checked_path)
@@ -261,7 +262,8 @@ impl BorrowedWindowLedger {
             operations,
             evaluation.calls,
         )?;
-        let path = runtime_elements::complete_path(place.steps, indexes, evaluation.calls)?;
+        let path =
+            runtime_elements::complete_path(place.steps, indexes, evaluation.calls, operations)?;
         operations.invalidate_field_lengths_under(place.source, &path);
         let id = operations.allocate();
         operations.push(Operation {

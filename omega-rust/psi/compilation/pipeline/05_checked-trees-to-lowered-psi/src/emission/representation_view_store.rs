@@ -139,7 +139,7 @@ pub(crate) fn emit(
                 operations,
                 calls,
             )?;
-            let path = runtime_elements::complete_path(steps, indexes, calls)?;
+            let path = runtime_elements::complete_path(steps, indexes, calls, operations)?;
             let operand = lower_value(write, &bindings, checked, state, values, view_scalar)?;
             let casted = view_leaf_image(operand, view_scalar, leaf_scalar)?;
             let value = emit_direct_expression(&casted, values, next_value, operations);
@@ -472,13 +472,18 @@ pub(crate) fn prepare_byte_destination(
         Some(index)
     } else if matches!(leaf, CheckedUnitStructuralPathSegment::RuntimeIndex(_)) {
         steps.pop();
-        Some(indexes.pop().ok_or(LoweringError::Unsupported(
-            "byte store lost its evaluated coordinate",
-        ))?)
+        Some(
+            indexes
+                .pop()
+                .ok_or(LoweringError::Unsupported(
+                    "byte store lost its evaluated coordinate",
+                ))?
+                .index,
+        )
     } else {
         None
     };
-    let prefix_path = runtime_elements::complete_path(steps, indexes, calls)?;
+    let prefix_path = runtime_elements::complete_path(steps, indexes, calls, operations)?;
     Ok(ByteStoreDestination {
         destination,
         prefix_path,

@@ -8,6 +8,19 @@
 //! `RuntimeIndex { index, obligation }`. The store owns every such
 //! obligation, and the verifier reconstructs it as `index < extent` for the
 //! array that step selects from.
+//!
+//! Range checking already decided that bound for each authored `[]`
+//! occurrence it proved in every context (`CheckFacts.proven_scalar_indexes`),
+//! after the statement's operand effects. `AssignmentIndex { depth }` names
+//! the target's occurrence at that outside-in depth
+//! (`validation::assignment_target_indexes`), so `a[i][i]` keeps two
+//! occurrences with their own collections and bounds. `complete_path`
+//! publishes the obligation of a decided element as `SourceChecked` evidence
+//! instead of repeating certificate search across the representation
+//! boundary. Only the bound travels: destination custody, declared value
+//! constraints and stored-value formation stay their own admissions.
+//! Parameter, local, field and literal selectors are generated and have no
+//! assignment occurrence, so their bounds stay searched.
 use super::{
     CheckedScalarExpressionRole, CheckedTrees, LoweringError, ScalarType, StructuralPathSegment,
     ValueDeclaration, ValueId, unsupported,
@@ -93,6 +106,14 @@ pub(crate) fn static_segments(
         .collect()
 }
 
+/// One runtime element's `u64` coordinate, and whether range checking proved
+/// its authored selector inside the array that element selects from.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct EvaluatedSelector {
+    pub(crate) index: ValueId,
+    decided: bool,
+}
+
 /// Evaluate every runtime element's selector in path order -- the authored
 /// left-to-right order of the target's selectors -- and convert each to the
 /// `u64` coordinate.
@@ -111,13 +132,18 @@ pub(crate) fn evaluate_selectors(
     next_edge: &mut u64,
     operations: &mut OperationBuffer,
     calls: &mut CallEmissionContext<'_>,
-) -> Result<Vec<ValueId>, LoweringError> {
+) -> Result<Vec<EvaluatedSelector>, LoweringError> {
     let mut indexes = Vec::new();
+    let occurrences = assignment_occurrences(checked, state, statement_index);
     for step in steps {
+        let mut decided = false;
         let (index, scalar_type) = match step {
             ProjectionStep::AssignmentIndex { depth } => {
                 let role = CheckedScalarExpressionRole::AssignmentIndex { depth: *depth };
                 let source = selector_source(checked, state, statement_index, role)?;
+                decided = occurrences
+                    .get(*depth as usize)
+                    .is_some_and(|occurrence| checked.facts.scalar_index_is_proven(*occurrence));
                 let index = evaluation.source_value(
                     checked,
                     machine,
@@ -190,24 +216,29 @@ pub(crate) fn evaluate_selectors(
             }
             _ => continue,
         };
-        indexes.push(super::emit_u64_coordinate(
-            index,
-            scalar_type,
-            next_value,
-            &mut calls.next_obligation_identity,
-            operations,
-        )?);
+        indexes.push(EvaluatedSelector {
+            index: super::emit_u64_coordinate(
+                index,
+                scalar_type,
+                next_value,
+                &mut calls.next_obligation_identity,
+                operations,
+            )?,
+            decided,
+        });
     }
     Ok(indexes)
 }
 
 /// Join the evaluated selectors into the Terminal path. Called after the
 /// stored value is complete, so each segment's obligation follows every
-/// obligation its operands allocated.
+/// obligation its operands allocated. A decided selector's obligation travels
+/// as `SourceChecked` evidence.
 pub(crate) fn complete_path(
     steps: Vec<ProjectionStep>,
-    indexes: Vec<ValueId>,
+    indexes: Vec<EvaluatedSelector>,
     calls: &mut CallEmissionContext<'_>,
+    operations: &mut OperationBuffer,
 ) -> Result<Vec<StructuralPathSegment>, LoweringError> {
     let mut indexes = indexes.into_iter();
     let path = steps
@@ -218,12 +249,19 @@ pub(crate) fn complete_path(
             | ProjectionStep::RuntimeIndexLiteral { .. }
             | ProjectionStep::RuntimeIndexParameter { .. }
             | ProjectionStep::RuntimeIndexLocal { .. }
-            | ProjectionStep::RuntimeIndexField(_) => Ok(StructuralPathSegment::RuntimeIndex {
-                index: indexes.next().ok_or(LoweringError::Unsupported(
+            | ProjectionStep::RuntimeIndexField(_) => {
+                let selector = indexes.next().ok_or(LoweringError::Unsupported(
                     "store path lost an evaluated runtime element",
-                ))?,
-                obligation: calls.allocate_requirement()?,
-            }),
+                ))?;
+                let obligation = calls.allocate_requirement()?;
+                if selector.decided {
+                    operations.source_checked_obligations.push(obligation);
+                }
+                Ok(StructuralPathSegment::RuntimeIndex {
+                    index: selector.index,
+                    obligation,
+                })
+            }
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
     if indexes.next().is_some() {
@@ -264,4 +302,27 @@ fn selector_source(
     Ok(checked_trees::CheckedCallScalarArgument::Computation(
         root.root,
     ))
+}
+
+/// The scalar `[]` occurrences of the statement's assignment target, indexed
+/// by `AssignmentIndex` depth. A statement that is not an assignment has none,
+/// so its runtime elements decide nothing.
+fn assignment_occurrences(
+    checked: &CheckedTrees,
+    state: symbols::SymbolHandle,
+    statement_index: u32,
+) -> Vec<checked_trees::expression::ExpressionHandle> {
+    let Some(state) = checked.typed.state_by_symbol(state) else {
+        return Vec::new();
+    };
+    match checked
+        .statement_table
+        .statements(state.statement_nodes)
+        .get(statement_index as usize)
+    {
+        Some(checked_trees::statement::StatementNode::Assignment(assignment)) => {
+            validation::assignment_target_indexes(&checked.expression_table, assignment.target)
+        }
+        _ => Vec::new(),
+    }
 }

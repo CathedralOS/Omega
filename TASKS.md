@@ -137,6 +137,10 @@ helper that passes does not close an item.
   300 s per-call timeout, preserving its runtime oracle. First remeasure on
   one host and compiler profile:
   `python3 tools/sample_native_gate.py --cli <debug omega> --jobs 1 --timeout 6600 --filter games/dungeon_crawler_cli`.
+  - Blocked: the sample does not build at `87238e4afb8`.
+    **CONSTRUCTED-ARGUMENT-SCHEDULE-REGRESSED-NINE** owns the Unit-plan
+    omission from `8735cafb4cf`, and **STATE-LOCAL-VALUE-FRONTIER** owns the
+    checking refusal from `6c0fd10e915`. Measure once both recover.
   - Historical macOS ARM64 baseline at `8c2a6e8da58`: 2554 s including package
     review; 5-second stack samples every 5 minutes placed stage 00 verification
     in minutes 0–12 and spill recovery in minutes 13–36. This is a profiling
@@ -467,6 +471,19 @@ defines the complete product bar.
   operations and remove superseded whole-machine recognizers as you go.
   **SAMPLE-CORPUS** and **CANARY-CORPUS** keep the full program oracles.
 
+  - **Forwarded view field contracts (regression).** `6c0fd10e915` made
+    `samples/cli/games/dungeon_crawler_cli` refuse in checking: on macOS
+    ARM64 `omega update --project samples/cli/games/dungeon_crawler_cli
+    --target macos_arm64` reports 119 "cannot prove default-domain field
+    requirement for call find_room_mut_at from
+    RoomLookup::find_room_mut::find_room_mut: parameter
+    rooms[0..18446744073709551615].label requires [u8; N]::Utf8"
+    diagnostics (`rooms/room_lookup.omg`), none at `6c0fd10e915^`. The
+    argument is `let rooms: &mut [Room] = level.rooms.as_mut_slice()`,
+    forwarded to a `&mut [Room]` state parameter. `nominal_inputs.rs` now
+    reads the argument's completion contexts (`call_values::actual_contexts`)
+    instead of the call site's, and those lack the element field memberships
+    the view carries.
   - **Computed calls and state transfers.** Finish selected mixed scalar/structural
     operands, effectful arguments/returns, nested mutable-argument calls,
     dependent/public-trait results and boundary consumers on the common
@@ -2226,7 +2243,15 @@ crash and native exit behavior.
   producer under the same carrier and declared-qualification contract:
   `pass/borrows/owned_byte_value_call_exit` runs native/interpreted exit 70.
   Constructor-domain, affine-transfer and live-loan rejection controls remain
-  required. Acceptance: the five remaining fixtures reach `checked` and their
+  required. `samples/cli/games/dungeon_crawler_cli` regressed in `8735cafb4cf`:
+  on macOS ARM64 `omega update --project samples/cli/games/dungeon_crawler_cli
+  --target macos_arm64` reaches review at `8735cafb4cf^` and refuses at
+  `8735cafb4cf` through `e33842624a2`. `MazeBuilder::connect` loses its Unit
+  plan at "outer calls: structural operands" for `Room::append_exit(from_room,
+  MazeBuilder::direction_command(direction), direction, to)`: a call-result
+  `[u8; 8] in Utf8` passed by value beside a `&mut Room` local returned by
+  `Level::room_mut`. The dungeon meeting its README oracle again through
+  `tools/sample_native_gate.py` is part of this item's acceptance. Acceptance: the five remaining fixtures reach `checked` and their
   authored native outcomes; remove each recovered `regressed-from:` token
   through an observed corpus result, never a re-pin of the refusal.
 

@@ -369,7 +369,9 @@ pass/collections/runtime_declared_range_index_write_exit built 597ms exit:30
 pass/collections/runtime_double_indexed_rmw_exit rejected 813ms regressed-from:built+exit:1 @0604ece757cd+wt
 	terminal-artifact production failed: Lowering(InvalidTerminalModule(InvalidStructuralSuccessorArgument { edge: EdgeId(5), place: PlaceId(10) }))
 pass/collections/runtime_dutch_flag_partition_exit built 9802ms exit:70 @fb2178def922
+pass/collections/runtime_fixed_array_captured_selector_store_exit built 1243ms exit:70 @87238e4afb83+wt
 pass/collections/runtime_fixed_array_projected_write_exit built 8532ms exit:45 @8093eb34a6ed+wt
+pass/collections/runtime_fixed_array_selector_call_store_exit built 1328ms exit:70 @87238e4afb83+wt
 pass/collections/runtime_fixed_vec_round_trip_exit built 1057ms exit:70 @dab35460b4c5+wt
 pass/collections/runtime_frame_indexed_param_read_exit built 2209ms exit:1 @fb2178def922
 pass/collections/runtime_hoisted_index_write_exit built 729ms exit:7

@@ -1,14 +1,6 @@
 //! Primitive-reference store emission shared by Unit and scalar-result bodies.
-//!
-//! An assignment selector keeps its exact indexed source occurrence until its
-//! completed destination path mints the Terminal bound obligation. Checking
-//! already decided that occurrence after operand effects; repeating certificate
-//! search would lose the decision at the representation boundary. Only this
-//! bound is source-checked: destination custody, declared value constraints and
-//! stored-value formation remain their own admissions. Generated selectors have
-//! no assignment occurrence and retain their existing evidence route. The
-//! checked program retains the authored expression table for these identity
-//! joins; reading it here neither checks source semantics nor rebuilds a plan.
+//! A runtime element's bound travels from range checking through the shared
+//! destination path (`runtime_elements.rs`), as for every other store route.
 use super::{
     CheckedScalarExpression, CheckedScalarExpressionRole, CheckedTrees,
     CheckedUnitStructuralPathSegment, LoweringError, OperationKind, PlaceId, PrimitiveType,
@@ -70,29 +62,6 @@ pub(crate) fn emit_assignment(
     operations: &mut OperationBuffer,
     calls: &mut CallEmissionContext<'_>,
 ) -> Result<OperationKind, LoweringError> {
-    let (_, authored) = crate::declarations::state_declaration(checked, state)?;
-    let Some(checked_trees::statement::StatementNode::Assignment(assignment)) = checked
-        .statement_table
-        .statements(authored.statement_nodes)
-        .get(statement_index as usize)
-    else {
-        return unsupported("primitive store lost its authored assignment");
-    };
-    let indexed_occurrences =
-        validation::assignment_target_indexes(&checked.expression_table, assignment.target);
-    let decided_bounds = destination
-        .path
-        .iter()
-        .map(|step| match step {
-            ProjectionStep::AssignmentIndex { depth } => indexed_occurrences
-                .get(*depth as usize)
-                .map(|expression| checked.facts.scalar_index_is_proven(*expression))
-                .ok_or(LoweringError::Unsupported(
-                    "primitive store lost its authored indexed occurrence",
-                )),
-            _ => Ok(false),
-        })
-        .collect::<Result<Vec<_>, _>>()?;
     // The runtime elements' selectors are evaluated before the stored value.
     let indexes = super::runtime_elements::evaluate_selectors(
         &destination.path,
@@ -124,26 +93,9 @@ pub(crate) fn emit_assignment(
         operations,
         calls,
     )?;
-    let path = super::runtime_elements::complete_path(destination.path, indexes, calls)?;
-    // complete_path maps every input step to exactly one segment. Refuse an
-    // incomplete positional join if that contract changes; zip must not drop
-    // a decision or pair it with a different destination step.
-    if path.len() != decided_bounds.len() {
-        return unsupported("primitive store path changed its selector positions");
-    }
-    // Path order is inner-first, but each AssignmentIndex retained its own
-    // outside-in depth. Pair the decision with the exact completed step rather
-    // than with a selector value or the assignment's outermost bound.
-    for (segment, decided) in path.iter().zip(decided_bounds) {
-        if decided
-            && let terminal_psi::StructuralPathSegment::RuntimeIndex { obligation, .. } = segment
-        {
-            operations.source_checked_obligations.push(*obligation);
-        }
-    }
     Ok(OperationKind::WriteOnlyPrimitiveStore {
         destination: destination.place,
-        path,
+        path: super::runtime_elements::complete_path(destination.path, indexes, calls, operations)?,
         value: value.id,
     })
 }

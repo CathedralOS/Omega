@@ -7,6 +7,7 @@ use super::{
     StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeId, StructuralTypeShape,
     ValueId, allocate_dense, obligation_id, terminal_scalar_type, unsupported,
 };
+use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::emission::runtime_elements::ProjectionStep;
 
@@ -58,9 +59,10 @@ impl LoweredStructuralScalarStore {
     pub(crate) fn into_operation(
         self,
         destination: PlaceId,
-        indexes: Vec<ValueId>,
+        indexes: Vec<crate::emission::runtime_elements::EvaluatedSelector>,
         value: ValueId,
         calls: &mut CallEmissionContext<'_>,
+        operations: &mut OperationBuffer,
     ) -> Result<OperationKind, LoweringError> {
         let range_obligation = if self.requires_range_obligation {
             Some(obligation_id(allocate_dense(
@@ -71,7 +73,9 @@ impl LoweredStructuralScalarStore {
         };
         Ok(OperationKind::StructuralScalarFieldStore {
             destination,
-            path: crate::emission::runtime_elements::complete_path(self.steps, indexes, calls)?,
+            path: crate::emission::runtime_elements::complete_path(
+                self.steps, indexes, calls, operations,
+            )?,
             field: self.field,
             value,
             range_obligation,

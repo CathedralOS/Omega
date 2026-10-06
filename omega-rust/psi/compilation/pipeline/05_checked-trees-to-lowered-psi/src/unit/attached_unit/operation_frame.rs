@@ -1199,6 +1199,7 @@ impl OperationFrame<'_, '_> {
                 std::mem::take(&mut destination.steps),
                 indexes,
                 self.calls,
+                self.operations,
             )?;
             let source = self.byte_descriptor_operand(store)?;
             let kind = crate::emission::structural_byte_sequence_store::emit_view_field_store(
@@ -1472,7 +1473,7 @@ impl OperationFrame<'_, '_> {
             }
             for (index, dimension) in indexes.into_iter().zip(&projection.indices) {
                 destination.project_index(
-                    index,
+                    index.index,
                     dimension.stride,
                     dimension.extent,
                     self.next_value,
@@ -1589,7 +1590,13 @@ impl OperationFrame<'_, '_> {
         )?;
         let value = self.scalar_field_store_value(store)?;
         self.observe_store_element_extent(destination_place, destination_type, &lowered.steps)?;
-        let kind = lowered.into_operation(destination_place, indexes, value.id, self.calls)?;
+        let kind = lowered.into_operation(
+            destination_place,
+            indexes,
+            value.id,
+            self.calls,
+            self.operations,
+        )?;
         self.push_unit(kind);
         Ok(())
     }
