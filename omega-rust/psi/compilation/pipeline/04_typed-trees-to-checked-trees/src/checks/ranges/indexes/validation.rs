@@ -288,16 +288,8 @@ fn hoist_temp_initializer(
         })
 }
 
-/// True if `index` is a runtime COMPUTED expression (`k + 1`, `2 * i`, `-k`, or a cast of
-/// one) rather than a place (`k`, `self.k`) or a constant. Only checked on the non-const
-/// path -- constant folding has already reduced `arr[2 + 3]` to `arr[5]`, so a Binary that
-/// reaches here is genuinely runtime. The backend cannot lower a computed index as a value
-/// operand (it silently reads 0 as an arithmetic operand, or no-ops as a write target), so
-/// the checker refuses it here -- a #40 soundness stopgap -- until it is hoisted to a field.
 /// Folds an index expression built ONLY from integer literals (through
-/// casts/`Mutable`/binaries) to its value -- no facts, no place reads. This is
-/// the fold the backend is guaranteed to reproduce; anything needing a fact
-/// stays `None` and faces the computed-index fence.
+/// casts/`Mutable`/binaries) to its value -- no facts, no place reads.
 fn literal_only_integer_value(
     program: &typed_trees::TypedTrees,
     index: ExpressionHandle,
@@ -352,18 +344,6 @@ fn zero_offset_reduced_range(
     reduced
 }
 
-fn index_is_computed(program: &typed_trees::TypedTrees, index: ExpressionHandle) -> bool {
-    let mut node = index;
-    loop {
-        match program.expression_table.expression(node) {
-            ExpressionNode::Borrow(inner) => node = inner.target,
-            ExpressionNode::Cast(cast) => node = cast.value,
-            ExpressionNode::Binary(_) | ExpressionNode::Unary(_) => return true,
-            _ => return false,
-        }
-    }
-}
-
 fn check_known_length_index(
     program: &typed_trees::TypedTrees,
     machine: &Machine,
@@ -389,33 +369,21 @@ fn check_known_length_index(
             diagnostics,
         ),
         _ => {
-            // #40 fence, ordered BEFORE the facts fold (R0 of the
-            // dependent-types ladder): `expression_integer_value` folds
-            // member values learned from ASSIGNMENT facts (`self.y = 2`
-            // makes `y * 4 + x` "constant" 11), but the BACKEND performs no
-            // such fold in index positions -- an un-hoisted computed index
-            // silently reads 0 / no-ops. Any Binary/Unary index that reaches
-            // this checker was NOT hoisted (hoisted shapes index by their
-            // `__hoist_N` Name), so it must refuse no matter how provable
-            // its FACTS-dependent value is. PURE-LITERAL arithmetic is
-            // exempt: user spellings (`arr[2 + 3]`) are reduced by the
-            // earlier const fold, and the SYNTHESIZED post-fold shapes the
-            // wire/layout lowerings build (`buffer[96 + 1]`) fold to the
-            // same constant in every backend static path -- checker and
-            // backend cannot disagree on literals.
-            if index_is_computed(program, index)
-                && literal_only_integer_value(program, index).is_none()
-            {
-                diagnostics.push(Diagnostic::error(with_attribution(
-                    format!(
-                        "index `{}` is a computed expression, not yet supported as an \
-                         indexed operand (it would silently read 0 or no-op); compute \
-                         it into a field first, then index by that field",
-                        program.expression_table.display_name(index)
-                    ),
-                    attribution,
-                )));
-                return false;
+            // The arithmetic walk that checked this index's evaluation bounded
+            // its value in the environment the read runs in, including a
+            // short-circuit's left operand and earlier arms' refutations. An
+            // interval inside the length proves both halves, for a computed
+            // index (`values[position - 1]`) as for a name.
+            if validation::index_operand_interval(facts.index_operand_intervals, index).is_some_and(
+                |interval| {
+                    interval.low.is_some_and(|low| low >= 0)
+                        && interval
+                            .high
+                            .and_then(|high| usize::try_from(high).ok())
+                            .is_some_and(|high| high < length)
+                },
+            ) {
+                return true;
             }
             let Some(index_value) = expression_integer_value(program, facts, index) else {
                 let collection_label = program.expression_table.display_name(collection);
@@ -612,23 +580,6 @@ fn check_symbolic_extent_index(
             )));
         }
         _ => {
-            // The #40 computed-index fence applies regardless of extent kind:
-            // a runtime `k + 1` index is not lowerable even against a symbolic
-            // bound, while literal-only folds (`items[2 + 3]`) still collapse.
-            if index_is_computed(program, index)
-                && literal_only_integer_value(program, index).is_none()
-            {
-                diagnostics.push(Diagnostic::error(with_attribution(
-                    format!(
-                        "index `{}` is a computed expression, not yet supported as an \
-                         indexed operand (it would silently read 0 or no-op); compute \
-                         it into a field first, then index by that field",
-                        program.expression_table.display_name(index)
-                    ),
-                    attribution,
-                )));
-                return false;
-            }
             let collection_label = program.expression_table.display_name(collection);
             let index_label = program.expression_table.display_name(index);
             if symbolic_extent_scalar_index_is_proven(

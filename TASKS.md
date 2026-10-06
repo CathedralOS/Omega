@@ -459,9 +459,12 @@ helper that passes does not close an item.
     provider or storage authority.
   - Scratch fields become ordinary locals; pass only live values across
     states. The glider sample now keeps only bindings and its grid in Main;
-    its local-buffer migration still needs native and interpreted validation
-    on a host supplying its Clock provider. Temporary-scoping design is
-    deferred and not a prerequisite.
+    natively it stops in `Main::render`: the mutable `[u8; 24] in Utf8`
+    local `line` crosses a state edge (state graph loan transfer refuses
+    non-numeric constraints), and each `line[column] = 35` store through the
+    loan owes `valid_utf8` preservation over content the receiving state
+    does not know. Temporary-scoping design is deferred and not a
+    prerequisite.
     Validate `samples/cli/algorithms/maze_flood` with `omega run --both`:
     exit 0 and its documented 235-byte output. Keep search and row/input
     storage local, with only the Console binding in Main. Preserve the
@@ -2993,7 +2996,10 @@ the validation `src/` (written `omega-rust/psi/compilation/checking/src/`) unles
   - `omega-rust/psi/compilation/proof/src/checker/integer_ranges.rs`.
 
   Keep one interval domain and one premise-chaining oracle in `validation`
-  (`arithmetic_domains`), and make every listed site a client. Float intervals
+  (`arithmetic_domains`), and make every listed site a client. The stage 04
+  index checker already takes each index operand's interval from the
+  arithmetic walk for fixed-length reads; its name-keyed proofs and
+  unknown-length slice bounds remain private. Float intervals
   (`omega-rust/psi/compilation/checking/src/value_custody/expression_types/float_cast_proofs.rs`) stay
   separate. This is large: land it per client, each commit deleting that
   client's private engine. Acceptance: no private integer interval type
@@ -4122,6 +4128,22 @@ rejects at build and `mapped` needs a Windows full-i32 measurement.
   or parallel approval.
 
 ## P3 - Terminal Psi, proofs, and observation
+
+- **ELEMENT-CONTRACT-ATOMS.** (new-scope) A `requires` over an element of a
+  parameter view, such as `requires index < text.len && text[index] >= 97`,
+  bounds nothing. Checking drops the whole conjunction:
+  `condition_belongs_to_state` in
+  `omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/guard_narrowing/arrivals.rs`
+  has no arm for an indexed read. An `Indexed` arm over a parameter-rooted
+  collection and index makes the body check, and an arrival that does not
+  establish the condition still rejects. Lowering then has no Terminal term
+  for an element at a runtime index (`ScalarTerm` names fixed-path fields and
+  `ViewExtent` only), so stage 05 `covered_requires` refuses the clause with
+  "scalar contract contains an unsupported clause". It needs a
+  verifier-checked element term, or the checker's decision carried as
+  SourceChecked evidence through **PCC removal**. Acceptance: a state and a
+  machine with that `requires` compute `(text[index] - 97) as u64` and run
+  natively; an arrival that establishes only `text[index] >= 90` rejects.
 
 - **WRITE-ONLY-BORROW.** Caller-visible `&write T` mutation is incomplete under
   [write-only authority](wiki/spec/terminal-psi/structural_access.md#write-only-authority).

@@ -600,6 +600,8 @@ fail/collections/fixed_array_write_rejects_element_domain rejected 438ms expecte
 	cannot prove default-domain field requirement for return from corrupt at statement 1: bytes requires [u8; N]::Ascii
 fail/collections/fixed_vec_push_without_room rejected 216ms expected @c08960bee2b1+wt
 	cannot prove requires contract for call push from Main::main: main.vec.length < main.vec.items.len (needs fact `fixed_vec_i32x4.length < fixed_vec_i32x4.items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/collections/guarded_computed_index_overrun rejected 375ms expected @98f54226c10c
+	cannot prove index `position + 1` is within length 6 in rises::entry
 fail/collections/vec_duplicate_cleanup rejected 740ms expected @2d8ed253669f
 	linear value `vec` was already transferred or consumed; it cannot be moved here
 fail/collections/vec_invalidated_loan_after_growth rejected 315ms expected @c08960bee2b1+wt
@@ -2106,6 +2108,7 @@ pass/collections/runtime_fixed_array_projected_write_exit checked 15110ms check-
 pass/collections/runtime_fixed_array_selector_call_store_exit checked 2807ms check-target:macos_arm64 @faca6c5c7f5
 pass/collections/runtime_fixed_vec_round_trip_exit checked 1036ms check-target:macos_arm64 @dab35460b4c5+wt
 pass/collections/runtime_frame_indexed_param_read_exit checked 1240ms check-target:macos_arm64 @2d8ed253669f
+pass/collections/runtime_guarded_computed_index_exit checked 1952ms check-target:macos_arm64 @98f54226c10c
 pass/collections/runtime_hoisted_index_write_exit checked 1411ms check-target:macos_arm64 @2d8ed253669f
 pass/collections/runtime_indexed_boolean_field_guard_exit checked 1882ms check-target:macos_arm64 @bea382792161+wt
 pass/collections/runtime_indexed_bounded_element_read_exit checked 1219ms check-target:macos_arm64 @2d8ed253669f

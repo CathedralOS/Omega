@@ -30,6 +30,8 @@ pub(super) use dependencies::ReceiverLength;
 #[derive(Clone)]
 pub(super) struct RangeFacts<'field> {
     pub(super) checked_operators: Option<&'field checked_trees::CheckedOperatorFacts>,
+    /// Index operand intervals from validation's arithmetic walk.
+    pub(super) index_operand_intervals: &'field [validation::IndexOperandInterval],
     pub(super) checked_calls: Option<&'field RangeCallContext<'field>>,
     pub(super) mutation_summaries: std::borrow::Cow<'field, crate::flow::StateMutationSummaryCache>,
     pub(super) statement_index: usize,
@@ -85,6 +87,7 @@ impl<'field> RangeFacts<'field> {
     pub(super) fn new(fields: &'field [(SymbolHandle, String, usize)]) -> Self {
         Self {
             checked_operators: None,
+            index_operand_intervals: &[],
             checked_calls: None,
             mutation_summaries: std::borrow::Cow::Owned(
                 crate::flow::StateMutationSummaryCache::default(),

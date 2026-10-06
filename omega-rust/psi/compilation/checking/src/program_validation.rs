@@ -57,6 +57,32 @@ use statements::validate_state_statement_node;
 
 pub use checked_trees::operators::ExactIntegerCastFact;
 
+/// The values an indexed read's scalar index can take, as the arithmetic walk
+/// that checked its evaluation found them; `None` is an unbounded end. Every
+/// walk of the expression contributes, so the interval holds wherever the
+/// read runs. The collection's length stays with the range checker.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct IndexOperandInterval {
+    pub index: ExpressionHandle,
+    pub low: Option<i64>,
+    pub high: Option<i64>,
+}
+
+/// The retained interval of the index operand `index`, from `intervals` in
+/// handle order.
+pub fn index_operand_interval(
+    intervals: &[IndexOperandInterval],
+    index: ExpressionHandle,
+) -> Option<&IndexOperandInterval> {
+    let position = checked_trees::operators::handle_position(index);
+    intervals
+        .binary_search_by_key(&position, |interval| {
+            checked_trees::operators::handle_position(interval.index)
+        })
+        .ok()
+        .map(|found| &intervals[found])
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ProgramValidationFacts {
     pub stored_integer_writes: Vec<checked_trees::CheckedStoredIntegerWrite>,
@@ -65,6 +91,9 @@ pub struct ProgramValidationFacts {
     /// Integer operations whose formation conditions every clean arithmetic
     /// walk decided.
     pub decided_formations: Vec<typed_trees::expression::ExpressionHandle>,
+    /// Index operand intervals of indexed reads, one per operand in handle
+    /// order, hulled over every clean arithmetic walk of it.
+    pub index_operand_intervals: Vec<IndexOperandInterval>,
     pub float_meaning_projection_invocations: Vec<ValidatedFloatMeaningProjectionInvocation>,
     pub float_meaning_equality_propositions: Vec<ValidatedFloatMeaningEqualityProposition>,
     pub fact_call_projections: Vec<fact_call_projections::ValidatedFactCallProjection>,
@@ -630,7 +659,26 @@ fn validate(
     let arithmetic_domains::ArithmeticDecisions {
         mut exact_integer_casts,
         mut decided_formations,
+        index_operand_intervals: walked_index_intervals,
     } = arithmetic_decisions;
+    let mut index_operand_intervals = Vec::<IndexOperandInterval>::new();
+    let mut walked_index_intervals = walked_index_intervals;
+    walked_index_intervals
+        .sort_by_key(|(index, _)| checked_trees::operators::handle_position(*index));
+    for (index, interval) in walked_index_intervals {
+        // Each walk bounds the reads it saw; their hull bounds them all.
+        match index_operand_intervals.last_mut() {
+            Some(previous) if previous.index == index => {
+                previous.low = previous.low.zip(interval.low()).map(|(a, b)| a.min(b));
+                previous.high = previous.high.zip(interval.high()).map(|(a, b)| a.max(b));
+            }
+            _ => index_operand_intervals.push(IndexOperandInterval {
+                index,
+                low: interval.low(),
+                high: interval.high(),
+            }),
+        }
+    }
     decided_formations
         .sort_by_key(|expression| checked_trees::operators::handle_position(*expression));
     decided_formations.dedup();
@@ -654,6 +702,7 @@ fn validate(
             boundary_operator_applications,
             exact_integer_casts,
             decided_formations,
+            index_operand_intervals,
             float_meaning_projection_invocations,
             float_meaning_equality_propositions,
             fact_call_projections,

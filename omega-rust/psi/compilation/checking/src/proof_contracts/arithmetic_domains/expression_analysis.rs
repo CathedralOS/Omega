@@ -57,12 +57,20 @@ pub(crate) struct ArithmeticDecisions {
     /// division, the excluded `MIN / -1` pair; a representable Exact sum,
     /// difference or product.
     pub(crate) decided_formations: Vec<ExpressionHandle>,
+    /// The interval of each indexed read's index operand, keyed by that
+    /// operand. The range checker compares it with the length it
+    /// resolves for the collection, so a computed index such as
+    /// `values[position - 1]` behind `position > 0 &&` is bounded by the same
+    /// branch-local environment that proved its subtraction.
+    pub(crate) index_operand_intervals: Vec<(ExpressionHandle, Interval)>,
 }
 
 impl ArithmeticDecisions {
     pub(crate) fn extend(&mut self, other: Self) {
         self.exact_integer_casts.extend(other.exact_integer_casts);
         self.decided_formations.extend(other.decided_formations);
+        self.index_operand_intervals
+            .extend(other.index_operand_intervals);
     }
 }
 
@@ -154,9 +162,18 @@ impl ExpressionWalk<'_> {
             // Field/element/formal landing checks own their respective types;
             // typed arithmetic retains its operand-selected carrier and policy.
             let child_walk = self.with_destination(None, ArithmeticDomain::Exact);
+            let index_operand = match node {
+                ExpressionNode::Indexed(indexed) => Some(indexed.index),
+                _ => None,
+            };
             let mut analyze_child = |child: ExpressionHandle| {
                 if child.is_valid() {
-                    child_walk.analyze(child, diagnostics, decisions);
+                    let analysis = child_walk.analyze(child, diagnostics, decisions);
+                    if index_operand == Some(child) {
+                        decisions
+                            .index_operand_intervals
+                            .push((child, analysis.interval));
+                    }
                 }
             };
             if matches!(node, ExpressionNode::Atomic(_)) {
