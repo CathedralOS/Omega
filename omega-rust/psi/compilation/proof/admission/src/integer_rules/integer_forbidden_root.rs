@@ -26,8 +26,6 @@ pub struct CheckedIntegerCorrelatedForbiddenRoots {
     dividend_offset: i128,
     divisor_coefficient: i128,
     divisor_offset: i128,
-    dividend_definition_axioms: Vec<usize>,
-    divisor_definition_axioms: Vec<usize>,
     lower_bound_axiom: usize,
     upper_bound_axiom: usize,
     interval: (i128, i128),
@@ -58,14 +56,6 @@ impl CheckedIntegerCorrelatedForbiddenRoots {
 
     pub const fn divisor_form(&self) -> (i128, i128) {
         (self.divisor_coefficient, self.divisor_offset)
-    }
-
-    pub fn dividend_definition_axioms(&self) -> &[usize] {
-        &self.dividend_definition_axioms
-    }
-
-    pub fn divisor_definition_axioms(&self) -> &[usize] {
-        &self.divisor_definition_axioms
     }
 
     pub const fn bound_axioms(&self) -> (usize, usize) {
@@ -197,8 +187,6 @@ pub fn check_integer_correlated_forbidden_root_witness(
         dividend_offset: dividend.offset,
         divisor_coefficient: divisor.coefficient,
         divisor_offset: divisor.offset,
-        dividend_definition_axioms: dividend.definition_axioms,
-        divisor_definition_axioms: divisor.definition_axioms,
         lower_bound_axiom: bounds.lower_axiom,
         upper_bound_axiom: bounds.upper_axiom,
         interval: bounds.interval,
