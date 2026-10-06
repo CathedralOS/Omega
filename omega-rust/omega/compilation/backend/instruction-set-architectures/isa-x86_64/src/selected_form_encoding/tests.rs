@@ -56,6 +56,27 @@ fn assert_every_byte_change_rejected(
     }
 }
 
+fn assert_every_bit_change_rejected(
+    physical: &ValidatedPhysicalRegisterModel,
+    kind: SelectedInstructionKind,
+    key: MachineAlternativeKey,
+    operands: &[RegisterViewId],
+    bytes: &[u8],
+    context: &str,
+) {
+    for byte_position in 0..bytes.len() {
+        for bit in 0..8 {
+            let mut changed = bytes.to_vec();
+            changed[byte_position] ^= 1 << bit;
+            assert!(
+                validate_x86_64_selected_form_encoding(physical, kind, key, operands, &changed)
+                    .is_err(),
+                "{context} byte {byte_position} bit {bit}"
+            );
+        }
+    }
+}
+
 #[test]
 fn saturating_subtract_binds_registers_condition_and_flag_effects() {
     let physical = validate_physical_register_model(x86_64_physical_register_model()).unwrap();
@@ -1149,19 +1170,14 @@ fn saturating_forms_reject_every_mutation_substitution_and_sibling_carrier() {
                         == MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
                     form.is_division()
                 );
-                for byte_position in 0..encoded.bytes().len() {
-                    for bit in 0..8 {
-                        let mut changed = encoded.bytes().to_vec();
-                        changed[byte_position] ^= 1 << bit;
-                        assert!(
-                            validate_x86_64_selected_form_encoding(
-                                &physical, kind, key, &operands, &changed
-                            )
-                            .is_err(),
-                            "{operation:?} {carrier:?} high={high} byte {byte_position} bit {bit}"
-                        );
-                    }
-                }
+                assert_every_bit_change_rejected(
+                    &physical,
+                    kind,
+                    key,
+                    &operands,
+                    encoded.bytes(),
+                    &format!("{operation:?} {carrier:?} high={high}"),
+                );
                 for operand_position in 0..operands.len() {
                     let mut changed = operands.clone();
                     changed[operand_position] = substitute;
@@ -2143,19 +2159,14 @@ fn trapping_forms_reject_every_mutation_substitution_and_wrong_request() {
         for high in [false, true] {
             let operands = saturating_operands(&physical, &trapping_operand_names(form, high));
             let encoded = encode_x86_64_selected_form(&physical, kind, key, &operands).unwrap();
-            for byte_position in 0..encoded.bytes().len() {
-                for bit in 0..8 {
-                    let mut changed = encoded.bytes().to_vec();
-                    changed[byte_position] ^= 1 << bit;
-                    assert!(
-                        validate_x86_64_selected_form_encoding(
-                            &physical, kind, key, &operands, &changed
-                        )
-                        .is_err(),
-                        "{form:?} high={high} byte {byte_position} bit {bit}"
-                    );
-                }
-            }
+            assert_every_bit_change_rejected(
+                &physical,
+                kind,
+                key,
+                &operands,
+                encoded.bytes(),
+                &format!("{form:?} high={high}"),
+            );
             let mut truncated = encoded.bytes().to_vec();
             truncated.pop();
             assert!(
