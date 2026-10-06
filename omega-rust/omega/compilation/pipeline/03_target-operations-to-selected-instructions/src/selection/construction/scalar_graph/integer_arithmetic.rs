@@ -172,7 +172,7 @@ pub(super) fn emit(
             let output = builder.register(result.value, result.definition_site, scalar_type)?;
             let mut operands = vec![left_register, right_register, output];
             if scratch == SaturatingScratch::Bound {
-                operands.push(saturation_scratch(builder)?);
+                operands.push(instruction_scratch(builder, 3, IntegerSign::Signed)?);
             }
             builder.emit(
                 kind,
@@ -216,7 +216,7 @@ pub(super) fn emit(
                 // fixed views, so a squared operand gets its own copy.
                 right_register = builder.copy(right_register, *right, right_site, scalar_type)?;
             }
-            let scratch = saturation_scratch(builder)?;
+            let scratch = instruction_scratch(builder, 3, IntegerSign::Signed)?;
             builder.emit(
                 SelectedInstructionKind::SaturatingMultiply { carrier: *carrier },
                 constraint,
@@ -252,7 +252,7 @@ pub(super) fn emit(
                 // lets RCX hold the divisor or shift count alone.
                 right_register = builder.copy(right_register, *right, right_site, right_type)?;
             }
-            let scratch = trapping_scratch(builder, 3)?;
+            let scratch = instruction_scratch(builder, 3, IntegerSign::Unsigned)?;
             builder.emit(
                 SelectedInstructionKind::TrappingInteger { form: *form },
                 trapping_constraint(*form, &constraints.keys)?,
@@ -282,7 +282,7 @@ pub(super) fn emit(
                 return Err(invalid());
             }
             let output = builder.register(result.value, result.definition_site, scalar_type)?;
-            let scratch = trapping_scratch(builder, 2)?;
+            let scratch = instruction_scratch(builder, 2, IntegerSign::Unsigned)?;
             builder.emit(
                 SelectedInstructionKind::TrappingInteger { form: *form },
                 trapping_constraint(*form, &constraints.keys)?,
@@ -323,7 +323,9 @@ pub(super) fn emit(
             let mut operands = vec![left_register, right_register, output];
             match scratch {
                 SaturatingScratch::None => {}
-                SaturatingScratch::Bound => operands.push(saturation_scratch(builder)?),
+                SaturatingScratch::Bound => {
+                    operands.push(instruction_scratch(builder, 3, IntegerSign::Signed)?)
+                }
                 SaturatingScratch::DivisionHighHalf => operands.push(division_scratch(builder)?),
             }
             builder.emit(
@@ -382,7 +384,7 @@ pub(super) fn emit(
                         builder.copy(right_register, *right, right_site, scalar_type)?;
                     operands[1] = right_register;
                 }
-                operands.push(remainder_scratch(builder)?);
+                operands.push(instruction_scratch(builder, 3, IntegerSign::Signed)?);
             }
             builder.emit(
                 SelectedInstructionKind::SaturatingRemainder {
@@ -451,7 +453,7 @@ pub(super) fn emit(
                             builder.copy(right_register, *right, right_site, scalar_type)?;
                         operands[1] = right_register;
                     }
-                    operands.push(remainder_scratch(builder)?);
+                    operands.push(instruction_scratch(builder, 3, IntegerSign::Signed)?);
                 }
             }
             builder.emit(
@@ -847,7 +849,7 @@ pub(super) fn emit(
                             builder.copy(right_register, *right, right_site, scalar_type)?;
                         operands[1] = right_register;
                     }
-                    operands.push(remainder_scratch(builder)?);
+                    operands.push(instruction_scratch(builder, 3, IntegerSign::Signed)?);
                 }
             }
             builder.emit(
@@ -1068,11 +1070,15 @@ fn trapping_constraint(
         .ok_or_else(SelectedInstructionError::custody)
 }
 
-// A Trapping form's early-clobber scratch: operand 3 of a binary form or
-// operand 2 of a conversion, defined by the encoding itself on every target.
-fn trapping_scratch(
+// An encoding-defined early-clobber scratch register: a Trapping form's
+// bound (operand 3 of a binary form, operand 2 of a conversion), the
+// saturating i32 forms' clamp bound, and the signed remainder's high half
+// all share the same i64 scratch the encoding defines itself on every
+// target. `sign` selects the carrier the form's bound reads.
+fn instruction_scratch(
     builder: &mut Builder<'_>,
     operand: u16,
+    sign: IntegerSign,
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {
     let invalid = || SelectedInstructionError::custody();
     let id = VirtualRegisterId(builder.registers.len().try_into().map_err(|_| invalid())?);
@@ -1086,75 +1092,12 @@ fn trapping_scratch(
     builder.registers.push(VirtualRegister {
         id,
         scalar_type: ScalarType::Integer(
-            semantic_vocabulary::IntegerType::new(IntegerSign::Unsigned, 64)
-                .map_err(|_| invalid())?,
+            semantic_vocabulary::IntegerType::new(sign, 64).map_err(|_| invalid())?,
         ),
         class: builder.class,
         origin: VirtualRegisterOrigin::InstructionScratch {
             instruction,
             operand,
-        },
-        definition_site: None,
-        entry_fixed_view: None,
-    });
-    Ok(id)
-}
-
-// The saturating i32 forms clamp through a bound held in operand 3, an
-// early-clobber scratch the encoding defines itself on every target.
-fn saturation_scratch(
-    builder: &mut Builder<'_>,
-) -> Result<VirtualRegisterId, SelectedInstructionError> {
-    let invalid = || SelectedInstructionError::custody();
-    let id = VirtualRegisterId(builder.registers.len().try_into().map_err(|_| invalid())?);
-    let instruction = SelectedInstructionId(
-        builder
-            .instructions
-            .len()
-            .try_into()
-            .map_err(|_| invalid())?,
-    );
-    builder.registers.push(VirtualRegister {
-        id,
-        scalar_type: ScalarType::Integer(
-            semantic_vocabulary::IntegerType::new(IntegerSign::Signed, 64)
-                .map_err(|_| invalid())?,
-        ),
-        class: builder.class,
-        origin: VirtualRegisterOrigin::InstructionScratch {
-            instruction,
-            operand: 3,
-        },
-        definition_site: None,
-        entry_fixed_view: None,
-    });
-    Ok(id)
-}
-
-// The signed remainder encoding defines its high-half scratch itself. Unlike
-// unsigned division, there is no incoming zero value to materialize or trust.
-fn remainder_scratch(
-    builder: &mut Builder<'_>,
-) -> Result<VirtualRegisterId, SelectedInstructionError> {
-    let invalid = || SelectedInstructionError::custody();
-    let id = VirtualRegisterId(builder.registers.len().try_into().map_err(|_| invalid())?);
-    let instruction = SelectedInstructionId(
-        builder
-            .instructions
-            .len()
-            .try_into()
-            .map_err(|_| invalid())?,
-    );
-    builder.registers.push(VirtualRegister {
-        id,
-        scalar_type: ScalarType::Integer(
-            semantic_vocabulary::IntegerType::new(IntegerSign::Signed, 64)
-                .map_err(|_| invalid())?,
-        ),
-        class: builder.class,
-        origin: VirtualRegisterOrigin::InstructionScratch {
-            instruction,
-            operand: 3,
         },
         definition_site: None,
         entry_fixed_view: None,
