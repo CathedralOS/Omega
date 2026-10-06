@@ -163,11 +163,33 @@ pub(super) fn seed_guard_facts(
         return;
     }
 
+    // `!guard` holding is `guard` refuted.
+    if let Some(operand) = negated_operand(program, guard) {
+        seed_negated_guard_facts(program, machine, state, facts, operand);
+        return;
+    }
+
     let ExpressionNode::Binary(binary) = program.expression_table.expression(guard) else {
         return;
     };
 
     seed_binary_guard_facts(program, machine, state, facts, binary, binary.operator);
+}
+
+/// The operand of a logical negation, the one unary guard spelling whose
+/// truth and refutation swap.
+fn negated_operand(
+    program: &typed_trees::TypedTrees,
+    guard: ExpressionHandle,
+) -> Option<ExpressionHandle> {
+    match program.expression_table.expression(guard) {
+        ExpressionNode::Unary(unary)
+            if unary.operator == typed_trees::expression::UnaryOperator::LogicalNot =>
+        {
+            Some(unary.operand)
+        }
+        _ => None,
+    }
 }
 
 fn seed_binary_guard_facts(
@@ -395,6 +417,11 @@ pub(super) fn seed_negated_guard_facts(
     // Test the actual selected operation, not the complement used below to
     // represent its false branch.
     if !validation::has_builtin_decomposed_guard_meaning(program, machine, Some(state), guard) {
+        return;
+    }
+    // Refuting `!guard` establishes `guard`.
+    if let Some(operand) = negated_operand(program, guard) {
+        seed_guard_facts(program, machine, state, facts, operand);
         return;
     }
     let ExpressionNode::Binary(binary) = program.expression_table.expression(guard) else {

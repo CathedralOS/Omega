@@ -399,12 +399,11 @@ pub(crate) fn lower_statement_node(
                 None
             };
             let guard = lower_transition_guard_node(lowerer, syntax_trees, transition.guard)?;
-            // Hoist runtime-indexed reads out of the guard's OPERAND positions, exactly as for
+            // Hoist runtime-indexed reads out of the FIRST arm's guard operands, exactly as for
             // assignment values and let initializers above, so `transition self.arr[i] > 5`
-            // becomes `let __hoist = self.arr[i]; transition __hoist > 5`. Without this the guard
-            // subject keeps a raw runtime-indexed read that has no valid static byte offset, and
-            // the compare silently reads element 0. Binding to a local first is the sound idiom;
-            // this makes it automatic. A bare match subject (`transition self.arr[i] { .. }`) is
+            // becomes `let __hoist = self.arr[i]; transition __hoist > 5`. A later arm keeps its
+            // reads in place (below): checked guard evaluation reads an element at its own
+            // evaluation point. A bare match subject (`transition self.arr[i] { .. }`) is
             // the guard ROOT, which `hoist_operand_indexed_reads` leaves whole -- so match
             // exhaustiveness (which needs a single shared subject across arms) is unaffected.
             if let TransitionGuard::When(expression) = guard {
@@ -418,13 +417,21 @@ pub(crate) fn lower_statement_node(
                 // operand hoists below unchanged. A comparison with user calls
                 // on both sides stays explicit until both evaluation results
                 // can be materialized without reordering them.
-                hoist_scalar_value_call_comparison(
-                    lowerer,
-                    syntax_trees,
-                    transition.guard,
-                    expression,
-                    &mut hoisted,
-                );
+                // A later arm's guard runs only after every earlier arm fails,
+                // and an earlier guard may be what makes its operands defined
+                // (`index >= text.len -> .. text[index] == 32 -> ..`). Its
+                // calls and runtime-indexed reads therefore stay in place;
+                // a hoisted temp would join the dispatch run's shared prefix
+                // and evaluate before the earlier arms rule it in.
+                if !has_preceding_transition {
+                    hoist_scalar_value_call_comparison(
+                        lowerer,
+                        syntax_trees,
+                        transition.guard,
+                        expression,
+                        &mut hoisted,
+                    );
+                }
                 if guard_hoists_operands(lowerer, expression) {
                     // A bool-arm dispatch (`{ true -> .. false -> .. }`) over a
                     // hoistable comparison subject shares ONE temp across arms so
@@ -438,7 +445,8 @@ pub(crate) fn lower_statement_node(
                         transition.guard,
                         expression,
                         &mut hoisted,
-                    ) {
+                    ) && !has_preceding_transition
+                    {
                         // In GUARD position also hoist a pure-builtin subject
                         // (`transition min(self.a, self.b) == 3`) into a temp, so the
                         // guard compares a materialized local -- the sound idiom the
