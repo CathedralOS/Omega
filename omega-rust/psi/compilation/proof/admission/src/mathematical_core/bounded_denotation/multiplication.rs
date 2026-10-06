@@ -145,48 +145,36 @@ impl Denotation {
             let negative_one = self.binary_integer(true, 1)?;
             let constant = |position| scheme_at(position, Vec::new());
             let carrier = || constant(integer);
+            let binders = |names: &[&'static str], body| {
+                names
+                    .iter()
+                    .rev()
+                    .fold(body, |inner, name| pi(name, carrier(), inner))
+            };
             let le = |left, right| apps(constant(less_or_equal), [left, right]);
             let mul = |left, right| apps(constant(operation), [left, right]);
             let statement = match law {
-                Law::MonotonePositive => pi(
-                    "a",
-                    carrier(),
+                Law::MonotonePositive => binders(
+                    &["a", "b", "r"],
                     pi(
-                        "b",
-                        carrier(),
+                        "_",
+                        le(v("a"), v("b")),
                         pi(
-                            "r",
-                            carrier(),
-                            pi(
-                                "_",
-                                le(v("a"), v("b")),
-                                pi(
-                                    "_",
-                                    le(constant(one), v("r")),
-                                    le(mul(v("a"), v("r")), mul(v("b"), v("r"))),
-                                ),
-                            ),
+                            "_",
+                            le(constant(one), v("r")),
+                            le(mul(v("a"), v("r")), mul(v("b"), v("r"))),
                         ),
                     ),
                 ),
-                Law::AntitoneNegative => pi(
-                    "a",
-                    carrier(),
+                Law::AntitoneNegative => binders(
+                    &["a", "b", "r"],
                     pi(
-                        "b",
-                        carrier(),
+                        "_",
+                        le(v("a"), v("b")),
                         pi(
-                            "r",
-                            carrier(),
-                            pi(
-                                "_",
-                                le(v("a"), v("b")),
-                                pi(
-                                    "_",
-                                    le(v("r"), constant(negative_one)),
-                                    le(mul(v("b"), v("r")), mul(v("a"), v("r"))),
-                                ),
-                            ),
+                            "_",
+                            le(v("r"), constant(negative_one)),
+                            le(mul(v("b"), v("r")), mul(v("a"), v("r"))),
                         ),
                     ),
                 ),
@@ -221,15 +209,7 @@ impl Denotation {
                     } else {
                         le(product, v("n"))
                     };
-                    pi(
-                        "n",
-                        carrier(),
-                        pi(
-                            "d",
-                            carrier(),
-                            pi("_", dividend, pi("_", divisor, residual)),
-                        ),
-                    )
+                    binders(&["n", "d"], pi("_", dividend, pi("_", divisor, residual)))
                 }
             };
             let ty = scheme_dsl::build(&mut self.arena, &mut Vec::new(), &statement);

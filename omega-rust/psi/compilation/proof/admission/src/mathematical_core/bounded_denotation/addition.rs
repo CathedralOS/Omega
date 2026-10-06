@@ -120,71 +120,50 @@ impl Denotation {
             let operation = self.add_operation()?;
             let constant = |position| scheme_at(position, Vec::new());
             let carrier = || constant(integer);
+            let binders = |names: &[&'static str], body| {
+                names
+                    .iter()
+                    .rev()
+                    .fold(body, |inner, name| pi(name, carrier(), inner))
+            };
             let add = |left, right| apps(constant(operation), [left, right]);
             let statement = match law {
                 Law::Monotone => {
                     let relation = self.integer_less_or_equal()?;
                     let le = |left, right| apps(constant(relation), [left, right]);
-                    pi(
-                        "a",
-                        carrier(),
+                    binders(
+                        &["a", "b", "c"],
                         pi(
-                            "b",
-                            carrier(),
-                            pi(
-                                "c",
-                                carrier(),
-                                pi(
-                                    "_",
-                                    le(v("a"), v("b")),
-                                    le(add(v("a"), v("c")), add(v("b"), v("c"))),
-                                ),
-                            ),
+                            "_",
+                            le(v("a"), v("b")),
+                            le(add(v("a"), v("c")), add(v("b"), v("c"))),
                         ),
                     )
                 }
                 Law::MonotoneBoth => {
                     let relation = self.integer_less_or_equal()?;
                     let le = |left, right| apps(constant(relation), [left, right]);
-                    pi(
-                        "a",
-                        carrier(),
+                    binders(
+                        &["a", "b", "c", "d"],
                         pi(
-                            "b",
-                            carrier(),
+                            "_",
+                            le(v("a"), v("b")),
                             pi(
-                                "c",
-                                carrier(),
-                                pi(
-                                    "d",
-                                    carrier(),
-                                    pi(
-                                        "_",
-                                        le(v("a"), v("b")),
-                                        pi(
-                                            "_",
-                                            le(v("c"), v("d")),
-                                            le(add(v("a"), v("c")), add(v("b"), v("d"))),
-                                        ),
-                                    ),
-                                ),
+                                "_",
+                                le(v("c"), v("d")),
+                                le(add(v("a"), v("c")), add(v("b"), v("d"))),
                             ),
                         ),
                     )
                 }
                 Law::CancelSubtract => {
                     let subtract = self.subtract_operation()?;
-                    pi(
-                        "b",
-                        carrier(),
-                        pi(
-                            "c",
+                    binders(
+                        &["b", "c"],
+                        id(
                             carrier(),
-                            id(
-                                carrier(),
-                                add(apps(constant(subtract), [v("b"), v("c")]), v("c")),
-                                v("b"),
-                            ),
+                            add(apps(constant(subtract), [v("b"), v("c")]), v("c")),
+                            v("b"),
                         ),
                     )
                 }
