@@ -9,15 +9,14 @@ use super::super::{
 use super::{
     CheckedBoundaryMachinePlan, CheckedTrees, ClaimTransfer, LoweringError, Multiplicity, PlaceId,
     ScalarType, ServiceReachSummary, StructuralPlaceDeclaration, StructuralPlaceKind,
-    StructuralTypeId, StructuralTypeShape, ValueDeclaration, allocate_dense, lookup_claim_id,
-    lookup_service_id, lookup_type_id, place_id, require_valid_service_row, terminal_scalar_type,
-    unsupported,
+    StructuralTypeId, ValueDeclaration, allocate_dense, lookup_claim_id, lookup_service_id,
+    lookup_type_id, place_id, require_valid_service_row, terminal_scalar_type, unsupported,
 };
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::emission::operation_emission::expressions::emit_direct_expression;
 use crate::expression_preparation::bindings::structural_paths::{
-    lower_structural_path, lower_typed_argument_path, terminal_access,
+    lower_structural_path, terminal_access,
 };
 use crate::expression_preparation::bindings::{
     StructuralLocalBinding, StructuralScalarFieldBinding,
@@ -713,98 +712,6 @@ pub(crate) fn mint_runtime_index_selectors(
     Ok(values)
 }
 
-/// A runtime-index argument rooted at an element view or a borrowed byte
-/// view owes its bound the view's live extent, not a declaration: mint the
-/// dominating `ElementViewLength` or `ByteSequenceLength` observation whose
-/// scalar the segment's `index < length` obligation names — the same
-/// observation a view write carries as its `length` operand. Only a segment
-/// at path position zero resolves the view at the projection root; one
-/// observation per root place dominates every argument the call projects
-/// from that view. A bounded byte view's capacity is its declared extent.
-pub(crate) fn mint_view_length_observations(
-    arguments: &[checked_trees::CheckedUnitStructuralArgumentPlan],
-    parameters: &[StructuralParameterDeclaration],
-    structural_results: &[(Option<StructuralPlaceDeclaration>, bool)],
-    structural_types: &[StructuralTypeDeclaration],
-    next_value: &mut u64,
-    operations: &mut OperationBuffer,
-) -> Result<(), LoweringError> {
-    let mut observed = BTreeSet::new();
-    for argument in arguments {
-        if !matches!(
-            argument.path.first(),
-            Some(CheckedUnitStructuralPathSegment::RuntimeIndex(_))
-        ) {
-            continue;
-        }
-        let (place, structural_type) =
-            if let Some(ordinal) = argument.source_structural_result_binding_ordinal() {
-                let (source, _) = structural_results
-                    .get(usize::try_from(ordinal).map_err(|_| {
-                        LoweringError::Unsupported(
-                            "Unit structural result binding ordinal exceeds usize",
-                        )
-                    })?)
-                    .ok_or(LoweringError::Unsupported(
-                        "Unit structural result binding is not produced",
-                    ))?;
-                let Some(source) = source else {
-                    continue;
-                };
-                let StructuralPlaceKind::OperationResult {
-                    structural_type, ..
-                } = source.kind
-                else {
-                    continue;
-                };
-                (source.id, structural_type)
-            } else if let Some(parameter_index) = argument.source_parameter_index() {
-                let parameter = parameters
-                    .get(usize::try_from(parameter_index).map_err(|_| {
-                        LoweringError::Unsupported("Unit structural argument index exceeds usize")
-                    })?)
-                    .ok_or(LoweringError::Unsupported(
-                        "Unit structural argument has an invalid caller parameter index",
-                    ))?;
-                (parameter.place, parameter.structural_type)
-            } else {
-                continue;
-            };
-        let Some(kind) = structural_types
-            .iter()
-            .find(|declaration| declaration.id == structural_type)
-            .and_then(|declaration| match declaration.shape {
-                StructuralTypeShape::ElementView { .. } => {
-                    Some(crate::unit::OperationKind::ElementViewLength { source: place })
-                }
-                StructuralTypeShape::ByteSequence(
-                    terminal_psi::ByteSequenceCarrier::BorrowedView { .. },
-                ) => Some(crate::unit::OperationKind::ByteSequenceLength { source: place }),
-                _ => None,
-            })
-        else {
-            continue;
-        };
-        if !observed.insert(place) {
-            continue;
-        }
-        let length = crate::terminal_identities::value_id(allocate_dense(next_value)?);
-        let id = operations.allocate();
-        operations.push(crate::unit::Operation {
-            static_reach_binding: None,
-            suspension_crossing: None,
-            id,
-            result: crate::unit::OperationResult::Scalar(ValueDeclaration {
-                qualifications: Default::default(),
-                id: length,
-                scalar_type: terminal_scalar_type(crate::unit::PrimitiveType::U64)?,
-            }),
-            kind,
-        });
-    }
-    Ok(())
-}
-
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn lower_structural_arguments(
     arguments: &[checked_trees::CheckedUnitStructuralArgumentPlan],
@@ -822,7 +729,30 @@ pub(crate) fn lower_structural_arguments(
     caller_scalar_values: Option<&[ValueDeclaration]>,
     selector_values: &mut dyn Iterator<Item = ValueId>,
     mut calls: Option<&mut CallEmissionContext<'_>>,
+    mut emission: Option<(&mut u64, &mut OperationBuffer)>,
 ) -> Result<Vec<StructuralArgument>, LoweringError> {
+    let mut lower_path = |path: &[CheckedUnitStructuralPathSegment],
+                          root,
+                          place,
+                          prefix: &[terminal_psi::StructuralPathSegment]| {
+        let suffix =
+            crate::expression_preparation::bindings::structural_paths::prepare_argument_path(
+                path,
+                root,
+                structural_types,
+            )?;
+        let path = prefix.iter().cloned().map(crate::expression_preparation::bindings::structural_paths::PreparedStructuralPathSegment::Static).chain(suffix).collect::<Vec<_>>();
+        crate::expression_preparation::bindings::structural_paths::emit_captured_argument_path(
+            &path,
+            place,
+            caller_scalar_values,
+            &mut *selector_values,
+            calls.as_deref_mut(),
+            emission
+                .as_mut()
+                .map(|(next, operations)| (&mut **next, &mut **operations)),
+        )
+    };
     let mut next_byte_argument = 0usize;
     arguments
         .iter()
@@ -840,15 +770,7 @@ pub(crate) fn lower_structural_arguments(
                 }
                 // A published local may own a projected subtree without a
                 // separate place. Continue from its retained path and type.
-                let mut path = binding.argument.path.clone();
-                path.extend(lower_typed_argument_path(
-                    &argument.path,
-                    binding.structural_type,
-                    structural_types,
-                    caller_scalar_values,
-                    &mut *selector_values,
-                    calls.as_deref_mut(),
-                )?);
+                let path = lower_path(&argument.path, binding.structural_type, binding.argument.place, &binding.argument.path)?;
                 return Ok(StructuralArgument {
                     place: binding.argument.place,
                     path,
@@ -905,8 +827,7 @@ pub(crate) fn lower_structural_arguments(
                 // projection continues from there. This is the operation
                 // lane Terminal Psi admits for a partial move.
                 if let Some(projected_alias) = projected_alias(completed_results, binding_ordinal) {
-                    let mut path = projected_alias.path.to_vec();
-                    path.extend(lower_typed_argument_path(&argument.path, projected_alias.structural_type, structural_types, caller_scalar_values, &mut *selector_values, calls.as_deref_mut())?);
+                    let path = lower_path(&argument.path, projected_alias.structural_type, projected_alias.place, projected_alias.path)?;
                     return Ok(StructuralArgument {
                         place: projected_alias.place,
                         path,
@@ -930,7 +851,7 @@ pub(crate) fn lower_structural_arguments(
                 };
                 return Ok(StructuralArgument {
                     place: source.id,
-                    path: lower_typed_argument_path(&argument.path, structural_type, structural_types, caller_scalar_values, &mut *selector_values, calls.as_deref_mut())?,
+                    path: lower_path(&argument.path, structural_type, source.id, &[])?,
                     access: terminal_access(argument.access),
                 });
             }
@@ -949,7 +870,7 @@ pub(crate) fn lower_structural_arguments(
                 ))?;
             Ok(StructuralArgument {
                 place: parameter.place,
-                path: lower_typed_argument_path(&argument.path, parameter.structural_type, structural_types, caller_scalar_values, &mut *selector_values, calls.as_deref_mut())?,
+                path: lower_path(&argument.path, parameter.structural_type, parameter.place, &[])?,
                 access: terminal_access(argument.access),
             })
         })

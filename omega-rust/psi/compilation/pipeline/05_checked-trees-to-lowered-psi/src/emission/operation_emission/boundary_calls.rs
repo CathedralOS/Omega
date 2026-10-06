@@ -89,7 +89,7 @@ pub(super) fn emit_boundary_call_binding(
     let structural_arguments = call
         .structural_arguments
         .iter()
-        .map(|argument| argument.emit(parameters, call_emission))
+        .map(|argument| argument.emit(parameters, call_emission, next_value_identity, operations))
         .collect::<Result<Vec<_>, _>>()?;
     // Match the statement call's declared requirement rows. Proof finalization
     // discharges these obligations at this exact operation and completed actuals.

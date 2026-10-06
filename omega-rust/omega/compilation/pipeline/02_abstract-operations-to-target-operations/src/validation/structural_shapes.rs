@@ -54,6 +54,20 @@ pub(super) fn project_static_path(
     if indexed.len() != declarations.len() {
         return Err(InvalidStructuralShape);
     }
+    if !path.is_empty()
+        && matches!(
+            indexed.get(&structural_type).map(|row| &row.shape),
+            Some(StructuralTypeShape::ByteSequence(_))
+        )
+    {
+        let (endpoint, offset, elements) =
+            project_runtime_path(structural_type, path, declarations)?;
+        return if elements.is_empty() {
+            Ok((endpoint, offset))
+        } else {
+            Err(InvalidStructuralShape)
+        };
+    }
     let mut cache = BTreeMap::new();
     let mut active = BTreeSet::new();
     let mut byte_offset = 0_u32;
@@ -185,6 +199,39 @@ pub(super) fn project_runtime_path(
         .collect::<BTreeMap<_, _>>();
     if indexed.len() != declarations.len() {
         return Err(InvalidStructuralShape);
+    }
+    // A byte projection addresses payload storage, not the view descriptor.
+    // Semantic endpoint admission owns access and dynamic index bounds.
+    if !path.is_empty()
+        && let StructuralTypeShape::ByteSequence(carrier) = indexed
+            .get(&structural_type)
+            .ok_or(InvalidStructuralShape)?
+            .shape
+    {
+        let endpoint = terminal_semantics::primitive_projection_declaration(
+            declarations.iter(),
+            structural_type,
+            path,
+        )
+        .ok_or(InvalidStructuralShape)?;
+        let (offset, extent) = match carrier {
+            ByteSequenceCarrier::BoundedOwned { capacity } => (8u32, capacity),
+            ByteSequenceCarrier::BoundedView { capacity, .. } => (0u32, capacity),
+            ByteSequenceCarrier::BorrowedView { .. } => (0u32, u64::MAX),
+        };
+        return match path {
+            [StructuralPathSegment::RuntimeIndex { index, .. }] => {
+                Ok((endpoint, offset, vec![(*index, extent, 1)]))
+            }
+            [StructuralPathSegment::FixedIndex(index)] => Ok((
+                endpoint,
+                offset
+                    .checked_add(u32::try_from(*index).map_err(|_| InvalidStructuralShape)?)
+                    .ok_or(InvalidStructuralShape)?,
+                Vec::new(),
+            )),
+            _ => Err(InvalidStructuralShape),
+        };
     }
     let mut cache = BTreeMap::new();
     let mut active = BTreeSet::new();

@@ -1025,46 +1025,44 @@ fn runtime_projection_with_leaf_shape(
     active: &mut BTreeSet<StructuralTypeId>,
     leaf_shape: fn(&StructuralFieldType) -> Option<StructuralTypeShape>,
 ) -> Result<RuntimeProjection, LoweringError> {
+    // Byte carriers have primitive leaves rather than an element type handle.
+    // Resolve the same endpoint used by primitive reads/stores, then rejoin its
+    // canonical scalar declaration for borrowed-call signature transport.
+    if !path.is_empty()
+        && matches!(
+            declarations.get(&structural_type).map(|row| &row.shape),
+            Some(StructuralTypeShape::ByteSequence(_))
+        )
+    {
+        let projection = primitive_leaf_projection(structural_type, path, declarations).ok_or(
+            LoweringError::UnsupportedStructuralReference(structural_type),
+        )?;
+        if !projection.pointer_slots.is_empty() {
+            return Err(LoweringError::UnsupportedStructuralReference(
+                structural_type,
+            ));
+        }
+        let endpoint = terminal_semantics::primitive_projection_declaration(
+            declarations.values().copied(),
+            structural_type,
+            path,
+        )
+        .ok_or(LoweringError::UnsupportedStructuralReference(
+            structural_type,
+        ))?;
+        let shape = structural_shape(endpoint, declarations, cache, active)?;
+        return Ok((
+            endpoint,
+            shape,
+            projection.leaf.byte_offset,
+            projection.leaf.indices,
+        ));
+    }
     let mut structural_type = structural_type;
     let mut byte_offset = 0u32;
     let mut indices = Vec::new();
     let mut segment_start = 0usize;
-    // An element of a root byte carrier is its `u8`: a view's payload is the
-    // backing its pointer names, an owner's follows its length word.
-    if let Some(first) = path.first()
-        && let Some(StructuralTypeShape::ByteSequence(carrier)) = declarations
-            .get(&structural_type)
-            .map(|declaration| &declaration.shape)
-    {
-        let (element, payload_offset, extent) =
-            byte_sequence_element(*carrier, structural_type, declarations)?;
-        let too_large = LoweringError::StructuralTypeTooLarge(structural_type);
-        match first {
-            StructuralPathSegment::FixedIndex(index) => {
-                if extent.is_some_and(|extent| *index >= extent) {
-                    return Err(LoweringError::UnsupportedStructuralReference(
-                        structural_type,
-                    ));
-                }
-                byte_offset = u32::try_from(*index)
-                    .ok()
-                    .and_then(|index| payload_offset.checked_add(index))
-                    .ok_or(too_large)?;
-            }
-            StructuralPathSegment::RuntimeIndex { index, .. } => {
-                byte_offset = payload_offset;
-                indices.push((*index, 1));
-            }
-            _ => {
-                return Err(LoweringError::UnsupportedStructuralReference(
-                    structural_type,
-                ));
-            }
-        }
-        structural_type = element;
-        segment_start = 1;
-    }
-    for (position, segment) in path.iter().enumerate().skip(segment_start) {
+    for (position, segment) in path.iter().enumerate() {
         let StructuralPathSegment::RuntimeIndex { index, .. } = segment else {
             continue;
         };
@@ -1122,37 +1120,6 @@ fn runtime_projection_with_leaf_shape(
         .checked_add(tail_offset)
         .ok_or(LoweringError::StructuralTypeTooLarge(structural_type))?;
     Ok((endpoint, shape, byte_offset, indices))
-}
-
-/// A byte carrier's element: the catalog's unique `u8` declaration, the
-/// payload's offset inside the carrier's storage, and a bounded carrier's
-/// capacity.
-fn byte_sequence_element(
-    carrier: terminal_psi::ByteSequenceCarrier,
-    structural_type: StructuralTypeId,
-    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
-) -> Result<(StructuralTypeId, u32, Option<u64>), LoweringError> {
-    let unsupported = || LoweringError::UnsupportedStructuralReference(structural_type);
-    let byte = semantic_vocabulary::ScalarType::Integer(
-        semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 8)
-            .map_err(|_| unsupported())?,
-    );
-    let mut matching = declarations
-        .values()
-        .filter(|declaration| declaration.shape == StructuralTypeShape::PrimitiveScalar(byte));
-    let element = match (matching.next(), matching.next()) {
-        (Some(declaration), None) => declaration.id,
-        _ => return Err(unsupported()),
-    };
-    Ok(match carrier {
-        terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity } => {
-            (element, 8, Some(capacity))
-        }
-        terminal_psi::ByteSequenceCarrier::BoundedView { capacity, .. } => {
-            (element, 0, Some(capacity))
-        }
-        terminal_psi::ByteSequenceCarrier::BorrowedView { .. } => (element, 0, None),
-    })
 }
 
 pub(super) fn byte_sequence_shape(

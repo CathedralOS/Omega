@@ -1622,35 +1622,6 @@ fn project_inner<'a>(
     Some((carrier, offset))
 }
 
-/// A byte carrier's element: the catalog's unique `u8` declaration, the
-/// payload's offset inside the carrier's storage, and a bounded carrier's
-/// capacity.
-fn byte_sequence_element(
-    carrier: terminal_psi::ByteSequenceCarrier,
-    declarations: &[StructuralTypeDeclaration],
-) -> Option<(StructuralTypeId, u32, Option<u64>)> {
-    let byte = ScalarType::Integer(
-        semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 8)
-            .ok()?,
-    );
-    let mut matching = declarations
-        .iter()
-        .filter(|declaration| declaration.shape == StructuralTypeShape::PrimitiveScalar(byte));
-    let element = matching.next()?.id;
-    if matching.next().is_some() {
-        return None;
-    }
-    Some(match carrier {
-        terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity } => {
-            (element, 8, Some(capacity))
-        }
-        terminal_psi::ByteSequenceCarrier::BoundedView { capacity, .. } => {
-            (element, 0, Some(capacity))
-        }
-        terminal_psi::ByteSequenceCarrier::BorrowedView { .. } => (element, 0, None),
-    })
-}
-
 /// Resolve a projection that may traverse `RuntimeIndex` segments at any
 /// depth — a leaf copy's extent, a primitive leaf, or a field store's
 /// carrier. Static segments before, between, and after the runtime elements
@@ -1693,42 +1664,27 @@ fn runtime_projection_with_leaf_shape(
     declarations: &[StructuralTypeDeclaration],
     leaf_shape: fn(&StructuralFieldType) -> Option<StructuralTypeShape>,
 ) -> Option<(StructuralTypeId, u32, Vec<RuntimeElement>)> {
+    if !path.is_empty()
+        && matches!(
+            declarations
+                .iter()
+                .find(|row| row.id == root)
+                .map(|row| &row.shape),
+            Some(StructuralTypeShape::ByteSequence(_))
+        )
+    {
+        let scalar =
+            terminal_semantics::primitive_projection_type(declarations.iter(), root, path)?;
+        let (offset, _, elements) = primitive_geometry(root, path, scalar, declarations)?;
+        let endpoint =
+            terminal_semantics::primitive_projection_declaration(declarations.iter(), root, path)?;
+        return Some((endpoint, offset, elements));
+    }
     let mut container = root;
     let mut byte_offset = 0u32;
     let mut elements = Vec::new();
     let mut segment_start = 0usize;
-    // An element of a root byte carrier is its `u8`: a view's payload is the
-    // backing its pointer names (`runtime_address::projection_base`), an
-    // owner's follows its length word.
-    if let Some(first) = path.first()
-        && let StructuralTypeShape::ByteSequence(carrier) = declarations
-            .iter()
-            .find(|declaration| declaration.id == root)?
-            .shape
-    {
-        let (element, payload_offset, extent) = byte_sequence_element(carrier, declarations)?;
-        match first {
-            StructuralPathSegment::FixedIndex(index) => {
-                if extent.is_some_and(|extent| *index >= extent) {
-                    return None;
-                }
-                byte_offset = payload_offset.checked_add(u32::try_from(*index).ok()?)?;
-            }
-            StructuralPathSegment::RuntimeIndex { index, obligation } => {
-                byte_offset = payload_offset;
-                elements.push(RuntimeElement {
-                    index: *index,
-                    obligation: *obligation,
-                    stride: 1,
-                    extent,
-                });
-            }
-            _ => return None,
-        }
-        container = element;
-        segment_start = 1;
-    }
-    for (position, segment) in path.iter().enumerate().skip(segment_start) {
+    for (position, segment) in path.iter().enumerate() {
         let StructuralPathSegment::RuntimeIndex { index, obligation } = segment else {
             continue;
         };

@@ -297,17 +297,17 @@ fn typed_storage_projection(
                 carrier = field.type_reference;
             }
             PlaceSegment::FixedIndex { index } => {
-                let TypeReferenceNode::FixedArray {
-                    element_type,
-                    length: typed_trees::types::FixedArrayLength::Literal(length),
-                } = program.type_reference_table.type_reference(carrier)
-                else {
-                    return Err(());
+                // A literal selector on a slice has the same declared element
+                // encoding as a dynamic selector. Slice bounds remain a separate
+                // source obligation; this walk establishes only storage geometry.
+                carrier = match program.type_reference_table.type_reference(carrier) {
+                    TypeReferenceNode::FixedArray {
+                        element_type,
+                        length: typed_trees::types::FixedArrayLength::Literal(length),
+                    } if index < length => *element_type,
+                    TypeReferenceNode::Slice { element_type } => *element_type,
+                    _ => return Err(()),
                 };
-                if index >= length {
-                    return Err(());
-                }
-                carrier = *element_type;
             }
             PlaceSegment::Index { .. } => {
                 // The source-origin producer authenticates builtin coordinates.

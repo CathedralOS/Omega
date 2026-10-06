@@ -122,6 +122,22 @@ pub fn primitive_projection_type<'a>(
     walk_primitive_projection(declarations, root, path, |_| {})?.primitive_scalar()
 }
 
+/// Rejoin a primitive storage endpoint to its unique declared carrier. Inline
+/// byte elements have no declaration of their own; consumers retaining a
+/// structural parameter identity use this same scalar endpoint judgment.
+/// Missing or ambiguous carrier declarations grant no substitute identity.
+pub fn primitive_projection_declaration<'a>(
+    declarations: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
+    root: StructuralTypeId,
+    path: &[StructuralPathSegment],
+) -> Option<StructuralTypeId> {
+    let scalar = primitive_projection_type(declarations.clone(), root, path)?;
+    let mut matching = declarations
+        .filter(|declaration| declaration.shape == StructuralTypeShape::PrimitiveScalar(scalar));
+    let declaration = matching.next()?;
+    matching.next().is_none().then_some(declaration.id)
+}
+
 /// Resolve the scalar a primitive *read* observes: every leaf
 /// `primitive_projection_type` admits, plus a declared scalar field reached
 /// through a runtime selection or stored reference. Declaration invariants
@@ -451,9 +467,14 @@ fn walk_primitive_projection<'a>(
                 StructuralPathSegment::FixedIndex(index),
                 StructuralTypeShape::ByteSequence(carrier),
             ) => {
-                if let ByteSequenceCarrier::BoundedView { capacity, .. } = carrier
-                    && index >= capacity
-                {
+                let capacity = match carrier {
+                    ByteSequenceCarrier::BoundedOwned { capacity }
+                    | ByteSequenceCarrier::BoundedView { capacity, .. } => capacity,
+                    // A literal coordinate on a dynamic view still needs the
+                    // operation's runtime bound; its type proves no element exists.
+                    ByteSequenceCarrier::BorrowedView { .. } => return None,
+                };
+                if index >= capacity {
                     return None;
                 }
                 step(Some(CanonicalStructuralPathSegment::FixedIndex(*index)));

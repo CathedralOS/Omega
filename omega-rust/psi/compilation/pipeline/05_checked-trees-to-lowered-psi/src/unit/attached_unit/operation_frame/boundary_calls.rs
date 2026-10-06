@@ -7,7 +7,7 @@
 use super::super::argument_evaluation;
 use super::super::call_closure::unique_unit_boundary;
 use super::super::lower_structural_path;
-use super::super::parameters::{self, lower_structural_arguments};
+use super::super::parameters::lower_structural_arguments;
 use super::calls::CallInputs;
 use super::{BoundaryParameters, OperationFrame, StructuralResults};
 use crate::emission::operation_emission::boundary_calls::result_policy::{
@@ -230,14 +230,7 @@ impl OperationFrame<'_, '_> {
         let earlier =
             self.results
                 .earlier(structural_arguments, self.operations, self.evaluation)?;
-        parameters::mint_view_length_observations(
-            structural_arguments,
-            self.parameters,
-            &earlier,
-            self.structural_types.declarations(),
-            self.next_value,
-            self.operations,
-        )?;
+
         let BoundaryParameters {
             id: boundary,
             scalar: target_scalar_parameters,
@@ -280,13 +273,14 @@ impl OperationFrame<'_, '_> {
             self.parameters,
             &[],
             &earlier,
-            &self.operations.structural_values,
+            &self.operations.structural_values.clone(),
             inputs.byte_places,
             self.primitive_locals,
             &self.evaluation.structural_locals,
             Some(self.values),
             &mut selector_values,
             Some(&mut *self.calls),
+            Some((self.next_value, self.operations)),
         )?;
         let completion_receipts = completion_receipts
             .iter()

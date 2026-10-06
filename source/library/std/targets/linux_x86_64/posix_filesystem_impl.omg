@@ -1,7 +1,7 @@
 // Linux POSIX filesystem service over direct system calls. The kernel
 // already returns the negated `errno` on failure, which is the trait's own
 // convention, so adapters pass results through. Paths are terminated into
-// local buffers and slice bytes move through a fixed chunk, as on Darwin.
+// local buffers; ordinary transfers lend caller byte-view backing directly.
 // The kernel-shaped requirements are declared once here; linux_arm64
 // satisfies the same requirements with its own system call numbers.
 use omega::language::core::external_binding;
@@ -196,42 +196,90 @@ linux_x86_64 machine PosixFilesystemNativeProvider::read(fd: i32, buffer: &mut [
     satisfies PosixFilesystemHost::read
 reaches PosixFilesystemHost
 {
-    let mut chunk: [u8; 4096];
-    let capacity: u64 = posix_transfer_capacity(buffer, count);
-    let outcome: i64 = PosixFilesystemLinux::read(fd, &mut chunk[0], capacity);
-    posix_drain_chunk(&chunk, buffer, outcome);
-    outcome
+    transition buffer.len > 0 {
+        true -> nonempty(fd, buffer, count)
+        _ -> empty(fd)
+    }
+
+    state nonempty(fd: i32, buffer: &mut [u8], count: u64) -> i64 {
+        let capacity: u64 = posix_shorter(count, buffer.len);
+        let outcome: i64 = PosixFilesystemLinux::read(fd, &mut buffer[0], capacity);
+        outcome
+    }
+
+    state empty(fd: i32) -> i64 {
+        // Preserve the OS result for empty requests without indexing an empty view.
+        let mut dummy: [u8; 1];
+        let outcome: i64 = PosixFilesystemLinux::read(fd, &mut dummy[0], 0);
+        outcome
+    }
 }
 
 linux_x86_64 machine PosixFilesystemNativeProvider::write(fd: i32, bytes: &[u8]) -> i64
     satisfies PosixFilesystemHost::write
 reaches PosixFilesystemHost
 {
-    let mut chunk: [u8; 4096];
-    let count: u64 = posix_fill_chunk(bytes, &mut chunk);
-    let outcome: i64 = PosixFilesystemLinux::write(fd, &chunk[0], count);
-    outcome
+    transition bytes.len > 0 {
+        true -> nonempty(fd, bytes)
+        _ -> empty(fd)
+    }
+
+    state nonempty(fd: i32, bytes: &[u8]) -> i64 {
+        let outcome: i64 = PosixFilesystemLinux::write(fd, &bytes[0], bytes.len);
+        outcome
+    }
+
+    state empty(fd: i32) -> i64 {
+        // Preserve the OS result for empty requests without indexing an empty view.
+        let mut dummy: [u8; 1];
+        let outcome: i64 = PosixFilesystemLinux::write(fd, &dummy[0], 0);
+        outcome
+    }
 }
 
 linux_x86_64 machine PosixFilesystemNativeProvider::read_at(fd: i32, buffer: &mut [u8], count: u64, offset: i64) -> i64
     satisfies PosixFilesystemHost::read_at
 reaches PosixFilesystemHost
 {
-    let mut chunk: [u8; 4096];
-    let capacity: u64 = posix_transfer_capacity(buffer, count);
-    let outcome: i64 = PosixFilesystemLinux::pread64(fd, &mut chunk[0], capacity, offset);
-    posix_drain_chunk(&chunk, buffer, outcome);
-    outcome
+    transition buffer.len > 0 {
+        true -> nonempty(fd, buffer, count, offset)
+        _ -> empty(fd, offset)
+    }
+
+    state nonempty(fd: i32, buffer: &mut [u8], count: u64, offset: i64) -> i64 {
+        let capacity: u64 = posix_shorter(count, buffer.len);
+        let outcome: i64 = PosixFilesystemLinux::pread64(fd, &mut buffer[0], capacity, offset);
+        outcome
+    }
+
+    state empty(fd: i32, offset: i64) -> i64 {
+        // Preserve the OS result for empty requests without indexing an empty view.
+        let mut dummy: [u8; 1];
+        let outcome: i64 = PosixFilesystemLinux::pread64(fd, &mut dummy[0], 0, offset);
+        outcome
+    }
 }
 
 linux_x86_64 machine PosixFilesystemNativeProvider::write_at(fd: i32, bytes: &[u8], offset: i64) -> i64
     satisfies PosixFilesystemHost::write_at
 reaches PosixFilesystemHost
 {
-    let mut chunk: [u8; 4096];
-    let count: u64 = posix_fill_chunk(bytes, &mut chunk);
-    let outcome: i64 = PosixFilesystemLinux::pwrite64(fd, &chunk[0], count, offset);
-    outcome
+    transition bytes.len > 0 {
+        true -> nonempty(fd, bytes, offset)
+        _ -> empty(fd, offset)
+    }
+
+    state nonempty(fd: i32, bytes: &[u8], offset: i64) -> i64 {
+        let outcome: i64 = PosixFilesystemLinux::pwrite64(fd, &bytes[0], bytes.len, offset);
+        outcome
+    }
+
+    state empty(fd: i32, offset: i64) -> i64 {
+        // Preserve the OS result for empty requests without indexing an empty view.
+        let mut dummy: [u8; 1];
+        let outcome: i64 = PosixFilesystemLinux::pwrite64(fd, &dummy[0], 0, offset);
+        outcome
+    }
 }
 
 linux_x86_64 machine PosixFilesystemNativeProvider::close(fd: i32) -> i32
@@ -441,7 +489,7 @@ reaches PosixFilesystemHost
     let mut terminated: [u8; 4096];
     let fits: bool = posix_terminated_path(path, &mut terminated);
     let mut chunk: [u8; 4096];
-    let capacity: u64 = posix_transfer_capacity(buffer, count);
+    let capacity: u64 = posix_chunk_capacity(buffer, count);
     let outcome: i64 = PosixFilesystemLinux::readlinkat(-100, &terminated[0], &mut chunk[0], capacity);
     posix_drain_chunk(&chunk, buffer, outcome);
     transition fits {
@@ -459,7 +507,7 @@ linux_x86_64 machine PosixFilesystemNativeProvider::read_dir(fd: i32, buffer: &m
 reaches PosixFilesystemHost
 {
     let mut chunk: [u8; 4096];
-    let capacity: u64 = posix_transfer_capacity(buffer, count);
+    let capacity: u64 = posix_chunk_capacity(buffer, count);
     let outcome: i64 = PosixFilesystemLinux::getdents64(fd, &mut chunk[0], capacity);
     posix_drain_chunk(&chunk, buffer, outcome);
     outcome

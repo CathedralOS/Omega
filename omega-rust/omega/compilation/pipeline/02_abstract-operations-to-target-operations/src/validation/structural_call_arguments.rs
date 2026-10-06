@@ -1607,11 +1607,19 @@ impl Replay<'_> {
                     }
                 }
             };
+            let projects_view_backing = semantic.access != StructuralAccess::Owned
+                && !semantic.path.is_empty()
+                && self.declarations.iter().any(|row| {
+                    row.id == root.structural_type
+                        && (row.shape.is_borrowed_byte_carrier()
+                            || matches!(row.shape, StructuralTypeShape::ElementView { .. }))
+                });
             if projected_type != declaration_parameter.structural_type
-                || projected_shape
-                    .byte_size
-                    .checked_add(byte_offset)
-                    .is_none_or(|end| end > source_byte_size)
+                || (!projects_view_backing
+                    && projected_shape
+                        .byte_size
+                        .checked_add(byte_offset)
+                        .is_none_or(|end| end > source_byte_size))
             {
                 return Err(psi_operation);
             }

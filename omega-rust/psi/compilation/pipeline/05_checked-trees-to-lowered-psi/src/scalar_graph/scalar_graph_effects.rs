@@ -44,12 +44,8 @@ pub(crate) fn emit(
                         }
                     });
                 }
-                if source.observe_length {
-                    crate::emission::operation_emission::expressions::emit_element_length(
-                        source.place,
-                        next_value,
-                        operations,
-                    );
+                if let Some(length) = &source.length_observation {
+                    emit_direct_expression(length, values, next_value, operations);
                 }
                 // Read the source's published qualifications, never the copy
                 // destination's requested memberships. Projected copies retain

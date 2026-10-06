@@ -324,16 +324,14 @@ pub(crate) fn validate(
                 )
             }
         };
-        if elements.iter().any(|element| element.extent.is_none())
-            || argument.path.iter().any(|segment| match segment {
-                terminal_psi::StructuralPathSegment::Field(_)
-                | terminal_psi::StructuralPathSegment::FixedIndex(_) => false,
-                terminal_psi::StructuralPathSegment::RuntimeIndex { .. } => {
-                    argument.access == terminal_psi::StructuralAccess::Owned
-                }
-                _ => true,
-            })
-            || argument.root_structural_type != root_type
+        if argument.path.iter().any(|segment| match segment {
+            terminal_psi::StructuralPathSegment::Field(_)
+            | terminal_psi::StructuralPathSegment::FixedIndex(_) => false,
+            terminal_psi::StructuralPathSegment::RuntimeIndex { .. } => {
+                argument.access == terminal_psi::StructuralAccess::Owned
+            }
+            _ => true,
+        }) || argument.root_structural_type != root_type
             || argument.structural_type != projected_type
             || argument.source_byte_offset != source_byte_offset
             || argument.shape != storage_shape

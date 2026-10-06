@@ -53,6 +53,8 @@ impl PreparedStructuralArgument {
         &self,
         values: &[ValueDeclaration],
         calls: &mut CallEmissionContext<'_>,
+        next_value: &mut u64,
+        operations: &mut OperationBuffer,
     ) -> Result<StructuralArgument, LoweringError> {
         let selectors = self
             .selector_positions
@@ -71,12 +73,15 @@ impl PreparedStructuralArgument {
             })
             .collect::<Result<Vec<_>, LoweringError>>()?;
         let mut selectors = selectors.into_iter();
-        let path = crate::expression_preparation::bindings::structural_paths::emit_argument_path(
-            &self.path,
-            Some(values),
-            &mut selectors,
-            Some(calls),
-        )?;
+        let path =
+            crate::expression_preparation::bindings::structural_paths::emit_captured_argument_path(
+                &self.path,
+                self.place,
+                Some(values),
+                &mut selectors,
+                Some(calls),
+                Some((next_value, operations)),
+            )?;
         if selectors.next().is_some() {
             return unsupported("captured selectors exceed the structural argument path");
         }
@@ -430,7 +435,14 @@ fn emit_direct_call_operation(
     let structural_arguments = call
         .structural_arguments
         .iter()
-        .map(|argument| argument.emit(source_values_before_call, call_emission))
+        .map(|argument| {
+            argument.emit(
+                source_values_before_call,
+                call_emission,
+                next_value_identity,
+                operations,
+            )
+        })
         .collect::<Result<Vec<_>, _>>()?;
     operations.push(Operation {
         static_reach_binding: None,

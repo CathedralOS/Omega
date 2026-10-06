@@ -859,8 +859,6 @@ defines the complete product bar.
     refuses a qualified loan (`path: &[u8] in Path`) re-entering state 0. Then
     the same `FilesystemHost` provider. Result custody and nested-field
     initialization stay with **STATE-LOCAL-VALUE-FRONTIER**.
-  - `gui/{image_viewer,window_app,window_demo,windowed_calculator}`: see
-    **MACOS-APPLICATION-PUBLICATION**.
 
   Host coverage still owed:
   - std `Clock` on Linux (`rendering/{bouncing_ball_2d,mandelbrot_zoom,bouncing_particles}`):
@@ -5318,12 +5316,10 @@ wait for Cathedral's instruction coverage. The interpreter is
   - `pass/time/runtime_fs_mtime_system_time_interop_exit`: stage 05 refuses
     moving its `let mut` stat buffer into a successor state ("Unit graph
     moved local is mutable").
-  - The providers copy bytes through 4096-byte chunks. Two compiler gaps
-    force this. First, a byte slice cannot lend its storage to a foreign
-    pointer formal: `&bytes[0]` on a view has no Terminal projection.
-    The copy loops take slices because a received `&[u8; N]` loan could not
-    be forwarded to another call before `5fde48274c1`. Lending storage to the
-    import is what removes the copies.
+  - `read_link`, `read_dir`, metadata and timestamp adapters still stage
+    through 4096-byte buffers. Remove unnecessary byte copying; preserve
+    the native layout, alignment and minimum-storage requirements of
+    structure-valued calls. Keep NUL-terminated path construction separate.
   The portable wrapper's carrier depends on
   `portable-service-per-family-binding-carrier` in `OWNER_QUESTIONS.md`;
   independent family/provider work can proceed.

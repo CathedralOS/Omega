@@ -59,6 +59,10 @@ pub(crate) fn lower_structural_path(
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum PreparedStructuralPathSegment {
     Static(StructuralPathSegment),
+    /// A dynamic extent is observed before selecting its backing, even for a literal index.
+    ViewExtent {
+        bytes: bool,
+    },
     RuntimeIndex(checked_trees::CheckedRuntimeIndex),
     ComputedIndex(checked_trees::CheckedScalarComputationHandle),
 }
@@ -115,6 +119,17 @@ pub(crate) fn prepare_argument_path(
             Tip::Inline(field) => field.byte_sequence_carrier(),
             Tip::ByteElement | Tip::ByteWindow => None,
         };
+        if matches!(
+            step,
+            CheckedUnitStructuralPathSegment::FixedIndex(_)
+                | CheckedUnitStructuralPathSegment::RuntimeIndex(_)
+                | CheckedUnitStructuralPathSegment::ComputedIndex(_)
+        ) {
+            let byte_view = matches!(bytes, Some(ByteSequenceCarrier::BorrowedView { .. }));
+            if byte_view || matches!(shape, Some(StructuralTypeShape::ElementView { .. })) {
+                prepared.push(PreparedStructuralPathSegment::ViewExtent { bytes: byte_view });
+            }
+        }
         let lowered = match step {
             CheckedUnitStructuralPathSegment::Case(identity) => {
                 let cases = match shape {
@@ -403,7 +418,94 @@ pub(crate) fn emit_argument_path(
             PreparedStructuralPathSegment::RuntimeIndex(_) => Err(LoweringError::Unsupported(
                 "an assignment-index selector is owned by its store destination",
             )),
+            PreparedStructuralPathSegment::ViewExtent { .. } => Err(LoweringError::Unsupported(
+                "a view element projection requires its emitting operand frame",
+            )),
             PreparedStructuralPathSegment::Static(segment) => Ok(segment.clone()),
         })
         .collect()
+}
+
+/// Emit the projection's real extent and literal selector operands in the same
+/// frame as a computed selector. Preparation resolves geometry; this owner
+/// allocates the operation's bound obligation, never infers it from the type.
+pub(crate) fn emit_captured_argument_path(
+    path: &[PreparedStructuralPathSegment],
+    source: semantic_vocabulary::PlaceId,
+    caller_values: Option<&[ValueDeclaration]>,
+    selectors: &mut dyn Iterator<Item = ValueId>,
+    mut calls: Option<&mut CallEmissionContext<'_>>,
+    emission: Option<(
+        &mut u64,
+        &mut crate::emission::operation_emission::buffer::OperationBuffer,
+    )>,
+) -> Result<Vec<StructuralPathSegment>, LoweringError> {
+    use crate::emission::operation_emission::expressions::{
+        emit_byte_length, emit_element_length, emit_scalar_leaf,
+    };
+    let mut emission = emission;
+    let mut output = Vec::new();
+    let mut dynamic_extent = false;
+    for segment in path {
+        if let PreparedStructuralPathSegment::ViewExtent { bytes } = segment {
+            // The existing live-length operations observe a whole descriptor.
+            // A nested descriptor requires its own retained descriptor home.
+            if !output.is_empty() {
+                return Err(LoweringError::Unsupported(
+                    "projected view extent has no retained descriptor home",
+                ));
+            }
+            let Some((next_value, operations)) = emission.as_mut() else {
+                return Err(LoweringError::Unsupported(
+                    "view projection has no operand emission frame",
+                ));
+            };
+            if *bytes {
+                emit_byte_length(source, next_value, operations);
+            } else {
+                emit_element_length(source, next_value, operations);
+            }
+            dynamic_extent = true;
+            continue;
+        }
+        if dynamic_extent
+            && let PreparedStructuralPathSegment::Static(StructuralPathSegment::FixedIndex(index)) =
+                segment
+        {
+            let Some((next_value, operations)) = emission.as_mut() else {
+                unreachable!("extent required emission frame")
+            };
+            let scalar_type = ScalarType::Integer(
+                semantic_vocabulary::IntegerType::new(
+                    semantic_vocabulary::IntegerSign::Unsigned,
+                    64,
+                )
+                .expect("u64"),
+            );
+            let index = emit_scalar_leaf(
+                terminal_psi::OperationKind::IntegerConstant {
+                    value: semantic_vocabulary::IntegerValue::Unsigned(u128::from(*index)),
+                },
+                scalar_type,
+                next_value,
+                operations,
+            );
+            let obligation = calls
+                .as_deref_mut()
+                .ok_or(LoweringError::Unsupported(
+                    "view projection has no obligation frame",
+                ))?
+                .allocate_requirement()?;
+            output.push(StructuralPathSegment::RuntimeIndex { index, obligation });
+        } else {
+            output.extend(emit_argument_path(
+                std::slice::from_ref(segment),
+                caller_values,
+                selectors,
+                calls.as_deref_mut(),
+            )?);
+        }
+        dynamic_extent = false;
+    }
+    Ok(output)
 }

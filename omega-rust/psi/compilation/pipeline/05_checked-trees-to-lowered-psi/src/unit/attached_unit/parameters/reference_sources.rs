@@ -47,6 +47,7 @@ pub(crate) fn lower_reference_source(
         None,
         &mut std::iter::empty(),
         None,
+        None,
     )?;
     let [mut argument] = <[StructuralArgument; 1]>::try_from(arguments)
         .map_err(|_| LoweringError::Unsupported("reference source is not one argument"))?;

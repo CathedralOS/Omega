@@ -1,7 +1,7 @@
 // Complete macos_arm64 `PosixFilesystemHost` provider over libSystem.
 // Each operation is an ordinary checked adapter: it terminates paths into
-// local buffers, moves slice bytes through a fixed chunk, calls one
-// libSystem import, and turns libc's `-1` plus thread-local `errno` into the
+// local buffers, lends caller backing for ordinary read/write transfers,
+// calls libSystem, and turns libc's `-1` plus thread-local `errno` into the
 // trait's negated `errno`. The imports state libSystem's own parameters
 // through std-private requirements, each satisfied by one Mach-O symbol.
 //
@@ -579,13 +579,28 @@ macos_arm64 machine PosixFilesystemNativeProvider::read(fd: i32, buffer: &mut [u
     satisfies PosixFilesystemHost::read
 reaches PosixFilesystemHost
 {
-    let mut chunk: [u8; 4096];
-    let capacity: u64 = posix_transfer_capacity(buffer, count);
-    let outcome: i64 = PosixFilesystemDarwin::c_read(fd, &mut chunk[0], capacity);
-    posix_drain_chunk(&chunk, buffer, outcome);
-    transition outcome < 0 {
-        true -> (PosixFilesystemDarwin::failure_i64())
-        _ -> (outcome)
+    transition buffer.len > 0 {
+        true -> nonempty(fd, buffer, count)
+        _ -> empty(fd)
+    }
+
+    state nonempty(fd: i32, buffer: &mut [u8], count: u64) -> i64 {
+        let capacity: u64 = posix_shorter(count, buffer.len);
+        let outcome: i64 = PosixFilesystemDarwin::c_read(fd, &mut buffer[0], capacity);
+        transition outcome < 0 {
+            true -> (PosixFilesystemDarwin::failure_i64())
+            _ -> (outcome)
+        }
+    }
+
+    state empty(fd: i32) -> i64 {
+        // Preserve the OS result for empty requests without indexing an empty view.
+        let mut dummy: [u8; 1];
+        let outcome: i64 = PosixFilesystemDarwin::c_read(fd, &mut dummy[0], 0);
+        transition outcome < 0 {
+            true -> (PosixFilesystemDarwin::failure_i64())
+            _ -> (outcome)
+        }
     }
 }
 
@@ -593,12 +608,27 @@ macos_arm64 machine PosixFilesystemNativeProvider::write(fd: i32, bytes: &[u8]) 
     satisfies PosixFilesystemHost::write
 reaches PosixFilesystemHost
 {
-    let mut chunk: [u8; 4096];
-    let count: u64 = posix_fill_chunk(bytes, &mut chunk);
-    let outcome: i64 = PosixFilesystemDarwin::c_write(fd, &chunk[0], count);
-    transition outcome < 0 {
-        true -> (PosixFilesystemDarwin::failure_i64())
-        _ -> (outcome)
+    transition bytes.len > 0 {
+        true -> nonempty(fd, bytes)
+        _ -> empty(fd)
+    }
+
+    state nonempty(fd: i32, bytes: &[u8]) -> i64 {
+        let outcome: i64 = PosixFilesystemDarwin::c_write(fd, &bytes[0], bytes.len);
+        transition outcome < 0 {
+            true -> (PosixFilesystemDarwin::failure_i64())
+            _ -> (outcome)
+        }
+    }
+
+    state empty(fd: i32) -> i64 {
+        // Preserve the OS result for empty requests without indexing an empty view.
+        let mut dummy: [u8; 1];
+        let outcome: i64 = PosixFilesystemDarwin::c_write(fd, &dummy[0], 0);
+        transition outcome < 0 {
+            true -> (PosixFilesystemDarwin::failure_i64())
+            _ -> (outcome)
+        }
     }
 }
 
@@ -606,13 +636,28 @@ macos_arm64 machine PosixFilesystemNativeProvider::read_at(fd: i32, buffer: &mut
     satisfies PosixFilesystemHost::read_at
 reaches PosixFilesystemHost
 {
-    let mut chunk: [u8; 4096];
-    let capacity: u64 = posix_transfer_capacity(buffer, count);
-    let outcome: i64 = PosixFilesystemDarwin::c_read_at(fd, &mut chunk[0], capacity, offset);
-    posix_drain_chunk(&chunk, buffer, outcome);
-    transition outcome < 0 {
-        true -> (PosixFilesystemDarwin::failure_i64())
-        _ -> (outcome)
+    transition buffer.len > 0 {
+        true -> nonempty(fd, buffer, count, offset)
+        _ -> empty(fd, offset)
+    }
+
+    state nonempty(fd: i32, buffer: &mut [u8], count: u64, offset: i64) -> i64 {
+        let capacity: u64 = posix_shorter(count, buffer.len);
+        let outcome: i64 = PosixFilesystemDarwin::c_read_at(fd, &mut buffer[0], capacity, offset);
+        transition outcome < 0 {
+            true -> (PosixFilesystemDarwin::failure_i64())
+            _ -> (outcome)
+        }
+    }
+
+    state empty(fd: i32, offset: i64) -> i64 {
+        // Preserve the OS result for empty requests without indexing an empty view.
+        let mut dummy: [u8; 1];
+        let outcome: i64 = PosixFilesystemDarwin::c_read_at(fd, &mut dummy[0], 0, offset);
+        transition outcome < 0 {
+            true -> (PosixFilesystemDarwin::failure_i64())
+            _ -> (outcome)
+        }
     }
 }
 
@@ -620,12 +665,27 @@ macos_arm64 machine PosixFilesystemNativeProvider::write_at(fd: i32, bytes: &[u8
     satisfies PosixFilesystemHost::write_at
 reaches PosixFilesystemHost
 {
-    let mut chunk: [u8; 4096];
-    let count: u64 = posix_fill_chunk(bytes, &mut chunk);
-    let outcome: i64 = PosixFilesystemDarwin::c_write_at(fd, &chunk[0], count, offset);
-    transition outcome < 0 {
-        true -> (PosixFilesystemDarwin::failure_i64())
-        _ -> (outcome)
+    transition bytes.len > 0 {
+        true -> nonempty(fd, bytes, offset)
+        _ -> empty(fd, offset)
+    }
+
+    state nonempty(fd: i32, bytes: &[u8], offset: i64) -> i64 {
+        let outcome: i64 = PosixFilesystemDarwin::c_write_at(fd, &bytes[0], bytes.len, offset);
+        transition outcome < 0 {
+            true -> (PosixFilesystemDarwin::failure_i64())
+            _ -> (outcome)
+        }
+    }
+
+    state empty(fd: i32, offset: i64) -> i64 {
+        // Preserve the OS result for empty requests without indexing an empty view.
+        let mut dummy: [u8; 1];
+        let outcome: i64 = PosixFilesystemDarwin::c_write_at(fd, &dummy[0], 0, offset);
+        transition outcome < 0 {
+            true -> (PosixFilesystemDarwin::failure_i64())
+            _ -> (outcome)
+        }
     }
 }
 
@@ -875,7 +935,7 @@ reaches PosixFilesystemHost
     let mut terminated: [u8; 4096];
     let fits: bool = posix_terminated_path(path, &mut terminated);
     let mut chunk: [u8; 4096];
-    let capacity: u64 = posix_transfer_capacity(buffer, count);
+    let capacity: u64 = posix_chunk_capacity(buffer, count);
     let outcome: i64 = PosixFilesystemDarwin::c_read_link(&terminated[0], &mut chunk[0], capacity);
     posix_drain_chunk(&chunk, buffer, outcome);
     transition fits {
@@ -896,7 +956,7 @@ macos_arm64 machine PosixFilesystemNativeProvider::read_dir(fd: i32, buffer: &mu
 reaches PosixFilesystemHost
 {
     let mut chunk: [u8; 4096];
-    let capacity: u64 = posix_transfer_capacity(buffer, count);
+    let capacity: u64 = posix_chunk_capacity(buffer, count);
     let outcome: i64 = PosixFilesystemDarwin::c_read_dir(fd, &mut chunk[0], capacity, position);
     posix_drain_chunk(&chunk, buffer, outcome);
     transition outcome < 0 {

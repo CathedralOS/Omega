@@ -197,21 +197,20 @@ pub(crate) fn runtime_index_sites(
                     // of zero resolves a view at the root, where that
                     // observation is well-formed.
                     StructuralTypeShape::ElementView { .. }
-                    | StructuralTypeShape::ByteSequence(
-                        terminal_psi::ByteSequenceCarrier::BorrowedView { .. },
-                    ) if declaration.id == array && position == 0 => {
+                    | StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView { .. })
+                        if declaration.id == array && position == 0 =>
+                    {
                         machine
                             .blocks
                             .iter()
                             .flat_map(|block| &block.operations)
                             .find(|candidate| {
                                 candidate.result.scalar().is_some()
-                                    && matches!(
-                                        candidate.kind,
-                                        OperationKind::ElementViewLength { source }
-                                        | OperationKind::ByteSequenceLength { source }
-                                            if source == projection.root
-                                    )
+                                    && match (&declaration.shape, &candidate.kind) {
+                                        (StructuralTypeShape::ElementView { .. }, OperationKind::ElementViewLength { source })
+                                        | (StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView { .. }), OperationKind::ByteSequenceLength { source }) => *source == projection.root,
+                                        _ => false,
+                                    }
                                     && crate::validation::structural::byte_sequence_fields::view_length_is_current(
                                         module,
                                         machine,

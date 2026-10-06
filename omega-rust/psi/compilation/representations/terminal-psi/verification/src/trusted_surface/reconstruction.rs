@@ -507,8 +507,8 @@ static FACT_RUNTIME_INDEX_BOUND: TrustedSurfaceEntry = TrustedSurfaceEntry {
     id: "fact:runtime-index-bound",
     family: LedgerFamily::ReconstructedFactKind,
     binding: PROCEDURAL,
-    premises: "an operation that resolves runtime projections, including a boundary call structural actual, whose projection carries a RuntimeIndex segment over a defined integer selector and whose segment prefix resolves to a fixed array",
-    conclusion: "one derivable obligation per segment, identified by the segment's own obligation, whose proposition is `runtime_index_bound(selector, extent)` over the facts that hold before the operation; no bound is read from the segment",
+    premises: "an operation that resolves runtime projections, including an ordinary or boundary call structural actual, whose RuntimeIndex segment names a defined integer selector and a fixed array or bounded byte extent, or a whole element/borrowed-byte view with an exact dominating current length observation; live-view selectors use the observation's u64 coordinate, including emitted literal selectors",
+    conclusion: "one derivable obligation per segment, identified by its own obligation: `runtime_index_bound(selector, extent)` for a declared extent or `selector < observed_length` for the same live descriptor; the pre-operation facts must prove the selected element exists, and neither path spelling nor a pointer/count association supplies the bound",
     dependencies: &[
         "fact:semantic-axiom-roster",
         "formation:operation-validation",
@@ -519,6 +519,8 @@ static FACT_RUNTIME_INDEX_BOUND: TrustedSurfaceEntry = TrustedSurfaceEntry {
         "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/structural/runtime_indexes.rs",
         "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/foundation.rs",
         "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/static_path.rs",
+        "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/primitive_place.rs",
+        "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/structural/byte_sequence_fields/freshness.rs",
     ],
     soundness: TRUSTED,
 };

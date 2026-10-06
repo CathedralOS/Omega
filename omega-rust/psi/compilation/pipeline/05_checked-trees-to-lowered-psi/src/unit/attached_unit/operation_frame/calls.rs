@@ -852,14 +852,7 @@ impl OperationFrame<'_, '_> {
             let earlier =
                 self.results
                     .earlier(structural_arguments, self.operations, self.evaluation)?;
-            parameters::mint_view_length_observations(
-                structural_arguments,
-                self.parameters,
-                &earlier,
-                self.structural_types.declarations(),
-                self.next_value,
-                self.operations,
-            )?;
+
             (
                 lower_structural_arguments(
                     structural_arguments,
@@ -867,13 +860,14 @@ impl OperationFrame<'_, '_> {
                     self.parameters,
                     self.caller.local_places,
                     &earlier,
-                    &self.operations.structural_values,
+                    &self.operations.structural_values.clone(),
                     inputs.byte_places,
                     self.primitive_locals,
                     &self.evaluation.structural_locals,
                     Some(self.values),
                     &mut selector_values,
                     Some(&mut *self.calls),
+                    Some((self.next_value, self.operations)),
                 )?,
                 emitted_claim_transfers(claim_transfers, self.caller.claims.bindings())?,
             )

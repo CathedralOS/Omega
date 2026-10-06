@@ -256,6 +256,7 @@ pub(crate) fn emit_boundary_scalar_return(
                 Some(&scalar_values),
                 &mut selector_values,
                 Some(scalar_calls),
+                Some((&mut next_value_identity, &mut operations)),
             )?,
             completion_receipts: completion_receipts
                 .iter()

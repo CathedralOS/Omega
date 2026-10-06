@@ -5,9 +5,7 @@ use super::super::{
     claim_id, structural_crash_route_argument_prefix, substitute_structural_crash_route_roots,
 };
 use super::bodies::UnitPlans;
-use super::parameters::{
-    emitted_claim_transfers, mint_runtime_index_selectors, mint_view_length_observations,
-};
+use super::parameters::{emitted_claim_transfers, mint_runtime_index_selectors};
 use super::{
     CheckedTrees, CheckedUnitEffectOperationPlan, ClaimTransfer, LoweringError, Multiplicity,
     Operation, OperationResult, PlaceId, StructuralMultiplicity, StructuralOperationResult,
@@ -169,14 +167,7 @@ pub(super) fn prepare(
         operations,
     )?
     .into_iter();
-    mint_view_length_observations(
-        structural_arguments,
-        parameters,
-        structural_result_places,
-        structural_types,
-        next_value,
-        operations,
-    )?;
+
     let claim_transfers = emitted_claim_transfers(claim_transfers, claim_bindings)?;
     let terminal_arguments = lower_structural_arguments(
         structural_arguments,
@@ -184,13 +175,14 @@ pub(super) fn prepare(
         parameters,
         local_places,
         structural_result_places,
-        &operations.structural_values,
+        &operations.structural_values.clone(),
         call_byte_places,
         primitive_local_places,
         structural_locals,
         Some(caller_scalar_values),
         &mut selector_values,
         Some(calls),
+        Some((next_value, operations)),
     )?;
 
     if target.scalar_parameters.len() != terminal_scalar_values.len() {

@@ -9,8 +9,8 @@ use super::{
     Multiplicity, Operation, OperationResult, ScalarType, StructuralMultiplicity,
     StructuralOperationResult, StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeId,
     ValueDeclaration, allocate_dense, argument_evaluation, lookup_machine_id, lookup_type_id,
-    lower_structural_arguments, mint_runtime_index_selectors, mint_view_length_observations,
-    place_id, retain_exact_flow_call, terminal_scalar_type, unsupported,
+    lower_structural_arguments, mint_runtime_index_selectors, place_id, retain_exact_flow_call,
+    terminal_scalar_type, unsupported,
 };
 use crate::direct_calls::{DirectCall, DirectCallResult};
 use crate::emission::operation_emission::buffer::{OperationBuffer, SourceCallCoordinate};
@@ -275,27 +275,21 @@ pub(super) fn emit(
         operations,
     )?
     .into_iter();
-    mint_view_length_observations(
-        structural_arguments,
-        parameters,
-        earlier_results,
-        structural_types,
-        next_value,
-        operations,
-    )?;
+
     let structural_arguments = lower_structural_arguments(
         structural_arguments,
         structural_types,
         parameters,
         &[],
         earlier_results,
-        &operations.structural_values,
+        &operations.structural_values.clone(),
         &[],
         &[],
         structural_locals,
         caller_scalar_values,
         &mut selector_values,
         calls,
+        Some((next_value, operations)),
     )?;
     let id = operations.allocate();
     let place = place_id(allocate_dense(next_place)?);

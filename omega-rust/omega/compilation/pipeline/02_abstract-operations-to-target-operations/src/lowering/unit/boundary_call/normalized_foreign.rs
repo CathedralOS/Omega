@@ -312,15 +312,24 @@ pub(super) fn lower_normalized_foreign_structural_arguments(
             } else {
                 terminal_psi::StructuralMultiplicity::Affine
             };
+            let projects_view_backing = argument.access != StructuralAccess::Owned
+                && !argument.path.is_empty()
+                && structural_types
+                    .get(&source_structural_type)
+                    .is_some_and(|row| {
+                        row.shape.is_borrowed_byte_carrier()
+                            || matches!(row.shape, StructuralTypeShape::ElementView { .. })
+                    });
             if projected_type != parameter.structural_type
                 || argument.access != parameter.access
                 || parameter.multiplicity != expected_multiplicity
                 || !parameter.qualifications.is_empty()
                 || !parameter.projected_qualifications.is_empty()
-                || projected_shape
-                    .byte_size
-                    .checked_add(source_byte_offset)
-                    .is_none_or(|end| end > source_shape.byte_size)
+                || (!projects_view_backing
+                    && projected_shape
+                        .byte_size
+                        .checked_add(source_byte_offset)
+                        .is_none_or(|end| end > source_shape.byte_size))
             {
                 return Err(LoweringError::BoundaryRealizationMismatch(boundary));
             }

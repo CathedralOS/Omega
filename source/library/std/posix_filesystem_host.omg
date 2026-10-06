@@ -38,10 +38,12 @@ pub boundary trait PosixFilesystemHost {
     // `creat(path, mode)`: create or truncate for writing.
     machine create(path: &[u8] in Path, mode: i32) -> i32 reaches PosixFilesystemHost;
     // Read up to `count` bytes (and at most `buffer.len`) into `buffer`. A short
-    // read is a successful partial read; zero is end of file.
+    // read is a successful partial read; zero is end of file for a nonzero
+    // request. A zero-length request still invokes the OS with count zero.
     machine read(fd: i32, buffer: &mut [u8], count: u64) -> i64 reaches PosixFilesystemHost;
     // Write a prefix of `bytes`; the result counts the bytes written. A short
-    // write is a successful partial write.
+    // write is a successful partial write. An empty view still invokes the OS
+    // with count zero; the provider does not manufacture a successful result.
     machine write(fd: i32, bytes: &[u8]) -> i64 reaches PosixFilesystemHost;
     // `pread`: read at an absolute offset without moving the descriptor's cursor.
     machine read_at(fd: i32, buffer: &mut [u8], count: u64, offset: i64) -> i64 reaches PosixFilesystemHost;
@@ -190,15 +192,13 @@ machine posix_put_path_byte(path: &[u8], out: &mut [u8], index: u64) {
     state done() { }
 }
 
-// Bounce transfers. A byte slice cannot yet lend its storage to a foreign
-// pointer formal, so providers move bytes through a fixed local chunk: the
-// call reads or writes the chunk, and these copy between the chunk and the
-// caller's slice. A transfer larger than the chunk completes partially, which
-// POSIX reads and writes already permit.
+// Fixed scratch storage remains for target-layout metadata, timestamp records,
+// and the directory/link adapters. Ordinary read/write operations lend the
+// caller's byte-view backing directly and do not use these chunk helpers.
 
 // How many bytes one transfer may move into `buffer`: at most `count`, the
 // slice's length and the chunk's size.
-pub machine posix_transfer_capacity(buffer: &mut [u8], count: u64) -> u64 {
+pub machine posix_chunk_capacity(buffer: &mut [u8], count: u64) -> u64 {
     let length: u64 = buffer.len;
     transition {
         count <= length && count <= 4096 -> (count)
@@ -208,7 +208,7 @@ pub machine posix_transfer_capacity(buffer: &mut [u8], count: u64) -> u64 {
 }
 
 // The smaller of two lengths.
-machine posix_shorter(first: u64, second: u64) -> u64 {
+pub machine posix_shorter(first: u64, second: u64) -> u64 {
     transition first <= second {
         true -> (first)
         _ -> (second)

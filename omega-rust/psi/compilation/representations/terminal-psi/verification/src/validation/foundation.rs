@@ -1099,6 +1099,21 @@ pub(super) fn resolve_structural_path(
         StructuralFieldType::canonical_leaf_shape,
         RuntimeIndexes::Refuse,
     )
+    .or_else(|| {
+        // Static custody paths cannot borrow a runtime selector's evidence.
+        // Bounded inline bytes still share the primitive endpoint judgment.
+        if path
+            .iter()
+            .any(|segment| matches!(segment, StructuralPathSegment::RuntimeIndex { .. }))
+        {
+            return None;
+        }
+        terminal_semantics::primitive_projection_declaration(
+            module.structural_types.iter(),
+            structural_type,
+            path,
+        )
+    })
 }
 
 /// Resolve a projection that may select elements through `RuntimeIndex`
@@ -1118,6 +1133,13 @@ pub(in crate::validation) fn resolve_runtime_projection(
         StructuralFieldType::canonical_leaf_shape,
         RuntimeIndexes::Admit,
     )
+    .or_else(|| {
+        terminal_semantics::primitive_projection_declaration(
+            module.structural_types.iter(),
+            structural_type,
+            path,
+        )
+    })
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -1226,49 +1248,10 @@ fn resolve_structural_path_with_leaf(
                 StructuralPathSegment::RuntimeIndex { .. },
                 StructuralTypeShape::ElementView { element },
             ) if runtime_indexes == RuntimeIndexes::Admit => *element,
-            // A byte carrier's element is its `u8` scalar, the same leaf
-            // primitive reads and stores select (`terminal_semantics`
-            // `primitive_place`). A bounded carrier's capacity bounds a
-            // literal index; a borrowed view's stored extent bounds it at
-            // execution, as for an element view.
-            (
-                StructuralPathSegment::FixedIndex(index),
-                StructuralTypeShape::ByteSequence(carrier),
-            ) if byte_carrier_capacity(*carrier).is_none_or(|capacity| *index < capacity) => {
-                byte_element(module)?
-            }
-            (StructuralPathSegment::RuntimeIndex { .. }, StructuralTypeShape::ByteSequence(_))
-                if runtime_indexes == RuntimeIndexes::Admit =>
-            {
-                byte_element(module)?
-            }
             _ => return None,
         };
     }
     payload_fields.is_none().then_some(structural_type)
-}
-
-/// The catalog's unique `u8` primitive declaration: the element a byte
-/// carrier's index selects.
-fn byte_element(module: &TerminalModule) -> Option<StructuralTypeId> {
-    let byte = semantic_vocabulary::ScalarType::Integer(
-        semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 8)
-            .ok()?,
-    );
-    let mut matching = module
-        .structural_types
-        .iter()
-        .filter(|declaration| declaration.shape == StructuralTypeShape::PrimitiveScalar(byte));
-    let element = matching.next()?;
-    matching.next().is_none().then_some(element.id)
-}
-
-fn byte_carrier_capacity(carrier: terminal_psi::ByteSequenceCarrier) -> Option<u64> {
-    match carrier {
-        terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity }
-        | terminal_psi::ByteSequenceCarrier::BoundedView { capacity, .. } => Some(capacity),
-        terminal_psi::ByteSequenceCarrier::BorrowedView { .. } => None,
-    }
 }
 
 pub(super) fn is_nonempty_field_path(path: &[StructuralPathSegment]) -> bool {

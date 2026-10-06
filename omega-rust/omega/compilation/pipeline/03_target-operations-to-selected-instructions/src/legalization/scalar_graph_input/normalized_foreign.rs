@@ -444,27 +444,33 @@ pub(in crate::legalization) fn structural_argument_at(
             )
         }
     };
-    // Runtime array elements use the retained scalar stride transport. A
-    // dynamic view needs a descriptor-to-backing projection before that
-    // transport and remains outside this normalized foreign lane.
-    if elements.iter().any(|element| element.extent.is_none())
-        || semantic.path.iter().any(|segment| match segment {
-            StructuralPathSegment::Field(_) | StructuralPathSegment::FixedIndex(_) => false,
-            StructuralPathSegment::RuntimeIndex { .. } => {
-                semantic.access == StructuralAccess::Owned
-            }
-            _ => true,
-        })
-        || usize::try_from(declaration_parameter.position).ok() != Some(position)
+    let projects_view_backing = semantic.access != StructuralAccess::Owned
+        && !semantic.path.is_empty()
+        && declarations.iter().any(|row| {
+            row.id == root_type
+                && (row.shape.is_borrowed_byte_carrier()
+                    || matches!(
+                        row.shape,
+                        terminal_psi::StructuralTypeShape::ElementView { .. }
+                    ))
+        });
+    // Dynamic selectors retain their accepted bound and use the same backing
+    // projection as ordinary borrowed calls; no descriptor extent is invented.
+    if semantic.path.iter().any(|segment| match segment {
+        StructuralPathSegment::Field(_) | StructuralPathSegment::FixedIndex(_) => false,
+        StructuralPathSegment::RuntimeIndex { .. } => semantic.access == StructuralAccess::Owned,
+        _ => true,
+    }) || usize::try_from(declaration_parameter.position).ok() != Some(position)
         || projected_type != declaration_parameter.structural_type
         || semantic.access != declaration_parameter.access
         || declaration_parameter.multiplicity != multiplicity
         || !declaration_parameter.qualifications.is_empty()
         || !declaration_parameter.projected_qualifications.is_empty()
-        || projected_shape
-            .byte_size
-            .checked_add(source_byte_offset)
-            .is_none_or(|end| end > root_shape.byte_size)
+        || (!projects_view_backing
+            && projected_shape
+                .byte_size
+                .checked_add(source_byte_offset)
+                .is_none_or(|end| end > root_shape.byte_size))
         || destination.shape != destination_shape
     {
         return Err(LegalizationError::custody());

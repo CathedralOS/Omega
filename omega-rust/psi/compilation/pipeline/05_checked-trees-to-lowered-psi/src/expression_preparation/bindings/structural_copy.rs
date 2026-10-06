@@ -13,7 +13,7 @@ use super::{
 pub(crate) struct PreparedStructuralCopy {
     pub(crate) place: PlaceId,
     pub(crate) path: Vec<PreparedCopyPathSegment>,
-    pub(crate) observe_length: bool,
+    pub(crate) length_observation: Option<LoweredDirectExpression>,
     pub(crate) qualifications: Vec<semantic_vocabulary::StructuralDomainId>,
     pub(crate) projected_qualifications: Vec<terminal_psi::StructuralPathQualification>,
 }
@@ -68,11 +68,15 @@ impl ScalarBindings {
     ) -> Result<PreparedStructuralCopy, LoweringError> {
         use structural_paths::PreparedStructuralPathSegment as Segment;
         use terminal_psi::{StructuralPathSegment, StructuralTypeShape};
+        let (requested_extent, path) = match path.split_first() {
+            Some((Segment::ViewExtent { bytes }, suffix)) => (Some(*bytes), suffix),
+            _ => (None, path),
+        };
         let indexed_root = matches!(
             path.first(),
             Some(Segment::RuntimeIndex(_) | Segment::Static(StructuralPathSegment::FixedIndex(_)))
         );
-        let observe_length = if indexed_root {
+        let length_observation = if indexed_root {
             let root_type = self
                 .structural_place_type(place)
                 .ok_or(LoweringError::Unsupported(
@@ -84,9 +88,32 @@ impl ScalarBindings {
                 .ok_or(LoweringError::Unsupported(
                     "indexed copy source type is absent",
                 ))?;
-            matches!(root.shape, StructuralTypeShape::ElementView { .. })
+            let scalar_type = terminal_scalar_type(PrimitiveType::U64)?;
+            match root.shape {
+                StructuralTypeShape::ElementView { .. } if requested_extent != Some(true) => {
+                    Some(LoweredDirectExpression::ElementViewLength {
+                        source: place,
+                        scalar_type,
+                    })
+                }
+                StructuralTypeShape::ByteSequence(
+                    terminal_psi::ByteSequenceCarrier::BorrowedView { .. },
+                ) if requested_extent != Some(false) => {
+                    Some(LoweredDirectExpression::ByteSequenceLength {
+                        source: place,
+                        scalar_type,
+                    })
+                }
+                _ if requested_extent.is_some() => {
+                    return unsupported("copy extent disagrees with its published descriptor");
+                }
+                _ => None,
+            }
         } else {
-            false
+            if requested_extent.is_some() {
+                return unsupported("copy extent has no element selector");
+            }
+            None
         };
         let path = path
             .iter()
@@ -102,11 +129,16 @@ impl ScalarBindings {
                     Segment::RuntimeIndex(checked_trees::CheckedRuntimeIndex::StructuralField(
                         field,
                     )) => self.runtime_index_field(field)?,
+                    Segment::ViewExtent { .. } => {
+                        return unsupported(
+                            "copied projection has no retained nested descriptor home",
+                        );
+                    }
                     Segment::ComputedIndex(_) | Segment::RuntimeIndex(_) => {
                         return unsupported("copy selector belongs to a store destination");
                     }
                     Segment::Static(StructuralPathSegment::FixedIndex(index))
-                        if observe_length && position == 0 =>
+                        if length_observation.is_some() && position == 0 =>
                     {
                         LoweredDirectExpression::IntegerLiteral {
                             value: semantic_vocabulary::IntegerValue::Unsigned(u128::from(*index)),
@@ -128,7 +160,7 @@ impl ScalarBindings {
         Ok(PreparedStructuralCopy {
             place,
             path,
-            observe_length,
+            length_observation,
             qualifications: contract
                 .map_or_else(Vec::new, |parameter| parameter.qualifications.clone()),
             projected_qualifications: contract.map_or_else(Vec::new, |parameter| {
