@@ -6,14 +6,12 @@ use crate::ValidatedRecoveryClassifications;
 use crate::ValidatedSelectedAnalysis;
 use crate::ValidatedSpillChoices;
 use register_model::{
-    TargetRegisterEnvironmentConstraintKeys, TargetRegisterEnvironmentIdentity,
-    ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog,
-    ValidatedRegisterReservationProfile,
+    TargetRegisterEnvironmentConstraintKeys, TargetRegisterEnvironmentIdentity, ValidatedRegisterConstraintCatalog,
 };
 
 pub(crate) mod compute;
 pub(crate) mod identity;
-pub(crate) mod validate;
+mod receipt;
 
 #[cfg(any(test, feature = "test-support"))]
 pub(crate) mod tests;
@@ -32,7 +30,6 @@ use selected_instructions::{
     VirtualRegisterId,
 };
 use semantic_vocabulary::{FuelScheduleIdentity, IntegerValue, MachineId, ValueId};
-pub use validate::validate_pressure_rematerialization;
 
 /// Insert one value-lineage-only, zero-fuel rematerialization immediately
 /// before the supported future-use boundary while retaining the semantic
@@ -45,14 +42,12 @@ pub fn rematerialize_selected_active_resident<S: ValidatedSelectedAnalysis>(
     recovery: &ValidatedRecoveryClassifications,
     availability: &ValidatedAllocatorAvailability,
     register_environment: TargetRegisterEnvironmentIdentity,
-    physical: &ValidatedPhysicalRegisterModel,
     constraints: &ValidatedRegisterConstraintCatalog,
-    reservations: &ValidatedRegisterReservationProfile,
     selected_keys: &TargetRegisterEnvironmentConstraintKeys,
     policy: PressureRematerializationPolicy,
     budget: optimization_core::OptimizationWorkBudget,
 ) -> Result<ValidatedPressureRematerialization, PressureRematerializationError> {
-    let plan = compute::compute_terminal_pressure_rematerialization(
+    let computed = compute::compute_terminal_pressure_rematerialization(
         selected,
         ranges,
         legality,
@@ -60,27 +55,31 @@ pub fn rematerialize_selected_active_resident<S: ValidatedSelectedAnalysis>(
         recovery,
         availability,
         register_environment,
-        physical,
         constraints,
-        reservations,
         selected_keys,
         policy,
         budget,
     )?;
-    validate_pressure_rematerialization(
-        selected,
-        ranges,
-        legality,
-        spill_choices,
-        recovery,
-        availability,
-        register_environment,
-        physical,
-        constraints,
-        reservations,
-        selected_keys,
+    // The plan and its transformed program were derived together in this
+    // compile; nothing re-derives them before admission.
+    let compute::ComputedPressureRematerialization {
         plan,
-    )
+        transformed,
+        applied,
+        rewritten_uses,
+    } = computed;
+    let receipt = receipt::bind(
+        &plan,
+        plan.transformed_selected,
+        transformed.functions.len(),
+        applied,
+        rewritten_uses,
+    );
+    Ok(ValidatedPressureRematerialization {
+        plan,
+        transformed: transformed.into(),
+        receipt,
+    })
 }
 
 const MAGIC: &[u8; 8] = b"OMGREM\0\0";
@@ -370,7 +369,6 @@ impl ValidatedPressureRematerialization {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PressureRematerializationError {
     RootMismatch,
-    UnsupportedPolicy,
     WorkOverflow,
     BudgetExceeded {
         required: OptimizationWorkUsage,
@@ -399,8 +397,6 @@ pub enum PressureRematerializationError {
         function: usize,
     },
     NoAction,
-    UsageMismatch,
-    TransformedIdentityMismatch,
 }
 
 impl std::fmt::Display for PressureRematerializationError {

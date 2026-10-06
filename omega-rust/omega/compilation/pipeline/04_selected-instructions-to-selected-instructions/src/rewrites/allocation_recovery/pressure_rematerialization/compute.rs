@@ -6,14 +6,11 @@ mod candidate_action;
 mod function_plans;
 mod materialize_constraint;
 mod selected_structure;
-mod source_custody;
 mod work;
 
 use optimization_core::OptimizationWorkBudget;
 use register_model::{
-    TargetRegisterEnvironmentConstraintKeys, TargetRegisterEnvironmentIdentity,
-    ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog,
-    ValidatedRegisterReservationProfile,
+    TargetRegisterEnvironmentConstraintKeys, TargetRegisterEnvironmentIdentity, ValidatedRegisterConstraintCatalog,
 };
 use target_operations_to_selected_instructions::selected_instruction_plan_identity;
 
@@ -34,26 +31,11 @@ pub(crate) fn compute_terminal_pressure_rematerialization<S: ValidatedSelectedAn
     recovery: &ValidatedRecoveryClassifications,
     availability: &ValidatedAllocatorAvailability,
     register_environment: TargetRegisterEnvironmentIdentity,
-    physical: &ValidatedPhysicalRegisterModel,
     constraints: &ValidatedRegisterConstraintCatalog,
-    reservations: &ValidatedRegisterReservationProfile,
     selected_keys: &TargetRegisterEnvironmentConstraintKeys,
     policy: PressureRematerializationPolicy,
     budget: OptimizationWorkBudget,
-) -> Result<PressureRematerializationPlan, PressureRematerializationError> {
-    source_custody::admit(
-        selected,
-        ranges,
-        legality,
-        spill_choices,
-        recovery,
-        availability,
-        register_environment,
-        physical,
-        constraints,
-        reservations,
-        selected_keys,
-    )?;
+) -> Result<ComputedPressureRematerialization, PressureRematerializationError> {
     let materialize = materialize_constraint::select(constraints, selected_keys)?;
     let (functions, transformed) = build_functions(
         selected.selected_plan(),
@@ -66,7 +48,8 @@ pub(crate) fn compute_terminal_pressure_rematerialization<S: ValidatedSelectedAn
     let usage = work::required_usage(selected.selected_plan(), applied, rewritten_uses)?;
     work::ensure_budget(usage, budget)?;
 
-    Ok(PressureRematerializationPlan {
+    let transformed_selected = selected_instruction_plan_identity(&transformed);
+    let plan = PressureRematerializationPlan {
         source_selected: selected.selected_identity(),
         spill_choices: spill_choices.receipt().identity(),
         recovery_classifications: recovery.receipt().identity(),
@@ -80,6 +63,21 @@ pub(crate) fn compute_terminal_pressure_rematerialization<S: ValidatedSelectedAn
         budget,
         usage,
         functions,
-        transformed_selected: selected_instruction_plan_identity(&transformed),
+        transformed_selected,
+    };
+    Ok(ComputedPressureRematerialization {
+        plan,
+        transformed,
+        applied,
+        rewritten_uses,
     })
+}
+
+/// The plan and the transformed program the compute step derived together,
+/// with the action counts the receipt records.
+pub(crate) struct ComputedPressureRematerialization {
+    pub(crate) plan: PressureRematerializationPlan,
+    pub(crate) transformed: selected_instructions::SelectedInstructionPlan,
+    pub(crate) applied: usize,
+    pub(crate) rewritten_uses: usize,
 }

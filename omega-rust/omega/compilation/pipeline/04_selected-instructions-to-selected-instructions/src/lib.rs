@@ -102,8 +102,7 @@ pub use rewrites::{
     stage_optimized_fixed_precolored_segment_homes, stage_optimized_fixed_view_copies,
     validate_fixed_view_copies, validate_optimized_fixed_precolored_segment_home_custody,
     validate_optimized_fixed_view_copy_custody, validate_optimized_literal_fold_custody,
-    validate_pre_allocation_optimization_custody, validate_pressure_rematerialization,
-    validate_runtime_rematerialization, validate_runtime_spill,
+    validate_pre_allocation_optimization_custody, validate_runtime_rematerialization, validate_runtime_spill,
     validate_runtime_spill_with_span_policy, validate_selected_lowering_optimization_custody,
 };
 pub(crate) use rewrites::{

@@ -72,8 +72,7 @@ pub use allocation_recovery::{
     PressureRematerializationValidationReceipt, ValidatedFixedViewCopies,
     ValidatedPressureRematerialization, fixed_view_copy_identity,
     rematerialize_selected_active_resident, selected_allocation_recovery_rule,
-    validate_fixed_view_copies, validate_pressure_rematerialization,
-};
+    validate_fixed_view_copies, };
 pub use constant_boolean::{ConstantBooleanError, ValidatedConstantBoolean};
 pub(crate) use constant_boolean::{
     fold_selected_constant_boolean, measured_steps as constant_boolean_measured_steps,

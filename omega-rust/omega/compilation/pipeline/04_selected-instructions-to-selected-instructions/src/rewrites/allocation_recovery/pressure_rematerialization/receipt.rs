@@ -1,7 +1,7 @@
 use crate::rewrites::pressure_rematerialization_identity;
 use crate::{PressureRematerializationPlan, PressureRematerializationValidationReceipt};
 
-pub(super) fn bind(
+pub(crate) fn bind(
     plan: &PressureRematerializationPlan,
     transformed_selected: selected_instructions::SelectedInstructionPlanIdentity,
     function_count: usize,

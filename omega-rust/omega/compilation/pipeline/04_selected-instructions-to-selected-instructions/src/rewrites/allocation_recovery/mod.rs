@@ -28,8 +28,7 @@ pub use pressure_rematerialization::{
     PressureRematerializationError, PressureRematerializationPlan, PressureRematerializationPolicy,
     PressureRematerializationRewrite, PressureRematerializationValidationReceipt,
     ValidatedPressureRematerialization, rematerialize_selected_active_resident,
-    validate_pressure_rematerialization,
-};
+    };
 
 /// Select the single allocation-recovery rule currently admitted by the
 /// physical pipeline. Empty phase selections deliberately return `None`.
