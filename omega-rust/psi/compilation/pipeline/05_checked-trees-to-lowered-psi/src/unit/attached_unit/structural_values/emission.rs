@@ -2241,14 +2241,9 @@ impl Emission<'_, '_, '_> {
             self.values.iter().map(|value| value.id).collect(),
             structural_arguments,
         )?;
-        self.finish(Terminator::Jump {
-            edge: edge.edge,
-            target: edge.target,
-            arguments: edge.arguments,
-            erased_arguments: Vec::new(),
-            erased_proof_arguments: Vec::new(),
-            structural_arguments: edge.structural_arguments,
-            cleanup_actions: trivial_affine_discards
+        self.finish_jump(
+            edge,
+            trivial_affine_discards
                 .into_iter()
                 .map(terminal_psi::TerminalAffineCleanupAction::DiscardRoot)
                 .chain(
@@ -2257,7 +2252,7 @@ impl Emission<'_, '_, '_> {
                         .map(terminal_psi::TerminalAffineCleanupAction::DiscardResidual),
                 )
                 .collect(),
-        });
+        );
         Ok(())
     }
 
@@ -2288,15 +2283,7 @@ impl Emission<'_, '_, '_> {
             self.values.iter().map(|value| value.id).collect(),
             vec![argument],
         )?;
-        self.finish(Terminator::Jump {
-            edge: edge.edge,
-            target: edge.target,
-            arguments: edge.arguments,
-            erased_arguments: Vec::new(),
-            erased_proof_arguments: Vec::new(),
-            structural_arguments: edge.structural_arguments,
-            cleanup_actions: Vec::new(),
-        });
+        self.finish_jump(edge, Vec::new());
         Ok(())
     }
 
@@ -2703,6 +2690,24 @@ impl Emission<'_, '_, '_> {
             self.calls,
         )?;
         Ok(value)
+    }
+
+    /// Push the `Jump` terminator naming `edge` — every field transfers
+    /// from the edge itself and each route supplies its cleanup roster.
+    fn finish_jump(
+        &mut self,
+        edge: SuccessorEdge,
+        cleanup_actions: Vec<terminal_psi::TerminalAffineCleanupAction>,
+    ) {
+        self.finish(Terminator::Jump {
+            edge: edge.edge,
+            target: edge.target,
+            arguments: edge.arguments,
+            erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
+            structural_arguments: edge.structural_arguments,
+            cleanup_actions,
+        });
     }
 
     fn edge(

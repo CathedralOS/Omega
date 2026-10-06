@@ -1806,14 +1806,10 @@ impl OperationFrame<'_, '_> {
         // The moved-out leaf is an internal temporary, not an authored
         // result — declare it as a private temporary so the verifier finds
         // its producing operation, then the cleanup edge retires it.
-        let move_id = self
-            .operations
-            .operations
-            .last()
-            .ok_or(LoweringError::Unsupported(
-                "structural case field store move emitted no operation",
-            ))?
-            .id;
+        let move_id = last_operation_id(
+            self.operations,
+            "structural case field store move emitted no operation",
+        )?;
         self.private_places
             .push(operation_result_declaration(moved, move_id, hole_type));
         // The moved-out leaf is `Unrestricted` by the plan's own contract, so
@@ -2052,14 +2048,10 @@ impl OperationFrame<'_, '_> {
                 multiplicity: language_semantics::Multiplicity::Unrestricted,
             },
         )?;
-        let move_id = self
-            .operations
-            .operations
-            .last()
-            .ok_or(LoweringError::Unsupported(
-                "structural case literal field store move emitted no operation",
-            ))?
-            .id;
+        let move_id = last_operation_id(
+            self.operations,
+            "structural case literal field store move emitted no operation",
+        )?;
         self.private_places
             .push(operation_result_declaration(moved, move_id, hole_type));
         // The moved-out leaf is `Unrestricted` by the plan's own contract, so
@@ -3036,6 +3028,18 @@ pub(super) fn allocate_structural_result(
         kind,
     });
     Ok((place, producer))
+}
+
+/// The id of the operation just pushed, or `context` as the rejection.
+pub(super) fn last_operation_id(
+    operations: &mut OperationBuffer,
+    context: &'static str,
+) -> Result<OperationId, LoweringError> {
+    operations
+        .operations
+        .last()
+        .map(|operation| operation.id)
+        .ok_or(LoweringError::Unsupported(context))
 }
 
 /// The `OperationResult` place declaration pairing
