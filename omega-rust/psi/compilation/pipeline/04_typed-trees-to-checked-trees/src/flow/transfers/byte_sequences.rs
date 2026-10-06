@@ -37,18 +37,7 @@ pub(super) fn append_derived_predicates(
     if !byte_operation || !crate::values::operator_is_builtin(contexts.operators, expression) {
         return;
     }
-    let active_facts: Vec<_> = contexts
-        .contexts
-        .semantic_context_refs
-        .span_or_empty(active)
-        .iter()
-        .flat_map(|reference| {
-            semantic
-                .context_view(semantic.contexts.get(reference.context))
-                .facts()
-        })
-        .copied()
-        .collect();
+    let active_facts: Vec<_> = crate::flow::active_context_facts(contexts, semantic, active);
     for domain in program.domain_definitions() {
         // Primitive operations prove byte predicates, never routed qualifications.
         if !domain.establishment_routes.is_empty()
@@ -228,18 +217,7 @@ pub(super) fn append_element_replacement_predicates(
         return;
     };
     let collection = indexed.collection;
-    let active_facts: Vec<_> = contexts
-        .contexts
-        .semantic_context_refs
-        .span_or_empty(active)
-        .iter()
-        .flat_map(|reference| {
-            semantic
-                .context_view(semantic.contexts.get(reference.context))
-                .facts()
-        })
-        .copied()
-        .collect();
+    let active_facts: Vec<_> = crate::flow::active_context_facts(contexts, semantic, active);
     let Some(carrier) = contextual_expression_place(
         program,
         semantic,

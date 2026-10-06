@@ -69,18 +69,7 @@ pub(super) fn append_constructed_field_values(
     else {
         return;
     };
-    let active_facts: Vec<_> = contexts
-        .contexts
-        .semantic_context_refs
-        .span_or_empty(active)
-        .iter()
-        .flat_map(|reference| {
-            semantic
-                .context_view(semantic.contexts.get(reference.context))
-                .facts()
-        })
-        .copied()
-        .collect();
+    let active_facts: Vec<_> = crate::flow::active_context_facts(contexts, semantic, active);
     let destination_root = *semantic.places.get(destination);
     let destination_segments = semantic
         .place_segments
@@ -120,13 +109,7 @@ pub(super) fn append_constructed_field_values(
         ) else {
             continue;
         };
-        let context_handles = contexts
-            .contexts
-            .semantic_context_refs
-            .span_or_empty(active)
-            .iter()
-            .map(|reference| reference.context)
-            .collect::<Vec<_>>();
+        let context_handles = crate::flow::active_context_handles(contexts, active);
         let source_place = semantic.places.get(source);
         if !crate::flow::place_cases_are_selected(
             program,

@@ -201,14 +201,7 @@ impl CapturedValue for IntegerRange {
         symbols: &[SymbolHandle],
         live: &LiveValues<'_, '_>,
     ) -> Option<Self> {
-        let contexts = live
-            .context
-            .contexts
-            .semantic_context_refs
-            .span_or_empty(live.active)
-            .iter()
-            .map(|reference| reference.context)
-            .collect::<Vec<_>>();
+        let contexts = crate::flow::active_context_handles(live.context, live.active);
         crate::values::bounds::evaluate(
             expression,
             &mut crate::values::bounds::PlaceIntegerBounds {
@@ -265,14 +258,7 @@ impl CapturedValue for IntegerRange {
                 statement_index,
                 expression,
             )?)?;
-        let contexts = live
-            .context
-            .contexts
-            .semantic_context_refs
-            .span_or_empty(live.active)
-            .iter()
-            .map(|reference| reference.context)
-            .collect::<Vec<_>>();
+        let contexts = crate::flow::active_context_handles(live.context, live.active);
         crate::values::bounds::PlaceIntegerBounds {
             program,
             semantic: live.semantic,

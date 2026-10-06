@@ -120,7 +120,7 @@ pub(crate) use carried_semantic_dependencies::derive_checked_semantic_dependenci
 use constraints::{
     append_contiguous_borrow_access_constraints, append_contiguous_borrow_root_constraints,
 };
-use context::FlowBuildContext;
+use context::{FlowBuildContext, active_context_facts, active_context_handles};
 pub(crate) use domain::build_domain_facts;
 pub(crate) use domain::context_survives_place_mutations;
 pub(crate) use domain::filter_contexts_after_place_mutations;

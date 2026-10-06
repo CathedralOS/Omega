@@ -66,13 +66,7 @@ pub(super) fn propagate_statement_transfers(
     let source_place = write.source_place;
 
     let mut refs = HandleSpan::empty();
-    let context_handles: Vec<_> = build
-        .contexts
-        .semantic_context_refs
-        .span_or_empty(*active_contexts)
-        .iter()
-        .map(|context_ref| context_ref.context)
-        .collect();
+    let context_handles: Vec<_> = crate::flow::active_context_handles(build, *active_contexts);
 
     let (target_place, stable_value_target) = write_target::narrow_pinned_selectors(
         program,

@@ -24,13 +24,7 @@ pub(super) fn capture(
     arguments: &[ExpressionHandle],
     contexts: HandleSpan<FlowSemanticContextRef>,
 ) -> Vec<BoundPredicate> {
-    let contexts = build
-        .contexts
-        .semantic_context_refs
-        .span_or_empty(contexts)
-        .iter()
-        .map(|reference| reference.context)
-        .collect::<Vec<_>>();
+    let contexts = crate::flow::active_context_handles(build, contexts);
     let mut transfers = Vec::new();
     let mut arguments = arguments.iter();
     for parameter in program.state_parameters(destination) {

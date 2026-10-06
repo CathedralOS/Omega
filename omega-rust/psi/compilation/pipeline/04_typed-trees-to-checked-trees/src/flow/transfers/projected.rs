@@ -66,13 +66,7 @@ pub(super) fn append_copied_field_predicates(
         .place_segments
         .span_or_empty(destination_place.segments)
         .to_vec();
-    let context_handles = contexts
-        .contexts
-        .semantic_context_refs
-        .span_or_empty(active)
-        .iter()
-        .map(|reference| reference.context)
-        .collect::<Vec<_>>();
+    let context_handles = crate::flow::active_context_handles(contexts, active);
     let ProgramPoint::Statement {
         machine_symbol,
         state_symbol,

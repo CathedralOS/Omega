@@ -137,13 +137,7 @@ pub(super) fn capture_bounds(
         selected_statement(program, context, state, statement_index, statement)
         && builtin
     {
-        let contexts = context
-            .contexts
-            .semantic_context_refs
-            .span_or_empty(active)
-            .iter()
-            .map(|reference| reference.context)
-            .collect::<Vec<_>>();
+        let contexts = crate::flow::active_context_handles(context, active);
         let (machine_index, state_index) = located?;
         return crate::values::bounds::evaluate(
             expression,

@@ -641,3 +641,37 @@ fn discard_output_arena<T: Default>(arena: &mut arena::Arena<T>) {
     // changed the arena's dummy; retaining capacity must not retain that value.
     *arena.get_mut(arena::Handle::invalid()) = T::default();
 }
+
+/// The semantic context handles active at one program point, in span order.
+pub(super) fn active_context_handles(
+    contexts: &FlowBuildContext<'_>,
+    active: arena::HandleSpan<checked_trees::FlowSemanticContextRef>,
+) -> Vec<facts::FactContextHandle> {
+    contexts
+        .contexts
+        .semantic_context_refs
+        .span_or_empty(active)
+        .iter()
+        .map(|reference| reference.context)
+        .collect::<Vec<_>>()
+}
+
+/// Every fact payload the active contexts carry, in span order.
+pub(super) fn active_context_facts(
+    contexts: &FlowBuildContext<'_>,
+    semantic: &facts::FactPlan,
+    active: arena::HandleSpan<checked_trees::FlowSemanticContextRef>,
+) -> Vec<facts::Fact> {
+    contexts
+        .contexts
+        .semantic_context_refs
+        .span_or_empty(active)
+        .iter()
+        .flat_map(|reference| {
+            semantic
+                .context_view(semantic.contexts.get(reference.context))
+                .facts()
+        })
+        .copied()
+        .collect::<Vec<_>>()
+}

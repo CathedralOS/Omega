@@ -28,13 +28,7 @@ pub(super) fn append_owned_qualification_transfer(
         .place_segments
         .span_or_empty(destination.segments)
         .to_vec();
-    let context_handles = contexts
-        .contexts
-        .semantic_context_refs
-        .span_or_empty(active)
-        .iter()
-        .map(|reference| reference.context)
-        .collect::<Vec<_>>();
+    let context_handles = crate::flow::active_context_handles(contexts, active);
     let ProgramPoint::Statement {
         machine_symbol,
         state_symbol,
@@ -57,18 +51,7 @@ pub(super) fn append_owned_qualification_transfer(
     ) {
         return;
     }
-    let candidates = contexts
-        .contexts
-        .semantic_context_refs
-        .span_or_empty(active)
-        .iter()
-        .flat_map(|reference| {
-            semantic
-                .context_view(semantic.contexts.get(reference.context))
-                .facts()
-        })
-        .copied()
-        .collect::<Vec<_>>();
+    let candidates = crate::flow::active_context_facts(contexts, semantic, active);
     for fact in candidates {
         let (FactPayload::DomainMembership {
             domain,

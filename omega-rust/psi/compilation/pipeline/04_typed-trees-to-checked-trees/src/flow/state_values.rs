@@ -301,13 +301,7 @@ pub(super) fn record_transition(
         arguments,
         contexts,
     );
-    let path_contexts = build
-        .contexts
-        .semantic_context_refs
-        .span_or_empty(contexts)
-        .iter()
-        .map(|reference| reference.context)
-        .collect::<Vec<_>>();
+    let path_contexts = crate::flow::active_context_handles(build, contexts);
     let entry_paths = crate::facts::boolean_predicates::EntryPaths::retained(
         semantic,
         &path_contexts,
