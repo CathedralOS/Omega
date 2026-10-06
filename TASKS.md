@@ -957,8 +957,14 @@ defines the complete product bar.
     exact prefix/destination, once-only effects, LF/EOF/Full, zero-capacity
     non-consumption, untouched tails, alias rejection.
 
-  Unverified: `gui/windowed_calculator --check` took 20-55 s; reproduce on a
-  current binary and locate the cost before attributing it.
+  The `gui/window_app` and `gui/windowed_calculator` sweep timeouts are
+  compile cost, not interactive waiting. On macOS ARM64 (debug CLI at
+  656ca090aaf, light load), `omega --timings --target macos_arm64
+  samples/gui/windowed_calculator/main.omg` from a scratch copy spent 9 s
+  checking std and 277 s checking the sample package, then had not finished
+  Psi lowering and native realization when a 3000 s limit stopped it. Profile
+  those phases before attributing the cost (the dungeon's equivalent split is
+  on **STATIC-DUNGEON**).
 
   Acceptance: every maintained sample checks, every applicable native product
   builds, and documented runtime oracles pass on every required matching host.
