@@ -1700,9 +1700,13 @@ then independent claimed restoration slices -> final closure.
   Current frontier: the corpus adapter consumes the produced Terminal artifact
   and uses the common core; it no longer calls the checked-tree interpreter.
   Unit completion and typed Trap outcomes execute. Exact entry arrival values,
-  provider installation, normal host bindings and external-completion invocation
-  remain unimplemented, independently attributed before effects. CLI comparison
-  still uses trees. A same-target native failure returns no retained intermediate
+  provider installation and general host bindings remain unimplemented. Bound
+  normal imports execute once across fuel pauses; unsupported external completion
+  is refused before callbacks, and normal adapters cannot accept its signature.
+  The unchanged selector-call store canary is reviewed as
+  `external-completion-invocation`, not an interpreted exit 70. Selected-reference
+  backing retains its separate capability attribution. CLI comparison still
+  uses trees. A same-target native failure returns no retained intermediate
   artifact; observing that Terminal program requires intermediate-artifact error
   custody rather than a second source compilation. Windows Console write-byte
   production separately lacks a closed native intrinsic catalog identity; a
@@ -3676,7 +3680,11 @@ execution and retained outputs.
 
 Finish the [canonical process-exit contract](wiki/spec/language/process_exit.md)
 through source-produced Terminal Psi. Core/std declarations, checked-interpreter
-recognition and native `SelectedProcessExit` custody exist. The Terminal
+recognition and native `SelectedProcessExit` custody exist. The common Terminal
+core refuses reachable external completion before callbacks; normal import
+adapters authenticate completion kind and reject external signatures. This
+prevents a process exit from being reported as normal Unit completion, but does
+not execute it. The Terminal
 [terminator](omega-rust/psi/compilation/representations/terminal-psi/src/terminal_module/control_flow/termination.rs)
 has no external-completion variant, and the
 [trace codec](omega-rust/psi/compilation/representations/terminal-psi/codec/src/sections/terminal_trace_v1_profile.rs)
