@@ -169,65 +169,34 @@ helper that passes does not close an item.
 
 
 - **STATIC-BOUNDARY-REQUIREMENT-CALL-FORM.** (split-of:STATIC-MACHINE-MIGRATION)
-  Repair selection for explicit completion calls under
+  Finish realization of explicit completion calls under
   [domain authority and separate implementation selection](wiki/spec/resources/authority.md#completion-authority-and-implementation-selection).
-  The authority question is settled: checked domain establishment and retained
-  provenance travel with the qualified argument under ordinary transfer rules.
-  Public boundary requirements still need a selected, admitted implementation.
-  - Two source gaps are closed. `pass/memory/interrupt_table_canary` and
-    `pass/memory/secondary_processor_canary` now declare and select providers
-    for `InterruptAcknowledgement::complete` and `StartupEnvelope::confirm`:
-    selection and admission both succeed, and each fixture's refusal moved to
-    one shared compiler gap, `selected overload ... has no compiler-known
-    intrinsic realization`. The remaining work is that realization, not source
-    selection.
+  `pass/memory/interrupt_table_canary` and
+  `pass/memory/secondary_processor_canary` select providers for
+  `InterruptAcknowledgement::complete` and `StartupEnvelope::confirm`;
+  their recorded failure is now “no compiler-known intrinsic realization,”
+  not missing selection.
 
-    **DESIGN-BLOCKED on `bare-metal-requirement-realization` in
-    `OWNER_QUESTIONS.md`. The `save_and_mask` precedent this item used to claim
-    is FALSE and is struck.** Measured: `row_execution_identity`
-    (`selected-dispatch/src/compiler_intrinsic.rs:71-138`) routes a
-    `CompilerIntrinsic` row by **schema kind**. A `BoundaryTrait` row goes to
-    `HOSTED_INTRINSIC_ROWS` -- a closed table of four Console/ProcessExit rows
-    -- and an unrecognized one answers `Unsupported`, which is **tolerated, not
-    an error**. A top-level `BoundaryRequirement` row goes to the numeric
-    catalog and an unrecognized one is a **hard error**.
-    `InterruptMaskControl` is a `boundary trait` (`core/interrupt.omg:30`),
-    so **the compiler lowers nothing for `save_and_mask`** -- its row is merely
-    tolerated -- while `complete` and `confirm` are `boundary requirement`s and
-    are refused. The asymmetry is lane shape, not capability. Nor is
-    `external-roots/src/interrupts/interrupt_masks.rs` on the compile path: its
-    only callers are four sites in that crate's own tests, and no edge reaches
-    `CompilerIntrinsicExecutionIdentity`. A probe also showed
-    `Build::select_provider<InterruptMaskControl::save_and_mask, ..>` is refused
-    at source, so `save_and_mask` cannot even enter the refusing lane. The
-    "`discharge` and `confirm` have no backend mention" line was true but not
-    distinguishing -- `complete` has none either, and neither does
-    `save_and_mask` in any compile-path sense.
+  Blocked on `bare-metal-requirement-realization` in
+  `OWNER_QUESTIONS.md`. In selected dispatch, `row_execution_identity`
+  routes boundary-trait rows through the hosted intrinsic catalog and
+  tolerates unknown rows as `Unsupported`; top-level requirements instead
+  reach the numeric catalog and reject unknown rows. Thus
+  `InterruptMaskControl::save_and_mask` being tolerated is not evidence of
+  executable support. Do not make both paths silently unsupported to turn a
+  missing realization into a successful build.
 
-    **Do not "fix" this by making the requirement lane answer `Unsupported`
-    like the trait lane.** That was measured: it moves both fixtures off this
-    diagnostic and plausibly to `built` while the program still cannot run,
-    which is blessing a missing result by relocating its refusal.
-  - `pass/memory/address_translation_canary` is at an **earlier** frontier, not
-    this one: it declares no provider and has no `build.omg`, so it sits at the
-    unselected-direct-requirement gate (see
-    UNSELECTED-DIRECT-REQUIREMENT-GATE-WIDENED). Adding a `build.omg` would
-    only march it into the same realization wall, so it is not the same repair
-    and not a shortcut to green.
-  - Both providers bind `via ForeignBinding::CompilerIntrinsic` because the
-    obligations are opaque linear boundary data with no public constructor, so
-    no package-authored body can consume one. If the owner intends completion
-    to propagate from the installed entry route instead
-    (`InstalledInterruptCompletionRoute` exists in `external-roots`), these two
-    provider declarations are what to remove. A `reaches` clause between
-    `satisfies` and `via` does not parse; the grammar is `satisfies` then `via`.
-  - Preserve checked domain preconditions, exact installation/token relationships
-    required by the contract, and linear consumption. A recipient may forward
-    established evidence without becoming an issuer. No new authority mechanism,
-    implicit receiver, or data-subject conformance is needed.
-  Acceptance: `python tools/corpus_gate.py --filter memory/address_translation_canary,memory/secondary_processor_canary,memory/interrupt_table_canary`
-  checks the intended completion flows and rejects forged, unrelated or replayed
-  completion evidence. Ensure the provider repair does not bypass those checks.
+  The owner decision determines whether the fixtures' CompilerIntrinsic
+  providers remain or completion comes through the installed entry route.
+  Preserve domain preconditions, exact installation/token identity and
+  linear consumption; forwarding established evidence does not confer minting
+  authority. This needs no implicit receiver or data-subject conformance.
+
+  `pass/memory/address_translation_canary` has no selected provider and is
+  separately blocked by **UNSELECTED-DIRECT-REQUIREMENT-GATE-WIDENED**.
+  Acceptance: the three memory canaries check their intended flows and
+  exercise the selected realization where executable, while forged, unrelated
+  and replayed completion evidence rejects.
 
 - **STATIC-LOWERING-BORROWED-ARGUMENT-TRANSFER.** (split-of:STATIC-MACHINE-MIGRATION)
   Lower a call that consumes a linear input and returns an affine result
@@ -2138,48 +2107,23 @@ crash and native exit behavior.
   ladder and the producing stage's carried `ProgramEntry` receipt.
 
 - **GUI-CANARY-HAS-NO-PROVIDER.** (new-scope)
-  `tests/omega/pass/host/runtime_gui_window_lifecycle_exit` and
-  `runtime_gui_foreground_window_exit` each declare their own
-  `pub boundary trait Gui` over four user32 operations (`window_create`,
-  `msg_peek`, `is_window`, `window_destroy`) and declare **no satisfier at
-  all** -- `grep "satisfies Gui::"` finds zero rows repository-wide. Both
-  reject with "selected ProgramEntry Binding field `Main::gui` requires a
-  selected Fused provider for boundary `Gui`". They are the only two members of
-  that diagnostic's cluster that are not `FilesystemHost` (19 of the 21 are).
+  Supply providers for `pass/host/runtime_gui_window_lifecycle_exit` and
+  `pass/host/runtime_gui_foreground_window_exit`. Their local `Gui`
+  traits declare `window_create`, `msg_peek`, `is_window` and
+  `window_destroy` without satisfiers; ProgramEntry establishment rejects
+  the missing selected provider.
 
-  **Why they appear to work anyway, and why that is the real finding.** The
-  checked interpreter dispatches these on the **bare operation name**:
-  `interpreter/evaluator.rs:300` documents "the virtual window system:
-  `window_create` mints opaque non-zero handle" and
-  `evaluator/execution/expressions_and_value_calls.rs:1087,1136` matches the
-  string `"window_create"`. So the interpreted leg satisfies the trait without
-  any provider while terminal production demands a Fused one. That is the same
-  bare-name-fallback class as the dead `BuildOutput` facet family repaired by
-  `d37ea22ec59`, and it is why nothing caught the missing provider: a fixture
-  can read as working interpreted while the route that would ship it has no
-  provider.
+  The old checked interpreter's bare-name virtual-window dispatch hid this
+  omission. It is not a provider and must not be reproduced in the Terminal
+  engine. Coordinate that legacy deletion with the universal interpreter
+  cutover; interpretation uses exact selected host adapters.
 
-  **The template is `pass/capabilities/windows_provides_import_exit`**, which is
-  green: it declares `pub boundary trait Beeper`, a
-  `windows_x86_64 machine beeper_binding() -> ForeignBinding<10, 3, 0>`
-  returning `ForeignBinding::DllImport { import: DllImport::PeByName { library,
-  export } }`, and `machine beeper_abs(...) satisfies Beeper::beep via
-  beeper_binding();`. Every green fixture that declares its own boundary trait
-  declares its satisfier in the same fixture; the two Gui fixtures are the
-  exception.
-
-  **Measured, so the next lane does not repeat it:** restricting
-  `Build::bind` to `windows_x86_64` alone does **not** fix them -- the Fused
-  demand applies to the declared target, not only the realization host, so the
-  template is green because it has a provider rather than because Windows is
-  not the host. A provider is required. That said the four-target bind is also
-  wrong on its own terms: a user32 trait cannot be deployable on Linux or
-  macOS, and the template binds Windows only.
-
-  Acceptance: both fixtures declare a `windows_x86_64` user32 provider in the
-  fixture, bind only `windows_x86_64`, and reach `checked`; their authored exit
-  70 is verifiable only on a Windows host, so a macOS lane states that leg as
-  unverified rather than claiming it.
+  Follow `pass/capabilities/windows_provides_import_exit` for authored
+  `ForeignBinding::DllImport` leaves. Bind these user32 customers only to
+  `windows_x86_64`; narrowing targets alone does not supply their provider.
+  Acceptance: both unchanged test bodies check with genuine user32 providers
+  and execute exit 70 on Windows. Other hosts may validate production but
+  must report native execution as unverified.
 
 - **COMPILE-REPORT-PRODUCTS.** (new-scope) Automate the remaining
   artifact-only publication control: a refused release-rollback overlay must
@@ -2214,73 +2158,48 @@ crash and native exit behavior.
   were published.
 
 - **NATIVE-LEG-DEPENDS-ON-ACCEPTED-PACKAGE-STATE.** (new-scope)
-  The native leg's outcome for a fixture that path-depends on
-  `source/library/std` **and** binds `macos_arm64::ProgramEntry` differs between
-  a warm checkout and a fresh worktree, and the difference is not in the golden.
-  A lane measured `pass/wire/wire_preserving_decode_relay_exit` and
-  `pass/providers/checked_boundary_operator_const_application_alternate_exit`
-  refusing with "target root slot `macos_arm64::ProgramEntry` requires one exact
-  contract-owned boundary schema `MacosApplication`, but found 0"
-  (`realization/provider-planning/src/program_entry.rs:902`) and reported both
-  golden rows as stale. **They are not stale:** measured individually at
-  `origin/main` in the warm main checkout both are `built`, execute, and
-  `exit:70` with 0 oracle failures, and the commit that lane blamed
-  (`5ca18f21938`) already predates the recording of one of those rows.
+  Verify that fresh and warm corpus workspaces establish identical reviewed
+  dependency inputs for `pass/wire/wire_preserving_decode_relay_exit` and
+  `pass/providers/checked_boundary_operator_const_application_alternate_exit`.
+  Both have authored native exit 70. Historical fresh-worktree probes rejected
+  the exact `MacosApplication` schema while warm probes ran; the current
+  entry-selection and sealed-staging repairs must be tested before attributing
+  a remaining failure to acceptance state.
 
-  The mechanism is consumer acceptance, not a regression. Both fixtures reach
-  std through `Build::depend(Source::Path { .. })`, which makes it an ordinary
-  package whose entry contract needs an accepted package-owned binding;
-  `wiki/spec/build/entry_roots.md` forbids inferring bundled-ness from a path.
-  So an environment holding accepted review state admits them and a fresh one
-  does not, and the same asymmetry already makes bare `omega --check` unusable
-  as a probe for std-dependent macOS programs.
+  Reuse `reviewed_repository_fixture_package_inputs` and
+  `candidate_program_entry_binding` in
+  `omega-rust/omega/compilation/driver/tests/support/fixture_package_inputs.rs`.
+  Stage and review exact package-owned bindings without ambient checkout
+  acceptance; a std-looking path grants no special owner identity. Do not
+  remove native entry bindings or replace the runtime oracle with targetless
+  checking to avoid preparation. Preserve refusal without accepted authority.
 
-  **Why it matters beyond two rows:** these fixtures carry authored exit oracles,
-  so an unaccepted environment trips the gate's oracle short-circuit and the run
-  exits 3 *before printing its diff* -- 5 of that lane's 9 shard runs died that
-  way. Every lane measuring natively in a fresh worktree loses the measurement
-  and may then misattribute it to whatever commit it happens to be testing.
-  Frontier: decide whether the corpus runner should establish acceptance for a
-  path-dependent std fixture as part of staging, or whether these fixtures should
-  not bind a host `ProgramEntry` at all and stay on the targetless route like
-  their green siblings. Until then, treat a `MacosApplication`-schema refusal in
-  a fresh worktree as an environment artifact and re-measure in the warm
-  checkout before recording anything.
+  Acceptance: at one compiler revision on the same host, isolated and warm
+  workspaces both build and execute the unchanged fixtures to 70. If current
+  staging already achieves this, close with those observations; otherwise
+  repair its missing preparation and keep diagnostics distinct from compiler
+  regressions. Gate errors must not discard the diagnostic needed to attribute
+  a failed measurement.
 
 
 - **TERMINAL-EDGE-VALIDATION-REGRESSED-FORTY.** (new-scope)
-  `cfc85e2c592` ("tests: re-pin fifty-two corpus outcomes at `74a22511782`")
-  is **bodyless** and absorbed **40 regressions with 0 improvements** -- the
-  largest such batch recorded. Measured from its own diff: 48 rows touched, 40
-  `checked` to `rejected`, none the other way, no row's status unchanged.
+  Recover the check regressions recorded by `cfc85e2c592`: its corpus diff
+  identifies the forty former successes. Reproduce the still-red members on
+  current main before assigning fixes. The recorded diagnostic families are
+  `EdgeAffineDiscardsInvalid` and `InvalidStructuralSuccessorArgument`,
+  mostly in `pass/borrows`, with control-flow, recast, collection and
+  expression customers.
 
-  Two diagnostic families cover the sample, both `InvalidTerminalModule` on an
-  **edge**: `EdgeAffineDiscardsInvalid { edge }` and
-  `InvalidStructuralSuccessorArgument { edge, place }`. The affected rows are
-  concentrated in `pass/borrows/` (reference-shaped fixtures), with
-  `control_flow/`, `recast/`, `collections/` and `expressions/` behind them.
-  18 of the 40 also had native rows claiming `built` with authored exits, which
-  is how `--cross-golden` surfaced the batch; those 18 now carry
-  `regressed-from:` tokens so the native gate exits 3 rather than counting them
-  as runs.
+  Bisect a representative of each family only if the current failure remains
+  unexplained; a golden's measurement revision is not causal attribution.
+  Keep exact argument/loan and edge-cleanup obligations in their producing
+  stages. Coordinate **CML4**, **REFERENCE-LOCAL-BINDING-ROUTES** and the
+  PCC-removal owners; do not restore redundant verification or expand the
+  retiring verifier to make a row green.
 
-  **Attribution is open, deliberately.** The rows are stamped `@74a22511782`
-  ("omega: derive optimizer cycle components without re-validating the unit",
-  about 2,690 deleted lines), but **a stamp records where a row was measured,
-  not what caused it** -- that inference was wrong twice earlier today. That
-  commit is a legitimate application of the verify-at-trust-boundaries rule, and
-  deleting a re-validation should not by itself make validation fail, so the
-  honest next step is to bisect one representative row from each diagnostic
-  family rather than assume the stamp. `InvalidStructuralSuccessorArgument` is
-  also a long-known wall, so some of these may predate the stamp.
-
-  **This is the third bodyless batch re-pin today to absorb regressions with
-  zero improvements** -- `dce3e972eff` took 7, `2b6ea65a9e1` took 9, this one
-  40, for 56 in a day. Each left native rows overstating success, and each was
-  invisible until the cross-golden detector ran. A re-pin whose rows move only
-  one way is the signal to stop and attribute.
-  Acceptance: the 40 reach `checked` again, with the native tokens dropping on
-  their own as each recovers.
+  Acceptance: every affected program again reaches its authored check and,
+  where supplied, native exit/output oracle. Update `regressed-from:` records
+  only from observed recovery. Already recovered members need no new repair.
 
 - **CONSTRUCTED-ARGUMENT-SCHEDULE-REGRESSED-NINE.** (new-scope)
   Five customers still need the shared constructed-argument schedule completed:
@@ -2331,43 +2250,32 @@ crash and native exit behavior.
   remains the owning capability task's acceptance.
 
 - **COMPUTED-FLOAT-BARE-LITERAL-COMPARISON.** (new-scope)
-  A comparison between a **computed** f32/f64 value and an **unsuffixed** float
-  literal does not lower. Two-line repro:
+  Revalidate the remaining computed-call/literal comparison lead:
+  `machine code() -> bool { F64::square_root(64.0f64) == 8.0 }` with
+  `omega::language::core::float_operations` imported. At `a6dfddd40e9` it
+  failed stage 05 with “scalar computation needs one checked expression and
+  one source binding”; the reverse operand order and initializer form also
+  failed. Suffix, explicit cast and typed-local variants were controls, not
+  acceptable rewrites of the customer's source.
 
-      use omega::language::core::float_operations;
-      machine code() -> bool { F64::square_root(64.0f64) == 8.0 }
+  This is not a claim that all computed-float comparisons fail:
+  `pass/float/computed_comparison_literal_landing_exit` already has native
+  and interpreter exit 0 records. Compare the exact remaining expression with
+  that control before extending the repair.
 
-  → `terminal-artifact production failed: Lowering(Unsupported("scalar
-  computation needs one checked expression and one source binding"))`.
+  The earlier probe found `values/scalar/expression_plans.rs` excluding a
+  tree containing a descendant custody cast while `computations.rs` claimed
+  only a root cast; `semantic_casts::requires_custody` classified the whole
+  subtree. Both rows were consequently absent. Confirm that mechanism in
+  current source. The open `operand-level-float-landing-custody` decision in
+  `OWNER_QUESTIONS.md` owns the representation choice; no second planner or
+  source-spelling workaround.
 
-  Measured across 13 probe programs at `a6dfddd40e9`: both operand orders fail,
-  every comparison operator fails, and both the local-initializer and return
-  roles fail. Integers are unaffected; a bare float **place** operand is
-  unaffected; suffixing the literal, `as f64`, or binding it to a typed local
-  each fix it. This is an authored spelling, not a synthetic one -- the owner's
-  own `pass/float/build_runtime_semantics_twins_*` fixtures are written exactly
-  this way (`product64 == 1.000...`, `one64 / 2.0 == 0.5`).
-
-  **Mechanism, measured with a stage-05 probe rather than inferred.** Both the
-  source-binding row and the expression row are absent at the coordinate. The
-  drop is the retention filter at `values/scalar/expression_plans.rs:185-193`,
-  whose comment says a pure payload tree "cannot carry an authored semantic
-  qualification transfer. Leave those exact source bindings to the computation
-  graph." But `semantic_casts::requires_custody`
-  (`values/scalar/semantic_casts.rs:98`) is **recursive over the whole
-  expression tree** -- true when any *descendant* is a custody-needing cast --
-  while the computation graph only claims the coordinate when the cast is the
-  **root** (`computations.rs:1180` fires `authored_cast` only for a root
-  `ExpressionNode::Cast`, and the pure fallback at `:1222` is gated behind
-  `!requires_custody`). For a custody cast sitting as a mere **operand**, both
-  sides decline and the coordinate ends up empty.
-
-  Blocked on the owner question `operand-level-float-landing-custody` in
-  `OWNER_QUESTIONS.md`: build order forecloses the obvious repair, since
-  `values.scalar_expressions` is built at `facts.rs:166` and
-  `values.scalar_computations` at `:227` consumes it, so the drop cannot consult
-  whether the computation graph claimed the coordinate. Fixture to add once
-  ruled: `tests/omega/pass/float/computed_float_bare_literal_comparison/`.
+  Acceptance after that decision: add
+  `pass/float/computed_float_bare_literal_comparison`, covering both operand
+  orders, comparison operators and result/initializer positions for f32/f64.
+  It executes its authored results with the existing control unchanged and
+  without losing qualification obligations.
 
 
 
@@ -2453,16 +2361,16 @@ crash and native exit behavior.
 
 - **NATIVE-GOLDEN-LINUX-BOUND-UNMEASURED.**
   (split-of:NATIVE-GOLDEN-CANNOT-RECORD-A-REGRESSION)
-  The **Linux-side bound is measurable rather than unknowable.** It could not
-  be taken from a macOS host because a row green here and red there left no
-  local trace; with `check_leg_realization_target` reading the fixture's own
-  `build.omg`, one Linux recorder running the corpus and diffing answers it,
-  and any row that still differs is a genuine Linux/macOS compiler difference
-  rather than a recording artifact. Host-gated: it needs a Linux recorder, not
-  a macOS session. Acceptance: `tests/omega/corpus_native_linux_x86_64.txt` is
-  recorded at one known commit by a Linux host, and
-  `python3 tools/corpus_scoreboard.py --cross-golden` is empty there as it is
-  on macOS.
+  Record `tests/omega/corpus_native_linux_x86_64.txt` on a Linux host at
+  one identified revision using each fixture's selected realization target.
+  Run `python3 tools/corpus_scoreboard.py --cross-golden` and investigate
+  differences against same-revision, same-target observations. Different
+  revisions, timeouts and stale rows are not compiler portability failures.
+
+  Acceptance: Linux outcomes are observed, not copied from macOS; remaining
+  differences have exact reproductions and owning capability tasks. Repair
+  actual regressions under those owners rather than changing source or
+  expected results to make the report empty.
 
 - **BUILD-FACET-DEAD-SELECTION-RESIDUE.** (split-of:BUILD-FACET-RECEIVER-RESIDUE)
   No build operation is classified by receiver shape any more: stage 04's
@@ -2520,23 +2428,17 @@ Owner ruling 2026-10-04: stage 05 is cut down to a mechanical lowering of
 stage 04's plans. Three things go:
 - **Re-checking.** Stage 05 re-reads the typed program and re-validates the
   plan it is handed. That is the in-process self-validation the
-  [Trust ceremony](#trust-ceremony) ruling removes.
+  [verification placement](omega-rust/pipeline.md#verification-placement) removes.
 - **Parallel routes.** Bodies are lowered by 13 leaf routes, chosen in
   `omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/machine_lowering/machine_dispatch.rs`,
   and each route re-implements calls, stores and transitions.
 - **Shape-specific plans and rungs** where a general operation would work.
 
-Stage 05 is 178k lines with 5,684 refusal sites; only 3 of its 5,250
-distinct refusal messages appear in any recorded corpus rejection. An audit
-sampling 42 refusals in `unit/attached_unit` found 34 checking stage 04's
-invariants, 7 route-specific shape gaps and 1 unsupported feature.
-
-Order: the deletions (first three items) shrink the surface, then the shared
-operations, then the route retirements. The vocabulary items can run at any
-time after the deletions. New capability work (**STATE-LOCAL-VALUE-FRONTIER**
-and others) lands in the shared operations, never as a new per-route case.
-Each item lands in one commit, deletes the code it supersedes, and keeps the
-check corpus and the native corpus unchanged on the slices it names.
+Delete redundant checks, establish shared operations and retire superseded
+routes in dependency order. New capability work
+(**STATE-LOCAL-VALUE-FRONTIER** and others) uses shared operations,
+never a new per-route case. Land coherent cuts that delete their superseded
+code and preserve check/native behavior for the named customer slices.
 
 - **STAGE05-SOURCE-REREAD-DELETED.** (new-scope) Stage 05 re-reads the
   authored typed program to obtain values its stage 04 plan rows do not
@@ -2600,185 +2502,89 @@ check corpus and the native corpus unchanged on the slices it names.
 
 
 
-- **UNIT-PLAN-GAPS-REPORTED-AT-SOURCE.** (new-scope) Today stage 04 drops an
-  unsupported body silently:
-  - its builders return `Option` (`return None` appears 1,459 times under
-    `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/execution/terminal_unit/`);
-  - `OmissionLedger` (`.../terminal_unit/mod.rs`) records the drop;
-  - fallback builders retry with a different plan;
-  - the compile finally fails at entry establishment with "the machine's
-    unit plan was omitted at <phase>".
+- **UNIT-PLAN-GAPS-REPORTED-AT-SOURCE.** (new-scope)
+  Report an unsupported executable construct at its source span rather than
+  dropping a body into `OmissionLedger` and failing later at entry
+  establishment. Stage 04 `execution/terminal_unit/` builders return
+  `Option`; fallback builders retry different plans. Carry a structured
+  failure through ordinary plan construction, delete omission/retry bookkeeping,
+  and distinguish unsupported valid code from a violated checking obligation.
 
-  Make the builders return `Result` carrying the unsupported construct and its
-  source span, report it from `omega --check`, and delete `OmissionLedger`,
-  `CheckedUnitPlanOmissionStage` and the retry paths. Acceptance:
-  - `pass/text/runtime_local_struct_string_field_concat_exit`,
-    `pass/traits/runtime_dyn_two_impl_dispatch_exit` and
-    `pass/ownership/linear_transparent_record_frontier` fail `--check` with a
-    diagnostic at the construct's span instead of an entry-establishment
-    error;
-  - no corpus outcome changes otherwise.
+  Probe the upstream failed decision, not merely its phase string. Existing
+  customers are `pass/text/runtime_local_struct_string_field_concat_exit`,
+  `pass/traits/runtime_dyn_two_impl_dispatch_exit` and
+  `pass/ownership/linear_transparent_record_frontier`. Their current semantic
+  repairs belong respectively to **REFERENCE-BEARING-RECORD-LOCAL-FILL**,
+  **DYNAMIC-IMPLEMENTATION-SELECTION-MIGRATION** and
+  **TRANSPARENT-RECORD-RESULT-CARRIES-MEMBER-CLAIMS**; old receiver-era site
+  maps must not dictate new lowering. Content partition transport is unfinished
+  implementation under **CONSERVATION-CONTRACT / TERMINAL-CONTENT-CLAIMS**,
+  not an unnamed owner decision.
 
-  **Site map, measured at `4fa2d6d846eb`.** Phase strings locate consumers,
-  not necessarily the refusing decision. Probe the upstream `?` exits;
-  "rejoins 0 identities" is a downstream symptom. Revalidate the map against
-  current source before repairing a row.
+  Preserve `pass/wire/wire_preserving_decode_relay_exit` (exit 70):
+  borrowed-slice length metadata is not an owned move.
+  `pass/build/uefi_os_handoff_invocation` retains its checked body; its native
+  catalog gap belongs to **UEFI-OS-HANDOFF**. Keep
+  `fail/build/placed_view_program_entry_input` rejecting its invalid entry.
 
-  | phase | fixture | refusing site |
-  | --- | --- | --- |
-  | `call operation: linear structural result` | `pass/core/content_conservation_contract` | `call_operations.rs:486` — design-blocked, see the conservation note below |
-  | `structural field store: destination parameter` | `pass/text/runtime_local_struct_string_field_concat_exit`, `pass/text/runtime_string_stored_suffix_exit` | `structural_scalar_store/destination.rs:165` — `out_line` is a `let mut out_line: &[u8] in Utf8;`, so the parameter lane finds no destination, `borrowed_view_local_root` refuses the `mut` local and `owned_local_root` refuses a reference shell. The green sibling `runtime_bounded_carrier_alias_concat_exit` uses an owned `[u8; 16] in Utf8` carrier; a `&[u8]` destination has no storage for the concatenation, so this likely needs an owned carrier or a compiler-managed temporary, not a widened recognizer |
-  | `structural field store: target place` | `pass/traits/runtime_local_named_dyn_pass_through_exit` | `destination.rs:119`, inside `rejoin_loan_local` — `erased = &main.selected as &dyn Item::Primary` reseats a `let mut` reference local, and `&x as &T` is `CastForm::RecastShared`, so the rejoin peels to the `Borrow` and then refuses on `local.is_mutable`. A reseat is not a write *through* the loan; the helper conflates "cannot rejoin" with "unsupported". Note that returning the place unchanged only moves the phase — no lane plans a `&dyn` reseat yet |
-  | `call operation: structural arguments: alias and identity` | `pass/traits/runtime_dyn_two_impl_dispatch_exit` | `terminal_unit/calls/structural_arguments.rs:161` |
-  | `call operation: target state` | `pass/traits/runtime_local_named_dyn_devirtualized_exit` | `call_operations.rs:203` — `Shape::code` is a non-boundary trait signature, so `find_machine_head`/`find_state_with_machine` both miss it and the dyn route in `terminal_unit/dynamic_scalar_calls/` did not claim the call first |
-
-  `fail/build/placed_view_program_entry_input` also carries an omission phase
-  (`an unavailable scalar target (\`inspect\`)`) but is a `fail` fixture and is
-  expected to reject.
-
-  `pass/core/content_conservation_contract` remains **design-blocked** under
-  **CONSERVATION-CONTRACT / TERMINAL-CONTENT-CLAIMS**:
-  `reconstruct_structural_parameter_return_claims`
-  (`checking/src/machine_calls/structural_call_custody.rs:641`) replays only a
-  whole-input claim continuation, and the wrapper's returned claim is
-  `Established` by a boundary partition. The fixture's own header already
-  records this as owed via
-  `ContentPartitionCompositionFact::source_derivation_depth`. Do not widen that
-  recognizer; it is the conservation check.
-  Regression controls: `pass/wire/wire_preserving_decode_relay_exit` (native
-  exit 70) must not classify borrowed-slice `.len` metadata as an owned move;
-  `pass/build/uefi_os_handoff_invocation` must retain its bodied boundary call
-  via `Machine::supplies_checked_body`. The latter's remaining native catalog
-  identities for `UefiOsHandoffTermination::{firmware_return,transfer}` belong
-  to **UEFI-OS-HANDOFF**, not this diagnostic repair.
+  Acceptance: each still-unsupported body reports the actual construct and
+  source span from `omega --check`; repaired customers execute instead.
+  `OmissionLedger`, `CheckedUnitPlanOmissionStage` and retry-based body
+  selection are gone, with no silent body omission or weaker fallback.
 
 
 - **TRANSPARENT-RECORD-RESULT-CARRIES-MEMBER-CLAIMS.** (split-of:PROJECTED-OWNED-LET-CONTINUATION)
-  `pass/ownership/linear_transparent_record_frontier` now lowers both
-  `let extracted_left: Receipt = forwarded.left;` statements and rejects in
-  Terminal verification instead: `terminal-artifact production failed:
-  Lowering(InvalidTerminalModule(RecordResultMismatch(OperationId(5))))`.
-  OperationId(5) is the `Pair { left: left, right: right }` `EstablishRecord`,
-  and the refusing condition is `complete_root_custody` in
-  `omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/record.rs:224-231`
-  (measured with a per-condition probe, not inferred): that match requires an
-  `Affine` or `Unrestricted` record result to be **claim-free**, while a
-  transparent affine record over two linear members publishes one claim per
-  member at that member's path. Only the `Linear` arm admits claims, and it
-  admits exactly one whole-root claim.
-  This is the same mismatch the contract paragraph below already names, so the
-  amendment and this check move together: `fields` must admit an affine or
-  unrestricted record result whose claim roster is exactly the type's linear
-  claim frontier, each at its own path, and keep refusing a whole-root claim on
-  a non-linear result. Acceptance: that fixture reaches `checked`, with a
-  full-corpus before/after showing 0 regressions, and
-  `fail/ownership/linear_transparent_record_member_scope_loss` keeps rejecting
-  with ``linear value `pair.right` reaches scope exit without being consumed or
-  transferred``.
+  Preserve the path-indexed linear claim frontier of an affine record in
+  `pass/ownership/linear_transparent_record_frontier`. Its recorded refusal is
+  `RecordResultMismatch(OperationId(5))` at the `Pair` construction:
+  `complete_root_custody` demands a claim-free affine result, although its
+  two linear members retain independent claims.
 
-  What landed at __LAND__, so it is not re-derived. An owned projection of an
-  already established place needs no structural continuation: the authored
-  binding establishes no storage, so stage 05 binds it as a projected alias
-  (`StructuralBinding::ProjectedAlias`) over the root's place, emits no
-  operation and no edge, and each later use projects the composed path at its
-  real consuming operation -- the lane
-  `validation/frontier/operations.rs:218-303` admits by recording the hole in
-  `partial_custody_paths` while the root stays live.
-  **Do not rebuild the continuation.** The Jump lane categorically refuses a
-  projected owned `Linear` leaf
-  (`terminal-psi/verification/src/validation/frontier/block_parameters.rs:46-53`,
-  `validation/affine_cleanup/continuation.rs:58`, `validation/block_views.rs:567`),
-  and `complete_value`'s residual schedule reaches
-  `unit/unit_cleanup/partial/residuals.rs`, which never consults multiplicity
-  and would emit a `StructuralAffineDiscard` for the live linear sibling
-  `forwarded.right`. `wiki/spec/terminal-psi/ownership.md:41` confines the
-  residual-complement derivation to a dying affine root, which this is not.
+  Owned projection already uses `StructuralBinding::ProjectedAlias` over
+  the established root. Keep that representation; do not introduce a
+  continuation or discard the still-live linear sibling. Stage 04's ordinary
+  linear transfer path already handles this customer. Its disjoint
+  projected-affine fallback is not the missing operation.
 
-  Settled by measurement, against the earlier reading of this family: stage 04
-  already admits the statement, so there is **nothing to fix upstream**. The
-  recorded row carries only a stage-05 `Lowering` error, which means the
-  checker's linear validation discharged both path-indexed obligations. The
-  ordinary branch in
-  `04_typed-trees-to-checked-trees/src/checks/multiplicity/linear_validation/permission_production.rs:138-185`
-  records the `Transfer` with the leaf's own `Linear` multiplicity and claim
-  identity, because `move_selects_claim` tests
-  `claim.path.starts_with(event_path)`.
-  `checks/multiplicity/projected_affine.rs::append_transfer` is the disjoint
-  fallback taken only when `matching.is_empty()` -- an affine root with no
-  linear members at all -- so its three row-shape guards are not on this
-  customer's path, and generalizing them would record the transfer twice.
-  Leave that module alone until a customer needs it.
+  Reconcile record-result transport with the ownership contract in
+  `wiki/spec/terminal-psi/ownership.md` and the claim-free wording in
+  `wiki/spec/terminal-psi/calls_and_outcomes.md`. Preserve exact member paths
+  and whole-root versus member claims in the producing representation.
+  The recorded rejection lives in the retiring Terminal verifier: coordinate
+  its removal through the PCC tasks, not an extension of that verifier.
+  Check affine arrivals containing linear children at joins as part of the
+  same custody contract; the root's multiplicity alone cannot describe them.
 
-  Latent, same family, no customer yet:
-  `structural_values/emission/completed_storage.rs:52` keys a block-parameter
-  arrival's claim requirement on the ROOT's multiplicity, so an affine arrival
-  with linear children is not required to carry them across a join. There are
-  four `ValueContinuation` builders, not three (`materialize_place` at
-  `emission.rs:1498`, `direct_borrow` at `:1586`, `projected_case_place` at
-  `:2386`, `dispatch` at `dispatch.rs:124`); adding a fifth is a sign of
-  rebuilding the refuted mechanism.
-
-  Contract text still owed, to be written with the `record.rs` repair above:
-  `wiki/spec/terminal-psi/calls_and_outcomes.md:105-106` says record results are
-  "unqualified, claim-free, and affine or unrestricted. Erased fields and
-  linear custody remain outside this operation." That reads as "not modelled
-  by it" rather than "reject" -- the same sentence says it of erased fields,
-  which `record.rs` skips rather than refuses -- and it is already contradicted
-  by `operation_contracts/records.rs:131-133`, which admits a `Linear` result
-  with one whole-root claim.
+  Acceptance: the unchanged fixture checks and executes after
+  **LINEAR-BOUNDARY-SINK-NEEDS-A-PROVIDER** supplies its sink.
+  `fail/ownership/linear_transparent_record_member_scope_loss` must still
+  reject the unconsumed `pair.right`. Preserve check/native corpus behavior
+  for the affected ownership slice.
 
 - **LINEAR-BOUNDARY-SINK-NEEDS-A-PROVIDER.** (new-scope)
-  `pass/ownership/linear_transfer_and_consume` now clears Terminal
-  verification whole and rejects at native realization instead: "native
-  artifact terminal-authority closure review failed: reachable requirement
-  `named-callable(path(Receipt::ack),...)` resolves to 0 selected provider
-  rows". The fixture's terminal disposition is a hook-less `boundary
-  requirement` -- `Receipt` declares no `Receipt::drop`, so the consuming
-  contract is the authorized sink -- and its own `build.omg` binds a
-  `ProgramEntry` for four targets, so the corpus harness realizes it and
-  demands a provider the fixture never declares.
-  A checked `satisfies` adapter cannot supply one: the adapter's own body
-  would receive the linear `Receipt` by value and owe the same obligation
-  with no terminal disposition left, so it would reject. The admitted shape
-  is external satisfier leaves, as in
-  `pass/providers/external_boundary_requirement_via_exit`, which authors a
-  per-target `ForeignBinding` for each satisfying leaf. That is a foreign-ABI
-  capability over a by-value aggregate, not an ownership one, and it is the
-  decision this item needs: either the fixture authors external leaves for
-  `Receipt::ack` on every target it binds, or it drops its `build.omg`
-  entry bindings and stays on the targetless check route like its green
-  siblings `linear_assignment_establishes` and `conditional_linear_sum`.
-  Acceptance: that fixture reaches `checked`, with a full-corpus before/after
-  showing 0 regressions, and
-  `fail/ownership/linear_transparent_record_member_scope_loss` keeps
-  rejecting with ``linear value `pair.right` reaches scope exit without being
-  consumed or transferred``.
-  `pass/ownership/linear_transparent_record_frontier` reaches the same wall
-  once **TRANSPARENT-RECORD-RESULT-CARRIES-MEMBER-CLAIMS** clears, since it
-  uses the same `Receipt::ack` sink.
+  Supply a genuine executable provider for `Receipt::ack` in
+  `pass/ownership/linear_transfer_and_consume`. The fixture binds four
+  targets but its consuming boundary requirement selects no provider.
+  It has no `Receipt::drop`; an ordinary checked adapter that merely receives
+  the linear receipt still owes its consumption and does not solve this gap.
 
-  What landed at __LAND__, so it is not re-derived. The state arrival a whole
-  owned re-binding creates is now an admitted boundary actual: the arrival arm
-  of
-  `terminal-psi/verification/src/validation/structural/operations/structural_arguments/argument_checks.rs`
-  had admitted a boundary call only for `SharedBorrow` or `MutableBorrow`,
-  while the machine-parameter arrival opening the same lookup carries no
-  access condition and `boundary_calls.md:29-31,135` routes owned boundary
-  custody through the ordinary structural-call continuation. Boundary
-  completion receipts moved with it: the declaration phase derived the
-  expected set from `entry_claims`/`content_entry_claims`/
-  `linear_call_result`, which record no home for a claim an owned successor
-  transfer rebound onto an arrival, so that derivation, its static home
-  lookup, `claim_input` and `UnknownClaimAtOperation` are gone and
-  `frontier/operations.rs` replays the roster against the live claim set
-  per `ownership.md:27-29`.
+  Use an admitted external sink with the real by-value aggregate ABI on each
+  bound target; `pass/providers/external_boundary_requirement_via_exit`
+  demonstrates authored foreign leaves. Preserve the entry bindings and
+  runtime call, rather than making the fixture targetless to avoid realization.
+  Missing aggregate ABI support belongs to the ordinary ABI owner, not an
+  ownership exception or a fictitious import.
 
-  Measured and left as it is: that same arrival arm still admits a
-  **projected** owned path only for `ordinary_call`, so
-  `Receipt::ack(extracted_left)` over a projected alias will need the same
-  conjunct removed. It is the identical kind of hand-written boundary
-  restriction, but no program runs because of it until the record-result
-  refusal above clears, so it keeps its current form.
+  `pass/ownership/linear_transparent_record_frontier` uses the same sink
+  after **TRANSPARENT-RECORD-RESULT-CARRIES-MEMBER-CLAIMS** is repaired.
+  Whole owned arrivals and projected aliases must carry boundary actuals and
+  exact live claims through the ordinary call path. Do not add new checks to
+  the retiring Terminal verifier; its deletion follows the PCC tasks.
+
+  Acceptance: both unchanged programs check and execute their authored
+  outcomes on the bound hosts. The missing-provider control and
+  `fail/ownership/linear_transparent_record_member_scope_loss` still reject
+  for their intended reasons.
 
 
 - **ONE-TRANSITION-LOWERING.** (new-scope) Successor transitions with
@@ -3350,18 +3156,23 @@ of a check the same flow already performed, not the check itself.
   Acceptance: no exclusion check walks Terminal for service reach, and the
   `tests/omega/{pass,fail}/build/*exclusion*` fixtures keep their verdicts.
 
-- **RED-WINDOWS-HOST.** (new-scope) Two `package-source` tests
-  (`omega-rust/omega/packages/source-acquisition/`) fail on Windows x86-64:
-  - `local::recovery::tests::byte_identical_content_does_not_cross_local_origins`
-    (`src/local/recovery/tests.rs`) recovers a cached local source across
-    origins where it should reject;
-  - `tree::filesystem::read_tests::missing_file_identity_rejects_without_panicking`
-    (`src/tree/filesystem/read_tests.rs`) does not return
-    `LocalSourceChanged`.
+- **RED-WINDOWS-HOST.** (new-scope)
+  Reproduce two `package-source` failures on Windows:
+  `local::recovery::tests::byte_identical_content_does_not_cross_local_origins`
+  in `src/local/recovery/tests.rs`, and
+  `tree::filesystem::read_tests::missing_file_identity_rejects_without_panicking`
+  in `src/tree/filesystem/read_tests.rs`, under
+  `omega-rust/omega/packages/source-acquisition/`.
 
-  Confirm each one on macOS, then fix the Windows behavior or gate the test by
-  platform. Acceptance: `mbx nextest run -p package-source --no-fail-fast`
-  reports zero failures on Windows and macOS.
+  Preserve origin isolation and missing-identity refusal on both hosts.
+  The recorded Windows failures are cross-origin cache recovery and a result
+  other than `LocalSourceChanged`, respectively. Fix the implementation or
+  a demonstrably incorrect host assumption in the test; do not platform-gate
+  away the security obligation merely to obtain a green run.
+  Acceptance: `mbx nextest run -p package-source --no-fail-fast` has no
+  failures on Windows and macOS. The missing-file-identity test is already
+  Windows-specific (`cfg(windows)`); run it there and retain the ordinary
+  cross-origin refusal control on both hosts.
 
 ## PCC removal
 
@@ -3383,8 +3194,9 @@ These stay:
 - `bootstrap/proofs/`;
 - the Omega optimizer's use of proven facts, re-sourced as below.
 
-Each item lands alone with its corpus slice unchanged, except for intended
-deletions, which its commit lists.
+Coordinate dependent producer/consumer removals so no intermediate product
+needs deleted evidence. Preserve each named corpus slice except for intended
+deletions, which the commit lists.
 
 - **CHECKER-DISCHARGES-OPERATION-OBLIGATIONS.** (new-scope) Complete checking-time
   discharge of primitive operation conditions and consume those decisions in
@@ -4427,46 +4239,33 @@ rejects at build and `mapped` needs a Windows full-i32 measurement.
   `fail/slices/overlapping_mut_subslice_windows_rejected` as controls.
   **CANARY-CORPUS** borrow-obligation failures route here.
 
-- **CALLBACK-PRIVATE-MATERIALIZATION.** Private callbacks only realize a single
-  scalar-ABI function natively under
-  [private callbacks](wiki/spec/build/private_callbacks.md). Psi production and
-  Omega's `callback_settlement` validate requirement selection and inbound
-  interfaces. Extend native callback bodies, call/import closures and
-  signatures beyond `omega-rust/omega/compilation/backend/machine-emission/src/private_callback.rs`
-  using ordinary lowering with ABI and call evidence, not body recognizers;
-  preserve callback custody through optimization; integrate ordinary product
-  publication and the hosted private stack. Owners: `callback_settlement`,
+- **CALLBACK-PRIVATE-MATERIALIZATION.** Extend private callbacks beyond a
+  single scalar-ABI native function under
+  [private callbacks](wiki/spec/build/private_callbacks.md).
+  Use ordinary body lowering, call/import closure and ABI transport, not
+  callback body recognizers. Preserve custody through optimization and
+  integrate product publication and the hosted private stack.
+  Owners: `callback_settlement`,
   `omega-rust/omega/compilation/driver/src/native/native_realization/callback_thunks.rs`,
-  machine emission, selected-call ABI transport.
+  `omega-rust/omega/compilation/backend/machine-emission/src/private_callback.rs`,
+  and selected-call ABI transport.
 
-  **A resultless callback cannot carry an ABI record at all**, verified
-  directly rather than inferred: `ScalarFunctionAbi`
-  (`representations/target-operations/src/target_operations/calls/abi.rs:27-31`)
-  declares `result: ScalarAbiValue`, not an `Option`, so there is no
-  representation for a callback entry that returns nothing. A thunk for a
-  resultless procedure therefore refuses at
-  `backend/machine-emission/src/private_callback.rs:82` with "callback thunk
-  emits no scalar ABI for its boundary entry signature", and both the
-  materializer and its signature-drift check read that same mandatory record.
-  Extending this needs a resultless entry in the ABI representation, not a void
-  branch in the materializer.
+  Resultless entries currently cannot be represented:
+  `ScalarFunctionAbi` in
+  `representations/target-operations/src/target_operations/calls/abi.rs`
+  requires a `ScalarAbiValue` result. Fix the ABI representation and its
+  consumers together, not a void special case in the materializer.
+  Changing the procedure to return `u64` is not the customer's semantics
+  and previously encountered `StructuralCallArgumentMismatch` upstream.
 
-  Reached while giving `pass/calls/callback_private_materialization`'s
-  `WindowRegistrar::register` a provider; the obvious way around it does not
-  work, since declaring the procedure `-> u64` instead fails two stages earlier
-  in target lowering with `TranslationValidation(StructuralCallArgumentMismatch)`.
-  The provider change that reaches this wall is **not landed and is under
-  review** -- it resolves the schema with a `DllImport::PeByName` naming a
-  library and export that exist nowhere in the repository, justified as a
-  never-called compile-time coordinate, which is a question about what a
-  compile-only fixture may assert rather than an implementation detail.
-
-  Acceptance: a Windows x64 corpus program registers a private callback with a
-  general body and inbound signature, and the callback executes with the
-  authored result. Missing, duplicate, overlapping or incompatible
-  materializations reject; private slots stay inaccessible to source; the
-  package-local calling-vocabulary duplicate rejection holds. Registration
-  outcome and lifetime belong to **REGISTERED-CALLBACK-LIFETIME**.
+  Acceptance: `pass/calls/callback_private_materialization` uses a genuine
+  Windows x64 host registration provider and executes a callback with a general
+  body and inbound signature, including a resultless procedure. Do not name
+  nonexistent DLL exports merely to satisfy compile-only selection.
+  Missing, duplicate, overlapping and incompatible materializations reject;
+  private slots remain inaccessible and package-local vocabulary duplicates
+  reject. Registration outcome and lifetime belong to
+  **REGISTERED-CALLBACK-LIFETIME**.
 
 - **REGISTERED-CALLBACK-LIFETIME.** An authored registrar lifecycle does not
   execute under [registration and lifetime](wiki/spec/build/private_callbacks.md#registration-and-lifetime)
@@ -5341,103 +5140,53 @@ wait for Cathedral's instruction coverage. The interpreter is
   physical exclusions reject. Explicit empty classes, service reach and review
   identity stay. No synthesized receiver-policy file.
 
-- **FILESYSTEM-PLATFORM-SERVICES.** (new-scope) Implement the
-  [platform services](wiki/spec/build/platform_services.md) shape for the
-  filesystem (owner ruling 2026-10-04). Today `source/library/std/filesystem_host.omg`
-  declares one `FilesystemHost` trait mixing POSIX and Windows-only operations
-  (`close_handle` takes a Windows `HANDLE`; `find_next` uses Windows
-  enumeration), so no provider covers it: macOS has none, and
-  `omega-rust/omega/compilation/realization/provider-planning/src/provider_settlement/canonical_filesystem_host.rs`
-  supplies partial Linux x86-64 rows.
-  - Split it into `PosixFilesystemHost` and `WindowsFilesystemHost` with
-    per-family handle types, and bind a complete checked-adapter provider
-    per target (macOS and Linux over `PosixFilesystemHost`, Windows over
-    `WindowsFilesystemHost`), as the macOS `TimeHost` provider does.
-  - Rewrite `source/library/std/targets/<target>/filesystem_impl.omg` to the
-    ZII portable shape: `File` stores descriptor + 1 on POSIX and the `HANDLE`
-    on Windows, zero `OpenOptions` means defaults, results fail closed, and an
-    operation a target lacks returns `ErrorKind::Unsupported`.
-  - Delete the partial compiler fallback `canonical_filesystem_host.rs` and
-    the mixed trait. Update `samples/cli/systems/file_journal/main.omg`,
-    which uses the raw service directly, to the family trait for its targets.
-  - Absorbs **UNIT-PLAN-OMISSION-MKALL-WALK-PARAMETER-CUSTODY**:
-    `Filesystem::mkall_walk` reentry planning is repaired; the remaining
-    `pass/filesystem/dir_walk_wrappers_exit` failure is provider supply. Keep
-    that unchanged customer and require native exit 70. The earlier 151-second
-    compile is a budget-sizing lead, not another Unit-plan repair.
+- **FILESYSTEM-PLATFORM-SERVICES.** (new-scope)
+  Implement [platform services](wiki/spec/build/platform_services.md) for the
+  filesystem. `source/library/std/filesystem_host.omg` mixes POSIX and
+  Windows operations in one trait; providers must cover the complete schema,
+  so partial Linux rows and sentinel implementations cannot supply it.
 
-  Frontier measured at `72a43a5bee1`: the split is a hard prerequisite for any
-  macOS provider, and the portable wrapper half of it is blocked on
-  **Q2** (`portable-service-per-family-binding-carrier`). The trait declares
-  50 machines; 12 are Windows-only (`find_first`, `find_next`, `find_close`,
-  `create_hard_link`, `open_path_handle`, `close_handle`, `get_osfhandle`,
-  `final_path_name_by_handle`, `set_file_time`, `lock_file_ex`, `unlock_file`,
-  `get_last_error`), 11 are POSIX-only (`open_at`, `unlink_at`, `read_dir`,
-  `set_file_permissions`, `set_file_times`, `sync_data`, `duplicate`,
-  `lock_file`, `change_owner`, `change_owner_no_follow`, `change_file_owner`),
-  and `errno` is libc-backed-target-only — bound on Darwin (`___error`) and
-  Windows (`_errno`), unbound on direct-Linux-syscall targets, which carry
-  `-errno` in the result instead. The remaining 26 are portable by name over
-  POSIX `fd: i32` handles. A provider must bind every schema method exactly
-  once (`covers_schema`,
-  `omega-rust/omega/compilation/backend/plans/provider-evidence/src/provider_evidence/providers/provider_plan.rs:881`)
-  against the whole trait, because `service_schema::from_typed` collects every
-  trait method with no demand filtering — so no honest macOS provider exists
-  while the Windows family stays in the trait, and sentinel rows are exactly
-  what the spec forbids.
+  Split `PosixFilesystemHost` and `WindowsFilesystemHost`, with per-family
+  handles and complete authored checked-adapter providers. The portable
+  wrapper's carrier depends on `portable-service-per-family-binding-carrier`
+  in `OWNER_QUESTIONS.md`; independent family/provider work can proceed.
+  Update `source/library/std/targets/<target>/filesystem_impl.omg`:
+  POSIX stores descriptor + 1, Windows stores HANDLE, zero OpenOptions means
+  defaults, failures are closed and unsupported operations return
+  `ErrorKind::Unsupported`. Preserve descriptor 0 as a valid open file.
 
-  Call-site confinement is better than the item assumed. All 35 Windows-only
-  call sites sit in `targets/windows_x86_64/filesystem_impl.omg` plus exactly
-  one fixture, `tests/omega/pass/filesystem/windows_set_file_time_exit`; the
-  portable `filesystem.omg` calls none. But `filesystem.omg` does call 7
-  POSIX-only operations (`change_owner`, `change_owner_no_follow`,
-  `change_file_owner`, `duplicate`, `errno`, `set_file_permissions`,
-  `sync_data`), so those 7 portable wrapper machines become target-scoped
-  families whose Windows body returns `ErrorKind::Unsupported`. Omega
-  consumers that name the trait: `filesystem.omg`, 5 target impls (4724 lines,
-  242 `.host.` call sites), 17 fixtures under `tests/omega/pass/filesystem`,
-  `tests/omega/pass/time/runtime_fs_mtime_system_time_interop_exit`,
-  `samples/cli/systems/file_journal` and `samples/gui/image_viewer`; four more
-  (`pass/filesystem/{dir_walk_wrappers_exit,windows_wrapper_results_exit,wrapper_lock_metadata_exit,wrapper_open_with_exit}`)
-  reach it only through `Filesystem`, so they are the ones Q2 holds.
+  The portable wrapper invokes `change_owner`, `change_owner_no_follow`,
+  `change_file_owner`, `duplicate`, `errno`, `set_file_permissions`
+  and `sync_data`; their target-scoped Windows behavior must be explicit.
+  Darwin `errno` uses `___error`, Windows uses `_errno`, while direct
+  Linux syscalls return negative errno. Do not impose one family's error or
+  handle convention on the others.
 
-  Rust consumers the split must move together, none of them optional:
-  `omega-rust/psi/interpreter/checked-interpreter/build.rs` code-generates
-  `FilesystemHostOperation` by parsing `filesystem_host.omg` and asserting
-  every `machine` line ends `reaches FilesystemHost;`; the evaluator's
-  `execution/boundary_console.rs:24` falls back to the trait's bare name;
-  `packages/package-manager/src/review/candidate/semantic_bindings.rs:314`
-  maps the name to `AcceptedSemanticBindingRole::FilesystemHostService`, which
-  `packages/compilation-inputs/src/review_record_encoding.rs:85` wire-encodes;
-  plus `review-evidence/src/capture/{authority.rs:188,
-  providers/policy/toolchain_settled.rs:30}`,
-  `realization/selected-dispatch/src/{intrinsic_review.rs:43,
-  execution_settlement.rs:217}`, and the driver test support in
-  `tests/support/{fixture_package_inputs.rs:776,
-  dangerous_service_acceptance.rs:139}`.
+  Migrate `filesystem.omg`, all five target implementations, filesystem
+  fixtures, `pass/time/runtime_fs_mtime_system_time_interop_exit`,
+  `samples/cli/systems/file_journal` and `samples/gui/image_viewer`.
+  Wrapper-only consumers include
+  `pass/filesystem/{dir_walk_wrappers_exit,windows_wrapper_results_exit,wrapper_lock_metadata_exit,wrapper_open_with_exit}`.
+  Rust consumers include package review's `semantic_bindings.rs`,
+  `review_record_encoding.rs`, review-evidence authority/provider capture,
+  selected-dispatch settlement and driver fixture/admission support.
+  The checked interpreter's generated host-operation roster and bare-name
+  fallback retire through the universal cutover, not a new legacy dispatcher.
 
-  The macOS binding payloads are already catalogued, so the provider rows are
-  transcription rather than discovery: `HostOperation::from_name`
-  (`omega-rust/omega/compilation/backend/calling-conventions/src/host_operations.rs:641`)
-  names every libc operation the seam needs, `darwin_import_library`
-  (`omega-rust/omega/compilation/backend/calling-conventions/src/hosts/darwin.rs`)
-  resolves the `_`-prefixed symbol to `/usr/lib/libSystem.B.dylib`, and
-  `ProviderBinding::Import` is what an authored
-  `via ForeignBinding::DllImport { MachODylibSymbol { .. } }` row becomes. The
-  msvcrt mirror in `hosts/windows.rs:53` lists which operations have no clean
-  CRT equivalent and so must answer `Unsupported` on Windows.
+  Reuse `HostOperation::from_name`, Darwin's `darwin_import_library`
+  and the Windows host-operation catalog to author actual imports. Remove
+  `provider-planning/src/provider_settlement/canonical_filesystem_host.rs`
+  with the authored Linux replacement; remove the mixed trait and its
+  remaining consumers in the same coherent migration.
 
-  Per-target state: macOS and `linux_arm64` have no `FilesystemHost` rows at
-  all; `linux_x86_64` has the 11-leaf toolchain mint; `windows_x86_64` has
-  none. The mint already yields to an already-selected plan
-  (`canonical_filesystem_host.rs:224`), so an authored per-target provider may
-  land before the fallback is deleted — the fallback is retired by the change
-  that gives `linux_x86_64` its own authored provider, not before.
+  Absorbs **UNIT-PLAN-OMISSION-MKALL-WALK-PARAMETER-CUSTODY**:
+  `Filesystem::mkall_walk` reentry planning is repaired; its remaining
+  `pass/filesystem/dir_walk_wrappers_exit` customer needs provider supply,
+  not another Unit-plan repair. Require its unchanged native exit 70.
 
-  Acceptance: `samples/cli/systems/file_journal` exits 7 on macOS, Linux and
-  Windows; the `tests/omega/pass/filesystem/` fixtures run natively on each
-  host; a fixture that opens a file with stdin closed (descriptor 0) is not
-  treated as Closed.
+  Acceptance: file_journal exits 7 on macOS, Linux and Windows; filesystem
+  fixtures execute their authored outcomes on their applicable hosts, including
+  opening a file with stdin closed without treating descriptor 0 as Closed.
 
 - **FILESYSTEM-RELEASE-CONTRACT.** Run
   `tests/omega/pass/filesystem/windows_canonicalize_exit` on Windows:
