@@ -370,9 +370,10 @@ pub(crate) fn build_static_boundary_requirements(
     plans
 }
 
-/// Shared runtime parameter projection for bodyless requirements. The caller
-/// omits only a trait's provider receiver; an operator's receiver is an actual
-/// operand and retains its position, type, and access like every other input.
+/// Shared runtime parameter projection for bodyless requirements. A trait
+/// requirement's parameters are exactly its authored ones, with no provider
+/// receiver to omit; an operator's receiver is an actual operand and retains
+/// its position, type, and access like every other input.
 fn boundary_parameters<'program>(
     program: &TypedTrees,
     shapes: &mut ShapeCollector<'_>,

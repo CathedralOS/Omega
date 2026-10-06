@@ -354,8 +354,6 @@ impl<'program> Evaluator<'program> {
                 };
                 if let Some(value) = self.try_selected_named_call(
                     receiver_symbol,
-                    path.head_symbol,
-                    receiver_members,
                     path.symbol,
                     &[],
                     self.program.statement_table.expression_handles(*arguments),
@@ -410,10 +408,6 @@ impl<'program> Evaluator<'program> {
     ) -> EvalResult<Value> {
         if let Some(value) = self.try_selected_named_call(
             call.receiver_symbol,
-            call.receiver_root_symbol,
-            self.program
-                .statement_table
-                .name_path_members(call.receiver),
             call.target_symbol,
             &call.machine_arguments,
             self.program

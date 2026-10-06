@@ -117,9 +117,8 @@ pub(crate) fn derive_machine_summary(
                 }
                 for instance in instances {
                     if !entry_parameter_roots.contains(&instance.subject.root) {
-                        // Arbitrary local values still cannot become caller
-                        // premises. Only the exact provider receiver handled
-                        // above may defer its coverage to composition.
+                        // Arbitrary local values cannot become caller
+                        // premises; only entry parameters can.
                         return Some(no_guarantee(machine.symbol));
                     }
                     if !premises.contains(&instance) {

@@ -1,8 +1,8 @@
 use crate::interpreter::evaluator::{
-    ArithmeticDomain, BTreeMap, BinaryOperator, Cell, DataMember, EvalResult, EvaluatedArgument,
-    Evaluator, ExpressionHandle, ExpressionNode, FloatMeaning, FloatPolicyTrap, FloatSemantics,
-    Frame, Halt, HashSet, PrimitiveType, SemanticFloatClass, SemanticFloatFormat, SymbolHandle,
-    Value, trap, unsupported,
+    ArithmeticDomain, BTreeMap, BinaryOperator, Cell, DataMember, EvalResult, Evaluator,
+    ExpressionHandle, ExpressionNode, FloatMeaning, FloatPolicyTrap, FloatSemantics, Frame, Halt,
+    HashSet, PrimitiveType, SemanticFloatClass, SemanticFloatFormat, SymbolHandle, Value, trap,
+    unsupported,
 };
 use language_semantics::declaration_selection::{CollectionMeasure, CollectionViewOperation};
 use symbols::BuiltinFunction;
@@ -524,16 +524,8 @@ impl<'program> Evaluator<'program> {
             call.target_symbol,
             &call.machine_arguments,
         ) {
-            let receiver = if dispatch.forward_receiver {
-                Some(EvaluatedArgument::plain(
-                    self.eval_argument(call.receiver, frame)?,
-                ))
-            } else {
-                None
-            };
             let value = self.run_boundary_adapter(
                 dispatch,
-                receiver,
                 self.program
                     .expression_table
                     .expression_handles(call.arguments),

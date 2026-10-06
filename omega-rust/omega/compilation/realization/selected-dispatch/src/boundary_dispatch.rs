@@ -413,7 +413,6 @@ fn plan_selected_boundary_adapter_dispatch(
                 receiver: receiver.symbol,
                 requirement: adapter.requirement_symbol,
                 realization_state: adapter.symbol,
-                forward_receiver: false,
                 family_tuple: adapter.family_tuple.clone(),
             });
         }

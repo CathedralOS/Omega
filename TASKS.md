@@ -1187,26 +1187,33 @@ defines the complete product bar.
 - **STATELESS-PROVIDERS.** (new-scope) Owner ruling 2026-10-04: a provider
   is its satisfier machines and holds no state
   ([machines](wiki/spec/language/machines.md#static-declarations-and-explicit-state):
-  a satisfier declares no parameter its requirement lacks). The `self`
-  migration turned receiver state into a hidden `&mut Provider` parameter
-  that the requirement does not declare. Finish removing this implicit state
-  across conformance and invocation paths.
-  - Audit remaining standard-library and sample satisfiers for extra leading
-    provider parameters. GUI interactive acceptance belongs to
-    **MACOS-APPLICATION-PUBLICATION**.
-  - Reject a satisfier parameter absent from its requirement across all
-    conformance paths and pin that rejection with a fail fixture. Installation
-    and checked interpretation must pass exactly the authored arguments;
-    finish removing any implicit provider-state provisioning.
+  a satisfier declares no parameter its requirement lacks). Checking rejects
+  such a parameter on every conformance path
+  (`fail/providers/satisfier_extra_parameter_rejected`). Finish removing the
+  implicit provider state that installation still models.
+  - Progress premises still name an installed provider receiver:
+    `ServiceProgressSubject::ProviderReceiver` and `BuildBoundProgressDemand`
+    (checked-trees `facts/termination.rs`, stage 04
+    `checks/termination/progress/`), their consumer
+    `provider-evidence/.../component_eras/component_progress_manifest.rs`, the
+    provider-occurrence receipts in
+    `external-roots/src/root_entry/progress_profile_installation.rs`, and the
+    review/package record codecs that still decode tag 0 `provider_receiver`.
+    No producer creates a receiver subject or a build-bound demand, so the
+    route is unreachable. Replace it with premises over the requirement's
+    declared parameters or delete it, together with the
+    `pass/progress/provider_receiver_progress_installation` customer that
+    **TRAIT-IMPLEMENTATION-SOURCE-MIGRATION** migrates.
   - A foreign-bound provider whose fields hold vtable addresses
     (`ForeignBinding::VtableField`) takes those from its foreign binding plan,
     not from provider data. **TRAIT-IMPLEMENTATION-SOURCE-MIGRATION** owns
     the requirement conversion under the settled named-implementation contract.
 
-  Acceptance: no satisfier declares a parameter its requirement lacks (a fail
-  fixture pins the rejection); the four GUI samples check;
+  Acceptance: no installation or interpretation route supplies a provider
+  value or receiver its requirement did not author; the four GUI samples check;
   `tests/omega/pass/providers/runtime_boundary_primitive_array_argument_exit`
-  still exits 70 in both engines.
+  still exits 70 in both engines (the Terminal interpreter declines its
+  `ProcessExit` until **TERMINAL-RUNTIME-DRIVERS**).
 
 - **MACOS-APPLICATION-PUBLICATION.** Publish and run `samples/gui/window_app`,
   `window_demo` and `windowed_calculator` under the
