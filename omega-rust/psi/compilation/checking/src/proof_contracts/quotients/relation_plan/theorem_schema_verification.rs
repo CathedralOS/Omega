@@ -59,44 +59,13 @@ pub(super) fn verify_selected_theorem_schema(
         .find(|state| state.symbol == theorem.state_symbol)
         .ok_or(RelationPlanError::TheoremEntryDoesNotResolveExactly)?;
     let theorem_parameters = program.state_parameters(theorem_state);
-    if theorem_parameters.len() != expected.parameters.len() {
-        return Err(RelationPlanError::TheoremSchemaParameterArityMismatch);
-    }
-
-    let representative_type_bindings = static_type_identities(&representative.static_application);
-    let theorem_type_bindings = static_type_identities(&theorem.static_application);
-    let mut verified_parameters = Vec::with_capacity(theorem_parameters.len());
-    for (position, (actual, expected)) in theorem_parameters
-        .iter()
-        .zip(&expected.parameters)
-        .enumerate()
-    {
-        if actual.is_const {
-            return Err(RelationPlanError::TheoremSchemaConstParameter(position));
-        }
-        if actual.is_mutable != expected.is_mutable {
-            return Err(RelationPlanError::TheoremSchemaParameterModeMismatch(
-                position,
-            ));
-        }
-        let expected_identity = program.type_identity(TypeIdentityRequest {
-            binders: &representative_type_bindings,
-            ..TypeIdentityRequest::ordinary(expected.type_reference)
-        });
-        let actual_identity = program.type_identity(TypeIdentityRequest {
-            binders: &theorem_type_bindings,
-            ..TypeIdentityRequest::ordinary(actual.type_reference)
-        });
-        if expected_identity != actual_identity {
-            return Err(RelationPlanError::TheoremSchemaParameterTypeMismatch(
-                position,
-            ));
-        }
-        verified_parameters.push(VerifiedTheoremParameter {
-            expected_position: position,
-            theorem_symbol: actual.symbol,
-        });
-    }
+    let verified_parameters = verify_parameters(
+        program,
+        representative,
+        theorem,
+        theorem_parameters,
+        expected,
+    )?;
 
     let (mut requires, ensures) = collect_contract_facts(program, theorem)?;
     if requires.len() != expected.relation_premises.len() + expected.legality_premises.len() {
@@ -330,4 +299,50 @@ fn expression_is_parameter(
     };
     matches!(program.expression_table.expression(expression),
         ExpressionNode::Name(path) if parameter.symbol.is_valid() && path.symbol == parameter.symbol)
+}
+
+pub(super) fn verify_parameters(
+    program: &TypedTrees,
+    representative: &RepresentativeTelescope,
+    theorem: &SelectedTheoremTelescope,
+    theorem_parameters: &[StateParameter],
+    expected: &ExpectedTheoremSchema,
+) -> Result<Vec<VerifiedTheoremParameter>, RelationPlanError> {
+    if theorem_parameters.len() != expected.parameters.len() {
+        return Err(RelationPlanError::TheoremSchemaParameterArityMismatch);
+    }
+    let representative_type_bindings = static_type_identities(&representative.static_application);
+    let theorem_type_bindings = static_type_identities(&theorem.static_application);
+    theorem_parameters
+        .iter()
+        .zip(&expected.parameters)
+        .enumerate()
+        .map(|(position, (actual, expected))| {
+            if actual.is_const {
+                return Err(RelationPlanError::TheoremSchemaConstParameter(position));
+            }
+            if actual.is_mutable != expected.is_mutable {
+                return Err(RelationPlanError::TheoremSchemaParameterModeMismatch(
+                    position,
+                ));
+            }
+            let expected_identity = program.type_identity(TypeIdentityRequest {
+                binders: &representative_type_bindings,
+                ..TypeIdentityRequest::ordinary(expected.type_reference)
+            });
+            let actual_identity = program.type_identity(TypeIdentityRequest {
+                binders: &theorem_type_bindings,
+                ..TypeIdentityRequest::ordinary(actual.type_reference)
+            });
+            if expected_identity != actual_identity {
+                return Err(RelationPlanError::TheoremSchemaParameterTypeMismatch(
+                    position,
+                ));
+            }
+            Ok(VerifiedTheoremParameter {
+                expected_position: position,
+                theorem_symbol: actual.symbol,
+            })
+        })
+        .collect()
 }

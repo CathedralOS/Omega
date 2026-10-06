@@ -13,21 +13,19 @@ use super::precondition::{
     RepresentativePreconditionPartition, precondition_fact_at,
 };
 use super::proof_fact_identity::{
-    ProofFactIdentityContext, ProofValueSubstitution, proof_facts_match, static_type_identities,
+    ProofFactIdentityContext, ProofValueSubstitution, proof_facts_match,
 };
 use super::theorem::SelectedTheoremTelescope;
 use super::theorem_schema::{
     ExpectedTheoremSchema, TheoremApplicationSide, TheoremContractFactLocation,
     collect_contract_facts,
 };
-use super::theorem_schema_verification::VerifiedTheoremParameter;
+use super::theorem_schema_verification::{VerifiedTheoremParameter, verify_parameters};
 use super::{DirectLiftRuntimeCorrespondence, RelationPlanError, RepresentativeTelescope};
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::machine::Machine;
-use typed_trees::signature::StateParameter;
 use typed_trees::state::State;
-use typed_trees::type_identity::TypeIdentityRequest;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) struct VerifiedTransportFact {
@@ -236,51 +234,6 @@ fn exact_theorem_state<'a>(
     Ok(state)
 }
 
-fn verify_parameters(
-    program: &TypedTrees,
-    representative: &RepresentativeTelescope,
-    theorem: &SelectedTheoremTelescope,
-    theorem_parameters: &[StateParameter],
-    expected: &ExpectedTheoremSchema,
-) -> Result<Vec<VerifiedTheoremParameter>, RelationPlanError> {
-    if theorem_parameters.len() != expected.parameters.len() {
-        return Err(RelationPlanError::TheoremSchemaParameterArityMismatch);
-    }
-    let representative_type_bindings = static_type_identities(&representative.static_application);
-    let theorem_type_bindings = static_type_identities(&theorem.static_application);
-    theorem_parameters
-        .iter()
-        .zip(&expected.parameters)
-        .enumerate()
-        .map(|(position, (actual, expected))| {
-            if actual.is_const {
-                return Err(RelationPlanError::TheoremSchemaConstParameter(position));
-            }
-            if actual.is_mutable != expected.is_mutable {
-                return Err(RelationPlanError::TheoremSchemaParameterModeMismatch(
-                    position,
-                ));
-            }
-            let expected_identity = program.type_identity(TypeIdentityRequest {
-                binders: &representative_type_bindings,
-                ..TypeIdentityRequest::ordinary(expected.type_reference)
-            });
-            let actual_identity = program.type_identity(TypeIdentityRequest {
-                binders: &theorem_type_bindings,
-                ..TypeIdentityRequest::ordinary(actual.type_reference)
-            });
-            if expected_identity != actual_identity {
-                return Err(RelationPlanError::TheoremSchemaParameterTypeMismatch(
-                    position,
-                ));
-            }
-            Ok(VerifiedTheoremParameter {
-                expected_position: position,
-                theorem_symbol: actual.symbol,
-            })
-        })
-        .collect()
-}
 fn ordered_locations(
     partition: &RepresentativePreconditionPartition,
 ) -> Vec<RepresentativeContractFactLocation> {
