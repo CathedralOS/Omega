@@ -1827,6 +1827,64 @@ named customers while the shared-source/provider work converges. Remove each
 replaced route as its common operation takes over; preserve negative checking,
 crash and native exit behavior.
 
+- **PIPELINE-ARCHITECTURE-ENFORCEMENT.** (new-scope) Own convergence to, and
+  permanent enforcement of, the connected route in
+  [the pipeline contract](omega-rust/pipeline.md): Psi 00-07 and Build execute
+  once over every authored target body; one canonical Terminal Psi product is
+  the only portable handoff; Omega 00-09 realizes each requested target from
+  that product and target-keyed Build rows. This DRI owns integration and
+  acceptance across **PSI-TARGET-FAMILIES**, **BUILD-EVALUATES-ONCE**,
+  **PROVIDER-SELECTION-AFTER-TERMINAL**, **ONE-DRIVER-PER-STAGE**,
+  **STAGE05-SOURCE-REREAD-DELETED**, **STAGE05-PLAN-REVALIDATION-DELETED**,
+  **ONE-TRANSITION-LOWERING**, **ONE-CALL-LOWERING** and the route-retirement
+  items. Contributors may own those slices; a slice landing or an architecture
+  lint alone does not close this outcome.
+  - Remove the current violations rather than grandfathering them:
+    `compiler.rs` loops targets around checking and Terminal production;
+    `checked/checking/execution_settlement.rs` selects a target body, plans
+    providers, folds target layout, checks and prunes siblings before Terminal;
+    `realization/provider-planning` depends on syntax/typed/checked trees,
+    stage 04, validation and the checked interpreter; Omega stage 00 consumes
+    checked/lowered sidecars (`CheckedBoundaryOperatorApplicationScope`, source
+    call occurrences and selected comparison occurrences) beside the canonical
+    artifact; stage 05 rereads source tables and selects shape-specific routes.
+  - Make topology enforce ownership. Remove forbidden production dependencies
+    so Rust cannot name a representation or operation outside the consuming
+    stage's declared inputs. Add one workspace architecture gate derived from
+    `cargo metadata` that rejects a Psi dependency on Omega, an Omega
+    pipeline/realization dependency on source/typed/checked Psi or Psi transform,
+    checking or interpreter crates, and any stage edge outside the declared
+    producer/consumer graph. Allow explicit test-only fixture construction
+    without adding the dependency to the production target. The gate names the
+    forbidden edge and the owning stage; it does not maintain a second pipeline
+    roster unrelated to `omega-rust/pipeline.md`.
+  - Enforce complete producer records. Stage 05 may consume checked plans, not
+    `checked.typed`, source statement/expression tables, validation helpers or
+    source-node kinds. Omega may consume canonical Terminal Psi, Build rows and
+    target/backend contracts, not lowered-Psi occurrences or checked receipts.
+    When a consumer lacks a fact, extend the producing stage's durable output
+    and migrate every consumer in the same coherent change. A downstream
+    reconstruction, source-shape recognizer, fallback route or revalidation of
+    the producer's invariant is a failed architecture check, not a temporary
+    feature repair.
+  - Keep orchestration visible in `compiler.rs`: one source preparation, one
+    Psi/Build chain, then an explicit per-target Omega loop. Prefix consumers
+    call the same stage entrances and stop at a typed checkpoint; they do not
+    create alternate compiler modes or replay an earlier stage.
+
+  Acceptance: a two-target integration fixture proves with invocation counters
+  that source/Psi 00-07, Build and Terminal publication each execute once, then
+  Omega 00-09 and emission execute once per requested target; both products
+  equal their single-target bytes and one target's realization failure does not
+  suppress the other. An invalid body in an unrequested target still rejects
+  during Psi, while a missing target-specific realization row fails only that
+  target. Retained-artifact realization succeeds from canonical Terminal bytes
+  plus the selected target's Build rows after the checked frontend and lowered
+  sidecars are dropped. The dependency/source-access gate fails on seeded
+  forbidden edges and passes the workspace; target-family positive/negative
+  corpus controls and matching-host native results remain unchanged. Delete the
+  transitional dependency exceptions and pipeline debt text when this passes.
+
 - **REFERENCE-LOCAL-BINDING-ROUTES.** (new-scope) Reference-valued locals from
   every admitted producer keep their loan identity, backing and access through
   reads, calls and explicit state transfers, with exact backing and no implicit
