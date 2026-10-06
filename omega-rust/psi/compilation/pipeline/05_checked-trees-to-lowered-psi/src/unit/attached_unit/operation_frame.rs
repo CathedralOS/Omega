@@ -1048,14 +1048,16 @@ impl OperationFrame<'_, '_> {
                     }
                 ) =>
             {
-                let (place, structural_type) = crate::emission::store_destination::descriptor_home(
-                    symbol,
-                    &self.evaluation.structural_locals,
-                    self.operations,
-                )?;
-                StoreRoot::Owned {
+                let (place, structural_type, qualified) =
+                    crate::emission::store_destination::descriptor_home(
+                        symbol,
+                        &self.evaluation.structural_locals,
+                        self.operations,
+                    )?;
+                StoreRoot::DescriptorHome {
                     place,
                     structural_type,
+                    qualified,
                 }
             }
             checked_trees::CheckedStoreRoot::Local { symbol } => {
@@ -2722,6 +2724,7 @@ impl OperationFrame<'_, '_> {
     ) -> Result<(), LoweringError> {
         let CheckedUnitEffectOperationPlan::EstablishStructuralLocal {
             result,
+            qualifications,
             discard_result_on_return,
             ..
         } = operation
@@ -2732,6 +2735,19 @@ impl OperationFrame<'_, '_> {
             .require_next(result, "structural local result binding is not dense")?;
         let structural_type = lookup_type_id(self.type_ids, &result.type_identity)?;
         let multiplicity = crate::terminal_identities::structural_multiplicity(result.multiplicity);
+        // A descriptor home's declared byte domains, on its own view carrier.
+        let mut qualifications = qualifications
+            .iter()
+            .map(|domain| {
+                crate::terminal_identities::lookup_domain_id_for_carrier(
+                    self.callees.domain_ids,
+                    *domain,
+                    structural_type,
+                )
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        qualifications.sort();
+        qualifications.dedup();
         let home = place_id(allocate_dense(self.next_place)?);
         let producer = self.operations.allocate();
         self.operations.push(Operation {
@@ -2743,7 +2759,7 @@ impl OperationFrame<'_, '_> {
                 place: home,
                 structural_type,
                 multiplicity,
-                qualifications: Vec::new(),
+                qualifications,
                 projected_qualifications: Vec::new(),
                 claims: Vec::new(),
             }),

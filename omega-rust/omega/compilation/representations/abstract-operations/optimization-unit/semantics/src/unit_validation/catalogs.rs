@@ -471,9 +471,15 @@ fn validate_structural_field_range_authority(
                         path,
                         *field,
                     ),
-                    // An unqualified declared home declares no predicates.
+                    // A declared home declares its qualifications' predicates.
                     None => function_structure::declared_descriptor_home(function, *destination)
-                        .map(|_| terminal_psi::ByteSequencePredicateSet::EMPTY),
+                        .and_then(|home| {
+                            terminal_semantics::byte_qualification_predicates_in(
+                                unit.structural_domains.iter(),
+                                home.structural_type,
+                                &home.qualifications,
+                            )
+                        }),
                 }
                 .ok_or_else(|| invalid.clone())?;
                 let established = function_structure::whole_source_predicates(

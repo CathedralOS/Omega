@@ -504,7 +504,7 @@ pub(super) fn validate_borrowed_argument(
             let home_view = local_loan.is_some() && (byte_view.is_some() || element_view.is_some());
             let descriptor_home = established_view_loan.is_some()
                 && semantic.access == StructuralAccess::SharedBorrow
-                && crate::selection::established_view_input::descriptor_result(
+                && crate::selection::established_view_input::completed_descriptor(
                     source,
                     semantic.place,
                 )

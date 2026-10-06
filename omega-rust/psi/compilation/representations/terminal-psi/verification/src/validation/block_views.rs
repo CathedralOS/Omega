@@ -330,6 +330,20 @@ pub(super) fn validate_successor(
     }
     let mut exclusive = BTreeSet::new();
     for (argument, expected) in arguments.iter().zip(&target.structural_parameters) {
+        // A declared descriptor local's home forwards its current descriptor:
+        // a whole store into it must reach this edge on every path.
+        if super::byte_sequence::length::descriptor_home(module, machine, argument.place).is_some()
+            && !super::structural::byte_sequence_fields::descriptor_home_is_established_at_exit(
+                machine,
+                source_block,
+                argument.place,
+            )
+        {
+            return Err(ModuleError::InvalidStructuralSuccessorArgument {
+                edge,
+                place: argument.place,
+            });
+        }
         // A projected loan's machine-parameter root dominates every block, so
         // it needs no `available` row — the same exemption the projected owned
         // argument below records for its root. A whole-view argument transfers

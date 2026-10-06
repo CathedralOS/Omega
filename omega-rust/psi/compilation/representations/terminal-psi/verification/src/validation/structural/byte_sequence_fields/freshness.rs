@@ -85,6 +85,24 @@ fn established_on_every_path(
     let Some((use_block, use_position)) = operation_position(machine, use_site) else {
         return false;
     };
+    established_before(
+        machine,
+        (use_block, use_position),
+        root,
+        establishes,
+        invalidates,
+    )
+}
+
+/// [`established_on_every_path`] from an explicit point: block index and the
+/// number of its operations that execute before the use.
+fn established_before(
+    machine: &TerminalMachine,
+    (use_block, use_position): (usize, usize),
+    root: PlaceId,
+    establishes: impl Fn(&terminal_psi::Operation, PlaceId) -> bool,
+    invalidates: impl Fn(&terminal_psi::Operation, PlaceId) -> bool,
+) -> bool {
     let outgoing = crate::control_graph::successors(machine);
     let mut pending = vec![(use_block, use_position, root)];
     let mut visited = BTreeSet::new();
@@ -896,21 +914,41 @@ pub(crate) fn descriptor_home_is_established(
     use_site: OperationId,
     home: PlaceId,
 ) -> bool {
-    established_on_every_path(
-        machine,
-        use_site,
-        home,
-        |candidate, root| {
-            matches!(
-                candidate.kind,
-                OperationKind::StructuralByteViewFieldStore {
-                    destination,
-                    field: None,
-                    ..
-                } if destination == root
+    operation_position(machine, use_site).is_some_and(|point| {
+        established_before(machine, point, home, stores_whole_descriptor, |_, _| false)
+    })
+}
+
+/// [`descriptor_home_is_established`] at the exit of `block`, where its
+/// terminator forwards the home on an edge.
+pub(crate) fn descriptor_home_is_established_at_exit(
+    machine: &TerminalMachine,
+    block: semantic_vocabulary::BlockId,
+    home: PlaceId,
+) -> bool {
+    machine
+        .blocks
+        .iter()
+        .position(|candidate| candidate.id == block)
+        .is_some_and(|index| {
+            established_before(
+                machine,
+                (index, machine.blocks[index].operations.len()),
+                home,
+                stores_whole_descriptor,
+                |_, _| false,
             )
-        },
-        |_, _| false,
+        })
+}
+
+fn stores_whole_descriptor(candidate: &terminal_psi::Operation, root: PlaceId) -> bool {
+    matches!(
+        candidate.kind,
+        OperationKind::StructuralByteViewFieldStore {
+            destination,
+            field: None,
+            ..
+        } if destination == root
     )
 }
 

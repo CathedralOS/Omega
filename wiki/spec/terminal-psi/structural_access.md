@@ -390,11 +390,14 @@ type; its initializer and every later assignment are that one store, as
 `EstablishPrimitiveLocal` homes a mutable primitive. The home's own
 establishment is its write authority: the shared access of the view belongs
 to the referenced bytes, and every store installs a readable shared source.
-An unestablished local cannot be read: a whole read of the home requires a
-whole store into it on every path reaching the read. Assigning the descriptor
-does not grant storage for the referenced bytes. The home currently carries
-no qualifications, so a qualified local's declared predicates are checked at
-the source but are not available to Terminal consumers of the home.
+An unestablished local cannot be read: a whole read of the home, a loan of it
+to an ordinary or boundary call, and its forwarding on a state edge each
+require a whole store into it on every path reaching that use. A loan of the
+home lends its current descriptor and observes that descriptor's backing,
+not the home's slot. Assigning the descriptor does not grant storage for the
+referenced bytes. A qualified local's home declares its primitive byte
+qualifications: each store into it proves them from its exact source, and
+reads and loans of the home carry them.
 
 An initialized primitive local uses an unrestricted, unqualified, claim-free
 `OperationResult` place. `EstablishPrimitiveLocal` consumes an exactly typed SSA

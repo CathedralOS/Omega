@@ -888,6 +888,9 @@ pub(super) fn lower_unit_structural_domains_including(
             .chain(body.operations().flat_map(|operation| match operation {
                 CheckedUnitEffectOperationPlan::EstablishByteSequence {
                     qualifications, ..
+                }
+                | CheckedUnitEffectOperationPlan::EstablishStructuralLocal {
+                    qualifications, ..
                 } => qualifications.as_slice(),
                 _ => &[],
             }))

@@ -361,6 +361,21 @@ pub(in crate::validation) fn validate_structural_argument(
             place: argument.place,
         });
     };
+    // A declared descriptor local's home lends a descriptor only where a
+    // whole store into it reaches the call on every path, exactly as a read.
+    if crate::validation::byte_sequence::length::descriptor_home(module, caller, argument.place)
+        .is_some()
+        && !crate::validation::structural::byte_sequence_fields::descriptor_home_is_established(
+            caller,
+            operation,
+            argument.place,
+        )
+    {
+        return Err(ModuleError::ByteSequenceViewNotEstablished {
+            operation,
+            place: argument.place,
+        });
+    }
     if !allow_projected && !argument.path.is_empty() {
         return Err(ModuleError::InvalidStructuralArgumentPath {
             operation,

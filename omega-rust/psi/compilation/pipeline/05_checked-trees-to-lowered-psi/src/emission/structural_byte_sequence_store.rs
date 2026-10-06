@@ -34,6 +34,14 @@ pub(crate) enum StoreRoot<'a> {
         place: semantic_vocabulary::PlaceId,
         structural_type: StructuralTypeId,
     },
+    /// A declared descriptor local's home, whose own establishment is its
+    /// write authority. `qualified` records whether it declares byte
+    /// predicates that every store must prove.
+    DescriptorHome {
+        place: semantic_vocabulary::PlaceId,
+        structural_type: StructuralTypeId,
+        qualified: bool,
+    },
 }
 
 /// Shared callees must use the closure's existing carrier, not allocate one.
@@ -259,6 +267,9 @@ pub(crate) fn emit_content_store(
     let destination = match &root {
         StoreRoot::Parameter(parameter) => parameter.place,
         StoreRoot::Reference { place, .. } | StoreRoot::Owned { place, .. } => *place,
+        StoreRoot::DescriptorHome { .. } => {
+            return unsupported("a descriptor home holds no owned byte contents");
+        }
     };
     let field_destination = match &store.destination {
         Destination::Whole => {
@@ -325,6 +336,9 @@ pub(crate) fn emit_content_store(
                         field_identity,
                         structural_types,
                     )?
+                }
+                StoreRoot::DescriptorHome { .. } => {
+                    return unsupported("a descriptor home has no byte field");
                 }
                 StoreRoot::Owned {
                     place,
@@ -475,9 +489,10 @@ pub(crate) fn prepare_descriptor_store(
         // belongs to the referenced bytes. A standalone view type binds no
         // access: the home holds a shared descriptor because every store
         // installs a readable shared source.
-        let StoreRoot::Owned {
+        let StoreRoot::DescriptorHome {
             place,
             structural_type,
+            qualified,
         } = root
         else {
             return unsupported("whole descriptor store requires a declared descriptor home");
@@ -505,7 +520,7 @@ pub(crate) fn prepare_descriptor_store(
             structural_type: *structural_type,
             steps: Vec::new(),
             field: None,
-            requires_predicate_obligation: false,
+            requires_predicate_obligation: *qualified,
         });
     };
     let (destination, structural_type, (steps, field)) = match root {
@@ -540,6 +555,9 @@ pub(crate) fn prepare_descriptor_store(
                 structural_types,
             )?,
         ),
+        StoreRoot::DescriptorHome { .. } => {
+            return unsupported("a descriptor home has no record field slots");
+        }
     };
     if field.field_type.byte_sequence_carrier() != shared_view {
         return unsupported("view-field store destination is not a shared view field");

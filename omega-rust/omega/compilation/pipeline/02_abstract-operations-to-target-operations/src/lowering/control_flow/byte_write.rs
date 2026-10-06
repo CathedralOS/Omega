@@ -201,8 +201,9 @@ pub(super) fn replace_view_descriptor(
                 .structural_homes
                 .get(destination)
                 .ok_or_else(unsupported)?;
+            // Declared byte qualifications are content invariants the store
+            // already proved; they grant or withhold no storage authority.
             if !path.is_empty()
-                || !home.qualifications().is_empty()
                 || !home.projected_qualifications().is_empty()
                 || !matches!(
                     structural_types

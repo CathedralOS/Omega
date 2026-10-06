@@ -26,8 +26,8 @@ const SHARED_VIEW: terminal_psi::ByteSequenceCarrier =
 /// field names one shared view member of the record at `path` below a root
 /// with field-store authority. No field names the whole destination, which
 /// must be a declared local's home of byte view type: the home's own
-/// establishment is its write authority, and an unqualified home declares
-/// no predicates. A standalone view type binds no access; the home's
+/// establishment is its write authority, and its qualifications are the
+/// predicates it declares. A standalone view type binds no access; the home's
 /// descriptor is shared because every store installs a readable shared
 /// source, and the home is admitted only as a readable view source.
 fn descriptor_slot(
@@ -38,22 +38,17 @@ fn descriptor_slot(
     field: Option<semantic_vocabulary::StructuralFieldId>,
 ) -> Option<ByteSequencePredicateSet> {
     let Some(field) = field else {
-        let home =
-            crate::validation::record::established_local_source(module, machine, destination)?;
-        let declaration = module
-            .structural_types
-            .iter()
-            .find(|declaration| declaration.id == home.structural_type)?;
-        return (path.is_empty()
-            && matches!(
-                declaration.shape,
-                StructuralTypeShape::ByteSequence(
-                    terminal_psi::ByteSequenceCarrier::BorrowedView {
-                        access: None | Some(StructuralAccess::SharedBorrow),
-                    }
-                )
-            ))
-        .then_some(ByteSequencePredicateSet::EMPTY);
+        let home = crate::validation::byte_sequence::length::descriptor_home(
+            module,
+            machine,
+            destination,
+        )?;
+        return path
+            .is_empty()
+            .then(|| {
+                crate::validation::byte_sequence::length::descriptor_home_predicates(module, home)
+            })
+            .flatten();
     };
     let parent_type = super::field_stores::parent_type(module, machine, destination, path)?;
     let StructuralTypeShape::Record { fields } = &module

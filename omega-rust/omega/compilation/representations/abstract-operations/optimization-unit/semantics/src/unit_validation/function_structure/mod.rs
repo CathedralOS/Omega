@@ -29,7 +29,8 @@ pub(crate) use byte_predicates::{
     byte_field_predicates, byte_write_predicates, concatenation_preserves_predicates,
     copied_field_predicates_at_call, replacement_preserves_predicates, whole_source_predicates,
 };
-pub(crate) use byte_views::{byte_field_store_capacity, declared_descriptor_home};
+pub(crate) use byte_views::byte_field_store_capacity;
+pub use byte_views::declared_descriptor_home;
 mod control_flow;
 mod fact_index;
 mod mutable_views;

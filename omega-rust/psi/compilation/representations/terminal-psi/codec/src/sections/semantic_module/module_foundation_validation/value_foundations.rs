@@ -282,17 +282,27 @@ pub(super) fn validate_establish_structural_local(
     machine: &TerminalMachine,
     operation: &Operation,
 ) -> Result<(), CodecError> {
-    let _ = module;
     let OperationKind::EstablishStructuralLocal {} = &operation.kind else {
         unreachable!("dispatched validate_establish_structural_local")
     };
     let Some(result) = operation.result.structural() else {
         return malformed("structural local establishment has no structural result");
     };
+    // Only a standalone byte-view home may carry qualifications; the verifier
+    // authenticates them as primitive byte predicates of that carrier.
+    let byte_view_home = module.structural_types.iter().any(|declaration| {
+        declaration.id == result.structural_type
+            && matches!(
+                declaration.shape,
+                terminal_psi::StructuralTypeShape::ByteSequence(
+                    terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
+                )
+            )
+    });
     if !matches!(
         result.multiplicity,
         StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
-    ) || !result.qualifications.is_empty()
+    ) || (!result.qualifications.is_empty() && !byte_view_home)
         || !result.projected_qualifications.is_empty()
         || !result.claims.is_empty()
         || !result.qualification_establishments.is_empty()

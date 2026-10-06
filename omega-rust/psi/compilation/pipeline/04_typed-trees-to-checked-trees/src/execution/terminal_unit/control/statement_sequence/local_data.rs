@@ -1117,11 +1117,23 @@ fn establish_declared_home(
         ),
     };
     *structural_count = structural_count.checked_add(1)?;
+    // A descriptor home declares the local's byte domains; every store into
+    // it then proves them. Other homes keep their members' own invariants.
+    let qualifications =
+        if crate::execution::terminal_unit::structural_scalar_store::is_shared_view_field(
+            program,
+            local.type_reference,
+        ) {
+            parameter_qualifications(program, shapes, local.type_reference, binders)?
+        } else {
+            Vec::new()
+        };
     operations.push(CheckedUnitEffectOperationPlan::EstablishStructuralLocal {
         statement_index,
         declaration_ordinal: u32::try_from(declaration_ordinal).ok()?,
         symbol: local.symbol,
         result: result.clone(),
+        qualifications,
         discard_result_on_return: result.multiplicity == Multiplicity::Affine,
     });
     structural_results.push((result, facts::PlaceRoot::Symbol(local.symbol)));

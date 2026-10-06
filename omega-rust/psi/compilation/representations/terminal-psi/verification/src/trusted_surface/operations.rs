@@ -864,7 +864,7 @@ static OP_ESTABLISH_TRIVIAL_AFFINE_LOCAL: TrustedSurfaceEntry = entry(
 );
 static OP_ESTABLISH_STRUCTURAL_LOCAL: TrustedSurfaceEntry = entry(
     "operation:establish-structural-local",
-    "a validated declared structural local home establishment",
+    "a validated declared structural local home establishment; only a standalone shared byte-view home may declare qualifications, each a primitive byte predicate of its carrier that every whole store into it proves",
     "the home establishment observation; member contents carry their own observations and no scalar equation is published",
     EFFECT_DEPS,
     &[VOCAB, TS_ROWS, TS_SE, OP_FACTS, VAL_OPS, VAL_UNIT_OPERATION],

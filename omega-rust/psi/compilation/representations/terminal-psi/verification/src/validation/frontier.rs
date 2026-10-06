@@ -564,6 +564,10 @@ fn validate_owned_reads(
             && !super::record::loan_source(module, machine, *place).is_some_and(|result| {
                 result.multiplicity == StructuralMultiplicity::Unrestricted
             })
+            // An unrestricted descriptor home has no affine frontier entry
+            // either; every lend requires a store into it to reach the use.
+            && !super::byte_sequence::length::descriptor_home(module, machine, *place)
+                .is_some_and(|home| home.multiplicity == StructuralMultiplicity::Unrestricted)
             && !(super::scalar::array::plain_return_source(module, machine, *place)
                 && super::structural::result_contracts::source_signature(machine, *place)
                     .is_some_and(|source| source.multiplicity == StructuralMultiplicity::Unrestricted))

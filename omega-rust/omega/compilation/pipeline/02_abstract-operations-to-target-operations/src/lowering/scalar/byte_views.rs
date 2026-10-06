@@ -732,9 +732,15 @@ pub(in crate::lowering) fn descriptor_result<'a>(
             _ => None,
         });
     let (operation, result) = producers.next()?;
+    // A descriptor home's declared byte qualifications describe the contents
+    // its stores proved; a call result's qualifications stay excluded here.
+    let home = function.operations.iter().any(|candidate| {
+        matches!(candidate, AbstractOperation::EstablishStructuralLocal { psi_operation, .. }
+            if *psi_operation == operation)
+    });
     (producers.next().is_none()
         && result.multiplicity == StructuralMultiplicity::Unrestricted
-        && result.qualifications.is_empty()
+        && (home || result.qualifications.is_empty())
         && result.projected_qualifications.is_empty()
         && result.qualification_establishments.is_empty()
         && result.claims.is_empty()

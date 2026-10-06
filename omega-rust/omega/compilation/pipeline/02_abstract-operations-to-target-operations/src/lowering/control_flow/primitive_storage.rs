@@ -189,7 +189,15 @@ pub(super) fn field_root(
         return Ok((structural_type, access));
     }
     if let Some(home) = live.structural_homes.get(&place) {
-        if !home.qualifications().is_empty() || !home.projected_qualifications().is_empty() {
+        // A descriptor home's qualifications are byte predicates of the
+        // contents its stores installed, not authority over its storage.
+        let descriptor_home = terminal_semantics::descriptor_results::is_shared_descriptor(
+            types.values().copied(),
+            structural_type,
+        );
+        if (!home.qualifications().is_empty() && !descriptor_home)
+            || !home.projected_qualifications().is_empty()
+        {
             return Err(unsupported());
         }
         return Ok((structural_type, StructuralAccess::Owned));

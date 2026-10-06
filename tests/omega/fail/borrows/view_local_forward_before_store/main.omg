@@ -1,0 +1,20 @@
+// Forwarding a declared view local to the next state before any store would
+// hand the successor a descriptor that names no backing.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Main { console: Binding<Console>; }
+
+machine Main::main(main: &mut Main) reaches Console {
+    let mut view: &[u8];
+    transition { _ -> check(main, view) }
+
+    state check(main: &mut Main, text: &[u8]) {
+        transition text == "" {
+            true -> good(main)
+            false -> bad(main)
+        }
+    }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main) { main.console.exit_process(71); }
+}

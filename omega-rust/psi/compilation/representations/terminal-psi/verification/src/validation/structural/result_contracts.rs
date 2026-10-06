@@ -110,6 +110,18 @@ pub(in crate::validation) fn operation_result_loan_signature<'machine>(
                 }
                 (Some(established), None) => established,
                 (None, Some(declared)) => declared,
+                // A declared descriptor local's home holds a shared
+                // descriptor: every store into it installs a readable shared
+                // source. Lending it requires the home's establishment at the
+                // use, which the consumer checks with its own position.
+                (None, None)
+                    if crate::validation::byte_sequence::length::descriptor_home(
+                        module, machine, source,
+                    )
+                    .is_some() =>
+                {
+                    StructuralAccess::SharedBorrow
+                }
                 (None, None) => return None,
             }
         }

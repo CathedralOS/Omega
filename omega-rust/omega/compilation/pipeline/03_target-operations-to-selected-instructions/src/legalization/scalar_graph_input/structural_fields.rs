@@ -218,14 +218,22 @@ pub(in crate::legalization) fn view_replacement(
     };
     // A returned reference owns its carrier while lending mutable authority
     // to this path, so custody must resolve the crossing before declaration.
-    let (root_type, access, projected_path) = if let Some(resolved) =
-        super::reference_custody::writable_referent_destination(
-            custody,
-            function,
-            types,
-            *destination,
-            path,
-        ) {
+    let (root_type, access, projected_path) = if field.is_none() {
+        // The whole slot is a declared descriptor home, whose own
+        // establishment is its write authority.
+        let home = optimization_unit_semantics::declared_descriptor_home(function, *destination)?;
+        (
+            home.structural_type,
+            terminal_psi::StructuralAccess::Owned,
+            path.clone(),
+        )
+    } else if let Some(resolved) = super::reference_custody::writable_referent_destination(
+        custody,
+        function,
+        types,
+        *destination,
+        path,
+    ) {
         (
             resolved.referent,
             terminal_psi::StructuralAccess::MutableBorrow,
@@ -307,11 +315,12 @@ pub(in crate::legalization) fn view_slot_geometry(
     types: &[terminal_psi::StructuralTypeDeclaration],
 ) -> Option<crate::structural_inputs::structural_reference_input::ProjectedByteField> {
     let Some(field) = field else {
-        let (root, access) = byte_field_root(function, destination.place)?;
-        return (access == destination.access)
+        let home =
+            optimization_unit_semantics::declared_descriptor_home(function, destination.place)?;
+        return (destination.access == terminal_psi::StructuralAccess::Owned)
             .then(|| {
                 crate::structural_inputs::structural_reference_input::projected_view_slot(
-                    root,
+                    home.structural_type,
                     &destination.path,
                     None,
                     types,

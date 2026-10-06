@@ -157,7 +157,6 @@ impl TerminalExecution {
                     .ok_or_else(invalid)?;
                 if !path.is_empty()
                     || !home.path.is_empty()
-                    || !home.qualifications.is_empty()
                     || !matches!(self.program.structural_types.get(&home.structural_type),
                     Some(declaration) if matches!(declaration.shape,
                         StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {

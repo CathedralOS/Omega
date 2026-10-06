@@ -72,16 +72,52 @@ pub(in crate::validation) fn validate(
     })
 }
 
-/// The home of a declared descriptor local: an unqualified, claim-free
+/// The home of a declared descriptor local: a claim-free
 /// `EstablishStructuralLocal` result of standalone byte-view type. Whole
-/// descriptor stores replace it; reads observe it as a shared view.
+/// descriptor stores replace it; reads observe it as a shared view. Its
+/// qualifications, if any, are primitive byte predicates of that carrier:
+/// the declared invariant every store proves and every read may rely on.
 pub(in crate::validation) fn descriptor_home<'a>(
     module: &TerminalModule,
     machine: &'a TerminalMachine,
     place: PlaceId,
 ) -> Option<&'a terminal_psi::StructuralOperationResult> {
-    crate::validation::record::established_local_source(module, machine, place).filter(|home| {
-        module.structural_types.iter().any(|row| {
+    let declaration = machine
+        .structural_places
+        .iter()
+        .find(|declaration| declaration.id == place)?;
+    let StructuralPlaceKind::OperationResult { producer, .. } = declaration.kind else {
+        return None;
+    };
+    let operation = machine
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .find(|operation| operation.id == producer)?;
+    let home = operation.result.structural()?;
+    (matches!(
+        operation.kind,
+        terminal_psi::OperationKind::EstablishStructuralLocal {}
+    ) && home.place == place
+        && descriptor_home_predicates(module, home).is_some())
+    .then_some(home)
+}
+
+/// The byte predicates a descriptor home declares, when `home` has the shape
+/// one may: an unrestricted or affine, claim-free result of standalone shared
+/// byte-view type whose every qualification is a primitive byte predicate of
+/// that carrier.
+pub(in crate::validation) fn descriptor_home_predicates(
+    module: &TerminalModule,
+    home: &terminal_psi::StructuralOperationResult,
+) -> Option<terminal_psi::ByteSequencePredicateSet> {
+    (matches!(
+        home.multiplicity,
+        StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+    ) && home.projected_qualifications.is_empty()
+        && home.qualification_establishments.is_empty()
+        && home.claims.is_empty()
+        && module.structural_types.iter().any(|row| {
             row.id == home.structural_type
                 && matches!(
                     row.shape,
@@ -91,8 +127,15 @@ pub(in crate::validation) fn descriptor_home<'a>(
                         }
                     )
                 )
-        })
+        }))
+    .then(|| {
+        terminal_semantics::byte_qualification_predicates_in(
+            module.structural_domains.iter(),
+            home.structural_type,
+            &home.qualifications,
+        )
     })
+    .flatten()
 }
 
 /// Whole immutable views retain one exact source for every observation. A

@@ -110,7 +110,8 @@ pub(crate) fn validate_establish_zeroed_structural(
 /// structural result must be an unrestricted or affine operation result over
 /// the local's declared type. Unlike the zeroed establishment, the home
 /// needs no authored content — member operations establish each member's
-/// contents against this home after it exists.
+/// contents against this home after it exists. A descriptor home may declare
+/// primitive byte qualifications, the invariant its stores establish.
 pub(crate) fn validate_establish_structural_local(
     module: &TerminalModule,
     machine: &TerminalMachine,
@@ -124,11 +125,15 @@ pub(crate) fn validate_establish_structural_local(
             operation.id,
         ));
     };
+    // Only a descriptor home may declare qualifications: primitive byte
+    // predicates of its view carrier, which every store into it proves.
     if !matches!(
         result.multiplicity,
         terminal_psi::StructuralMultiplicity::Unrestricted
             | terminal_psi::StructuralMultiplicity::Affine
-    ) || !result.qualifications.is_empty()
+    ) || (!result.qualifications.is_empty()
+        && crate::validation::byte_sequence::length::descriptor_home_predicates(module, result)
+            .is_none())
         || !result.projected_qualifications.is_empty()
         || !result.claims.is_empty()
         || !module

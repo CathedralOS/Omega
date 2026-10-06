@@ -28,8 +28,17 @@ pub(super) fn replace(
         return Err(invalid());
     };
     let signature = function.structural.as_ref().ok_or_else(invalid)?;
-    let root_type =
-        crate::selection::field_bytes::root_type(function, destination).ok_or_else(|| invalid())?;
+    // A field slot resolves below its record root; the whole slot is a
+    // declared descriptor home, owned by this activation.
+    let root_type = match field {
+        Some(_) => crate::selection::field_bytes::root_type(function, destination),
+        None => {
+            crate::selection::established_view_input::descriptor_home(function, destination.place)
+                .filter(|_| destination.access == StructuralAccess::Owned)
+                .map(|(_, home)| home.structural_type)
+        }
+    }
+    .ok_or_else(|| invalid())?;
     let geometry = crate::structural_inputs::structural_reference_input::projected_view_slot(
         root_type,
         &destination.path,

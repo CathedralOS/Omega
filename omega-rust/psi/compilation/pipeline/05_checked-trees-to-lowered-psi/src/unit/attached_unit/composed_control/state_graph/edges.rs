@@ -701,7 +701,9 @@ pub(super) fn validate_bindings(
 
 /// The view local `symbol` must have an establishment in the state body: an
 /// `as_slice`/`as_mut_slice` loan or a subslice binding published for that
-/// `let`.
+/// `let`, or the declared home a descriptor local's stores replace. A home
+/// forwards its current descriptor; Terminal independently requires a store
+/// into it to reach the edge on every path.
 fn validate_view_local(
     checked: &CheckedTrees,
     source: &checked_trees::state::State,
@@ -710,16 +712,27 @@ fn validate_view_local(
 ) -> Result<(), LoweringError> {
     let statements = checked.statement_table.statements(source.statement_nodes);
     let established = state.operations.iter().any(|operation| {
-        let result = match operation {
+        let (result, descriptor_home) = match operation {
             CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. }
             | CheckedUnitEffectOperationPlan::EstablishByteSequence { result, .. }
-            | CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. } => result,
+            | CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. } => {
+                (result, false)
+            }
+            CheckedUnitEffectOperationPlan::EstablishStructuralLocal { result, .. } => {
+                (result, true)
+            }
             _ => return false,
         };
         matches!(
             statements.get(result.statement_index as usize),
             Some(checked_trees::statement::StatementNode::LocalData(local))
-                if local.symbol == symbol && !local.is_mutable
+                if local.symbol == symbol
+                    && (!local.is_mutable || descriptor_home)
+                    && (!descriptor_home
+                        || validation::slice_view_shell(&checked.typed, local.type_reference, &[])
+                            .is_some_and(|view| {
+                                view.access == language_semantics::ReferenceAccess::Shared
+                            }))
         )
     });
     if !established {

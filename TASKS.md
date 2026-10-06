@@ -488,9 +488,10 @@ defines the complete product bar.
   takes: `StructuralByteViewFieldStore` carries a root, a path and an optional
   field, and no field with an empty path names a declared descriptor home
   ([store vocabulary](wiki/spec/terminal-psi/structural_access.md#store-vocabulary)).
-  `pass/text/runtime_view_local_{first_store,reassign,field_store}_exit` exit
-  70 natively; `fail/borrows/view_local_read_before_store` and
-  `fail/borrows/view_local_backing_write_while_stored` reject.
+  The home is read, lent to ordinary and boundary calls, forwarded on state
+  edges, and declares a qualified local's byte domains:
+  `pass/text/runtime_view_local_*_exit` (8 fixtures) exit 70 natively, and the
+  `fail/borrows/view_local_*` and `fail/domains/view_local_*` controls reject.
   - Customers: `pass/text/runtime_string_stored_suffix_exit` (exit 193) and
     `pass/text/runtime_local_struct_string_field_concat_exit` (exit 188) now
     stop at stage 04 `structural field store: borrowed view field: descriptor
@@ -500,13 +501,12 @@ defines the complete product bar.
     while these customers declare only a borrowed view. `Utf8` grants no
     storage; neither an arbitrary maximum nor a literal-flow exception
     supplies it.
-  - The home's `EstablishStructuralLocal` carries no qualifications, so a
-    qualified local's predicates are not available to Terminal consumers that
-    require them (a call to a `&[u8] in Utf8` formal). A call-initialized
-    mutable view local keeps its call-result binding and cannot be reassigned.
-    A home lent to a call rejects in Terminal validation
-    (`UnknownStructuralArgument`) and one forwarded on a state edge in stage
-    05 (`Unit graph view local has no establishment`).
+  - A call-initialized mutable view local (`let mut v: &[u8] = f(..);`) still
+    binds the call as a place loan: checked flow records no call row for that
+    initializer, so stage 04 has no call to sequence before a home store
+    (`statement sequence: call: flow call`), and a later reassignment
+    reaches stage 05 `descriptor store local is not a declared descriptor
+    home`. Assigning a call result to an existing home already works.
   - Retain descriptor lifetimes, overlapping-write rejection and the controls
     `pass/text/declared_record_view_field_fill_exit`,
     `pass/wire/runtime_wire_utf8_edge_verdicts_exit`, and

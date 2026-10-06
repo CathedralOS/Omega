@@ -120,7 +120,7 @@ pub(crate) fn byte_view_field_store_is_valid(
         // shared because every store installs a readable shared source.
         None if path.is_empty() => {
             declared_descriptor_home(function, *destination).and_then(|home| match structural_types
-                .get(&home)?
+                .get(&home.structural_type)?
                 .shape
             {
                 StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
@@ -141,14 +141,15 @@ pub(crate) fn byte_view_field_store_is_valid(
         && slot_carrier == Some(shared_view)
 }
 
-/// The type of a declared local's home, when `place` is one: the result of
-/// its unqualified, claim-free `EstablishStructuralLocal`. A whole descriptor
-/// store's authority is that home's own; a literal, subslice or call result
-/// is producer storage, not a replaceable slot.
-pub(crate) fn declared_descriptor_home(
+/// A declared local's home, when `place` is one: the result of its
+/// claim-free `EstablishStructuralLocal`. A whole descriptor store's
+/// authority is that home's own; a literal, subslice or call result is
+/// producer storage, not a replaceable slot. The caller checks that its
+/// type is a descriptor and reads its declared byte qualifications.
+pub fn declared_descriptor_home(
     function: &PsiOptimizationFunction,
     place: semantic_vocabulary::PlaceId,
-) -> Option<StructuralTypeId> {
+) -> Option<&terminal_psi::StructuralOperationResult> {
     function
         .blocks
         .iter()
@@ -156,11 +157,10 @@ pub(crate) fn declared_descriptor_home(
         .find_map(|node| match &node.operation {
             AbstractOperation::EstablishStructuralLocal { result, .. }
                 if result.place == place
-                    && result.qualifications.is_empty()
                     && result.projected_qualifications.is_empty()
                     && result.claims.is_empty() =>
             {
-                Some(result.structural_type)
+                Some(result)
             }
             _ => None,
         })

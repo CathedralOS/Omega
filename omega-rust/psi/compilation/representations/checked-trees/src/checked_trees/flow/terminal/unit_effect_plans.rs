@@ -231,12 +231,15 @@ pub enum CheckedUnitEffectOperationPlan {
     /// declaration, publishing the binding that member operations and
     /// borrows rejoin by ordinal. The declaration supplies the home each
     /// member operation establishes into; which members reads may rely on
-    /// is the custody ledger's question, not this root's.
+    /// is the custody ledger's question, not this root's. A shared byte-view
+    /// local's home declares its authored byte-domain qualifications: the
+    /// invariant every descriptor store into it proves.
     EstablishStructuralLocal {
         statement_index: u32,
         declaration_ordinal: u32,
         symbol: SymbolHandle,
         result: CheckedUnitStructuralResultBindingPlan,
+        qualifications: Vec<SemanticDomainId>,
         discard_result_on_return: bool,
     },
     /// Establish one immutable primitive local from a retained pure expression

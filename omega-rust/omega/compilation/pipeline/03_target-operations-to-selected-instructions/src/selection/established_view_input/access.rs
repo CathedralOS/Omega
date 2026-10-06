@@ -26,7 +26,7 @@ pub(in crate::selection) fn view_access(
     let mut expected_type = None;
     let mut copied_whole = false;
     for _ in 0..signature.structural_places.len() {
-        if let Some((_, result)) = super::descriptor_result(function, place) {
+        if let Some((_, result)) = super::completed_descriptor(function, place) {
             return (required == A::SharedBorrow
                 && expected_type.is_none_or(|identity| identity == result.structural_type))
             .then_some(initial.unwrap_or(A::SharedBorrow));

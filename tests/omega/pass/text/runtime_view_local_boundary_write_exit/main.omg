@@ -1,0 +1,23 @@
+// A reassigned qualified view local lends its current descriptor to a
+// boundary call, which writes the bytes the field view denotes.
+domain [u8]::Utf8(bytes)
+requires
+    valid_utf8(bytes);
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Room [copy] { label: &[u8] in Utf8; }
+data Main { console: Binding<Console>; source: Room; }
+
+machine Main::main(main: &mut Main) reaches Console {
+    main.source.label = "Gate";
+    let mut out_line: &[u8] in Utf8 = "Door";
+    out_line = main.source.label;
+    main.console.write_line(out_line);
+    transition out_line == "Gate" {
+        true -> good(main)
+        false -> bad(main)
+    }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main) { main.console.exit_process(71); }
+}
