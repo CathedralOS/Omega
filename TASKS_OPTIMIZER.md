@@ -17,8 +17,8 @@ Selections are exact names. Do not add `O1`/`O2`/`O3`, `debug`/`release`, or
 another broad alias. Every rule names the exact semantic, proof, ownership,
 effect and target facts it consumes. Proof-carried facts may be consumed
 in-process; no item here requires proof bundles, independent replay of the
-compiler's own rewrites, or custody-mutation matrices (see TASKS.md
-**SELF-CHECK-POLICY** and the PCC removal section). Optimizer crates have no
+compiler's own rewrites, or custody-mutation matrices (see
+[PCC removal](TASKS.md#pcc-removal)). Optimizer crates have no
 Rust tests; acceptance names corpus fixtures under `tests/omega/` run through
 `tools/corpus_gate.py`.
 
@@ -331,19 +331,21 @@ rewrites and promotion are not prerequisites for the first useful compiler.
   minus its replay/corruption axes. Keep the
   [rule inventory](omega-rust/omega/foundation/optimization-core/rules.md)
   tied to current catalogs and fixtures.
-  - The Rust driver tests that covered rollback-to-identity for
-    `ControlFlowCleanup` and the `{CopyPropagation, DeadPureScalarElimination}`
-    composition were cut. The corpus runner
-    (`omega-rust/omega/compilation/driver/tests/corpus_runner.rs`) builds with
-    no rollback overlay, so `pass/optimizer/rollback_to_no_selection_empty_entry`
-    does not exercise rollback.
+  - Reuse the corpus runner's `rollback.txt` support and rolled/unrolled
+    Terminal comparison. `pass/optimizer/rollback_to_no_selection_empty_entry`
+    covers a request superset with an inert selected rule (`module:same`);
+    `rollback_control_flow_cleanup_selected` is the non-vacuous
+    `module:differs` control. Audit the remaining rule inventory against these
+    axes, including `{CopyPropagation, DeadPureScalarElimination}` composition;
+    do not rebuild overlay support or count a no-op as evidence of a rewrite.
   - A Psi-stage rule is invisible in the native executable (emission
     normalizes `ControlFlowCleanup` away); its fixture needs a constant
     condition whose untaken arm leaves a block unreachable, and must compare
     the semantic module, not the executable.
-  - Budget has no customer anywhere.
-  Acceptance: each applicable axis runs as a corpus fixture (with runner
-  support for a rollback overlay); each fixture shows the rule fired or was
+  - Add a budget control only for a named bounded operation; do not invent
+    an optimizer-wide budget mechanism to fill a coverage cell.
+  Acceptance: each applicable axis runs as a corpus fixture using the existing
+  rollback overlay; each fixture shows the rule fired or was
   rolled back, since a green run alone proves neither. Non-applicable axes are
   explained (mandatory recovery has no disabled mode).
 

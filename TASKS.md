@@ -357,6 +357,14 @@ helper that passes does not close an item.
     rows, contracts, finite families, proof actuals and private selection
     visibility. Package review and independent verification consume the same
     new records; reject obsolete records rather than translate them silently.
+  - Absorbs **DYN-CONTINUATION-ROOT-REJOIN** and **DYN-JOIN-LANE-STILL-DEAD**:
+    migrate the devirtualized caller, forwarded helper and joined selector
+    through explicit context parameters. Remove attachment/parameter-zero
+    discovery and the unproduced `CheckedTerminalSignatureEligibility::Attached`
+    rows, rather than repairing the retired data-attached model. Include a
+    joined-selector fixture; existing single-call coverage does not exercise it.
+    Stage 07 entry eligibility and Omega entry settlement must agree on the
+    actual parameter roster. Verifier-only consumers follow PCC deletion.
   - **RESTORE-DYNAMIC-DESCRIPTOR-AND-TABLE-CUSTODY** owns consuming this model
     in Omega lowering and native emission, including `source/omega/` parity.
     Remove the instance half of descriptors and receiver adapters end to end.
@@ -474,7 +482,7 @@ defines the complete product bar.
     Do not revive Terminal verification scheduled for deletion by the PCC work.
   Acceptance: `python tools/corpus_gate.py --filter text/runtime_string_stored_suffix_exit,text/runtime_local_struct_string_field_concat_exit,text/declared_record_view_field_fill_exit,domains/runtime_qualified_view_field_parameter_store_exit`
   covers first initialization, reassignment and the two authored exits in native
-  and checked-interpreter execution, with invalid lifetime/read-before-establishment
+  and Terminal interpretation, with invalid lifetime/read-before-establishment
   controls. The closure must preserve backing through surviving copies.
 
 - **STATE-LOCAL-VALUE-FRONTIER.** Complete ordinary expression, call and
@@ -1743,8 +1751,10 @@ then independent claimed restoration slices -> final closure.
   its oracle, including a nested generated dependency; denied traversal,
   missing required output, wrong grant and exhaustion retain correct failure
   and partial-effect reporting. Use ordinary CLI package preparation. The
-  existing `pending/build/artifact_only_*` witnesses need their separate corpus
-  source-metadata harness dependency; do not waive grants to promote them.
+  existing `pass/build/artifact_only_required_output_completion` and
+  `fail/build/artifact_only_{rollback_overlay,unsealed_output}_refused` controls
+  already use sealed corpus source staging. Restore them through the core;
+  **COMPILE-REPORT-PRODUCTS** owns the missing no-partial-publication assertion.
 
 - **UNIVERSAL-INTERPRETER-CLOSURE.** (new-scope) Finish after the above
   restoration items close: one execution core, no executable trees, no legacy
@@ -1829,8 +1839,9 @@ crash and native exit behavior.
   `dependent/runtime_sibling_len_index_exit`. The four
   `fail/recast/{field_precondition,incoming_offset}*_invalidated_before_capture`
   fixtures reject. Reject conflicting loans, source/path substitution and
-  invalid escapes. A constrained referent such as `u8 [0..=1]` borrowed as
-  `&mut u8` keeps the original storage's obligations. The original sample
+  invalid escapes. A `u8` field constrained to zero or one by an ordinary
+  data/domain predicate keeps its storage obligation through `&mut u8`;
+  do not restore retired range-type syntax. The original sample
   `samples/cli/systems/descriptor_walk/main.omg` runs through
   `omega run --both` and returns 50 in both engines after local package review.
 
@@ -1910,14 +1921,13 @@ crash and native exit behavior.
     declared float ranges nor dominating guards). Unverified:
     `float/float_to_int_exact_proofs_exit` executes at 78 on macOS ARM64 but
     its Linux/Windows rows record rejection; rerun there.
-    `float/build_runtime_semantics_twins_{x86_baseline,windows_x64}` now get
-    past their unconsumed-call failure with the comparison-literal repair
-    (`6ef30fb818e6`). Their remaining native production is not verified:
-    both exceeded a focused 20-second limit on macOS ARM64. A live compile sample reaches
-    stage 05 `proofs/scalar_result_guarantees::retain_provable`, Terminal
-    obligation reconstruction and repeated successor-rewrite certificate checks.
-    Follow **PCC-CERTIFICATES-DELETED**, then rerun the unchanged twins and
-    require their matching-host exit 70; do not add a float-specific verifier path.
+    `float/build_runtime_semantics_twins_{x86_baseline,windows_x64}` need native
+    realization for the selected `F32/F64::{classify,is_finite,is_normal,is_subnormal}`
+    calls. Longer probes reached that gap after the comparison-literal repair;
+    **TWINS-GOLDEN-RECORDS-A-LOAD-ARTIFACT** owns stale macOS timeout records.
+    Reproduce the current frontier and require matching-host exit 70 after
+    repair. Late certificate cost belongs to **PCC-CERTIFICATES-DELETED**,
+    not a float-specific verifier path.
   - **GUI sample stores.** `samples/gui/{window_demo,windowed_calculator}`
     stopped at a borrowed byte-array element argument and
     `samples/gui/window_app` at a structural field store destination
@@ -2302,33 +2312,23 @@ crash and native exit behavior.
   through an observed corpus result, never a re-pin of the refusal.
 
 - **TWINS-GOLDEN-RECORDS-A-LOAD-ARTIFACT.** (split-of:OPERATOR-BOUNDARY-CALLS)
-  `pass/float/build_runtime_semantics_twins_{x86_baseline,windows_x64}` now
-  record `timeout 120000ms` stamped `@98ac0f8c4db`. That is a **load-relative
-  row, which is worse than the stale one it replaced** -- the x86 fixture takes
-  about 520s to reach its real verdict and the default per-fixture cap is 120s,
-  so it times out on any busy box and the row flaps with the machine.
+  Refresh the stale macOS native records for
+  `pass/float/build_runtime_semantics_twins_{x86_baseline,windows_x64}`.
+  The portable and Linux x86-64 records already reach rejection rather than
+  timeout; macOS still records the old 20-second probe. Run on an idle host
+  with `OMEGA_CORPUS_FIXTURE_SECS` above 600 and record the actual verdict.
+  Those are cross-target production measurements, not execution of foreign
+  binaries. Confirm authored exit 70 separately on matching hosts after repair.
 
-  **Their true content, measured at `e399918ecac`:** both reject with **8
-  diagnostics and no unit-plan omission**, every one of the form
-  `selected compiler intrinsic
-  <selected target>::FloatNativeProvider::satisfies::operator::F{32,64}::{classify,is_finite,is_normal,is_subnormal}
-  ... has no native boundary realization`. The frontier is the separately-owned
-  **x86 float classification realization** gap, not Psi.
+  The recorded longer probe at `e399918ecac` reached eight missing native
+  realization diagnostics for `F32/F64::{classify,is_finite,is_normal,is_subnormal}`,
+  not a Unit-plan omission. **OPERATOR-BOUNDARY-CALLS** owns that capability;
+  recheck before attributing a new failure. A timeout identifies an exhausted
+  measurement budget, not a source rejection.
 
-  **A stale row here already caused one wrong item.**
-  `FLOAT-OPERATOR-NOT-RECOGNIZED-AS-SCALAR-INTRINSIC` was filed from the
-  previous row, which still carried the retired omission
-  "`x86_baseline_float_twin_code` has no admitted body ... unconsumed nested
-  call in a local initializer", 445 commits behind HEAD. It was refuted by
-  measurement and deleted. `OPERATOR-BOUNDARY-CALLS` already recorded that the
-  unconsumed-call failure was repaired by `6ef30fb818e6`, so the new item also
-  contradicted an existing one in this file. **Read the frontier of a long
-  fixture from a measurement, never from its row.**
-
-  Acceptance: re-record both rows **on an idle box** with
-  `OMEGA_CORPUS_FIXTURE_SECS` above 600 so the x86 fixture reaches its verdict,
-  and confirm each row carries the realization diagnostics rather than
-  `timeout`.
+  Acceptance: both macOS rows reflect completed production verdicts at a named
+  revision, with no timeout replacing the actual diagnostic. Native execution
+  remains the owning capability task's acceptance.
 
 - **COMPUTED-FLOAT-BARE-LITERAL-COMPARISON.** (new-scope)
   A comparison between a **computed** f32/f64 value and an **unsuffixed** float
@@ -2399,125 +2399,56 @@ crash and native exit behavior.
   rule plus a real entry selection for that fail fixture.
 
 - **RECAST-OFFSET-EQUALITY-TRANSPORT.** (split-of:MACOS-NATIVE-LOST-SUCCESSES)
-  `pass/dependent/boundary_equality_recast_witness_compile` lost `checked`. It
-  is the authored customer for transporting an offset bound across a proved
-  equality: `buf: [u8; 12]`, the recast is `&main.buf[size] as &u32` in state
-  `read`, and the boundary states `ensures size == cap && cap <= 8`, so
-  `size <= 8` and `8 + 4 == 12` fits the region exactly. The fixture's name says
-  this is the mechanism it pins.
+  Restore `pass/dependent/boundary_equality_recast_witness_compile`:
+  `ensures size == cap && cap <= 8` must establish that reading a four-byte
+  value at `size` fits a twelve-byte backing. The recast is
+  `&main.buf[size] as &u32`.
 
-  **Primary gap:** none of the three offset-bound candidates in
-  `checking/src/value_custody/recasts/raw_byte_region.rs:157-197`
-  (`standing_integer_interval`, `composite_offset_upper_bound`,
-  `occurrence_integer_expression_bounds`) applies a proved equation, so
-  `size <= 8` is never derived from `size == cap` plus `cap <= 8`. The spec hook
-  is `ValueEqualityTransport` (`wiki/spec/terminal-psi/verification.md:255-264`):
-  it "carries a nonempty ordered list of proved scalar equations, each oriented
-  from an exact scalar value identity to its term", so this is implementation,
-  not a design question. The fixture's "R1/R4" citation has no counterpart in
-  `wiki/spec/`.
+  In `checking/src/value_custody/recasts/raw_byte_region.rs`, the
+  `standing_integer_interval`, `composite_offset_upper_bound` and
+  `occurrence_integer_expression_bounds` candidates do not transport the
+  proved equation. Reuse ordinary equality/bounds reasoning, retaining exact
+  subjects and invalidation; do not build a recast-only solver. The applicable
+  `ValueEqualityTransport` rule is in
+  [fact validity](wiki/spec/terminal-psi/verification.md), not the fixture's
+  undocumented “R1/R4” label.
 
-  The secondary diagnostic defect is **closed at `de2302b8bf09`**. The carrier
-  judgment `standing_integer_interval` already stated is now one named
-  `place_carrier_interval` plus `upper_bound_beyond_place_carrier`, applied to
-  **all three** offset candidates through `proved_offset_upper_bound` rather
-  than only the one that produced the observed message. It also **peels
-  reference and qualification shells**: keyed to the raw place type it missed
-  every `&mut u32` offset, because a reference node resolves no primitive.
-  No admission moved -- 2033 fixtures, `checked` identical at 1310,
-  **0 fail fixtures stopped rejecting**, and all six moved rows kept their
-  status, with the guard-route canary `pass/recast/runtime_guarded_offset_recast_exit`
-  still `checked`. `fail/recast/unbounded_offset_names_the_bound` now holds the
-  fragment it already pinned, so the **wrong-fragment roster falls 4 to 3**.
-  The two call-invalidated recast fixtures are repointed at the unproven-offset
-  reason, since the arrival fact is retired by the call before the recast forms
-  and the callee's write is not a postcondition the caller reads back; their
-  direct-write siblings keep the footprint reason at the honest `offset 32`.
+  Carrier-bound diagnostic filtering already uses `place_carrier_interval`
+  and `upper_bound_beyond_place_carrier` through `proved_offset_upper_bound`,
+  including reference/qualification shells. Preserve
+  `pass/recast/runtime_guarded_offset_recast_exit`,
+  `fail/recast/unbounded_offset_names_the_bound` and the call/direct-write
+  invalidation controls; do not repeat that repair. A non-place offset needs
+  its expression's type/bounds, not a primitive lookup on a nonexistent place.
 
-  Deliberately left: an index that is not a place (a cast, an arithmetic tree)
-  has no place carrier and keeps its bound, which the composite walk requires.
-  A cast-spelled unbounded index needs an expression-type query rather than a
-  place query and is a separate shape.
-
-
-  Refuted, so nobody re-derives it: `standing_integer_interval` is NOT the
-  source of the bogus bound; it already applies the carrier-range filter --
-  and keying that carrier to the raw place type is itself too narrow, because
-  a reference-spelled offset resolves no primitive.
-  Acceptance: `--filter dependent/boundary_equality_recast_witness_compile`
-  reaches `checked`. The secondary defect can land first and alone, pinned by a
-  fixture whose offset has no bound at all.
+  Acceptance: `python tools/corpus_gate.py --filter dependent/boundary_equality_recast_witness_compile`
+  reaches `checked`; substituted or invalidated equalities cannot justify access.
 
 - **MACOS-NATIVE-LOST-SUCCESSES.** (new-scope)
-  `tests/omega/corpus_native_macos_arm64.txt` carries rows with a
-  `regressed-from:` token: a success this host recorded and no longer reaches.
-  Read the live roster with `python3 tools/corpus_scoreboard.py`; do not copy
-  its count into this board. Reproduce the unchanged program on current main
-  before assigning a repair, and group failures by their current cause.
-  Re-record a stale row only after its authored execution oracle succeeds;
-  correcting the record is evidence of existing behavior, not a new compiler
-  capability.
+  Restore the remaining `regressed-from:` rows in
+  `tests/omega/corpus_native_macos_arm64.txt`. Read the live roster with
+  `python3 tools/corpus_scoreboard.py`; reproduce unchanged programs on current
+  main and route failures by cause, not by the revision that recorded them.
 
-  Remaining recorded failures route to their existing owners:
-  - **All four borrow rows are closed at `faca6c5c7f5`**, and both of their
-    former routing notes were wrong in instructive ways.
-    `pass/borrows/{borrow_domain_window_write_and_call,
-    borrow_returned_window_write_and_call}` needed **no verifier special case**
-    and did not wait on **OMEGA-READS-TERMINAL-UNVERIFIED**: three predicates
-    derived "crosses unknown indirection" from `path.contains(&Referent)` or
-    marked a `Reference`-shaped declaration indirect at **path index 0**, which
-    is the carrier place's own hop and already has an exact backing alias. That
-    `indirect` bit made `regions_overlap_at` early-return, pre-empting both the
-    descriptor-authority check and a window exclusion that proves disjointness
-    (`FixedIndex(0)` against `split_point >= 2`), while the identical **direct**
-    store one operation earlier was admitted. `path_projection`'s own doc
-    comment stated the rule the code was narrower than, and the `ElementView`
-    and byte-view arms of the very same condition were already guarded -- only
-    the `Reference` arm was not. One shared `crosses_unaliased_reference`
-    replaces the hand-rolled copies, in **both** Psi and its Omega twin, since
-    fixing one side only moved the refusal.
-    `pass/borrows/mut_loan_local_write_through_exit` and
-    `run/borrows/local_mut_borrow` were **already green** -- byte-identical
-    programs, repaired by `8e1eaa3e7cd`/`1cace4985ee`, whose lane re-recorded
-    the check golden and left this host's native golden claiming a lost
-    success. All four now read `built` with exits 0, 0, 9, 9 and no token.
+  - `pass/core/interrupt_obligations_surface` and
+    `pass/memory/address_translation_canary` have no selected completion
+    provider: **UNSELECTED-DIRECT-REQUIREMENT-GATE-WIDENED** owns the open
+    selection decision. `interrupt_table_canary` and
+    `secondary_processor_canary` now select providers but lack an executable
+    intrinsic: **STATIC-BOUNDARY-REQUIREMENT-CALL-FORM** owns that dependency.
+  - **RECAST-OFFSET-EQUALITY-TRANSPORT** owns the dependent recast witness.
+  - Cross-host control: Linux records still reject
+    `pass/text/local_bounded_text_case_result_loan_exit` and mark
+    `local_bounded_text_scalar_loan_exit` incomplete, while macOS recorded
+    exit 70 after `8eef3900552`. A Linux host must remeasure them; never copy
+    another host's success. **NATIVE-GOLDEN-LINUX-BOUND-UNMEASURED** owns that
+    recording. An `Incomplete` proof-search diagnostic alone does not prove
+    extra capacity will solve the obligation; inspect the failed judgment.
 
-    **Durable rule this cost hours of false signal: a lane that repairs a
-    lowering refusal must re-record the native golden, not only the check
-    golden.** `--cross-golden` catches the opposite direction, so this one is
-    invisible to it.
-  - The provider cluster was re-measured at `c9eb93b5756`:
-    `pass/core/interrupt_obligations_surface` and
-    `pass/memory/address_translation_canary` remain at the unselected direct
-    requirement gate and declare no provider for any target; these are not
-    host-dependent refusals. `pass/memory/interrupt_table_canary` and
-    `pass/memory/secondary_processor_canary` select providers realized via
-    `ForeignBinding::CompilerIntrinsic` and now reject for a missing
-    compiler-known intrinsic realization. **STATIC-BOUNDARY-REQUIREMENT-CALL-FORM**
-    owns that split; do not collapse it back into provider absence.
-    **RECAST-OFFSET-EQUALITY-TRANSPORT** owns the dependent recast witness's
-    offset relation.
-
-  Acceptance: each remaining loss is restored through its original checked,
-  build or execution gate, preserving its authored exit/output oracles.
-  Host and implementation dependencies remain open; a missing result cannot
-  be blessed by changing a golden.
-  **Cross-host staleness, measured.** The repairs landing here are host-neutral
-  but only this host's golden gets re-recorded, so the other hosts' rows drift.
-  `corpus_native_linux_x86_64.txt` still carries `rejected` for
-  `pass/text/local_bounded_text_case_result_loan_exit` and `incomplete` for
-  `pass/text/local_bounded_text_scalar_loan_exit`, both of which `8eef3900552`
-  repaired and which measure `built` at `exit:70` here. They are very likely
-  stale, and **a Linux host must measure them rather than have them edited
-  blind** -- a row re-recorded from the wrong host is worse than a stale one.
-  `corpus_scoreboard.py --cross-golden` only compares the check golden against
-  this host's native golden, so it cannot see this class.
-
-  Note also that `incomplete` is not a resource signal here:
-  `ProofSearchDeclines::unproved_obligation_error` maps any capacity decline in
-  one finalization onto the unproved obligation and its own comment calls that
-  deliberately coarse, so an `incomplete` row can name a budget while the
-  obligation is simply unprovable. Raising the provision is never the repair.
+  Acceptance: every remaining loss reaches its authored check/build/runtime
+  oracle and the corresponding host record is updated from that observation.
+  Preserve negative checks and source oracles. Already recovered borrow rows
+  are regression controls, not new repair assignments.
 
 
 - **NATIVE-GOLDEN-LINUX-BOUND-UNMEASURED.**
@@ -2579,8 +2510,7 @@ crash and native exit behavior.
   build log line records an ordinary outcome, and that pending case moves into
   `pass/` with its golden row.
 
-  Sequencing: this is the same `corpus_runner.rs` and shared-golden surface as
-  **CORPUS-SEALED-SOURCE-STAGING**, so the two coordinate rather than race. A
+  Reuse the corpus runner's existing sealed source staging. A
   row it adds carries a `check-target:<target>` fact when the fixture binds a
   program entry.
 
@@ -2668,75 +2598,7 @@ check corpus and the native corpus unchanged on the slices it names.
   guard rejects new refusal messages matching those phrasings; the full check
   corpus and the native corpus are unchanged.
 
-- **DYN-CONTINUATION-ROOT-REJOIN.** (split-of:UNIT-PLAN-GAPS-REPORTED-AT-SOURCE)
-  `pass/traits/runtime_local_named_dyn_devirtualized_exit` now lowers its whole
-  dynamic continuation and stops in Omega's native entry settlement.
-  `9e503d2a760` published `caller_structural_parameters` on both dynamic call
-  plans from `structural_scalar_signature` and taught the Omega-side
-  establishment in `selected-dispatch/src/service_custody/root.rs` to read it,
-  clearing the "rejoins 0 Terminal context identities" rejoin. It also cleared
-  three receiver-era stage 05 gates, each a hand-derivation narrower than the
-  canonical predicate: `select_dynamic_dispatch_plan` required
-  `CheckedTerminalSignatureEligibility::Attached`, which stage 04 never
-  produces, so it refused every dynamic dispatch ever planned;
-  `single_call`/`continuation` synthesized the caller's context parameter at a
-  fixed position 0 instead of rejoining the published roster; and
-  `plan_validation` identified the dispatched call by the flow fact's
-  `receiver_symbol`, which on a trait-qualified spelling (`Shape::code(erased)`,
-  the spelling every dynamic pass fixture uses) names the trait namespace and no
-  runtime place. The place rule now lives once, on
-  `TypedTrees::dynamic_dispatch_subject_place`. The leaf rosters that were `&[]`
-  were a plumbing fix, now done, not the rewrite this item feared. The spec
-  settles the shape independently: `wiki/spec/terminal-psi/dynamic_dispatch.md`
-  decides `dynamic-caller-subject-parameter` as "no parameter position is
-  privileged".
 
-  Current frontier: `Terminal native proposal ProgramEntry settlement failed:
-  FusedServiceEstablishmentDrift`. Stage 07
-  `entry_receipt/receiver_eligibility.rs:93` returns `None` for any entry
-  machine with `attachment.is_some()`, and the dyn lane emits
-  `attachment: Some(..)` on its caller, so no eligibility record exists and
-  `entry_settlement/service_establishment.rs` fails on `eligibility.ok_or(..)`.
-  **This is a genuine fork, not a one-line fix.** Two readers want `None` there
-  (that gate, and `validation/evidence.rs:78`'s devirtualized runtime-call
-  evidence); one requires `Some` -- `validation/foundation.rs:537` derives the
-  machine's provider fields from `machine.attachment`'s record fields, and the
-  lane emits ProviderAttachment places, so dropping it hits
-  `InvalidProviderAttachmentSpecialization`. Migrating that derivation to the
-  context parameter's structural type spans the Terminal verifier and stage 07,
-  and decides where the entry context record's identity lives in Terminal.
-  About 20 sites return the one opaque `FusedServiceEstablishmentDrift` variant;
-  route them through one `#[track_caller]` constructor before diagnosing
-  further.
-
-  Two leads behind it:
-  - `validate_forwarded_dynamic_call` (`plan_validation.rs:670`) holds the same
-    `receiver_symbol` derivation for a forwarded helper's dispatch. Its customer
-    `runtime_local_named_dyn_pass_through_exit` stops at an earlier
-    structural-field-store wall, so no fixture engages it yet -- state it rather
-    than clear it blind.
-  - `CheckedTerminalSignatureEligibility::Attached` is produced **nowhere**;
-    `build_checked_terminal_machine_selections` only yields `Unsupported`,
-    `FreeUnitEffect` or `Eligible`, while `CheckedUnitPlan::admits_signature`
-    and `CheckedReturnPlan`'s equivalent still carry an `(Attached, true)` row.
-    Retiring the variant is a separate repo-wide cleanup.
-
-  Acceptance unchanged: `python3 tools/corpus_gate.py --filter traits/runtime_local_named_dyn_devirtualized_exit`
-  reaches `checked`, then `--native` reaches exit 70. The Omega-side README warns
-  the native leg additionally needs the exact descriptor, table, slot,
-  relocation, call/return and resource joins, with no direct-selection fallback.
-
-- **DYN-JOIN-LANE-STILL-DEAD.** (split-of:UNIT-PLAN-GAPS-REPORTED-AT-SOURCE)
-  `composed_control/dynamic_join.rs::admit_dynamic_join_control_topology`
-  holds the same two gates `ef6e9f65647` removed from `dynamic_result.rs`:
-  `!entry_structural.is_empty()` plus its two branch copies, and an
-  `attachment_type_identity?` on a `structural_scalar_signature` that routes
-  `AttachmentStorage::StaticQualification` to `None` and so never returns one.
-  It therefore returns `None` for every program and every joined dynamic
-  binding is unreachable. **No corpus fixture authors a joined `&dyn`
-  binding**, so this needs a fixture before it can be gated: author that
-  first, or fold this into DYN-CONTINUATION-ROOT-REJOIN once the single-call
-  route runs. Do not clear the gates without a fixture that engages them.
 
 - **UNIT-PLAN-GAPS-REPORTED-AT-SOURCE.** (new-scope) Today stage 04 drops an
   unsupported body silently:
@@ -2918,36 +2780,6 @@ check corpus and the native corpus unchanged on the slices it names.
   restriction, but no program runs because of it until the record-result
   refusal above clears, so it keeps its current form.
 
-- **UNIT-PLAN-OMISSION-MKALL-WALK-PARAMETER-CUSTODY.** (new-scope)
-  **The unit-plan omission is closed and the fixture is now blocked on the
-  FilesystemHost provider cluster.** `forwards_qualified_parameter`
-  (`04_typed-trees-to-checked-trees/src/execution/terminal_unit/state_graph/mod.rs`)
-  refused `target_index == 0` outright, so every re-entered entry carrying a
-  domain-qualified non-linear parameter compiled no unit plan --
-  `Filesystem::mkall_walk` recurses in its own entry with `path: &[u8] in
-  Path`, which is the only recursion shape `Nat::BoundedDistance` accepts.
-  That clause re-decided by hand, and narrower, the question the enclosing
-  gate already decides exactly: the gate exempts the invocation-only entry
-  because callers establish a formal's qualifications at the call, so a state
-  reaching the helper at index 0 is re-entered and only its reentry edges are
-  unproven -- which is precisely what the helper's walk covers, backedges
-  included. Removing the clause admits `mkall_walk` and
-  `Filesystem::create_dir_all`.
-  `tests/omega/pass/filesystem/dir_walk_wrappers_exit` now stops at "selected
-  ProgramEntry Binding field `Main::fs::host` requires a selected Fused
-  provider for boundary `FilesystemHost`", recorded in the golden at
-  `4fa2d6d846eb`. **The item's "Not blocked on FilesystemHost" claim is
-  disproved**: with `mkall_walk` planning, the chain reaches exactly that
-  cluster, so this fixture now waits on **Q1
-  `portable-service-per-family-binding-carrier`** in `OWNER_QUESTIONS.md`
-  together with the other `pass/filesystem` provider fixtures. Acceptance is
-  unchanged (`--native --filter filesystem/dir_walk_wrappers_exit` reaches
-  exit 70) and is no longer reachable from this lane.
-  Cost note: the fixture compiles 151031ms with the chain planned, against
-  21752ms when it aborted at state 0, so a default `OMEGA_CORPUS_FIXTURE_SECS`
-  of 120 reads its row as `timeout` on a loaded host. The golden row carries
-  the outcome class and diagnostic, measured with a 900s budget; a `timeout`
-  there is the budget, not a new refusal.
 
 - **ONE-TRANSITION-LOWERING.** (new-scope) Successor transitions with
   parameter transfer are lowered in about six places:
@@ -4207,7 +4039,8 @@ rejects at build and `mapped` needs a Windows full-i32 measurement.
   calls modify the selected caller element and leave neighbors untouched. Add
   fixtures for interleaved fields with nested indices, computed selectors,
   field-held loop counters, leaf copies and shared receiver reads
-  (`cells[i].get()`), and fail fixtures for invalid indices. Use
+  (passing `cells[i]` by explicit shared borrow), and fail fixtures for invalid
+  indices. Use
   **CANONICALIZE-SCALAR-RANGE-CONTRACTS** for bounds. **WRITE-ONLY-BORROW** and
   **STRUCTURAL-BORROW-IDENTITY** own general loan admission;
   **TERMINAL-SLICE-VIEW-VOCABULARY** owns view bounds; **PLAN-LAID-VIEWS** owns
@@ -4823,8 +4656,12 @@ wait for Cathedral's instruction coverage. The interpreter is
   invoke -> host result -> guest result -> close from an authored interface
   package, host implementation and script, connecting public entry
   descriptions, the interpreter and checked host adapters through `Binding<R>`.
-  `src/lib.rs` exposes artifact execution; reusable public programs,
-  reclaimable instances, import-slot bindings and close are missing.
+  Reuse `TerminalProgram::load`/`instantiate` in `src/program.rs` and
+  `TerminalInstance::bind_import`/`invoke`/`close` in `src/instance.rs`, with
+  typed adapters in `src/adapters.rs`. These lifecycle APIs already exist;
+  the remaining acceptance is the source-authored interface/host/script join,
+  not another program or instance abstraction. The corpus execution helper
+  loads `TerminalProgram`, but that alone does not exercise host import binding.
   - Share immutable admitted programs across instances; two same-trait slots
     address different host objects.
   - Missing/wrong/unauthorized bindings and invalid host input reject before
@@ -4842,8 +4679,9 @@ wait for Cathedral's instruction coverage. The interpreter is
 - **EMBEDDING-RESOURCE-LIFETIMES.** (new-scope) Extend
   **EMBEDDING-SOURCE-TO-HOST** with borrowed views, owned host resources,
   asynchronous completion and contracted callbacks. `src/results.rs` has no
-  waiting/completion protocol, and raw effect sinks let a handler be
-  substituted on resume: pin admitted bindings and keep custody across pauses.
+  waiting/completion protocol. Extend the instance-owned adapter roster, which
+  already remains bound across fuel pauses; do not build the public lifecycle
+  on raw effect sinks that permit substituting a handler on resume.
   `RunnableComponentEraLedger` in
   `omega-rust/omega/compilation/backend/runtime/component-publication/` has
   registration/teardown; runtime lifecycle integration is missing.
@@ -5038,14 +4876,11 @@ wait for Cathedral's instruction coverage. The interpreter is
   `tests/omega/pass/memory/interrupt_table_canary` has authored roots, layouts
   and validators, but an empty entry, and both handlers only acknowledge.
 
-  Check-leg status before any of this backend work is reachable: the fixture
-  rejected in 6ms on a bundled-`std` import spelling until `cf06f90068e`, then
-  on `DescriptorTableValidation::run`'s `terminates by fuel` ranking until
-  `0b98b2fc46a`. It now stops at "direct call `complete` names public boundary
-  requirement `InterruptAcknowledgement::complete`, which has no selected
-  provider". **STATIC-BOUNDARY-REQUIREMENT-CALL-FORM** owns the missing
-  implementation/selection repair under ordinary domain discipline. No
-  `satisfies` row for this requirement was present at the recorded failure.
+  The fixture now selects a `CompilerIntrinsic` provider for
+  `InterruptAcknowledgement::complete`, but that operation has no native
+  realization. **STATIC-BOUNDARY-REQUIREMENT-CALL-FORM** owns the
+  `bare-metal-requirement-realization` decision in `OWNER_QUESTIONS.md`;
+  adding another selection row does not solve it.
   Retain the argument's checked domain evidence and exact installation
   relationships; provider selection remains a separate implementation duty.
   Resolve that compiler/source dependency before the backend joins below.
@@ -5284,7 +5119,8 @@ wait for Cathedral's instruction coverage. The interpreter is
     and `omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation/generic_data/const_evaluation/{facts,values}.rs`:
     specialized provider/target applications, exact authored NaN bits,
     nested record/array/case and whole-aggregate subjects, open applications and
-    abstract-carrier `self` constraints. Keep alias-owned bounds/index tuples
+    abstract-carrier constraints over explicit named subjects. Keep alias-owned
+    bounds/index tuples
     through `omega-rust/psi/compilation/checking/src/proof_contracts/domains.rs`.
     Computed payloads cannot establish qualifications; routed constraints need
     establishment even for unused initializers.
@@ -5411,8 +5247,10 @@ wait for Cathedral's instruction coverage. The interpreter is
     (`omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/execution/terminal_unit/dynamic_scalar_calls/realization_callables.rs`)
     require closed static tuples. Admit proved membership reusing
     **RUNTIME-VALUE-GENERICS**' scalar argument/guard machinery (not general
-    value-indexed data). Extend the self-only, Unit/i32/bool callable subset to
-    scanner inputs/results. Unproved membership rejects; no JIT or fallback.
+    value-indexed data). Replace the legacy self-only, Unit/i32/bool callable
+    subset with ordinary explicit scanner inputs/results, following
+    **DYNAMIC-IMPLEMENTATION-SELECTION-MIGRATION**. Unproved membership rejects;
+    no JIT or fallback.
   - Native dispatch through **RESTORE-DYNAMIC-DESCRIPTOR-AND-TABLE-CUSTODY**'s
     indirect-call mechanism: rebound `CallDynamicScalar` lacks common-graph
     legalization, and selected construction rejects `DynamicParameterCall`.
@@ -5522,6 +5360,11 @@ wait for Cathedral's instruction coverage. The interpreter is
   - Delete the partial compiler fallback `canonical_filesystem_host.rs` and
     the mixed trait. Update `samples/cli/systems/file_journal/main.omg`,
     which uses the raw service directly, to the family trait for its targets.
+  - Absorbs **UNIT-PLAN-OMISSION-MKALL-WALK-PARAMETER-CUSTODY**:
+    `Filesystem::mkall_walk` reentry planning is repaired; the remaining
+    `pass/filesystem/dir_walk_wrappers_exit` failure is provider supply. Keep
+    that unchanged customer and require native exit 70. The earlier 151-second
+    compile is a budget-sizing lead, not another Unit-plan repair.
 
   Frontier measured at `72a43a5bee1`: the split is a hard prerequisite for any
   macOS provider, and the portable wrapper half of it is blocked on

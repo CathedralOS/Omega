@@ -205,8 +205,9 @@ prerequisite to every lower-rung milestone.
   Remaining:
   - Execute Gamma, Delta, Epsilon and `omega-*` customer gates on Windows x64
     through the documented Git Bash route, recording exact observations and
-    resource prerequisites. ALPHA-WINDOWS-CONFORMANCE owns the Alpha/Beta edge,
-    not this whole roster. Byte-only identity checks do not replace execution.
+    resource prerequisites. Reuse `tests/bootstrap/alpha-beta-edge.sh` for the
+    Alpha/Beta prerequisite; it does not close this higher-rung roster.
+    Byte-only identity checks do not replace execution.
   - Complete the chain beyond interpreted D once OMEGA-D, OMEGA-C and their
     required proof edges close, then reconstruct/check it on a blank supported
     host without unavailable-host success or an undisclosed authority substitute.
