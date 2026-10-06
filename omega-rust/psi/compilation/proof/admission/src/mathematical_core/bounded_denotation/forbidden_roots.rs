@@ -231,44 +231,32 @@ impl Denotation {
             let negative_two = self.binary_integer(true, 2)?;
             let constant = |position| scheme_at(position, Vec::new());
             let carrier = || constant(integer);
+            let binders = |names: &[&'static str], body| {
+                names
+                    .iter()
+                    .rev()
+                    .fold(body, |inner, name| pi(name, carrier(), inner))
+            };
             let le = |left, right| apps(constant(less_or_equal), [left, right]);
             let eq = |left, right| id(carrier(), left, right);
             let add = |left, right| apps(constant(add), [left, right]);
             let sub = |left, right| apps(constant(sub), [left, right]);
             let mul = |left, right| apps(constant(mul), [left, right]);
             let statement = match law {
-                Law::AddRightInverse => pi(
-                    "a",
-                    carrier(),
+                Law::AddRightInverse => binders(
+                    &["a", "k", "m"],
                     pi(
-                        "k",
-                        carrier(),
-                        pi(
-                            "m",
-                            carrier(),
-                            pi(
-                                "_",
-                                eq(add(v("a"), v("k")), v("m")),
-                                eq(v("a"), sub(v("m"), v("k"))),
-                            ),
-                        ),
+                        "_",
+                        eq(add(v("a"), v("k")), v("m")),
+                        eq(v("a"), sub(v("m"), v("k"))),
                     ),
                 ),
-                Law::SubtractRightInverse => pi(
-                    "a",
-                    carrier(),
+                Law::SubtractRightInverse => binders(
+                    &["a", "k", "m"],
                     pi(
-                        "k",
-                        carrier(),
-                        pi(
-                            "m",
-                            carrier(),
-                            pi(
-                                "_",
-                                eq(sub(v("a"), v("k")), v("m")),
-                                eq(v("a"), add(v("m"), v("k"))),
-                            ),
-                        ),
+                        "_",
+                        eq(sub(v("a"), v("k")), v("m")),
+                        eq(v("a"), add(v("m"), v("k"))),
                     ),
                 ),
                 Law::QuotientUpperPositive(scalar_type)
@@ -302,27 +290,14 @@ impl Denotation {
                         }
                         _ => le(quotient(v("m"), v("k")), v("a")),
                     };
-                    pi(
-                        "k",
-                        carrier(),
-                        pi(
-                            "m",
-                            carrier(),
-                            pi("a", carrier(), pi("_", sign, pi("_", bound, residual))),
-                        ),
-                    )
+                    binders(&["k", "m", "a"], pi("_", sign, pi("_", bound, residual)))
                 }
-                Law::LessOrEqualAntisymmetry => pi(
-                    "a",
-                    carrier(),
+                Law::LessOrEqualAntisymmetry => binders(
+                    &["a", "b"],
                     pi(
-                        "b",
-                        carrier(),
-                        pi(
-                            "_",
-                            le(v("a"), v("b")),
-                            pi("_", le(v("b"), v("a")), eq(v("a"), v("b"))),
-                        ),
+                        "_",
+                        le(v("a"), v("b")),
+                        pi("_", le(v("b"), v("a")), eq(v("a"), v("b"))),
                     ),
                 ),
                 Law::DivisorCaseSplit => {
