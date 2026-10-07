@@ -3,14 +3,13 @@
 //! collected from the typed program and its calling-policy machines.
 
 use crate::calling_policy_plans::build_time_decoding::PARAMETER_CAPACITY;
-use crate::calling_policy_plans::callback_bindings::{
-    callback_plan_report_fingerprint, validate_fresh_native_parameter_report_identity,
-};
+use crate::calling_policy_plans::callback_bindings::validate_fresh_native_parameter_report_identity;
 use crate::calling_policy_plans::callback_layout_catalog::BoundaryCallbackLayoutEntry;
 use crate::calling_policy_plans::opaque_representations::{
     BoundaryOpaqueRepresentationMovement, BoundaryOpaqueRepresentationMovementRole,
     BoundaryOpaqueRepresentationPathElement, BoundaryOpaqueRepresentationUse,
 };
+use calling_conventions::callback_nominal_report_fingerprint;
 pub use calling_conventions::{BoundaryValueClass, BoundaryValueField, BoundaryValueShape};
 use calling_conventions::{
     BoundaryValueGraph, CallSignature, CallbackRequirementId, CallingPolicy, NativeCallbackDemand,
@@ -654,7 +653,7 @@ pub(crate) fn call_signature_from_typed(
             .ok_or_else(|| "nominal callback binder lost its exact requirement".to_owned())?;
         let requirement_identity =
             typed.trait_requirement_callable_identity_text(trait_definition_row, requirement_row);
-        let binder_report_fingerprint = callback_plan_report_fingerprint(
+        let binder_report_fingerprint = callback_nominal_report_fingerprint(
             b"omega.callback-binder.v1",
             &[
                 owner_requirement_identity.as_bytes(),

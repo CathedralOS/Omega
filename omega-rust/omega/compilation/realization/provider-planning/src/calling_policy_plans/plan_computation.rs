@@ -12,8 +12,7 @@ use crate::calling_policy_plans::build_time_decoding::{
     VALUE_FIELD_CAPACITY, VALUE_SHAPE_CAPACITY, case, decode_boundary_plan_result,
 };
 use crate::calling_policy_plans::callback_bindings::{
-    callback_materialization_context, callback_plan_report_fingerprint,
-    validate_retained_callback_binders,
+    callback_materialization_context, validate_retained_callback_binders,
 };
 use crate::calling_policy_plans::{
     BoundaryCallingPlanRealization, BoundaryNativeParameter, BoundaryNativeParameterOrigin,
@@ -21,6 +20,7 @@ use crate::calling_policy_plans::{
     MaterializedBoundarySignature,
 };
 use build_time_evaluation::BuildTimeValue;
+use calling_conventions::callback_nominal_report_fingerprint;
 use calling_conventions::{
     BoundaryEntryPlan, BoundaryPlanResult, CallSignature, CallingPolicy, NativePlace,
     ValidatedBoundaryEntryPlan, ValueClass, ValueShape, evaluate_ordinary_boundary_entry_plan,
@@ -1018,7 +1018,7 @@ pub(crate) fn boundary_plan_application_identity(
     }
     strong.update(validated.contract_commitment_digest());
     let commitment: [u8; 32] = strong.finalize().into();
-    let report = callback_plan_report_fingerprint(
+    let report = callback_nominal_report_fingerprint(
         b"omega.boundary-plan-application-report.v3",
         &[&commitment],
     );

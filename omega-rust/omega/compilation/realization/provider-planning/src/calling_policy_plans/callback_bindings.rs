@@ -976,28 +976,6 @@ pub(crate) fn validate_fresh_native_parameter_report_identity(
     Ok(())
 }
 
-/// Compact callback-binder catalog discriminator. The exact binder ordinal,
-/// parameter symbol, and requirement symbols remain beside it and collisions
-/// reject before a calling policy is evaluated.
-pub(crate) fn callback_plan_report_fingerprint(domain: &[u8], parts: &[&[u8]]) -> u64 {
-    let mut report_fingerprint = 0xcbf2_9ce4_8422_2325u64;
-    for bytes in std::iter::once(domain).chain(parts.iter().copied()) {
-        for byte in (bytes.len() as u64)
-            .to_le_bytes()
-            .into_iter()
-            .chain(bytes.iter().copied())
-        {
-            report_fingerprint ^= u64::from(byte);
-            report_fingerprint = report_fingerprint.wrapping_mul(0x0000_0100_0000_01b3);
-        }
-    }
-    if report_fingerprint == 0 {
-        1
-    } else {
-        report_fingerprint
-    }
-}
-
 pub(crate) fn callback_materialization_context(
     signature: &MaterializedBoundarySignature,
 ) -> CallbackMaterializationContext {
