@@ -2352,6 +2352,7 @@ pass/calls/runtime_guarded_terminal_operand_order_exit checked 463ms check-targe
 pass/calls/runtime_guarded_terminal_reference_result_exit checked 1285ms check-target:macos_arm64 @4eef5b6cc89f
 pass/calls/runtime_guarded_terminal_reference_write_exit checked 766ms check-target:macos_arm64 @23ad5028e896
 pass/calls/runtime_guarded_terminal_structural_result_exit checked 928ms check-target:macos_arm64 @4f20c0c110be
+pass/calls/runtime_heterogeneous_case_argument_exit checked 11361ms check-target:macos_arm64 @b0e82acb332e+wt
 pass/calls/runtime_indexed_scalar_calls_exit checked 4149ms check-target:macos_arm64 @c773c4ad3c3
 pass/calls/runtime_inherited_membership_argument_snapshot_exit checked 1798ms check-target:macos_arm64 @cfbb6c8709b4+wt
 pass/calls/runtime_large_structural_frame_exit checked 2451ms check-target:macos_arm64 @48547351f382+wt

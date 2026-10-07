@@ -1,10 +1,12 @@
 //! Ordinary calls carry an established tag and payload, not an opaque value
 //! fabricated from its sum type. Preparation snapshots only the selected actual;
 //! the existing call transaction commits its owned transfer after preflight.
-//! Shared lending is bounded to complete scalar-only sums: this runtime has no
-//! mutable case binding or scalar-case store. Neither the callee nor an admitted
-//! alias can change this payload during the call. This is not permission to
-//! snapshot arbitrary shared structural backing.
+//! Only the active case chooses its carrier: another variant's structural
+//! payload does not turn an established scalar payload into opaque storage.
+//! Shared lending remains read-only: this runtime has no mutable packed-case
+//! binding or store. Neither the callee nor an admitted alias can change this
+//! payload during the call. Structural and shared atomic payloads require
+//! their original backing rather than these scalar snapshots.
 
 use crate::custody::bind_affine_frontier_types;
 use crate::custody::consume_affine_projection;
@@ -18,10 +20,11 @@ use std::collections::BTreeSet;
 use terminal_psi::StructuralAccess;
 use terminal_psi::StructuralAffineDiscard;
 use terminal_psi::StructuralArgument;
+use terminal_psi::StructuralFieldType;
 use terminal_psi::StructuralMultiplicity;
 use terminal_psi::StructuralParameterDeclaration;
-use terminal_psi::StructuralTypeDeclaration;
 use terminal_psi::StructuralTypeShape;
+
 impl TerminalExecution {
     pub(crate) fn prepare_scalar_case_argument(
         &self,
@@ -114,36 +117,31 @@ impl TerminalExecution {
                 return Err(TerminalInterpretError::AffineFrontierMismatch);
             }
         }
-        let Some(StructuralTypeDeclaration {
-            shape: StructuralTypeShape::Sum { cases },
-            ..
-        }) = self.program.structural_types.get(&value.structural_type)
-        else {
-            return Err(malformed());
-        };
-        if !cases.iter().all(|case| {
-            case.fields.iter().all(|field| {
-                field.relevance == terminal_psi::BindingRelevance::Relevant
-                    && field.field_type.scalar_type().is_some()
-            })
-        }) {
-            return Err(malformed());
-        }
-        let selected = cases
-            .iter()
-            .find(|case| case.id == value.result_case)
+        // Validate the selected contents and their declaration predicates,
+        // not every inactive variant's hypothetical storage. The prepared
+        // carrier partition retains the actual scalar payload through the call.
+        let declaration = self
+            .program
+            .structural_types
+            .get(&value.structural_type)
             .ok_or_else(malformed)?;
-        if selected.fields.len() != value.fields.len()
-            || selected
-                .fields
+        value.validate_against(declaration)?;
+        if parameter.access == StructuralAccess::SharedBorrow
+            && let StructuralTypeShape::Sum { cases } = &declaration.shape
+            && cases
                 .iter()
-                .zip(&value.fields)
-                .any(|(field, (identity, value))| {
-                    field.id != *identity
-                        || field.field_type.scalar_type() != Some(value.scalar_type())
+                .find(|case| case.id == value.result_case)
+                .is_some_and(|case| {
+                    case.fields
+                        .iter()
+                        .any(|field| matches!(field.field_type, StructuralFieldType::Atomic(_)))
                 })
         {
-            return Err(malformed());
+            // Atomic events may mutate through a shared loan. A matching word
+            // is not its original cell identity, even when no tag changes.
+            return Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                "shared atomic case arguments require original cell backing",
+            ));
         }
         Ok(value.clone())
     }

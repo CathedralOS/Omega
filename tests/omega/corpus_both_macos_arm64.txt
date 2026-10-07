@@ -133,6 +133,7 @@ pass/calls/runtime_guarded_terminal_operand_order_exit built 842ms exit:0 interp
 pass/calls/runtime_guarded_terminal_reference_result_exit built 2336ms exit:0 interpreter-exit:0 interpreter:agrees @3214ae815320
 pass/calls/runtime_guarded_terminal_reference_write_exit built 1443ms exit:0 interpreter-exit:0 interpreter:agrees @23ad5028e896
 pass/calls/runtime_guarded_terminal_structural_result_exit built 1267ms exit:0 interpreter-exit:0 interpreter:agrees @4f20c0c110be
+pass/calls/runtime_heterogeneous_case_argument_exit built 11563ms exit:0 interpreter-exit:0 interpreter:agrees @b0e82acb332e+wt
 pass/calls/runtime_indexed_scalar_calls_exit built 8979ms exit:70 interpreter-exit:70 interpreter:agrees @faab7e6c1b7d+wt
 pass/calls/runtime_inherited_membership_argument_snapshot_exit built 3702ms exit:0 interpreter-exit:0 interpreter:agrees @cfbb6c8709b4+wt
 pass/calls/runtime_linear_guarded_owner_disposition_exit built 2138ms exit:0 interpreter-exit:0 interpreter:agrees @2bc90c3ea398

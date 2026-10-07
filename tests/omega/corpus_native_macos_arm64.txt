@@ -352,6 +352,7 @@ pass/calls/runtime_guarded_terminal_operand_order_exit built 4325ms exit:0 @9beb
 pass/calls/runtime_guarded_terminal_reference_result_exit built 1298ms exit:0 @4eef5b6cc89f
 pass/calls/runtime_guarded_terminal_reference_write_exit built 4317ms exit:0 @9beb2be72f2d+wt
 pass/calls/runtime_guarded_terminal_structural_result_exit built 4355ms exit:0 @9beb2be72f2d+wt
+pass/calls/runtime_heterogeneous_case_argument_exit built 11452ms exit:0 @b0e82acb332e+wt
 pass/calls/runtime_indexed_scalar_calls_exit built 1627ms exit:70 @63377f7122bb+wt
 pass/calls/runtime_inherited_membership_argument_snapshot_exit built 2072ms exit:0 @cfbb6c8709b4+wt
 pass/calls/runtime_large_structural_frame_exit built 2593ms exit:70 @48547351f382+wt
