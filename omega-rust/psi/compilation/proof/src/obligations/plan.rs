@@ -59,14 +59,11 @@ impl<'program> ProofPlan<'program> {
         base_type: TypeReferenceHandle,
         constraints: HandleSpan<TypeConstraintNode>,
     ) -> HandleSpan<ProofConstraint> {
-        self.type_constraints.insert_many(
-            program
-                .type_reference_table
-                .constraints(constraints)
-                .iter()
-                .filter_map(|constraint| {
-                    ProofConstraint::from_node(program, base_type, constraint)
-                }),
+        self.store_constraint_nodes_with(
+            program,
+            base_type,
+            constraints,
+            ProofConstraint::from_node,
         )
     }
 
@@ -79,14 +76,31 @@ impl<'program> ProofPlan<'program> {
         base_type: TypeReferenceHandle,
         constraints: HandleSpan<TypeConstraintNode>,
     ) -> HandleSpan<ProofConstraint> {
+        self.store_constraint_nodes_with(
+            program,
+            base_type,
+            constraints,
+            ProofConstraint::from_node_with_domain_intervals,
+        )
+    }
+
+    fn store_constraint_nodes_with(
+        &mut self,
+        program: &TypedTrees,
+        base_type: TypeReferenceHandle,
+        constraints: HandleSpan<TypeConstraintNode>,
+        from_node: impl Fn(
+            &TypedTrees,
+            TypeReferenceHandle,
+            &TypeConstraintNode,
+        ) -> Option<ProofConstraint>,
+    ) -> HandleSpan<ProofConstraint> {
         self.type_constraints.insert_many(
             program
                 .type_reference_table
                 .constraints(constraints)
                 .iter()
-                .filter_map(|constraint| {
-                    ProofConstraint::from_node_with_domain_intervals(program, base_type, constraint)
-                }),
+                .filter_map(|constraint| from_node(program, base_type, constraint)),
         )
     }
 }
