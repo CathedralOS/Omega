@@ -619,6 +619,18 @@ fn atom_label(atom: &DomainAtom) -> String {
     }
 }
 
+/// A semantic-domain argument renders as its canonical const value display
+/// when it names one, otherwise as the type reference itself.
+fn domain_argument_display(program: &TypedTrees, argument: TypeReferenceHandle) -> String {
+    match program.type_reference_table.type_reference(argument) {
+        TypeReferenceNode::Named { name, .. } => {
+            language_semantics::const_value::CanonicalConstValue::from_atom(name.as_str())
+                .map_or_else(|| name.to_string(), |value| value.display)
+        }
+        _ => program.display_type_reference(argument),
+    }
+}
+
 fn domain_constraint_label(
     program: &TypedTrees,
     domain: &typed_trees::types::DomainConstraint,
@@ -630,15 +642,7 @@ fn domain_constraint_label(
     let arguments = domain
         .arguments
         .iter()
-        .map(
-            |argument| match program.type_reference_table.type_reference(*argument) {
-                TypeReferenceNode::Named { name, .. } => {
-                    language_semantics::const_value::CanonicalConstValue::from_atom(name.as_str())
-                        .map_or_else(|| name.to_string(), |value| value.display)
-                }
-                _ => program.display_type_reference(*argument),
-            },
-        )
+.map(|argument| domain_argument_display(program, *argument))
         .collect::<Vec<_>>()
         .join(", ");
     format!("{}<{arguments}>", domain.name)
@@ -662,15 +666,7 @@ fn qualification_cast_label(
         .type_reference_table
         .type_reference_handles(cast.semantic_domain_arguments)
         .iter()
-        .map(
-            |argument| match program.type_reference_table.type_reference(*argument) {
-                TypeReferenceNode::Named { name, .. } => {
-                    language_semantics::const_value::CanonicalConstValue::from_atom(name.as_str())
-                        .map_or_else(|| name.to_string(), |value| value.display)
-                }
-                _ => program.display_type_reference(*argument),
-            },
-        )
+.map(|argument| domain_argument_display(program, *argument))
         .collect::<Vec<_>>()
         .join(", ");
     format!("{name}<{arguments}>")
