@@ -2,10 +2,12 @@
 //! scalar calls that push a frame and redispatch, plus boundary
 //! calls and port writes handed to the effect handler.
 //!
-//! `frames.rs` binds each call's arguments and pushes its frame,
+//! `arguments.rs` prepares and validates the packed/opaque carrier partition;
+//! `frames.rs` preserves that partition while binding and pushing the frame;
 //! `scalar_case_arguments.rs` prepares an established scalar case as a call
 //! argument.
 
+pub(crate) mod arguments;
 pub(crate) mod frames;
 pub(crate) mod scalar_case_arguments;
 

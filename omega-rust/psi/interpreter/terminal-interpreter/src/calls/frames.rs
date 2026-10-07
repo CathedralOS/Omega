@@ -1,5 +1,5 @@
 use crate::byte_sequences::binding::ByteSequenceBinding;
-use crate::byte_sequences::binding::StructuralCallArguments;
+use crate::calls::arguments::StructuralCallArguments;
 use crate::calls::scalar_case_arguments;
 use crate::custody::bind_arguments;
 use crate::custody::transfer_claims;
@@ -176,10 +176,11 @@ impl TerminalExecution {
             return Err(malformed());
         }
         let values = bind_arguments(&callee.parameters, scalar_arguments)?;
+        prepared_arguments.validate_carrier_partition(&callee.structural_parameters)?;
         let mut structural_values = prepared_arguments.values;
         let mut identity_cursor = prepared_arguments.local_identity_cursor;
         let aggregate_payload = self.stage_owned_aggregate_arguments(
-            &callee.structural_parameters,
+            &prepared_arguments.descriptor_parameters,
             &mut structural_values,
             &mut identity_cursor,
         )?;
@@ -278,10 +279,11 @@ impl TerminalExecution {
             return Err(malformed());
         }
         let values = bind_arguments(&callee.parameters, scalar_arguments)?;
+        prepared_arguments.validate_carrier_partition(&callee.structural_parameters)?;
         let mut structural_values = prepared_arguments.values;
         let mut identity_cursor = prepared_arguments.local_identity_cursor;
         let aggregate_payload = self.stage_owned_aggregate_arguments(
-            &callee.structural_parameters,
+            &prepared_arguments.descriptor_parameters,
             &mut structural_values,
             &mut identity_cursor,
         )?;
@@ -461,10 +463,11 @@ impl TerminalExecution {
             return Err(malformed());
         }
         let values = bind_arguments(&callee.parameters, scalar_arguments)?;
+        prepared_arguments.validate_carrier_partition(&callee.structural_parameters)?;
         let mut structural_values = prepared_arguments.values;
         let mut identity_cursor = prepared_arguments.local_identity_cursor;
         let aggregate_payload = self.stage_owned_aggregate_arguments(
-            &callee.structural_parameters,
+            &prepared_arguments.descriptor_parameters,
             &mut structural_values,
             &mut identity_cursor,
         )?;

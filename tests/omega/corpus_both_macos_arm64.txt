@@ -102,6 +102,7 @@ pass/calls/mixed_projection_sources_in_one_call built 2038ms exit:0 interpreter-
 pass/calls/mixed_value_forwarding_exit built 1368ms exit:70 interpreter-exit:70 interpreter:agrees @4d9c84188259+wt
 pass/calls/nested_call_tail_roots_exit built 12707ms exit:0 interpreter-exit:0 interpreter:agrees @faab7e6c1b7d+wt
 pass/calls/runtime_alias_write_through_guarded_transition_exit built 7164ms exit:70 interpreter-exit:70 interpreter:agrees @3fa817733300+wt
+pass/calls/runtime_call_carrier_partition_exit built 14438ms exit:0 interpreter-exit:0 interpreter:agrees @b6ec5f4824ac+wt
 pass/calls/runtime_case_payload_indexed_calls_exit built 11916ms exit:70 interpreter-exit:70 interpreter:agrees @faab7e6c1b7d+wt
 pass/calls/runtime_case_terminal_payload_result_exit built 1414ms exit:0 interpreter-exit:0 interpreter:agrees @9d538dd9a056
 pass/calls/runtime_computed_case_subject_affine_argument_exit built 814ms exit:0 interpreter-exit:0 interpreter:agrees @92bbd31b7820

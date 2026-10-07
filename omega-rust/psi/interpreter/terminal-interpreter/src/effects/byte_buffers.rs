@@ -1,7 +1,7 @@
 //! Exact array/field loans and separately staged external byte-field replacement.
 use crate::byte_sequences::ByteSequenceView;
 use crate::byte_sequences::binding::ByteSequenceBinding;
-use crate::byte_sequences::binding::StructuralCallArguments;
+use crate::calls::arguments::StructuralCallArguments;
 use crate::custody::bind_structural_arguments;
 use crate::custody::resolve_structural_arguments;
 use crate::effects::TerminalEffectRejection;
@@ -156,6 +156,7 @@ impl BoundaryArguments {
         }
         Ok(StructuralCallArguments {
             local_identity_cursor: self.local_identity_cursor,
+            descriptor_parameters: parameters.to_vec(),
             values,
             byte_sequences,
             primitive_loans,
