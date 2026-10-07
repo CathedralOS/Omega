@@ -69,20 +69,7 @@ pub(crate) fn validate_plan(
 
     let case_name = |variant: &str| variant.rsplit("::").next().unwrap_or(variant).to_owned();
     let lookup = |key: u64| schema_fields.iter().position(|field| field.key == key);
-    let payload_uint = |payload: &[(String, BuildTimeValue)], name: &str| -> Result<u64, String> {
-        match payload.iter().find(|(field, _)| field == name) {
-            Some((_, BuildTimeValue::Int(value))) => Ok(*value as u64),
-            other => Err(fail(format!(
-                "placement carries no integer `{name}`: {other:?}"
-            ))),
-        }
-    };
-
-    // A repeated `At` changes the extent represented by each entry, so count
-    // those entries before validating destination intervals. Only a reflected
-    // outer fixed array may use more than one.
-    let mut at_counts = vec![0usize; schema_fields.len()];
-    for entry_index in 0..entry_count {
+    let field_entry = |entry_index: usize| -> Result<(usize, &BuildTimeValue), String> {
         let Some(BuildTimeValue::Struct { fields, .. }) = entry_cells.get(entry_index) else {
             return Err(fail(format!(
                 "entry {entry_index} is missing or not a FieldEntry"
@@ -106,6 +93,23 @@ pub(crate) fn validate_plan(
             .find(|(name, _)| name == "placement")
             .map(|(_, value)| value)
             .ok_or_else(|| fail(format!("entry {entry_index} carries no `placement`")))?;
+        Ok((field_index, placement))
+    };
+        let payload_uint = |payload: &[(String, BuildTimeValue)], name: &str| -> Result<u64, String> {
+        match payload.iter().find(|(field, _)| field == name) {
+            Some((_, BuildTimeValue::Int(value))) => Ok(*value as u64),
+            other => Err(fail(format!(
+                "placement carries no integer `{name}`: {other:?}"
+            ))),
+        }
+    };
+
+    // A repeated `At` changes the extent represented by each entry, so count
+    // those entries before validating destination intervals. Only a reflected
+    // outer fixed array may use more than one.
+    let mut at_counts = vec![0usize; schema_fields.len()];
+    for entry_index in 0..entry_count {
+        let (field_index, placement) = field_entry(entry_index)?;
         if let BuildTimeValue::Case { variant, .. } = placement
             && case_name(variant) == "At"
         {
@@ -121,30 +125,8 @@ pub(crate) fn validate_plan(
     let mut kinds_by_field: Vec<Option<&'static str>> = vec![None; schema_fields.len()];
 
     for entry_index in 0..entry_count {
-        let Some(BuildTimeValue::Struct { fields, .. }) = entry_cells.get(entry_index) else {
-            return Err(fail(format!(
-                "entry {entry_index} is missing or not a FieldEntry"
-            )));
-        };
-        let key = match fields.iter().find(|(name, _)| name == "key") {
-            Some((_, BuildTimeValue::Int(key))) => *key as u64,
-            other => {
-                return Err(fail(format!(
-                    "entry {entry_index} has no integer key: {other:?}"
-                )));
-            }
-        };
-        let Some(field_index) = lookup(key) else {
-            return Err(fail(format!(
-                "entry {entry_index} refers to unknown field key {key}"
-            )));
-        };
+        let (field_index, placement) = field_entry(entry_index)?;
         let schema_field = &schema_fields[field_index];
-        let placement = fields
-            .iter()
-            .find(|(name, _)| name == "placement")
-            .map(|(_, value)| value)
-            .ok_or_else(|| fail(format!("entry {entry_index} carries no `placement`")))?;
         let BuildTimeValue::Case { variant, payload } = placement else {
             return Err(fail(format!(
                 "entry {entry_index} placement is not a FieldPlan case"
