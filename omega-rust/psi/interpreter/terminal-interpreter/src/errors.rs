@@ -22,6 +22,8 @@ pub enum TerminalInterpretError {
     ExternalCompletion(crate::results::TerminalExternalCompletion),
     ScalarEntryQualificationUnsupported,
     UnsupportedCapability(crate::capabilities::TerminalUnsupportedCapability),
+    /// A well-formed semantic case this implementation cannot yet execute.
+    /// Invalid operation contracts must retain their malformed-error variants.
     UnsupportedSemanticVariant(&'static str),
     /// The artifact's exact affine cleanup transaction does not match the
     /// interpreter's live ownership paths.

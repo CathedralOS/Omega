@@ -102,9 +102,9 @@ impl TerminalExecution {
             .get(&reference_type)
             .map(|declaration| &declaration.shape)
         else {
-            return Err(TerminalInterpretError::UnsupportedSemanticVariant(
-                "reference execution requires a reference carrier",
-            ));
+            // A reference operation naming no reference carrier is malformed,
+            // not a valid operation awaiting an interpreter implementation.
+            return Err(malformed());
         };
         if !self.program.structural_types.contains_key(referent)
             || !matches!(
