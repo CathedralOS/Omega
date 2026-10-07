@@ -39,7 +39,7 @@ pub(super) fn encode_boundary_settlement(
 
 /// The complete admitted provider-execution coordinate set, shared by
 /// boundary settlements and evaluated normalized foreign calls.
-pub(super) fn encode_provider_execution(
+pub fn encode_provider_execution(
     bytes: &mut Vec<u8>,
     execution: target_operations::ProviderExecutionBinding,
 ) {

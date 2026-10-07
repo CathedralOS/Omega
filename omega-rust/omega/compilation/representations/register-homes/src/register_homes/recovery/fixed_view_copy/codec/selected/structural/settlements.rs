@@ -1,5 +1,7 @@
 use abstract_operations::CompletionClaimSource;
-use legalized_operations::{LegalizedBoundarySettlement, NativeCallOrigin};
+use legalized_operations::{
+    LegalizedBoundarySettlement, NativeCallOrigin, encode_provider_execution,
+};
 use optimization_unit::{EffectLink, OwnershipEvent};
 use semantic_vocabulary::{
     BoundaryMachineId, ClaimId, ContentAlgebra, ContentAlgebraKind, ContentDomainId,
@@ -226,27 +228,6 @@ pub(super) fn decode_call_source(
         }
         tag => Err(FixedViewCopyDecodeError::UnknownCallSource(tag)),
     }
-}
-
-pub(super) fn encode_provider_execution(bytes: &mut Vec<u8>, execution: ProviderExecutionBinding) {
-    bytes.extend_from_slice(
-        &execution
-            .provider_plan_report_identity()
-            .get()
-            .to_le_bytes(),
-    );
-    bytes.extend_from_slice(&execution.provider_execution_report_identity().to_le_bytes());
-    bytes.extend_from_slice(
-        &execution
-            .provider_execution_report_fingerprint()
-            .to_le_bytes(),
-    );
-    bytes.extend_from_slice(&execution.normalized_root_report_identity().to_le_bytes());
-    bytes.extend_from_slice(
-        &execution
-            .boundary_contract_report_fingerprint()
-            .to_le_bytes(),
-    );
 }
 
 pub(super) fn decode_provider_execution(

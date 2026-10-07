@@ -18,7 +18,7 @@ use calling_conventions::{
     StaticMachineBinderId, encode_state_plan_identity,
 };
 use function_identity::{MachineFunctionIdentity, StateKey};
-use legalized_operations::LegalizedNormalizedForeignCall;
+use legalized_operations::{LegalizedNormalizedForeignCall, encode_provider_execution};
 use selected_instructions::{SelectedInstructionId, SelectedNormalizedForeignCall};
 use semantic_vocabulary::{BoundaryMachineId, OperationId, ScalarType, ValueId};
 use symbols::SymbolHandle;
@@ -42,8 +42,7 @@ use super::{
     },
     declarations::{decode_string, decode_target_argument, encode_string, encode_target_argument},
     settlements::{
-        decode_effect, decode_ownership, decode_provider_execution, encode_effect,
-        encode_ownership, encode_provider_execution,
+        decode_effect, decode_ownership, decode_provider_execution, encode_effect, encode_ownership,
     },
 };
 use crate::register_homes::recovery::fixed_view_copy::codec::{

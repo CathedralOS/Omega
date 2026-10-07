@@ -21,3 +21,4 @@ mod ordinary_calls;
 mod read_byte;
 pub use read_byte::encode_hosted_read_byte_identity;
 pub use scalar::{encode_register, encode_scalar_type};
+pub use structural::encode_provider_execution;
