@@ -1,6 +1,7 @@
 //! Snapshots of type references, constraints, open index normalizations and
 //! wire schemas.
 
+use super::to_strings;
 use crate::TypedTrees;
 use crate::name::Identifier;
 use crate::typed_trees::inspection::snapshot::declaration_snapshots::{
@@ -249,7 +250,7 @@ pub(crate) fn type_reference_snapshot(
             ..
         } => TypeReferenceSnapshot::Generic {
             base_name: base_name.to_string(),
-            lifetime_arguments: lifetime_arguments.iter().map(ToString::to_string).collect(),
+            lifetime_arguments: to_strings(lifetime_arguments.iter()),
             arguments: program
                 .type_reference_table
                 .type_reference_handles(*arguments)
@@ -369,5 +370,5 @@ pub(crate) fn type_constraint_snapshot(
 }
 
 pub(crate) fn path_snapshot(path: &[Identifier]) -> Vec<String> {
-    path.iter().map(ToString::to_string).collect()
+    to_strings(path.iter())
 }

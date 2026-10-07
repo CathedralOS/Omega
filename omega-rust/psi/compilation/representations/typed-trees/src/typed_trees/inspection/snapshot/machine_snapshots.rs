@@ -1,6 +1,7 @@
 //! Snapshots of machines, traits, conformances, states, signatures,
 //! contracts and parameters.
 
+use super::to_strings;
 use crate::TypedTrees;
 use crate::domain::ProofFact;
 use crate::machine::{Machine, OwnedData};
@@ -233,11 +234,7 @@ pub(crate) fn machine_snapshot(program: &TypedTrees, machine: &Machine) -> Machi
         attached_data: machine.attached_data.as_ref().map(ToString::to_string),
         spelling: machine.spelling.map(|spelling| spelling.symbol()),
         is_public: machine.is_public,
-        lifetime_parameters: machine
-            .lifetime_parameters
-            .iter()
-            .map(ToString::to_string)
-            .collect(),
+        lifetime_parameters: to_strings(machine.lifetime_parameters.iter()),
         type_parameters: program
             .machine_type_parameters(machine)
             .iter()
@@ -278,11 +275,7 @@ pub(crate) fn machine_snapshot(program: &TypedTrees, machine: &Machine) -> Machi
                     ceiling_inclusive: range.ceiling_inclusive,
                 }),
             }),
-        invokes: program
-            .machine_invokes(machine)
-            .iter()
-            .map(ToString::to_string)
-            .collect(),
+        invokes: to_strings(program.machine_invokes(machine).iter()),
         service_reach: service_reach_names(program, machine.service_reach_row),
         service_reach_is_installation_bound: machine.service_reach_is_installation_bound,
         suspends: machine.suspends,
@@ -371,11 +364,7 @@ pub(crate) fn trait_definition_snapshot(
         name: trait_definition.name.to_string(),
         is_boundary: trait_definition.is_boundary,
         is_public: trait_definition.is_public,
-        lifetime_parameters: trait_definition
-            .lifetime_parameters
-            .iter()
-            .map(ToString::to_string)
-            .collect(),
+        lifetime_parameters: to_strings(trait_definition.lifetime_parameters.iter()),
         type_parameters: program
             .trait_type_parameters(trait_definition)
             .iter()
@@ -468,11 +457,7 @@ pub(crate) fn conformance_snapshot(
             ToString::to_string,
         ),
         is_public: conformance.is_public,
-        lifetime_parameters: conformance
-            .lifetime_parameters
-            .iter()
-            .map(ToString::to_string)
-            .collect(),
+        lifetime_parameters: to_strings(conformance.lifetime_parameters.iter()),
         type_parameters: program
             .conformance_type_parameters(conformance)
             .iter()
@@ -527,11 +512,7 @@ fn state_signature_snapshot(
     StateSignatureSnapshot {
         name: signature.name.to_string(),
         spelling: signature.spelling.map(|spelling| spelling.symbol()),
-        lifetime_parameters: signature
-            .lifetime_parameters
-            .iter()
-            .map(ToString::to_string)
-            .collect(),
+        lifetime_parameters: to_strings(signature.lifetime_parameters.iter()),
         type_parameters: program
             .state_signature_type_parameters(signature)
             .iter()
@@ -553,11 +534,7 @@ fn state_signature_snapshot(
             })
             .collect(),
         return_type: type_reference_snapshot_option(program, signature.return_type),
-        invokes: program
-            .state_signature_invokes(signature)
-            .iter()
-            .map(ToString::to_string)
-            .collect(),
+        invokes: to_strings(program.state_signature_invokes(signature).iter()),
         service_reach: service_reach_names(program, signature.service_reach_row),
         service_reach_is_installation_bound: signature.service_reach_is_installation_bound,
         suspends: signature.suspends,

@@ -1,6 +1,7 @@
 //! Snapshots of the declarations: constants, operators, propositions, data
 //! and quotient definitions, domains and proof facts.
 
+use super::to_strings;
 use crate::TypedTrees;
 use crate::data::{DataDefinition, DataMember};
 use crate::domain::{DomainDefinition, ProofFact};
@@ -76,16 +77,8 @@ pub(crate) fn operator_snapshot(
         is_public: operator.is_public,
         is_boundary: operator.is_boundary,
         has_symbol: operator.symbol.is_valid(),
-        name: program
-            .operator_path_members(operator.name)
-            .iter()
-            .map(ToString::to_string)
-            .collect(),
-        lifetime_parameters: operator
-            .lifetime_parameters
-            .iter()
-            .map(ToString::to_string)
-            .collect(),
+        name: to_strings(program.operator_path_members(operator.name).iter()),
+        lifetime_parameters: to_strings(operator.lifetime_parameters.iter()),
         type_parameters: program
             .data_type_parameters
             .span_or_empty(operator.type_parameters)
@@ -375,11 +368,7 @@ pub(crate) fn data_definition_snapshot(
             language_semantics::DataSupplyMode::BoundaryOpaque => "boundary_opaque",
         }
         .to_owned(),
-        lifetime_parameters: data
-            .lifetime_parameters
-            .iter()
-            .map(ToString::to_string)
-            .collect(),
+        lifetime_parameters: to_strings(data.lifetime_parameters.iter()),
         type_parameters: program
             .data_type_parameters(data)
             .iter()
@@ -393,11 +382,11 @@ pub(crate) fn data_definition_snapshot(
             .as_ref()
             .map(|quotient| QuotientDefinitionSnapshot {
                 carrier: type_reference_snapshot(program, quotient.carrier),
-                relation: quotient.relation.iter().map(ToString::to_string).collect(),
+                relation: to_strings(quotient.relation.iter()),
                 relation_symbol: quotient.relation_symbol.arena_index(),
                 equivalence: quotient.equivalence.as_ref().map(|selection| {
                     QuotientEquivalenceSelectionSnapshot {
-                        relation: selection.relation.iter().map(ToString::to_string).collect(),
+                        relation: to_strings(selection.relation.iter()),
                         relation_symbol: selection.relation_symbol.arena_index(),
                         trait_name: selection.trait_name.to_string(),
                         trait_symbol: selection.trait_symbol.arena_index(),
@@ -502,11 +491,7 @@ pub(crate) fn domain_definition_snapshot(
                     .constituents
                     .iter()
                     .map(|constituent| DomainAliasConstituentSnapshot {
-                        domain: program
-                            .domain_path_members(constituent.domain)
-                            .iter()
-                            .map(ToString::to_string)
-                            .collect(),
+                        domain: to_strings(program.domain_path_members(constituent.domain).iter()),
                         domain_symbol: constituent.domain_symbol.arena_index(),
                     })
                     .collect()
@@ -562,11 +547,7 @@ pub(crate) fn fact_snapshots_for_span(
                 },
                 ProofFact::Membership(membership) => ProofFactSnapshot::Membership {
                     value: expression_snapshot(program, membership.value),
-                    domain: program
-                        .domain_path_members(membership.domain)
-                        .iter()
-                        .map(ToString::to_string)
-                        .collect(),
+                    domain: to_strings(program.domain_path_members(membership.domain).iter()),
                     domain_symbol: membership.domain_symbol.arena_index(),
                     domain_arguments: program
                         .type_reference_table
@@ -781,11 +762,7 @@ pub(crate) fn measure_snapshot(
 ) -> MeasureDefinitionSnapshot {
     MeasureDefinitionSnapshot {
         has_symbol: measure.symbol.is_valid(),
-        name: program
-            .measure_path_members(measure.name)
-            .iter()
-            .map(ToString::to_string)
-            .collect(),
+        name: to_strings(program.measure_path_members(measure.name).iter()),
         parameter: measure
             .parameter
             .as_ref()

@@ -1,6 +1,7 @@
 //! Snapshots of statements, transitions, match arms, expressions and static
 //! arguments.
 
+use super::to_strings;
 use crate::TypedTrees;
 use crate::expression::{ExpressionHandle, ExpressionNode};
 use crate::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
@@ -232,12 +233,8 @@ pub(crate) fn statement_snapshot(
     match statement {
         StatementNode::RootBinding(binding) => StatementSnapshot::RootBinding {
             receiver: expression_snapshot(program, binding.receiver),
-            slot: binding.slot.iter().map(ToString::to_string).collect(),
-            implementation: binding
-                .implementation
-                .iter()
-                .map(ToString::to_string)
-                .collect(),
+            slot: to_strings(binding.slot.iter()),
+            implementation: to_strings(binding.implementation.iter()),
             implementation_operand: binding
                 .implementation_operand
                 .is_valid()
@@ -264,11 +261,7 @@ pub(crate) fn statement_snapshot(
                 .map(|argument| snapshot_static_argument(program, argument))
                 .collect(),
             arguments: statement_expression_span_snapshot(program, call.arguments),
-            evidence_arguments: call
-                .evidence_arguments
-                .iter()
-                .map(ToString::to_string)
-                .collect(),
+            evidence_arguments: to_strings(call.evidence_arguments.iter()),
             acknowledgement_synthesized: call.operational_acknowledgement.origin
                 == language_semantics::CallOperationalAcknowledgementOrigin::CompilerSynthesized,
             acknowledges_suspend: call.operational_acknowledgement.acknowledges_suspend,
@@ -443,11 +436,7 @@ pub(crate) fn expression_snapshot(
                 .as_ref()
                 .map(|operation| snapshot_static_argument(program, &operation.selected_slot)),
             arguments: expression_span_snapshot(program, call.arguments),
-            evidence_arguments: call
-                .evidence_arguments
-                .iter()
-                .map(ToString::to_string)
-                .collect(),
+            evidence_arguments: to_strings(call.evidence_arguments.iter()),
             acknowledgement_synthesized: call.operational_acknowledgement.origin
                 == language_semantics::CallOperationalAcknowledgementOrigin::CompilerSynthesized,
             acknowledges_suspend: call.operational_acknowledgement.acknowledges_suspend,

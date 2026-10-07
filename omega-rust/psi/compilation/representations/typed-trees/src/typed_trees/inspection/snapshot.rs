@@ -794,3 +794,7 @@ pub struct TypedTableSnapshot {
     pub ranking_expression_custody_count: usize,
     pub pending_const_range_endpoint_count: usize,
 }
+
+pub(crate) fn to_strings<T: ToString>(values: impl IntoIterator<Item = T>) -> Vec<String> {
+    values.into_iter().map(|value| value.to_string()).collect()
+}
