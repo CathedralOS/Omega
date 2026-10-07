@@ -162,18 +162,7 @@ pub(crate) fn judge_scalar_recast(
                 source,
                 target_representation.size as i64,
             );
-            if let InteriorByteRegion::OffsetUnproven {
-                offset_display,
-                region_length,
-            } = &interior
-            {
-                push_offset_unproven(
-                    diagnostics,
-                    &context,
-                    offset_display,
-                    *region_length,
-                    source_span,
-                );
+            if interior_offset_unproven_rejected(&interior, diagnostics, &context, source_span) {
                 return;
             }
             if let InteriorByteRegion::Bounded {
@@ -308,18 +297,7 @@ pub(crate) fn judge_scalar_recast(
     let footprint = target.scalar_byte_size().map_or(0, |size| size as i64);
     let interior =
         interior_byte_region_source(program, machine, state, statement_index, source, footprint);
-    if let InteriorByteRegion::OffsetUnproven {
-        offset_display,
-        region_length,
-    } = &interior
-    {
-        push_offset_unproven(
-            diagnostics,
-            &context,
-            offset_display,
-            *region_length,
-            source_span,
-        );
+    if interior_offset_unproven_rejected(&interior, diagnostics, &context, source_span) {
         return;
     }
     if let InteriorByteRegion::Bounded {
@@ -476,6 +454,25 @@ pub(crate) fn judge_scalar_recast(
 }
 
 #[allow(clippy::too_many_arguments)]
+/// Reject with the shared unproven-offset diagnostic when `interior`
+/// carries the `OffsetUnproven` region kind.
+fn interior_offset_unproven_rejected(
+    interior: &InteriorByteRegion,
+    diagnostics: &mut Vec<Diagnostic>,
+    context: &str,
+    source_span: source::SourceSpan,
+) -> bool {
+    if let InteriorByteRegion::OffsetUnproven {
+        offset_display,
+        region_length,
+    } = interior
+    {
+        push_offset_unproven(diagnostics, context, offset_display, *region_length, source_span);
+        return true;
+    }
+    false
+}
+
 fn judge_slice_recast(
     program: &TypedTrees,
     machine: &typed_trees::machine::Machine,
@@ -520,18 +517,7 @@ fn judge_slice_recast(
     // to the fixed aggregate/scalar interior rungs: raw bytes may establish
     // only recursively fact-free, exactly tiled element representations.
     let interior = interior_byte_region_source(program, machine, state, statement_index, source, 0);
-    if let InteriorByteRegion::OffsetUnproven {
-        offset_display,
-        region_length,
-    } = &interior
-    {
-        push_offset_unproven(
-            diagnostics,
-            context,
-            offset_display,
-            *region_length,
-            source_span,
-        );
+    if interior_offset_unproven_rejected(&interior, diagnostics, context, source_span) {
         return;
     }
     if let InteriorByteRegion::Bounded {
