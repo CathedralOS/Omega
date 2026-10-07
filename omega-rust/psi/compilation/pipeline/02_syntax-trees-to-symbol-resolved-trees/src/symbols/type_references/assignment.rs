@@ -39,58 +39,51 @@ pub(in crate::symbols) fn assign_generic_application_origin_symbols(
     }
 }
 
+/// For each trait, the flag each of its type parameters gets from
+/// `predicate` — the (trait symbol, per-parameter flags) rows the later
+/// argument walks join on.
+fn trait_parameter_slots(
+    program: &SymbolResolvedTrees,
+    predicate: impl Fn(&symbol_resolved_trees::data::TypeParameter) -> bool,
+) -> Vec<(SymbolHandle, Vec<bool>)> {
+    program
+        .roots
+        .traits
+        .iter()
+        .map(|trait_definition| {
+            (
+                trait_definition.symbol,
+                program
+                    .tables
+                    .declarations
+                    .data_type_parameters
+                    .span_or_empty(trait_definition.type_parameters)
+                    .iter()
+                    .map(|parameter| predicate(parameter))
+                    .collect::<Vec<_>>(),
+            )
+        })
+        .collect::<Vec<_>>()
+}
+
 pub(in crate::symbols) fn assign_type_reference_symbols(
     program: &mut SymbolResolvedTrees,
     symbols: &SymbolTable,
 ) {
-    let trait_proposition_slots = program
-        .roots
-        .traits
-        .iter()
-        .map(|trait_definition| {
-            (
-                trait_definition.symbol,
-                program
-                    .tables
-                    .declarations
-                    .data_type_parameters
-                    .span_or_empty(trait_definition.type_parameters)
-                    .iter()
-                    .map(|parameter| {
-                        matches!(
-                            parameter.kind,
-                            symbol_resolved_trees::data::TypeParameterKind::Proposition { .. }
-                        )
-                    })
-                    .collect::<Vec<_>>(),
-            )
-        })
-        .collect::<Vec<_>>();
-    let trait_machine_identity_slots = program
-        .roots
-        .traits
-        .iter()
-        .map(|trait_definition| {
-            (
-                trait_definition.symbol,
-                program
-                    .tables
-                    .declarations
-                    .data_type_parameters
-                    .span_or_empty(trait_definition.type_parameters)
-                    .iter()
-                    .map(|parameter| {
-                        matches!(
-                            parameter.kind,
-                            symbol_resolved_trees::data::TypeParameterKind::Machine {
-                                contract: symbol_resolved_trees::data::MachineParameterContract::RequirementIdentity
-                            }
-                        )
-                    })
-                    .collect::<Vec<_>>(),
-            )
-        })
-        .collect::<Vec<_>>();
+    let trait_proposition_slots = trait_parameter_slots(program, |parameter| {
+        matches!(
+            parameter.kind,
+            symbol_resolved_trees::data::TypeParameterKind::Proposition { .. }
+        )
+    });
+    let trait_machine_identity_slots = trait_parameter_slots(program, |parameter| {
+        matches!(
+            parameter.kind,
+            symbol_resolved_trees::data::TypeParameterKind::Machine {
+                contract: symbol_resolved_trees::data::MachineParameterContract::RequirementIdentity
+            }
+        )
+    });
     let type_constraints = &program.tables.types.constraints;
     let data_type_parameters = &mut program.tables.declarations.data_type_parameters;
     let data_members = &mut program.tables.declarations.data_members;
