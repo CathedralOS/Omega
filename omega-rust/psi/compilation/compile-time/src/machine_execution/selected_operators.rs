@@ -217,25 +217,46 @@ pub(crate) fn prepare_selected_execution(
 /// execution: the authored use, the selected requirement, the exact provider
 /// machine, its executable entry, its nominal owner, and its checked
 /// conformance must all rejoin before the private call is formed.
+/// Every selected row must name a non-empty provider whose
+/// (expression, owning machine) pair is unique — the dedup both custody
+/// checks run before counting occurrences. `None` means nothing was
+/// selected at all.
+fn require_unique_operator_custody<T>(
+    program: &TypedTrees,
+    selected: &[T],
+    object: &str,
+    custody: impl Fn(&T) -> Option<(ExpressionHandle, Option<symbols::SymbolHandle>)>,
+) -> Result<Option<checked_trees::CheckedOperatorFacts>, String> {
+    if selected.is_empty() {
+        return Ok(None);
+    }
+    let facts = typed_trees_to_checked_trees::derive_pre_flow_operator_selections(program);
+    for (index, row) in selected.iter().enumerate() {
+        let key = custody(row);
+        if key.is_none() || selected[..index].iter().any(|prior| custody(prior) == key) {
+            return Err(format!("{object} lacks unique exact provider custody"));
+        }
+    }
+    Ok(Some(facts))
+}
+
 pub fn validate_selected_provider_bodies(
     program: &TypedTrees,
     selected: &[SelectedBuildTimeProviderBody],
 ) -> Result<(), String> {
-    if selected.is_empty() {
+    let Some(facts) = require_unique_operator_custody(
+        program,
+        selected,
+        "selected build-time provider body",
+        |row| {
+            (!row.provider.is_empty())
+                .then_some((row.expression, row.origin.machine_symbol()))
+        },
+    )?
+    else {
         return Ok(());
-    }
-    let facts = typed_trees_to_checked_trees::derive_pre_flow_operator_selections(program);
-    for (index, row) in selected.iter().enumerate() {
-        if row.provider.is_empty()
-            || selected[..index].iter().any(|prior| {
-                prior.expression == row.expression
-                    && prior.origin.machine_symbol() == row.origin.machine_symbol()
-            })
-        {
-            return Err(
-                "selected build-time provider body lacks unique exact provider custody".into(),
-            );
-        }
+    };
+    for row in selected.iter() {
         // A provider body retains exactly one current use: a spelled
         // occurrence, named operator call or normalized requirement call.
         // The fact arenas are disjoint; duplicates across them still reject.
@@ -585,19 +606,19 @@ pub fn validate_selected_operators(
             "selected operator crash invocations have no build-time execution support".into(),
         );
     }
-    if selected.is_empty() {
+    let Some(facts) = require_unique_operator_custody(
+        program,
+        selected,
+        "selected build-time operator",
+        |row| {
+            (!row.provider.is_empty())
+                .then_some((row.expression, row.origin.machine_symbol()))
+        },
+    )?
+    else {
         return Ok(());
-    }
-    let facts = typed_trees_to_checked_trees::derive_pre_flow_operator_selections(program);
-    for (index, row) in selected.iter().enumerate() {
-        if row.provider.is_empty()
-            || selected[..index].iter().any(|prior| {
-                prior.expression == row.expression
-                    && prior.origin.machine_symbol() == row.origin.machine_symbol()
-            })
-        {
-            return Err("selected build-time operator lacks unique exact provider custody".into());
-        }
+    };
+    for row in selected.iter() {
         // All source forms address the same expression in its owning frame.
         // Count unresolved and cross-arena occurrences too: neither can borrow
         // another occurrence's supplied execution.
