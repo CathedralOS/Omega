@@ -240,16 +240,11 @@ pub(in crate::text_placement::placement) fn place(
     Ok(section)
 }
 
-/// Keep a literal address field unresolved: record its section coordinates
-/// and require the placed bytes to still hold the canonical zero field.
-fn place_byte_literal_address(
-    machine: semantic_vocabulary::MachineId,
-    block: selected_instructions::SelectedBlockId,
+fn check_address_fields(
     instruction: &machine_code::FunctionFragmentInstructionSpan,
-    section_offset: u64,
-    fixup: machine_code::FunctionFragmentByteLiteralAddressFixup,
+    fields: machine_code::ByteLiteralAddressFields,
     function_bytes: &[u8],
-) -> Result<machine_code::PlacedByteLiteralAddress, TextPlacementError> {
+) -> Result<(), TextPlacementError> {
     let instruction_end = instruction
         .offset
         .checked_add(usize_to_u64(instruction.bytes.len())?)
@@ -262,7 +257,7 @@ fn place_byte_literal_address(
         let start = usize::try_from(offset).ok()?;
         function_bytes.get(start..start.checked_add(4)?)
     };
-    let canonical = match fixup.fields {
+    let canonical = match fields {
         machine_code::ByteLiteralAddressFields::X86_64Relative32 { patch_offset } => {
             field(patch_offset) == Some(&[0, 0, 0, 0][..])
         }
@@ -283,6 +278,20 @@ fn place_byte_literal_address(
     if !canonical || instruction.branch.is_some() {
         return Err(TextPlacementError::SourceShapeMismatch);
     }
+    Ok(())
+}
+
+/// Keep a literal address field unresolved: record its section coordinates
+/// and require the placed bytes to still hold the canonical zero field.
+fn place_byte_literal_address(
+    machine: semantic_vocabulary::MachineId,
+    block: selected_instructions::SelectedBlockId,
+    instruction: &machine_code::FunctionFragmentInstructionSpan,
+    section_offset: u64,
+    fixup: machine_code::FunctionFragmentByteLiteralAddressFixup,
+    function_bytes: &[u8],
+) -> Result<machine_code::PlacedByteLiteralAddress, TextPlacementError> {
+    check_address_fields(instruction, fixup.fields, function_bytes)?;
     Ok(machine_code::PlacedByteLiteralAddress {
         machine,
         block,
@@ -308,39 +317,7 @@ fn place_implementation_table_address(
     fixup: machine_code::FunctionFragmentImplementationTableAddressFixup,
     function_bytes: &[u8],
 ) -> Result<machine_code::PlacedImplementationTableAddress, TextPlacementError> {
-    let instruction_end = instruction
-        .offset
-        .checked_add(usize_to_u64(instruction.bytes.len())?)
-        .ok_or(TextPlacementError::OffsetOverflow)?;
-    // The four field bytes, when they lie inside this instruction's span.
-    let field = |offset: u64| {
-        if offset < instruction.offset || offset.checked_add(4)? > instruction_end {
-            return None;
-        }
-        let start = usize::try_from(offset).ok()?;
-        function_bytes.get(start..start.checked_add(4)?)
-    };
-    let canonical = match fixup.fields {
-        machine_code::ByteLiteralAddressFields::X86_64Relative32 { patch_offset } => {
-            field(patch_offset) == Some(&[0, 0, 0, 0][..])
-        }
-        machine_code::ByteLiteralAddressFields::Aarch64PageAddress {
-            page_patch_offset,
-            page_offset_patch_offset,
-        } => {
-            // `adrp` with zero immlo/immhi, then `add` with a zero imm12.
-            let word = |offset| {
-                field(offset)
-                    .map(|field| u32::from_le_bytes([field[0], field[1], field[2], field[3]]))
-            };
-            word(page_patch_offset).is_some_and(|word| word & 0x9fff_ffe0 == 0x9000_0000)
-                && word(page_offset_patch_offset)
-                    .is_some_and(|word| word & 0xffff_fc00 == 0x9100_0000)
-        }
-    };
-    if !canonical || instruction.branch.is_some() {
-        return Err(TextPlacementError::SourceShapeMismatch);
-    }
+    check_address_fields(instruction, fixup.fields, function_bytes)?;
     Ok(machine_code::PlacedImplementationTableAddress {
         machine,
         block,
