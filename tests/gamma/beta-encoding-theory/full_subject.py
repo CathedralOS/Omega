@@ -42,14 +42,15 @@ import hashlib
 import os
 import struct
 import sys
-import threading
 import time
 from pathlib import Path
 
 GATE_DIR = Path(__file__).resolve().parent
 sys.path.append(str(GATE_DIR))
+sys.path.append(str(GATE_DIR.parent))
 sys.path.append(str(GATE_DIR.parent / "derivation-layout"))
 
+import deep_stack  # noqa: E402
 import identity  # noqa: E402
 from lexical import certificate, envelope, proposition, record  # noqa: E402
 from stepper import Stepper, Theory  # noqa: E402
@@ -379,26 +380,13 @@ def main():
             "usage: full_subject.py [--emit-request PATH]")
     # evaluate()/prove() recursion follows the derivation's premise depth;
     # run on a thread with an explicitly large stack like any deep fold.
-    failure = []
+    def work():
+        if emit_path is None:
+            produce()
+        else:
+            emit_request(emit_path)
 
-    def run():
-        try:
-            if emit_path is None:
-                produce()
-            else:
-                emit_request(emit_path)
-        except BaseException as error:
-            failure.append(error)
-
-    try:
-        threading.stack_size(512 * 1024 * 1024)
-    except (ValueError, RuntimeError):
-        pass
-    worker = threading.Thread(target=run)
-    worker.start()
-    worker.join()
-    if failure:
-        raise failure[0]
+    deep_stack.run(work)
 
 
 if __name__ == "__main__":

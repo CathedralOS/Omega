@@ -15,7 +15,6 @@ import hashlib
 import struct
 import subprocess
 import sys
-import threading
 import time
 from pathlib import Path
 
@@ -25,10 +24,12 @@ GATE_DIR = Path(__file__).resolve().parent
 # `prepare` emits the theory through the evaluator) and fixtures. Modules
 # that exist only under derivation-layout (wire, groups, physical_cases)
 # still resolve from the second entry.
+sys.path.append(str(GATE_DIR.parent))
 sys.path.append(str(GATE_DIR.parent / "beta-encoding-theory"))
 sys.path.append(str(GATE_DIR.parent / "derivation-layout"))
 
 import full_subject  # noqa: E402
+import deep_stack  # noqa: E402
 import gate as theory_gate  # noqa: E402
 from lexical import certificate, envelope, proposition, record  # noqa: E402
 from stepper import Stepper, Theory  # noqa: E402
@@ -147,27 +148,12 @@ def main():
         raise SystemExit("usage: check.py PREPARED_DIRECTORY "
                          "(producer.gamma, checker.gamma, evaluator)")
     temporary = Path(sys.argv[1]).resolve()
-    failure = []
+    def work():
+        evaluator, _, checker, definitions = theory_gate.prepare(temporary)
+        request = build_request(definitions)
+        check(evaluator, checker, request)
 
-    def run():
-        try:
-            evaluator, _, checker, definitions = theory_gate.prepare(temporary)
-            request = build_request(definitions)
-            check(evaluator, checker, request)
-        except BaseException as error:
-            failure.append(error)
-
-    # stepper.prove() recursion follows the derivation's premise depth; run on
-    # a thread with an explicitly large stack like the production gate.
-    try:
-        threading.stack_size(512 * 1024 * 1024)
-    except (ValueError, RuntimeError):
-        pass
-    worker = threading.Thread(target=run)
-    worker.start()
-    worker.join()
-    if failure:
-        raise failure[0]
+    deep_stack.run(work)
     print("certificate check: complete certificate checked under the exact "
           "profile; mutation controls and rule retention remain open",
           flush=True)
