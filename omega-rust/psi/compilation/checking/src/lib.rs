@@ -83,6 +83,7 @@ pub use value_custody::structural_identity::{
     structural_type_identity,
 };
 pub use value_custody::transition_operand_moves::transition_operand_moves;
+pub use value_custody::wire::validate_wire_protocol;
 
 /// The sealed operation an [`AtomicCarrierAccess`] names.
 pub use access_plans::AtomicAccessOperation;

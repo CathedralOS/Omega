@@ -5,7 +5,7 @@ use super::schemas::{SchemaRow, qualified_schema_path};
 use super::{WireCompatibilityDemand, WireDemandVerdict, WireFact, WireField, WireShape};
 
 pub(super) fn compatibility_demand_verdict(
-    typed: &dyn ::validation::CheckingInput,
+    typed: &dyn crate::CheckingInput,
     rows: &[SchemaRow],
     demand: &WireCompatibilityDemand,
 ) -> WireDemandVerdict {
@@ -145,7 +145,7 @@ pub(super) fn compatibility_demand_verdict(
 /// decode stops `PreserveUnknown` demands from being unsatisfiable. Returns
 /// the diagnostic detail naming the realizing machine.
 fn published_preserving_decode(
-    typed: &dyn ::validation::CheckingInput,
+    typed: &dyn crate::CheckingInput,
     value_symbol: symbols::SymbolHandle,
 ) -> Option<String> {
     typed

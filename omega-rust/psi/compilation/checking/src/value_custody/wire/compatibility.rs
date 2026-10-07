@@ -18,8 +18,8 @@ use observations::{WireCase, WireDemandVerdict, WireFact, WireField, WireShape};
 use schemas::check_wire_demands;
 
 /// Reject unmet directional compatibility facts.
-pub(crate) fn validate_wire_protocol(
-    typed: &dyn ::validation::CheckingInput,
+pub fn validate_wire_protocol(
+    typed: &dyn crate::CheckingInput,
     compatibility_demands: &[WireCompatibilityDemand],
 ) -> Result<(), Vec<Diagnostic>> {
     validate_wire_demands(&check_wire_demands(typed, compatibility_demands))

@@ -59,7 +59,6 @@ mod preparation;
 mod proof;
 mod semantic;
 mod values;
-mod wire_compatibility;
 
 // Beside the route.
 mod conformance;

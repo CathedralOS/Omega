@@ -13,7 +13,7 @@ pub(super) struct SchemaRow {
 }
 
 pub(super) fn check_wire_demands(
-    typed: &dyn ::validation::CheckingInput,
+    typed: &dyn crate::CheckingInput,
     compatibility_demands: &[WireCompatibilityDemand],
 ) -> Vec<WireDemandVerdict> {
     if compatibility_demands.is_empty() {
@@ -64,7 +64,7 @@ pub(super) fn check_wire_demands(
 }
 
 pub(super) fn qualified_schema_path(
-    typed: &dyn ::validation::CheckingInput,
+    typed: &dyn crate::CheckingInput,
     symbol: symbols::SymbolHandle,
     fallback_name: &str,
 ) -> String {
@@ -77,7 +77,7 @@ pub(super) fn qualified_schema_path(
 }
 
 fn ordinary_data_shape(
-    typed: &dyn ::validation::CheckingInput,
+    typed: &dyn crate::CheckingInput,
     data: &typed_trees::data::DataDefinition,
 ) -> Option<WireShape> {
     use typed_trees::data::DataMember;
@@ -138,7 +138,7 @@ fn ordinary_data_shape(
 }
 
 fn collect_fields(
-    typed: &dyn ::validation::CheckingInput,
+    typed: &dyn crate::CheckingInput,
     members: HandleSpan<WireMember>,
 ) -> Vec<WireField> {
     typed
@@ -155,7 +155,7 @@ fn collect_fields(
         .collect()
 }
 
-fn schema_shape(typed: &dyn ::validation::CheckingInput, schema: &WireSchema) -> WireShape {
+fn schema_shape(typed: &dyn crate::CheckingInput, schema: &WireSchema) -> WireShape {
     WireShape {
         name: schema.name.to_string(),
         encoding: schema

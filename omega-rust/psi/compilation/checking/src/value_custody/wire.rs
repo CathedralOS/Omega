@@ -1,7 +1,11 @@
 //! Wire schemas: the schema declarations, and calls to the `encode` and
 //! `decode` machines the compiler synthesizes for each schema.
 //!
-//! Two entrances. `validate_wire_schemas` (`schema_validation`) runs once from
+//! `compatibility::validate_wire_protocol` judges invocation-owned directional
+//! schema demands before preparation or memoized checking can reuse a judgment.
+//! Build supplies those demands, not a compatibility verdict.
+//!
+//! `validate_wire_schemas` (`schema_validation`) runs once from
 //! `program_validation::validate`. For each schema it rejects a duplicate
 //! schema name and duplicate version names, checks field numbering, field
 //! types and nested version blocks in each version era and in the current
@@ -18,11 +22,13 @@
 
 use diagnostics::Diagnostic;
 
+mod compatibility;
 mod decode_call;
 mod encode_call;
 mod schema_validation;
 mod value_fields;
 
+pub use compatibility::validate_wire_protocol;
 use decode_call::validate_wire_decode_call;
 use encode_call::validate_wire_encode_call;
 pub(crate) use schema_validation::validate_wire_schemas;

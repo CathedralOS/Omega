@@ -38,10 +38,7 @@ pub fn prepare_typed_trees(
     // Wire validity is part of this stage's contract, not an optional report
     // pass in a product compiler. Demands are invocation-owned, so recheck them
     // before any exact-input memo can return a prior language judgment.
-    crate::wire_compatibility::validate_wire_protocol(
-        &program,
-        request.wire_compatibility_demands,
-    )?;
+    validation::validate_wire_protocol(&program, request.wire_compatibility_demands)?;
     // Input completeness belongs to this stage.
     if !request.admits_pending_inputs {
         deferred_constants::require_evaluated_constants(&program)?;
