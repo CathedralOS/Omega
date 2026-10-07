@@ -122,21 +122,4 @@ impl LiveProofCertifiedIntegerIdentityEliminationRule {
     }
 }
 
-impl PsiOptimizationRule for LiveProofCertifiedIntegerIdentityEliminationRule {
-    fn contract(&self) -> OptimizationRuleContract {
-        Self::contract()
-    }
-
-    fn propose(
-        &self,
-        unit: &PsiOptimizationUnit,
-        analyses: RuleAnalysisView<'_>,
-    ) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> {
-        propose_proof_certified_scalar_identities(
-            unit,
-            analyses,
-            Self::contract(),
-            proof_certified_scalar_identity_shapes,
-        )
-    }
-}
+psi_optimization_rule_delegate!(LiveProofCertifiedIntegerIdentityEliminationRule, propose = propose_proof_certified_scalar_identities, contract = Self::contract(),proof_certified_scalar_identity_shapes);

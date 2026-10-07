@@ -91,21 +91,4 @@ impl LiveProofCertifiedExactIntegerMultiplyByZeroEliminationRule {
     }
 }
 
-impl PsiOptimizationRule for LiveProofCertifiedExactIntegerMultiplyByZeroEliminationRule {
-    fn contract(&self) -> OptimizationRuleContract {
-        Self::contract()
-    }
-
-    fn propose(
-        &self,
-        unit: &PsiOptimizationUnit,
-        analyses: RuleAnalysisView<'_>,
-    ) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> {
-        propose_proof_certified_scalar_identities(
-            unit,
-            analyses,
-            Self::contract(),
-            proof_certified_exact_integer_multiply_by_zero_shapes,
-        )
-    }
-}
+psi_optimization_rule_delegate!(LiveProofCertifiedExactIntegerMultiplyByZeroEliminationRule, propose = propose_proof_certified_scalar_identities, contract = Self::contract(),proof_certified_exact_integer_multiply_by_zero_shapes);

@@ -24,19 +24,7 @@ impl SaturatingNeutralArithmeticIdentityRule {
     }
 }
 
-impl PsiOptimizationRule for SaturatingNeutralArithmeticIdentityRule {
-    fn contract(&self) -> OptimizationRuleContract {
-        Self::contract()
-    }
-
-    fn propose(
-        &self,
-        unit: &PsiOptimizationUnit,
-        analyses: RuleAnalysisView<'_>,
-    ) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> {
-        propose_total_scalar_identities(unit, analyses, Self::contract(), classify)
-    }
-}
+psi_optimization_rule_delegate!(SaturatingNeutralArithmeticIdentityRule, propose = propose_total_scalar_identities, contract = Self::contract(),classify);
 
 /// Return the five saturating neutral laws in canonical tie order.
 ///

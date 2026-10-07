@@ -24,19 +24,7 @@ impl WrappingMultiplyZeroAnnihilationRule {
     }
 }
 
-impl PsiOptimizationRule for WrappingMultiplyZeroAnnihilationRule {
-    fn contract(&self) -> OptimizationRuleContract {
-        Self::contract()
-    }
-
-    fn propose(
-        &self,
-        unit: &PsiOptimizationUnit,
-        analyses: RuleAnalysisView<'_>,
-    ) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> {
-        propose_total_scalar_identities(unit, analyses, Self::contract(), classify)
-    }
-}
+psi_optimization_rule_delegate!(WrappingMultiplyZeroAnnihilationRule, propose = propose_total_scalar_identities, contract = Self::contract(),classify);
 
 /// Return left-zero then right-zero so ties remain deterministic.
 pub(super) fn classify(operation: &O) -> Vec<TotalScalarIdentityShape> {

@@ -38,25 +38,7 @@ impl LiveProofCertifiedExactIntegerSelfSubtractEliminationRule {
     }
 }
 
-impl PsiOptimizationRule for LiveProofCertifiedExactIntegerSelfSubtractEliminationRule {
-    fn contract(&self) -> OptimizationRuleContract {
-        Self::contract()
-    }
-
-    fn propose(
-        &self,
-        unit: &PsiOptimizationUnit,
-        analyses: RuleAnalysisView<'_>,
-    ) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> {
-        propose_proof_certified_integer_constants(
-            unit,
-            analyses,
-            Self::contract,
-            classify,
-            integer_zero,
-        )
-    }
-}
+psi_optimization_rule_delegate!(LiveProofCertifiedExactIntegerSelfSubtractEliminationRule, propose = propose_proof_certified_integer_constants, contract = Self::contract,classify,integer_zero);
 
 fn classify(operation: &O) -> Option<(&OperationId, &ValueId, &IntegerType)> {
     let O::IntegerArithmetic {

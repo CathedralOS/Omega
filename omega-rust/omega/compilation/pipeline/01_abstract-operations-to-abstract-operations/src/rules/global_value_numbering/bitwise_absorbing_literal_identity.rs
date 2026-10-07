@@ -24,19 +24,7 @@ impl BitwiseAbsorbingLiteralIdentityRule {
     }
 }
 
-impl PsiOptimizationRule for BitwiseAbsorbingLiteralIdentityRule {
-    fn contract(&self) -> OptimizationRuleContract {
-        Self::contract()
-    }
-
-    fn propose(
-        &self,
-        unit: &PsiOptimizationUnit,
-        analyses: RuleAnalysisView<'_>,
-    ) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> {
-        propose_total_scalar_identities(unit, analyses, Self::contract(), classify)
-    }
-}
+psi_optimization_rule_delegate!(BitwiseAbsorbingLiteralIdentityRule, propose = propose_total_scalar_identities, contract = Self::contract(),classify);
 
 /// Return the four exact-width absorbing laws in canonical operation and
 /// left-literal/right-literal order. The law operand is also the replacement.

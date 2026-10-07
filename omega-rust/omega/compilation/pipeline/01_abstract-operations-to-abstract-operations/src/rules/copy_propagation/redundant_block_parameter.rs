@@ -42,19 +42,7 @@ impl RedundantBlockParameterRule {
     }
 }
 
-impl PsiOptimizationRule for RedundantBlockParameterRule {
-    fn contract(&self) -> OptimizationRuleContract {
-        Self::contract()
-    }
-
-    fn propose(
-        &self,
-        unit: &PsiOptimizationUnit,
-        analyses: RuleAnalysisView<'_>,
-    ) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> {
-        propose(unit, analyses, Self::contract())
-    }
-}
+psi_optimization_rule_delegate!(RedundantBlockParameterRule, propose = propose, contract = Self::contract());
 
 pub(super) fn propose(
     unit: &PsiOptimizationUnit,

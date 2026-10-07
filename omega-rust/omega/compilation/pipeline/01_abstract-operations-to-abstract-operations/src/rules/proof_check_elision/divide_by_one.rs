@@ -88,21 +88,4 @@ impl LiveProofCertifiedIntegerDivideByOneEliminationRule {
     }
 }
 
-impl PsiOptimizationRule for LiveProofCertifiedIntegerDivideByOneEliminationRule {
-    fn contract(&self) -> OptimizationRuleContract {
-        Self::contract()
-    }
-
-    fn propose(
-        &self,
-        unit: &PsiOptimizationUnit,
-        analyses: RuleAnalysisView<'_>,
-    ) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> {
-        propose_proof_certified_scalar_identities(
-            unit,
-            analyses,
-            Self::contract(),
-            proof_certified_integer_divide_by_one_shapes,
-        )
-    }
-}
+psi_optimization_rule_delegate!(LiveProofCertifiedIntegerDivideByOneEliminationRule, propose = propose_proof_certified_scalar_identities, contract = Self::contract(),proof_certified_integer_divide_by_one_shapes);

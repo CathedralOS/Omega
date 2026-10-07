@@ -35,19 +35,7 @@ impl DeadScalarLiteralEliminationRule {
     }
 }
 
-impl PsiOptimizationRule for DeadScalarLiteralEliminationRule {
-    fn contract(&self) -> OptimizationRuleContract {
-        Self::contract()
-    }
-
-    fn propose(
-        &self,
-        unit: &PsiOptimizationUnit,
-        analyses: RuleAnalysisView<'_>,
-    ) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> {
-        propose_unproved_dead_scalar_nodes(unit, analyses, Self::contract(), classify)
-    }
-}
+psi_optimization_rule_delegate!(DeadScalarLiteralEliminationRule, propose = propose_unproved_dead_scalar_nodes, contract = Self::contract(),classify);
 
 pub(super) fn classify(operation: &O) -> Option<DeadScalarShape> {
     match operation {

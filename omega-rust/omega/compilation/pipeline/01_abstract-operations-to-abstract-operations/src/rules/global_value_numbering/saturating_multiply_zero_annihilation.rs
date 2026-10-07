@@ -24,19 +24,7 @@ impl SaturatingMultiplyZeroAnnihilationRule {
     }
 }
 
-impl PsiOptimizationRule for SaturatingMultiplyZeroAnnihilationRule {
-    fn contract(&self) -> OptimizationRuleContract {
-        Self::contract()
-    }
-
-    fn propose(
-        &self,
-        unit: &PsiOptimizationUnit,
-        analyses: RuleAnalysisView<'_>,
-    ) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> {
-        propose_total_scalar_identities(unit, analyses, Self::contract(), classify)
-    }
-}
+psi_optimization_rule_delegate!(SaturatingMultiplyZeroAnnihilationRule, propose = propose_total_scalar_identities, contract = Self::contract(),classify);
 
 /// Return the two saturating multiplication annihilation laws in canonical
 /// left-zero/right-zero order. The zero operand is also the replacement.

@@ -21,6 +21,29 @@ const STATE_SPECIALIZATION_PASS_NAME: &[u8] = b"omega.psi-pass.state-specializat
 const REPRESENTATION_SPECIALIZATION_PASS_NAME: &[u8] =
     b"omega.psi-pass.representation-specialization.v1";
 
+/// The closed rule surface every classify-driven rule exposes: its
+/// contract plus a proposal that forwards unit, analyses and the contract
+/// into a shared propose helper with the rule's classify extras. One
+/// declarative row per rule type expands that impl; rules whose proposal
+/// does its own analysis plumbing keep their handwritten impl.
+macro_rules! psi_optimization_rule_delegate {
+    ($name:ident, propose = $propose:ident, contract = $contract:expr $(, $extra:expr)*) => {
+        impl PsiOptimizationRule for $name {
+            fn contract(&self) -> OptimizationRuleContract {
+                Self::contract()
+            }
+
+            fn propose(
+                &self,
+                unit: &PsiOptimizationUnit,
+                analyses: RuleAnalysisView<'_>,
+            ) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> {
+                $propose(unit, analyses, $contract, $($extra),*)
+            }
+        }
+    };
+}
+
 mod accepted_obligations;
 mod catalog;
 mod node_elision;

@@ -29,19 +29,7 @@ impl ExactIntegerCastConstantsRule {
     }
 }
 
-impl PsiOptimizationRule for ExactIntegerCastConstantsRule {
-    fn contract(&self) -> OptimizationRuleContract {
-        Self::contract()
-    }
-
-    fn propose(
-        &self,
-        unit: &PsiOptimizationUnit,
-        analyses: RuleAnalysisView<'_>,
-    ) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> {
-        propose(unit, analyses, Self::contract())
-    }
-}
+psi_optimization_rule_delegate!(ExactIntegerCastConstantsRule, propose = propose, contract = Self::contract());
 
 fn propose(
     unit: &PsiOptimizationUnit,
