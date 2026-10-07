@@ -167,8 +167,8 @@ struct BindingVocabulary {
 
 /// Evaluate every ordinary `via` leaf exactly once and retain the resulting
 /// atomic normalized import plus its durable evaluation receipt.
-/// This transitional settlement evaluates only this realization's machines;
-/// typed conformance queries retain every body's semantic obligations.
+/// Evaluation discloses all authored members under their own targets. The
+/// selected provider derivation, not this population, narrows execution.
 pub fn evaluate_via_bindings(
     context: ProviderPlanningContext<'_>,
     selected_target: Option<TargetProfile>,
@@ -178,7 +178,7 @@ pub fn evaluate_via_bindings(
     let pending = typed
         .machines()
         .iter()
-        .filter(|machine| machine.target.is_none() && context.contains(machine.symbol))
+        .filter(|machine| context.contains(machine.symbol))
         .flat_map(|machine| {
             typed
                 .machine_trait_conformances(machine)
