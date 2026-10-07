@@ -178,6 +178,7 @@ pub(crate) fn prepare_selected_execution(
             .insert_expression_handles(row.operands.iter().copied());
         *program.expression_table.expression_mut(row.expression) =
             ExpressionNode::Call(typed_trees::expression::TableCallExpression {
+                exact_coercion_target: typed_trees::types::TypeReferenceHandle::invalid(),
                 receiver: ExpressionHandle::invalid(),
                 target_symbol: row.provider_state,
                 static_machine_parameter: symbols::SymbolHandle::invalid(),

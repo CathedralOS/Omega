@@ -139,3 +139,132 @@ fn projection(
     };
     Some((*operand, primitive, operator.return_type))
 }
+
+/// A selected integer-result guarantee over the same sealed float projection.
+/// Kernel identity establishes truncation or saturation, never the callable's
+/// name. The result occurrence and source parameter belong to this operator.
+pub fn float_integer_conversion_contract(
+    program: &TypedTrees,
+    operator: &OperatorDefinition,
+) -> Option<(
+    PrimitiveType,
+    &'static numerics::float_semantics_catalog::FloatSemanticOperation,
+)> {
+    use numerics::float_semantics_catalog::{FloatSemanticKernel, FloatSemanticValueKind};
+    let [parameter] = program.operator_parameters(operator) else {
+        return None;
+    };
+    let source = program.primitive_type_reference(parameter.type_reference)?;
+    if !matches!(source, PrimitiveType::F32 | PrimitiveType::F64) {
+        return None;
+    }
+    let target = program.primitive_type_reference(operator.return_type)?;
+    for contract in program.operator_contracts(operator) {
+        if contract.kind != SignatureContractKind::Ensures {
+            continue;
+        }
+        for fact in program.proof_facts.span_or_empty(contract.facts) {
+            let ProofFact::Expression(expression) = fact else {
+                continue;
+            };
+            let ExpressionNode::Binary(equality) = program.expression_table.expression(*expression)
+            else {
+                continue;
+            };
+            if equality.operator != BinaryOperator::Equal {
+                continue;
+            }
+            for (result, converted) in [
+                (equality.left, equality.right),
+                (equality.right, equality.left),
+            ] {
+                if crate::reserved_result_owner(program, result).map(|owner| owner.0)
+                    != Some(operator.symbol)
+                {
+                    continue;
+                }
+                let ExpressionNode::Call(conversion) =
+                    program.expression_table.expression(converted)
+                else {
+                    continue;
+                };
+                let Some(selected) =
+                    typed_trees::operator::resolve_named_expression_call(program, conversion)
+                else {
+                    continue;
+                };
+                let Some((semantic, _)) =
+                    super::semantic_operations::exact_toolchain_float_semantic_contract(
+                        program, selected,
+                    )
+                else {
+                    continue;
+                };
+                let FloatSemanticValueKind::Integer(carrier) = semantic.result else {
+                    continue;
+                };
+                if PrimitiveType::from_name(carrier.spelling()) != Some(target)
+                    || !matches!(
+                        semantic.kernel(),
+                        FloatSemanticKernel::ToIntegerExact
+                            | FloatSemanticKernel::ToIntegerSaturating
+                    )
+                    || !typed_trees::operator::has_builtin_spelled_expression_meaning(
+                        program,
+                        operator.symbol,
+                        *expression,
+                        language_core::OperatorSpelling::Equal,
+                        &[Some(operator.return_type), Some(selected.return_type)],
+                    )
+                {
+                    continue;
+                }
+                let [value] = program
+                    .expression_table
+                    .expression_handles(conversion.arguments)
+                else {
+                    continue;
+                };
+                let Some((value, primitive, _)) = projection(program, *value) else {
+                    continue;
+                };
+                let ExpressionNode::Name(value) = program.expression_table.expression(value) else {
+                    continue;
+                };
+                if primitive == source
+                    && value.symbol.is_valid()
+                    && value.symbol == parameter.symbol
+                {
+                    return Some((source, semantic));
+                }
+            }
+        }
+    }
+    None
+}
+
+/// Both admitted integer-conversion kernels are monotone on ordered inputs.
+/// Exact here is the named truncating operation's contract-gated meaning;
+/// authored Exact coercions separately owe integrality before using it.
+pub fn float_integer_conversion_bounds(
+    program: &TypedTrees,
+    operator: &OperatorDefinition,
+    minimum: f64,
+    maximum: f64,
+) -> Option<(numerics::bignum::BigInt, numerics::bignum::BigInt)> {
+    use numerics::float_semantics::FloatMeaning;
+    use numerics::float_semantics_catalog::{FloatSemanticOperand, FloatSemanticResult};
+    let (_, semantic) = float_integer_conversion_contract(program, operator)?;
+    if minimum > maximum || minimum.is_nan() || maximum.is_nan() {
+        return None;
+    }
+    let convert = |value| {
+        let discharged = semantic
+            .kernel_discharge(&[FloatSemanticOperand::Meaning(FloatMeaning::from_f64(value))])?;
+        let FloatSemanticResult::Integer(value) = discharged.result else {
+            return None;
+        };
+        Some(value)
+    };
+    Some((convert(minimum)?, convert(maximum)?))
+}

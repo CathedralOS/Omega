@@ -21,7 +21,7 @@ use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpress
 use typed_trees::machine::Machine;
 use typed_trees::name::Identifier;
 use typed_trees::state::State;
-use typed_trees::types::{PrimitiveType, TypeReferenceNode};
+use typed_trees::types::TypeReferenceNode;
 
 mod result_realization;
 mod target_resolution;
@@ -762,33 +762,26 @@ fn validate_named_float_to_integer_call(
     arguments: &[ExpressionHandle],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let path = program.operator_path_members(operator.name);
-    let [namespace, requirement] = path else {
+    let Some((_, semantic)) = crate::float_integer_conversion_contract(program, operator) else {
         return;
     };
-    if !matches!(requirement.as_str(), "from_f32" | "from_f64")
-        || program
-            .type_reference_table
-            .arithmetic_domain(operator.return_type)
-            != numerics::arithmetic::ArithmeticDomain::Exact
+    if !matches!(
+        semantic.kernel(),
+        numerics::float_semantics_catalog::FloatSemanticKernel::ToIntegerExact
+    ) || program
+        .type_reference_table
+        .arithmetic_domain(operator.return_type)
+        != numerics::arithmetic::ArithmeticDomain::Exact
     {
         return;
     }
-    let target = match namespace.as_str() {
-        "I8" => PrimitiveType::I8,
-        "I16" => PrimitiveType::I16,
-        "I32" => PrimitiveType::I32,
-        "I64" => PrimitiveType::I64,
-        "U8" => PrimitiveType::U8,
-        "U16" => PrimitiveType::U16,
-        "U32" => PrimitiveType::U32,
-        "U64" => PrimitiveType::U64,
-        _ => return,
+    let Some(target) = program.primitive_type_reference(operator.return_type) else {
+        return;
     };
     let [value] = arguments else {
         return;
     };
-    if arithmetic_domains::float_source_proves_int_cast(
+    if arithmetic_domains::float_source_proves_integer_conversion(
         program,
         current_machine,
         Some(current_state),
@@ -798,12 +791,17 @@ fn validate_named_float_to_integer_call(
     ) {
         return;
     }
+    let path = program
+        .operator_path_members(operator.name)
+        .iter()
+        .map(|member| member.as_str())
+        .collect::<Vec<_>>()
+        .join("::");
     diagnostics.push(Diagnostic::error(format!(
-        "machine `{}` state `{}` cannot prove unqualified `{}::{}` operand `{}` is finite and truncates into `{}`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `{} in Trapping` or `{} in Saturating`",
+        "machine `{}` state `{}` cannot prove unqualified `{}` operand `{}` is finite and truncates into `{}`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `{} in Trapping` or `{} in Saturating`",
         current_machine.name,
         current_state.name,
-        namespace,
-        requirement,
+        path,
         program.expression_table.display_name(*value),
         target.name(),
         target.name(),

@@ -1,4 +1,6 @@
-//! Float sources of integer casts and their representability bounds.
+//! Ordered float source enclosures from declared results and live place facts.
+//! Exact coercions require integrality; named conversions may truncate. Both
+//! consume the same source evidence without replaying operand syntax.
 
 use crate::proof_contracts::arithmetic_domains::integer_ranges::primitive_range;
 use crate::proof_contracts::arithmetic_domains::place_paths::place_path;
@@ -16,7 +18,6 @@ use typed_trees::types::{
 
 /// The float value of a literal operand (through a `Mutable` wrapper), read at
 /// its landed format, or `None` when the operand is not a plain float literal.
-/// The F4 Exact cast obligation's fold-visible proof source.
 pub(crate) fn float_literal_value(program: &TypedTrees, value: ExpressionHandle) -> Option<f64> {
     let mut node = program.expression_table.expression(value);
     while let ExpressionNode::Borrow(inner) = node {
@@ -28,7 +29,7 @@ pub(crate) fn float_literal_value(program: &TypedTrees, value: ExpressionHandle)
     }
 }
 
-pub(crate) fn float_source_proves_int_cast(
+pub(crate) fn float_source_proves_integer_conversion(
     program: &TypedTrees,
     machine: &Machine,
     state: Option<&State>,
@@ -36,39 +37,88 @@ pub(crate) fn float_source_proves_int_cast(
     value: ExpressionHandle,
     target: PrimitiveType,
 ) -> bool {
-    let (range, non_nan) = if let Some(literal) = float_literal_value(program, value) {
-        (
-            FloatInterval {
-                low: Some(literal),
-                high: Some(literal),
-            },
-            !literal.is_nan(),
-        )
-    } else {
-        let Some(path) = place_path(program, value) else {
+    float_source_bounds(program, machine, state, environment, value).is_some_and(|bounds| {
+        bounds.minimum.is_finite()
+            && bounds.maximum.is_finite()
+            && float_interval_fits_integer(bounds.minimum.trunc(), bounds.maximum.trunc(), target)
+    })
+}
+
+/// An ordered source enclosure at this occurrence. Declaration-backed values
+/// and selected results share the canonical result-type query; live place facts
+/// come from the ordinary checking walk, never from replaying initializers.
+pub(crate) struct FloatSourceBounds {
+    pub(crate) primitive: PrimitiveType,
+    pub(crate) minimum: f64,
+    pub(crate) maximum: f64,
+}
+
+impl FloatSourceBounds {
+    pub(crate) fn is_exact_integer(&self, target: PrimitiveType) -> bool {
+        self.is_integral() && float_interval_fits_integer(self.minimum, self.maximum, target)
+    }
+
+    pub(crate) fn is_integral(&self) -> bool {
+        if !self.minimum.is_finite() || !self.maximum.is_finite() {
             return false;
+        }
+        if self.minimum == self.maximum {
+            return self.minimum.trunc() == self.minimum;
+        }
+        // Above the significand's unit spacing, every representable value is
+        // integral. Representable endpoints alone do not prove this below it.
+        let unit_spacing = match self.primitive {
+            PrimitiveType::F32 => 8388608.0,
+            PrimitiveType::F64 => 4503599627370496.0,
+            _ => return false,
         };
-        let (flow_range, flow_non_nan) = environment.float_fact(&path);
-        let declared = declared_place_type_raw(program, machine, state, value)
-            .and_then(|handle| float_range_constraint_interval(program, handle));
-        let range = declared
-            .map(|declared| declared.intersect(flow_range))
-            .unwrap_or(flow_range);
-        let declared_finite = declared.is_some_and(|declared| {
-            declared.low.is_some_and(f64::is_finite) && declared.high.is_some_and(f64::is_finite)
-        });
-        (range, flow_non_nan || declared_finite)
-    };
-    if !non_nan {
-        return false;
+        self.minimum >= unit_spacing || self.maximum <= -unit_spacing
     }
-    let (Some(low), Some(high)) = (range.low, range.high) else {
-        return false;
+}
+
+pub(crate) fn float_source_bounds(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: Option<&State>,
+    environment: &ValueEnvironment,
+    value: ExpressionHandle,
+) -> Option<FloatSourceBounds> {
+    let reference = state
+        .and_then(|state| {
+            crate::value_custody::expression_types::expression_result_type_reference(
+                program, machine, state, value,
+            )
+        })
+        .or_else(|| declared_place_type_raw(program, machine, state, value));
+    let primitive = reference
+        .and_then(|reference| program.primitive_type_reference(reference))
+        .filter(|primitive| matches!(primitive, PrimitiveType::F32 | PrimitiveType::F64))?;
+    let declared =
+        reference.and_then(|reference| float_range_constraint_interval(program, reference));
+    let (flow, non_nan) = place_path(program, value)
+        .map(|path| environment.float_fact(&path))
+        .unwrap_or((FloatInterval::UNBOUNDED, false));
+    let range = if let Some(value) = float_literal_value(program, value) {
+        if value.is_nan() {
+            return None;
+        }
+        FloatInterval {
+            low: Some(value),
+            high: Some(value),
+        }
+    } else {
+        if declared.is_none() && !non_nan {
+            return None;
+        }
+        declared.map_or(flow, |declared| declared.intersect(flow))
     };
-    if !low.is_finite() || !high.is_finite() || low > high {
-        return false;
-    }
-    float_interval_fits_integer(low.trunc(), high.trunc(), target)
+    let minimum = range.low?;
+    let maximum = range.high?;
+    (minimum <= maximum).then_some(FloatSourceBounds {
+        primitive,
+        minimum,
+        maximum,
+    })
 }
 
 pub(crate) fn float_interval_fits_integer(low: f64, high: f64, target: PrimitiveType) -> bool {
@@ -94,21 +144,36 @@ pub(crate) fn float_range_constraint_interval(
         TypeReferenceNode::Reference { referee, .. } => {
             float_range_constraint_interval(program, *referee)
         }
-        TypeReferenceNode::Constrained { constraints, .. } => program
-            .type_reference_table
-            .constraints(*constraints)
-            .iter()
-            .find_map(|constraint| match constraint {
-                // An inclusive enclosure is conservative for source facts,
-                // including a strict authored endpoint.
-                TypeConstraintNode::Range {
+        TypeReferenceNode::Constrained {
+            base_type,
+            constraints,
+        } => {
+            let primitive = program.primitive_type_reference(handle)?;
+            let mut range = float_range_constraint_interval(program, *base_type);
+            for constraint in program.type_reference_table.constraints(*constraints) {
+                if let TypeConstraintNode::Range {
                     minimum, maximum, ..
-                } => Some(FloatInterval {
-                    low: Some(float_literal_value(program, *minimum)?),
-                    high: Some(float_literal_value(program, *maximum)?),
-                }),
-                _ => None,
-            }),
+                } = constraint
+                {
+                    let read = |expression| match crate::closed_float_range_endpoint(
+                        program, expression, primitive,
+                    )? {
+                        semantic_vocabulary::IeeeFloatValue::Binary32(bits) => {
+                            Some(f64::from(f32::from_bits(bits)))
+                        }
+                        semantic_vocabulary::IeeeFloatValue::Binary64(bits) => {
+                            Some(f64::from_bits(bits))
+                        }
+                    };
+                    let additional = FloatInterval {
+                        low: Some(read(*minimum)?),
+                        high: Some(read(*maximum)?),
+                    };
+                    range = Some(range.map_or(additional, |range| range.intersect(additional)));
+                }
+            }
+            range
+        }
         _ => None,
     }
 }
@@ -122,6 +187,7 @@ pub(crate) fn float_bound_from(
         operator
     } else {
         match operator {
+            BinaryOperator::Equal => BinaryOperator::Equal,
             BinaryOperator::Less => BinaryOperator::Greater,
             BinaryOperator::LessOrEqual => BinaryOperator::GreaterOrEqual,
             BinaryOperator::Greater => BinaryOperator::Less,
@@ -130,6 +196,12 @@ pub(crate) fn float_bound_from(
         }
     };
     Some(match operator {
+        // This helper is reached only for a positive selected IEEE comparison.
+        // Equality to a finite landed value excludes NaN and fixes the value.
+        BinaryOperator::Equal => FloatInterval {
+            low: Some(literal),
+            high: Some(literal),
+        },
         // Treat strict bounds as inclusive at the same endpoint. This is a
         // conservative widening and avoids target-format nextafter logic.
         BinaryOperator::Less | BinaryOperator::LessOrEqual => FloatInterval {

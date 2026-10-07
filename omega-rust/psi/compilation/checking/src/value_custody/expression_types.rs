@@ -47,10 +47,9 @@ use typed_trees::types::{
 };
 
 // Per-expression checks the expression walk in
-// `machine_calls::calls::expression_scanning` runs, and the float-to-integer
-// range proof `cast_validation` asks for.
+// `machine_calls::calls::expression_scanning` runs. Exact coercion validation
+// shares that walk's live value facts; it never replays guards or initializers.
 mod cast_validation;
-mod float_cast_proofs;
 mod float_coercions;
 mod match_dispatch;
 mod operator_validation;
@@ -81,7 +80,7 @@ pub(crate) use reference_values::{
 pub(crate) use result_type::domain_expression_result_type_reference;
 
 pub(crate) use cast_validation::validate_cast_types;
-pub(crate) use float_coercions::validate_exact_float_format_cast;
+pub(crate) use float_coercions::validate_exact_float_coercion;
 
 pub(crate) use operator_validation::{
     report_non_bool_logical_not, report_non_integer_bitwise_not, report_non_integer_index,

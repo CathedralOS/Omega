@@ -375,6 +375,7 @@ pub fn fixture() -> Fixture {
         let expression = typed
             .expression_table
             .insert(ExpressionNode::Call(TableCallExpression {
+                exact_coercion_target: typed_trees::types::TypeReferenceHandle::invalid(),
                 receiver: namespace,
                 target: Identifier::generated("select_representation"),
                 machine_arguments: vec![

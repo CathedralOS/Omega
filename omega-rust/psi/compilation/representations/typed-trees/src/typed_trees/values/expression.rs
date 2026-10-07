@@ -634,6 +634,7 @@ impl ExpressionTable {
             }
             (ExpressionNode::Call(x), ExpressionNode::Call(y)) => {
                 x.target_symbol == y.target_symbol
+                    && x.exact_coercion_target == y.exact_coercion_target
                     && x.target.as_str() == y.target.as_str()
                     && self.expressions_structurally_equal(x.receiver, y.receiver)
                     && self.expression_spans_structurally_equal(x.arguments, y.arguments)
@@ -910,6 +911,7 @@ pub struct TableMemberExpression {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CallExpression {
+    pub exact_coercion_target: crate::types::TypeReferenceHandle,
     pub receiver: Option<Box<Expression>>,
     pub target_symbol: SymbolHandle,
     pub target: Identifier,
@@ -920,6 +922,11 @@ pub struct CallExpression {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TableCallExpression {
+    /// An Exact carrier coercion elaborated to this conversion requirement.
+    /// The zero handle denotes an ordinary named call. Keep the authored
+    /// target until checking discharges unchanged denotation from this
+    /// occurrence's live facts; the selected named conversion alone may round.
+    pub exact_coercion_target: crate::types::TypeReferenceHandle,
     pub receiver: ExpressionHandle,
     pub target_symbol: SymbolHandle,
     /// Original static binder contract, retained separately from execution.

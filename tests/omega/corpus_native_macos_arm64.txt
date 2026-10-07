@@ -881,13 +881,11 @@ pass/float/build_runtime_semantics_twins_x86_baseline timeout 20005ms @6ef30fb81
 pass/float/builtin_extrema_field_store_exit built 2139ms exit:70 @9213c1dcbe3f+wt
 pass/float/computed_comparison_literal_landing_exit built 6031ms exit:0 @6ef30fb818e6+wt
 pass/float/data_where_float_field_restored_exit built 1621ms exit:70 @8cb8c462809d+wt
-pass/float/exact_fractional_integer_boundary_exit built 3465ms exit:70 @48008365d839
 pass/float/f32_arg_const_arith_landed_exit built 6672ms exit:70 @fb2178def922
 pass/float/f32_per_operation_rounding_exit built 7304ms exit:77 @fb2178def922
 pass/float/finite_core_domain_range_discharge built 5181ms exit:77 @42dbef3839ee+wt
 pass/float/finite_signature_transport_exit built 3690ms exit:77 @6d55eb9c43a4+wt
 pass/float/float_saturating_arithmetic_exit built 2960ms exit:77 @12e6b9755e61+wt
-pass/float/float_to_int_exact_proofs_exit built 2847ms exit:78 @c67082a3bcd4
 pass/float/float_to_int_trapping_nan_traps built 4789ms exit:signal signal:5 @bed5f45e9185+wt
 pass/float/float_trapping_overflow_traps built 1988ms exit:signal signal:5 @12e6b9755e61+wt
 pass/float/float_trapping_propagated_nan_traps built 1994ms exit:signal signal:5 @12e6b9755e61+wt
@@ -898,10 +896,12 @@ pass/float/local_after_float_call_store_exit built 4562ms exit:70 @48008365d839
 pass/float/named_constant_materialization_exit built 11527ms exit:70 @48008365d839
 pass/float/named_float_integer_lower_boundary_conversion_traps built 1361ms exit:signal signal:5 @0c6abc6d1e0c+wt
 pass/float/named_float_integer_nan_conversion_traps built 1448ms exit:signal signal:5 @0c6abc6d1e0c+wt
+pass/float/named_fractional_integer_boundary_exit built 4713ms exit:70 @aef1e846927f+wt
 pass/float/named_ieee_conversions_exit built 23620ms exit:70 @48008365d839
 pass/float/named_ieee_operations_exit built 43912ms exit:70 @48008365d839
 pass/float/named_ieee_truncations_exit built 22254ms exit:70 @48008365d839
 pass/float/named_infinity_classification_exit built 1189ms exit:70 @0d9777b52aee+wt
+pass/float/named_integer_conversion_source_proofs_exit built 4728ms exit:78 @aef1e846927f+wt
 pass/float/named_nan_semantic_only_exit built 4501ms exit:70 @d78b523c16f5
 pass/float/named_provider_directed_divide_exit built 16984ms exit:70 @4ffed225fc45+wt
 pass/float/named_provider_fused_multiply_add_exit built 1503ms exit:70 @0c82e1f8b2e+wt
@@ -911,6 +911,7 @@ pass/float/named_provider_negate_is_nan_exit built 2014ms exit:70 @bbdbb0a83995+
 pass/float/nearest_even_binary_arithmetic_exit built 7862ms exit:70 @48008365d839
 pass/float/nested_float_operator_applications_exit built 15621ms exit:70 @48008365d839
 pass/float/runtime_exact_format_narrowing_exit built 4533ms exit:0 @4ea513cebecf+wt
+pass/float/runtime_exact_integer_coercion_exit built 5037ms exit:0 @aef1e846927f+wt
 pass/float/runtime_finite_record_invariant_window_exit built 6015ms exit:0 @222cdf8fe2a0+wt
 pass/float/runtime_float_call_same_carrier_cast_exit built 9271ms exit:0 @4f590536f488+wt
 pass/float/runtime_float_digit_separators_exit built 11752ms exit:0 @9beb2be72f2d+wt

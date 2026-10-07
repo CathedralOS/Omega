@@ -171,6 +171,7 @@ impl ExpressionTable {
                     .unwrap_or_else(ExpressionHandle::invalid);
                 let arguments = self.insert_expression_handle_span_from_trees(&call.arguments);
                 self.insert(ExpressionNode::Call(TableCallExpression {
+                    exact_coercion_target: call.exact_coercion_target,
                     receiver,
                     target_symbol: call.target_symbol,
                     target: call.target.clone(),
@@ -315,6 +316,7 @@ impl ExpressionTable {
                 form: cast.form,
             })),
             ExpressionNode::Call(call) => Expression::Call(Box::new(CallExpression {
+                exact_coercion_target: call.exact_coercion_target,
                 receiver: call
                     .receiver
                     .is_valid()

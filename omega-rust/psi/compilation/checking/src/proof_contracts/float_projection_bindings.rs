@@ -13,6 +13,9 @@ mod conversion_contracts;
 pub(crate) mod semantic_operations;
 pub(crate) mod semantic_values;
 pub use conversion_contracts::float_format_conversion_contract;
+pub use conversion_contracts::{
+    float_integer_conversion_bounds, float_integer_conversion_contract,
+};
 
 use diagnostics::Diagnostic;
 use numerics::float_projection::{FloatProjectionContractIdentity, FloatProjectionOperation};

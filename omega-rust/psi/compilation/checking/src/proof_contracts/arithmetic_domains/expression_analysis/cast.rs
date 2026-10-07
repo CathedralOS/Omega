@@ -8,7 +8,7 @@ use crate::proof_contracts::arithmetic_domains::integer_ranges::{
 };
 use crate::proof_contracts::arithmetic_domains::{
     ArithmeticDomain, Diagnostic, ExpressionNode, Interval, PrimitiveType, cast_ranges,
-    float_source_proves_int_cast,
+    float_source_proves_integer_conversion,
 };
 use crate::value_custody::literals;
 use typed_trees::expression::TableCastExpression;
@@ -195,30 +195,21 @@ fn require_float_to_integer_policy(
              the target range) or `in Trapping` (trap on NaN/out-of-range) instead.",
         )));
     }
-    // The Exact obligation: a BARE float->int cast requires the value provably
-    // in the target's range. What validation can prove today: a float LITERAL
-    // source (through Mutable) whose truncation fits -- the two-phase law's
-    // fold-visible face; runtime sources need a policy. (Mirrors the F8a
-    // shift-count obligation's shape: proof where visible, policy otherwise,
-    // never a silent target-defined number -- the out-of-range bare cast was a
-    // pinned THREE-WAY native divergence, x86 integer-indefinite vs
-    // aarch64/interp saturation.)
+    // Exact is unchanged denotation, not a guarantee about a truncated result.
+    // Every value permitted by the source facts must be integral and fit.
     if cast.domain == ArithmeticDomain::Exact
-        && !float_source_proves_int_cast(
+        && !super::super::float_source_bounds(
             walk.program,
             walk.machine,
             walk.state,
             walk.environment,
             cast.value,
-            target,
         )
+        .is_some_and(|bounds| bounds.is_exact_integer(target))
     {
         diagnostics.push(Diagnostic::error(format!(
-            "float-to-int cast in {owner} is not provably in `{}`'s range \
-             (ch5 cast ruling -- proof-or-policy). Prove a finite declared range \
-             or a dominating non-NaN/range guard, or use `in Saturating` (NaN \
-             -> 0, clamp to the target range) or `in Trapping` \
-             (trap on NaN/out-of-range).",
+            "Exact float-to-int cast in {owner} is not provably integral and representable in `{}`; \
+             prove unchanged denotation or use a named conversion to truncate.",
             primitive_name(target),
         )));
     }
@@ -282,7 +273,7 @@ fn require_trapping_conversion_coverage(
     }
     let forms = |walk: &ExpressionWalk, source: &Analysis| {
         if float_source {
-            float_source_proves_int_cast(
+            float_source_proves_integer_conversion(
                 walk.program,
                 walk.machine,
                 walk.state,

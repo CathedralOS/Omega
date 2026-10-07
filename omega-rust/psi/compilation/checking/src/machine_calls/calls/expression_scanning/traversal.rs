@@ -842,6 +842,20 @@ fn scan_expression_calls_at_position(
         ),
         ExpressionNode::Call(call) => {
             let call = call.clone();
+            if executes
+                && call.exact_coercion_target.is_valid()
+                && let [operand] = program.expression_table.expression_handles(call.arguments)
+            {
+                crate::value_custody::expression_types::validate_exact_float_coercion(
+                    program,
+                    machine,
+                    state,
+                    *operand,
+                    call.exact_coercion_target,
+                    value_environment,
+                    diagnostics,
+                );
+            }
             if crate::proof_contracts::proof_embeddings::is_exact_embed_call(program, &call) {
                 crate::proof_contracts::arithmetic_domains::validate_total_specification_arithmetic(
                     program,
@@ -980,6 +994,7 @@ fn scan_expression_calls_at_position(
                 machine,
                 Some(state),
                 cast,
+                value_environment,
                 diagnostics,
             );
             if executes {

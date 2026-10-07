@@ -272,6 +272,7 @@ pub fn resolve_named_result_overloads(program: &mut TypedTrees) -> Result<(), Ve
             program
                 .expression_table
                 .insert(ExpressionNode::Call(TableCallExpression {
+                    exact_coercion_target: typed_trees::types::TypeReferenceHandle::invalid(),
                     receiver,
                     target_symbol: selected,
                     target: call.target,
@@ -811,6 +812,8 @@ fn collect_expected_expression_calls(
                     }
                     StatementNode::Call(call) => {
                         let expression_call = TableCallExpression {
+                            exact_coercion_target: typed_trees::types::TypeReferenceHandle::invalid(
+                            ),
                             receiver: ExpressionHandle::invalid(),
                             target_symbol: call.target_symbol,
                             target: call.target.clone(),

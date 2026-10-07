@@ -23,7 +23,7 @@ pub(super) struct FloatInterval {
 }
 
 impl FloatInterval {
-    const UNBOUNDED: FloatInterval = FloatInterval {
+    pub(super) const UNBOUNDED: FloatInterval = FloatInterval {
         low: None,
         high: None,
     };

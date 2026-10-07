@@ -1,0 +1,20 @@
+use omega::language::core::float_operations;
+
+machine fractional(value: f64[3.75..=3.75]) -> i32 { value as i32 }
+machine negative_fraction() -> u32 { (-0.5f64) as u32 }
+machine unknown(value: f64) -> i32 { value as i32 }
+machine integer_ends_are_not_enough(value: f64[0.0..=3.0]) -> i32 { value as i32 }
+machine overflow(value: f64[1e30f64..=1e30f64]) -> i32 {
+    value as i32
+}
+machine nan() -> i32 { (0.0f64 / 0.0) as i32 }
+
+data MutableValue { value: f64; converted: i32; }
+machine stale_guard(subject: &mut MutableValue) {
+    transition subject.value == 3.0 { true -> guarded(subject) false -> done() }
+    state guarded(subject: &mut MutableValue) {
+        subject.value = 3.5;
+        subject.converted = subject.value as i32;
+    }
+    state done() {}
+}

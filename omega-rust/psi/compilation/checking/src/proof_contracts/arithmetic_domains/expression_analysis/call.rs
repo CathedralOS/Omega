@@ -31,7 +31,7 @@ pub(super) fn analyze(
     // The shared expression walk has checked receiver and argument formation,
     // including calls whose result folds before reaching this result query.
     // Speculative interval queries below must not repeat those diagnostics.
-    let analysis = named_operator_result(walk.program, call)
+    let analysis = named_operator_result(walk, call)
         .or_else(|| bounding_builtin_result(walk, call))
         .unwrap_or_else(|| {
             [
@@ -88,17 +88,41 @@ fn with_declared_result_carrier(
 /// A named operator's declared result supplies its carrier even when provider
 /// selection has not supplied an executable body. Do not infer a body range or
 /// repeatability from this signature.
-fn named_operator_result(program: &TypedTrees, call: &TableCallExpression) -> Option<Analysis> {
+fn named_operator_result(walk: &ExpressionWalk, call: &TableCallExpression) -> Option<Analysis> {
+    let program = walk.program;
     let operator = typed_trees::operator::resolve_named_expression_call(program, call)?;
     let primitive = program
         .primitive_type_reference(operator.return_type)
         .filter(|primitive| integer_bit_width(*primitive).is_some())?;
     let range = primitive_range(primitive)?;
+    let converted = (|| {
+        let [operand] = program.expression_table.expression_handles(call.arguments) else {
+            return None;
+        };
+        let source = super::super::float_source_bounds(
+            program,
+            walk.machine,
+            walk.state,
+            walk.environment,
+            *operand,
+        )?;
+        let (minimum, maximum) = crate::float_integer_conversion_bounds(
+            program,
+            operator,
+            source.minimum,
+            source.maximum,
+        )?;
+        Some(Interval {
+            low: minimum.to_i64(),
+            high: maximum.to_i64(),
+        })
+    })();
+    let declared = range_constraint_interval(program, operator.return_type).unwrap_or(range);
     Some(Analysis {
         domain: Some(program.arithmetic_domain_for_type_reference(operator.return_type)),
-        interval: range_constraint_interval(program, operator.return_type)
-            .map(|declared| declared.intersect(range))
-            .unwrap_or(range),
+        interval: converted
+            .map_or(declared, |converted| converted.intersect(declared))
+            .intersect(range),
         primitive: Some(primitive),
     })
 }

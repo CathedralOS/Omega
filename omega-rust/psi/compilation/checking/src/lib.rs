@@ -191,7 +191,8 @@ pub use proof_contracts::float_projection_bindings::semantic_operations::exact_t
 pub use proof_contracts::float_projection_bindings::semantic_values::exact_toolchain_float_format_const;
 pub use proof_contracts::float_projection_bindings::{
     exact_toolchain_float_projection_contract, exact_toolchain_float_projection_primitive,
-    float_format_conversion_contract, is_exact_toolchain_float_meaning_type,
+    float_format_conversion_contract, float_integer_conversion_bounds,
+    float_integer_conversion_contract, is_exact_toolchain_float_meaning_type,
 };
 pub use proof_contracts::properties::{
     DeclaredPropertyRequirement, OpaqueDataPropertyReceipt, OpaqueDataPropertyReceiptKind,

@@ -1,4 +1,4 @@
-//! Exact format coercions preserve the operand's denotation before elaboration.
+//! Exact float coercions preserve the operand's denotation at the checked use.
 //!
 //! A destination-owned format conversion is total and may round, so selecting
 //! it cannot discharge an authored `as`. Widening preserves every binary32
@@ -9,105 +9,75 @@
 //! Merely checking two representable endpoints would admit lossy values between
 //! them. Non-singleton binary64 ranges need stronger representability evidence
 //! than the range type alone supplies and remain unproved here.
+//! Integer destinations additionally require every enclosed source value to
+//! be integral and representable; named truncation is a weaker operation.
+//! The cast binder retains the authored target on its derived call so this
+//! check shares the ordinary walk's guard and write lifetime, not a second
+//! initializer or guard replay before binding.
 
 use diagnostics::Diagnostic;
-use numerics::arithmetic::ArithmeticDomain;
 use numerics::float_semantics::{FloatFormat, FloatMeaning, FloatSemantics};
-use semantic_vocabulary::IeeeFloatValue;
 use typed_trees::TypedTrees;
-use typed_trees::expression::{ExpressionNode, TableCastExpression};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
-use typed_trees::types::{
-    PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
-};
+use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
 
-/// Discharge format-changing Exact casts while the authored operand still
-/// exists. The binder calls this before replacing a cast by its requirement
-/// call; ordinary expression validation uses it for casts that remain casts.
-pub(crate) fn validate_exact_float_format_cast(
+/// Discharge the authored coercion at an unchanged cast or its derived call.
+/// The target is an obligation, never a premise about the operand.
+pub(crate) fn validate_exact_float_coercion(
     program: &TypedTrees,
     machine: &Machine,
     state: &State,
-    cast: &TableCastExpression,
+    operand: typed_trees::expression::ExpressionHandle,
+    target: TypeReferenceHandle,
+    environment: &crate::proof_contracts::arithmetic_domains::ValueEnvironment,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> bool {
-    if cast.form.is_recast() || cast.domain != ArithmeticDomain::Exact {
-        return true;
-    }
-    let Some(source_reference) =
-        super::expression_result_type_reference(program, machine, state, cast.value)
-    else {
+    let source = super::expression_result_type_reference(program, machine, state, operand)
+        .and_then(|reference| program.primitive_type_reference(reference));
+    let Some(source @ (PrimitiveType::F32 | PrimitiveType::F64)) = source else {
         return true;
     };
-    if program.primitive_type_reference(source_reference) != Some(PrimitiveType::F64)
-        || program.primitive_type_reference(cast.target_type) != Some(PrimitiveType::F32)
-    {
-        // Same-carrier casts do not convert; binary32 -> binary64 is total.
-        // Integer conversion conditions remain with their own proof owner.
+    let Some(target) = program.primitive_type_reference(target) else {
+        return true;
+    };
+    if source == target || (source == PrimitiveType::F32 && target == PrimitiveType::F64) {
         return true;
     }
-    let source_value = match program.expression_table.expression(cast.value) {
-        ExpressionNode::Float(literal) => Some(literal.landed_f64()),
-        _ => singleton_float_value(program, source_reference),
-    };
-    if source_value.is_some_and(|value| {
-        let meaning = FloatMeaning::from_f64(value);
-        FloatSemantics::convert(FloatFormat::BINARY32, &meaning) == meaning
-    }) {
+    if !target.accepts_integer_literal() && target != PrimitiveType::F32 {
+        return true;
+    }
+    let bounds = crate::proof_contracts::arithmetic_domains::float_source_bounds(
+        program,
+        machine,
+        Some(state),
+        environment,
+        operand,
+    );
+    let proven = bounds.is_some_and(|bounds| {
+        if target.accepts_integer_literal() {
+            bounds.is_exact_integer(target)
+        } else if bounds.minimum == bounds.maximum {
+            let meaning = FloatMeaning::from_f64(bounds.minimum);
+            FloatSemantics::convert(FloatFormat::BINARY32, &meaning) == meaning
+        } else {
+            false
+        }
+    });
+    if proven {
         return true;
     }
     diagnostics.push(
         Diagnostic::error(format!(
-            "machine `{}` state `{}` cannot prove Exact float-to-`f32` cast operand `{}` \
-             preserves its denotation; prove exact representability or use the named \
-             rounded conversion `F32::from_f64`",
+            "machine `{}` state `{}` cannot prove Exact float-to-`{}` cast operand `{}` \
+             preserves its denotation; prove an integral representable value for an integer \
+             target, or exact format representability; use a named conversion to round or truncate",
             machine.name,
             state.name,
-            program.expression_table.display_name(cast.value),
+            target.name(),
+            program.expression_table.display_name(operand),
         ))
-        .with_source_span(program.expression_table.source_span(cast.value)),
+        .with_source_span(program.expression_table.source_span(operand)),
     );
     false
-}
-
-fn singleton_float_value(program: &TypedTrees, mut reference: TypeReferenceHandle) -> Option<f64> {
-    let primitive = program.primitive_type_reference(reference)?;
-    let mut low = f64::NEG_INFINITY;
-    let mut high = f64::INFINITY;
-    while reference.is_valid() {
-        match program.type_reference_table.type_reference(reference) {
-            TypeReferenceNode::Constrained {
-                base_type,
-                constraints,
-            } => {
-                for constraint in program.type_reference_table.constraints(*constraints) {
-                    if let TypeConstraintNode::Range {
-                        minimum, maximum, ..
-                    } = constraint
-                    {
-                        low = low.max(endpoint_value(crate::closed_float_range_endpoint(
-                            program, *minimum, primitive,
-                        )?));
-                        high = high.min(endpoint_value(crate::closed_float_range_endpoint(
-                            program, *maximum, primitive,
-                        )?));
-                    }
-                }
-                reference = *base_type;
-            }
-            TypeReferenceNode::Reference { referee, .. } => reference = *referee,
-            _ => break,
-        }
-    }
-    // Ordered finite endpoints exclude NaN. The enclosure may contain either
-    // signed zero; both signs independently survive an exact format conversion.
-    (low.is_finite() && low == high).then_some(low)
-}
-
-fn endpoint_value(value: IeeeFloatValue) -> f64 {
-    match value {
-        IeeeFloatValue::Binary32(bits) => f64::from(f32::from_bits(bits)),
-        IeeeFloatValue::Binary64(bits) => f64::from_bits(bits),
-    }
 }

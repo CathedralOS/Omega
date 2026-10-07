@@ -24,6 +24,11 @@
 //! complete call-boundary obligation. For a slice the window row is the ONLY
 //! elementwise claim, so it rides the obligation origin and every caller owes
 //! the whole extent.
+//!
+//! Immutable scalar parameters also carry their enforced float ranges. The
+//! range-obligation owner checks incoming values; these source-free predicates
+//! transport that promise into ordinary operand captures. They are not new
+//! domain-membership obligations and cannot restore a fact after a mutation.
 
 use facts::{
     Fact, FactOrigin, FactPayload, FactPlace, FactPlan, PlaceSegment, ProgramPoint,
@@ -343,6 +348,33 @@ pub(super) fn append_state_parameter_domain_facts(program: &TypedTrees, facts: &
                 // rule separate from default-domain fields of nominal values.
                 if parameter.is_mutable {
                     continue;
+                }
+                let mut predicates = Vec::new();
+                crate::values::float_predicates::declared_type_predicates(
+                    program,
+                    parameter.type_reference,
+                    &mut predicates,
+                );
+                if !predicates.is_empty() {
+                    let place = facts.append_symbol_place(parameter.symbol);
+                    for predicate in predicates {
+                        let fact = facts.append_fact(Fact {
+                            place: FactPlace::Place(place),
+                            point: ProgramPoint::State {
+                                machine_symbol: machine.symbol,
+                                state_symbol: state.symbol,
+                            },
+                            // Numeric range admission already has its own
+                            // incoming-value obligation, not a membership row.
+                            origin: FactOrigin::StatementTransfer,
+                            evidence: QualificationEvidence::from_origin(
+                                language_semantics::QualificationEvidenceOrigin::Propagated,
+                                state.symbol,
+                            ),
+                            payload: FactPayload::FloatPredicate { predicate },
+                        });
+                        facts.append_ref(&mut refs, fact);
+                    }
                 }
                 let mut has_resource_claim = false;
                 for (domain_symbol, semantic_domain) in

@@ -1,18 +1,18 @@
 //! Bind numeric casts involving floats to their selected conversion requirements.
 //!
-//! Exact format casts discharge unchanged denotation before this pass replaces
-//! the authored cast by a destination conversion. Integer-to-float widening
+//! Exact casts retain their authored target on the derived call, so ordinary
+//! occurrence checking discharges unchanged denotation using live value facts.
+//! Selection alone proves nothing. Integer-to-float widening
 //! uses whole-carrier representability. Named conversions may round, but `as`
 //! cannot silently do so. Same-format qualification remains a cast; it is
 //! not an invitation to call a similarly named operator. All three conversion
 //! directions share selection and source custody with explicit named calls.
 //!
-//! `value as i32 in Saturating` with a float `value` has exactly the meaning
-//! of the destination-owned conversion `I32::from_f64` overload whose result
-//! is `i32 in Saturating`: toward-zero truncation that clamps to the carrier
-//! and maps NaN to zero ([destination-owned conversion](../../../../../../../wiki/spec/language/numeric_values.md#destination-owned-conversion)).
-//! Checking and the checked interpreter already give the cast that meaning.
-//! Terminal Psi has no float-to-integer primitive, though: every float
+//! The legacy domain-qualified cast route still selects a truncating/clamping
+//! conversion. It does not yet enforce the coercion law for non-Exact domains;
+//! policy-bearing conversion belongs on the explicitly named call surface.
+//! This pass must not be mistaken for evidence that those casts comply.
+//! Terminal Psi has no float-to-integer primitive: every float
 //! realization is a requirement-level `BoundaryCall` that Omega installs from
 //! the selected provider. A cast that stays a cast therefore reaches no
 //! executable route.
@@ -61,24 +61,19 @@ use typed_trees::types::PrimitiveType;
 
 /// One cast to rewrite, selected before the expression table is mutated.
 struct ConversionCastBinding {
+    exact_coercion_target: typed_trees::types::TypeReferenceHandle,
     cast: ExpressionHandle,
     operand: ExpressionHandle,
     requirement: SymbolHandle,
     requirement_member: Identifier,
 }
 
-/// Rewrite proven exact format casts and float-to-integer casts whose
+/// Rewrite Exact format casts and float-to-integer casts whose
 /// destination-owned conversion overload is visible into a call of that
 /// overload. Returns the number of casts bound.
 pub fn bind_float_conversion_casts(program: &mut TypedTrees) -> Result<usize, Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
-    let bindings = collect_conversion_cast_bindings(program, &mut diagnostics);
-    // Never erase an unproved Exact cast and then validate only the weaker
-    // rounding conversion's call conditions. No expression is mutated before
-    // every reached authored format coercion has discharged its obligation.
-    if !diagnostics.is_empty() {
-        return Err(diagnostics);
-    }
+    let bindings = collect_conversion_cast_bindings(program);
     for binding in &bindings {
         let source_span = program.expression_table.source_span(binding.cast);
         let occurrence = match program.record_resolved_authored_declaration_selection_once(
@@ -103,6 +98,7 @@ pub fn bind_float_conversion_casts(program: &mut TypedTrees) -> Result<usize, Ve
             .insert_expression_handles([binding.operand]);
         *program.expression_table.expression_mut(binding.cast) =
             ExpressionNode::Call(TableCallExpression {
+                exact_coercion_target: binding.exact_coercion_target,
                 receiver: ExpressionHandle::invalid(),
                 target_symbol: binding.requirement,
                 static_machine_parameter: SymbolHandle::invalid(),
@@ -132,10 +128,7 @@ pub fn bind_float_conversion_casts(program: &mut TypedTrees) -> Result<usize, Ve
     }
 }
 
-fn collect_conversion_cast_bindings(
-    program: &TypedTrees,
-    diagnostics: &mut Vec<Diagnostic>,
-) -> Vec<ConversionCastBinding> {
+fn collect_conversion_cast_bindings(program: &TypedTrees) -> Vec<ConversionCastBinding> {
     let mut bindings = Vec::new();
     let mut visited = Vec::new();
     for machine in program.machines() {
@@ -151,7 +144,6 @@ fn collect_conversion_cast_bindings(
                         root,
                         &mut visited,
                         &mut bindings,
-                        diagnostics,
                     );
                 }
             }
@@ -167,7 +159,6 @@ fn collect_expression_bindings(
     expression: ExpressionHandle,
     visited: &mut Vec<bool>,
     bindings: &mut Vec<ConversionCastBinding>,
-    diagnostics: &mut Vec<Diagnostic>,
 ) {
     if !expression.is_valid() {
         return;
@@ -183,17 +174,15 @@ fn collect_expression_bindings(
     }
     let node = program.expression_table.expression(expression);
     if let ExpressionNode::Cast(cast) = node
-        && crate::value_custody::expression_types::validate_exact_float_format_cast(
-            program,
-            machine,
-            state,
-            cast,
-            diagnostics,
-        )
         && let Some((requirement, requirement_member)) =
             selected_conversion(program, machine, state, expression, cast)
     {
         bindings.push(ConversionCastBinding {
+            exact_coercion_target: if cast.domain == ArithmeticDomain::Exact {
+                cast.target_type
+            } else {
+                typed_trees::types::TypeReferenceHandle::invalid()
+            },
             cast: expression,
             operand: cast.value,
             requirement,
@@ -201,15 +190,7 @@ fn collect_expression_bindings(
         });
     }
     crate::expression_traversal::children(program, node, |child| {
-        collect_expression_bindings(
-            program,
-            machine,
-            state,
-            child,
-            visited,
-            bindings,
-            diagnostics,
-        )
+        collect_expression_bindings(program, machine, state, child, visited, bindings)
     });
 }
 
@@ -304,6 +285,12 @@ fn selected_conversion(
     if source_is_float
         && destination_is_float
         && crate::float_format_conversion_contract(program, operator) != Some((source, destination))
+    {
+        return None;
+    }
+    if source_is_float
+        && !destination_is_float
+        && crate::float_integer_conversion_contract(program, operator).is_none()
     {
         return None;
     }

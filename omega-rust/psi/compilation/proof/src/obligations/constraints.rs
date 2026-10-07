@@ -2,7 +2,8 @@
 //! binary operators, selected builtin extrema, and named facts. Authored
 //! lookalikes supply only their own checked result guarantees; a leaf spelling
 //! never licenses builtin operand closure.
-//! Format conversion transports value facts through its rounded result. Source
+//! Selected numeric conversion transports facts through its rounded or
+//! truncated result using the sealed kernel named by the guarantee. Source
 //! finiteness and ordered bounds are not predicates about the same value after
 //! narrowing; destination annotations remain demands, never conversion premises.
 
@@ -78,6 +79,26 @@ pub(crate) fn expression_constraints(
                     target,
                     program.arithmetic_domain_for_type_reference(operator.return_type),
                 ));
+                return constraints;
+            }
+            if let Some(operator) =
+                typed_trees::operator::resolve_named_expression_call(program, call)
+            {
+                let mut constraints =
+                    collect_constraints_in_state(program, machine, state, operator.return_type);
+                if let [operand] = program.expression_table.expression_handles(call.arguments)
+                    && let Some(source) = float_range_from_constraints(&expression_constraints(
+                        program, machine, state, *operand,
+                    ))
+                    && let Some((minimum, maximum)) = validation::float_integer_conversion_bounds(
+                        program,
+                        operator,
+                        source.minimum,
+                        source.maximum,
+                    )
+                {
+                    constraints.push(ProofConstraint::IntegerRange { minimum, maximum });
+                }
                 return constraints;
             }
             if let Some(return_type) = call_expression_return_type(program, machine, state, call) {

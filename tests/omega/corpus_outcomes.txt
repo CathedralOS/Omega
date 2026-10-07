@@ -77,10 +77,10 @@ fail/arithmetic/exact_shift_count_unproven rejected 244ms expected @2d8ed253669f
 	shift count in machine `Main::main` state `main` local `shifted` is not provably below the operand width for `u32`: exact shifts prove `count < 32` (ch5 shift-count ruling -- proof-or-policy). Constrain the count's range (a ranged type, a `requires` clause, or a dominating guard), or pick a defined-count policy on the SHIFTED operand (`u32 in Wrapping` reduces the count modulo 32, equivalently `count & 31` for this carrier; `in Trapping` traps at runtime).
 fail/arithmetic/exact_shift_left_value_unproven rejected 261ms expected @2d8ed253669f
 	exact arithmetic in machine `Main::main` state `main` local `shifted` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
-fail/arithmetic/float_to_int_exact_unproven rejected 118ms expected @c08960bee2b1+wt
-	machine `Main::main` state `main` cannot prove Exact float-to-`i32` cast operand `main.value` is finite and in range; constrain the float with a declared range or a dominating guard, or select `in Saturating`/`in Trapping`
-	float-to-int cast in machine `Main::main` state `main` cast expression is not provably in `i32`'s range (ch5 cast ruling -- proof-or-policy). Prove a finite declared range or a dominating non-NaN/range guard, or use `in Saturating` (NaN -> 0, clamp to the target range) or `in Trapping` (trap on NaN/out-of-range).
-	float-to-int cast in machine `Main::main` state `main` assignment is not provably in `i32`'s range (ch5 cast ruling -- proof-or-policy). Prove a finite declared range or a dominating non-NaN/range guard, or use `in Saturating` (NaN -> 0, clamp to the target range) or `in Trapping` (trap on NaN/out-of-range).
+fail/arithmetic/float_to_int_exact_unproven rejected 205ms expected @aef1e846927f+wt
+	machine `Main::main` state `main` cannot prove Exact float-to-`i32` cast operand `main.value` preserves its denotation; prove an integral representable value for an integer target, or exact format representability; use a named conversion to round or truncate
+	Exact float-to-int cast in machine `Main::main` state `main` cast expression is not provably integral and representable in `i32`; prove unchanged denotation or use a named conversion to truncate.
+	Exact float-to-int cast in machine `Main::main` state `main` assignment is not provably integral and representable in `i32`; prove unchanged denotation or use a named conversion to truncate.
 fail/arithmetic/float_to_int_wrapping_rejected rejected 129ms expected @d9720a4fa49b+wt
 	machine `Main::main` state `main` casts a float to `i32` in `Wrapping`, but floats have no modular conversion semantics; use an Exact cast with a proven finite/in-range operand, `in Saturating`, or `in Trapping`
 	implicit domain weakening in machine `Main::main` state `main` assignment drops `Wrapping`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
@@ -1084,20 +1084,34 @@ fail/expressions/token_bound_machine_duplicate_shape_rejected rejected 10ms expe
 	`Wrapped::plus` binds the fixed operator token `+` already bound by `Wrapped::add` for the same owner and operand shape (Wrapped, Wrapped); a second spelling needs a distinct operand shape or a separate owner
 fail/expressions/token_bound_machine_foreign_family_rejected rejected 31ms expected @2d8ed253669f
 	`Wrapped::add` binds the fixed operator token `+` but no operand names its semantic home `Wrapped` (u8#7, u8#7); a closed family's direct token bindings belong to the owner of a participating operand
+fail/float/constant_exact_integer_coercion_fractional rejected 60ms expected @aef1e846927f+wt
+	constant initializer: constant cast needs a total integer conversion or checked partial-conversion evidence
 fail/float/digit_separator_format_mismatch_rejected rejected 3132ms expected @e129ea486356
 	literal `12.5` is suffixed `f32` but lands in a `f64` place -- a width suffix chooses the literal's format at the spelling, so it must agree with the destination's declared type (drop the suffix or fix one side)
 fail/float/digit_separator_missing_exponent_rejected rejected 4ms expected @e129ea486356
 	tests/omega/fail/float/digit_separator_missing_exponent_rejected/main.omg:1:35: invalid float literal
 fail/float/digit_separator_unknown_suffix_rejected rejected 1ms expected @e129ea486356
 	tests/omega/fail/float/digit_separator_unknown_suffix_rejected/main.omg:1:35: unknown float literal suffix
-fail/float/exact_format_conversion_requires_denotation rejected 167ms expected @4ea513cebecf+wt
-	machine `lossy` state `entry` cannot prove Exact float-to-`f32` cast operand `value` preserves its denotation; prove exact representability or use the named rounded conversion `F32::from_f64`
-	machine `lossy_literal` state `entry` cannot prove Exact float-to-`f32` cast operand `0.1` preserves its denotation; prove exact representability or use the named rounded conversion `F32::from_f64`
-	machine `unknown` state `entry` cannot prove Exact float-to-`f32` cast operand `value` preserves its denotation; prove exact representability or use the named rounded conversion `F32::from_f64`
-	machine `finite_is_not_exact` state `entry` cannot prove Exact float-to-`f32` cast operand `value` preserves its denotation; prove exact representability or use the named rounded conversion `F32::from_f64`
-	machine `exact_ends_are_not_enough` state `entry` cannot prove Exact float-to-`f32` cast operand `value` preserves its denotation; prove exact representability or use the named rounded conversion `F32::from_f64`
-	machine `overflow` state `entry` cannot prove Exact float-to-`f32` cast operand `large()` preserves its denotation; prove exact representability or use the named rounded conversion `F32::from_f64`
-	machine `receiving_type_is_not_proof` state `entry` cannot prove Exact float-to-`f32` cast operand `value` preserves its denotation; prove exact representability or use the named rounded conversion `F32::from_f64`
+fail/float/exact_format_conversion_requires_denotation rejected 522ms expected @aef1e846927f+wt
+	machine `lossy` state `entry` cannot prove Exact float-to-`f32` cast operand `value` preserves its denotation; prove an integral representable value for an integer target, or exact format representability; use a named conversion to round or truncate
+	machine `lossy_literal` state `entry` cannot prove Exact float-to-`f32` cast operand `0.1` preserves its denotation; prove an integral representable value for an integer target, or exact format representability; use a named conversion to round or truncate
+	machine `unknown` state `entry` cannot prove Exact float-to-`f32` cast operand `value` preserves its denotation; prove an integral representable value for an integer target, or exact format representability; use a named conversion to round or truncate
+	machine `finite_is_not_exact` state `entry` cannot prove Exact float-to-`f32` cast operand `value` preserves its denotation; prove an integral representable value for an integer target, or exact format representability; use a named conversion to round or truncate
+	machine `exact_ends_are_not_enough` state `entry` cannot prove Exact float-to-`f32` cast operand `value` preserves its denotation; prove an integral representable value for an integer target, or exact format representability; use a named conversion to round or truncate
+	machine `overflow` state `entry` cannot prove Exact float-to-`f32` cast operand `large()` preserves its denotation; prove an integral representable value for an integer target, or exact format representability; use a named conversion to round or truncate
+	machine `receiving_type_is_not_proof` state `entry` cannot prove Exact float-to-`f32` cast operand `value` preserves its denotation; prove an integral representable value for an integer target, or exact format representability; use a named conversion to round or truncate
+	cast target range in machine `receiving_type_is_not_proof` state `entry` cast expression is not proven from the source value; all target predicates must hold before policy qualification (unknown numeric bounds or unsupported non-integer membership require an explicit proof)
+fail/float/exact_integer_coercion_requires_denotation rejected 523ms expected @aef1e846927f+wt
+	machine `fractional` state `entry` cannot prove Exact float-to-`i32` cast operand `value` preserves its denotation; prove an integral representable value for an integer target, or exact format representability; use a named conversion to round or truncate
+	machine `negative_fraction` state `entry` cannot prove Exact float-to-`u32` cast operand `-0.5` preserves its denotation; prove an integral representable value for an integer target, or exact format representability; use a named conversion to round or truncate
+	machine `unknown` state `entry` cannot prove Exact float-to-`i32` cast operand `value` preserves its denotation; prove an integral representable value for an integer target, or exact format representability; use a named conversion to round or truncate
+	machine `unknown` state `entry` cannot prove unqualified `I32::from_f64` operand `value` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
+	machine `integer_ends_are_not_enough` state `entry` cannot prove Exact float-to-`i32` cast operand `value` preserves its denotation; prove an integral representable value for an integer target, or exact format representability; use a named conversion to round or truncate
+	machine `overflow` state `entry` cannot prove Exact float-to-`i32` cast operand `value` preserves its denotation; prove an integral representable value for an integer target, or exact format representability; use a named conversion to round or truncate
+	machine `overflow` state `entry` cannot prove unqualified `I32::from_f64` operand `value` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
+	machine `nan` state `entry` cannot prove Exact float-to-`i32` cast operand `divide(0.0, 0.0)` preserves its denotation; prove an integral representable value for an integer target, or exact format representability; use a named conversion to round or truncate
+	machine `nan` state `entry` cannot prove unqualified `I32::from_f64` operand `divide(0.0, 0.0)` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
+	machine `stale_guard` state `guarded` cannot prove Exact float-to-`i32` cast operand `subject.value` preserves its denotation; prove an integral representable value for an integer target, or exact format representability; use a named conversion to round or truncate
 fail/float/exclusive_float_range_endpoint_rejected rejected 431ms expected @2d8ed253669f
 	cannot prove call argument `1.5` satisfies bounded parameter `value` for `accept` in `Main::main.main`; expected 0..1.5
 fail/float/field_range_conversion_after_invalid_write rejected 262ms expected @c67082a3bcd4+wt
@@ -1118,6 +1132,8 @@ fail/float/format_conversion_requires_result_proof rejected 469ms expected @c9e4
 	cannot prove initializer `F32.from_f64(huge())` satisfies `finite` for the bounded value of machine `make` state `entry` constructor field `amount`
 	cannot prove call argument `F32.from_f64(huge())` satisfies `finite` for bounded parameter `value` for `consume` in `overflow.entry`
 	cannot prove return value `F32.from_f64(value)` satisfies `finite` for bounded return type in `unknown.entry`
+fail/float/integer_conversion_lookalike rejected 510ms expected @aef1e846927f+wt
+	machine `lookalike` state `entry` terminal expression returns a value not provably within its declared range: callers rely on the declared `[a..=b]` for exact arithmetic on the result, so the returned value must be proven to honor it (decision 17). Constrain the returned value, or widen/remove the return range constraint.
 fail/float/local_initializer_range_unproven rejected 666ms expected @9ef088fc5f88+wt
 	cannot prove initializer `20.0` satisfies the bounded value of machine `literal` state `entry` local `bounded`; expected 0..=0.5
 	cannot prove initializer `value` satisfies the bounded value of machine `forwarded` state `entry` local `bounded`; expected 0..=0.5
@@ -1139,7 +1155,8 @@ fail/float/named_float_to_integer_no_context_unproven rejected 431ms expected @c
 	machine `Main::main` state `main` cannot prove unqualified `I32::from_f64` operand `main.value` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
 fail/float/named_nan_runtime_materialization rejected 4324ms expected @2d8ed253669f
 	constant initializer: undetermined NaN has no representation for a raw-bit recast
-fail/float/negated_ordered_guard_cast rejected 191ms expected @7f4f399bb74b+wt
+fail/float/negated_ordered_guard_cast rejected 479ms expected @aef1e846927f+wt
+	machine `Guarded::convert` state `bounded` cannot prove Exact float-to-`i32` cast operand `guarded.value` preserves its denotation; prove an integral representable value for an integer target, or exact format representability; use a named conversion to round or truncate
 	machine `Guarded::convert` state `bounded` cannot prove unqualified `I32::from_f64` operand `guarded.value` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
 fail/float/range_bound_names_value_rejected rejected 295ms expected @ada91cf0bd16+wt
 	machine `scale` state `entry` parameter `value` declares a `f64` range whose bound is not a float literal or closed integer constant; a floating range retains only those endpoints, so any other bound cannot be enforced (it would silently behave unbounded)
@@ -2766,13 +2783,11 @@ pass/float/build_runtime_semantics_twins_x86_baseline rejected 9392ms check-targ
 pass/float/builtin_extrema_field_store_exit checked 5149ms check-target:macos_arm64 @2d8ed253669f
 pass/float/computed_comparison_literal_landing_exit checked 5759ms check-target:macos_arm64 @7a3fe5365463
 pass/float/data_where_float_field_restored_exit checked 2202ms check-target:macos_arm64 @8cb8c462809d+wt
-pass/float/exact_fractional_integer_boundary_exit checked 5353ms check-target:macos_arm64 @ca8c127c90c5
 pass/float/f32_arg_const_arith_landed_exit checked 4338ms check-target:macos_arm64 @2d8ed253669f
 pass/float/f32_per_operation_rounding_exit checked 4917ms check-target:macos_arm64 @2d8ed253669f
 pass/float/finite_core_domain_range_discharge checked 3079ms check-target:macos_arm64 @42dbef3839ee+wt
 pass/float/finite_signature_transport_exit checked 3457ms check-target:macos_arm64 @6d55eb9c43a4+wt
 pass/float/float_saturating_arithmetic_exit checked 3341ms check-target:macos_arm64 @518d04d837b2+wt
-pass/float/float_to_int_exact_proofs_exit checked 2808ms check-target:macos_arm64 @c67082a3bcd4+wt
 pass/float/float_to_int_trapping_nan_traps checked 2511ms check-target:macos_arm64 @4e4bfed13aee+wt
 pass/float/float_trapping_overflow_traps checked 4784ms check-target:macos_arm64 @ca8c127c90c5
 pass/float/float_trapping_propagated_nan_traps checked 3518ms check-target:macos_arm64 @ca8c127c90c5
@@ -2783,10 +2798,12 @@ pass/float/local_after_float_call_store_exit checked 4433ms check-target:macos_a
 pass/float/named_constant_materialization_exit checked 13800ms check-target:macos_arm64 @2d8ed253669f
 pass/float/named_float_integer_lower_boundary_conversion_traps checked 4101ms check-target:macos_arm64 @2d8ed253669f
 pass/float/named_float_integer_nan_conversion_traps checked 4114ms check-target:macos_arm64 @2d8ed253669f
+pass/float/named_fractional_integer_boundary_exit checked 4703ms check-target:macos_arm64 @aef1e846927f+wt
 pass/float/named_ieee_conversions_exit checked 13711ms check-target:macos_arm64 @2d8ed253669f
 pass/float/named_ieee_operations_exit checked 22803ms check-target:macos_arm64 @2d8ed253669f
 pass/float/named_ieee_truncations_exit checked 18313ms check-target:macos_arm64 @2d8ed253669f
 pass/float/named_infinity_classification_exit checked 4472ms check-target:macos_arm64 @2d8ed253669f
+pass/float/named_integer_conversion_source_proofs_exit checked 4711ms check-target:macos_arm64 @aef1e846927f+wt
 pass/float/named_nan_semantic_only_exit checked 23555ms check-target:macos_arm64 @2d8ed253669f
 pass/float/named_provider_directed_divide_exit checked 22722ms check-target:macos_arm64 @cb6b089b27de+wt
 pass/float/named_provider_fused_multiply_add_exit checked 28752ms check-target:macos_arm64 @a730a3a70c28+wt
@@ -2796,6 +2813,7 @@ pass/float/named_provider_negate_is_nan_exit checked 5868ms check-target:macos_a
 pass/float/nearest_even_binary_arithmetic_exit checked 5916ms check-target:macos_arm64 @2d8ed253669f
 pass/float/nested_float_operator_applications_exit checked 9657ms check-target:macos_arm64 @2d8ed253669f
 pass/float/runtime_exact_format_narrowing_exit checked 4634ms check-target:macos_arm64 @4ea513cebecf+wt
+pass/float/runtime_exact_integer_coercion_exit checked 5070ms check-target:macos_arm64 @aef1e846927f+wt
 pass/float/runtime_finite_record_invariant_window_exit checked 5990ms check-target:macos_arm64 @222cdf8fe2a0+wt
 pass/float/runtime_float_call_same_carrier_cast_exit checked 9730ms check-target:macos_arm64 @4f590536f488+wt
 pass/float/runtime_float_digit_separators_exit checked 88080ms check-target:macos_arm64 @e129ea486356

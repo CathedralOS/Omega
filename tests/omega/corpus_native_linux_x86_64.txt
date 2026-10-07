@@ -590,8 +590,6 @@ pass/float/f32_per_operation_rounding_exit built 3224ms exit:77 @2d8ed253669f+wt
 pass/float/finite_core_domain_range_discharge built 3073ms exit:77 @9baafc0ace88
 pass/float/finite_signature_transport_exit built 11162ms exit:77 @c773c4ad3c34
 pass/float/float_saturating_arithmetic_exit built 12679ms exit:77 @c773c4ad3c34
-pass/float/float_to_int_exact_proofs_exit rejected 2428ms @2d8ed253669f+wt
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: state signature: parameter signature: attached data shape` (state 0)
 pass/float/float_to_int_trapping_nan_traps built 2522ms @2d8ed253669f+wt
 pass/float/float_trapping_overflow_traps built 2802ms exit:signal signal:4 @9baafc0ace88
 pass/float/float_trapping_propagated_nan_traps built 2806ms exit:signal signal:4 @9baafc0ace88

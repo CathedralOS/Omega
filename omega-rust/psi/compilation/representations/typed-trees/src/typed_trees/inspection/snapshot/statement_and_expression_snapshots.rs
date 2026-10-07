@@ -160,6 +160,8 @@ pub enum ExpressionSnapshot {
     Call {
         receiver: Option<Box<ExpressionSnapshot>>,
         target: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        exact_coercion_target: Option<Box<TypeReferenceSnapshot>>,
         machine_arguments: Vec<StaticArgumentSnapshot>,
         #[serde(skip_serializing_if = "Option::is_none")]
         private_layout_slot: Option<StaticArgumentSnapshot>,
@@ -421,6 +423,10 @@ pub(crate) fn expression_snapshot(
             semantic_domain_id: cast.semantic_domain_id.0,
         },
         ExpressionNode::Call(call) => ExpressionSnapshot::Call {
+            exact_coercion_target: call
+                .exact_coercion_target
+                .is_valid()
+                .then(|| Box::new(type_reference_snapshot(program, call.exact_coercion_target))),
             receiver: call
                 .receiver
                 .is_valid()

@@ -58,6 +58,7 @@ pub(super) fn zero_argument_invocation_discharges(
     };
 
     let call = TableCallExpression {
+        exact_coercion_target: typed_trees::types::TypeReferenceHandle::invalid(),
         receiver: ExpressionHandle::invalid(),
         target_symbol: entry_symbol,
         static_machine_parameter: SymbolHandle::invalid(),

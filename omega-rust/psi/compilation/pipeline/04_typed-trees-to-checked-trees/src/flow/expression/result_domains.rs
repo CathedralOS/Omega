@@ -1,4 +1,4 @@
-//! A computed result keeps its declared scalar tags at its evaluation point.
+//! A computed result keeps its declared scalar qualifications at evaluation.
 //!
 //! Reuse validation's destination-independent result query: it joins all Match
 //! arms by normalized type identity and does not copy operand refinements onto
@@ -6,8 +6,11 @@
 //! a callee's requires context or an unselected arm. The subject is this result
 //! occurrence, not storage read while producing it.
 //!
-//! This is tag transport, not predicate proof or establishment authority. The
-//! normalized instance travels with the declaration through every fact copy.
+//! Tags and enforced floating ranges describe the completed result, not its
+//! operands or a receiving annotation. Range predicates join the same captured
+//! occurrence as tags; invocation checking need not reconstruct a source call
+//! or skip its preconditions. This is transport, not establishment authority.
+//! The normalized instance travels with the declaration through every fact copy.
 //! Equality of exact instances is not a license to equate different open index
 //! expressions; those still require their selected normalization/equality proof.
 use crate::flow::append_constraint_ref;
@@ -43,7 +46,13 @@ impl Execution<'_, '_, '_> {
             return;
         };
         let domains = validation::scalar_type_tags(self.program, reference);
-        if domains.is_empty() {
+        let mut predicates = Vec::new();
+        crate::values::float_predicates::declared_type_predicates(
+            self.program,
+            reference,
+            &mut predicates,
+        );
+        if domains.is_empty() && predicates.is_empty() {
             return;
         }
         let place = self.semantic.append_expression_place(expression);
@@ -68,6 +77,19 @@ impl Execution<'_, '_, '_> {
                     domain_symbol,
                     semantic_domain,
                 },
+            });
+            self.semantic.append_ref(&mut refs, fact);
+        }
+        for predicate in predicates {
+            let fact = self.semantic.append_fact(Fact {
+                place: FactPlace::Place(place),
+                point,
+                origin: FactOrigin::StatementTransfer,
+                evidence: QualificationEvidence::from_origin(
+                    language_semantics::QualificationEvidenceOrigin::Propagated,
+                    self.state.symbol,
+                ),
+                payload: FactPayload::FloatPredicate { predicate },
             });
             self.semantic.append_ref(&mut refs, fact);
         }

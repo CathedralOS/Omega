@@ -5,8 +5,7 @@ use omega::language::core::float_operations;
 // The record travels to the state that writes it as an ordinary argument.
 data Guarded { value: f64; converted: i32; }
 machine Guarded::convert(guarded: &mut Guarded) {
-    transition guarded.value == guarded.value
-        && guarded.value >= 0.0 && guarded.value <= 100.0 {
+    transition guarded.value == 3.0 {
         true -> bounded(guarded)
         _ -> done()
     }

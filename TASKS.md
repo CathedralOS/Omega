@@ -961,9 +961,7 @@ defines the complete product bar.
   - **OPERATOR-BOUNDARY-CALLS**: `pass/float/{x86_fma_plan_association,build_runtime_semantics_twins_x86_baseline,build_runtime_semantics_twins_windows_x64,named_provider_directed_divide_exit,named_provider_fused_multiply_add_exit,named_provider_multiply_then_add_exit}`,
     `pass/expressions/match_float_{interpretation,patterns,subjects}`;
     `pass/float/{float_saturating_arithmetic_exit,float_trapping_overflow_traps,float_trapping_propagated_nan_traps}`
-    need their authored policies (`as f32` erases the subject). Exact-cast
-    guards in `pass/float/float_to_int_exact_proofs_exit` need one comparison
-    recognizer shared by Binary expressions and token-bearing calls.
+    need their authored policies (`as f32` erases the subject).
   - **ENTRY-CONTENT-ROOTS**: `pass/control_flow/guarded_leaf_branch_expansion`,
     `pass/capabilities/uses_caller_folder` (exact authored Gui/Input/Console
     providers; a same-named bundled provider is insufficient).
@@ -1290,8 +1288,8 @@ defines the complete product bar.
     `pass/calls/runtime_mutable_call_before_transition_args_exit`, the
     `pass/recast/runtime_*_mutable_write_exit` family and the sample field
     migrations; reproduce before attributing failures to proposition checking.
-    `pass/float/float_to_int_exact_proofs_exit` (data `where`, exit 78 on macOS
-    ARM64, rejected natively on Linux/Windows) keeps its invalid-write control.
+    Run `pass/float/named_integer_conversion_source_proofs_exit` (data `where`,
+    exit 78) on Linux/Windows, keeping its invalid-write control.
     Constructor bounds now use the shared occurrence environment in
     `checking/src/value_custody/struct_literals/construction_bounds.rs`, not
     the retired immutable-operand filter or obsolete local initializers.
@@ -2057,13 +2055,13 @@ crash and native exit behavior.
   float conversion casts (`validation::bind_float_conversion_casts`) execute.
   Remaining:
   - **Float/receiver signatures.** Complete call composition for the
-    remaining signatures. Value-dependent float representability and
+    remaining signatures. Value-dependent integer-to-float representability and
     target-predicate casts need lowering that keeps the predicate; a rounding
-    conversion cannot stand in for an exact cast. Exact float-to-integer casts
-    depend on **FLOAT-PROVIDERS** (the conversion's `requires` reads neither
-    declared float ranges nor dominating guards). Unverified:
-    `float/float_to_int_exact_proofs_exit` executes at 78 on macOS ARM64 but
-    its Linux/Windows rows record rejection; rerun there.
+    conversion cannot stand in for an exact cast. Domain-qualified float casts
+    still take the legacy truncating/clamping route: enforce unchanged denotation
+    for `as`, leaving policy-bearing conversions on the named-call surface.
+    Run `float/named_integer_conversion_source_proofs_exit` (78) on
+    Linux/Windows; those matching-host results remain unverified.
     `float/build_runtime_semantics_twins_{x86_baseline,windows_x64}` need native
     realization for the selected `F32/F64::{classify,is_finite,is_normal,is_subnormal}`
     calls. Longer probes reached that gap after the comparison-literal repair;
@@ -2800,7 +2798,7 @@ the validation `src/` (written `omega-rust/psi/compilation/checking/src/`) unles
   `checks/contracts/intervals.rs` keeps only the guard-label reader the
   label routes use. Name-keyed proofs and unknown-length slice bounds remain
   private. Float intervals
-  (`omega-rust/psi/compilation/checking/src/value_custody/expression_types/float_cast_proofs.rs`) stay
+  (`omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/float_arithmetic.rs`) stay
   separate. This is large: land it per client, each commit deleting that
   client's private engine. Acceptance: no private integer interval type
   remains outside `arithmetic_domains`; corpus `--filter ranges,arithmetic/,
@@ -3216,6 +3214,14 @@ deletions, which the commit lists.
   declaration-backed unchanged-denotation proofs and retained IEEE endpoints;
   `float/exact_format_conversion_requires_denotation` must reject lossy literals,
   unknown or finite-only operands, non-singleton windows and receiving-type premises.
+  `float/runtime_exact_integer_coercion_exit` (native/checked 0) constrains
+  unchanged-denotation coercions, live IEEE equality facts, enforced result/entry
+  ranges and integer bounds from selected named-conversion guarantees;
+  `float/exact_integer_coercion_requires_denotation` and
+  `float/integer_conversion_lookalike` must reject fractional values, NaN,
+  overflow, integer-ended fractional intervals, stale writes and spelling lookalikes.
+  Shared Terminal execution needs **TERMINAL-RUNTIME-DRIVERS**' exact
+  host-binding adapter for `I32::from_f64` before its remaining reachable imports.
   `collections/runtime_finite_element_view_call_write_exit` (0) constrains
   finite-result stores, captured indices and ordinary float carriers;
   `float/finite_constructor_requires_operand_proof` must reject an unqualified

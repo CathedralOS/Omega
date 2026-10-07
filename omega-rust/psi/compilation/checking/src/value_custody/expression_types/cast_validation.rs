@@ -1,5 +1,4 @@
 use super::expression_type_name_handle;
-use super::float_cast_proofs::float_to_integer_cast_is_proven;
 use super::operator_validation::expression_is_float_typed;
 use super::shape_validation::value_shape_is_array;
 use super::value_classification::{ValueClass, value_class, value_concrete_data_name};
@@ -20,6 +19,7 @@ pub(crate) fn validate_cast_types(
     machine: &typed_trees::machine::Machine,
     state: Option<&typed_trees::state::State>,
     cast: &TableCastExpression,
+    environment: &crate::proof_contracts::arithmetic_domains::ValueEnvironment,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     // §5b recasts (`&x as &T`) are judged WHOLE by `recasts::validate_recasts`
@@ -28,8 +28,18 @@ pub(crate) fn validate_cast_types(
     if cast.form.is_recast() {
         return;
     }
-    if let Some(state) = state {
-        super::validate_exact_float_format_cast(program, machine, state, cast, diagnostics);
+    if let Some(state) = state
+        && cast.domain == ArithmeticDomain::Exact
+    {
+        super::validate_exact_float_coercion(
+            program,
+            machine,
+            state,
+            cast.value,
+            cast.target_type,
+            environment,
+            diagnostics,
+        );
     }
     crate::value_custody::type_references::validate_indexed_qualification_arguments(
         program,
@@ -134,24 +144,6 @@ pub(crate) fn validate_cast_types(
             machine.name.as_str(),
             state.map(|state| state.name.as_str()).unwrap_or(""),
             target_name.map(|name| name.as_str()).unwrap_or("integer"),
-        )));
-    }
-
-    if cast.domain == ArithmeticDomain::Exact
-        && expression_is_float_typed(program, machine, state, cast.value)
-        && let Some(target) = target_name
-            .and_then(|target| PrimitiveType::from_name(target.as_str()))
-            .filter(|target| target.accepts_integer_literal())
-        && !float_to_integer_cast_is_proven(program, machine, state, cast.value, target)
-    {
-        diagnostics.push(Diagnostic::error(format!(
-            "machine `{}` state `{}` cannot prove Exact float-to-`{}` cast operand `{}` is \
-             finite and in range; constrain the float with a declared range or a dominating \
-             guard, or select `in Saturating`/`in Trapping`",
-            machine.name.as_str(),
-            state.map(|state| state.name.as_str()).unwrap_or(""),
-            target.name(),
-            program.expression_table.display_name(cast.value),
         )));
     }
 }

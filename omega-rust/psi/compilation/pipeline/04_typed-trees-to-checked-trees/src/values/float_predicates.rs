@@ -13,7 +13,78 @@ use typed_trees::expression::{
 };
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
-use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
+use typed_trees::types::{
+    PrimitiveType, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
+};
+
+/// Enforced result ranges describe the completed value, including a computed
+/// result with no storage identity. Publish them after evaluation; callers can
+/// then use the ordinary operand snapshot rather than reconstructing a callee.
+pub(crate) fn declared_type_predicates(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+    predicates: &mut Vec<FloatPredicate>,
+) {
+    match program.type_reference_table.type_reference(reference) {
+        TypeReferenceNode::Reference { referee, .. } => {
+            declared_type_predicates(program, *referee, predicates);
+        }
+        TypeReferenceNode::Constrained {
+            base_type,
+            constraints,
+        } => {
+            declared_type_predicates(program, *base_type, predicates);
+            let Some(primitive @ (PrimitiveType::F32 | PrimitiveType::F64)) =
+                program.primitive_type_reference(reference)
+            else {
+                return;
+            };
+            let format = if primitive == PrimitiveType::F32 {
+                FloatFormat::F32
+            } else {
+                FloatFormat::F64
+            };
+            let endpoint = |expression| match validation::closed_float_range_endpoint(
+                program, expression, primitive,
+            )? {
+                semantic_vocabulary::IeeeFloatValue::Binary32(bits) => {
+                    Some(ExactFloat::from_f32(f32::from_bits(bits)))
+                }
+                semantic_vocabulary::IeeeFloatValue::Binary64(bits) => {
+                    Some(ExactFloat::from_f64(f64::from_bits(bits)))
+                }
+            };
+            for constraint in program.type_reference_table.constraints(*constraints) {
+                let TypeConstraintNode::Range {
+                    minimum,
+                    maximum,
+                    end_inclusive,
+                } = constraint
+                else {
+                    continue;
+                };
+                for (operator, value) in [
+                    (BinaryOperator::GreaterOrEqual, *minimum),
+                    (
+                        if *end_inclusive {
+                            BinaryOperator::LessOrEqual
+                        } else {
+                            BinaryOperator::Less
+                        },
+                        *maximum,
+                    ),
+                ] {
+                    if let Some(predicate) = endpoint(value)
+                        .and_then(|bound| FloatPredicate::comparison(format, operator, &bound))
+                    {
+                        predicates.push(predicate);
+                    }
+                }
+            }
+        }
+        _ => {}
+    }
+}
 
 pub(crate) fn collect_true(
     program: &TypedTrees,

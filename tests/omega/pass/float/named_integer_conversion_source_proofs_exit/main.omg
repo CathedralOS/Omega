@@ -1,7 +1,8 @@
 use omega::language::core::float_operations;
 
-// Exact float-to-int accepts a field's default-domain bound and an incoming
-// guard that proves non-NaN plus both range bounds. The data clause preserves
+// Named truncation accepts a field's default-domain bound and an incoming
+// guard that proves non-NaN plus both range bounds. Exact `as` cannot truncate.
+// The data clause preserves
 // the former field suffix's [0.0..=100.0] contract without a range type.
 use omega_language_std::console;
 use omega::language::core::binding;
@@ -14,7 +15,7 @@ data Main where bounded >= 0.0 && bounded <= 100.0 {
 }
 machine Main::main(main: &mut Main) reaches Console {
     main.bounded = 77.9;
-    main.a = main.bounded as i32;
+    main.a = I32::from_f64(main.bounded);
     main.unbounded = 42.5;
     transition main.unbounded == main.unbounded
         && main.unbounded >= 0.0 && main.unbounded <= 100.0 {
@@ -22,7 +23,7 @@ machine Main::main(main: &mut Main) reaches Console {
         _ -> bad(main)
     }
     state guarded(main: &mut Main) {
-        main.b = main.unbounded as i32;
+        main.b = I32::from_f64(main.unbounded);
         transition main.a == 77 && main.b == 42 { true -> good(main) _ -> bad(main) }
     }
     state good(main: &mut Main) { main.console.exit_process(78); }

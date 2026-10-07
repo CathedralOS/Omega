@@ -66,7 +66,8 @@ pub(crate) use cited_element_bounds::{
     element_place_path, seed_cited_element_bounds, stable_element_place_path,
 };
 pub(crate) use expression_analysis::ArithmeticDecisions;
-pub(crate) use float_arithmetic::{float_interval_fits_integer, float_source_proves_int_cast};
+pub(crate) use float_arithmetic::float_source_bounds;
+pub(crate) use float_arithmetic::float_source_proves_integer_conversion;
 pub use guard_narrowing::{
     arrival_integer_expression_bounds, occurrence_integer_expression_bounds,
     occurrence_integer_expression_fits_range,

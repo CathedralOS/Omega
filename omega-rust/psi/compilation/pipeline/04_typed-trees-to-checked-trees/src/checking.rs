@@ -342,8 +342,8 @@ fn check_program(
     // consume the call identity.
     validation::resolve_named_result_overloads(&mut program)?;
     // Float casts select their destination-owned conversion by the cast's
-    // result qualification. Format-changing Exact casts discharge unchanged
-    // denotation here, before rewriting could erase that stronger obligation.
+    // result qualification. Derived calls retain the authored Exact target;
+    // occurrence checking proves unchanged denotation from live value facts.
     // Bind after named rebinding above, which would otherwise reselect the
     // unqualified overload for a call whose context expects no result domain.
     validation::bind_float_conversion_casts(&mut program)?;
