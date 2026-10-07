@@ -5,6 +5,36 @@ use syntax_trees::expression::ExpressionNode;
 use syntax_trees::statement::StatementNode;
 use syntax_trees::types::TypeReferenceNode;
 
+/// The first expression argument of the first call statement in the named
+/// machine's entry state — the shared extraction the borrow-access tests use.
+fn machine_first_call_argument(
+    parsed: &syntax_trees::SyntaxTrees,
+    machine_name: &str,
+) -> syntax_trees::expression::ExpressionHandle {
+    let machine = parsed
+        .root_items()
+        .filter_map(|item| match item {
+            syntax_trees::item::Item::Machine(machine) => Some(machine),
+            _ => None,
+        })
+        .find(|machine| machine.name.as_str() == machine_name)
+        .expect("caller machine");
+    let state = parsed.items.state(
+        *parsed
+            .items
+            .state_handles(machine.states)
+            .first()
+            .expect("caller entry state"),
+    );
+    let StatementNode::Call(call) = parsed
+        .statements
+        .statement(parsed.items.statements(state.statements)[0])
+    else {
+        panic!("caller statement should be a call");
+    };
+    parsed.statements.expression_handles(call.arguments)[0]
+}
+
 #[test]
 fn parses_domain_definition_surface() {
     let source = r#"
@@ -427,28 +457,7 @@ fn parses_explicit_write_only_borrow_with_exact_access_mode() {
         .tokenize()
         .expect("tokenize should succeed");
     let parsed = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let caller = parsed
-        .root_items()
-        .filter_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) => Some(machine),
-            _ => None,
-        })
-        .find(|machine| machine.name.as_str() == "caller")
-        .expect("caller machine");
-    let state = parsed.items.state(
-        *parsed
-            .items
-            .state_handles(caller.states)
-            .first()
-            .expect("caller entry state"),
-    );
-    let StatementNode::Call(call) = parsed
-        .statements
-        .statement(parsed.items.statements(state.statements)[0])
-    else {
-        panic!("caller statement should be a call");
-    };
-    let argument = parsed.statements.expression_handles(call.arguments)[0];
+    let argument = machine_first_call_argument(&parsed, "caller");
     let ExpressionNode::Borrow(borrow) = parsed.expressions.expression(argument) else {
         panic!("argument should retain one closed borrow-expression node");
     };
@@ -473,28 +482,7 @@ fn parses_explicit_shared_borrow_with_exact_access_mode() {
         .tokenize()
         .expect("tokenize should succeed");
     let parsed = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let caller = parsed
-        .root_items()
-        .filter_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) => Some(machine),
-            _ => None,
-        })
-        .find(|machine| machine.name.as_str() == "caller")
-        .expect("caller machine");
-    let state = parsed.items.state(
-        *parsed
-            .items
-            .state_handles(caller.states)
-            .first()
-            .expect("caller entry state"),
-    );
-    let StatementNode::Call(call) = parsed
-        .statements
-        .statement(parsed.items.statements(state.statements)[0])
-    else {
-        panic!("caller statement should be a call");
-    };
-    let argument = parsed.statements.expression_handles(call.arguments)[0];
+    let argument = machine_first_call_argument(&parsed, "caller");
     let ExpressionNode::Borrow(borrow) = parsed.expressions.expression(argument) else {
         panic!("argument should retain one closed shared-borrow expression node");
     };
