@@ -102,8 +102,7 @@ fn atomic_bindings_classify_one_initializer_and_preserve_binding_properties() {
         ] {
             let source =
                 format!("machine update(cell: u64) {{ let {binding}: u64 = cell.{operation}; }}");
-            let tokens = Lexer::new(&source).tokenize().unwrap();
-            let parsed = parse_syntax_trees(&tokens).unwrap();
+            let parsed = super::parse_source_unwrap(&source);
             let statements = first_machine_statements(&parsed);
             let [local, write] = statements else {
                 panic!("binding and atomic write: {source}")
@@ -140,8 +139,7 @@ fn unmatched_atomic_shapes_publish_only_the_ordinary_binding() {
         "cell.unrelated(1, NoOrdering)",
     ] {
         let source = format!("machine sample() {{ let value: u64 = {expression}; }}");
-        let tokens = Lexer::new(&source).tokenize().unwrap();
-        let parsed = parse_syntax_trees(&tokens).unwrap();
+        let parsed = super::parse_source_unwrap(&source);
         assert_eq!(first_machine_statements(&parsed).len(), 1, "{source}");
         assert!(
             !parsed
@@ -193,13 +191,7 @@ fn trait_defaults_share_atomic_binding_dispatch() {
 fn first_machine_statements(
     parsed: &syntax_trees::SyntaxTrees,
 ) -> &[syntax_trees::statement::StatementHandle] {
-    let machine = parsed
-        .root_items()
-        .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) => Some(machine),
-            _ => None,
-        })
-        .expect("machine");
+    let machine = super::root_machine(&parsed, "machine");
     let state = parsed
         .items
         .state(parsed.items.state_handles(machine.states)[0]);
@@ -218,15 +210,8 @@ fn tail_targets_preserve_other_receiver_calls_without_reclassifying_state_coordi
         let source = format!(
             "machine Main::next(main: &Main, input: u64) -> u64 {{ transition {{ _ -> {target}(input; proof) }} }}"
         );
-        let tokens = Lexer::new(&source).tokenize().unwrap();
-        let parsed = parse_syntax_trees(&tokens).unwrap();
-        let machine = parsed
-            .root_items()
-            .find_map(|item| match item {
-                syntax_trees::item::Item::Machine(machine) => Some(machine),
-                _ => None,
-            })
-            .unwrap();
+        let parsed = super::parse_source_unwrap(&source);
+        let machine = super::root_machine_unwrap(&parsed);
         let state = parsed
             .items
             .state(parsed.items.state_handles(machine.states)[0]);
@@ -280,15 +265,8 @@ fn opposite_boolean_subject_arms_test_the_subject_once() {
              }}",
             !first
         );
-        let tokens = Lexer::new(&source).tokenize().unwrap();
-        let parsed = parse_syntax_trees(&tokens).unwrap();
-        let machine = parsed
-            .root_items()
-            .find_map(|item| match item {
-                syntax_trees::item::Item::Machine(machine) => Some(machine),
-                _ => None,
-            })
-            .unwrap();
+        let parsed = super::parse_source_unwrap(&source);
+        let machine = super::root_machine_unwrap(&parsed);
         let state = parsed
             .items
             .state(parsed.items.state_handles(machine.states)[0]);
@@ -329,15 +307,8 @@ fn unrelated_or_nonpair_boolean_guards_keep_their_tests() {
         "transition probe() { true -> 1u8 } transition probe() { false -> 2u8 }",
     ] {
         let source = format!("machine value() -> u8 {{ {body} }}");
-        let tokens = Lexer::new(&source).tokenize().unwrap();
-        let parsed = parse_syntax_trees(&tokens).unwrap();
-        let machine = parsed
-            .root_items()
-            .find_map(|item| match item {
-                syntax_trees::item::Item::Machine(machine) => Some(machine),
-                _ => None,
-            })
-            .unwrap();
+        let parsed = super::parse_source_unwrap(&source);
+        let machine = super::root_machine_unwrap(&parsed);
         let state = parsed
             .items
             .state(parsed.items.state_handles(machine.states)[0]);
@@ -367,15 +338,8 @@ fn boolean_transition_targets_are_literals_without_parentheses() {
         ("(true)", true),
     ] {
         let source = format!("machine value() -> bool {{ transition {{ _ -> {spelling} }} }}");
-        let tokens = Lexer::new(&source).tokenize().unwrap();
-        let parsed = parse_syntax_trees(&tokens).unwrap();
-        let machine = parsed
-            .root_items()
-            .find_map(|item| match item {
-                syntax_trees::item::Item::Machine(machine) => Some(machine),
-                _ => None,
-            })
-            .unwrap();
+        let parsed = super::parse_source_unwrap(&source);
+        let machine = super::root_machine_unwrap(&parsed);
         let state = parsed
             .items
             .state(parsed.items.state_handles(machine.states)[0]);
@@ -478,13 +442,7 @@ fn old_remains_an_ordinary_parameter_and_local_identifier() {
             .tokenize()
             .expect("tokenize ordinary old identifiers");
     let parsed = parse_syntax_trees(&tokens).expect("old must not be a globally reserved word");
-    let machine = parsed
-        .root_items()
-        .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) => Some(machine),
-            _ => None,
-        })
-        .expect("migration machine");
+    let machine = super::root_machine(&parsed, "migration machine");
     let state = parsed.items.state(
         parsed
             .items
@@ -518,13 +476,7 @@ fn entry_remains_an_ordinary_machine_name_with_a_generated_internal_entry() {
         .tokenize()
         .expect("tokenize ordinary entry declaration");
     let parsed = parse_syntax_trees(&tokens).expect("entry must remain a declaration name");
-    let machine = parsed
-        .root_items()
-        .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) => Some(machine),
-            _ => None,
-        })
-        .expect("ordinary entry machine");
+    let machine = super::root_machine(&parsed, "ordinary entry machine");
     assert_eq!(machine.name.as_str(), "entry");
     let [state_handle] = parsed.items.state_handles(machine.states) else {
         panic!("ordinary machine must retain one generated internal entry");
@@ -721,13 +673,7 @@ fn root_binding_statement_retains_operand_paths_and_the_authored_bind_span() {
         .tokenize()
         .expect("tokenize root binding");
     let parsed = parse_syntax_trees(&tokens).expect("parse root binding");
-    let machine = parsed
-        .root_items()
-        .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) => Some(machine),
-            _ => None,
-        })
-        .expect("build machine");
+    let machine = super::root_machine(&parsed, "build machine");
     let state = parsed
         .items
         .state(parsed.items.state_handles(machine.states)[0]);
@@ -790,13 +736,7 @@ fn root_binding_statement_retains_computed_operands_without_a_declaration_path()
         );
         let tokens = Lexer::new(&source).tokenize().expect("root binding tokens");
         let parsed = parse_syntax_trees(&tokens).expect("description expression syntax");
-        let machine = parsed
-            .root_items()
-            .find_map(|item| match item {
-                syntax_trees::item::Item::Machine(machine) => Some(machine),
-                _ => None,
-            })
-            .expect("build machine");
+        let machine = super::root_machine(&parsed, "build machine");
         let state = parsed
             .items
             .state(parsed.items.state_handles(machine.states)[0]);

@@ -353,13 +353,7 @@ fn parses_independent_operational_clauses_on_machines_and_requirements() {
         "#;
 
     let parsed = super::parse_source(source, "operational clauses should parse");
-    let machine = parsed
-        .root_items()
-        .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) => Some(machine),
-            _ => None,
-        })
-        .expect("machine item");
+    let machine = super::root_machine(&parsed, "machine item");
     assert!(machine.suspends);
     assert!(machine.blocks);
     assert_eq!(machine.suspends_keyword_source_spans.len(), 1);
@@ -468,13 +462,7 @@ fn parses_machine_requires_before_reaches_on_one_line() {
         "#;
 
     let parsed = super::parse_source(source, "requires before reaches should parse");
-    let machine = parsed
-        .root_items()
-        .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) => Some(machine),
-            _ => None,
-        })
-        .expect("machine item");
+    let machine = super::root_machine(&parsed, "machine item");
 
     let service_reaches = parsed
         .items
@@ -647,13 +635,7 @@ fn parses_guarded_crash_buckets_on_machines_and_requirements() {
         "#;
 
     let parsed = super::parse_source(source, "crash buckets should parse");
-    let machine = parsed
-        .root_items()
-        .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) => Some(machine),
-            _ => None,
-        })
-        .expect("machine item");
+    let machine = super::root_machine(&parsed, "machine item");
     let contracts = parsed.items.capability_contracts(machine.contracts);
     assert_eq!(contracts.len(), 2);
     let syntax_trees::item::CapabilityContractKind::Crashes { cause } = &contracts[0].kind else {
@@ -981,13 +963,7 @@ fn parses_explicit_crash_terminal_and_retires_trap_statement() {
         }
     "#;
     let parsed = super::parse_source(source, "explicit crash should parse");
-    let machine = parsed
-        .root_items()
-        .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) => Some(machine),
-            _ => None,
-        })
-        .expect("machine item");
+    let machine = super::root_machine(&parsed, "machine item");
     let state = parsed
         .items
         .state(parsed.items.state_handles(machine.states)[0]);
@@ -1323,13 +1299,7 @@ fn parses_machine_contract_clauses() {
         "#;
 
     let parsed = super::parse_source(source, "parse should succeed");
-    let machine = parsed
-        .root_items()
-        .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) => Some(machine),
-            _ => None,
-        })
-        .expect("machine root item");
+    let machine = super::root_machine(&parsed, "machine root item");
     let contracts = parsed.items.capability_contracts(machine.contracts);
 
     assert_eq!(contracts.len(), 2);
@@ -1365,13 +1335,7 @@ fn parses_named_machine_contract_evidence_bindings() {
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let parsed = parse_syntax_trees(&tokens).expect("named contracts parse");
-    let machine = parsed
-        .root_items()
-        .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) => Some(machine),
-            _ => None,
-        })
-        .expect("machine");
+    let machine = super::root_machine(&parsed, "machine");
     let contracts = parsed.items.capability_contracts(machine.contracts);
     assert_eq!(contracts.len(), 2);
     assert_eq!(
@@ -1402,13 +1366,7 @@ fn parses_outcome_specific_ensures_as_rows_without_group_identity() {
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let parsed = parse_syntax_trees(&tokens).expect("outcome-specific ensures parse");
-    let machine = parsed
-        .root_items()
-        .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) => Some(machine),
-            _ => None,
-        })
-        .expect("machine");
+    let machine = super::root_machine(&parsed, "machine");
     let contracts = parsed.items.capability_contracts(machine.contracts);
     assert_eq!(contracts.len(), 2);
     for contract in contracts {
@@ -1544,13 +1502,7 @@ fn parses_explicit_state_arrival_requires() {
     "#;
 
     let parsed = super::parse_source(source, "state arrival requires should parse");
-    let machine = parsed
-        .root_items()
-        .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) => Some(machine),
-            _ => None,
-        })
-        .expect("machine root item");
+    let machine = super::root_machine(&parsed, "machine root item");
     let positive = parsed
         .items
         .state_handles(machine.states)
@@ -1613,13 +1565,7 @@ fn bare_bodyless_machine_signature_parses_and_bodyless_satisfies_without_via_rej
         .tokenize()
         .expect("tokenize should succeed");
     let parsed = parse_syntax_trees(&tokens).expect("bare bodyless signature should parse");
-    let machine = parsed
-        .root_items()
-        .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) => Some(machine),
-            _ => None,
-        })
-        .expect("machine item");
+    let machine = super::root_machine(&parsed, "machine item");
     assert!(machine.bodyless && !machine.boundary && machine.spelling.is_none());
     assert_eq!(machine.name.as_str(), "Float::meaning32");
 

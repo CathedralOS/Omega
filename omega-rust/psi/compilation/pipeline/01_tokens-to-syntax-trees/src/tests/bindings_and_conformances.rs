@@ -316,13 +316,7 @@ fn parses_binding_relevance_on_signature_parameters_and_locals() {
         }
     "#;
     let parsed = super::parse_source(source, "binding relevance should parse");
-    let machine = parsed
-        .root_items()
-        .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) => Some(machine),
-            _ => None,
-        })
-        .expect("machine declaration");
+    let machine = super::root_machine(&parsed, "machine declaration");
     let [state] = parsed.items.state_handles(machine.states) else {
         panic!("one state");
     };
@@ -490,13 +484,7 @@ fn preserves_erased_lifetime_parameters_separately_from_runtime_generics() {
     assert_eq!(data.lifetime_parameters[0].as_str(), "buf");
     assert_eq!(data.type_parameters.count(), 1);
 
-    let machine = parsed
-        .root_items()
-        .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) => Some(machine),
-            _ => None,
-        })
-        .expect("machine declaration");
+    let machine = super::root_machine(&parsed, "machine declaration");
     assert_eq!(machine.lifetime_parameters.len(), 1);
     assert_eq!(machine.lifetime_parameters[0].as_str(), "call");
     assert!(machine.type_parameters.is_empty());
@@ -513,13 +501,7 @@ fn preserves_erased_lifetime_arguments_separately_from_runtime_generic_arguments
     "#;
 
     let parsed = super::parse_source(source, "parse should succeed");
-    let machine = parsed
-        .root_items()
-        .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) => Some(machine),
-            _ => None,
-        })
-        .expect("machine declaration");
+    let machine = super::root_machine(&parsed, "machine declaration");
     let state = parsed
         .items
         .state(parsed.items.state_handles(machine.states)[0]);
@@ -869,13 +851,7 @@ fn parses_evidence_binder_in_machine_telescope() {
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let parsed = parse_syntax_trees(&tokens).expect("an evidence binder should parse");
-    let machine = parsed
-        .root_items()
-        .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) => Some(machine),
-            _ => None,
-        })
-        .expect("machine");
+    let machine = super::root_machine(&parsed, "machine");
 
     let parameters = parsed.items.type_parameters(machine.type_parameters);
     assert_eq!(parameters.len(), 1, "Order is not a runtime type parameter");
@@ -913,13 +889,7 @@ fn retains_named_dynamic_conformance_path() {
     "#;
 
     let parsed = super::parse_source(source, "named dynamic conformance should parse");
-    let machine = parsed
-        .root_items()
-        .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) => Some(machine),
-            _ => None,
-        })
-        .expect("machine root item");
+    let machine = super::root_machine(&parsed, "machine root item");
     let state = parsed.items.state(
         parsed
             .items
@@ -957,13 +927,7 @@ fn distinguishes_shared_mutable_and_write_only_reference_access() {
     "#;
 
     let parsed = super::parse_source(source, "reference access modes should parse");
-    let machine = parsed
-        .root_items()
-        .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) => Some(machine),
-            _ => None,
-        })
-        .expect("machine root item");
+    let machine = super::root_machine(&parsed, "machine root item");
     let state = parsed.items.state(
         parsed
             .items
@@ -1035,13 +999,7 @@ fn parses_attached_main_state_name_as_main() {
         "#;
 
     let parsed = super::parse_source(source, "parse should succeed");
-    let machine = parsed
-        .root_items()
-        .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) => Some(machine),
-            _ => None,
-        })
-        .expect("machine root item");
+    let machine = super::root_machine(&parsed, "machine root item");
     let state_handle = parsed
         .items
         .state_handles(machine.states)

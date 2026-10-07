@@ -384,13 +384,7 @@ fn parses_explicit_parameter_with_named_carrier_type() {
         "#;
 
     let parsed = super::parse_source(source, "parse should succeed");
-    let machine = parsed
-        .root_items()
-        .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) => Some(machine),
-            _ => None,
-        })
-        .expect("machine root item");
+    let machine = super::root_machine(&parsed, "machine root item");
     let state = parsed.items.state(
         parsed
             .items
@@ -478,13 +472,7 @@ fn parses_explicit_parameter_use_as_ordinary_name() {
         "#;
 
     let parsed = super::parse_source(source, "parse should succeed");
-    let machine = parsed
-        .root_items()
-        .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) => Some(machine),
-            _ => None,
-        })
-        .expect("machine root item");
+    let machine = super::root_machine(&parsed, "machine root item");
     let state = parsed.items.state(
         parsed
             .items
@@ -536,13 +524,7 @@ fn parses_nested_call_arguments_as_contiguous_expression_spans() {
         "#;
 
     let parsed = super::parse_source(source, "parse should succeed");
-    let machine = parsed
-        .root_items()
-        .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) => Some(machine),
-            _ => None,
-        })
-        .expect("machine root item");
+    let machine = super::root_machine(&parsed, "machine root item");
     let state = parsed.items.state(
         parsed
             .items
@@ -578,13 +560,7 @@ fn parses_positional_erased_evidence_call_lane_after_semicolon() {
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let parsed = parse_syntax_trees(&tokens).expect("evidence lane should parse");
-    let machine = parsed
-        .root_items()
-        .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) => Some(machine),
-            _ => None,
-        })
-        .expect("machine");
+    let machine = super::root_machine(&parsed, "machine");
     let state = parsed
         .items
         .state(parsed.items.state_handles(machine.states)[0]);
@@ -617,13 +593,7 @@ fn parses_evidence_only_call_lane_with_leading_semicolon() {
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let parsed = parse_syntax_trees(&tokens).expect("evidence-only lane should parse");
-    let machine = parsed
-        .root_items()
-        .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) => Some(machine),
-            _ => None,
-        })
-        .expect("machine");
+    let machine = super::root_machine(&parsed, "machine");
     let state = parsed
         .items
         .state(parsed.items.state_handles(machine.states)[0]);
@@ -652,13 +622,7 @@ fn parses_evidence_lane_on_named_transition_without_dropping_it() {
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let parsed = parse_syntax_trees(&tokens).expect("named transition evidence lane should parse");
-    let machine = parsed
-        .root_items()
-        .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) => Some(machine),
-            _ => None,
-        })
-        .expect("machine");
+    let machine = super::root_machine(&parsed, "machine");
     let state = parsed
         .items
         .state(parsed.items.state_handles(machine.states)[0]);
@@ -694,13 +658,7 @@ fn tail_self_call_rewrite_retains_the_authored_target_span() {
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let parsed = parse_syntax_trees(&tokens).expect("tail self call should parse");
-    let machine = parsed
-        .root_items()
-        .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) => Some(machine),
-            _ => None,
-        })
-        .expect("machine");
+    let machine = super::root_machine(&parsed, "machine");
     let state = parsed
         .items
         .state(parsed.items.state_handles(machine.states)[0]);
@@ -750,13 +708,7 @@ fn parses_machine_parameter_with_mandatory_contract() {
         "#;
 
     let parsed = super::parse_source(source, "machine parameter should parse");
-    let machine = parsed
-        .root_items()
-        .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) => Some(machine),
-            _ => None,
-        })
-        .expect("generic machine");
+    let machine = super::root_machine(&parsed, "generic machine");
     let parameters = parsed.items.type_parameters(machine.type_parameters);
     assert_eq!(parameters.len(), 1);
     assert_eq!(parameters[0].name.as_str(), "Key");
@@ -793,13 +745,7 @@ fn parses_nominal_machine_parameter_requirement() {
         "#;
 
     let parsed = super::parse_source(source, "nominal machine contract should parse");
-    let machine = parsed
-        .root_items()
-        .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) => Some(machine),
-            _ => None,
-        })
-        .expect("generic machine");
+    let machine = super::root_machine(&parsed, "generic machine");
     let [parameter] = parsed.items.type_parameters(machine.type_parameters) else {
         panic!("expected one machine parameter");
     };
@@ -829,13 +775,7 @@ fn parses_bodyless_nominal_machine_parameter_with_one_semicolon() {
         "#;
 
     let parsed = super::parse_source(source, "bodyless nominal binder should parse");
-    let machine = parsed
-        .root_items()
-        .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) => Some(machine),
-            _ => None,
-        })
-        .expect("bodyless generic machine");
+    let machine = super::root_machine(&parsed, "bodyless generic machine");
     assert!(machine.bodyless);
     assert!(matches!(
         parsed.items.type_parameters(machine.type_parameters)[0].kind,
@@ -890,13 +830,7 @@ fn parses_structural_and_nominal_machine_parameter_contracts_together() {
         "#;
 
     let parsed = super::parse_source(source, "mixed machine contracts should parse");
-    let machine = parsed
-        .root_items()
-        .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) => Some(machine),
-            _ => None,
-        })
-        .expect("generic machine");
+    let machine = super::root_machine(&parsed, "generic machine");
     let parameters = parsed.items.type_parameters(machine.type_parameters);
     assert!(matches!(
         parameters[0].kind,
@@ -1035,13 +969,7 @@ fn parses_higher_order_machine_parameter_contract() {
         "#;
 
     let parsed = super::parse_source(source, "higher-order contract should parse");
-    let machine = parsed
-        .root_items()
-        .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) => Some(machine),
-            _ => None,
-        })
-        .expect("generic machine");
+    let machine = super::root_machine(&parsed, "generic machine");
     let parameters = parsed.items.type_parameters(machine.type_parameters);
     assert_eq!(parameters.len(), 2);
     let syntax_trees::item::TypeParameterKind::Machine {
@@ -1315,13 +1243,7 @@ fn destructure_marker_preserves_double_underscore_field_as_one_component() {
         }
     "#;
     let parsed = super::parse_source(source, "destructure should parse");
-    let machine = parsed
-        .root_items()
-        .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) => Some(machine),
-            _ => None,
-        })
-        .expect("machine root item");
+    let machine = super::root_machine(&parsed, "machine root item");
     let state = parsed.items.state(
         parsed
             .items

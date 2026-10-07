@@ -127,13 +127,7 @@ fn parses_machine_termination_clauses() {
         "#;
 
     let parsed = super::parse_source(source, "parse should succeed");
-    let machine = parsed
-        .root_items()
-        .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) => Some(machine),
-            _ => None,
-        })
-        .expect("machine root item");
+    let machine = super::root_machine(&parsed, "machine root item");
 
     assert_eq!(
         parsed
@@ -163,13 +157,7 @@ fn parses_machine_termination_tuple_subjects() {
         "#;
 
     let parsed = super::parse_source(source, "parse should succeed");
-    let machine = parsed
-        .root_items()
-        .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) => Some(machine),
-            _ => None,
-        })
-        .expect("machine root item");
+    let machine = super::root_machine(&parsed, "machine root item");
 
     assert_eq!(
         parsed
@@ -200,13 +188,7 @@ fn parses_machine_termination_argumented_view() {
         "#;
 
     let parsed = super::parse_source(source, "parse should succeed");
-    let machine = parsed
-        .root_items()
-        .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) => Some(machine),
-            _ => None,
-        })
-        .expect("machine root item");
+    let machine = super::root_machine(&parsed, "machine root item");
 
     // The by-form supplies only the witness -- never the public guarantee.
     assert!(!machine.terminates_guarantee);
@@ -528,13 +510,7 @@ fn expands_carry_portable_contract_guarantee_to_four_atomic_facts() {
         "#;
 
     let parsed = super::parse_source(source, "parse should succeed");
-    let machine = parsed
-        .root_items()
-        .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) => Some(machine),
-            _ => None,
-        })
-        .expect("machine root item");
+    let machine = super::root_machine(&parsed, "machine root item");
     let [contract] = parsed.items.capability_contracts(machine.contracts) else {
         panic!("one ensures contract");
     };
@@ -574,13 +550,7 @@ fn parses_slice_range_indexing_into_range_expression() {
         "#;
 
     let parsed = super::parse_source(source, "parse should accept slice range surface");
-    let machine = parsed
-        .root_items()
-        .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) => Some(machine),
-            _ => None,
-        })
-        .expect("machine root item");
+    let machine = super::root_machine(&parsed, "machine root item");
     let state_handle = parsed
         .items
         .state_handles(machine.states)
@@ -630,13 +600,7 @@ fn parses_structural_recast_targets_as_type_references() {
         "#;
 
     let parsed = super::parse_source(source, "array and slice recast targets should parse");
-    let machine = parsed
-        .root_items()
-        .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) => Some(machine),
-            _ => None,
-        })
-        .expect("machine root item");
+    let machine = super::root_machine(&parsed, "machine root item");
     let state = parsed
         .items
         .state(parsed.items.state_handles(machine.states)[0]);
@@ -756,13 +720,7 @@ fn parses_data_destructure_transition_guard_as_subject_member_guard() {
         "#;
 
     let parsed = super::parse_source(source, "parse should succeed");
-    let machine = parsed
-        .root_items()
-        .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) => Some(machine),
-            _ => None,
-        })
-        .expect("machine root item");
+    let machine = super::root_machine(&parsed, "machine root item");
     let entry = parsed
         .items
         .state_handles(machine.states)
@@ -972,13 +930,7 @@ fn parses_record_field_value_pattern_as_subject_member_equality() {
     "#;
 
     let parsed = super::parse_source(source, "field-value pattern should parse");
-    let machine = parsed
-        .root_items()
-        .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) => Some(machine),
-            _ => None,
-        })
-        .expect("machine root item");
+    let machine = super::root_machine(&parsed, "machine root item");
     let state = parsed
         .items
         .state_handles(machine.states)
@@ -1031,13 +983,7 @@ fn parses_asm_jmp_block_as_transition_statement() {
         "#;
 
     let parsed = super::parse_source(source, "parse should succeed");
-    let machine = parsed
-        .root_items()
-        .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) => Some(machine),
-            _ => None,
-        })
-        .expect("machine root item");
+    let machine = super::root_machine(&parsed, "machine root item");
     let entry = parsed
         .items
         .state_handles(machine.states)
@@ -1076,13 +1022,7 @@ fn parses_asm_mnemonics_as_intrinsic_calls() {
         "#;
 
     let parsed = super::parse_source(source, "parse should succeed");
-    let machine = parsed
-        .root_items()
-        .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) => Some(machine),
-            _ => None,
-        })
-        .expect("machine root item");
+    let machine = super::root_machine(&parsed, "machine root item");
     let entry = parsed
         .items
         .state_handles(machine.states)

@@ -24,3 +24,38 @@ fn parse_source(source: &str, parse_message: &str) -> syntax_trees::SyntaxTrees 
         .expect("tokenize should succeed");
     crate::parser::parse_syntax_trees(&tokens).expect(parse_message)
 }
+
+/// `unwrap`-flavored counterpart of `parse_source` for sites written with
+/// plain unwraps.
+fn parse_source_unwrap(source: &str) -> syntax_trees::SyntaxTrees {
+    let tokens = source_files_to_tokens::Lexer::new(source)
+        .tokenize()
+        .unwrap();
+    crate::parser::parse_syntax_trees(&tokens).unwrap()
+}
+
+/// The first root `machine` item — the shared extraction the
+/// single-machine tests use.
+fn root_machine<'p>(
+    parsed: &'p syntax_trees::SyntaxTrees,
+    message: &str,
+) -> &'p syntax_trees::item::Machine {
+    parsed
+        .root_items()
+        .find_map(|item| match item {
+            syntax_trees::item::Item::Machine(machine) => Some(machine),
+            _ => None,
+        })
+        .expect(message)
+}
+
+/// `unwrap`-flavored counterpart of `root_machine`.
+fn root_machine_unwrap(parsed: &syntax_trees::SyntaxTrees) -> &syntax_trees::item::Machine {
+    parsed
+        .root_items()
+        .find_map(|item| match item {
+            syntax_trees::item::Item::Machine(machine) => Some(machine),
+            _ => None,
+        })
+        .unwrap()
+}

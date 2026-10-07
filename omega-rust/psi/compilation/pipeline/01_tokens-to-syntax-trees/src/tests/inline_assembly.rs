@@ -14,13 +14,7 @@ fn parses_x86_memory_fences_as_zero_operand_intrinsics() {
         "#;
 
     let parsed = super::parse_source(source, "parse should succeed");
-    let machine = parsed
-        .root_items()
-        .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) => Some(machine),
-            _ => None,
-        })
-        .expect("machine root item");
+    let machine = super::root_machine(&parsed, "machine root item");
     let entry = parsed.items.state_handles(machine.states)[0];
     let statements = parsed
         .items
@@ -51,13 +45,7 @@ fn parses_x86_interrupt_control_as_zero_operand_intrinsics() {
         "#;
 
     let parsed = super::parse_source(source, "parse should succeed");
-    let machine = parsed
-        .root_items()
-        .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) => Some(machine),
-            _ => None,
-        })
-        .expect("machine root item");
+    let machine = super::root_machine(&parsed, "machine root item");
     let entry = parsed.items.state_handles(machine.states)[0];
     let statements = parsed
         .items
@@ -88,13 +76,7 @@ fn parses_x86_flags_as_explicit_value_operations() {
         "#;
 
     let parsed = super::parse_source(source, "parse should succeed");
-    let machine = parsed
-        .root_items()
-        .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) => Some(machine),
-            _ => None,
-        })
-        .expect("machine root item");
+    let machine = super::root_machine(&parsed, "machine root item");
     let state = parsed
         .items
         .state(parsed.items.state_handles(machine.states)[0]);
@@ -131,13 +113,7 @@ fn parses_x86_msr_as_structured_value_operations() {
         "#;
 
     let parsed = super::parse_source(source, "parse should succeed");
-    let machine = parsed
-        .root_items()
-        .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) => Some(machine),
-            _ => None,
-        })
-        .expect("machine root item");
+    let machine = super::root_machine(&parsed, "machine root item");
     let state = parsed
         .items
         .state(parsed.items.state_handles(machine.states)[0]);
@@ -179,13 +155,7 @@ fn parses_x86_control_registers_as_structured_value_operations() {
         "#;
 
     let parsed = super::parse_source(source, "parse should succeed");
-    let machine = parsed
-        .root_items()
-        .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) => Some(machine),
-            _ => None,
-        })
-        .expect("machine root item");
+    let machine = super::root_machine(&parsed, "machine root item");
     let state = parsed
         .items
         .state(parsed.items.state_handles(machine.states)[0]);
@@ -266,13 +236,7 @@ fn parses_multi_instruction_asm_in_states_and_trait_defaults() {
         2,
         "trait default should retain both asm instructions"
     );
-    let machine = parsed
-        .root_items()
-        .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) => Some(machine),
-            _ => None,
-        })
-        .expect("machine root item");
+    let machine = super::root_machine(&parsed, "machine root item");
     let explicit = parsed
         .items
         .state_handles(machine.states)
@@ -388,13 +352,7 @@ fn parses_register_move_as_an_ordinary_checked_assignment() {
         "#;
 
     let parsed = super::parse_source(source, "register moves should parse");
-    let machine = parsed
-        .root_items()
-        .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) => Some(machine),
-            _ => None,
-        })
-        .expect("machine root item");
+    let machine = super::root_machine(&parsed, "machine root item");
     let entry = parsed.items.state_handles(machine.states)[0];
     let statements = parsed
         .items
@@ -439,13 +397,7 @@ fn parses_memory_transfers_as_place_assignments() {
         "#;
 
     let parsed = super::parse_source(source, "memory transfers should parse");
-    let machine = parsed
-        .root_items()
-        .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) => Some(machine),
-            _ => None,
-        })
-        .expect("machine root item");
+    let machine = super::root_machine(&parsed, "machine root item");
     let entry = parsed.items.state_handles(machine.states)[0];
     let statements = parsed
         .items
@@ -554,13 +506,7 @@ fn parses_asm_where_facts_at_entry_and_exit() {
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let parsed = parse_syntax_trees(&tokens).expect("asm facts should parse");
-    let machine = parsed
-        .root_items()
-        .find_map(|item| match item {
-            syntax_trees::item::Item::Machine(machine) => Some(machine),
-            _ => None,
-        })
-        .expect("machine");
+    let machine = super::root_machine(&parsed, "machine");
     let state = parsed
         .items
         .state(parsed.items.state_handles(machine.states)[0]);
